@@ -1,0 +1,1815 @@
+Send API v3.1
+Send API v3.1 has been released in August 2017 bringing new functionalities, better error reporting and top-notch developer experience. Mailjet is still supporting Send API V3.
+
+If you are a current user of Send API in version 3, we listed the changes you will need to take into account to migrate to v3.1.
+
+Read this blogpost to learn more on how we designed our Send API V3.1 and where our Transactional Suite is going to.
+
+Send a basic email
+The Send API v3.1 sends a collection of messages, added in JSON array, called Messages. The input payload must start with it. The mandatory properties for any message element are:
+
+From: JSON object, containing 2 properties: Name and Email address of a previously validated and active sender. Including the Name property in the JSON is optional. This property is not mandatory in case you use TemplateID and you specified a From address for the template. Format : { "Email":"value", "Name":"value" }.
+To: array of JSON objects describing each recipient. Format : [{ "Email":"value", "Name":"value" },...]. Here again the inclusion of theNameproperty in the JSON is optional. The same is also valid for theCcandBcc objects, who have the same structure.
+One of the following content parts is also mandatory :
+
+TextPart and/or HtmlPart: content of the message, sent in Text and/or HTML format. At least one of these content types needs to be specified. When the HTML part is the only part provided, Mailjet will not generate a Text-part from the HTML version. The property can't be set when you use TemplateID.
+TemplateID: an ID for a template that is previously created and stored in Mailjet's system. It is mandatory when From and TextPart and/or HtmlPart are not provided. Visit the Use a Template section for more information.
+Important: The recipients listed in To will receive a common message, showing every other recipient and carbon copy (CC) recipients. If you do not wish the recipients to see each other, you have to create multiple messages in the Messages array.
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!"
+23
+        }
+24
+    ]
+25
+  }'
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Status": "success",
+5
+      "To": [
+6
+        {
+7
+          "Email": "passenger1@mailjet.com",
+8
+          "MessageUUID": "123",
+9
+          "MessageID": 456,
+10
+          "MessageHref": "https://api.mailjet.com/v3/message/456"
+11
+        }
+12
+      ]
+13
+    }
+14
+  ]
+15
+}
+Send API will send a response containing an array of Messages. Each instance of the message object will include the Status and the list of message UUIDs for each recipient in To, Cc and Bcc.
+
+MessageUUID is the internal Mailjet ID of your message.
+
+MessageID is the unique ID of the message (legacy format). You will be able to use this id to get more information about your message.
+
+MessageHref is a URL, pointing to the API URL, where the message metadata can be retrieved. It is made of the API Base URL, the message resource path and the message ID (not UUID).
+
+NOTICE: If you send an email to a contact, which is not registered in Mailjet, the system will automatically create and save it. Keep this in mind if you intend to use this email address later (for example to add it to a contact list), as it will already exist in Mailjet and there's no need to create it again.
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                },
+19
+                {
+20
+                    "Email": "passenger2@mailjet.com",
+21
+                    "Name": "passenger 2"
+22
+                }
+23
+            ],
+24
+            "Cc": [
+25
+                {
+26
+                    "Email": "copilot@mailjet.com",
+27
+                    "Name": "Copilot"
+28
+                }
+29
+            ],
+30
+            "Bcc": [
+31
+                {
+32
+                    "Email": "air-traffic-control@mailjet.com",
+33
+                    "Name": "Air traffic control"
+34
+                }
+35
+            ],
+36
+            "Subject": "Your email flight plan!",
+37
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+38
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!"
+39
+        }
+40
+    ]
+41
+  }'
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Status": "success",
+5
+      "To": [
+6
+        {
+7
+          "Email": "passenger1@mailjet.com",
+8
+          "MessageUUID": "123",
+9
+          "MessageID": 456,
+10
+          "MessageHref": "https://api.mailjet.com/v3/message/456"
+11
+        },
+12
+        {
+13
+          "Email": "passenger2@mailjet.com",
+14
+          "MessageUUID": "124",
+15
+          "MessageID": 457,
+16
+          "MessageHref": "https://api.mailjet.com/v3/message/457"
+17
+        }
+18
+      ],
+19
+      "Cc": [
+20
+        {
+21
+          "Email": "copilot@mailjet.com",
+22
+          "MessageUUID": "125",
+23
+          "MessageID": 458,
+24
+          "MessageHref": "https://api.mailjet.com/v3/message/458"
+25
+        }
+26
+      ],
+27
+      "Bcc": [
+28
+        {
+29
+          "Email": "air-traffic-control@mailjet.com",
+30
+          "MessageUUID": "126",
+31
+          "MessageID": 459,
+32
+          "MessageHref": "https://api.mailjet.com/v3/message/459"
+33
+        }
+34
+      ]
+35
+    }
+36
+  ]
+37
+}
+Send with attached files
+To attach files, use the properties Attachments or InlinedAttachments.
+When using Attachments, the attachment will be separately added as a file and the recipient should click on it in order to see it. Normally, the inlined attachment(s) should be visible directly in the body of the message, but this depends on the recipient's email client behavior. In both calls, the content needs to be Base64 encoded. You also need to specify the MIME type and a file name.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to the given recipient with attachment.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!",
+23
+            "Attachments": [
+24
+                {
+25
+                    "ContentType": "text/plain",
+26
+                    "Filename": "test.txt",
+27
+                    "Base64Content": "VGhpcyBpcyB5b3VyIGF0dGFjaGVkIGZpbGUhISEK"
+28
+                }
+29
+            ]
+30
+        }
+31
+    ]
+32
+  }'
+When using an inlined attachment, it's possible to insert the file inside the HTML code of the email by using cid:FILENAME.EXT, where FILENAME.EXT is the Filename specified in the declaration of the attachment. Optionally, you can set ContentID. It's converted to a Content-ID SMTP header. The value set must be unique - Mailjet isn't enforcing it - among all the inline attachments and can be used to reference the inlined attachment in the message body, using the following syntax in HTML (since plain text messages can not contain images): &lt;img src="cid:myimagecid"/&gt;
+
+Remember to keep the size of your attachments small. They should not exceed 15 MB.
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to the given recipient with inline attachment.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <img src=\"cid:id1\"> <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!",
+23
+            "InlinedAttachments": [
+24
+                {
+25
+                    "ContentType": "image/png",
+26
+                    "Filename": "logo.png",
+27
+                    "ContentID": "id1",
+28
+                    "Base64Content": "iVBORw0KGgoAAAANSUhEUgAAABQAAAALCAYAAAB/Ca1DAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAAB3RJTUUH4wIIChcxurq5eQAAAAd0RVh0QXV0aG9yAKmuzEgAAAAMdEVYdERlc2NyaXB0aW9uABMJISMAAAAKdEVYdENvcHlyaWdodACsD8w6AAAADnRFWHRDcmVhdGlvbiB0aW1lADX3DwkAAAAJdEVYdFNvZnR3YXJlAF1w/zoAAAALdEVYdERpc2NsYWltZXIAt8C0jwAAAAh0RVh0V2FybmluZwDAG+aHAAAAB3RFWHRTb3VyY2UA9f+D6wAAAAh0RVh0Q29tbWVudAD2zJa/AAAABnRFWHRUaXRsZQCo7tInAAABV0lEQVQokaXSPWtTYRTA8d9N7k1zm6a+RG2x+FItgpu66uDQxbFurrr5OQQHR9FZnARB3PwSFqooddAStCBoqmLtS9omx+ESUXuDon94tnP+5+1JYm057GyQjZFP+l+S6G2FzlNe3WHtHc2TNI8zOlUUGLxsD1kDyR+EEQE2P/L8Jm/uk6RUc6oZaYM0JxtnpEX9AGPTtM6w7yzVEb61EaSNn4QD3j5m4QabH6hkVFLSUeqHyCeot0ib6BdNVGscPM/hWWr7S4Tw9TUvbpFUitHTnF6XrS+sL7O6VBSausT0FZonSkb+nZUFFm+z8Z5up5Btr1Lby7E5Zq4yPrMrLR263ZV52g+LvfW3iy6PXubUNVrnhqYNF3bmiZ1i1MmLnL7OxIWh4T+IMpYeRNyrRzyZjWg/ioh+aVgZu4WfXxaixbsRve5fiwb8epTo8+kZjSPFf/sHvgNC0/mbjJbxPAAAAABJRU5ErkJggg=="
+29
+                }
+30
+            ]
+31
+        }
+32
+    ]
+33
+  }'
+Send in bulk
+To send messages in bulk, package the multiple messages inside the Messages property.
+
+The messages’ order is preserved from the user input, allowing you to identify which message response corresponds to your original message payload.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends 2 messages to 2 different recipients.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!"
+23
+        },
+24
+        {
+25
+            "From": {
+26
+                "Email": "pilot@mailjet.com",
+27
+                "Name": "Mailjet Pilot"
+28
+            },
+29
+            "To": [
+30
+                {
+31
+                    "Email": "passenger2@mailjet.com",
+32
+                    "Name": "passenger 2"
+33
+                }
+34
+            ],
+35
+            "Subject": "Your email flight plan!",
+36
+            "TextPart": "Dear passenger 2, welcome to Mailjet! May the delivery force be with you!",
+37
+            "HTMLPart": "<h3>Dear passenger 2, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br />May the delivery force be with you!"
+38
+        }
+39
+    ]
+40
+  }'
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Status": "success",
+5
+      "To": [
+6
+        {
+7
+          "Email": "passenger1@mailjet.com",
+8
+          "MessageUUID": "123",
+9
+          "MessageID": 20547681647433000,
+10
+          "MessageHref": "https://api.mailjet.com/v3/message/20547681647433000"
+11
+        }
+12
+      ]
+13
+    },
+14
+    {
+15
+      "Status": "success",
+16
+      "To": [
+17
+        {
+18
+          "Email": "passenger2@mailjet.com",
+19
+          "MessageUUID": "124",
+20
+          "MessageID": 20547681647433001,
+21
+          "MessageHref": "https://api.mailjet.com/v3/message/20547681647433001"
+22
+        }
+23
+      ]
+24
+    }
+25
+  ]
+26
+}
+In case of errors on one or several of the messages, the API will not stop the processing of other successful messages. All validated messages will be processed for sending and the response will include both MessageIDs and Error reports.
+
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Errors": [
+5
+        {
+6
+          "ErrorIdentifier": "88b5ca9f-5f1f-42e7-a45e-9ecbad0c285e",
+7
+          "ErrorCode": "send-0003",
+8
+          "StatusCode": 400,
+9
+          "ErrorMessage": "At least \"HTMLPart\", \"TextPart\" or \"TemplateID\" must be provided.",
+10
+          "ErrorRelatedTo": ["HTMLPart", "TextPart"]
+11
+        }
+12
+      ],
+13
+      "Status": "error"
+14
+    },
+15
+    {
+16
+      "Status": "success",
+17
+      "CustomID": "",
+18
+      "To": [
+19
+        {
+20
+          "Email": "passenger2@mailjet.com",
+21
+          "MessageUUID": "cb927469-36fd-4c02-bce4-0d199929a207",
+22
+          "MessageID": 70650219165027410,
+23
+          "MessageHref": "https://api.mailjet.com/v3/REST/message/70650219165027410"
+24
+        }
+25
+      ],
+26
+      "Cc": [],
+27
+      "Bcc": []
+28
+    }
+29
+  ]
+30
+}
+Set global payload properties
+If you are sending messages in bulk, often times some property values within your payload will be the same across multiple messages. To avoid repetition and simplify the structure of your payload, you can use Globals to specify specific properties. Those will then be applied to all message objects.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Globals": {
+9
+        "From": {
+10
+            "Email": "pilot@mailjet.com",
+11
+            "Name": "Mailjet Pilot"
+12
+        },
+13
+        "Subject": "Your email flight plan!"
+14
+    },
+15
+    "Messages":[
+16
+        {
+17
+            "To": [
+18
+                {
+19
+                    "Email": "passenger1@mailjet.com",
+20
+                    "Name": "passenger 1"
+21
+                }
+22
+            ],
+23
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+24
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!"
+25
+        },
+26
+        {
+27
+            "To": [
+28
+                {
+29
+                    "Email": "passenger2@mailjet.com",
+30
+                    "Name": "passenger 2"
+31
+                }
+32
+            ],
+33
+            "TextPart": "Dear passenger 2, welcome to Mailjet! ",
+34
+            "HTMLPart": "<h3>Dear passenger 2, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!"
+35
+        }
+36
+    ]
+37
+  }'
+In Globals you can specify values for all message properties, except To.
+
+Whenever a certain property is specified in both Globals and a message object, the way they interact depends on the property type:
+
+String, integer and boolean properties will be overwritten by the message properties of the same name.
+Example:
+
+Globals: "Subject": "Your email flight plan!"
+
+Message: "Subject": "Your promo code!"
+
+Final result: "Subject": "Your promo code!"
+
+Object type properties (From, Sender, ReplyTo, TemplateErrorReporting, Headers, Variables) will be merged with the message property, overwriting any concurrent property.
+Example:
+
+Globals: "variables" : {"var1":"value1","var2":"value2"}
+
+Message: "variables" : {"var1":"value1_bis","var3":"value3"}
+
+Final result: "variables" : {"var1":"value1_bis","var2":"value2","var3":"value3"}
+
+Array type properties (Cc, Bcc, Attachments, InlineAttachments) will be appended.
+Example:
+
+Globals: "Cc" : [{"Email":"passenger@mailjet.com","Name":"passenger"}]
+
+Message: "Cc" : [{"Email":"passenger2@mailjet.com","Name":"passenger2"}]
+
+Final result: "Cc" : [{"Email":"passenger@mailjet.com","Name":"passenger"}, {"Email":"passenger2@mailjet.com","Name":"passenger2"}]
+
+Personalization
+Content formatting
+Mailjet offers a templating language that allows you to personalize your transactional messages. It enables you to insert data in your text or HTML parts.
+
+To do so, use {{DATA_TYPE:DATA_NAME}} where:
+
+DATA_TYPE: var for Variables specified in the API call or data for contact data, which is already available in the Mailjet system
+DATA_NAME: name of the data you want to insert
+NOTICE: The TemplateLanguage property should be set to true to force Send API to interpret the template language (X-MJ-TemplateLanguage in case you are using SMTP).
+Visit our Transactional templating guide to learn about additional substitutions, modification functions and conditional statements you can use to personalize your messages.
+
+Use vars and custom vars
+By using Variables in conjunction with the {{var:VAR_NAME}} or {{var:VAR_NAME:DEFAULT_VALUE}} , you can modify the content of your email with variables, pushed in your Send API call.
+
+DEFAULT_VALUEis the default value that will be used, if the variable is not defined in the API call.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to a recipient with global personalisation.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Variables": {
+21
+                "day": "Monday"
+22
+            },
+23
+            "TemplateLanguage": true,
+24
+            "Subject": "Your email flight plan!",
+25
+            "TextPart": "Dear passenger, welcome to Mailjet! On this {{var:day}}, may the delivery force be with you!",
+26
+            "HTMLPart": "<h3>Dear passenger, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />On this {{var:day}}, may the delivery force be with you!"
+27
+        }
+28
+    ]
+29
+  }'
+Use contact properties
+If the contact you are sending an email to is already existing in the Mailjet system with some contact data, you can leverage this information to personalize your email.
+
+Use {{data:METADATA_NAME}} or {{data:METADATA_NAME:DEFAULT_VALUE}} to insert data in your content.
+
+DEFAULT_VALUE is the default value that will be used if no data is found.
+
+Refer to the Personalization section for more information on how to add contact properties.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to the a recipient with contact property personalisation.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "TemplateLanguage": true,
+21
+            "Subject": "Your email flight plan!",
+22
+            "TextPart": "Dear {{data:firstname:\"passenger\"}}, welcome to Mailjet! May the delivery force be with you!",
+23
+            "HTMLPart": "<h3>Dear {{data:firstname:\"passenger\"}}, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br /> May the delivery force be with you!"
+24
+        }
+25
+    ]
+26
+  }'
+Use a Template
+Mailjet offers to store your transactional message templates on its platform. You can use these templates to avoid repeating the content of a transactional message at each Send API call.
+
+You can either create the templates through our online drag and drop tool Passport or through the /template resource.
+
+You can also follow our Step by Step guide to create your first Passport template with templating language.
+
+In the templates, you will be able to use simple personalization ([[data:property_name]] or [[var:variable_name]]) or advanced templating language ({{data:property_name}}, {{var:variable_name}}, conditional statements and loop statements).
+
+In this sample, TemplateID will be the ID provided by Passport at the end of your designing process or the ID returned by the /template resource.
+
+The TemplateLanguage property in the payload provided to Send API is optional, but if you want to have the templating language interpreted, it will be mandatory and must have a true value.
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message based on a template.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "TemplateID": 1,
+21
+            "TemplateLanguage": true,
+22
+            "Subject": "Your email flight plan!"
+23
+        }
+24
+    ]
+25
+  }'
+Use Templating Language
+Mailjet Send API allows you to leverage the Mailjet templating language in your transactional messages.
+
+The Mailjet Templating Language enables you to achieve:
+
+variable substitution
+conditions, including usage of contacts segments
+loops
+and a lot more...
+The TemplateLanguage property in the payload provided to Send API is optional but if you want to have the templating language interpreted, it will be mandatory and must have a true value.
+Find our dedicated guide here.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to the given recipient with vars and custom vars.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "TextPart": "Dear passenger, welcome to Mailjet! On this {{var:day:\"monday\"}}, may the delivery force be with you! {{var:personalmessage:\"\"}}",
+21
+            "HTMLPart": "<h3>Dear passenger, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br /> On this {{var:day:\"monday\"}}, may the delivery force be with you! {{var:personalmessage:\"\"}}",
+22
+            "TemplateLanguage": true,
+23
+            "Subject": "Your email flight plan!",
+24
+            "Variables": {
+25
+                "day": "Tuesday",
+26
+                "personalmessage": "Happy birthday!"
+27
+            }
+28
+        }
+29
+    ]
+30
+  }'
+Add Email Headers
+In every message, you can specify your own Email headers using the Headers property. These headers will be added to the SMTP headers of the message, delivered to the recipient.
+
+Only headers that don’t have a dedicated property in the message payload can be customized through the Headers property. In addition, some headers can’t be customized.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends an email to one recipient with an additional SMTP header
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br />May the delivery force be with you!",
+23
+            "Headers": {
+24
+                "X-My-header": "X2332X-324-432-534"
+25
+            }
+26
+        }
+27
+    ]
+28
+  }'
+List of forbidden headers :
+
+
+From
+
+Sender
+
+Subject
+
+To
+
+
+Cc
+
+Bcc
+
+Return-Path
+
+Delivered-To
+
+
+DKIM-Signature
+
+DomainKey-Status
+
+Received-SPF
+
+Authentication-Results
+
+
+Received
+
+X-Mailjet-Prio
+
+X-Mailjet-Debug
+
+User-Agent
+
+
+X-Mailer
+
+X-MJ-CustomID
+
+X-MJ-EventPayload
+
+X-MJ-Vars
+
+
+X-MJ-TemplateErrorDeliver
+
+X-MJ-TemplateErrorReporting
+
+X-MJ-TemplateLanguage
+
+X-Mailjet-TrackOpen
+
+
+X-Mailjet-TrackClick
+
+X-MJ-TemplateID
+
+X-MJ-WorkflowID
+
+X-Feedback-Id
+
+
+X-Mailjet-Segmentation
+
+List-Id
+
+X-MJ-MID
+
+X-MJ-ErrorMessage
+
+
+Date
+
+X-CSA-Complaints
+
+Message-Id
+
+X-Mailjet-Campaign
+
+
+X-MJ-StatisticsContactsListID
+
+
+
+Tag Email Messages
+Mailjet provides 2 properties to tag messages with your own custom information.
+
+These custom tags are included in the events triggered by our Event API and in the messages processed via our Parse API.
+
+Send an email with a custom ID
+Sometimes you may need to use your own ID, in addition to ours, to be able to easily trace back the message in our system. To achieve this, just pass the ID you wish in the CustomID property.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient with a CustomID
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br />May the delivery force be with you!",
+23
+            "CustomID": "PassengerEticket1234"
+24
+        }
+25
+    ]
+26
+  }'
+Your CustomID will be linked to our own UUID. You can also retrieve the message later by providing it to the /message resource with CustomID filter.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# View : API Key Statistical campaign/message data.
+2
+curl -s \
+3
+  -X GET \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3/REST/message?CustomID=PassengerEticket1234
+Send an email with a payload
+Sometimes, you need more than just an ID to represent the context of a specific message. For this purpose, we let you insert a payload in the message which can be of any format (XML, JSON, CSV, etc). To take advantage of this, just pass the payload you want in the EventPayload property.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient with an EventPayload.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br />May the delivery force be with you!",
+23
+            "EventPayload": "Eticket,1234,row,15,seat,B"
+24
+        }
+25
+    ]
+26
+  }'
+Group into a campaign
+Messages sent through Send API can be regrouped into campaigns to simulate the behavior of a regular marketing campaign. This could help you with pulling advanced statistics for your transactional campaigns.
+
+Use the Property CustomCampaign to specify the name of the campaign the message will be classified in. If the campaign doesn't already exist, it will be automatically created in the Mailjet system.
+
+By default, Mailjet lets you send multiple emails with the same campaign to the same contact. To block this feature, use DeduplicateCampaign with the value true to stop contacts from being emailed several times in the same campaign.
+
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient within a campaign blocking multiple messages to same recipient
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!</h3><br />May the delivery force be with you!",
+23
+            "CustomCampaign": "SendAPI_campaign",
+24
+            "DeduplicateCampaign": true
+25
+        }
+26
+    ]
+27
+  }'
+Add URL tags
+If you need to add tracking parameters in all your URLS in one simple way in your message, Send API offers the URLTags property. This solution will be perfect for passing UTM parameters for your traffic analytics in a easy way, without having to modify every single URLs in your message yourself.
+
+You just need to provide the query part between the first "?" character and "#" character.
+
+So if you want to have a URL in this format: http://www.example.com?param1=1&param2=2
+
+You will just need to specify : "URLTags":"param1=1&param2=2"
+
+In your HTMLPart or template, you will only need to specify the href http://www.example.com.
+
+Mailjet will add the parameters in all of the URLs in your message, before adding the Mailjet click tracking and sending the message. The URLs in your click statistics will include the URLTags provided.
+
+NOTICE: The string provided needs to be properly encoded (ie : space becomes %20, " becomes %22 ... ) see more information here
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This calls sends an email to one recipient.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"http://www.mailjet.com\">Mailjet</a>!</h3><br />May the delivery force be with you!",
+23
+            "URLTags": "param1=1&param2=2"
+24
+        }
+25
+    ]
+26
+  }'
+Sandbox Mode
+The Send API v3.1 allows to run the API call in a Sandbox mode, where all validations of the payload will be done without delivering the message.
+
+By setting the SandboxMode property to a true value, you will turn off the delivery of the message while still getting back the full range of error messages that could be related to your message processing. If the message is processed without error, the response will follow the normal response payload format, omitting only the MessageID and MessageUUID.
+
+NOTICE: The SandboxMode property is a Send API JSON payload root property like Messages, not a message JSON property.
+cURLPHPNODERUBYPYTHONJAVAGOC#
+1
+# This call sends a message to one recipient in sandbox mode.
+2
+curl -s \
+3
+  -X POST \
+4
+  --user "$MJ_APIKEY_PUBLIC:$MJ_APIKEY_PRIVATE" \
+5
+  https://api.mailjet.com/v3.1/send \
+6
+  -H 'Content-Type: application/json' \
+7
+  -d '{
+8
+    "Messages":[
+9
+        {
+10
+            "From": {
+11
+                "Email": "pilot@mailjet.com",
+12
+                "Name": "Mailjet Pilot"
+13
+            },
+14
+            "To": [
+15
+                {
+16
+                    "Email": "passenger1@mailjet.com",
+17
+                    "Name": "passenger 1"
+18
+                }
+19
+            ],
+20
+            "Subject": "Your email flight plan!",
+21
+            "TextPart": "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+22
+            "HTMLPart": "<h3>Dear passenger 1, welcome to <a href=\"https://www.mailjet.com/\">Mailjet</a>!<br />May the delivery force be with you!"
+23
+        }
+24
+    ],
+25
+    "SandboxMode":true
+26
+  }'
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Status": "success",
+5
+      "CustomID": "",
+6
+      "To": [
+7
+        {
+8
+          "Email": "passenger1@mailjet.com",
+9
+          "MessageUUID": "",
+10
+          "MessageID": 0,
+11
+          "MessageHref": "https://api.mailjet.com/v3/message/0"
+12
+        }
+13
+      ],
+14
+      "Cc": [],
+15
+      "Bcc": []
+16
+    }
+17
+  ]
+18
+}
+19
+```
+20
+​
+21
+## Send API JSON properties
+22
+​
+23
+The main content of the Send API payload will be the `Messages` property, which is a collection of messages, represented as a JSON array. This is the only mandatory property within the payload.
+24
+​
+25
+Additionally, you can use the [`Globals` property](#set-global-payload-properties) to specify values for properties to be applied to all objects within the `Messages` array.
+26
+​
+27
+Finally, you can enable [Sandbox mode](#sandbox-mode) by setting the `SandboxMode` property to `true`.
+28
+​
+29
+Full descriptions of the properties of each message can be found in the [Email API reference](/email/reference/send-emails/#v3_post_send)
+30
+​
+31
+## Send API errors
+32
+​
+33
+When an error occurs on a message validation, a `error` `Status` will be returned in the response. The description of the error(s) will be contain in the `Errors` property.
+34
+Each error will contain the following properties:
+35
+​
+36
+- `ErrorIdentifier`: internal Mailjet Error identifier
+37
+- `ErrorCode`: standardized classification of the error (see table bellow)
+38
+- `StatusCode`: Status code of the error , follow the http status code
+39
+- `ErrorMessage`: description of the error
+40
+- `ErrorRelatedTo`: list of message properties related to this error
+41
+​
+42
+**Global Error (example: broken JSON format)**
+43
+​
+44
+```json
+45
+{
+46
+  "ErrorIdentifier": "06df1144-c6f3-4ca7-8885-7ec5d4344113",
+47
+  "ErrorCode": "mj-0002",
+48
+  "ErrorMessage": "Malformed JSON, please review the syntax and properties types.",
+49
+  "StatusCode": 400
+50
+}
+Error in validation of the JSON Payload
+
+API response:
+
+1
+{
+2
+  "Messages": [
+3
+    {
+4
+      "Status": "error",
+5
+      "Errors": [
+6
+        {
+7
+          "ErrorIdentifier": "f987008f-251a-4dff-8ffc-40f1583ad7bc",
+8
+          "ErrorCode": "mj-0004",
+9
+          "StatusCode": 400,
+10
+          "ErrorMessage": "Type mismatch. Expected type \"array of emails\".",
+11
+          "ErrorRelatedTo": ["HTMLPart", "TemplateID"]
+12
+        },
+13
+        {
+14
+          "ErrorIdentifier": "8e28ac9c-1fd7-41ad-825f-1d60bc459189",
+15
+          "ErrorCode": "mj-0005",
+16
+          "StatusCode": 400,
+17
+          "ErrorMessage": "The To is mandatory but missing from the input",
+18
+          "ErrorRelatedTo": ["To"]
+19
+        }
+20
+      ]
+21
+    }
+22
+  ]
+23
+}
+In bulk sending (multiple instances of messages in Messages), we will process each message separately. As a result, the response can contain both success and error notifications. For a single message, Send API can return multiple errors, each related to different properties of the payload.
+
+Status Code
+
+Error Code
+
+Description
+
+Related To
+
+400
+
+send-0003
+
+when none of the HTML, Text, TemplateID properties are provided.
+
+HTMLPart, TextPart, TemplateID
+
+400
+
+send-0004
+
+when providing HTML property, as well as a template also containing an HTML part - i.e. Duplicated content
+
+HTMLPart, TemplateID
+
+403
+
+send-0006
+
+when the API key doesn’t have permission to use a Sender header. Please contact our support team to be granted permission.
+
+SenderID
+
+403
+
+send-0007
+
+when SenderID is provided but not validated.
+
+SenderID
+
+403
+
+send-0008
+
+when the sender email address provided in the From property is not authorized. The validation can be done on the Sender domains & addresses page or through the API.
+
+From
+
+400
+
+send-0010
+
+when the API key can’t send the provided template. Please verify the owner of the template.
+
+TemplateID
+
+400
+
+send-0011
+
+when one of the forbidden headers (headers that have a property alternative) is set in the Headers collection. Please use the dedicated message property to set this header.
+
+Headers["headerName"]
+
+400
+
+send-0012
+
+when DeduplicateCampaign is set to true while no CustomCampaign is defined.
+
+CustomCampaign, DeduplicateCampaign
+
+400
+
+send-0015
+
+when the total number of recipients is over the limit.
+
+To,CC,Bcc
+
+400
+
+send-0016
+
+when TemplateLanguage value is missing but TemplateErrorReporting or TemplateErrorDeliver are present.
+
+TemplateLanguage
+
+401
+
+mj-0001
+
+when API key is suspended.
+
+400
+
+mj-0002
+
+when the API call contains payload with an invalid JSON syntax.
+
+400
+
+mj-0003
+
+when a mandatory property is missing or with null value. See ErrorRelatedTo for a list
+
+400
+
+mj-0004
+
+when there is a type mismatch in the value of a property
+
+400
+
+mj-0005
+
+when a property value is not an allowed values.
+
+Priority
+
+TrackClicks
+
+TrackOpens
+
+
+400
+
+mj-0006
+
+when a property contains more than the maximum allowed number of characters.
+
+Subject
+
+URLTags
+
+
+400
+
+mj-0007
+
+when an empty array is provided that cannot be empty.
+
+Messages
+
+To
+
+
+400
+
+mj-0008
+
+when an array property contains more than the maximum allowed number of elements. Max Allowed item limit is 50.
+
+Messages
+
+Attachments
+
+InlineAttachments
+
+Headers
+
+Variables
+
+
+400
+
+mj-0011
+
+when the payload size is over the limit.
+
+400
+
+mj-0012
+
+when an empty string value is provided.
+
+Email
+
+FileName
+
+Base64Content
+
+ContentType
+
+
+400
+
+mj-0013
+
+when the email address format is invalid.
+
+Email
+
+401
+
+mj-0015
+
+when the user did not provide valid authorization credentials.
+
+When the HTTP status for the API call is 500, you will see ErrorIdentifier field. It will contain a reference to the error in our internal log and it is crucial for us to determine the root cause of the failure. Should you encounter such errors, please contact our support for additional investigation, providing this error identifier.
