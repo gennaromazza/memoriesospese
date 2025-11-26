@@ -349,30 +349,69 @@ export default function AdminDashboard() {
     const section = params.get('section');
     const booking = params.get('booking');
     const consultation = params.get('consultation');
+    const gallery = params.get('gallery');
 
+    // Se non ci sono parametri, esci subito
+    if (!tab && !booking && !consultation && !gallery) return;
+
+    const tabMapping: Record<string, string> = {
+      'prenotazioni': 'bookings',
+      'consulenze': 'consulenze',
+      'gallerie': 'galleries',
+      'clienti': 'clienti',
+      'impostazioni': 'settings',
+      'calendario': 'calendario'
+    };
+
+    const sectionMapping: Record<string, string> = {
+      'bookings': 'bookings-list',
+      'commesse': 'orders',
+      'bookings-list': 'bookings-list',
+      'campaigns': 'campaigns',
+      'orders': 'orders'
+    };
+
+    // Funzione per pulire l'URL dopo la navigazione
+    const cleanUrl = () => {
+      const cleanPath = location.split('?')[0];
+      window.history.replaceState({}, '', cleanPath);
+    };
+
+    // Gestione BOOKING (prenotazioni e selezioni)
     if (booking && tab === 'prenotazioni') {
-      setTimeout(() => handleOpenBooking(booking), 300);
+      setActiveTab('bookings');
+      setActiveBookingSection('bookings-list');
+      sessionStorage.setItem('activeTab', 'bookings');
+      sessionStorage.setItem('activeBookingSection', 'bookings-list');
+      // Delay per permettere al componente di montarsi e caricare i dati
+      setTimeout(() => {
+        setHighlightBookingId(booking);
+        cleanUrl();
+      }, 500);
       return;
     }
 
+    // Gestione CONSULTATION (consulenze)
+    if (consultation && tab === 'consulenze') {
+      setActiveTab('consulenze');
+      setActiveConsultationSection('consulenze');
+      sessionStorage.setItem('activeTab', 'consulenze');
+      sessionStorage.setItem('activeConsultationSection', 'consulenze');
+      setTimeout(() => {
+        setHighlightConsultationId(consultation);
+        cleanUrl();
+      }, 500);
+      return;
+    }
+
+    // Gestione GALLERY (gallerie) - redirect diretto
+    if (gallery && tab === 'gallerie') {
+      navigate(`/admin/galleries/${gallery}`);
+      return;
+    }
+
+    // Gestione TAB generica (senza highlight specifico)
     if (tab) {
-      const tabMapping: Record<string, string> = {
-        'prenotazioni': 'bookings',
-        'consulenze': 'consulenze',
-        'gallerie': 'galleries',
-        'clienti': 'clienti',
-        'impostazioni': 'settings',
-        'calendario': 'calendario'
-      };
-
-      const sectionMapping: Record<string, string> = {
-        'bookings': 'bookings-list',
-        'commesse': 'orders', // Legacy mapping for backward compatibility
-        'bookings-list': 'bookings-list', // Valid pass-through
-        'campaigns': 'campaigns', // Valid pass-through
-        'orders': 'orders' // Valid pass-through
-      };
-
       const mappedTab = tabMapping[tab] || tab;
       setActiveTab(mappedTab as any);
 
@@ -383,12 +422,12 @@ export default function AdminDashboard() {
 
       if (mappedTab === 'consulenze') {
         setActiveConsultationSection('consulenze');
-        if (consultation) {
-          setHighlightConsultationId(consultation);
-        }
       }
+
+      // Pulisci URL dopo cambio tab
+      setTimeout(cleanUrl, 100);
     }
-  }, [location]); // Dependency: reagisce a navigate() da wouter
+  }, [location, navigate]); // Dependency: reagisce a navigate() da wouter
 
   // Check authentication and referrer gallery
   useEffect(() => {
