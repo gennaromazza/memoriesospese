@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Gauge } from 'lucide-react';
+import { Send, Mail, Users, CheckCircle, XCircle, Loader2, AlertCircle, Eye, Search, Gauge, Save, FileText, Trash2, Play } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -44,11 +44,22 @@ interface BulkEmailJob {
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'scheduled';
   errors: Array<{ email: string; error: string }>;
   createdAt: any;
   completedAt?: any;
 }
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+const DAILY_LIMIT = 400;
 
 export default function BulkEmailSender() {
   const { toast } = useToast();
@@ -61,6 +72,9 @@ export default function BulkEmailSender() {
   const [showPreview, setShowPreview] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSplitDialog, setShowSplitDialog] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
 
   // Query destinatari disponibili
   const { data: recipientsData, isLoading: recipientsLoading } = useQuery({
@@ -109,7 +123,13 @@ export default function BulkEmailSender() {
     refetchInterval: 30000
   });
 
-  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 500, remaining: 500 };
+  const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 400, remaining: 400 };
+
+  // Query template email salvati
+  const { data: templatesData } = useQuery({
+    queryKey: ['/api/bulk-email/templates']
+  });
+  const templates: EmailTemplate[] = templatesData?.templates || [];
 
   // Query filtri disponibili (anni dinamici + tipi lavoro)
   const { data: filtersData } = useQuery({
@@ -131,7 +151,24 @@ export default function BulkEmailSender() {
     );
   }, [recipients, searchQuery]);
 
-  // Mutation invio email
+  // Calcola info split per la modale
+  const splitInfo = useMemo(() => {
+    const count = selectedRecipients.size;
+    if (count <= DAILY_LIMIT) {
+      return { needsSplit: false, jobs: 1, distribution: [count] };
+    }
+    const jobs = Math.ceil(count / DAILY_LIMIT);
+    const distribution: number[] = [];
+    let remaining = count;
+    for (let i = 0; i < jobs; i++) {
+      const chunk = Math.min(remaining, DAILY_LIMIT);
+      distribution.push(chunk);
+      remaining -= chunk;
+    }
+    return { needsSplit: true, jobs, distribution };
+  }, [selectedRecipients.size]);
+
+  // Mutation invio email (supporta split automatico)
   const sendMutation = useMutation({
     mutationFn: async () => {
       const selectedList = Array.from(selectedRecipients)
@@ -146,7 +183,7 @@ export default function BulkEmailSender() {
         throw new Error('Oggetto e corpo email sono obbligatori');
       }
 
-      const response = await apiRequest('POST', '/api/bulk-email/send', {
+      const response = await apiRequest('POST', '/api/bulk-email/send-split', {
         subject,
         body,
         recipients: selectedList,
@@ -155,11 +192,15 @@ export default function BulkEmailSender() {
       return response.json();
     },
     onSuccess: (data) => {
+      const jobCount = data.jobs?.length || 1;
       toast({
         title: '✅ Invio avviato!',
-        description: `Invio di ${selectedRecipients.size} email in corso...`
+        description: jobCount > 1 
+          ? `Creati ${jobCount} job: il primo parte subito, gli altri sono programmati`
+          : `Invio di ${selectedRecipients.size} email in corso...`
       });
-      setActiveJobId(data.jobId);
+      setActiveJobId(data.jobs?.[0]?.id || data.jobId);
+      setShowSplitDialog(false);
       queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
     },
     onError: (error: any) => {
@@ -205,6 +246,68 @@ export default function BulkEmailSender() {
     setShowConfirmDialog(false);
     sendMutation.mutate();
   };
+
+  // Mutation per salvare template
+  const saveTemplateMutation = useMutation({
+    mutationFn: async () => {
+      if (!templateName.trim() || !subject.trim() || !body.trim()) {
+        throw new Error('Nome, oggetto e corpo sono obbligatori');
+      }
+      const response = await apiRequest('POST', '/api/bulk-email/templates', {
+        name: templateName,
+        subject,
+        body
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: '✅ Template salvato!' });
+      setShowSaveTemplate(false);
+      setTemplateName('');
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/templates'] });
+    },
+    onError: (error: any) => {
+      toast({ title: '❌ Errore', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  // Mutation per eliminare template
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      const response = await apiRequest('DELETE', `/api/bulk-email/templates/${templateId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: '🗑️ Template eliminato' });
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/templates'] });
+    },
+    onError: (error: any) => {
+      toast({ title: '❌ Errore', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  // Carica template selezionato
+  const loadTemplate = (template: EmailTemplate) => {
+    setSubject(template.subject);
+    setBody(template.body);
+    toast({ title: '📝 Template caricato', description: template.name });
+  };
+
+  // Mutation per avviare job scheduled
+  const startScheduledJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await apiRequest('POST', `/api/bulk-email/jobs/${jobId}/start`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: '🚀 Invio avviato!', description: `Job ${data.jobId} in esecuzione...` });
+      setActiveJobId(data.jobId);
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk-email/jobs'] });
+    },
+    onError: (error: any) => {
+      toast({ title: '❌ Errore', description: error.message, variant: 'destructive' });
+    }
+  });
 
   // Mutation per riprovare email fallite
   const retryFailedMutation = useMutation({
@@ -270,7 +373,7 @@ export default function BulkEmailSender() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">📧 Invio Email Massivo</h1>
         <p className="text-muted-foreground">
-          Sistema di invio massivo per comunicazioni ai clienti (max 500 email/giorno)
+          Sistema di invio massivo per comunicazioni ai clienti (max 400 email/giorno)
         </p>
       </div>
 
@@ -332,7 +435,7 @@ export default function BulkEmailSender() {
                     />
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       onClick={() => setShowPreview(!showPreview)}
@@ -341,6 +444,33 @@ export default function BulkEmailSender() {
                       <Eye className="h-4 w-4 mr-2" />
                       {showPreview ? 'Nascondi' : 'Mostra'} Anteprima
                     </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSaveTemplate(true)}
+                      disabled={!subject.trim() || !body.trim()}
+                      data-testid="button-save-template"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Salva Template
+                    </Button>
+                    {templates.length > 0 && (
+                      <Select onValueChange={(id) => {
+                        const tpl = templates.find(t => t.id === id);
+                        if (tpl) loadTemplate(tpl);
+                      }}>
+                        <SelectTrigger className="w-[200px]" data-testid="select-load-template">
+                          <FileText className="h-4 w-4 mr-2" />
+                          <SelectValue placeholder="Carica template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map(tpl => (
+                            <SelectItem key={tpl.id} value={tpl.id}>
+                              {tpl.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
 
                   {showPreview && (
@@ -515,8 +645,8 @@ export default function BulkEmailSender() {
                   <Button
                     className="w-full"
                     size="lg"
-                    onClick={() => setShowConfirmDialog(true)}
-                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim() || selectedRecipients.size > quota.remaining}
+                    onClick={() => splitInfo.needsSplit ? setShowSplitDialog(true) : setShowConfirmDialog(true)}
+                    disabled={sendMutation.isPending || selectedRecipients.size === 0 || !subject.trim() || !body.trim()}
                     data-testid="button-send-bulk-email"
                   >
                     {sendMutation.isPending ? (
@@ -719,9 +849,15 @@ export default function BulkEmailSender() {
                         <Badge variant={
                           job.status === 'completed' ? 'default' : 
                           job.status === 'in_progress' ? 'outline' : 
+                          job.status === 'scheduled' ? 'secondary' :
+                          job.status === 'queued' ? 'outline' :
                           'destructive'
                         }>
-                          {job.status}
+                          {job.status === 'scheduled' ? '⏰ Programmato' : 
+                           job.status === 'queued' ? '🔄 In coda' :
+                           job.status === 'in_progress' ? '📤 In corso' :
+                           job.status === 'completed' ? '✅ Completato' :
+                           job.status}
                         </Badge>
                       </div>
 
@@ -743,6 +879,22 @@ export default function BulkEmailSender() {
                             </span>
                           )}
                         </div>
+                        {job.status === 'scheduled' && (
+                          <Button 
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => startScheduledJobMutation.mutate(job.id)}
+                            disabled={startScheduledJobMutation.isPending}
+                            data-testid={`button-start-job-${job.id}`}
+                          >
+                            {startScheduledJobMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Play className="h-4 w-4 mr-1" />
+                            )}
+                            Avvia
+                          </Button>
+                        )}
                         {job.failedCount > 0 && job.status === 'completed' && (
                           <Button 
                             size="sm"
@@ -806,6 +958,115 @@ export default function BulkEmailSender() {
             >
               <Send className="h-4 w-4 mr-2" />
               Conferma Invio
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog Split Automatico */}
+      <AlertDialog open={showSplitDialog} onOpenChange={setShowSplitDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-amber-600" />
+              Invio Diviso in Più Giorni
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Hai selezionato <strong>{selectedRecipients.size}</strong> destinatari, 
+                  che superano il limite giornaliero di <strong>{DAILY_LIMIT}</strong> email.
+                </p>
+                
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                  <p className="font-semibold text-amber-800 mb-3">
+                    📬 Le email saranno divise in {splitInfo.jobs} invii:
+                  </p>
+                  <div className="space-y-2">
+                    {splitInfo.distribution.map((count, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2">
+                          {idx === 0 ? (
+                            <Badge className="bg-green-600">Oggi</Badge>
+                          ) : (
+                            <Badge variant="outline">Giorno {idx + 1}</Badge>
+                          )}
+                          <span>{count} email</span>
+                        </span>
+                        {idx === 0 ? (
+                          <span className="text-green-600 text-xs">Parte subito</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Clicca per avviare</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Il primo invio parte subito. Gli altri job saranno creati in stato "Programmato" 
+                  e potrai avviarli cliccando il pulsante "Avvia" quando vorrai.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => sendMutation.mutate()}
+              className="bg-amber-600 hover:bg-amber-700"
+              disabled={sendMutation.isPending}
+            >
+              {sendMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Crea {splitInfo.jobs} Job
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog Salva Template */}
+      <AlertDialog open={showSaveTemplate} onOpenChange={setShowSaveTemplate}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Save className="h-5 w-5 text-green-600" />
+              Salva Template Email
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 pt-2">
+                <div>
+                  <Label htmlFor="template-name">Nome Template</Label>
+                  <Input
+                    id="template-name"
+                    placeholder="Es: Promozione Natale 2025"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    data-testid="input-template-name"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Verrà salvato l'oggetto e il corpo dell'email corrente.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => saveTemplateMutation.mutate()}
+              disabled={!templateName.trim() || saveTemplateMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {saveTemplateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Salva Template
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

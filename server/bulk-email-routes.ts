@@ -20,7 +20,7 @@ function getTodayRome(): string {
 const router = Router();
 
 // --- CONFIGURAZIONE ---
-const GMAIL_DAILY_LIMIT = 500; // Gmail ha limite 500/giorno (2000 solo per Workspace)
+const GMAIL_DAILY_LIMIT = 400; // 400 per bulk email, 100 riservate per notifiche clienti
 const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
 const CONCURRENCY_LIMIT = 1; // ⚠️ SEQUENZIALE: 1 email alla volta per rispettare rate limit Gmail
 const DELAY_BETWEEN_EMAILS_MS = 1000; // ⚠️ RATE LIMIT: 1 email/secondo = 60/minuto (safe)
@@ -523,6 +523,93 @@ router.post("/quota/reset", async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// TEMPLATE EMAIL ROUTES
+// ============================================================================
+
+// GET Lista template email
+router.get("/templates", async (req: Request, res: Response) => {
+  try {
+    const snapshot = await db.collection("emailTemplates")
+      .orderBy("updatedAt", "desc")
+      .get();
+    
+    const templates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    res.json({ success: true, templates });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST Crea nuovo template
+router.post("/templates", async (req: Request, res: Response) => {
+  try {
+    const { name, subject, body } = req.body;
+    
+    if (!name || !subject || !body) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Nome, oggetto e corpo sono obbligatori" 
+      });
+    }
+    
+    const templateData = {
+      name,
+      subject,
+      body,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const docRef = await db.collection("emailTemplates").add(templateData);
+    
+    res.json({ 
+      success: true, 
+      template: { id: docRef.id, ...templateData }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT Aggiorna template
+router.put("/templates/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, subject, body } = req.body;
+    
+    const updateData: any = { updatedAt: new Date() };
+    if (name) updateData.name = name;
+    if (subject) updateData.subject = subject;
+    if (body) updateData.body = body;
+    
+    await db.collection("emailTemplates").doc(id).update(updateData);
+    
+    res.json({ success: true, message: "Template aggiornato" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE Elimina template
+router.delete("/templates/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await db.collection("emailTemplates").doc(id).delete();
+    res.json({ success: true, message: "Template eliminato" });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
+// FILTER ROUTES
+// ============================================================================
+
 // GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
 router.get("/filters", async (req: Request, res: Response) => {
   try {
@@ -814,6 +901,163 @@ router.post("/send", async (req: Request, res: Response) => {
     res.json({ success: true, jobId: result.jobId, message: "Job in coda" });
   } catch (error: any) {
     console.error("❌ Errore POST /send:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST Invio con split automatico (divide in job da 400 max)
+router.post("/send-split", async (req: Request, res: Response) => {
+  try {
+    const { subject, body, recipients, senderId } = req.body;
+
+    if (!subject || !body || !recipients || recipients.length === 0) {
+      return res.status(400).json({ success: false, error: "Dati mancanti" });
+    }
+
+    const today = getTodayRome();
+    const quotaRef = db.collection("emailQuota").doc(today);
+    
+    // Dividi recipients in chunk da DAILY_LIMIT (deep copy per evitare reference issues)
+    const chunks: any[][] = [];
+    for (let i = 0; i < recipients.length; i += GMAIL_DAILY_LIMIT) {
+      // Clone profondo di ogni recipient per evitare problemi di riferimento
+      const chunk = recipients.slice(i, i + GMAIL_DAILY_LIMIT).map((r: any) => ({ ...r }));
+      chunks.push(chunk);
+    }
+    
+    // Verifica quota per il primo job
+    const quotaDoc = await quotaRef.get();
+    const quotaData = quotaDoc.exists ? quotaDoc.data() : {};
+    const currentReserved = quotaData?.reserved || 0;
+    const currentSent = quotaData?.sent || 0;
+    const totalUsed = currentReserved + currentSent;
+    const firstChunkSize = chunks[0].length;
+    
+    if (totalUsed + firstChunkSize > GMAIL_DAILY_LIMIT) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Quota insufficiente per oggi. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}. Riprova domani o seleziona meno destinatari.`
+      });
+    }
+    
+    const jobs: any[] = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const jobRef = db.collection("bulkEmailJobs").doc();
+      const isFirst = i === 0;
+      
+      const job: BulkEmailJob = {
+        id: jobRef.id,
+        subject,
+        body,
+        recipients: chunk,
+        totalRecipients: chunk.length,
+        quotaReserved: isFirst ? chunk.length : 0,
+        quotaConsumed: 0,
+        quotaDate: today,
+        sentCount: 0,
+        failedCount: 0,
+        status: isFirst ? "queued" : "scheduled",
+        errors: [],
+        createdAt: new Date(),
+        lastHeartbeatAt: new Date(),
+        createdBy: senderId || "admin",
+        batchIndex: i + 1,
+        totalBatches: chunks.length,
+      };
+      
+      await jobRef.set(job);
+      jobs.push({ id: jobRef.id, status: job.status, recipients: chunk.length, batchIndex: i + 1 });
+    }
+    
+    // Riserva quota solo per il primo job
+    if (firstChunkSize > 0) {
+      await quotaRef.set({
+        reserved: FieldValue.increment(firstChunkSize),
+        date: today,
+        lastUpdated: new Date(),
+      }, { merge: true });
+    }
+    
+    console.log(`📧 Creati ${jobs.length} job: ${jobs.map(j => `#${j.batchIndex}(${j.recipients})`).join(', ')}`);
+    
+    res.json({ 
+      success: true, 
+      jobs,
+      message: jobs.length > 1 
+        ? `Creati ${jobs.length} job: il primo parte subito, gli altri sono programmati`
+        : "Job in coda"
+    });
+  } catch (error: any) {
+    console.error("❌ Errore POST /send-split:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST Avvia job scheduled
+router.post("/jobs/:jobId/start", async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const jobRef = db.collection("bulkEmailJobs").doc(jobId);
+    const jobDoc = await jobRef.get();
+    
+    if (!jobDoc.exists) {
+      return res.status(404).json({ success: false, error: "Job non trovato" });
+    }
+    
+    const job = jobDoc.data();
+    
+    if (job?.status !== "scheduled") {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Il job è già in stato "${job?.status}", non può essere avviato`
+      });
+    }
+    
+    const today = getTodayRome();
+    const quotaRef = db.collection("emailQuota").doc(today);
+    const recipientCount = job?.totalRecipients || 0;
+    
+    // Verifica quota
+    const quotaDoc = await quotaRef.get();
+    const quotaData = quotaDoc.exists ? quotaDoc.data() : {};
+    const currentReserved = quotaData?.reserved || 0;
+    const currentSent = quotaData?.sent || 0;
+    const totalUsed = currentReserved + currentSent;
+    
+    if (totalUsed + recipientCount > GMAIL_DAILY_LIMIT) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Quota insufficiente. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}. Riprova domani.`
+      });
+    }
+    
+    // Riserva quota e cambia stato
+    await db.runTransaction(async (transaction) => {
+      transaction.update(quotaRef, {
+        reserved: FieldValue.increment(recipientCount),
+        date: today,
+        lastUpdated: new Date(),
+      });
+      
+      transaction.update(jobRef, {
+        status: "queued",
+        quotaReserved: recipientCount,
+        quotaDate: today,
+        lastHeartbeatAt: new Date(),
+      });
+    });
+    
+    console.log(`🚀 Job ${jobId} avviato manualmente (${recipientCount} email)`);
+    
+    res.json({ 
+      success: true, 
+      jobId,
+      message: `Job avviato con ${recipientCount} email`
+    });
+  } catch (error: any) {
+    console.error("❌ Errore POST /jobs/:jobId/start:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
