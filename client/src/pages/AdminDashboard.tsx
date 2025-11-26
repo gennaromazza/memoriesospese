@@ -342,6 +342,24 @@ export default function AdminDashboard() {
     sessionStorage.setItem('activeJobSection', activeJobSection);
   }, [activeJobSection]);
 
+  // Funzione per pulire l'URL (rimuove query params)
+  const cleanDeeplinkUrl = useCallback(() => {
+    const cleanPath = window.location.pathname;
+    window.history.replaceState({}, '', cleanPath);
+  }, []);
+
+  // Callback quando highlight booking è completato
+  const handleBookingHighlightComplete = useCallback(() => {
+    setHighlightBookingId(null);
+    cleanDeeplinkUrl();
+  }, [cleanDeeplinkUrl]);
+
+  // Callback quando highlight consultation è completato
+  const handleConsultationHighlightComplete = useCallback(() => {
+    setHighlightConsultationId(null);
+    cleanDeeplinkUrl();
+  }, [cleanDeeplinkUrl]);
+
   // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1] || '');
@@ -371,36 +389,27 @@ export default function AdminDashboard() {
       'orders': 'orders'
     };
 
-    // Funzione per pulire l'URL dopo la navigazione
-    const cleanUrl = () => {
-      const cleanPath = location.split('?')[0];
-      window.history.replaceState({}, '', cleanPath);
-    };
-
     // Gestione BOOKING (prenotazioni e selezioni)
+    // L'URL verrà pulito da handleBookingHighlightComplete quando l'highlight è fatto
     if (booking && tab === 'prenotazioni') {
       setActiveTab('bookings');
       setActiveBookingSection('bookings-list');
       sessionStorage.setItem('activeTab', 'bookings');
       sessionStorage.setItem('activeBookingSection', 'bookings-list');
-      // Delay per permettere al componente di montarsi e caricare i dati
-      setTimeout(() => {
-        setHighlightBookingId(booking);
-        cleanUrl();
-      }, 500);
+      // Imposta highlight - BookingsManager gestirà scroll e highlight
+      // quando i dati sono pronti, poi chiamerà onHighlightComplete
+      setHighlightBookingId(booking);
       return;
     }
 
     // Gestione CONSULTATION (consulenze)
+    // L'URL verrà pulito da handleConsultationHighlightComplete
     if (consultation && tab === 'consulenze') {
       setActiveTab('consulenze');
       setActiveConsultationSection('consulenze');
       sessionStorage.setItem('activeTab', 'consulenze');
       sessionStorage.setItem('activeConsultationSection', 'consulenze');
-      setTimeout(() => {
-        setHighlightConsultationId(consultation);
-        cleanUrl();
-      }, 500);
+      setHighlightConsultationId(consultation);
       return;
     }
 
@@ -424,10 +433,10 @@ export default function AdminDashboard() {
         setActiveConsultationSection('consulenze');
       }
 
-      // Pulisci URL dopo cambio tab
-      setTimeout(cleanUrl, 100);
+      // Pulisci URL dopo cambio tab (nessun highlight da aspettare)
+      cleanDeeplinkUrl();
     }
-  }, [location, navigate]); // Dependency: reagisce a navigate() da wouter
+  }, [location, navigate, cleanDeeplinkUrl]); // Dependency: reagisce a navigate() da wouter
 
   // Check authentication and referrer gallery
   useEffect(() => {
@@ -1991,7 +2000,7 @@ export default function AdminDashboard() {
                     <TabsContent value="bookings-list">
                       <BookingsManager
                         highlightBookingId={highlightBookingId}
-                        onHighlightComplete={() => setHighlightBookingId(null)}
+                        onHighlightComplete={handleBookingHighlightComplete}
                         onRequestOpenOrdersTab={(orderId) => {
                           setActiveBookingSection('orders');
                           setHighlightOrderId(orderId);
@@ -2108,7 +2117,7 @@ export default function AdminDashboard() {
                 <TabsContent value="consulenze">
                   <ConsultationsManager
                     highlightConsultationId={highlightConsultationId}
-                    onHighlightComplete={() => setHighlightConsultationId(null)}
+                    onHighlightComplete={handleConsultationHighlightComplete}
                   />
                 </TabsContent>
 
@@ -2459,7 +2468,7 @@ export default function AdminDashboard() {
                 <TabsContent value="consulenze">
                   <ConsultationsManager
                     highlightConsultationId={highlightConsultationId}
-                    onHighlightComplete={() => setHighlightConsultationId(null)}
+                    onHighlightComplete={handleConsultationHighlightComplete}
                   />
                 </TabsContent>
 
