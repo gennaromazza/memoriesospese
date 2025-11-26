@@ -2,50 +2,45 @@
  * Bulk Email Routes - Sistema invio massivo email ai clienti
  * Ottimizzato per: Performance Firestore, Crash Recovery, Atomic Locking
  * 
- * NOTA: Questo modulo usa Mailjet per invio massivo (6000/mese)
+ * NOTA: Questo modulo usa Resend per invio massivo (3000/mese piano free)
  * Le email transazionali (conferme, preventivi, etc.) usano Gmail in email-routes.ts
  */
 
 import { Router, Request, Response } from "express";
 import { db } from "./firebase-admin.js";
 import { FieldValue } from "firebase-admin/firestore";
-import Mailjet from "node-mailjet";
+import { Resend } from "resend";
 
 const router = Router();
 
-// --- CONFIGURAZIONE MAILJET ---
-const MAILJET_MONTHLY_LIMIT = 6000; // Mailjet free tier: 6000 email/mese
-const MAILJET_DAILY_LIMIT = 200; // ~200/giorno per stare sicuri
+// --- CONFIGURAZIONE RESEND ---
+const RESEND_MONTHLY_LIMIT = 3000; // Resend free tier: 3000 email/mese
+const RESEND_DAILY_LIMIT = 100; // ~100/giorno per stare sicuri
 
-const MAILJET_API_KEY = process.env.MAILJET_API_KEY;
-const MAILJET_SECRET_KEY = process.env.MAILJET_SECRET_KEY;
-const MAILJET_SENDER_EMAIL = process.env.MAILJET_SENDER_EMAIL || "image.studio.fotografico@gmail.com";
-const MAILJET_SENDER_NAME = process.env.MAILJET_SENDER_NAME || "Image Studio";
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || "news@gennaromazzacane.it";
+const RESEND_SENDER_NAME = process.env.RESEND_SENDER_NAME || "Gennaro Mazzacane Photography";
 
-// Verifica credenziali Mailjet
-function isMailjetConfigured(): boolean {
-  return !!(MAILJET_API_KEY && MAILJET_SECRET_KEY);
+// Verifica credenziali Resend
+function isResendConfigured(): boolean {
+  return !!RESEND_API_KEY;
 }
 
-// Lazy init Mailjet client (solo quando serve)
-let mailjetClient: ReturnType<typeof Mailjet.prototype.post> | null = null;
+// Lazy init Resend client
+let resendClient: Resend | null = null;
 
-function getMailjetClient() {
-  if (!isMailjetConfigured()) {
-    throw new Error("Mailjet non configurato: MAILJET_API_KEY o MAILJET_SECRET_KEY mancanti");
+function getResendClient(): Resend {
+  if (!isResendConfigured()) {
+    throw new Error("Resend non configurato: RESEND_API_KEY mancante");
   }
-  if (!mailjetClient) {
-    const mailjet = new Mailjet({
-      apiKey: MAILJET_API_KEY!,
-      apiSecret: MAILJET_SECRET_KEY!,
-    });
-    mailjetClient = mailjet.post("send", { version: "v3.1" });
+  if (!resendClient) {
+    resendClient = new Resend(RESEND_API_KEY!);
   }
-  return mailjetClient;
+  return resendClient;
 }
 const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email
-const CONCURRENCY_LIMIT = 5; // Invii paralleli (Mailjet supporta più throughput)
-const DELAY_BETWEEN_CHUNKS_MS = 500; // Delay tra chunks (Mailjet più veloce)
+const CONCURRENCY_LIMIT = 5; // Invii paralleli (Resend supporta più throughput)
+const DELAY_BETWEEN_CHUNKS_MS = 500; // Delay tra chunks
 const DELAY_BETWEEN_BATCHES_MS = 1000; // Rate limiting tra batch
 const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti
 
@@ -417,14 +412,14 @@ router.get("/quota", async (req: Request, res: Response) => {
     const data = quotaDoc.exists ? quotaDoc.data() : {};
     const sent = data?.sent || 0;
     const reserved = data?.reserved || 0;
-    const remaining = Math.max(0, MAILJET_DAILY_LIMIT - sent - reserved);
+    const remaining = Math.max(0, RESEND_DAILY_LIMIT - sent - reserved);
 
     res.json({
       success: true,
       quota: {
         sent,
         reserved,
-        limit: MAILJET_DAILY_LIMIT,
+        limit: RESEND_DAILY_LIMIT,
         remaining,
         date: today
       }
@@ -664,11 +659,11 @@ router.get("/recipients", async (req: Request, res: Response) => {
 
 router.post("/send", async (req: Request, res: Response) => {
   try {
-    // Verifica configurazione Mailjet prima di accettare il job
-    if (!isMailjetConfigured()) {
+    // Verifica configurazione Resend prima di accettare il job
+    if (!isResendConfigured()) {
       return res.status(500).json({ 
         success: false, 
-        error: "Mailjet non configurato. Contatta l'amministratore per configurare MAILJET_API_KEY e MAILJET_SECRET_KEY." 
+        error: "Resend non configurato. Contatta l'amministratore per configurare RESEND_API_KEY." 
       });
     }
 
@@ -690,9 +685,9 @@ router.post("/send", async (req: Request, res: Response) => {
       const currentSent = data?.sent || 0;
       const totalUsed = currentReserved + currentSent;
 
-      if (totalUsed + recipients.length > MAILJET_DAILY_LIMIT) {
+      if (totalUsed + recipients.length > RESEND_DAILY_LIMIT) {
         throw new Error(
-          `Quota insufficiente. Usati: ${totalUsed}/${MAILJET_DAILY_LIMIT}`,
+          `Quota insufficiente. Usati: ${totalUsed}/${RESEND_DAILY_LIMIT}`,
         );
       }
 
@@ -806,9 +801,9 @@ router.post("/jobs/:jobId/retry-failed", async (req: Request, res: Response) => 
       const currentSent = data?.sent || 0;
       const totalUsed = currentReserved + currentSent;
       
-      if (totalUsed + recipientsToRetry.length > MAILJET_DAILY_LIMIT) {
+      if (totalUsed + recipientsToRetry.length > RESEND_DAILY_LIMIT) {
         throw new Error(
-          `Quota insufficiente. Usati: ${totalUsed}/${MAILJET_DAILY_LIMIT}`
+          `Quota insufficiente. Usati: ${totalUsed}/${RESEND_DAILY_LIMIT}`
         );
       }
       
@@ -881,48 +876,30 @@ async function sendSingleEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       ${personalizedBody}
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-        <p style="margin: 5px 0; font-weight: 600;">Image Studio</p>
-        <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
+        <p style="margin: 5px 0; font-weight: 600;">Gennaro Mazzacane Photography</p>
+        <p style="margin: 5px 0;">Email: info@gennaromazzacane.it</p>
         <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
       </div>
     </div>
   `;
 
   try {
-    // Invio via Mailjet API (con validazione credenziali)
-    const client = getMailjetClient();
-    const response = await client.request({
-      Messages: [
-        {
-          From: {
-            Email: MAILJET_SENDER_EMAIL,
-            Name: MAILJET_SENDER_NAME,
-          },
-          To: [
-            {
-              Email: recipient.email,
-              Name: `${recipient.nome} ${recipient.cognome}`.trim() || recipient.email,
-            },
-          ],
-          Subject: subject,
-          HTMLPart: emailHTML,
-        },
-      ],
+    // Invio via Resend API
+    const resend = getResendClient();
+    const { data, error } = await resend.emails.send({
+      from: `${RESEND_SENDER_NAME} <${RESEND_SENDER_EMAIL}>`,
+      to: recipient.email,
+      subject: subject,
+      html: emailHTML,
     });
 
-    // Verifica risposta Mailjet per errori specifici
-    const result = response.body as any;
-    if (result?.Messages?.[0]?.Status === "error") {
-      const errors = result.Messages[0].Errors || [];
-      const errorMsg = errors.map((e: any) => e.ErrorMessage).join(", ");
-      throw new Error(`Mailjet error: ${errorMsg || "Unknown error"}`);
+    if (error) {
+      throw new Error(`Resend error: ${error.message}`);
     }
+
+    console.log(`✅ Email inviata a ${recipient.email} (ID: ${data?.id})`);
   } catch (error: any) {
-    // Estrai dettagli errore Mailjet se disponibili
-    const mailjetError = error.response?.body?.Messages?.[0]?.Errors?.[0];
-    if (mailjetError) {
-      throw new Error(`Mailjet: ${mailjetError.ErrorMessage} (${mailjetError.ErrorCode})`);
-    }
+    console.error(`❌ Errore invio a ${recipient.email}:`, error.message);
     throw error;
   }
 }

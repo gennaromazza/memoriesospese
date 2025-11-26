@@ -76,7 +76,6 @@ externalPort = 3000
 [userenv]
 
 [userenv.shared]
-MAILJET_API_KEY = "275d2e56208426beb00d3e1ec5e79cac"
-MAILJET_SECRET_KEY = "d3091a99e969fb27052eb6cf52890e11"
-MAILJET_SENDER_EMAIL = "image.studio.fotografico@gmail.com"
-MAILJET_SENDER_NAME = "Image Studio"
+RESEND_API_KEY = "re_M4sRDjDg_M5usiePNqRT7fKcRDxR6vKJg"
+RESEND_SENDER_EMAIL = "news@gennaromazzacane.it"
+RESEND_SENDER_NAME = "Gennaro Mazzacane Photography"
