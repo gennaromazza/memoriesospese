@@ -72,10 +72,3 @@ externalPort = 3001
 [[ports]]
 localPort = 33503
 externalPort = 3000
-
-[userenv]
-
-[userenv.shared]
-RESEND_API_KEY = "re_M4sRDjDg_M5usiePNqRT7fKcRDxR6vKJg"
-RESEND_SENDER_EMAIL = "news@gennaromazzacane.it"
-RESEND_SENDER_NAME = "Gennaro Mazzacane Photography"

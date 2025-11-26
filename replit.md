@@ -27,7 +27,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage. Enhanced `convertFirestoreTimestamp()` for seamless compatibility.
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads using Firebase Storage and signed URLs.
 - **Galleries:** Professional client-selection galleries with real-time updates, secure access, and full preloading system for simultaneous image display.
-- **Email System:** Dual-provider architecture: **Resend** for bulk/campaign emails (3000/month free tier) via `bulk-email-routes.ts`; **Gmail API** for transactional emails (confirmations, quotes, reminders) via `email-routes.ts`. Dynamic templates and timezone-aware "Add to Calendar" links. **Nov 2025:** Migrated bulk email from Gmail to Resend (via Mailjet, then Resend) for better deliverability and simpler setup.
+- **Email System:** Express.js server via Gmail API with dynamic templates and timezone-aware "Add to Calendar" links.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection, aiming for Firebase-only.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
 - **Admin Dashboard:** Enhanced navigation, Notification Center, and single-level tab structure.
@@ -56,8 +56,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
 - **Stripe:** Payment processing for subscriptions
 - **Google Calendar API:** Booking slot management and event synchronization
-- **Gmail API:** Transactional email delivery (confirmations, quotes, reminders)
-- **Resend API:** Bulk/campaign email delivery (3000/month free tier)
+- **Gmail API:** Email delivery
 - **Express.js:** Web application framework (for backend services and APIs)
 - **React:** Frontend library
 - **TypeScript:** Type-safe JavaScript

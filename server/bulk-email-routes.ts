@@ -1,47 +1,21 @@
 /**
  * Bulk Email Routes - Sistema invio massivo email ai clienti
  * Ottimizzato per: Performance Firestore, Crash Recovery, Atomic Locking
- * 
- * NOTA: Questo modulo usa Resend per invio massivo (3000/mese piano free)
- * Le email transazionali (conferme, preventivi, etc.) usano Gmail in email-routes.ts
  */
 
 import { Router, Request, Response } from "express";
 import { db } from "./firebase-admin.js";
+import { sendGmailEmail } from "./email-routes.js";
 import { FieldValue } from "firebase-admin/firestore";
-import { Resend } from "resend";
 
 const router = Router();
 
-// --- CONFIGURAZIONE RESEND ---
-const RESEND_MONTHLY_LIMIT = 3000; // Resend free tier: 3000 email/mese
-const RESEND_DAILY_LIMIT = 100; // ~100/giorno per stare sicuri
-
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_SENDER_EMAIL = process.env.RESEND_SENDER_EMAIL || "news@gennaromazzacane.it";
-const RESEND_SENDER_NAME = process.env.RESEND_SENDER_NAME || "Gennaro Mazzacane Photography";
-
-// Verifica credenziali Resend
-function isResendConfigured(): boolean {
-  return !!RESEND_API_KEY;
-}
-
-// Lazy init Resend client
-let resendClient: Resend | null = null;
-
-function getResendClient(): Resend {
-  if (!isResendConfigured()) {
-    throw new Error("Resend non configurato: RESEND_API_KEY mancante");
-  }
-  if (!resendClient) {
-    resendClient = new Resend(RESEND_API_KEY!);
-  }
-  return resendClient;
-}
-const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email
-const CONCURRENCY_LIMIT = 5; // Invii paralleli (Resend supporta più throughput)
-const DELAY_BETWEEN_CHUNKS_MS = 500; // Delay tra chunks
-const DELAY_BETWEEN_BATCHES_MS = 1000; // Rate limiting tra batch
+// --- CONFIGURAZIONE ---
+const GMAIL_DAILY_LIMIT = 500; // Gmail ha limite 500/giorno (2000 solo per Workspace)
+const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
+const CONCURRENCY_LIMIT = 2; // Invii paralleli a Gmail (ridotto per rispettare rate limit)
+const DELAY_BETWEEN_CHUNKS_MS = 1500; // Delay tra chunks (~80 email/min = sicuro sotto 250/min)
+const DELAY_BETWEEN_BATCHES_MS = 3000; // Rate limiting tra batch
 const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti
 
 // --- INTERFACCE ---
@@ -412,14 +386,14 @@ router.get("/quota", async (req: Request, res: Response) => {
     const data = quotaDoc.exists ? quotaDoc.data() : {};
     const sent = data?.sent || 0;
     const reserved = data?.reserved || 0;
-    const remaining = Math.max(0, RESEND_DAILY_LIMIT - sent - reserved);
+    const remaining = Math.max(0, GMAIL_DAILY_LIMIT - sent - reserved);
 
     res.json({
       success: true,
       quota: {
         sent,
         reserved,
-        limit: RESEND_DAILY_LIMIT,
+        limit: GMAIL_DAILY_LIMIT,
         remaining,
         date: today
       }
@@ -659,14 +633,6 @@ router.get("/recipients", async (req: Request, res: Response) => {
 
 router.post("/send", async (req: Request, res: Response) => {
   try {
-    // Verifica configurazione Resend prima di accettare il job
-    if (!isResendConfigured()) {
-      return res.status(500).json({ 
-        success: false, 
-        error: "Resend non configurato. Contatta l'amministratore per configurare RESEND_API_KEY." 
-      });
-    }
-
     const { subject, body, recipients, senderId } = req.body;
 
     if (!subject || !body || !recipients || recipients.length === 0) {
@@ -685,9 +651,9 @@ router.post("/send", async (req: Request, res: Response) => {
       const currentSent = data?.sent || 0;
       const totalUsed = currentReserved + currentSent;
 
-      if (totalUsed + recipients.length > RESEND_DAILY_LIMIT) {
+      if (totalUsed + recipients.length > GMAIL_DAILY_LIMIT) {
         throw new Error(
-          `Quota insufficiente. Usati: ${totalUsed}/${RESEND_DAILY_LIMIT}`,
+          `Quota insufficiente. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}`,
         );
       }
 
@@ -801,9 +767,9 @@ router.post("/jobs/:jobId/retry-failed", async (req: Request, res: Response) => 
       const currentSent = data?.sent || 0;
       const totalUsed = currentReserved + currentSent;
       
-      if (totalUsed + recipientsToRetry.length > RESEND_DAILY_LIMIT) {
+      if (totalUsed + recipientsToRetry.length > GMAIL_DAILY_LIMIT) {
         throw new Error(
-          `Quota insufficiente. Usati: ${totalUsed}/${RESEND_DAILY_LIMIT}`
+          `Quota insufficiente. Usati: ${totalUsed}/${GMAIL_DAILY_LIMIT}`
         );
       }
       
@@ -876,32 +842,14 @@ async function sendSingleEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       ${personalizedBody}
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-        <p style="margin: 5px 0; font-weight: 600;">Gennaro Mazzacane Photography</p>
-        <p style="margin: 5px 0;">Email: info@gennaromazzacane.it</p>
+        <p style="margin: 5px 0; font-weight: 600;">Memorie Sospese</p>
+        <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
         <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
       </div>
     </div>
   `;
 
-  try {
-    // Invio via Resend API
-    const resend = getResendClient();
-    const { data, error } = await resend.emails.send({
-      from: `${RESEND_SENDER_NAME} <${RESEND_SENDER_EMAIL}>`,
-      to: recipient.email,
-      subject: subject,
-      html: emailHTML,
-    });
-
-    if (error) {
-      throw new Error(`Resend error: ${error.message}`);
-    }
-
-    console.log(`✅ Email inviata a ${recipient.email} (ID: ${data?.id})`);
-  } catch (error: any) {
-    console.error(`❌ Errore invio a ${recipient.email}:`, error.message);
-    throw error;
-  }
+  await sendGmailEmail(recipient.email, subject, emailHTML);
 }
 
 export default router;
