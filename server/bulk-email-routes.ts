@@ -13,10 +13,12 @@ const router = Router();
 // --- CONFIGURAZIONE ---
 const GMAIL_DAILY_LIMIT = 500; // Gmail ha limite 500/giorno (2000 solo per Workspace)
 const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
-const CONCURRENCY_LIMIT = 2; // Invii paralleli a Gmail (ridotto per rispettare rate limit)
-const DELAY_BETWEEN_CHUNKS_MS = 1500; // Delay tra chunks (~80 email/min = sicuro sotto 250/min)
+const CONCURRENCY_LIMIT = 1; // ⚠️ SEQUENZIALE: 1 email alla volta per rispettare rate limit Gmail
+const DELAY_BETWEEN_EMAILS_MS = 1000; // ⚠️ RATE LIMIT: 1 email/secondo = 60/minuto (safe)
 const DELAY_BETWEEN_BATCHES_MS = 3000; // Rate limiting tra batch
 const HEARTBEAT_TIMEOUT = 5 * 60 * 1000; // 5 minuti
+const MAX_RETRY_ATTEMPTS = 4; // Tentativi massimi per email (incluso primo)
+const BASE_BACKOFF_MS = 2000; // Backoff base per retry (raddoppia ogni tentativo)
 
 // --- INTERFACCE ---
 interface BulkEmailRecipient {
@@ -213,67 +215,48 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
     const subject = jobData?.subject;
     const body = jobData?.body;
 
-    // --- LOOP BATCH (es. 0..50, 50..100) ---
-    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-      const batch = recipients.slice(i, i + BATCH_SIZE);
-
-      // Parallelismo Controllato all'interno del batch (chunks di 2)
-      for (let j = 0; j < batch.length; j += CONCURRENCY_LIMIT) {
-        const chunk = batch.slice(j, j + CONCURRENCY_LIMIT);
-
-        // Esegui chunk in parallelo
-        const results = await Promise.all(
-          chunk.map((recipient) =>
-            sendSingleEmailWrapper(recipient, subject, body),
-          ),
-        );
-
-        // Raccogli risultati in memoria
-        for (const res of results) {
-          if (res.success) {
-            sentCount++;
-          } else {
-            failedCount++;
-            currentErrors.push({
-              email: res.email,
-              error: res.error || "Unknown",
-              retry: false,
-            });
-          }
-        }
-
-        // Rate limiting tra chunks per evitare quota exceeded
-        if (j + CONCURRENCY_LIMIT < batch.length) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, DELAY_BETWEEN_CHUNKS_MS),
-          );
-        }
+    // --- LOOP SEQUENZIALE: 1 EMAIL/SECONDO ---
+    // Niente chunking, niente parallelismo - invio strettamente sequenziale
+    for (let i = 0; i < recipients.length; i++) {
+      const recipient = recipients[i];
+      
+      // Invia email singola
+      const res = await sendSingleEmailWrapper(recipient, subject, body);
+      
+      if (res.success) {
+        sentCount++;
+      } else {
+        failedCount++;
+        currentErrors.push({
+          email: res.email,
+          error: res.error || "Unknown",
+          retry: false,
+        });
       }
 
-      // --- AGGIORNAMENTO FIRESTORE (Solo 1 volta per Batch!) ---
-      // Aggiorna contatori e Heartbeat per evitare timeout
-      const updateData: Record<string, any> = {
-        sentCount,
-        failedCount,
-        quotaConsumed: sentCount,
-        lastHeartbeatAt: new Date(),
-      };
-      
-      // Aggiungi errori solo se presenti (Firestore non accetta undefined)
-      if (currentErrors.length > 0) {
-        updateData.errors = FieldValue.arrayUnion(...currentErrors);
-      }
-      
-      await jobRef.update(updateData);
-
-      // Pulisci buffer errori
-      currentErrors = [];
-
-      // Rate Limiting
-      if (i + BATCH_SIZE < recipients.length) {
+      // Rate limiting DOPO ogni email: 1 email/secondo
+      // (eccetto dopo l'ultima email)
+      if (i < recipients.length - 1) {
         await new Promise((resolve) =>
-          setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS),
+          setTimeout(resolve, DELAY_BETWEEN_EMAILS_MS),
         );
+      }
+
+      // --- AGGIORNAMENTO FIRESTORE ogni BATCH_SIZE email ---
+      if ((i + 1) % BATCH_SIZE === 0 || i === recipients.length - 1) {
+        const updateData: Record<string, any> = {
+          sentCount,
+          failedCount,
+          quotaConsumed: sentCount,
+          lastHeartbeatAt: new Date(),
+        };
+        
+        if (currentErrors.length > 0) {
+          updateData.errors = FieldValue.arrayUnion(...currentErrors);
+        }
+        
+        await jobRef.update(updateData);
+        currentErrors = [];
       }
     }
 
@@ -306,28 +289,130 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
 }
 
 /**
- * Wrapper per gestire errori su singola email senza rompere il Promise.all
+ * Parsa il retryAfter dall'errore Gmail
+ * Legge da: error.message, error.response.headers, error.errors[0]
+ */
+function parseRetryAfter(error: any): number | null {
+  // 1. Cerca in response headers (Retry-After header standard)
+  const headers = error?.response?.headers;
+  if (headers) {
+    const retryHeader = headers['retry-after'] || headers['Retry-After'];
+    if (retryHeader) {
+      const seconds = parseInt(retryHeader, 10);
+      if (!isNaN(seconds)) {
+        return seconds * 1000;
+      }
+      const retryDate = new Date(retryHeader);
+      if (!isNaN(retryDate.getTime())) {
+        return Math.max(0, retryDate.getTime() - Date.now());
+      }
+    }
+  }
+  
+  // 2. Cerca in error.errors[0] (formato Google API)
+  const googleError = error?.errors?.[0] || error?.response?.data?.error?.errors?.[0];
+  if (googleError?.message) {
+    const match = googleError.message.match(/Retry after (\d{4}-\d{2}-\d{2}T[\d:.]+Z)/i);
+    if (match) {
+      const retryDate = new Date(match[1]);
+      return Math.max(0, retryDate.getTime() - Date.now());
+    }
+  }
+  
+  // 3. Cerca nel messaggio di errore (fallback)
+  const errorMessage = error?.message || String(error);
+  
+  const isoMatch = errorMessage.match(/Retry after (\d{4}-\d{2}-\d{2}T[\d:.]+Z)/i);
+  if (isoMatch) {
+    const retryDate = new Date(isoMatch[1]);
+    const delayMs = retryDate.getTime() - Date.now();
+    return delayMs > 0 ? delayMs : null;
+  }
+  
+  const secondsMatch = errorMessage.match(/retry.+?(\d+)\s*(?:seconds?|s)/i);
+  if (secondsMatch) {
+    return parseInt(secondsMatch[1], 10) * 1000;
+  }
+  
+  return null;
+}
+
+/**
+ * Rileva se l'errore è un rate limit Gmail
+ * Controlla: status 429, reason codes, e testo messaggio
+ */
+function isGmailRateLimit(error: any): boolean {
+  // 1. HTTP Status 429 (Too Many Requests)
+  const status = error?.response?.status || error?.code || error?.status;
+  if (status === 429) return true;
+  
+  // 2. Google API reason codes
+  const googleErrors = error?.errors || error?.response?.data?.error?.errors || [];
+  for (const ge of googleErrors) {
+    const reason = ge?.reason?.toLowerCase() || '';
+    if (reason.includes('ratelimit') || reason.includes('quota') || reason.includes('userlimit')) {
+      return true;
+    }
+  }
+  
+  // 3. Messaggio di errore (fallback)
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('rate') || msg.includes('limit') || msg.includes('quota') || msg.includes('too many')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Wrapper con retry intelligente e backoff esponenziale
+ * - Parsa retryAfter dalla risposta Gmail
+ * - Backoff esponenziale: 2s, 4s, 8s, 16s...
+ * - Max tentativi configurabili
  */
 async function sendSingleEmailWrapper(
   recipient: BulkEmailRecipient,
   subject: string,
   body: string,
 ) {
-  try {
-    await sendSingleEmail(recipient, subject, body);
-    return { success: true, email: recipient.email };
-  } catch (e: any) {
-    // Retry veloce (opzionale)
-    const isTemp = e.message.includes("timeout") || e.message.includes("rate");
-    if (isTemp) {
-      try {
-        await new Promise((r) => setTimeout(r, 1000));
-        await sendSingleEmail(recipient, subject, body);
-        return { success: true, email: recipient.email };
-      } catch (retryErr) {}
+  let lastError: any = null;
+  
+  for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+    try {
+      await sendSingleEmail(recipient, subject, body);
+      return { success: true, email: recipient.email };
+    } catch (e: any) {
+      lastError = e;
+      const isRateLimit = isGmailRateLimit(e);
+      const isTimeout = e.message?.includes("timeout") || e.message?.includes("ETIMEDOUT");
+      const isRetryable = isRateLimit || isTimeout;
+      
+      if (!isRetryable || attempt === MAX_RETRY_ATTEMPTS) {
+        break;
+      }
+      
+      let delayMs: number;
+      
+      if (isRateLimit) {
+        const retryAfterMs = parseRetryAfter(e);
+        if (retryAfterMs && retryAfterMs > 0) {
+          delayMs = Math.min(retryAfterMs + 1000, 5 * 60 * 1000);
+          console.log(`⏳ Rate limit: attendo ${Math.round(delayMs / 1000)}s (retryAfter) per ${recipient.email}`);
+        } else {
+          delayMs = BASE_BACKOFF_MS * Math.pow(2, attempt - 1);
+          console.log(`⏳ Rate limit: backoff ${Math.round(delayMs / 1000)}s (tentativo ${attempt}/${MAX_RETRY_ATTEMPTS}) per ${recipient.email}`);
+        }
+      } else {
+        delayMs = BASE_BACKOFF_MS * Math.pow(2, attempt - 1);
+        console.log(`⏳ Timeout: backoff ${Math.round(delayMs / 1000)}s (tentativo ${attempt}/${MAX_RETRY_ATTEMPTS}) per ${recipient.email}`);
+      }
+      
+      await new Promise((r) => setTimeout(r, delayMs));
     }
-    return { success: false, email: recipient.email, error: e.message };
   }
+  
+  console.log(`❌ Fallito dopo ${MAX_RETRY_ATTEMPTS} tentativi: ${recipient.email} - ${lastError?.message}`);
+  return { success: false, email: recipient.email, error: lastError?.message || "Max retry exceeded" };
 }
 
 /**
