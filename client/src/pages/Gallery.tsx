@@ -97,7 +97,6 @@ const PhotoCard = memo(({ photo, index, onClick }: { photo: Photo, index: number
           className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
           loading="lazy"
           decoding="async"
-          fetchpriority={index < 6 ? "high" : "low"}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")

@@ -106,7 +106,6 @@ export default function HeroSlideshow() {
               className="object-cover w-full h-full"
               loading={index === 0 ? "eager" : "lazy"}
               decoding={index === 0 ? "sync" : "async"}
-              fetchPriority={index === 0 ? "high" : "low"}
             />
           ) : (
             <>
@@ -117,7 +116,6 @@ export default function HeroSlideshow() {
                 className="object-cover w-full h-full absolute inset-0"
                 loading={index === 0 ? "eager" : "lazy"}
                 decoding={index === 0 ? "sync" : "async"}
-                fetchPriority={index === 0 ? "high" : "low"}
                 onLoad={() => setLoadedImages(prev => new Set([...prev, index]))}
               />
             </>
