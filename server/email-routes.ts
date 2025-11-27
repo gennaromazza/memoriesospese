@@ -3935,4 +3935,37 @@ export function createQuoteSentEmailHTML(
   `;
 }
 
+/**
+ * GET /api/email/test-connection
+ * Test Gmail API connection (admin only)
+ */
+router.get("/test-connection", async (req, res) => {
+  try {
+    console.log("🔍 Testing Gmail API connection...");
+    
+    const accessToken = await getAccessToken();
+    
+    if (accessToken) {
+      console.log("✅ Gmail API connection successful");
+      return res.json({ 
+        success: true, 
+        message: "Gmail API connection OK",
+        tokenPreview: accessToken.substring(0, 20) + "..."
+      });
+    } else {
+      console.error("❌ Gmail API: No access token");
+      return res.status(500).json({ 
+        success: false, 
+        error: "No access token available" 
+      });
+    }
+  } catch (error: any) {
+    console.error("❌ Gmail API test failed:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Connection test failed"
+    });
+  }
+});
+
 export default router;
