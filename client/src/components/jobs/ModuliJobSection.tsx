@@ -35,6 +35,7 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { queryClient } from '@/lib/queryClient';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
 
@@ -274,15 +275,15 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                             ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)
                             : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
                         </div>
-                        {quote.createdAt && (
+                        {quote.createdAt && convertFirestoreTimestamp(quote.createdAt) && (
                           <div>
                             <span className="font-medium">Creato:</span>{' '}
-                            {format(quote.createdAt.toDate(), 'dd/MM/yyyy', { locale: it })}
+                            {format(convertFirestoreTimestamp(quote.createdAt)!, 'dd/MM/yyyy', { locale: it })}
                           </div>
                         )}
-                        {quote.signature && (
+                        {quote.signature?.signedAt && convertFirestoreTimestamp(quote.signature.signedAt) && (
                           <div className="text-green-600 font-medium">
-                            ✓ Firmato: {format(quote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
+                            ✓ Firmato: {format(convertFirestoreTimestamp(quote.signature.signedAt)!, 'dd/MM/yyyy HH:mm', { locale: it })}
                           </div>
                         )}
                       </div>
@@ -395,10 +396,12 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                             <p>
                               <span className="font-medium">Firmato da:</span> {quote.signature.clientName}
                             </p>
-                            <p>
-                              <span className="font-medium">Data:</span>{' '}
-                              {format(quote.signature.signedAt.toDate(), 'dd/MM/yyyy HH:mm', { locale: it })}
-                            </p>
+                            {quote.signature.signedAt && convertFirestoreTimestamp(quote.signature.signedAt) && (
+                              <p>
+                                <span className="font-medium">Data:</span>{' '}
+                                {format(convertFirestoreTimestamp(quote.signature.signedAt)!, 'dd/MM/yyyy HH:mm', { locale: it })}
+                              </p>
+                            )}
                             <p>
                               <span className="font-medium">IP:</span> {quote.signature.ipAddress}
                             </p>
@@ -558,7 +561,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
             quoteTotale={totale}
             jobId={jobId}
             clienteId={clienteId}
-            eventDate={job?.eventDate ? job.eventDate.toDate() : null}
+            eventDate={job?.eventDate ? convertFirestoreTimestamp(job.eventDate) : null}
           />
         );
       })()}
