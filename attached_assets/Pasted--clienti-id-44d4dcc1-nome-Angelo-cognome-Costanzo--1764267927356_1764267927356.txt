@@ -1,0 +1,268 @@
+{
+  "clienti": [
+    {
+      "id": "44d4dcc1",
+      "nome": "Angelo",
+      "cognome": "Costanzo",
+      "email": "",
+      "telefono": "3313048590",
+      "indirizzo": "del Parmigianino 25 Rubiera, 42048, Reggio Emilia",
+      "citta": "",
+      "cap": "",
+      "provincia": "",
+      "codiceFiscale": "",
+      "note": "",
+      "createdAt": "2025-11-27T18:24:39.815Z"
+    },
+    {
+      "id": "4c112fe3",
+      "nome": "Immacolata",
+      "cognome": "Ciacciarelli",
+      "email": "",
+      "telefono": "3489946610",
+      "indirizzo": "del Parmigianino, 25, Rubiera, 42048, Reggio Emilia",
+      "citta": "",
+      "cap": "",
+      "provincia": "",
+      "codiceFiscale": "",
+      "note": "",
+      "createdAt": "2025-11-27T18:24:39.815Z"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "msq5v9u6k6qdij63jkvgwd",
+      "clientiIds": [
+        "44d4dcc1",
+        "4c112fe3"
+      ],
+      "nomeEvento": "Matrimonio Angelo Costanzo & Immacolata Ciacciarelli",
+      "jobType": "wedding",
+      "eventDate": "2026-05-22",
+      "eventLocation": "VillaEbla",
+      "allDay": true,
+      "provenance": "passaparola",
+      "status": "confermato",
+      "financials": {
+        "totalePreventivato": 3000,
+        "totalePagato": 200,
+        "totaleOrdini": 3000,
+        "saldoResiduo": 2800
+      },
+      "noteInterne": "Importato da PDF",
+      "quoteIds": [
+        "mp2h0d4r51n98ddc58oy55"
+      ],
+      "orderIds": [
+        "l9mrbmydm4of6u52d2cdbu"
+      ],
+      "galleryIds": [],
+      "pdfs": [],
+      "costi": [],
+      "jobSource": "pdf_migration",
+      "createdBy": "migration_tool",
+      "createdAt": "2025-11-27T18:24:39.815Z",
+      "updatedAt": "2025-11-27T18:24:39.815Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "l9mrbmydm4of6u52d2cdbu",
+      "clienteId": "44d4dcc1",
+      "jobId": "msq5v9u6k6qdij63jkvgwd",
+      "totale": 3000,
+      "acconto": 200,
+      "saldo": 2800,
+      "stato": "in_lavorazione",
+      "prodotti": [
+        "Servizio fotografico: RITO/CHIESA, ESTERNE, RISTORANTE, Consegna delle fotografie in digitale",
+        "Album sposi: Album digitale formato 25x70 cm 100 Facciate. Modelli a scelta.",
+        "Album sposi Big: Album digitale formato 30x80 cm 100 Facciate. Modelli a scelta.",
+        "Wedding film: Riprese Video del matrimonio consegnato su chiavetta usb per sposi e genitori",
+        "Album genitori: Coppia di Mini Album con stesso numero di foto dell'album degli sposi realizzato in coordinato",
+        "Drone: Riprese video con drone fino al termine dei festeggiamenti",
+        "Foto per invitati: FOTO REPORTAGE, FOTO SELFIE, FOTO DI GRUPPO, Stampe illimitate consegna in giornata (stampa sul posto)",
+        "Proiezione: Proiezione del video in sala realizzato con le riprese svolte nel corso della giornata. Montato in loco e proiettato con Telo e Proiettore"
+      ],
+      "transactions": [],
+      "dataServizio": "2026-05-22"
+    }
+  ],
+  "quotes": [
+    {
+      "id": "mp2h0d4r51n98ddc58oy55",
+      "jobId": "msq5v9u6k6qdij63jkvgwd",
+      "clienteId": "44d4dcc1",
+      "clientiInfo": [
+        {
+          "id": "44d4dcc1",
+          "nome": "Angelo",
+          "cognome": "Costanzo",
+          "email": "",
+          "telefono": "3313048590",
+          "indirizzo": "del Parmigianino 25 Rubiera, 42048, Reggio Emilia",
+          "citta": "",
+          "cap": ""
+        },
+        {
+          "id": "4c112fe3",
+          "nome": "Immacolata",
+          "cognome": "Ciacciarelli",
+          "email": "",
+          "telefono": "3489946610",
+          "indirizzo": "del Parmigianino, 25, Rubiera, 42048, Reggio Emilia",
+          "citta": "",
+          "cap": ""
+        }
+      ],
+      "jobInfo": {
+        "nomeEvento": "Matrimonio Angelo Costanzo & Immacolata Ciacciarelli",
+        "eventDate": "2026-05-22",
+        "location": "VillaEbla",
+        "rito": ""
+      },
+      "type": "fisso",
+      "products": [
+        {
+          "productId": "h3f23e15mg4gfd4q5ezh7",
+          "nome": "Servizio fotografico: RITO/CHIESA, ESTERNE, RISTORANTE, Consegna delle fotografie in digitale",
+          "descrizione": "Servizio fotografico: RITO/CHIESA, ESTERNE, RISTORANTE, Consegna delle fotografie in digitale",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "9fphe12gkn9jslyirt8dp",
+          "nome": "Album sposi: Album digitale formato 25x70 cm 100 Facciate. Modelli a scelta.",
+          "descrizione": "Album sposi: Album digitale formato 25x70 cm 100 Facciate. Modelli a scelta.",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "5u188ty7cfvlqcl64qalhl",
+          "nome": "Album sposi Big: Album digitale formato 30x80 cm 100 Facciate. Modelli a scelta.",
+          "descrizione": "Album sposi Big: Album digitale formato 30x80 cm 100 Facciate. Modelli a scelta.",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "d42qflnpspirk6xslpade",
+          "nome": "Wedding film: Riprese Video del matrimonio consegnato su chiavetta usb per sposi e genitori",
+          "descrizione": "Wedding film: Riprese Video del matrimonio consegnato su chiavetta usb per sposi e genitori",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "yrw6rkm9lpgymuzo68muc",
+          "nome": "Album genitori: Coppia di Mini Album con stesso numero di foto dell'album degli sposi realizzato in coordinato",
+          "descrizione": "Album genitori: Coppia di Mini Album con stesso numero di foto dell'album degli sposi realizzato in coordinato",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "hid30d97i6duqtb5bnlw5",
+          "nome": "Drone: Riprese video con drone fino al termine dei festeggiamenti",
+          "descrizione": "Drone: Riprese video con drone fino al termine dei festeggiamenti",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "g7x27ra51fkpw1r4ul99xc",
+          "nome": "Foto per invitati: FOTO REPORTAGE, FOTO SELFIE, FOTO DI GRUPPO, Stampe illimitate consegna in giornata (stampa sul posto)",
+          "descrizione": "Foto per invitati: FOTO REPORTAGE, FOTO SELFIE, FOTO DI GRUPPO, Stampe illimitate consegna in giornata (stampa sul posto)",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        },
+        {
+          "productId": "osifi8054bh3lqj8ohiy6",
+          "nome": "Proiezione: Proiezione del video in sala realizzato con le riprese svolte nel corso della giornata. Montato in loco e proiettato con Telo e Proiettore",
+          "descrizione": "Proiezione: Proiezione del video in sala realizzato con le riprese svolte nel corso della giornata. Montato in loco e proiettato con Telo e Proiettore",
+          "prezzo": 0,
+          "numeroFoto": 0,
+          "categoria": "matrimonio",
+          "selectable": false,
+          "selected": true,
+          "immagini": []
+        }
+      ],
+      "contractClauses": [
+        {
+          "id": "xluip6h025guv0uc2huzu",
+          "ordine": 1,
+          "text": "Conferma e Prenotazione: La prenotazione si considera confermata al versamento dell'acconto.",
+          "required": false,
+          "accepted": true,
+          "acceptedAt": "2025-05-24"
+        },
+        {
+          "id": "pae9saho943t9umpunj04",
+          "ordine": 2,
+          "text": "Pagamenti: Saldo alla consegna o come concordato.",
+          "required": false,
+          "accepted": true,
+          "acceptedAt": "2025-05-24"
+        },
+        {
+          "id": "t8tt11t7uuzjaclooyat",
+          "ordine": 3,
+          "text": "Privacy: Dati trattati secondo GDPR.",
+          "required": false,
+          "accepted": true,
+          "acceptedAt": "2025-05-24"
+        }
+      ],
+      "totaleBase": 3000,
+      "totaleSelezionato": 3000,
+      "totalBeforeDiscount": 3200,
+      "totalAfterDiscount": 3000,
+      "discountType": "amount",
+      "discountValue": 200,
+      "theme": {
+        "primaryColor": "#8B9A8B",
+        "secondaryColor": "#C8B8A8",
+        "footerText": "Image Studio - Fotografia professionale"
+      },
+      "signature": {
+        "signedAt": "2025-05-24",
+        "ipAddress": "127.0.0.1",
+        "userAgent": "MigrationTool/1.0",
+        "clientName": "Angelo Costanzo"
+      },
+      "status": "firmato",
+      "publicToken": "8tej1eqfwj6aog7pnrip29",
+      "sentTo": "",
+      "emailSentAt": "2025-11-27T18:24:39.815Z",
+      "viewedAt": "2025-11-27T18:24:39.815Z",
+      "createdAt": "2025-11-27T18:24:39.815Z",
+      "createdBy": "migration_tool",
+      "updatedAt": "2025-11-27T18:24:39.815Z"
+    }
+  ]
+}

@@ -53,6 +53,7 @@ const ImportDataPage = lazy(() => import("./pages/ImportDataPage"));
 const ConsultationTemplatesManager = lazy(() => import("./pages/admin/ConsultationTemplatesManager"));
 const AdminConsultationsRoute = lazy(() => import("./pages/admin/AdminConsultationsRoute"));
 const AdminJsonImporter = lazy(() => import("./pages/admin/AdminJsonImporter"));
+const AdminLegacyImporter = lazy(() => import("./pages/admin/AdminLegacyImporter"));
 const QuoteManagementDemo = lazy(() => import("./pages/admin/QuoteManagementDemo"));
 const BulkEmailSender = lazy(() => import("./pages/BulkEmailSender"));
 
@@ -140,6 +141,7 @@ function AppRoutes() {
         <Route path="/admin/consulenze/templates" component={ConsultationTemplatesManager} />
         <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
         <Route path="/admin/importer" component={AdminJsonImporter} />
+        <Route path="/admin/legacy-import" component={AdminLegacyImporter} />
         <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
         {/* Public questionnaire route with noindex/nofollow */}

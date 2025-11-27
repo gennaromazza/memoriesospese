@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -2446,7 +2446,23 @@ export default function AdminDashboard() {
                 </TabsContent>
 
                 <TabsContent value="migration">
-                  <PhotosMigration />
+                  <div className="space-y-6">
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      <h3 className="text-lg font-semibold mb-2">Importa da Vecchio Gestionale</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Importa lavori, ordini e preventivi dal vecchio sistema con mappatura automatica dei clienti esistenti.
+                      </p>
+                      <Button 
+                        onClick={() => window.open('/admin/legacy-import', '_blank')}
+                        className="flex items-center gap-2"
+                        data-testid="button-legacy-import"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Apri Importatore Legacy
+                      </Button>
+                    </div>
+                    <PhotosMigration />
+                  </div>
                 </TabsContent>
               </Tabs>
             </TabsContent>
