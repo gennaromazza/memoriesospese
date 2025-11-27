@@ -59,7 +59,7 @@ import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
 import SendQuoteEmailButton from '@/components/quotes/SendQuoteEmailButton';
 import QuoteEmailStatusBadge from '@/components/quotes/QuoteEmailStatusBadge';
 import JobNotesSection from '@/components/jobs/JobNotesSection';
-import { db } from '@/lib/firebase';
+import { db, convertFirestoreTimestamp } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
@@ -577,8 +577,9 @@ export default function JobDetailPage() {
     );
   }
 
-  const eventDateFormatted = job.eventDate ? 
-    format(job.eventDate.toDate(), 'dd MMMM yyyy', { locale: it }) : 
+  const eventDateObj = convertFirestoreTimestamp(job.eventDate);
+  const eventDateFormatted = eventDateObj ? 
+    format(eventDateObj, 'dd MMMM yyyy', { locale: it }) : 
     'Data non disponibile';
 
   const timeInfo = !job.allDay && job.startTime ? 
@@ -776,7 +777,7 @@ export default function JobDetailPage() {
                 <CardContent className="pt-6">
                   <PaymentScheduleSection 
                     jobId={job.id}
-                    eventDate={job.eventDate ? job.eventDate.toDate() : null}
+                    eventDate={eventDateObj}
                     isAdmin={true}
                     onGeneratePayments={!quotesLoading ? () => {
                       const signedQuote = quotes?.find(q => q.status === 'firmato');
@@ -993,7 +994,7 @@ export default function JobDetailPage() {
               quoteTotale={totale}
               jobId={job.id}
               clienteId={job.clientiIds[0]}
-              eventDate={job.eventDate ? job.eventDate.toDate() : null}
+              eventDate={eventDateObj}
             />
           );
         })()}
