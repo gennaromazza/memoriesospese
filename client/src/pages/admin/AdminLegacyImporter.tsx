@@ -97,11 +97,34 @@ interface LegacyQuote {
   updatedAt?: string;
 }
 
+interface LegacyPayment {
+  id: string;
+  tipo: string;
+  importo: number;
+  dataScadenza: string;
+  stato: string;
+  dataPagamento?: string;
+  metodoPagamento?: string;
+  note?: string;
+}
+
+interface LegacyPaymentSchedule {
+  id: string;
+  jobId: string;
+  orderId: string;
+  clienteId: string;
+  totale: number;
+  totalePagato: number;
+  saldoResiduo: number;
+  payments: LegacyPayment[];
+}
+
 interface LegacyData {
   clienti: LegacyCliente[];
   jobs: LegacyJob[];
   orders: LegacyOrder[];
   quotes: LegacyQuote[];
+  paymentSchedules?: LegacyPaymentSchedule[];
 }
 
 interface ClientMapping {
@@ -130,6 +153,7 @@ export default function AdminLegacyImporter() {
     jobsImported: number;
     ordersImported: number;
     quotesImported: number;
+    paymentSchedulesImported: number;
   } | null>(null);
 
   useEffect(() => {
@@ -437,6 +461,26 @@ export default function AdminLegacyImporter() {
         await commitBatchIfNeeded();
       }
       
+      let paymentSchedulesImported = 0;
+      for (const schedule of legacyData.paymentSchedules || []) {
+        const mappedClienteId = idMap.get(schedule.clienteId) || schedule.clienteId;
+        
+        const scheduleData = {
+          ...schedule,
+          clienteId: mappedClienteId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          importedFrom: "legacy_json",
+          importedAt: serverTimestamp(),
+        };
+        
+        const scheduleRef = doc(db, "paymentSchedules", schedule.id);
+        batch.set(scheduleRef, scheduleData);
+        operations++;
+        paymentSchedulesImported++;
+        await commitBatchIfNeeded();
+      }
+      
       if (operations > 0) {
         await batch.commit();
       }
@@ -447,13 +491,14 @@ export default function AdminLegacyImporter() {
         jobsImported,
         ordersImported,
         quotesImported,
+        paymentSchedulesImported,
       });
       
       setStep(3);
       
       toast({
         title: "Importazione completata!",
-        description: `${jobsImported} lavori, ${ordersImported} ordini, ${quotesImported} preventivi importati`,
+        description: `${jobsImported} lavori, ${ordersImported} ordini, ${quotesImported} preventivi, ${paymentSchedulesImported} piani pagamento importati`,
       });
       
     } catch (error: any) {
@@ -721,7 +766,7 @@ export default function AdminLegacyImporter() {
                 </p>
               </div>
               
-              <div className="grid grid-cols-5 gap-4 max-w-3xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-4xl mx-auto">
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-2xl font-bold text-blue-600">{importResult.clientiCreated}</p>
                   <p className="text-sm text-muted-foreground">Clienti creati</p>
@@ -741,6 +786,10 @@ export default function AdminLegacyImporter() {
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-2xl font-bold">{importResult.quotesImported}</p>
                   <p className="text-sm text-muted-foreground">Preventivi importati</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <p className="text-2xl font-bold text-green-600">{importResult.paymentSchedulesImported}</p>
+                  <p className="text-sm text-muted-foreground">Piani Pagamento</p>
                 </div>
               </div>
 

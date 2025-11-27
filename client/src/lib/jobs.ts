@@ -74,9 +74,10 @@ export async function createJob(
         saldoResiduo: 0
       },
       
-      // Costi e PDF vuoti
+      // Costi, PDF e workflow events vuoti
       costi: [],
       pdfs: [],
+      workflowEvents: [],
       
       // Metadata
       createdAt: Timestamp.now(),
@@ -534,11 +535,12 @@ export async function archiveJob(
 /**
  * Delete job (hard delete con cleanup cascata)
  * ATTENZIONE: Questa è un'operazione irreversibile
+ * Elimina: orders, galleries, quotes, paymentSchedules, timeline events
  */
 export async function deleteJob(
   jobId: string,
   userId: string
-): Promise<void> {
+): Promise<{ deletedOrders: number; deletedGalleries: number; deletedQuotes: number }> {
   try {
     console.log('🗑️ Eliminazione job:', jobId);
     
@@ -559,8 +561,8 @@ export async function deleteJob(
     console.log(`  ├─ Eliminazione ${timelineSnapshot.size} eventi timeline`);
     
     const batch = writeBatch(db);
-    timelineSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
+    timelineSnapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
     });
     
     // 3. Elimina paymentSchedules collegati
@@ -571,26 +573,47 @@ export async function deleteJob(
       )
     );
     console.log(`  ├─ Eliminazione ${schedulesSnapshot.size} piani pagamento`);
-    schedulesSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
+    schedulesSnapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
     });
 
-    // 4. Aggiorna quotes: rimuovi jobId reference (non eliminare le quote)
+    // 4. Elimina TUTTI gli orders collegati al job
+    const ordersSnapshot = await getDocs(
+      query(
+        collection(db, 'orders'),
+        where('jobId', '==', jobId)
+      )
+    );
+    console.log(`  ├─ Eliminazione ${ordersSnapshot.size} ordini`);
+    ordersSnapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
+    });
+
+    // 5. Elimina TUTTE le galleries collegate al job
+    const galleriesSnapshot = await getDocs(
+      query(
+        collection(db, 'galleries'),
+        where('jobId', '==', jobId)
+      )
+    );
+    console.log(`  ├─ Eliminazione ${galleriesSnapshot.size} gallerie`);
+    galleriesSnapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
+    });
+
+    // 6. Elimina TUTTI i preventivi collegati al job
     const quotesSnapshot = await getDocs(
       query(
         collection(db, 'quotes'),
         where('jobId', '==', jobId)
       )
     );
-    console.log(`  ├─ Update ${quotesSnapshot.size} preventivi (rimuovi jobId ref)`);
-    quotesSnapshot.docs.forEach((quoteDoc) => {
-      batch.update(quoteDoc.ref, {
-        jobId: null,
-        updatedAt: Timestamp.now()
-      });
+    console.log(`  ├─ Eliminazione ${quotesSnapshot.size} preventivi`);
+    quotesSnapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
     });
 
-    // 5. Rimuovi jobId da clienti sourceRefs
+    // 7. Rimuovi jobId da clienti sourceRefs
     if (job.clientiIds && job.clientiIds.length > 0) {
       console.log(`  ├─ Update ${job.clientiIds.length} clienti (rimuovi da sourceRefs)`);
       
@@ -610,15 +633,68 @@ export async function deleteJob(
       }
     }
 
-    // 6. Elimina il job document
+    // 8. Elimina il job document
     batch.delete(doc(db, JOBS_COLLECTION, jobId));
     
-    // 7. Commit batch atomico
+    // 9. Commit batch atomico
     await batch.commit();
     
     console.log('✅ Job eliminato completamente:', jobId);
+    
+    return {
+      deletedOrders: ordersSnapshot.size,
+      deletedGalleries: galleriesSnapshot.size,
+      deletedQuotes: quotesSnapshot.size
+    };
   } catch (error) {
     console.error('❌ Errore eliminazione job:', error);
     throw error;
   }
+}
+
+/**
+ * Delete multiple jobs (batch delete con cascade)
+ * ATTENZIONE: Questa è un'operazione irreversibile
+ */
+export async function deleteMultipleJobs(
+  jobIds: string[],
+  userId: string,
+  onProgress?: (current: number, total: number, jobName?: string) => void
+): Promise<{ 
+  deletedJobs: number; 
+  deletedOrders: number; 
+  deletedGalleries: number; 
+  deletedQuotes: number;
+  errors: string[];
+}> {
+  const results = {
+    deletedJobs: 0,
+    deletedOrders: 0,
+    deletedGalleries: 0,
+    deletedQuotes: 0,
+    errors: [] as string[]
+  };
+
+  for (let i = 0; i < jobIds.length; i++) {
+    const jobId = jobIds[i];
+    try {
+      // Fetch job name for progress callback
+      const jobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
+      const jobName = jobDoc.exists() ? jobDoc.data().nomeEvento : jobId;
+      
+      onProgress?.(i + 1, jobIds.length, jobName);
+      
+      const result = await deleteJob(jobId, userId);
+      results.deletedJobs++;
+      results.deletedOrders += result.deletedOrders;
+      results.deletedGalleries += result.deletedGalleries;
+      results.deletedQuotes += result.deletedQuotes;
+    } catch (error) {
+      console.error(`❌ Errore eliminazione job ${jobId}:`, error);
+      results.errors.push(jobId);
+    }
+  }
+
+  console.log('📊 Risultato eliminazione multipla:', results);
+  return results;
 }

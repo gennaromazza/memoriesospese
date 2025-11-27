@@ -5,8 +5,8 @@
 
 import { useState, useMemo } from 'react';
 import { useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { getAllJobs } from '@/lib/jobs';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -37,6 +38,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Calendar as CalendarUI } from '@/components/ui/calendar';
 import {
   Plus,
@@ -47,11 +58,15 @@ import {
   Euro,
   User,
   FileText,
-  X
+  X,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import CreateJobModal from './CreateJobModal';
 
 // Status pipeline labels
@@ -91,10 +106,59 @@ export default function JobsManager() {
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
   
+  const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number; jobName?: string } | null>(null);
+  
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   // Query jobs
   const { data: jobs = [], isLoading } = useQuery<Job[]>({
     queryKey: ['jobs'],
     queryFn: () => getAllJobs()
+  });
+  
+  const deleteMutation = useMutation({
+    mutationFn: async (jobIds: string[]) => {
+      return deleteMultipleJobs(
+        jobIds, 
+        user?.uid || 'admin',
+        (current, total, jobName) => {
+          setDeleteProgress({ current, total, jobName });
+        }
+      );
+    },
+    onSuccess: (result) => {
+      setDeleteProgress(null);
+      setSelectedJobs(new Set());
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['galleries'] });
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      
+      if (result.errors.length > 0) {
+        toast({
+          title: 'Eliminazione parziale',
+          description: `Eliminati ${result.deletedJobs} lavori. ${result.errors.length} errori.`,
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Lavori eliminati',
+          description: `Eliminati ${result.deletedJobs} lavori, ${result.deletedOrders} ordini, ${result.deletedGalleries} gallerie, ${result.deletedQuotes} preventivi.`,
+        });
+      }
+    },
+    onError: (error) => {
+      setDeleteProgress(null);
+      toast({
+        title: 'Errore',
+        description: 'Impossibile eliminare i lavori selezionati',
+        variant: 'destructive'
+      });
+    }
   });
   
   // Query job types dinamici
@@ -252,6 +316,34 @@ export default function JobsManager() {
     };
   }, [filteredJobs]);
   
+  const toggleSelectJob = (jobId: string) => {
+    const newSelected = new Set(selectedJobs);
+    if (newSelected.has(jobId)) {
+      newSelected.delete(jobId);
+    } else {
+      newSelected.add(jobId);
+    }
+    setSelectedJobs(newSelected);
+  };
+  
+  const toggleSelectAll = () => {
+    if (selectedJobs.size === sortedJobs.length) {
+      setSelectedJobs(new Set());
+    } else {
+      setSelectedJobs(new Set(sortedJobs.map(j => j.id)));
+    }
+  };
+  
+  const handleDeleteSelected = () => {
+    if (selectedJobs.size === 0) return;
+    setDeleteDialogOpen(true);
+  };
+  
+  const confirmDelete = () => {
+    setDeleteDialogOpen(false);
+    deleteMutation.mutate(Array.from(selectedJobs));
+  };
+  
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -261,17 +353,45 @@ export default function JobsManager() {
             Gestione Lavori
           </h2>
           <p className="text-sm text-gray-600 mt-1">
-            {stats.totalJobs} lavori attivi
+            {selectedJobs.size > 0 ? (
+              <span className="text-red-600 font-medium">
+                {selectedJobs.size} lavori selezionati
+              </span>
+            ) : (
+              `${stats.totalJobs} lavori attivi`
+            )}
           </p>
         </div>
-        <Button
-          onClick={() => setCreateModalOpen(true)}
-          className="bg-sage hover:bg-dark-sage"
-          data-testid="button-create-job"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuovo Lavoro
-        </Button>
+        <div className="flex gap-2">
+          {selectedJobs.size > 0 && (
+            <Button
+              onClick={handleDeleteSelected}
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              data-testid="button-delete-selected"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Elimina ({selectedJobs.size})
+                </>
+              )}
+            </Button>
+          )}
+          <Button
+            onClick={() => setCreateModalOpen(true)}
+            className="bg-sage hover:bg-dark-sage"
+            data-testid="button-create-job"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuovo Lavoro
+          </Button>
+        </div>
       </div>
       
       {/* Stats cards */}
@@ -488,6 +608,14 @@ export default function JobsManager() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={selectedJobs.size === sortedJobs.length && sortedJobs.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Seleziona tutti"
+                    data-testid="checkbox-select-all"
+                  />
+                </TableHead>
                 <TableHead className="font-semibold">Nome Evento</TableHead>
                 <TableHead className="hidden md:table-cell font-semibold">Cliente/i</TableHead>
                 <TableHead className="hidden lg:table-cell font-semibold">Location</TableHead>
@@ -502,14 +630,27 @@ export default function JobsManager() {
                 const jobTypeInfo = jobTypeMap[job.jobType];
                 const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
                 const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
+                const isSelected = selectedJobs.has(job.id);
                 
                 return (
                   <TableRow
                     key={job.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/50",
+                      isSelected && "bg-red-50 hover:bg-red-100"
+                    )}
                     onClick={() => navigate(`/admin/jobs/${job.id}`)}
                     data-testid={`job-row-${job.id}`}
                   >
+                    {/* Checkbox */}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelectJob(job.id)}
+                        aria-label={`Seleziona ${job.nomeEvento}`}
+                        data-testid={`checkbox-job-${job.id}`}
+                      />
+                    </TableCell>
                     {/* Nome Evento */}
                     <TableCell className="font-medium">
                       <div className="space-y-1">
@@ -606,6 +747,71 @@ export default function JobsManager() {
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">
+              Conferma Eliminazione
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Stai per eliminare <strong>{selectedJobs.size} lavori</strong> e tutti i dati collegati:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1 text-red-600">
+                <li>Tutti gli ordini associati</li>
+                <li>Tutte le gallerie fotografiche</li>
+                <li>Tutti i preventivi</li>
+                <li>Tutti i piani di pagamento</li>
+                <li>Tutta la cronologia eventi</li>
+              </ul>
+              <p className="font-semibold text-red-600 mt-2">
+                Questa azione è irreversibile!
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Elimina {selectedJobs.size} lavori
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Delete Progress Overlay */}
+      {deleteProgress && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-96">
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-red-600" />
+                <div>
+                  <p className="font-semibold">Eliminazione in corso...</p>
+                  <p className="text-sm text-muted-foreground">
+                    {deleteProgress.current} di {deleteProgress.total}
+                  </p>
+                </div>
+              </div>
+              {deleteProgress.jobName && (
+                <p className="text-sm text-muted-foreground truncate">
+                  Eliminando: {deleteProgress.jobName}
+                </p>
+              )}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(deleteProgress.current / deleteProgress.total) * 100}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
