@@ -51,6 +51,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Consultation System (Consulenze):** Pre-work consultation scheduling with admin-configurable templates, Google Calendar integration, automated email reminders, and conversion to Jobs via API. **Migrated to Calendar Engine V2** for advanced Google Calendar event filtering and conflict detection.
 - **Booking System (Prenotazioni):** Public booking form and admin manual booking with campaign-based product selection, multi-product support, Google Calendar integration. **Migrated to Calendar Engine V2 (November 2025)** - V2 endpoints: `/api/booking/v2/available-slots`, `/api/booking/v2/create`, `/api/booking/v2/:id/approve`. Frontend fully migrated (BookingPage.tsx, ManualBookingModal.tsx). Legacy V1 endpoints deprecated.
 - **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing and Firebase Storage integration.
+- **Cascade Delete System (Nov 2025):** Quote/Order/Gallery deletions now properly clean up job array references (`quoteIds`, `orderIds`, `galleryIds`) using `FieldValue.arrayRemove()` to prevent orphan references. Implementation: server-side for quotes (`quote-routes.ts`), client-side for orders (`orders.ts`) and galleries (`firebase-api.ts`). Jobs use soft delete (archived status) to preserve historical data.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
