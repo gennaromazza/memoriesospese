@@ -3936,6 +3936,71 @@ export function createQuoteSentEmailHTML(
 }
 
 /**
+ * POST /api/email/send-test
+ * Invia email di test per verificare funzionamento Gmail API
+ */
+router.post("/send-test", async (req, res) => {
+  try {
+    const { recipientEmail } = req.body;
+    
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "recipientEmail richiesto" });
+    }
+    
+    console.log(`📧 Invio email di test a ${recipientEmail}...`);
+    
+    const studioInfo = await getStudioContactInfo();
+    
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #8b5a3c; text-align: center;">✅ Test Email - Sistema Funzionante!</h2>
+        <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+          <p style="font-size: 16px; margin-bottom: 15px;">
+            Questa è un'email di test inviata dal sistema di notifiche di <strong>${studioInfo.name}</strong>.
+          </p>
+          <p style="font-size: 14px; color: #666;">
+            Se stai ricevendo questa email, significa che il sistema di invio email funziona correttamente.
+          </p>
+          <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #155724;">
+              <strong>✅ Connessione Gmail API:</strong> Attiva<br>
+              <strong>✅ Invio Email:</strong> Funzionante<br>
+              <strong>📅 Data Test:</strong> ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}
+            </p>
+          </div>
+        </div>
+        <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+          <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
+          ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+          <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
+          <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
+        </div>
+      </div>
+    `;
+    
+    await sendGmailEmail(
+      recipientEmail,
+      `✅ Test Email - ${studioInfo.name}`,
+      htmlContent
+    );
+    
+    console.log(`✅ Email di test inviata con successo a ${recipientEmail}`);
+    
+    return res.json({ 
+      success: true, 
+      message: `Email di test inviata a ${recipientEmail}`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error("❌ Errore invio email di test:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore invio email di test"
+    });
+  }
+});
+
+/**
  * GET /api/email/test-connection
  * Test Gmail API connection (admin only)
  */
