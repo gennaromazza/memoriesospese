@@ -632,6 +632,22 @@ export async function updateGallery(galleryId: string, updates: Partial<GalleryD
 
 export async function deleteGallery(galleryId: string): Promise<void> {
   try {
+    // 1. Cerca job che contiene questo galleryId nell'array galleryIds
+    const jobsQuery = query(
+      collection(db, 'jobs'),
+      where('galleryIds', 'array-contains', galleryId)
+    );
+    const jobsSnapshot = await getDocs(jobsQuery);
+    
+    // 2. Rimuovi galleryId dall'array galleryIds di ogni job trovato
+    for (const jobDoc of jobsSnapshot.docs) {
+      await updateDoc(doc(db, 'jobs', jobDoc.id), {
+        galleryIds: arrayRemove(galleryId),
+      });
+      console.log(`✅ Rimosso galleryId ${galleryId} da job ${jobDoc.id}`);
+    }
+    
+    // 3. Elimina la galleria
     const galleryRef = doc(db, 'galleries', galleryId);
     await deleteDoc(galleryRef);
   } catch (error) {

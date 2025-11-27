@@ -813,7 +813,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       // 8. Delete quote (WRITE operation starts here)
       transaction.delete(quoteRef);
 
-      // 9. Update job: remove preventivoId AND update financials
+      // 9. Update job: remove preventivoId, quoteIds array entry, AND update financials
       if (quote.jobId && jobDoc && jobDoc.exists) {
         const jobRef = db.collection("jobs").doc(quote.jobId);
         const jobData = jobDoc.data();
@@ -825,6 +825,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
         transaction.update(jobRef, {
           preventivoId: FieldValue.delete(),
+          quoteIds: FieldValue.arrayRemove(id), // Remove quote ID from array to prevent orphan references
           "financials.totalePreventivato": newTotale,
         });
       }

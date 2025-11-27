@@ -15,6 +15,7 @@ import {
   orderBy,
   Timestamp,
   serverTimestamp,
+  arrayRemove,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiRequest } from "@/lib/queryClient";
@@ -436,9 +437,27 @@ export async function updateOrder(
 
 /**
  * Elimina ordine (admin only)
+ * Include cascade cleanup per rimuovere riferimenti orfani dal job
  */
 export async function deleteOrder(orderId: string): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
+  
+  // 1. Cerca job che contiene questo orderId nell'array orderIds
+  const jobsQuery = query(
+    collection(db, "jobs"),
+    where("orderIds", "array-contains", orderId)
+  );
+  const jobsSnapshot = await getDocs(jobsQuery);
+  
+  // 2. Rimuovi orderId dall'array orderIds di ogni job trovato
+  for (const jobDoc of jobsSnapshot.docs) {
+    await updateDoc(doc(db, "jobs", jobDoc.id), {
+      orderIds: arrayRemove(orderId),
+    });
+    console.log(`✅ Rimosso orderId ${orderId} da job ${jobDoc.id}`);
+  }
+  
+  // 3. Elimina l'ordine
   await deleteDoc(docRef);
 }
 
