@@ -2695,4 +2695,168 @@ router.post("/v2/available-slots", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/booking/resend-confirmation-emails
+ * Rinvia email di conferma alle ultime N prenotazioni
+ */
+router.post("/resend-confirmation-emails", async (req, res) => {
+  try {
+    const { limit = 5 } = req.body;
+    
+    console.log(`📧 Rinvio email di conferma alle ultime ${limit} prenotazioni...`);
+    
+    // Recupera ultime prenotazioni confermate
+    const bookingsSnapshot = await db
+      .collection("bookings")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    
+    if (bookingsSnapshot.empty) {
+      return res.status(404).json({ error: "Nessuna prenotazione trovata" });
+    }
+    
+    const results: any[] = [];
+    
+    // Import funzioni email
+    const {
+      sendGmailEmail,
+      createBookingReceivedEmailHTML,
+      createBookingConfirmedEmailHTML,
+      getStudioContactInfo,
+    } = await import("./email-routes.js");
+    
+    const studioInfo = await getStudioContactInfo();
+    
+    for (const doc of bookingsSnapshot.docs) {
+      const booking = doc.data();
+      const bookingId = doc.id;
+      
+      try {
+        const cliente = booking.cliente || {};
+        const clienteEmail = cliente.email;
+        const clienteNome = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+        
+        if (!clienteEmail) {
+          results.push({ 
+            bookingId, 
+            success: false, 
+            error: "Email cliente mancante" 
+          });
+          continue;
+        }
+        
+        // Recupera nome campagna
+        let campaignName = "Shooting Fotografico";
+        if (booking.campaignId) {
+          const campaignDoc = await db
+            .collection("booking_campaigns")
+            .doc(booking.campaignId)
+            .get();
+          if (campaignDoc.exists) {
+            campaignName = campaignDoc.data()?.nome || campaignName;
+          }
+        }
+        
+        // Formatta date
+        const startDate = booking.dataShootingInizio?.toDate?.() || new Date(booking.dataShootingInizio);
+        const endDate = booking.dataShootingFine?.toDate?.() || new Date(booking.dataShootingFine);
+        
+        const bookingDate = startDate.toLocaleDateString("it-IT", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const bookingTime = `${startDate.toLocaleTimeString("it-IT", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Europe/Rome",
+        })} - ${endDate.toLocaleTimeString("it-IT", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Europe/Rome",
+        })}`;
+        
+        const durationMinutes = Math.round(
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60)
+        );
+        
+        const prodottoNome = booking.prodottoNome || booking.prodotti?.[0]?.nome || "Servizio Fotografico";
+        
+        // Scegli template in base allo stato
+        let emailHTML: string;
+        let subject: string;
+        
+        if (booking.stato === "confermata") {
+          // Email di conferma (con link calendario)
+          // Firma: clienteName, campaignName, bookingDate, bookingTime, duration, productName, notes, studioInfo, calendarLink
+          emailHTML = createBookingConfirmedEmailHTML(
+            clienteNome,
+            campaignName,
+            bookingDate,
+            bookingTime,
+            durationMinutes,
+            prodottoNome,
+            undefined, // notes
+            studioInfo,
+            booking.calendarLink || undefined
+          );
+          subject = `Prenotazione Confermata - ${campaignName}`;
+        } else {
+          // Email di ricezione
+          // Firma: clienteName, campaignName, bookingDate, bookingTime, duration, productName, studioInfo, calendarLink
+          emailHTML = createBookingReceivedEmailHTML(
+            clienteNome,
+            campaignName,
+            bookingDate,
+            bookingTime,
+            durationMinutes,
+            prodottoNome,
+            studioInfo,
+            undefined
+          );
+          subject = `Prenotazione Ricevuta - ${campaignName}`;
+        }
+        
+        await sendGmailEmail(clienteEmail, subject, emailHTML);
+        
+        console.log(`✅ Email rinviata a ${clienteEmail} per booking ${bookingId}`);
+        
+        results.push({
+          bookingId,
+          success: true,
+          email: clienteEmail,
+          stato: booking.stato,
+          cliente: clienteNome
+        });
+        
+      } catch (emailError: any) {
+        console.error(`❌ Errore invio email booking ${bookingId}:`, emailError);
+        results.push({
+          bookingId,
+          success: false,
+          error: emailError.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log(`📧 Rinvio completato: ${successCount}/${results.length} email inviate`);
+    
+    return res.json({
+      success: true,
+      message: `${successCount} email inviate su ${results.length} prenotazioni`,
+      results
+    });
+    
+  } catch (error: any) {
+    console.error("❌ Errore resend-confirmation-emails:", error);
+    return res.status(500).json({
+      error: error.message || "Errore rinvio email"
+    });
+  }
+});
+
 export default router;
