@@ -72,3 +72,6 @@ externalPort = 3001
 [[ports]]
 localPort = 33503
 externalPort = 3000
+
+[agent]
+integrations = ["google-mail:1.0.0"]
