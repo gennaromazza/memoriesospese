@@ -6,7 +6,7 @@
 import express from 'express';
 import { getEvents, createEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
-import { sendGmailEmail, getStudioContactInfo } from './email-routes.js';
+import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
 
 const router = express.Router();
 
@@ -406,32 +406,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     };
     
     // 4. Genera link consulenza con dominio corretto (sviluppo/produzione)
-    let baseUrl = 'https://memoriesospese.gennaromazzacane.it';
-    
-    if (process.env.REPLIT_DOMAINS) {
-      try {
-        let primaryDomain: string;
-        
-        // REPLIT_DOMAINS può essere JSON array (es. '["abc.replit.dev"]') o CSV (es. 'abc.com,backup.com')
-        if (process.env.REPLIT_DOMAINS.trim().startsWith('[')) {
-          // Parse JSON array
-          const domains = JSON.parse(process.env.REPLIT_DOMAINS);
-          primaryDomain = Array.isArray(domains) && domains.length > 0 ? domains[0] : '';
-        } else {
-          // Parse CSV - prende il primo dominio (sviluppo o produzione)
-          const domains = process.env.REPLIT_DOMAINS.split(',');
-          primaryDomain = domains[0].trim();
-        }
-        
-        // Valida e usa il dominio se non vuoto
-        if (primaryDomain && primaryDomain.length > 0) {
-          baseUrl = `https://${primaryDomain}`;
-        }
-      } catch (error) {
-        console.warn('⚠️ Errore parsing REPLIT_DOMAINS, uso fallback:', error);
-        // Usa fallback di default
-      }
-    }
+    const baseUrl = getSiteBaseUrl(req);
     
     // Route corretto: /consulenze/:tipo/:id/prenota (senza parametri URL - il cliente li inserisce nel form)
     const consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;

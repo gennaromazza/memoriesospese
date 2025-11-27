@@ -1503,44 +1503,17 @@ router.patch("/:id/reject", async (req, res) => {
         day: "numeric",
       });
 
-      // Crea URL assoluto per booking page della campagna
-      let baseUrl = "https://memoriesospese.gennaromazzacane.it";
-      if (process.env.REPLIT_DOMAINS) {
-        try {
-          let primaryDomain: string;
-
-          // REPLIT_DOMAINS può essere JSON array (es. '["abc.replit.dev"]') o CSV (es. 'abc.com,backup.com')
-          if (process.env.REPLIT_DOMAINS.trim().startsWith("[")) {
-            // Parse JSON array
-            const domains = JSON.parse(process.env.REPLIT_DOMAINS);
-            primaryDomain =
-              Array.isArray(domains) && domains.length > 0 ? domains[0] : "";
-          } else {
-            // Parse CSV
-            const domains = process.env.REPLIT_DOMAINS.split(",");
-            primaryDomain = domains[0].trim();
-          }
-
-          // Valida e usa il dominio se non vuoto
-          if (primaryDomain && primaryDomain.length > 0) {
-            baseUrl = `https://${primaryDomain}`;
-          }
-        } catch (error) {
-          console.warn(
-            "⚠️ Errore parsing REPLIT_DOMAINS, uso fallback:",
-            error,
-          );
-          // Usa fallback di default
-        }
-      }
-      const bookingUrl = `${baseUrl}/booking/${bookingData.campaignId}`;
-
       // Import diretto delle funzioni email
       const {
         sendGmailEmail,
         createBookingRejectedEmailHTML,
         getStudioContactInfo,
+        getSiteBaseUrl,
       } = await import("./email-routes.js");
+
+      // Crea URL assoluto per booking page della campagna
+      const baseUrl = getSiteBaseUrl(req);
+      const bookingUrl = `${baseUrl}/booking/${bookingData.campaignId}`;
 
       // Recupera dati contatto studio
       const studioInfo = await getStudioContactInfo();

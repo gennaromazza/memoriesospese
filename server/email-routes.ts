@@ -14,6 +14,29 @@ const router = Router();
 const FIREBASE_PROJECT_ID = "wedding-gallery-397b6";
 
 /**
+ * Helper: Ottiene l'URL base del sito in modo dinamico
+ * Priorità: SITE_URL env > x-forwarded-host > host header > fallback production URL
+ */
+export function getSiteBaseUrl(req?: Request): string {
+  // 1. Usa variabile d'ambiente se impostata
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, ''); // Rimuove trailing slash
+  }
+  
+  // 2. Se abbiamo la request, usa gli header
+  if (req) {
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    if (host) {
+      return `${protocol}://${host}`;
+    }
+  }
+  
+  // 3. Fallback: URL di produzione (dominio ufficiale)
+  return 'https://memoriesospese.gennaromazzacane.it';
+}
+
+/**
  * Email template: Collaborator Assignment Notification
  * Inviata al collaboratore quando gli viene assegnato un nuovo lavoro/task
  */
@@ -2172,10 +2195,9 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 
     console.log(`📧 Invio notifica PIN galleria speciale a: ${clientEmail}`);
 
-    // Costruisci URL assoluto direttamente sul server per evitare problemi con Gmail
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const host = req.get('x-forwarded-host') || req.get('host') || 'memoriesospese.replit.app';
-    const galleryUrl = `${protocol}://${host}/special-gallery`;
+    // Costruisci URL assoluto usando helper centralizzato
+    const baseUrl = getSiteBaseUrl(req);
+    const galleryUrl = `${baseUrl}/special-gallery`;
 
     console.log(`🔗 URL galleria costruito sul server: ${galleryUrl}`);
 
