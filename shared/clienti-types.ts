@@ -37,6 +37,7 @@ export interface Cliente {
     passwordRequestIds?: string[]; // Array ID richieste password
     userIds?: string[]; // Array ID utenti registrati (Firebase Auth)
     consultationIds?: string[]; // Array ID consulenze
+    jobIds?: string[]; // Array ID lavori
   };
   
   // Analytics e lifecycle

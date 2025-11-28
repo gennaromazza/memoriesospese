@@ -26,7 +26,8 @@ import {
   Package,
   Key,
   User,
-  Edit
+  Edit,
+  Briefcase
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -276,6 +277,25 @@ export default function ClienteDetailDrawer({
                   </div>
                   <div className="text-xs text-[hsl(var(--sage))]/70">
                     Prenotazioni
+                  </div>
+                </div>
+              </div>
+
+              {/* Lavori */}
+              <div 
+                onClick={scrollToStorico}
+                className="flex items-center gap-3 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 cursor-pointer hover:shadow-md transition-shadow"
+                data-testid="badge-lavori"
+              >
+                <div className="p-2 rounded-full bg-indigo-100 dark:bg-indigo-900/40">
+                  <Briefcase className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                    {cliente.sourceRefs.jobIds?.length || 0}
+                  </div>
+                  <div className="text-xs text-indigo-700/70 dark:text-indigo-300/70">
+                    Lavori
                   </div>
                 </div>
               </div>
