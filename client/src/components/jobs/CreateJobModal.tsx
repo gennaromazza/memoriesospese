@@ -252,14 +252,13 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
   const handleClose = () => {
     form.reset();
     setSelectedClienti([]);
-    setDateInputValue('');
     onClose();
   };
   
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuovo Lavoro</DialogTitle>
           <DialogDescription>
@@ -331,7 +330,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Tipo lavoro */}
               <FormField
                 control={form.control}
@@ -503,7 +502,7 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
             />
 
             {/* Rito/Celebrazione */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="rituLocation"
