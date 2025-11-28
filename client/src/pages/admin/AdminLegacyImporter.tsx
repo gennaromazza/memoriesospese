@@ -405,6 +405,72 @@ export default function AdminLegacyImporter() {
     return obj;
   };
 
+  /**
+   * Converte in modo sicuro un valore in Firestore Timestamp
+   * Gestisce stringhe ISO, Date objects, Timestamp serializzati, e valori non validi
+   */
+  const safeToTimestamp = (value: any): Timestamp | null => {
+    if (value === null || value === undefined || value === '') return null;
+    
+    // Se è già un Timestamp, ritornalo
+    if (isFirestoreTimestamp(value)) {
+      return value as Timestamp;
+    }
+    
+    // Se è un Timestamp serializzato
+    if (isSerializedTimestamp(value)) {
+      try {
+        return new Timestamp(value.seconds, value.nanoseconds);
+      } catch (e) {
+        console.warn(`⚠️ Timestamp serializzato non valido:`, value);
+        return null;
+      }
+    }
+    
+    // Se è una stringa, prova a convertirla
+    if (typeof value === 'string') {
+      try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          console.warn(`⚠️ Data stringa non valida: "${value}"`);
+          return null;
+        }
+        return Timestamp.fromDate(date);
+      } catch (e) {
+        console.warn(`⚠️ Impossibile convertire stringa in Timestamp: "${value}"`, e);
+        return null;
+      }
+    }
+    
+    // Se è un oggetto Date
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) {
+        console.warn(`⚠️ Oggetto Date non valido`);
+        return null;
+      }
+      return Timestamp.fromDate(value);
+    }
+    
+    // Se è un numero (unix timestamp in secondi o millisecondi)
+    if (typeof value === 'number') {
+      try {
+        // Se è maggiore di 1e12, probabilmente è in millisecondi
+        const date = value > 1e12 ? new Date(value) : new Date(value * 1000);
+        if (isNaN(date.getTime())) {
+          console.warn(`⚠️ Timestamp numerico non valido: ${value}`);
+          return null;
+        }
+        return Timestamp.fromDate(date);
+      } catch (e) {
+        console.warn(`⚠️ Impossibile convertire numero in Timestamp: ${value}`, e);
+        return null;
+      }
+    }
+    
+    console.warn(`⚠️ Tipo di valore non supportato per conversione Timestamp:`, typeof value, value);
+    return null;
+  };
+
   const handleImport = async () => {
     if (!legacyData || !allMapped) return;
     
@@ -501,7 +567,7 @@ export default function AdminLegacyImporter() {
         const jobData = {
           ...job,
           clientiIds: mappedClientiIds,
-          eventDate: job.eventDate ? Timestamp.fromDate(new Date(job.eventDate)) : null,
+          eventDate: safeToTimestamp(job.eventDate),
           pdfs: convertDatesRecursively(job.pdfs),
           costi: convertDatesRecursively(job.costi),
           createdAt: serverTimestamp(),
@@ -524,7 +590,7 @@ export default function AdminLegacyImporter() {
         const orderData = {
           ...order,
           clienteId: mappedClienteId,
-          dataServizio: order.dataServizio ? Timestamp.fromDate(new Date(order.dataServizio)) : null,
+          dataServizio: safeToTimestamp(order.dataServizio),
           transactions: convertDatesRecursively(order.transactions),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -554,17 +620,17 @@ export default function AdminLegacyImporter() {
           clientiInfo: mappedClientiInfo,
           signature: quote.signature ? {
             ...quote.signature,
-            signedAt: quote.signature.signedAt ? Timestamp.fromDate(new Date(quote.signature.signedAt)) : null,
+            signedAt: safeToTimestamp(quote.signature.signedAt),
           } : null,
           jobInfo: quote.jobInfo ? {
             ...quote.jobInfo,
-            eventDate: quote.jobInfo.eventDate ? Timestamp.fromDate(new Date(quote.jobInfo.eventDate)) : null,
+            eventDate: safeToTimestamp(quote.jobInfo.eventDate),
           } : null,
           products: convertDatesRecursively(quote.products),
           contractClauses: convertDatesRecursively(quote.contractClauses),
           theme: convertDatesRecursively(quote.theme),
-          emailSentAt: quote.emailSentAt ? Timestamp.fromDate(new Date(quote.emailSentAt)) : null,
-          viewedAt: quote.viewedAt ? Timestamp.fromDate(new Date(quote.viewedAt)) : null,
+          emailSentAt: safeToTimestamp(quote.emailSentAt),
+          viewedAt: safeToTimestamp(quote.viewedAt),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
@@ -586,8 +652,8 @@ export default function AdminLegacyImporter() {
           const isPagato = payment.stato === 'pagato';
           return {
             ...payment,
-            dataScadenza: payment.dataScadenza ? Timestamp.fromDate(new Date(payment.dataScadenza)) : null,
-            dataPagamento: payment.dataPagamento ? Timestamp.fromDate(new Date(payment.dataPagamento)) : null,
+            dataScadenza: safeToTimestamp(payment.dataScadenza),
+            dataPagamento: safeToTimestamp(payment.dataPagamento),
             importoPagato: isPagato ? payment.importo : (payment as any).importoPagato || 0,
           };
         });
