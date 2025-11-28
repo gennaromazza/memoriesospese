@@ -3,7 +3,7 @@
  * Componente principale gestione lavori
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
@@ -641,25 +641,49 @@ export default function JobsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedJobs.map(job => {
-                const jobTypeInfo = jobTypeMap[job.jobType];
-                const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
-                const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
-                const isSelected = selectedJobs.has(job.id);
+              {(() => {
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                let pastSeparatorShown = false;
                 
-                return (
-                  <TableRow
-                    key={job.id}
-                    className={cn(
-                      "cursor-pointer hover:bg-muted/50 relative",
-                      isSelected && "bg-red-50 hover:bg-red-100"
-                    )}
-                    style={{
-                      boxShadow: jobTypeInfo?.colore ? `inset 4px 0 0 ${jobTypeInfo.colore}` : undefined
-                    }}
-                    onClick={() => navigate(`/admin/jobs/${job.id}`)}
-                    data-testid={`job-row-${job.id}`}
-                  >
+                return sortedJobs.map((job, index) => {
+                  const jobTypeInfo = jobTypeMap[job.jobType];
+                  const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
+                  const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
+                  const isSelected = selectedJobs.has(job.id);
+                  const jobDate = eventDate ? new Date(eventDate) : new Date(0);
+                  const isJobPast = jobDate < startOfToday;
+                  
+                  // Check if this is the first past job
+                  const showPastSeparator = isJobPast && !pastSeparatorShown;
+                  if (showPastSeparator) {
+                    pastSeparatorShown = true;
+                  }
+                  
+                  return (
+                    <Fragment key={job.id}>
+                      {showPastSeparator && (
+                        <TableRow key="past-separator" className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
+                          <TableCell colSpan={8} className="py-2 text-center">
+                            <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
+                              <span className="font-medium">📅 Lavori Passati</span>
+                              <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow
+                        className={cn(
+                          "cursor-pointer hover:bg-muted/50 relative",
+                          isSelected && "bg-red-50 hover:bg-red-100"
+                        )}
+                        style={{
+                          boxShadow: jobTypeInfo?.colore ? `inset 4px 0 0 ${jobTypeInfo.colore}` : undefined
+                        }}
+                        onClick={() => navigate(`/admin/jobs/${job.id}`)}
+                        data-testid={`job-row-${job.id}`}
+                      >
                     {/* Checkbox */}
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -811,8 +835,10 @@ export default function JobsManager() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                    </Fragment>
+                  );
+                });
+              })()}
             </TableBody>
           </Table>
         </div>
