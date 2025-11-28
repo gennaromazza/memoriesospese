@@ -116,15 +116,19 @@ export function ClientAutocomplete({
 
   return (
     <>
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn('w-full justify-between', className)}
+          className={cn('w-full justify-between min-h-[44px]', className)}
           data-testid="button-client-autocomplete"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
         >
           <span className={cn('truncate', !selectedCliente && 'text-muted-foreground')}>
             {displayValue}
@@ -132,7 +136,11 @@ export function ClientAutocomplete({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start">
+      <PopoverContent 
+        className="w-[min(400px,calc(100vw-2rem))] p-0 z-[100]" 
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Cerca per nome, email o telefono..."
