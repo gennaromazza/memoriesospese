@@ -197,39 +197,41 @@ export default function JobsManager() {
     }
   });
   
-  // Query pagamenti per job (conteggio transazioni dagli ordini)
+  // Query pagamenti per job - carica tutti gli ordini in un'unica query
   const { data: pagamentiByJob = {} } = useQuery<Record<string, number>>({
-    queryKey: ['jobPagamentiCounts', jobs.map(j => j.id).join(',')],
+    queryKey: ['jobPagamentiCounts'],
     queryFn: async () => {
-      // Raggruppa orderIds per job
-      const counts: Record<string, number> = {};
+      // Carica tutti gli ordini una volta sola
+      const ordersSnapshot = await getDocs(collection(db, 'orders'));
+      const ordersMap: Record<string, number> = {};
       
-      // Per ogni job, conta le transazioni nei suoi ordini
-      for (const job of jobs) {
-        if (job.orderIds && job.orderIds.length > 0) {
-          let transactionCount = 0;
-          for (const orderId of job.orderIds) {
-            try {
-              const orderSnap = await getDocs(
-                firestoreQuery(collection(db, 'orders'), where('__name__', '==', orderId))
-              );
-              if (!orderSnap.empty) {
-                const orderData = orderSnap.docs[0].data() as Order;
-                transactionCount += (orderData.transactions?.length || 0);
-              }
-            } catch (e) {
-              // Ignora errori per singoli ordini
-            }
-          }
-          if (transactionCount > 0) {
-            counts[job.id] = transactionCount;
-          }
+      // Mappa orderId -> numero transazioni
+      ordersSnapshot.docs.forEach(doc => {
+        const data = doc.data() as Order;
+        ordersMap[doc.id] = data.transactions?.length || 0;
+      });
+      
+      return ordersMap;
+    },
+    staleTime: 30000 // Cache per 30 secondi
+  });
+  
+  // Deriva conteggio transazioni per job dai dati caricati
+  const transazioniPerJob = useMemo(() => {
+    const counts: Record<string, number> = {};
+    jobs.forEach(job => {
+      if (job.orderIds && job.orderIds.length > 0) {
+        let total = 0;
+        job.orderIds.forEach(orderId => {
+          total += pagamentiByJob[orderId] || 0;
+        });
+        if (total > 0) {
+          counts[job.id] = total;
         }
       }
-      return counts;
-    },
-    enabled: jobs.length > 0
-  });
+    });
+    return counts;
+  }, [jobs, pagamentiByJob]);
   
   // Crea mappa slug -> JobType per lookup veloci
   const jobTypeMap = useMemo(() => {
@@ -896,7 +898,7 @@ export default function JobsManager() {
                     {/* Pagamenti */}
                     <TableCell className="hidden md:table-cell text-center">
                       {(() => {
-                        const count = pagamentiByJob[job.id] || 0;
+                        const count = transazioniPerJob[job.id] || 0;
                         const financials = job.financials;
                         const isPagato = financials && financials.saldoResiduo <= 0 && financials.totalePagato > 0;
                         
