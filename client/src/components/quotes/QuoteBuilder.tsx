@@ -491,16 +491,22 @@ export default function QuoteBuilder({
         const updateData: any = {
           type: data.type,
           products: mergedProducts,
-          discountType: data.discountType,
-          discountValue: data.discountValue,
           totalBeforeDiscount: finalTotals.totalBeforeDiscount,
           totalAfterDiscount: finalTotals.totalAfterDiscount,
           theme: data.theme,
           expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : null,
-          noteInterne: data.noteInterne,
-          paymentScheduleConfig: data.paymentScheduleConfig,
+          noteInterne: data.noteInterne || '',
           updatedAt: Timestamp.now()
         };
+        
+        // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
+        if (data.discountType !== undefined) {
+          updateData.discountType = data.discountType;
+          updateData.discountValue = data.discountValue || 0;
+        }
+        if (data.paymentScheduleConfig !== undefined) {
+          updateData.paymentScheduleConfig = data.paymentScheduleConfig;
+        }
 
         const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
         await updateDoc(quoteRef, updateData);

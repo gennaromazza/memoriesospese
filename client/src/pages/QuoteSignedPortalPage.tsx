@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download } from 'lucide-react';
+import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';
@@ -410,15 +411,13 @@ export default function QuoteSignedPortalPage() {
                   data-testid={`product-item-${idx}`}
                 >
                   {/* Product Image */}
-                  {product.immagini && product.immagini.length > 0 && (
-                    <div className="flex-shrink-0">
-                      <img 
-                        src={product.immagini[0]} 
-                        alt={product.nome}
-                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
-                      />
-                    </div>
-                  )}
+                  <div className="flex-shrink-0">
+                    <img 
+                      src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
+                      alt={product.nome}
+                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
+                    />
+                  </div>
                   
                   <div className="flex items-start gap-3 sm:gap-4 flex-1">
                     <div className="p-2 sm:p-3 bg-sage/20 rounded-full flex-shrink-0">

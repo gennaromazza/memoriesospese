@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe } from 'lucide-react';
+import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
@@ -499,17 +500,11 @@ export default function QuotePublicViewPage() {
                 
                 {/* Product Image */}
                 <div className="flex-shrink-0">
-                  {product.immagini && product.immagini.length > 0 ? (
-                    <img 
-                      src={product.immagini[0]} 
-                      alt={product.nome}
-                      className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg border-2 border-dashed border-sage/30 bg-light-mint/20 flex items-center justify-center">
-                      <FileText className="w-8 h-8 text-sage" />
-                    </div>
-                  )}
+                  <img 
+                    src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
+                    alt={product.nome}
+                    className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
+                  />
                 </div>
 
                 <div className="flex-1 min-w-0">

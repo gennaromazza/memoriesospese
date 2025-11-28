@@ -56,6 +56,7 @@ interface PaymentScheduleSectionProps {
   isAdmin?: boolean;
   onGeneratePayments?: () => void; // Callback per aprire modal generazione pagamenti
   legacyFinancials?: LegacyFinancials; // Fallback per lavori importati senza payment schedules
+  jobSource?: string; // Per distinguere lavori importati da nuovi
 }
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -85,7 +86,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
   scaduto: XCircle,
 };
 
-export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments, legacyFinancials }: PaymentScheduleSectionProps) {
+export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments, legacyFinancials, jobSource }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
   const [gestioneRataState, setGestioneRataState] = useState<{
     open: boolean;
@@ -180,8 +181,10 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
   }
 
   if (schedules.length === 0) {
-    // Check if we have legacy financials to display (show even if values are 0)
-    const hasLegacyData = legacyFinancials && (
+    // Check if we have legacy financials to display - ONLY for imported jobs
+    // Jobs created manually or via booking don't show legacy message
+    const isLegacyImport = jobSource === 'legacy_import';
+    const hasLegacyData = isLegacyImport && legacyFinancials && (
       legacyFinancials.totalePreventivato !== undefined ||
       legacyFinancials.totalePagato !== undefined ||
       legacyFinancials.saldoResiduo !== undefined ||
