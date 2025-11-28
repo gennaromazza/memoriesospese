@@ -407,3 +407,48 @@ export function generateDashboardLink(collaboratore: Collaboratore): string {
   const baseUrl = window.location.origin;
   return `${baseUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`;
 }
+
+/**
+ * Rigenera token dashboard collaboratore
+ */
+export async function regenerateDashboardToken(collaboratoreId: string): Promise<string | null> {
+  try {
+    const response = await apiRequest(
+      "POST",
+      `/api/collaboratori/${collaboratoreId}/regenerate-token`
+    );
+
+    if (!response.ok) throw new Error("Errore rigenerazione token");
+
+    const data = await response.json();
+    console.log("✅ Token rigenerato:", collaboratoreId);
+    return data.dashboardToken;
+  } catch (error) {
+    console.error("❌ Errore regenerate token:", error);
+    throw error;
+  }
+}
+
+/**
+ * Accetta/rifiuta assegnazione da dashboard pubblica
+ */
+export async function respondToAssignmentPublic(
+  assignmentId: string,
+  action: 'accept' | 'decline',
+  noteRifiuto?: string
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "POST",
+      `/api/collaboratori/public/assignment/${assignmentId}/${action}`,
+      action === 'decline' ? { noteRifiuto } : undefined
+    );
+
+    if (!response.ok) throw new Error(`Errore ${action} assegnazione`);
+
+    console.log(`✅ Assegnazione ${action}:`, assignmentId);
+  } catch (error) {
+    console.error(`❌ Errore ${action} assegnazione:`, error);
+    throw error;
+  }
+}

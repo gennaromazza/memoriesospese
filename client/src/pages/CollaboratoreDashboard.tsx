@@ -1,10 +1,19 @@
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'wouter';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -13,10 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getCollaboratorByToken } from '@/lib/collaboratori';
+import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment } from '@shared/collaboratori-types';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 
 const STATUS_LABELS = {
   pending: { label: '⏳ In Attesa', variant: 'secondary' as const },
@@ -24,15 +36,80 @@ const STATUS_LABELS = {
   declined: { label: '❌ Rifiutato', variant: 'destructive' as const },
 };
 
+const RUOLI_LABELS: Record<string, string> = {
+  fotografo_secondario: '📷 Fotografo Secondario',
+  videomaker: '🎥 Videomaker',
+  assistente: '🤝 Assistente',
+  photo_editor: '🎨 Photo Editor',
+  album_designer: '📚 Album Designer',
+  altro: '👤 Altro',
+};
+
+interface AssignmentWithJob extends JobCollaboratoreAssignment {
+  job?: {
+    id: string;
+    nomeEvento?: string;
+    eventDate?: any;
+    eventLocation?: string;
+  } | null;
+}
+
 export default function CollaboratoreDashboard() {
   const { token } = useParams<{ token: string }>();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<JobAcceptanceStatus | 'all'>('all');
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [declineNote, setDeclineNote] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['collaborator-dashboard', token],
     queryFn: () => getCollaboratorByToken(token!),
     enabled: !!token,
   });
+
+  const acceptMutation = useMutation({
+    mutationFn: (assignmentId: string) => respondToAssignmentPublic(assignmentId, 'accept'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collaborator-dashboard', token] });
+      toast({ title: '✅ Lavoro accettato con successo!' });
+    },
+    onError: () => {
+      toast({ title: '❌ Errore durante l\'accettazione', variant: 'destructive' });
+    }
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: ({ assignmentId, note }: { assignmentId: string; note: string }) => 
+      respondToAssignmentPublic(assignmentId, 'decline', note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collaborator-dashboard', token] });
+      toast({ title: 'Lavoro rifiutato' });
+      setDeclineDialogOpen(false);
+      setDeclineNote('');
+      setSelectedAssignmentId(null);
+    },
+    onError: () => {
+      toast({ title: '❌ Errore durante il rifiuto', variant: 'destructive' });
+    }
+  });
+
+  const handleDecline = (assignmentId: string) => {
+    setSelectedAssignmentId(assignmentId);
+    setDeclineDialogOpen(true);
+  };
+
+  const confirmDecline = () => {
+    if (selectedAssignmentId) {
+      declineMutation.mutate({ assignmentId: selectedAssignmentId, note: declineNote });
+    }
+  };
+
+  const getJobDate = (job: AssignmentWithJob['job']): Date | null => {
+    if (!job?.eventDate) return null;
+    return convertFirestoreTimestamp(job.eventDate);
+  };
 
   if (isLoading) {
     return (

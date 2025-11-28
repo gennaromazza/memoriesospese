@@ -522,6 +522,38 @@ router.post('/assignments/:id/add-payment', async (req, res) => {
 });
 
 /**
+ * POST /api/collaboratori/:id/regenerate-token
+ * Rigenera token dashboard per un collaboratore
+ */
+router.post('/collaboratori/:id/regenerate-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const collaboratoreDoc = await db.collection('collaboratori').doc(id).get();
+    if (!collaboratoreDoc.exists) {
+      return res.status(404).json({ error: 'Collaboratore non trovato' });
+    }
+    
+    const newToken = generateCollaboratorToken();
+    
+    await db.collection('collaboratori').doc(id).update({
+      dashboardToken: newToken,
+      hasAccess: true,
+      updatedAt: Timestamp.now()
+    });
+    
+    res.json({ 
+      success: true, 
+      dashboardToken: newToken,
+      message: 'Token rigenerato con successo'
+    });
+  } catch (error: any) {
+    console.error('❌ Error regenerating token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/collaboratori/dashboard/:token
  * Dashboard collaboratore via link magico (pubblico)
  */
