@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { Cliente } from '@shared/clienti-types';
 import type { Booking, Order } from '@shared/booking-types';
+import type { Job } from '@shared/jobs-types';
 import type { Gallery } from '@/lib/galleries';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, ShoppingCart, Image as ImageIcon, ExternalLink, Lock, User } from 'lucide-react';
+import { Calendar, ShoppingCart, Image as ImageIcon, ExternalLink, Lock, User, Briefcase } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,13 +32,13 @@ type UserRecord = {
 
 type TimelineEvent = {
   id: string;
-  type: 'booking' | 'order' | 'gallery' | 'passwordRequest' | 'user';
+  type: 'booking' | 'order' | 'gallery' | 'passwordRequest' | 'user' | 'job';
   date: Date;
   title: string;
   description: string;
   status?: string;
   link?: string;
-  data: Booking | Order | Gallery | PasswordRequest | UserRecord;
+  data: Booking | Order | Gallery | PasswordRequest | UserRecord | Job;
 };
 
 interface ClienteStoricoProps {
@@ -99,6 +100,13 @@ async function loadUser(id: string): Promise<UserRecord | null> {
   const docSnap = await getDoc(docRef);
   if (!docSnap.exists()) return null;
   return { id: docSnap.id, ...docSnap.data() } as UserRecord;
+}
+
+async function loadJob(id: string): Promise<Job | null> {
+  const docRef = doc(db, 'jobs', id);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() } as Job;
 }
 
 export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
@@ -195,6 +203,25 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
         }
       }
 
+      for (const jobId of cliente.sourceRefs.jobIds || []) {
+        const job = await loadJob(jobId);
+        if (job) {
+          const date = parseDate(job.eventDate);
+          if (date) {
+            allEvents.push({
+              id: jobId,
+              type: 'job',
+              date,
+              title: 'Lavoro',
+              description: job.nomeEvento || 'Servizio fotografico',
+              status: job.status,
+              link: `/admin/jobs/${jobId}`,
+              data: job,
+            });
+          }
+        }
+      }
+
       return allEvents.sort((a, b) => b.date.getTime() - a.date.getTime());
     },
   });
@@ -248,6 +275,8 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
         return <Lock className="h-5 w-5 text-orange-500" />;
       case 'user':
         return <User className="h-5 w-5 text-purple-500" />;
+      case 'job':
+        return <Briefcase className="h-5 w-5 text-indigo-500" />;
     }
   };
 
@@ -262,6 +291,13 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
       'in_lavorazione': { variant: 'outline', label: 'In Lavorazione' },
       'pronto': { variant: 'default', label: 'Pronto' },
       'consegnato': { variant: 'secondary', label: 'Consegnato' },
+      'lead': { variant: 'outline', label: 'Lead' },
+      'preventivo_inviato': { variant: 'outline', label: 'Preventivo Inviato' },
+      'confermato': { variant: 'default', label: 'Confermato' },
+      'shooting_fatto': { variant: 'default', label: 'Shooting Fatto' },
+      'selezione_pending': { variant: 'outline', label: 'Selezione Pending' },
+      'produzione': { variant: 'outline', label: 'In Produzione' },
+      'archiviato': { variant: 'secondary', label: 'Archiviato' },
     };
 
     const config = variants[status] || { variant: 'outline' as const, label: status };

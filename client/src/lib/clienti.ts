@@ -139,7 +139,7 @@ export async function getClienteByEmail(email: string): Promise<Cliente | null> 
 /**
  * Aggrega clienti da tutte le fonti di interazione
  */
-async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<InsertCliente> & { sourceRefs: { bookingIds: string[], orderIds: string[], galleryIds: string[], passwordRequestIds: string[], userIds: string[] } }>> {
+async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<InsertCliente> & { sourceRefs: { bookingIds: string[], orderIds: string[], galleryIds: string[], passwordRequestIds: string[], userIds: string[], jobIds: string[] } }>> {
   const clientsMap = new Map<string, any>();
 
   // 1. Bookings
@@ -154,7 +154,7 @@ async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<Ins
           cognome: booking.cliente.cognome || 'N/D',
           email: normalizedEmail,
           cellulare1: booking.cliente.whatsapp || undefined,
-          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [], jobIds: [] },
         });
       }
       const client = clientsMap.get(normalizedEmail);
@@ -178,7 +178,7 @@ async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<Ins
           cognome: cognomeParts.join(' ') || 'N/D',
           email: normalizedEmail,
           cellulare1: order.whatsappCliente || undefined,
-          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [], jobIds: [] },
         });
       }
       const client = clientsMap.get(normalizedEmail);
@@ -199,7 +199,7 @@ async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<Ins
           nome: request.firstName || 'N/D',
           cognome: request.lastName || 'N/D',
           email: normalizedEmail,
-          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [], jobIds: [] },
         });
       }
       const client = clientsMap.get(normalizedEmail);
@@ -225,7 +225,7 @@ async function aggregateClientsFromAllSources(): Promise<Map<string, Partial<Ins
           nome: nome || 'N/D',
           cognome: cognomeParts.join(' ') || 'N/D',
           email: normalizedEmail,
-          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [] },
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], passwordRequestIds: [], userIds: [], jobIds: [] },
         });
       }
       const client = clientsMap.get(normalizedEmail);
@@ -274,6 +274,7 @@ async function autoCreateMissingClients(aggregatedClients: Map<string, any>): Pr
           galleryIds: clientData.sourceRefs.galleryIds || [],
           passwordRequestIds: clientData.sourceRefs.passwordRequestIds || [],
           userIds: clientData.sourceRefs.userIds || [],
+          jobIds: clientData.sourceRefs.jobIds || [],
         },
         lifecycle: {
           firstContactAt: now as Timestamp,
@@ -362,6 +363,7 @@ export async function syncClientiFromAllSources(): Promise<{
           galleryIds: clientData.sourceRefs.galleryIds || [],
           passwordRequestIds: clientData.sourceRefs.passwordRequestIds || [],
           userIds: clientData.sourceRefs.userIds || [],
+          jobIds: clientData.sourceRefs.jobIds || [],
         },
         lifecycle: {
           firstContactAt: now as Timestamp,
@@ -393,7 +395,9 @@ export async function syncClientiFromAllSources(): Promise<{
         (clientData.sourceRefs.passwordRequestIds?.length > 0 && 
          !clientData.sourceRefs.passwordRequestIds.every(id => existing.sourceRefs.passwordRequestIds?.includes(id))) ||
         (clientData.sourceRefs.userIds?.length > 0 && 
-         !clientData.sourceRefs.userIds.every(id => existing.sourceRefs.userIds?.includes(id)));
+         !clientData.sourceRefs.userIds.every(id => existing.sourceRefs.userIds?.includes(id))) ||
+        (clientData.sourceRefs.jobIds?.length > 0 && 
+         !clientData.sourceRefs.jobIds.every(id => existing.sourceRefs.jobIds?.includes(id)));
       
       if (needsUpdate) {
         const mergedSourceRefs = {
@@ -402,6 +406,7 @@ export async function syncClientiFromAllSources(): Promise<{
           galleryIds: [...new Set([...(existing.sourceRefs.galleryIds || []), ...(clientData.sourceRefs.galleryIds || [])])],
           passwordRequestIds: [...new Set([...(existing.sourceRefs.passwordRequestIds || []), ...(clientData.sourceRefs.passwordRequestIds || [])])],
           userIds: [...new Set([...(existing.sourceRefs.userIds || []), ...(clientData.sourceRefs.userIds || [])])],
+          jobIds: [...new Set([...(existing.sourceRefs.jobIds || []), ...(clientData.sourceRefs.jobIds || [])])],
         };
         
         batch.update(doc(db, COLLECTION, existing.id), {
