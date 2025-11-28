@@ -466,7 +466,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                         )}
                         {quote.signature && (
                           <div className="text-xs text-green-600">
-                            ✓ Firmato da {quote.signature.clientName}
+                            ✓ Firmato da {quote.signature?.clientName || 'Cliente'}
                           </div>
                         )}
                       </CardContent>

@@ -267,7 +267,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                       {/* Info */}
                       <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                         <div>
-                          <span className="font-medium">Prodotti:</span> {quote.products.length}
+                          <span className="font-medium">Prodotti:</span> {quote.products?.length ?? 0}
                         </div>
                         <div>
                           <span className="font-medium">Totale:</span>{' '}
@@ -394,7 +394,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                           </h3>
                           <div className="space-y-2 text-sm">
                             <p>
-                              <span className="font-medium">Firmato da:</span> {quote.signature.clientName}
+                              <span className="font-medium">Firmato da:</span> {quote.signature?.clientName || 'N/D'}
                             </p>
                             {quote.signature.signedAt && convertFirestoreTimestamp(quote.signature.signedAt) && (
                               <p>
@@ -403,7 +403,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                               </p>
                             )}
                             <p>
-                              <span className="font-medium">IP:</span> {quote.signature.ipAddress}
+                              <span className="font-medium">IP:</span> {quote.signature?.ipAddress || 'N/D'}
                             </p>
                           </div>
                         </div>
