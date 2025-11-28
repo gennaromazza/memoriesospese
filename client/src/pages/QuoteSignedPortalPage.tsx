@@ -569,7 +569,7 @@ export default function QuoteSignedPortalPage() {
             </CardContent>
           </Card>
         ) : (
-          /* Fallback: mostra totale contratto quando non c'è payment schedule */
+          /* Fallback: mostra riepilogo economico quando non c'è payment schedule */
           <Card className="border-beige shadow-lg">
             <CardHeader className="bg-cream border-b border-beige pb-3 sm:pb-4">
               <CardTitle className="flex items-center gap-2 sm:gap-3 text-lg sm:text-xl font-playfair font-bold text-dark-sage">
@@ -580,17 +580,36 @@ export default function QuoteSignedPortalPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
-              <div className="text-center p-6 sm:p-8 bg-blue-gray/10 rounded-xl border-2 border-blue-gray/30">
-                <div className="flex justify-center mb-4">
-                  <div className="p-3 bg-blue-gray/20 rounded-full">
-                    <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-blue-gray" />
+              <div className="space-y-4">
+                {/* Dettaglio importi */}
+                {quote.discountValue && quote.discountValue > 0 && (
+                  <div className="flex justify-between items-center p-3 bg-off-white rounded-lg border border-beige">
+                    <span className="text-sm text-dark-sage">Subtotale</span>
+                    <span className="font-semibold text-gray-800">{formatCurrency(quote.totalBeforeDiscount)}</span>
                   </div>
+                )}
+                {quote.discountValue && quote.discountValue > 0 && (
+                  <div className="flex justify-between items-center p-3 bg-terracotta/10 rounded-lg border border-terracotta/30">
+                    <span className="text-sm text-terracotta flex items-center gap-2">
+                      <CreditCard className="w-4 h-4" />
+                      Sconto {quote.discountType === 'percent' ? `(${quote.discountValue}%)` : ''}
+                    </span>
+                    <span className="font-semibold text-terracotta">-{formatCurrency(quote.totalBeforeDiscount - quote.totalAfterDiscount)}</span>
+                  </div>
+                )}
+                {/* Totale finale */}
+                <div className="text-center p-6 sm:p-8 bg-blue-gray/10 rounded-xl border-2 border-blue-gray/30">
+                  <div className="flex justify-center mb-4">
+                    <div className="p-3 bg-blue-gray/20 rounded-full">
+                      <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-blue-gray" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-blue-gray uppercase tracking-wider font-semibold mb-2">Totale Contratto</p>
+                  <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</p>
+                  <p className="text-sm text-dark-sage/70 mt-4">
+                    Per i dettagli sulle modalità di pagamento, contattare lo studio.
+                  </p>
                 </div>
-                <p className="text-sm text-blue-gray uppercase tracking-wider font-semibold mb-2">Totale Contratto</p>
-                <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</p>
-                <p className="text-sm text-dark-sage/70 mt-4">
-                  Per i dettagli sulle modalità di pagamento, contattare lo studio.
-                </p>
               </div>
             </CardContent>
           </Card>

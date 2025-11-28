@@ -180,22 +180,24 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
   }
 
   if (schedules.length === 0) {
-    // Check if we have legacy financials to display
+    // Check if we have legacy financials to display (show even if values are 0)
     const hasLegacyData = legacyFinancials && (
-      (legacyFinancials.totalePreventivato && legacyFinancials.totalePreventivato > 0) ||
-      (legacyFinancials.totalePagato && legacyFinancials.totalePagato > 0)
+      legacyFinancials.totalePreventivato !== undefined ||
+      legacyFinancials.totalePagato !== undefined ||
+      legacyFinancials.saldoResiduo !== undefined ||
+      legacyFinancials.totaleOrdini !== undefined
     );
 
     if (hasLegacyData) {
-      // Show legacy financials data (imported from old system)
+      // Show legacy financials data (imported from old system) - always render even if values are 0
       const totalePreventivato = legacyFinancials.totalePreventivato || 0;
       const totalePagato = legacyFinancials.totalePagato || 0;
       const saldoResiduo = legacyFinancials.saldoResiduo ?? (totalePreventivato - totalePagato);
 
       return (
         <div className="space-y-4">
-          {/* Stats Summary from legacy data */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Stats Summary from legacy data - responsive grid, always show all 3 cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card>
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground mb-1">Totale Preventivato</p>

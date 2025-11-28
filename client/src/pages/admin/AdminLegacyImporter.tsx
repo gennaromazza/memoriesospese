@@ -306,6 +306,76 @@ export default function AdminLegacyImporter() {
 
   const allMapped = clientMappings.every((m) => m.mappedToId || m.createNew);
 
+  /**
+   * Helper per rilevare e convertire stringhe ISO date in Firestore Timestamp
+   * Usato per convertire ricorsivamente tutte le date in strutture annidate
+   */
+  const isISODateString = (value: any): boolean => {
+    if (typeof value !== 'string') return false;
+    // Match ISO 8601 date formats: YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS, etc.
+    const isoRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+    return isoRegex.test(value);
+  };
+
+  /**
+   * Check if an object is a Firestore Timestamp instance
+   */
+  const isFirestoreTimestamp = (obj: any): boolean => {
+    return obj instanceof Timestamp || 
+           (obj && typeof obj === 'object' && 
+            typeof obj.seconds === 'number' && 
+            typeof obj.nanoseconds === 'number' &&
+            typeof obj.toDate === 'function');
+  };
+
+  /**
+   * Check if an object is a plain object (not a class instance, Date, etc.)
+   */
+  const isPlainObject = (obj: any): boolean => {
+    if (obj === null || typeof obj !== 'object') return false;
+    const proto = Object.getPrototypeOf(obj);
+    return proto === Object.prototype || proto === null;
+  };
+
+  /**
+   * Converte ricorsivamente tutte le stringhe data ISO in Firestore Timestamp
+   * Preserva Timestamp esistenti e altri oggetti non-plain
+   */
+  const convertDatesRecursively = (obj: any): any => {
+    if (obj === null || obj === undefined) return obj;
+    
+    // Se è una stringa ISO date, convertila in Timestamp
+    if (isISODateString(obj)) {
+      try {
+        return Timestamp.fromDate(new Date(obj));
+      } catch {
+        return obj; // Ritorna la stringa originale se la conversione fallisce
+      }
+    }
+    
+    // Se è già un Firestore Timestamp, ritornalo così com'è
+    if (isFirestoreTimestamp(obj)) {
+      return obj;
+    }
+    
+    // Se è un array, processa ogni elemento
+    if (Array.isArray(obj)) {
+      return obj.map(item => convertDatesRecursively(item));
+    }
+    
+    // Se è un plain object, processa ogni proprietà
+    if (isPlainObject(obj)) {
+      const result: any = {};
+      for (const key of Object.keys(obj)) {
+        result[key] = convertDatesRecursively(obj[key]);
+      }
+      return result;
+    }
+    
+    // Per oggetti non-plain (Date, classi, etc.), ritornali così come sono
+    return obj;
+  };
+
   const handleImport = async () => {
     if (!legacyData || !allMapped) return;
     
@@ -403,6 +473,8 @@ export default function AdminLegacyImporter() {
           ...job,
           clientiIds: mappedClientiIds,
           eventDate: job.eventDate ? Timestamp.fromDate(new Date(job.eventDate)) : null,
+          pdfs: convertDatesRecursively(job.pdfs),
+          costi: convertDatesRecursively(job.costi),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
@@ -424,6 +496,7 @@ export default function AdminLegacyImporter() {
           ...order,
           clienteId: mappedClienteId,
           dataServizio: order.dataServizio ? Timestamp.fromDate(new Date(order.dataServizio)) : null,
+          transactions: convertDatesRecursively(order.transactions),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
@@ -458,6 +531,9 @@ export default function AdminLegacyImporter() {
             ...quote.jobInfo,
             eventDate: quote.jobInfo.eventDate ? Timestamp.fromDate(new Date(quote.jobInfo.eventDate)) : null,
           } : null,
+          products: convertDatesRecursively(quote.products),
+          contractClauses: convertDatesRecursively(quote.contractClauses),
+          theme: convertDatesRecursively(quote.theme),
           emailSentAt: quote.emailSentAt ? Timestamp.fromDate(new Date(quote.emailSentAt)) : null,
           viewedAt: quote.viewedAt ? Timestamp.fromDate(new Date(quote.viewedAt)) : null,
           createdAt: serverTimestamp(),
