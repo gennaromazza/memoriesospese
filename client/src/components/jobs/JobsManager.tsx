@@ -63,7 +63,7 @@ import {
   Trash2,
   Loader2
 } from 'lucide-react';
-import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
+import { format, isWithinInterval, startOfYear, endOfYear, differenceInDays, isFuture, isToday, isPast } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -270,29 +270,47 @@ export default function JobsManager() {
     });
   }, [jobs, filterType, filterYear, filterSemester, customDateRange, searchQuery, clienteNamesMap]);
   
-  // Sort jobs by date (più recenti primi)
+  // Funzione helper per convertire date Firestore
+  const toDate = (val: any): Date => {
+    if (!val) return new Date(0);
+    
+    let result: Date;
+    if (typeof val.toDate === 'function') {
+      result = val.toDate();
+    } else {
+      result = new Date(val);
+    }
+    
+    // Validate: fallback to epoch if invalid date
+    if (!Number.isFinite(result.getTime())) {
+      return new Date(0);
+    }
+    
+    return result;
+  };
+  
+  // Sort jobs: prima i lavori futuri (dal più vicino), poi i passati (dal più recente)
   const sortedJobs = useMemo(() => {
-    const toDate = (val: any): Date => {
-      if (!val) return new Date(0);
-      
-      let result: Date;
-      if (typeof val.toDate === 'function') {
-        result = val.toDate();
-      } else {
-        result = new Date(val);
-      }
-      
-      // Validate: fallback to epoch if invalid date
-      if (!Number.isFinite(result.getTime())) {
-        return new Date(0);
-      }
-      
-      return result;
-    };
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
     return [...filteredJobs].sort((a, b) => {
       const dateA = toDate(a.eventDate);
       const dateB = toDate(b.eventDate);
+      
+      const aIsFuture = dateA >= startOfToday;
+      const bIsFuture = dateB >= startOfToday;
+      
+      // Se uno è futuro e l'altro no, il futuro viene prima
+      if (aIsFuture && !bIsFuture) return -1;
+      if (!aIsFuture && bIsFuture) return 1;
+      
+      // Se entrambi futuri: ordina dal più vicino (crescente)
+      if (aIsFuture && bIsFuture) {
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Se entrambi passati: ordina dal più recente (decrescente)
       return dateB.getTime() - dateA.getTime();
     });
   }, [filteredJobs]);
@@ -691,16 +709,65 @@ export default function JobsManager() {
                     {/* Data/Orario */}
                     <TableCell>
                       {eventDate ? (
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium">
-                            {format(eventDate as Date, 'dd MMM yyyy', { locale: it })}
-                          </div>
-                          {job.startTime && job.endTime && (
-                            <div className="text-xs text-muted-foreground">
-                              {job.startTime} - {job.endTime}
+                        (() => {
+                          const now = new Date();
+                          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                          const eventDateObj = eventDate as Date;
+                          const days = differenceInDays(eventDateObj, startOfToday);
+                          const isEventToday = days === 0;
+                          const isEventFuture = days > 0;
+                          const isEventPast = days < 0;
+                          
+                          let relativeText = '';
+                          let relativeColor = '';
+                          
+                          if (isEventToday) {
+                            relativeText = 'OGGI';
+                            relativeColor = 'text-green-600 font-bold';
+                          } else if (days === 1) {
+                            relativeText = 'Domani';
+                            relativeColor = 'text-blue-600 font-semibold';
+                          } else if (days === -1) {
+                            relativeText = 'Ieri';
+                            relativeColor = 'text-gray-500';
+                          } else if (isEventFuture && days <= 7) {
+                            relativeText = `tra ${days} giorni`;
+                            relativeColor = 'text-blue-600';
+                          } else if (isEventFuture && days <= 30) {
+                            relativeText = `tra ${Math.ceil(days / 7)} sett.`;
+                            relativeColor = 'text-blue-500';
+                          } else if (isEventFuture) {
+                            relativeText = `tra ${Math.ceil(days / 30)} mesi`;
+                            relativeColor = 'text-blue-400';
+                          } else if (isEventPast && Math.abs(days) <= 7) {
+                            relativeText = `${Math.abs(days)} giorni fa`;
+                            relativeColor = 'text-gray-400';
+                          } else if (isEventPast && Math.abs(days) <= 30) {
+                            relativeText = `${Math.ceil(Math.abs(days) / 7)} sett. fa`;
+                            relativeColor = 'text-gray-400';
+                          } else if (isEventPast) {
+                            relativeText = `${Math.ceil(Math.abs(days) / 30)} mesi fa`;
+                            relativeColor = 'text-gray-400';
+                          }
+                          
+                          return (
+                            <div className="space-y-0.5">
+                              <div className="text-sm font-medium">
+                                {format(eventDateObj, 'dd MMM yyyy', { locale: it })}
+                              </div>
+                              {relativeText && (
+                                <div className={cn("text-xs", relativeColor)}>
+                                  {relativeText}
+                                </div>
+                              )}
+                              {job.startTime && job.endTime && (
+                                <div className="text-xs text-muted-foreground">
+                                  {job.startTime} - {job.endTime}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
