@@ -16,7 +16,7 @@ import {
 import { getCollaboratorByToken } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import type { JobAcceptanceStatus } from '@shared/collaboratori-types';
+import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment } from '@shared/collaboratori-types';
 
 const STATUS_LABELS = {
   pending: { label: '⏳ In Attesa', variant: 'secondary' as const },
@@ -65,16 +65,16 @@ export default function CollaboratoreDashboard() {
   const filteredAssignments =
     statusFilter === 'all'
       ? assignments
-      : assignments.filter((a) => a.status === statusFilter);
+      : assignments.filter((a: JobCollaboratoreAssignment) => a.status === statusFilter);
 
   const totalCompensoPending = assignments
-    .filter((a) => a.status === 'accepted')
-    .reduce((sum, a) => sum + a.compenso, 0);
+    .filter((a: JobCollaboratoreAssignment) => a.status === 'accepted')
+    .reduce((sum: number, a: JobCollaboratoreAssignment) => sum + a.compenso, 0);
 
   const totalPagato = assignments
-    .filter((a) => a.status === 'accepted')
-    .reduce((sum, a) => {
-      const pagatoAssignment = a.pagamenti?.reduce((s, p) => s + p.importo, 0) || 0;
+    .filter((a: JobCollaboratoreAssignment) => a.status === 'accepted')
+    .reduce((sum: number, a: JobCollaboratoreAssignment) => {
+      const pagatoAssignment = a.pagamenti?.reduce((s: number, p: CollaboratorPayment) => s + p.importo, 0) || 0;
       return sum + pagatoAssignment;
     }, 0);
 
@@ -174,9 +174,9 @@ export default function CollaboratoreDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAssignments.map((assignment) => {
+                  {filteredAssignments.map((assignment: JobCollaboratoreAssignment) => {
                     const pagatoAssignment =
-                      assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0) || 0;
+                      assignment.pagamenti?.reduce((sum: number, p: CollaboratorPayment) => sum + p.importo, 0) || 0;
                     const residuoAssignment = assignment.compenso - pagatoAssignment;
 
                     return (
@@ -211,7 +211,7 @@ export default function CollaboratoreDashboard() {
           </CardContent>
         </Card>
 
-        {filteredAssignments.filter((a) => a.pagamenti && a.pagamenti.length > 0).length > 0 && (
+        {filteredAssignments.filter((a: JobCollaboratoreAssignment) => a.pagamenti && a.pagamenti.length > 0).length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>💰 Storico Pagamenti Ricevuti</CardTitle>
@@ -230,15 +230,15 @@ export default function CollaboratoreDashboard() {
                 </TableHeader>
                 <TableBody>
                   {filteredAssignments
-                    .filter((a) => a.pagamenti && a.pagamenti.length > 0)
-                    .flatMap((a) =>
-                      (a.pagamenti || []).map((pag) => ({
+                    .filter((a: JobCollaboratoreAssignment) => a.pagamenti && a.pagamenti.length > 0)
+                    .flatMap((a: JobCollaboratoreAssignment) =>
+                      (a.pagamenti || []).map((pag: CollaboratorPayment) => ({
                         ...pag,
                         jobId: a.jobId,
                       }))
                     )
-                    .sort((a, b) => b.data.toDate().getTime() - a.data.toDate().getTime())
-                    .map((pag) => (
+                    .sort((a: CollaboratorPayment & { jobId: string }, b: CollaboratorPayment & { jobId: string }) => b.data.toDate().getTime() - a.data.toDate().getTime())
+                    .map((pag: CollaboratorPayment & { jobId: string }) => (
                       <TableRow key={pag.id}>
                         <TableCell>
                           {format(pag.data.toDate(), 'dd/MM/yyyy', { locale: it })}

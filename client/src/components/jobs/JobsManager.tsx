@@ -430,6 +430,13 @@ export default function JobsManager() {
     setCurrentPage(1);
   }, [filterType, filterYear, filterSemester, customDateRange, searchQuery]);
   
+  // Clamp currentPage when totalPages decreases (e.g., after deletion or filtering)
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+  
   // Stats
   const stats = useMemo(() => {
     return {
@@ -1122,9 +1129,23 @@ export default function JobsManager() {
               <ChevronLeft className="h-4 w-4" />
             </Button>
             
-            <span className="px-3 text-sm font-medium">
-              Pagina {currentPage} di {totalPages || 1}
-            </span>
+            <Select
+              value={currentPage.toString()}
+              onValueChange={(value) => setCurrentPage(Number(value))}
+            >
+              <SelectTrigger className="w-28 h-8" data-testid="select-page-number">
+                <SelectValue>
+                  Pagina {currentPage}/{totalPages || 1}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: totalPages || 1 }, (_, i) => i + 1).map((page) => (
+                  <SelectItem key={page} value={page.toString()}>
+                    Pagina {page}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             
             <Button
               variant="outline"
