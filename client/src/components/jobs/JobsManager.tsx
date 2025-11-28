@@ -9,6 +9,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
+import type { Order } from '@shared/booking-types';
+import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
 import type { JobType as JobTypeDoc } from '@shared/job-types';
@@ -58,10 +62,13 @@ import {
   MapPin,
   Euro,
   User,
+  Users,
   FileText,
   X,
   Trash2,
-  Loader2
+  Loader2,
+  Check,
+  CreditCard
 } from 'lucide-react';
 import { format, isWithinInterval, startOfYear, endOfYear, differenceInDays, isFuture, isToday, isPast } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -172,6 +179,56 @@ export default function JobsManager() {
   const { data: clienti = [] } = useQuery<Cliente[]>({
     queryKey: ['clienti'],
     queryFn: getAllClienti
+  });
+  
+  // Query collaboratori assegnati ai job (conteggio per job)
+  const { data: collaboratoriByJob = {} } = useQuery<Record<string, number>>({
+    queryKey: ['jobCollaboratoriCounts'],
+    queryFn: async () => {
+      const snapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
+      const counts: Record<string, number> = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data() as JobCollaboratoreAssignment;
+        if (data.jobId) {
+          counts[data.jobId] = (counts[data.jobId] || 0) + 1;
+        }
+      });
+      return counts;
+    }
+  });
+  
+  // Query pagamenti per job (conteggio transazioni dagli ordini)
+  const { data: pagamentiByJob = {} } = useQuery<Record<string, number>>({
+    queryKey: ['jobPagamentiCounts', jobs.map(j => j.id).join(',')],
+    queryFn: async () => {
+      // Raggruppa orderIds per job
+      const counts: Record<string, number> = {};
+      
+      // Per ogni job, conta le transazioni nei suoi ordini
+      for (const job of jobs) {
+        if (job.orderIds && job.orderIds.length > 0) {
+          let transactionCount = 0;
+          for (const orderId of job.orderIds) {
+            try {
+              const orderSnap = await getDocs(
+                firestoreQuery(collection(db, 'orders'), where('__name__', '==', orderId))
+              );
+              if (!orderSnap.empty) {
+                const orderData = orderSnap.docs[0].data() as Order;
+                transactionCount += (orderData.transactions?.length || 0);
+              }
+            } catch (e) {
+              // Ignora errori per singoli ordini
+            }
+          }
+          if (transactionCount > 0) {
+            counts[job.id] = transactionCount;
+          }
+        }
+      }
+      return counts;
+    },
+    enabled: jobs.length > 0
   });
   
   // Crea mappa slug -> JobType per lookup veloci
@@ -637,7 +694,8 @@ export default function JobsManager() {
                 <TableHead className="font-semibold">Data/Orario</TableHead>
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-right">Actions</TableHead>
+                <TableHead className="hidden lg:table-cell font-semibold text-center">👥</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold text-center">💰</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -820,19 +878,46 @@ export default function JobsManager() {
                       </Badge>
                     </TableCell>
                     
-                    {/* Actions */}
-                    <TableCell className="hidden md:table-cell text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/admin/jobs/${job.id}`);
-                        }}
-                        data-testid={`button-manage-${job.id}`}
-                      >
-                        Gestisci
-                      </Button>
+                    {/* Collaboratori */}
+                    <TableCell className="hidden lg:table-cell text-center">
+                      {(() => {
+                        const count = collaboratoriByJob[job.id] || 0;
+                        return count > 0 ? (
+                          <Badge variant="outline" className="text-xs">
+                            <Users className="w-3 h-3 mr-1" />
+                            {count}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        );
+                      })()}
+                    </TableCell>
+                    
+                    {/* Pagamenti */}
+                    <TableCell className="hidden md:table-cell text-center">
+                      {(() => {
+                        const count = pagamentiByJob[job.id] || 0;
+                        const financials = job.financials;
+                        const isPagato = financials && financials.saldoResiduo <= 0 && financials.totalePagato > 0;
+                        
+                        if (isPagato) {
+                          return (
+                            <Badge className="bg-green-100 text-green-700 text-xs">
+                              <Check className="w-3 h-3 mr-1" />
+                              Saldato
+                            </Badge>
+                          );
+                        }
+                        
+                        return count > 0 ? (
+                          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+                            <CreditCard className="w-3 h-3 mr-1" />
+                            {count}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                     </Fragment>
