@@ -404,43 +404,51 @@ export default function QuoteSignedPortalPage() {
           </CardHeader>
           <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
             <div className="space-y-3 sm:space-y-4">
-              {quote.products.filter(p => quote.type === 'fisso' || p.selected).map((product, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 sm:p-5 bg-off-white rounded-xl border-2 border-beige hover:border-sage hover:shadow-md transition-all gap-3 sm:gap-4"
-                  data-testid={`product-item-${idx}`}
-                >
-                  {/* Product Image */}
-                  <div className="flex-shrink-0">
-                    <img 
-                      src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
-                      alt={product.nome}
-                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex items-start gap-3 sm:gap-4 flex-1">
-                    <div className="p-2 sm:p-3 bg-sage/20 rounded-full flex-shrink-0">
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />
+              {(() => {
+                const filteredProducts = quote.products.filter(p => quote.type === 'fisso' || p.selected);
+                const allPricesZero = filteredProducts.every(p => !p.prezzo || p.prezzo === 0);
+                const shouldShowTotalAsPrice = allPricesZero && filteredProducts.length === 1 && quote.totalAfterDiscount > 0;
+                
+                return filteredProducts.map((product, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 sm:p-5 bg-off-white rounded-xl border-2 border-beige hover:border-sage hover:shadow-md transition-all gap-3 sm:gap-4"
+                    data-testid={`product-item-${idx}`}
+                  >
+                    {/* Product Image */}
+                    <div className="flex-shrink-0">
+                      <img 
+                        src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
+                        alt={product.nome}
+                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
+                      />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-playfair font-bold text-gray-900 text-base sm:text-lg mb-1 sm:mb-2">{product.nome}</h4>
-                      {product.descrizione && (
-                        <p className="text-xs sm:text-sm text-dark-sage mb-2 leading-relaxed">{product.descrizione}</p>
-                      )}
-                      {product.numeroFoto && (
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-blue-gray bg-mint/30 px-2 sm:px-3 py-1 rounded-full w-fit">
-                          <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                          <span className="font-medium">{product.numeroFoto} foto incluse</span>
-                        </div>
-                      )}
+                    
+                    <div className="flex items-start gap-3 sm:gap-4 flex-1">
+                      <div className="p-2 sm:p-3 bg-sage/20 rounded-full flex-shrink-0">
+                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-playfair font-bold text-gray-900 text-base sm:text-lg mb-1 sm:mb-2">{product.nome}</h4>
+                        {product.descrizione && (
+                          <p className="text-xs sm:text-sm text-dark-sage mb-2 leading-relaxed whitespace-pre-wrap">{product.descrizione}</p>
+                        )}
+                        {product.numeroFoto && (
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-blue-gray bg-mint/30 px-2 sm:px-3 py-1 rounded-full w-fit">
+                            <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="font-medium">{product.numeroFoto} foto incluse</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-left sm:text-right sm:ml-4">
+                      <p className="text-xl sm:text-2xl font-bold text-blue-gray">
+                        {formatCurrency(shouldShowTotalAsPrice ? quote.totalAfterDiscount : (product.prezzo || 0))}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-left sm:text-right sm:ml-4">
-                    <p className="text-xl sm:text-2xl font-bold text-blue-gray">{formatCurrency(product.prezzo)}</p>
-                  </div>
-                </div>
-              ))}
+                ));
+              })()}
 
               <Separator className="my-4 sm:my-6" />
 

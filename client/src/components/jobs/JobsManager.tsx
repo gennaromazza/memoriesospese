@@ -44,6 +44,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -181,19 +187,36 @@ export default function JobsManager() {
     queryFn: getAllClienti
   });
   
-  // Query collaboratori assegnati ai job (conteggio per job)
-  const { data: collaboratoriByJob = {} } = useQuery<Record<string, number>>({
-    queryKey: ['jobCollaboratoriCounts'],
+  // Query collaboratori assegnati ai job (con nomi e conteggi)
+  const { data: collaboratoriByJob = {} } = useQuery<Record<string, { count: number; nomi: string[] }>>({
+    queryKey: ['jobCollaboratoriDetails'],
     queryFn: async () => {
-      const snapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
-      const counts: Record<string, number> = {};
-      snapshot.docs.forEach(doc => {
+      // Carica tutti gli assignment
+      const assignmentsSnapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
+      
+      // Carica tutti i collaboratori per avere i nomi
+      const collaboratoriSnapshot = await getDocs(collection(db, 'collaboratori'));
+      const collaboratoriMap: Record<string, string> = {};
+      collaboratoriSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        collaboratoriMap[doc.id] = `${data.nome || ''} ${data.cognome || ''}`.trim();
+      });
+      
+      const details: Record<string, { count: number; nomi: string[] }> = {};
+      assignmentsSnapshot.docs.forEach(doc => {
         const data = doc.data() as JobCollaboratoreAssignment;
         if (data.jobId) {
-          counts[data.jobId] = (counts[data.jobId] || 0) + 1;
+          if (!details[data.jobId]) {
+            details[data.jobId] = { count: 0, nomi: [] };
+          }
+          details[data.jobId].count += 1;
+          const nome = collaboratoriMap[data.collaboratoreId];
+          if (nome) {
+            details[data.jobId].nomi.push(nome);
+          }
         }
       });
-      return counts;
+      return details;
     }
   });
   
@@ -891,15 +914,40 @@ export default function JobsManager() {
                     {/* Collaboratori */}
                     <TableCell className="hidden lg:table-cell text-center">
                       {(() => {
-                        const count = collaboratoriByJob[job.id] || 0;
-                        return count > 0 ? (
-                          <Badge variant="outline" className="text-xs">
-                            <Users className="w-3 h-3 mr-1" />
-                            {count}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        );
+                        const details = collaboratoriByJob[job.id];
+                        const count = details?.count || 0;
+                        const nomi = details?.nomi || [];
+                        
+                        if (count > 0) {
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs cursor-help">
+                                    <Users className="w-3 h-3 mr-1" />
+                                    {count}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Collaboratori assegnati:</p>
+                                    {nomi.length > 0 ? (
+                                      <ul className="list-disc list-inside">
+                                        {nomi.map((nome, i) => (
+                                          <li key={i}>{nome}</li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-muted-foreground">{count} collaboratore/i</p>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        }
+                        
+                        return <span className="text-muted-foreground text-xs">—</span>;
                       })()}
                     </TableCell>
                     
@@ -908,37 +956,55 @@ export default function JobsManager() {
                       {(() => {
                         const count = transazioniPerJob[job.id] || 0;
                         const financials = job.financials;
+                        const totalePreventivato = financials?.totalePreventivato || 0;
                         const totalePagato = financials?.totalePagato || 0;
                         const saldoResiduo = financials?.saldoResiduo ?? 0;
                         const isPagato = saldoResiduo <= 0 && totalePagato > 0;
                         const hasAcconti = totalePagato > 0 && saldoResiduo > 0;
                         
+                        const tooltipContent = (
+                          <div className="text-xs space-y-1">
+                            <p><span className="font-semibold">Preventivato:</span> €{totalePreventivato.toLocaleString('it-IT')}</p>
+                            <p><span className="font-semibold">Pagato:</span> €{totalePagato.toLocaleString('it-IT')}</p>
+                            <p><span className="font-semibold">Residuo:</span> €{saldoResiduo.toLocaleString('it-IT')}</p>
+                            {count > 0 && <p><span className="font-semibold">Transazioni:</span> {count}</p>}
+                          </div>
+                        );
+                        
                         if (isPagato) {
                           return (
-                            <Badge className="bg-green-100 text-green-700 text-xs">
-                              <Check className="w-3 h-3 mr-1" />
-                              Saldato
-                            </Badge>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className="bg-green-100 text-green-700 text-xs cursor-help">
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Saldato
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  {tooltipContent}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           );
                         }
                         
                         // Mostra conteggio transazioni se disponibile, altrimenti usa financials
-                        if (count > 0) {
+                        if (count > 0 || hasAcconti) {
                           return (
-                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
-                              <CreditCard className="w-3 h-3 mr-1" />
-                              {count}
-                            </Badge>
-                          );
-                        }
-                        
-                        // Fallback: se ci sono acconti registrati in financials
-                        if (hasAcconti) {
-                          return (
-                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
-                              <CreditCard className="w-3 h-3 mr-1" />
-                              €{totalePagato.toLocaleString('it-IT')}
-                            </Badge>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50 cursor-help">
+                                    <CreditCard className="w-3 h-3 mr-1" />
+                                    {count > 0 ? count : `€${totalePagato.toLocaleString('it-IT')}`}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  {tooltipContent}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           );
                         }
                         
