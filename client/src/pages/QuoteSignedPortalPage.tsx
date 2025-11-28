@@ -411,7 +411,12 @@ export default function QuoteSignedPortalPage() {
           <CardContent className="pt-4 sm:pt-6 px-3 sm:px-6">
             <div className="space-y-3 sm:space-y-4">
               {(() => {
-                const filteredProducts = (quote.products ?? []).filter(p => quote.type === 'fisso' || p.selected);
+                // Fix legacy: prodotti senza 'selected' definito in preventivi firmati → considerali selezionati
+                const filteredProducts = (quote.products ?? []).filter(p => 
+                  quote.type === 'fisso' || 
+                  p.selected === true || 
+                  (p.selected === undefined && quote.status === 'firmato')
+                );
                 const allPricesZero = filteredProducts.every(p => !p.prezzo || p.prezzo === 0);
                 const shouldShowTotalAsPrice = allPricesZero && filteredProducts.length === 1 && quote.totalAfterDiscount > 0;
                 
