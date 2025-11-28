@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
 import type { JobType as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
@@ -66,7 +67,7 @@ import { format, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import CreateJobModal from './CreateJobModal';
 
 // Status pipeline labels
@@ -111,7 +112,7 @@ export default function JobsManager() {
   const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number; jobName?: string } | null>(null);
   
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useFirebaseAuth();
   const queryClient = useQueryClient();
   
   // Query jobs
@@ -196,10 +197,8 @@ export default function JobsManager() {
     const years = new Set<number>();
     jobs.forEach(job => {
       if (job.eventDate) {
-        const date = typeof job.eventDate.toDate === 'function' 
-          ? job.eventDate.toDate() 
-          : new Date(job.eventDate);
-        if (!isNaN(date.getTime())) {
+        const date = convertFirestoreTimestamp(job.eventDate);
+        if (date && !isNaN(date.getTime())) {
           years.add(date.getFullYear());
         }
       }
@@ -218,11 +217,9 @@ export default function JobsManager() {
       
       // Filtri date (precedenza: custom range > anno+semestre > anno)
       if (job.eventDate) {
-        const eventDate = typeof job.eventDate.toDate === 'function' 
-          ? job.eventDate.toDate() 
-          : new Date(job.eventDate);
+        const eventDate = convertFirestoreTimestamp(job.eventDate);
         
-        if (!isNaN(eventDate.getTime())) {
+        if (eventDate && !isNaN(eventDate.getTime())) {
           // 1. Custom date range (massima priorità)
           if (customDateRange.from && customDateRange.to) {
             const inRange = isWithinInterval(eventDate, {
