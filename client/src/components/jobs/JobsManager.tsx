@@ -3,7 +3,7 @@
  * Componente principale gestione lavori
  */
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, Fragment, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
@@ -74,7 +74,11 @@ import {
   Trash2,
   Loader2,
   Check,
-  CreditCard
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { format, isWithinInterval, startOfYear, endOfYear, differenceInDays, isFuture, isToday, isPast } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -123,6 +127,13 @@ export default function JobsManager() {
   const [selectedJobs, setSelectedJobs] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number; jobName?: string } | null>(null);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  
+  // Privacy toggle - nascondi statistiche finanziarie di default
+  const [showFinancialStats, setShowFinancialStats] = useState(false);
   
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
@@ -405,6 +416,20 @@ export default function JobsManager() {
     });
   }, [filteredJobs]);
   
+  // Paginated jobs
+  const paginatedJobs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return sortedJobs.slice(startIndex, endIndex);
+  }, [sortedJobs, currentPage, itemsPerPage]);
+  
+  const totalPages = Math.ceil(sortedJobs.length / itemsPerPage);
+  
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, filterYear, filterSemester, customDateRange, searchQuery]);
+  
   // Stats
   const stats = useMemo(() => {
     return {
@@ -499,40 +524,68 @@ export default function JobsManager() {
         </div>
       </div>
       
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-gray">
-              {stats.totalJobs}
-            </div>
-            <p className="text-sm text-gray-600">Lavori Attivi</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
-              €{stats.totalePreventivato.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-600">Preventivato</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">
-              €{stats.totalePagato.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-600">Incassato</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">
-              €{stats.saldoResiduo.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-600">Da Incassare</p>
-          </CardContent>
-        </Card>
+      {/* Stats cards - con toggle privacy */}
+      <div className="relative">
+        <div className="flex items-center justify-end mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowFinancialStats(!showFinancialStats)}
+            className="text-muted-foreground hover:text-foreground"
+            data-testid="button-toggle-financial-stats"
+            title={showFinancialStats ? "Nascondi statistiche" : "Mostra statistiche"}
+          >
+            {showFinancialStats ? (
+              <Eye className="w-4 h-4 mr-2" />
+            ) : (
+              <EyeOff className="w-4 h-4 mr-2" />
+            )}
+            {showFinancialStats ? "Nascondi" : "Mostra statistiche"}
+          </Button>
+        </div>
+        
+        {showFinancialStats ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-blue-gray">
+                  {stats.totalJobs}
+                </div>
+                <p className="text-sm text-gray-600">Lavori Attivi</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-green-600">
+                  €{stats.totalePreventivato.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Preventivato</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-blue-600">
+                  €{stats.totalePagato.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Incassato</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-orange-600">
+                  €{stats.saldoResiduo.toLocaleString()}
+                </div>
+                <p className="text-sm text-gray-600">Da Incassare</p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="py-4 text-center text-muted-foreground text-sm">
+              Statistiche nascoste per privacy
+            </CardContent>
+          </Card>
+        )}
       </div>
       
       {/* Filters */}
@@ -737,7 +790,7 @@ export default function JobsManager() {
                 const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 let pastSeparatorShown = false;
                 
-                return sortedJobs.map((job, index) => {
+                return paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
                   const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
@@ -1018,6 +1071,81 @@ export default function JobsManager() {
               })()}
             </TableBody>
           </Table>
+        </div>
+      )}
+      
+      {/* Pagination Controls */}
+      {sortedJobs.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>
+              Mostrando {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, sortedJobs.length)} di {sortedJobs.length} lavori
+            </span>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => {
+                setItemsPerPage(Number(value));
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-20 h-8" data-testid="select-items-per-page">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="hidden sm:inline">per pagina</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              data-testid="button-first-page"
+            >
+              Prima
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              data-testid="button-prev-page"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <span className="px-3 text-sm font-medium">
+              Pagina {currentPage} di {totalPages || 1}
+            </span>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              data-testid="button-next-page"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage >= totalPages}
+              data-testid="button-last-page"
+            >
+              Ultima
+            </Button>
+          </div>
         </div>
       )}
       
