@@ -43,11 +43,19 @@ import RegistraPagamentoModal from './RegistraPagamentoModal';
 import GestioneRataModal from './GestioneRataModal';
 import { useToast } from '@/hooks/use-toast';
 
+interface LegacyFinancials {
+  totalePreventivato?: number;
+  totalePagato?: number;
+  saldoResiduo?: number;
+  totaleOrdini?: number;
+}
+
 interface PaymentScheduleSectionProps {
   jobId: string;
   eventDate?: Date | null;
   isAdmin?: boolean;
   onGeneratePayments?: () => void; // Callback per aprire modal generazione pagamenti
+  legacyFinancials?: LegacyFinancials; // Fallback per lavori importati senza payment schedules
 }
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -77,7 +85,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
   scaduto: XCircle,
 };
 
-export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments }: PaymentScheduleSectionProps) {
+export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments, legacyFinancials }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
   const [gestioneRataState, setGestioneRataState] = useState<{
     open: boolean;
@@ -172,6 +180,72 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
   }
 
   if (schedules.length === 0) {
+    // Check if we have legacy financials to display
+    const hasLegacyData = legacyFinancials && (
+      (legacyFinancials.totalePreventivato && legacyFinancials.totalePreventivato > 0) ||
+      (legacyFinancials.totalePagato && legacyFinancials.totalePagato > 0)
+    );
+
+    if (hasLegacyData) {
+      // Show legacy financials data (imported from old system)
+      const totalePreventivato = legacyFinancials.totalePreventivato || 0;
+      const totalePagato = legacyFinancials.totalePagato || 0;
+      const saldoResiduo = legacyFinancials.saldoResiduo ?? (totalePreventivato - totalePagato);
+
+      return (
+        <div className="space-y-4">
+          {/* Stats Summary from legacy data */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">Totale Preventivato</p>
+                <p className="text-2xl font-bold">€{totalePreventivato.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">Totale Pagato</p>
+                <p className="text-2xl font-bold text-green-600">€{totalePagato.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground mb-1">Saldo Residuo</p>
+                <p className="text-2xl font-bold text-orange-600">€{saldoResiduo.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Info about legacy import */}
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <CreditCard className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-900">Dati importati dal vecchio gestionale</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    I totali mostrati provengono dai dati legacy. Per creare uno scadenzario dettagliato con rate e scadenze, genera un nuovo piano pagamenti.
+                  </p>
+                  {isAdmin && onGeneratePayments && (
+                    <Button
+                      onClick={onGeneratePayments}
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 border-blue-300 text-blue-700 hover:bg-blue-100"
+                      data-testid="button-genera-piano-legacy"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Genera Piano Pagamenti Dettagliato
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     // Se admin → mostra bottone per generare piano (disabled se callback non fornito)
     if (isAdmin) {
       const isDisabled = !onGeneratePayments;

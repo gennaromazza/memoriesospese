@@ -779,6 +779,7 @@ export default function JobDetailPage() {
                     jobId={job.id}
                     eventDate={eventDateObj}
                     isAdmin={true}
+                    legacyFinancials={job.financials}
                     onGeneratePayments={!quotesLoading ? () => {
                       const signedQuote = quotes?.find(q => q.status === 'firmato');
                       if (signedQuote) {

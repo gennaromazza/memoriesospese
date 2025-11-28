@@ -402,6 +402,7 @@ export default function AdminLegacyImporter() {
         const jobData = {
           ...job,
           clientiIds: mappedClientiIds,
+          eventDate: job.eventDate ? Timestamp.fromDate(new Date(job.eventDate)) : null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
@@ -422,6 +423,7 @@ export default function AdminLegacyImporter() {
         const orderData = {
           ...order,
           clienteId: mappedClienteId,
+          dataServizio: order.dataServizio ? Timestamp.fromDate(new Date(order.dataServizio)) : null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
@@ -448,6 +450,16 @@ export default function AdminLegacyImporter() {
           ...quote,
           clienteId: mappedClienteId,
           clientiInfo: mappedClientiInfo,
+          signature: quote.signature ? {
+            ...quote.signature,
+            signedAt: quote.signature.signedAt ? Timestamp.fromDate(new Date(quote.signature.signedAt)) : null,
+          } : null,
+          jobInfo: quote.jobInfo ? {
+            ...quote.jobInfo,
+            eventDate: quote.jobInfo.eventDate ? Timestamp.fromDate(new Date(quote.jobInfo.eventDate)) : null,
+          } : null,
+          emailSentAt: quote.emailSentAt ? Timestamp.fromDate(new Date(quote.emailSentAt)) : null,
+          viewedAt: quote.viewedAt ? Timestamp.fromDate(new Date(quote.viewedAt)) : null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",

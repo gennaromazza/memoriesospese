@@ -1,0 +1,285 @@
+<div className="flex items-center gap-2 mb-6">
+    {[1, 2, 3].map((s) => (
+      <div key={s} className="flex items-center">
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+            step >= s
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {step > s ? <Check className="w-4 h-4" /> : s}
+        </div>
+        {s < 3 && (
+          <ArrowRight className={`w-4 h-4 mx-2 ${step > s ? "text-primary" : "text-muted-foreground"}`} />
+        )}
+      </div>
+    ))}
+    <span className="ml-4 text-sm text-muted-foreground">
+      {step === 1 && "Carica JSON"}
+      {step === 2 && "Mappa Clienti"}
+      {step === 3 && "Completato"}
+    </span>
+  </div>
+
+  {step === 1 && (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="w-5 h-5" />
+          Carica JSON dal vecchio gestionale
+        </CardTitle>
+        <CardDescription>
+          Incolla il JSON esportato contenente clienti, jobs, orders e quotes
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label>JSON Data</Label>
+          <Textarea
+            rows={20}
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+            placeholder='{"clienti": [...], "jobs": [...], "orders": [...], "quotes": [...]}'
+            className="font-mono text-sm"
+            data-testid="input-json"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <AlertCircle className="w-4 h-4" />
+          Il JSON deve contenere almeno le chiavi "clienti" e "jobs"
+        </div>
+        <Button onClick={handleParse} disabled={!jsonText.trim()} data-testid="button-parse">
+          Analizza JSON
+        </Button>
+      </CardContent>
+    </Card>
+  )}
+
+  {step === 2 && legacyData && (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Users className="w-8 h-8 text-blue-500" />
+              <div>
+                <p className="text-2xl font-bold">{legacyData.clienti.length}</p>
+                <p className="text-sm text-muted-foreground">Clienti da mappare</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Briefcase className="w-8 h-8 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold">{legacyData.jobs.length}</p>
+                <p className="text-sm text-muted-foreground">Lavori da importare</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <ShoppingCart className="w-8 h-8 text-orange-500" />
+              <div>
+                <p className="text-2xl font-bold">{legacyData.orders?.length || 0}</p>
+                <p className="text-sm text-muted-foreground">Ordini da importare</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <FileText className="w-8 h-8 text-purple-500" />
+              <div>
+                <p className="text-2xl font-bold">{legacyData.quotes?.length || 0}</p>
+                <p className="text-sm text-muted-foreground">Preventivi da importare</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mappatura Clienti</CardTitle>
+          <CardDescription>
+            Collega ogni cliente del JSON al cliente corrispondente nel database.
+            I campi mancanti verranno aggiornati automaticamente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-4">
+              {clientMappings.map((mapping) => (
+                <div
+                  key={mapping.legacyId}
+                  className={`p-4 border rounded-lg ${
+                    mapping.mappedToId 
+                      ? "border-green-200 bg-green-50" 
+                      : mapping.createNew 
+                        ? "border-blue-200 bg-blue-50"
+                        : "border-orange-200 bg-orange-50"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {mapping.legacyCliente.nome} {mapping.legacyCliente.cognome}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Tel: {mapping.legacyCliente.telefono || "N/D"} |
+                        Email: {mapping.legacyCliente.email || "N/D"}
+                      </p>
+                      {mapping.legacyCliente.indirizzo && (
+                        <p className="text-sm text-muted-foreground">
+                          {mapping.legacyCliente.indirizzo}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <ArrowRight className="w-5 h-5 text-muted-foreground mt-2" />
+                    
+                    <div className="flex-1">
+                      <Select
+                        value={mapping.createNew ? "__CREATE_NEW__" : (mapping.mappedToId || "")}
+                        onValueChange={(value) => handleMappingChange(mapping.legacyId, value)}
+                      >
+                        <SelectTrigger className="w-full" data-testid={`select-client-${mapping.legacyId}`}>
+                          <SelectValue placeholder="Seleziona cliente..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__CREATE_NEW__" className="text-blue-600 font-medium">
+                            + Crea nuovo cliente
+                          </SelectItem>
+                          {existingClienti.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nome} {cliente.cognome}
+                              {cliente.cellulare1 && ` - ${cliente.cellulare1}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {mapping.createNew && (
+                        <div className="mt-2">
+                          <Badge variant="outline" className="text-blue-600 border-blue-300">
+                            Verrà creato nuovo cliente
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {mapping.mappedToId && mapping.fieldsToUpdate.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          <span className="text-xs text-muted-foreground">Campi da aggiornare:</span>
+                          {mapping.fieldsToUpdate.map((field) => (
+                            <Badge key={field} variant="secondary" className="text-xs">
+                              {field}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={() => setStep(1)}>
+          Indietro
+        </Button>
+        <div className="flex items-center gap-4">
+          {!allMapped && (
+            <span className="text-sm text-orange-600">
+              <AlertCircle className="w-4 h-4 inline mr-1" />
+              Mappa tutti i clienti prima di procedere
+            </span>
+          )}
+          <Button
+            onClick={handleImport}
+            disabled={!allMapped || isLoading}
+            data-testid="button-import"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Importazione in corso...
+              </>
+            ) : (
+              "Importa Tutto"
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {step === 3 && importResult && (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="text-center space-y-6">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+            <Check className="w-8 h-8 text-green-600" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-green-600">Importazione Completata!</h2>
+            <p className="text-muted-foreground mt-2">
+              I dati sono stati importati correttamente nel database.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-4xl mx-auto">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-2xl font-bold text-blue-600">{importResult.clientiCreated}</p>
+              <p className="text-sm text-muted-foreground">Clienti creati</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold">{importResult.clientiUpdated}</p>
+              <p className="text-sm text-muted-foreground">Clienti aggiornati</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold">{importResult.jobsImported}</p>
+              <p className="text-sm text-muted-foreground">Lavori importati</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold">{importResult.ordersImported}</p>
+              <p className="text-sm text-muted-foreground">Ordini importati</p>
+            </div>
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold">{importResult.quotesImported}</p>
+              <p className="text-sm text-muted-foreground">Preventivi importati</p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <p className="text-2xl font-bold text-green-600">{importResult.paymentSchedulesImported}</p>
+              <p className="text-sm text-muted-foreground">Piani Pagamento</p>
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-4">
+            <Button variant="outline" onClick={() => {
+              setStep(1);
+              setJsonText("");
+              setLegacyData(null);
+              setClientMappings([]);
+              setImportResult(null);
+            }}>
+              Importa altro
+            </Button>
+            <Button onClick={() => navigate("/admin/jobs")}>
+              Vai ai Lavori
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )}
+</div>

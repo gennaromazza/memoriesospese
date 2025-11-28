@@ -1,0 +1,94 @@
+Ecco i 4 documenti chiave che verrebbero creati e collegati tra loro.
+A. Il Cliente (clienti)
+Viene creato un record anagrafico unico.
+code
+JSON
+{
+  "id": "hash_giusyanzalone1993",
+  "nome": "Giusy",
+  "cognome": "Anzalone",
+  "email": "giusyanzalone1993@gmail.com",
+  "telefono": "3404111171",
+  "indirizzo": "Via Roma 10, Napoli"
+}
+B. Il Lavoro (jobs)
+Il contenitore principale dell'evento.
+code
+JSON
+{
+  "id": "job_12345",
+  "nomeEvento": "Matrimonio Giuliano E Giusy",
+  "eventDate": "2026-04-18T00:00:00.000Z",
+  "status": "confermato",
+  "clientiIds": ["hash_giusyanzalone1993"],
+  "financials": {
+    "totalePreventivato": 2750,
+    "totalePagato": 300,        // Acconto
+    "saldoResiduo": 2450,       // 2750 - 300
+    "totaleOrdini": 2750
+  },
+  "quoteIds": ["quote_987"],
+  "orderIds": ["order_456"]
+}
+C. Il Preventivo/Contratto (quotes)
+Qui vedi i prezzi reali estratti per ogni voce.
+code
+JSON
+{
+  "id": "quote_987",
+  "jobId": "job_12345",
+  "totaleBase": 2750,
+  "status": "firmato",
+  "signature": {
+    "signedAt": "2025-11-22T00:00:00.000Z",
+    "clientName": "Giusy Anzalone"
+  },
+  "products": [
+    {
+      "productId": "prod_1",
+      "nome": "Servizio Base Foto e Video",
+      "prezzo": 1600,   // <--- PREZZO REALE ESTRATTO
+      "selected": true
+    },
+    {
+      "productId": "prod_2",
+      "nome": "Album 30x40",
+      "prezzo": 800,    // <--- PREZZO REALE ESTRATTO
+      "selected": true
+    },
+    {
+      "productId": "prod_3",
+      "nome": "Drone",
+      "prezzo": 350,    // <--- PREZZO REALE ESTRATTO
+      "selected": true
+    }
+  ]
+}
+D. Lo Scadenzario Pagamenti (paymentSchedules)
+Generato automaticamente perché c'è un acconto > 0.
+code
+JSON
+{
+  "id": "ps_order_456",
+  "jobId": "job_12345",
+  "totale": 2750,
+  "totalePagato": 300,
+  "saldoResiduo": 2450,
+  "payments": [
+    {
+      "id": "pay_1",
+      "tipo": "acconto",
+      "importo": 300,
+      "stato": "pagato",        // <--- Già segnato come pagato
+      "dataPagamento": "2025-11-28", // Data odierna di importazione (o data firma se nota)
+      "note": "Generato da migrazione PDF"
+    },
+    {
+      "id": "pay_2",
+      "tipo": "saldo",
+      "importo": 2450,
+      "stato": "atteso",        // <--- In attesa
+      "dataScadenza": "2026-04-18"   // <--- Scade il giorno del matrimonio
+    }
+  ]
+}
