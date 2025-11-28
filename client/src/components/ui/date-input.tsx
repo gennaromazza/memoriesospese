@@ -124,19 +124,27 @@ export function DateInput({
         autoComplete="off"
       />
       
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           <Button
             type="button"
             variant="outline"
             disabled={disabled}
-            className="px-3"
+            className="px-3 min-h-[44px] min-w-[44px]"
             data-testid={testId ? `${testId}-calendar-button` : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(!open);
+            }}
           >
             <CalendarIcon className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
+        <PopoverContent 
+          className="w-auto p-0 z-[100]" 
+          align="end"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <Calendar
             mode="single"
             selected={value}
