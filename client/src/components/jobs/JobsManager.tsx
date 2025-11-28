@@ -205,10 +205,18 @@ export default function JobsManager() {
       const ordersSnapshot = await getDocs(collection(db, 'orders'));
       const ordersMap: Record<string, number> = {};
       
-      // Mappa orderId -> numero transazioni
+      // Mappa orderId -> numero transazioni (include legacy)
       ordersSnapshot.docs.forEach(doc => {
         const data = doc.data() as Order;
-        ordersMap[doc.id] = data.transactions?.length || 0;
+        // Usa transactions se presente, altrimenti conta legacy acconto
+        if (data.transactions && data.transactions.length > 0) {
+          ordersMap[doc.id] = data.transactions.length;
+        } else if (data.acconto && data.acconto > 0) {
+          // Legacy: se c'è un acconto senza transactions, conta come 1
+          ordersMap[doc.id] = 1;
+        } else {
+          ordersMap[doc.id] = 0;
+        }
       });
       
       return ordersMap;
@@ -900,7 +908,10 @@ export default function JobsManager() {
                       {(() => {
                         const count = transazioniPerJob[job.id] || 0;
                         const financials = job.financials;
-                        const isPagato = financials && financials.saldoResiduo <= 0 && financials.totalePagato > 0;
+                        const totalePagato = financials?.totalePagato || 0;
+                        const saldoResiduo = financials?.saldoResiduo ?? 0;
+                        const isPagato = saldoResiduo <= 0 && totalePagato > 0;
+                        const hasAcconti = totalePagato > 0 && saldoResiduo > 0;
                         
                         if (isPagato) {
                           return (
@@ -911,14 +922,27 @@ export default function JobsManager() {
                           );
                         }
                         
-                        return count > 0 ? (
-                          <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
-                            <CreditCard className="w-3 h-3 mr-1" />
-                            {count}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        );
+                        // Mostra conteggio transazioni se disponibile, altrimenti usa financials
+                        if (count > 0) {
+                          return (
+                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+                              <CreditCard className="w-3 h-3 mr-1" />
+                              {count}
+                            </Badge>
+                          );
+                        }
+                        
+                        // Fallback: se ci sono acconti registrati in financials
+                        if (hasAcconti) {
+                          return (
+                            <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+                              <CreditCard className="w-3 h-3 mr-1" />
+                              €{totalePagato.toLocaleString('it-IT')}
+                            </Badge>
+                          );
+                        }
+                        
+                        return <span className="text-muted-foreground text-xs">—</span>;
                       })()}
                     </TableCell>
                   </TableRow>
