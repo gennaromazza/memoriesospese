@@ -1,0 +1,40 @@
+chunk-O52DP7B5.js?v=68f13e18:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:50 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:51 📋 Questionari e token validation: produzione Firebase
+seed-job-types.ts:67 💡 Per eseguire il seed dei jobTypes, digita: window.seedJobTypes()
+seed-product-categories.ts:67 💡 Per eseguire il seed delle categorie prodotti, digita: window.seedProductCategories()
+legacy-import:1 The resource https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/assets/og-image.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=ibBI00SJCJZ4' failed: Error in connection establishment: net::ERR_CONNECTION_TIMED_OUT
+setupWebSocket @ client:536
+legacy-import:1 The resource https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/assets/og-image.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+client:560 [vite] server connection lost. Polling for restart...
+AdminLegacyImporter.tsx:604 Errore importazione: RangeError: Invalid time value
+    at Date.toISOString (<anonymous>)
+    at toTimestamp (firebase_firestore.js?v=68f13e18:6815:41)
+    at __PRIVATE_parseScalarValue (firebase_firestore.js?v=68f13e18:16362:25)
+    at __PRIVATE_parseData (firebase_firestore.js?v=68f13e18:16402:4)
+    at firebase_firestore.js?v=68f13e18:16411:15
+    at forEach (firebase_firestore.js?v=68f13e18:4081:68)
+    at __PRIVATE_parseObject (firebase_firestore.js?v=68f13e18:16410:7)
+    at __PRIVATE_parseData (firebase_firestore.js?v=68f13e18:16308:78)
+    at firebase_firestore.js?v=68f13e18:16411:15
+    at forEach (firebase_firestore.js?v=68f13e18:4081:68)
+handleImport @ AdminLegacyImporter.tsx:604
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+legacy-import:1 The resource https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/assets/og-image.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+AdminLegacyImporter.tsx:604 Errore importazione: RangeError: Invalid time value
+    at Date.toISOString (<anonymous>)
+    at toTimestamp (firebase_firestore.js?v=68f13e18:6815:41)
+    at __PRIVATE_parseScalarValue (firebase_firestore.js?v=68f13e18:16362:25)
+    at __PRIVATE_parseData (firebase_firestore.js?v=68f13e18:16402:4)
+    at firebase_firestore.js?v=68f13e18:16411:15
+    at forEach (firebase_firestore.js?v=68f13e18:4081:68)
+    at __PRIVATE_parseObject (firebase_firestore.js?v=68f13e18:16410:7)
+    at __PRIVATE_parseData (firebase_firestore.js?v=68f13e18:16308:78)
+    at firebase_firestore.js?v=68f13e18:16411:15
+    at forEach (firebase_firestore.js?v=68f13e18:4081:68)
+handleImport @ AdminLegacyImporter.tsx:604
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+legacy-import:1 The resource https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/assets/og-image.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.

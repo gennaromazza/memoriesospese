@@ -307,14 +307,17 @@ export default function AdminLegacyImporter() {
   const allMapped = clientMappings.every((m) => m.mappedToId || m.createNew);
 
   /**
-   * Helper per rilevare e convertire stringhe ISO date in Firestore Timestamp
-   * Usato per convertire ricorsivamente tutte le date in strutture annidate
+   * Helper per rilevare stringhe ISO date valide
+   * Verifica sia il formato che la validità della data risultante
    */
-  const isISODateString = (value: any): boolean => {
-    if (typeof value !== 'string') return false;
+  const isValidISODateString = (value: any): boolean => {
+    if (typeof value !== 'string' || value.length === 0) return false;
     // Match ISO 8601 date formats: YYYY-MM-DD, YYYY-MM-DDTHH:MM:SS, etc.
     const isoRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
-    return isoRegex.test(value);
+    if (!isoRegex.test(value)) return false;
+    // Verifica che la data sia effettivamente valida
+    const date = new Date(value);
+    return !isNaN(date.getTime());
   };
 
   /**
@@ -329,6 +332,17 @@ export default function AdminLegacyImporter() {
   };
 
   /**
+   * Check if an object is a serialized Timestamp (has seconds/nanoseconds but no toDate method)
+   * This happens when Timestamps are exported to JSON
+   */
+  const isSerializedTimestamp = (obj: any): boolean => {
+    return obj && typeof obj === 'object' &&
+           typeof obj.seconds === 'number' && 
+           typeof obj.nanoseconds === 'number' &&
+           typeof obj.toDate !== 'function';
+  };
+
+  /**
    * Check if an object is a plain object (not a class instance, Date, etc.)
    */
   const isPlainObject = (obj: any): boolean => {
@@ -339,16 +353,21 @@ export default function AdminLegacyImporter() {
 
   /**
    * Converte ricorsivamente tutte le stringhe data ISO in Firestore Timestamp
-   * Preserva Timestamp esistenti e altri oggetti non-plain
+   * Preserva Timestamp esistenti, converte Timestamp serializzati, e gestisce date non valide
    */
   const convertDatesRecursively = (obj: any): any => {
     if (obj === null || obj === undefined) return obj;
     
-    // Se è una stringa ISO date, convertila in Timestamp
-    if (isISODateString(obj)) {
+    // Se è una stringa vuota, ritornala così com'è
+    if (typeof obj === 'string' && obj.length === 0) return obj;
+    
+    // Se è una stringa ISO date valida, convertila in Timestamp
+    if (isValidISODateString(obj)) {
       try {
-        return Timestamp.fromDate(new Date(obj));
-      } catch {
+        const date = new Date(obj);
+        return Timestamp.fromDate(date);
+      } catch (e) {
+        console.warn(`⚠️ Impossibile convertire data: ${obj}`, e);
         return obj; // Ritorna la stringa originale se la conversione fallisce
       }
     }
@@ -356,6 +375,16 @@ export default function AdminLegacyImporter() {
     // Se è già un Firestore Timestamp, ritornalo così com'è
     if (isFirestoreTimestamp(obj)) {
       return obj;
+    }
+    
+    // Se è un Timestamp serializzato (da JSON export), convertilo in Timestamp reale
+    if (isSerializedTimestamp(obj)) {
+      try {
+        return new Timestamp(obj.seconds, obj.nanoseconds);
+      } catch (e) {
+        console.warn(`⚠️ Impossibile convertire Timestamp serializzato:`, obj, e);
+        return null; // Ritorna null se non valido
+      }
     }
     
     // Se è un array, processa ogni elemento
