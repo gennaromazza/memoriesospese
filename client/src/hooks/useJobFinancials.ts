@@ -57,20 +57,29 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
   // 1. Totale preventivato (da job snapshot - aggiornato da backend quando viene creato preventivo)
   const totalePreventivato = job.financials?.totalePreventivato || 0;
 
-  // 2. Total pagato REAL-TIME - Aggrega da TUTTI i payment schedules
+  // 2. Total pagato - Prima calcola da payment schedules, poi fallback a job.financials
   // Somma tutti i pagamenti con importoPagato > 0 da tutti gli schedules
-  const totalePagato = (paymentSchedules || []).reduce((total, schedule) => {
+  const schedulesTotalePagato = (paymentSchedules || []).reduce((total, schedule) => {
     const scheduleTotalPagato = (schedule.payments || [])
       .filter(p => p.importoPagato && p.importoPagato > 0)
       .reduce((sum, p) => sum + (p.importoPagato || 0), 0);
     return total + scheduleTotalPagato;
   }, 0);
+  
+  // Se non ci sono payment schedules o il totale calcolato è 0, usa il fallback da job.financials
+  // Questo supporta i dati legacy importati che hanno totalePagato nel job ma non payment schedules
+  const hasPaymentSchedules = paymentSchedules && paymentSchedules.length > 0;
+  const totalePagato = hasPaymentSchedules && schedulesTotalePagato > 0 
+    ? schedulesTotalePagato 
+    : (job.financials?.totalePagato || 0);
 
   // 3. Totale costi REAL-TIME da array costi
   const totaleCosti = job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0;
 
-  // 4. Calcoli derivati
-  const saldoResiduo = totalePreventivato - totalePagato;
+  // 4. Calcoli derivati - Usa saldoResiduo da job.financials se disponibile, altrimenti calcola
+  const saldoResiduo = hasPaymentSchedules && schedulesTotalePagato > 0
+    ? totalePreventivato - totalePagato
+    : (job.financials?.saldoResiduo ?? (totalePreventivato - totalePagato));
   const margine = totalePreventivato - totaleCosti;
 
   return {
