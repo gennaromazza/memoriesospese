@@ -515,13 +515,24 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
     }
 
     // 4. Fetch payment schedule associato
+    // Prima cerca per quoteId, poi fallback a jobId (per dati legacy importati)
     let safePaymentSchedule: any = null;
 
-    const scheduleSnapshot = await db
+    // Strategia 1: Cerca per quoteId
+    let scheduleSnapshot = await db
       .collection("paymentSchedules")
       .where("quoteId", "==", quote.id)
       .limit(1)
       .get();
+
+    // Strategia 2: Fallback - cerca per jobId (dati legacy importati)
+    if (scheduleSnapshot.empty && quote.jobId) {
+      scheduleSnapshot = await db
+        .collection("paymentSchedules")
+        .where("jobId", "==", quote.jobId)
+        .limit(1)
+        .get();
+    }
 
     if (!scheduleSnapshot.empty) {
       const scheduleDoc = scheduleSnapshot.docs[0];
