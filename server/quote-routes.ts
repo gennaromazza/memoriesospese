@@ -693,6 +693,29 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
     }
 
     // 7. Prepara dati sicuri (redact internal fields + serialize timestamps)
+    // Normalizza firma legacy - gestisce formati alternativi (nomeFirmatario, name, etc.)
+    let normalizedSignature = null;
+    if (quote.signature) {
+      // Prova a estrarre clientName da formati alternativi
+      const clientName =
+        quote.signature.clientName ||
+        quote.signature.nomeFirmatario ||
+        quote.signature.name ||
+        quote.signature.firmatario ||
+        // Fallback: usa primo cliente se disponibile
+        (clientiInfo.length > 0
+          ? `${clientiInfo[0].nome || ""} ${clientiInfo[0].cognome || ""}`.trim()
+          : null);
+
+      if (clientName) {
+        normalizedSignature = {
+          clientName,
+          signedAt: serializeTimestamp(quote.signature.signedAt),
+          imageUrl: quote.signature.imageUrl || quote.signature.firmaUrl || null,
+        };
+      }
+    }
+
     const safeQuote = {
       id: quote.id,
       type: quote.type,
@@ -704,13 +727,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       totalAfterDiscount: quote.totalAfterDiscount,
       totaleSelezionato: quote.totaleSelezionato,
       contractClauses: quote.contractClauses,
-      signature: quote.signature
-        ? {
-            clientName: quote.signature.clientName,
-            signedAt: serializeTimestamp(quote.signature.signedAt),
-            imageUrl: quote.signature.imageUrl,
-          }
-        : null,
+      signature: normalizedSignature,
       status: quote.status,
       signedAt: serializeTimestamp(quote.signature?.signedAt),
     };
