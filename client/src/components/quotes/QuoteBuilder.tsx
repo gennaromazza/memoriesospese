@@ -73,6 +73,7 @@ import { calculateQuoteTotals } from '@shared/quote-utils';
 import { calculatePaymentSchedule, validatePaymentScheduleConfig, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { cn } from '@/lib/utils';
 import { getJob } from '@/lib/jobs';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
@@ -922,12 +923,35 @@ export default function QuoteBuilder({
               </div>
 
               <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <Card key={field.id}>
+                {fields.map((field, index) => {
+                  const productName = form.watch(`products.${index}.nome`) || '';
+                  const productPrice = form.watch(`products.${index}.prezzo`) || 0;
+                  const hasName = productName.trim().length > 0;
+                  const hasPrice = productPrice > 0;
+                  const isIncomplete = (hasName && !hasPrice) || (!hasName && hasPrice);
+                  const isEmpty = !hasName && !hasPrice;
+                  
+                  return (
+                  <Card key={field.id} className={cn(
+                    isIncomplete && "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
+                    isEmpty && "border-dashed border-muted-foreground/30"
+                  )}>
                     <CardContent className="pt-6">
                       <div className="space-y-4">
                         <div className="flex justify-between items-start">
-                          <Badge variant="outline">Prodotto {index + 1}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
+                              Prodotto {index + 1}
+                            </Badge>
+                            {isIncomplete && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
+                              </span>
+                            )}
+                            {!isEmpty && !isIncomplete && (
+                              <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                            )}
+                          </div>
                           {fields.length > 1 && (
                             <Button
                               type="button"
@@ -1135,7 +1159,8 @@ export default function QuoteBuilder({
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
