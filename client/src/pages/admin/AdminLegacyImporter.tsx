@@ -614,14 +614,37 @@ export default function AdminLegacyImporter() {
           id: idMap.get(ci.id) || ci.id,
         }));
         
+        // Normalizza firma legacy - gestisce formati alternativi
+        let normalizedSignature = null;
+        if (quote.signature) {
+          const sig = quote.signature as any;
+          // Estrai clientName da formati alternativi
+          const clientName = 
+            sig.clientName || 
+            sig.nomeFirmatario || 
+            sig.name || 
+            sig.firmatario ||
+            // Fallback: usa primo cliente se disponibile
+            (mappedClientiInfo && mappedClientiInfo.length > 0
+              ? `${mappedClientiInfo[0].nome || ''} ${mappedClientiInfo[0].cognome || ''}`.trim()
+              : null);
+          
+          if (clientName) {
+            normalizedSignature = {
+              clientName,
+              signedAt: safeToTimestamp(sig.signedAt),
+              imageUrl: sig.imageUrl || sig.firmaUrl || null,
+              ipAddress: sig.ipAddress || 'legacy_import',
+              userAgent: sig.userAgent || 'legacy_import',
+            };
+          }
+        }
+
         const quoteData = {
           ...quote,
           clienteId: mappedClienteId,
           clientiInfo: mappedClientiInfo,
-          signature: quote.signature ? {
-            ...quote.signature,
-            signedAt: safeToTimestamp(quote.signature.signedAt),
-          } : null,
+          signature: normalizedSignature,
           jobInfo: quote.jobInfo ? {
             ...quote.jobInfo,
             eventDate: safeToTimestamp(quote.jobInfo.eventDate),
@@ -648,6 +671,10 @@ export default function AdminLegacyImporter() {
       for (const schedule of legacyData.paymentSchedules || []) {
         const mappedClienteId = idMap.get(schedule.clienteId) || schedule.clienteId;
         
+        // Trova quoteId dal jobId (se esiste un quote con lo stesso jobId)
+        const matchingQuote = (legacyData.quotes || []).find(q => q.jobId === schedule.jobId);
+        const quoteId = matchingQuote?.id || null;
+        
         const convertedPayments = schedule.payments.map((payment: LegacyPayment) => {
           const isPagato = payment.stato === 'pagato';
           return {
@@ -661,6 +688,7 @@ export default function AdminLegacyImporter() {
         const scheduleData = {
           ...schedule,
           clienteId: mappedClienteId,
+          quoteId: quoteId, // Aggiungi quoteId per collegamento corretto
           payments: convertedPayments,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),

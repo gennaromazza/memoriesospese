@@ -22,6 +22,11 @@ import html2pdf from 'html2pdf.js';
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
   paymentSchedule: PaymentSchedule | null;
+  legacyOrderData?: {
+    totale: number;
+    acconto: number;
+    saldo: number;
+  } | null;
   jobInfo: {
     nomeEvento?: string;
     eventDate?: any;
@@ -64,6 +69,7 @@ export default function QuoteSignedPortalPage() {
   const portalData = data?.data;
   const quote = portalData?.quote;
   const paymentSchedule = portalData?.paymentSchedule;
+  const legacyOrderData = portalData?.legacyOrderData;
   const jobInfo = portalData?.jobInfo;
   const clientiInfo = portalData?.clientiInfo || [];
 
@@ -604,19 +610,50 @@ export default function QuoteSignedPortalPage() {
                     <span className="font-semibold text-terracotta">-{formatCurrency(quote.totalBeforeDiscount - quote.totalAfterDiscount)}</span>
                   </div>
                 )}
-                {/* Totale finale */}
-                <div className="text-center p-6 sm:p-8 bg-blue-gray/10 rounded-xl border-2 border-blue-gray/30">
-                  <div className="flex justify-center mb-4">
-                    <div className="p-3 bg-blue-gray/20 rounded-full">
-                      <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-blue-gray" />
+                
+                {/* Dati legacy ordine - Acconto/Saldo */}
+                {legacyOrderData && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
+                    <div className="text-center p-4 sm:p-5 bg-blue-gray/10 rounded-xl border-2 border-blue-gray/30">
+                      <p className="text-xs text-blue-gray uppercase tracking-wider font-semibold mb-1">Totale</p>
+                      <p className="text-xl sm:text-2xl font-bold text-blue-gray">{formatCurrency(legacyOrderData.totale ?? quote.totalAfterDiscount ?? 0)}</p>
+                    </div>
+                    <div className="text-center p-4 sm:p-5 bg-sage/10 rounded-xl border-2 border-sage/30">
+                      <div className="flex justify-center mb-2">
+                        <div className="p-2 bg-sage/20 rounded-full">
+                          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-sage" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-sage uppercase tracking-wider font-semibold mb-1">Acconto Versato</p>
+                      <p className="text-xl sm:text-2xl font-bold text-sage">{formatCurrency(legacyOrderData.acconto ?? 0)}</p>
+                    </div>
+                    <div className="text-center p-4 sm:p-5 bg-terracotta/10 rounded-xl border-2 border-terracotta/30">
+                      <div className="flex justify-center mb-2">
+                        <div className="p-2 bg-terracotta/20 rounded-full">
+                          <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-terracotta" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-terracotta uppercase tracking-wider font-semibold mb-1">Saldo Residuo</p>
+                      <p className="text-xl sm:text-2xl font-bold text-terracotta">{formatCurrency(legacyOrderData.saldo ?? 0)}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-blue-gray uppercase tracking-wider font-semibold mb-2">Totale Contratto</p>
-                  <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</p>
-                  <p className="text-sm text-dark-sage/70 mt-4">
-                    Per i dettagli sulle modalità di pagamento, contattare lo studio.
-                  </p>
-                </div>
+                )}
+
+                {/* Totale finale - Solo se non ci sono dati legacy */}
+                {!legacyOrderData && (
+                  <div className="text-center p-6 sm:p-8 bg-blue-gray/10 rounded-xl border-2 border-blue-gray/30">
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-blue-gray/20 rounded-full">
+                        <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-blue-gray" />
+                      </div>
+                    </div>
+                    <p className="text-sm text-blue-gray uppercase tracking-wider font-semibold mb-2">Totale Contratto</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</p>
+                    <p className="text-sm text-dark-sage/70 mt-4">
+                      Per i dettagli sulle modalità di pagamento, contattare lo studio.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

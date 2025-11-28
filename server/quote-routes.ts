@@ -534,6 +534,13 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
         .get();
     }
 
+    // Dati legacy ordine (acconto/saldo) - usato come fallback se paymentSchedule non esiste
+    let legacyOrderData: {
+      totale: number;
+      acconto: number;
+      saldo: number;
+    } | null = null;
+
     if (!scheduleSnapshot.empty) {
       const scheduleDoc = scheduleSnapshot.docs[0];
       const fullSchedule = {
@@ -557,6 +564,30 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
           note: p.note || "",
         })),
       };
+    } else if (quote.jobId) {
+      // Fallback: cerca ordine legacy con acconto/saldo se non esiste paymentSchedule
+      const ordersSnapshot = await db
+        .collection("orders")
+        .where("jobId", "==", quote.jobId)
+        .limit(1)
+        .get();
+
+      if (!ordersSnapshot.empty) {
+        const orderData = ordersSnapshot.docs[0].data() as any;
+        if (orderData.acconto !== undefined || orderData.saldo !== undefined || orderData.totale !== undefined) {
+          // Calcola totale con fallback sicuro
+          const resolvedTotal = orderData.totale ?? quote.totalAfterDiscount ?? 0;
+          const resolvedAcconto = orderData.acconto ?? 0;
+          // Calcola saldo: priorità a saldo esplicito, altrimenti calcola
+          const resolvedSaldo = orderData.saldo ?? Math.max(0, resolvedTotal - resolvedAcconto);
+          
+          legacyOrderData = {
+            totale: resolvedTotal,
+            acconto: resolvedAcconto,
+            saldo: resolvedSaldo,
+          };
+        }
+      }
     }
 
     // 5. Fetch job info - priorità dati salvati in quote, fallback a Firestore
@@ -696,12 +727,14 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
     // Normalizza firma legacy - gestisce formati alternativi (nomeFirmatario, name, etc.)
     let normalizedSignature = null;
     if (quote.signature) {
+      // Cast a any per gestire campi legacy non tipizzati
+      const sig = quote.signature as any;
       // Prova a estrarre clientName da formati alternativi
       const clientName =
-        quote.signature.clientName ||
-        quote.signature.nomeFirmatario ||
-        quote.signature.name ||
-        quote.signature.firmatario ||
+        sig.clientName ||
+        sig.nomeFirmatario ||
+        sig.name ||
+        sig.firmatario ||
         // Fallback: usa primo cliente se disponibile
         (clientiInfo.length > 0
           ? `${clientiInfo[0].nome || ""} ${clientiInfo[0].cognome || ""}`.trim()
@@ -710,8 +743,8 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       if (clientName) {
         normalizedSignature = {
           clientName,
-          signedAt: serializeTimestamp(quote.signature.signedAt),
-          imageUrl: quote.signature.imageUrl || quote.signature.firmaUrl || null,
+          signedAt: serializeTimestamp(sig.signedAt),
+          imageUrl: sig.imageUrl || sig.firmaUrl || null,
         };
       }
     }
@@ -738,6 +771,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       data: {
         quote: safeQuote,
         paymentSchedule: safePaymentSchedule,
+        legacyOrderData: legacyOrderData, // Fallback per ordini legacy senza paymentSchedule
         jobInfo: jobInfo || null,
         clientiInfo: clientiInfo || [],
       },
@@ -1074,11 +1108,11 @@ router.post("/send-quote", async (req: Request, res: Response) => {
     const studioInfo = await getStudioContactInfo();
 
     // Calcola data scadenza preventivo (opzionale, es: 30 giorni da oggi)
-    const expiresAt = quote.expiresAt
-      ? (quote.expiresAt as any).toDate
-        ? (quote.expiresAt as any).toDate()
-        : new Date(quote.expiresAt)
-      : undefined;
+    let expiresAt: Date | undefined = undefined;
+    if (quote.expiresAt) {
+      const expiry = quote.expiresAt as any;
+      expiresAt = expiry.toDate ? expiry.toDate() : new Date(expiry);
+    }
 
     // Crea HTML email per PREVENTIVO INVIATO (non ancora firmato)
     const htmlContent = createQuoteSentEmailHTML(
