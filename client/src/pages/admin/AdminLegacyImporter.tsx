@@ -5,7 +5,7 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { getAllClienti, updateCliente, createCliente } from "@/lib/clienti";
@@ -465,9 +465,20 @@ export default function AdminLegacyImporter() {
       for (const schedule of legacyData.paymentSchedules || []) {
         const mappedClienteId = idMap.get(schedule.clienteId) || schedule.clienteId;
         
+        const convertedPayments = schedule.payments.map((payment: LegacyPayment) => {
+          const isPagato = payment.stato === 'pagato';
+          return {
+            ...payment,
+            dataScadenza: payment.dataScadenza ? Timestamp.fromDate(new Date(payment.dataScadenza)) : null,
+            dataPagamento: payment.dataPagamento ? Timestamp.fromDate(new Date(payment.dataPagamento)) : null,
+            importoPagato: isPagato ? payment.importo : (payment as any).importoPagato || 0,
+          };
+        });
+        
         const scheduleData = {
           ...schedule,
           clienteId: mappedClienteId,
+          payments: convertedPayments,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           importedFrom: "legacy_json",
