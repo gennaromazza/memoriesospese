@@ -633,9 +633,12 @@ export default function JobsManager() {
                   <TableRow
                     key={job.id}
                     className={cn(
-                      "cursor-pointer hover:bg-muted/50",
+                      "cursor-pointer hover:bg-muted/50 relative",
                       isSelected && "bg-red-50 hover:bg-red-100"
                     )}
+                    style={{
+                      boxShadow: jobTypeInfo?.colore ? `inset 4px 0 0 ${jobTypeInfo.colore}` : undefined
+                    }}
                     onClick={() => navigate(`/admin/jobs/${job.id}`)}
                     data-testid={`job-row-${job.id}`}
                   >
@@ -705,8 +708,17 @@ export default function JobsManager() {
                     
                     {/* Tipo */}
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {displayType}
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs font-medium gap-1.5 border-2"
+                        style={{
+                          borderColor: jobTypeInfo?.colore || '#94a3b8',
+                          backgroundColor: jobTypeInfo?.colore ? `${jobTypeInfo.colore}15` : 'transparent',
+                          color: jobTypeInfo?.colore || '#64748b'
+                        }}
+                      >
+                        <span className="text-base leading-none">{jobTypeInfo?.icona || '📸'}</span>
+                        <span>{jobTypeInfo?.nome || job.jobType}</span>
                       </Badge>
                     </TableCell>
                     
