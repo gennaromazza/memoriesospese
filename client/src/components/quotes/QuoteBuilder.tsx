@@ -204,15 +204,17 @@ function SortableProductCard({
       <CardContent className="pt-6">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-2">
-            {/* Drag Handle */}
-            <div
+            {/* Drag Handle - accessible button */}
+            <button
+              type="button"
               {...attributes}
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              aria-label={`Trascina per riordinare prodotto ${index + 1}`}
               data-testid={`drag-handle-product-${index}`}
             >
               <GripVertical className="w-4 h-4 text-muted-foreground" />
-            </div>
+            </button>
             <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
               Prodotto {index + 1}
             </Badge>
