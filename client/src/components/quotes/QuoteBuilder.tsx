@@ -488,6 +488,23 @@ export default function QuoteBuilder({
         const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
         const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
+        // Prepara clausole per l'update
+        let updateContractClauses;
+        let updateClauseTemplateId;
+        
+        if (selectedClauseTemplateId) {
+          const selectedTemplate = clauseTemplates.find(t => t.id === selectedClauseTemplateId);
+          if (selectedTemplate) {
+            updateContractClauses = selectedTemplate.clauses.map(c => ({
+              id: nanoid(),
+              text: c.text,
+              required: c.required,
+              ordine: c.ordine
+            }));
+            updateClauseTemplateId = selectedClauseTemplateId;
+          }
+        }
+
         const updateData: any = {
           type: data.type,
           products: mergedProducts,
@@ -506,6 +523,12 @@ export default function QuoteBuilder({
         }
         if (data.paymentScheduleConfig !== undefined) {
           updateData.paymentScheduleConfig = data.paymentScheduleConfig;
+        }
+        
+        // Aggiorna clausole se selezionato un template
+        if (updateClauseTemplateId) {
+          updateData.clauseTemplateId = updateClauseTemplateId;
+          updateData.contractClauses = updateContractClauses;
         }
 
         const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
