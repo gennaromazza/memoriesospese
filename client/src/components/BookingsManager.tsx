@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { nextMonday } from "date-fns";
+import { nextMonday, isToday, isTomorrow, isYesterday, addDays, isSameDay, startOfDay } from "date-fns";
 import {
   getAllBookings,
   getBookingsByStatus,
@@ -100,7 +100,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { format, isToday, isTomorrow, isYesterday, addDays, isSameDay, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -307,7 +307,7 @@ export default function BookingsManager({
     return format(date, "EEEE d MMMM yyyy", { locale: it });
   };
 
-  // Helper: Raggruppa prenotazioni per giorno
+  // Interfaccia per raggruppamento per giorno
   interface DayGroup {
     date: Date;
     dateKey: string;
@@ -315,6 +315,7 @@ export default function BookingsManager({
     bookings: Booking[];
   }
   
+  // Helper: Raggruppa prenotazioni per giorno
   const groupBookingsByDay = (bookingsList: Booking[]): DayGroup[] => {
     const groups: Map<string, DayGroup> = new Map();
     
@@ -1239,9 +1240,7 @@ export default function BookingsManager({
             </Card>
           ) : (
             <div className="space-y-6">
-              {dayGroups.map((group, groupIndex) => {
-                // Determina stile del header in base al giorno
-                const isSpecialDay = group.label === "Oggi" || group.label === "Domani" || group.label === "Dopodomani";
+              {dayGroups.map((group) => {
                 const isPast = group.date < startOfDay(new Date());
                 
                 return (
@@ -1299,40 +1298,17 @@ export default function BookingsManager({
                     {/* Card delle prenotazioni del giorno */}
                     <div className="grid gap-3 pl-2 border-l-2 border-gray-200 ml-5">
                       {group.bookings.map((booking, index) => {
-                        // Colori rotativi per ogni card
                         const cardColors = [
-                          {
-                            border: "border-l-4 border-l-blue-500",
-                            bg: "bg-blue-50/30",
-                          },
-                          {
-                            border: "border-l-4 border-l-green-500",
-                            bg: "bg-green-50/30",
-                          },
-                          {
-                            border: "border-l-4 border-l-purple-500",
-                            bg: "bg-purple-50/30",
-                          },
-                          {
-                            border: "border-l-4 border-l-orange-500",
-                            bg: "bg-orange-50/30",
-                          },
-                          {
-                            border: "border-l-4 border-l-pink-500",
-                            bg: "bg-pink-50/30",
-                          },
-                          {
-                            border: "border-l-4 border-l-teal-500",
-                            bg: "bg-teal-50/30",
-                          },
+                          { border: "border-l-4 border-l-blue-500", bg: "bg-blue-50/30" },
+                          { border: "border-l-4 border-l-green-500", bg: "bg-green-50/30" },
+                          { border: "border-l-4 border-l-purple-500", bg: "bg-purple-50/30" },
+                          { border: "border-l-4 border-l-orange-500", bg: "bg-orange-50/30" },
+                          { border: "border-l-4 border-l-pink-500", bg: "bg-pink-50/30" },
+                          { border: "border-l-4 border-l-teal-500", bg: "bg-teal-50/30" },
                         ];
                         const colorClass = cardColors[index % cardColors.length];
-                        const isApproved =
-                          booking.stato === "confermata" ||
-                          booking.stato === "completata";
-                        const canDelete = 
-                          isApproved || booking.stato === "rifiutata";
-
+                        const isApproved = booking.stato === "confermata" || booking.stato === "completata";
+                        const canDelete = isApproved || booking.stato === "rifiutata";
                         const isHighlighted = highlightedId === booking.id;
 
                         return (
@@ -1343,60 +1319,61 @@ export default function BookingsManager({
                             }}
                             className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
                           >
-                            <CardContent className="p-4 md:p-6">
-                              <div className="flex justify-between items-start gap-6">
-                                {/* Info prenotazione */}
-                                <div className="flex-1 space-y-3">
-                                  {/* Intestazione con orario prominente */}
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      {/* Orario in evidenza */}
-                                      <div className="bg-sage/10 text-sage px-3 py-1.5 rounded-lg font-mono font-bold text-lg">
-                                        {formatTime(booking.dataShootingInizio)}
-                                      </div>
-                                      <div>
-                                        <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
-                                          {booking.cliente.nome} {booking.cliente.cognome}
-                                          {booking.isManual && (
-                                            <Badge
-                                              variant="outline"
-                                              className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
-                                            >
-                                              👤 Walk-in
-                                            </Badge>
-                                          )}
-                                        </h3>
-                                        <p className="text-sm text-gray-600">
-                                          {getCampaignName(booking.campaignId)}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    {getStatoBadge(booking.stato)}
-                                  </div>
+                    <CardContent className="p-4 md:p-6">
+                      <div className="flex justify-between items-start gap-6">
+                        {/* Info prenotazione */}
+                        <div className="flex-1 space-y-3">
+                          {/* Intestazione */}
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
+                                {booking.cliente.nome} {booking.cliente.cognome}
+                                {booking.isManual && (
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
+                                  >
+                                    👤 Walk-in
+                                  </Badge>
+                                )}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                {getCampaignName(booking.campaignId)}
+                              </p>
+                            </div>
+                            {getStatoBadge(booking.stato)}
+                          </div>
 
-                                  {/* Dettagli */}
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                                    <div className="flex items-center gap-2 text-gray-700">
-                                      <Clock className="w-4 h-4 text-sage" />
-                                      <span>
-                                        {formatTime(booking.dataShootingInizio)} - {formatTime(booking.dataShootingFine)}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-gray-700">
-                                      <Mail className="w-4 h-4 text-sage" />
-                                      <a
-                                        href={`mailto:${booking.cliente.email}`}
-                                        className="hover:underline"
-                                      >
-                                        {booking.cliente.email}
-                                      </a>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-gray-700">
-                                      <Phone className="w-4 h-4 text-sage" />
-                                      <a
-                                        href={`https://wa.me/${booking.cliente.whatsapp}`}
-                                        className="hover:underline"
-                                      >
+                          {/* Dettagli */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Calendar className="w-4 h-4 text-sage" />
+                              <span>
+                                {formatDateTime(booking.dataShootingInizio)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Clock className="w-4 h-4 text-sage" />
+                              <span>
+                                {formatTime(booking.dataShootingInizio)} -{" "}
+                                {formatTime(booking.dataShootingFine)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Mail className="w-4 h-4 text-sage" />
+                              <a
+                                href={`mailto:${booking.cliente.email}`}
+                                className="hover:underline"
+                              >
+                                {booking.cliente.email}
+                              </a>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Phone className="w-4 h-4 text-sage" />
+                              <a
+                                href={`https://wa.me/${booking.cliente.whatsapp}`}
+                                className="hover:underline"
+                              >
                                 {booking.cliente.whatsapp}
                               </a>
                             </div>
@@ -1835,14 +1812,18 @@ export default function BookingsManager({
                         </div>
                       </div>
                     </CardContent>
-                  </Card>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>
           )}
 
-          {/* Controlli Paginazione */}
-          {!isLoading && bookings.length > 0 && totalPages > 1 && (
+          {/* Controlli Paginazione - disabilitati per vista raggruppata per giorno */}
+          {false && !isLoading && bookings.length > 0 && totalPages > 1 && (
             <Card className="mt-4">
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
