@@ -614,15 +614,32 @@ export default function QuoteBuilder({
         const { db } = await import('@/lib/firebase');
         const { collection, Timestamp } = await import('firebase/firestore');
 
+        // Helper to clean undefined values from objects (Firestore doesn't accept undefined)
+        const cleanObject = (obj: any): any => {
+          if (Array.isArray(obj)) {
+            return obj.map(cleanObject);
+          }
+          if (obj && typeof obj === 'object') {
+            const cleaned: any = {};
+            Object.entries(obj).forEach(([key, value]) => {
+              if (value !== undefined) {
+                cleaned[key] = cleanObject(value);
+              }
+            });
+            return cleaned;
+          }
+          return obj;
+        };
+
         // Merge catalog + custom products
-        const mergedProducts = mergeQuoteProducts(
+        const mergedProducts = cleanObject(mergeQuoteProducts(
           data.catalogProductIds,
           data.products.filter(p => p.nome.trim()),
           catalogProducts,
           data.type
-        );
+        ));
 
-        const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
+        const subtotale = mergedProducts.reduce((sum: number, p: any) => sum + p.prezzo, 0);
         const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
         // Prepara clausole per l'update
@@ -647,20 +664,14 @@ export default function QuoteBuilder({
           products: mergedProducts,
           totalBeforeDiscount: finalTotals.totalBeforeDiscount,
           totalAfterDiscount: finalTotals.totalAfterDiscount,
-          theme: data.theme,
           expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : null,
           noteInterne: data.noteInterne || '',
-          updatedAt: Timestamp.now()
+          updatedAt: Timestamp.now(),
+          theme: data.theme,
+          discountType: data.discountType,
+          discountValue: data.discountValue || 0,
+          paymentScheduleConfig: data.paymentScheduleConfig
         };
-        
-        // Aggiungi campi opzionali solo se definiti (Firestore non accetta undefined)
-        if (data.discountType !== undefined) {
-          updateData.discountType = data.discountType;
-          updateData.discountValue = data.discountValue || 0;
-        }
-        if (data.paymentScheduleConfig !== undefined) {
-          updateData.paymentScheduleConfig = data.paymentScheduleConfig;
-        }
         
         // Aggiorna clausole se selezionato un template
         if (updateClauseTemplateId) {
@@ -668,8 +679,11 @@ export default function QuoteBuilder({
           updateData.contractClauses = updateContractClauses;
         }
 
+        // Clean all undefined values before saving to Firestore
+        const cleanedUpdateData = cleanObject(updateData);
+
         const quoteRef = doc(collection(db, 'quotes'), editQuoteId);
-        await updateDoc(quoteRef, updateData);
+        await updateDoc(quoteRef, cleanedUpdateData);
         return editQuoteId;
       }
 

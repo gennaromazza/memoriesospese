@@ -13,17 +13,21 @@ export function catalogProductToQuoteProduct(
   product: Product,
   quoteType: 'fisso' | 'variabile'
 ): QuoteProduct {
-  return {
+  const quoteProduct: QuoteProduct = {
     productId: product.id,
     nome: product.nome,
     descrizione: product.descrizione,
     prezzo: product.prezzoFinale || product.prezzo, // Use discounted price if available
     selectable: quoteType === 'variabile',
-    selected: quoteType === 'fisso' ? true : undefined,
     numeroFoto: product.numeroFoto,
     categoria: product.categoria,
     immagini: product.immagini || []
   };
+  // Only add selected field if it's true (Firestore doesn't accept undefined)
+  if (quoteType === 'fisso') {
+    quoteProduct.selected = true;
+  }
+  return quoteProduct;
 }
 
 /**
@@ -62,11 +66,18 @@ export function mergeQuoteProducts(
   );
   
   // Custom products already in QuoteProduct format
-  const customQuoteProducts = customProducts.map(p => ({
-    ...p,
-    selectable: quoteType === 'variabile',
-    selected: quoteType === 'fisso' ? true : undefined,
-  }));
+  // Note: Firestore doesn't accept undefined, so we only set selected when it's true
+  const customQuoteProducts = customProducts.map(p => {
+    const product: QuoteProduct = {
+      ...p,
+      selectable: quoteType === 'variabile',
+    };
+    // Only add selected field if it's true (Firestore doesn't accept undefined)
+    if (quoteType === 'fisso') {
+      product.selected = true;
+    }
+    return product;
+  });
   
   return [...catalogQuoteProducts, ...customQuoteProducts];
 }
