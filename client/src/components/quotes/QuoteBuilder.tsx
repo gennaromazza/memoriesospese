@@ -63,8 +63,26 @@ import {
   Image as ImageIcon,
   CreditCard,
   Eye,
-  Package
+  Package,
+  GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
@@ -133,6 +151,97 @@ const quoteSchema = z.object({
 );
 
 type FormData = z.infer<typeof quoteSchema>;
+
+// Sortable Product Card component for drag and drop
+interface SortableProductCardProps {
+  id: string;
+  index: number;
+  isIncomplete: boolean;
+  isEmpty: boolean;
+  hasName: boolean;
+  fieldsLength: number;
+  onRemove: () => void;
+  children: React.ReactNode;
+}
+
+function SortableProductCard({
+  id,
+  index,
+  isIncomplete,
+  isEmpty,
+  hasName,
+  fieldsLength,
+  onRemove,
+  children
+}: SortableProductCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "relative",
+        isIncomplete && "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
+        isEmpty && "border-dashed border-muted-foreground/30",
+        isDragging && "shadow-lg ring-2 ring-primary"
+      )}
+    >
+      <CardContent className="pt-6">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center gap-2">
+            {/* Drag Handle */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
+              data-testid={`drag-handle-product-${index}`}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
+              Prodotto {index + 1}
+            </Badge>
+            {isIncomplete && (
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
+              </span>
+            )}
+            {!isEmpty && !isIncomplete && (
+              <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+            )}
+          </div>
+          {fieldsLength > 1 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onRemove}
+              data-testid={`button-remove-product-${index}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface QuoteBuilderProps {
   jobId: string;
@@ -341,10 +450,36 @@ export default function QuoteBuilder({
     form.setValue('clauseTemplateId', templateId);
   };
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, move } = useFieldArray({
     control: form.control,
     name: 'products'
   });
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end for reordering products
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = fields.findIndex((field) => field.id === active.id);
+      const newIndex = fields.findIndex((field) => field.id === over.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        move(oldIndex, newIndex);
+      }
+    }
+  };
 
   // Watch form values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
@@ -951,48 +1086,36 @@ export default function QuoteBuilder({
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                {fields.map((field, index) => {
-                  const productName = form.watch(`products.${index}.nome`) || '';
-                  const productPrice = form.watch(`products.${index}.prezzo`) || 0;
-                  const hasName = productName.trim().length > 0;
-                  const hasPrice = productPrice > 0;
-                  const isIncomplete = (hasName && !hasPrice) || (!hasName && hasPrice);
-                  const isEmpty = !hasName && !hasPrice;
-                  
-                  return (
-                  <Card key={field.id} className={cn(
-                    isIncomplete && "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20",
-                    isEmpty && "border-dashed border-muted-foreground/30"
-                  )}>
-                    <CardContent className="pt-6">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2">
-                            <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
-                              Prodotto {index + 1}
-                            </Badge>
-                            {isIncomplete && (
-                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
-                              </span>
-                            )}
-                            {!isEmpty && !isIncomplete && (
-                              <span className="text-xs text-green-600 dark:text-green-400">✓</span>
-                            )}
-                          </div>
-                          {fields.length > 1 && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => remove(index)}
-                              data-testid={`button-remove-product-${index}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={fields.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-4">
+                    {fields.map((field, index) => {
+                      const productName = form.watch(`products.${index}.nome`) || '';
+                      const productPrice = form.watch(`products.${index}.prezzo`) || 0;
+                      const hasName = productName.trim().length > 0;
+                      const hasPrice = productPrice > 0;
+                      const isIncomplete = (hasName && !hasPrice) || (!hasName && hasPrice);
+                      const isEmpty = !hasName && !hasPrice;
+                      
+                      return (
+                        <SortableProductCard
+                          key={field.id}
+                          id={field.id}
+                          index={index}
+                          isIncomplete={isIncomplete}
+                          isEmpty={isEmpty}
+                          hasName={hasName}
+                          fieldsLength={fields.length}
+                          onRemove={() => remove(index)}
+                        >
+                          <div className="space-y-4">
 
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
@@ -1185,12 +1308,13 @@ export default function QuoteBuilder({
                             </FormItem>
                           )}
                         />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  );
-                })}
-              </div>
+                          </div>
+                        </SortableProductCard>
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
 
             <Separator />
