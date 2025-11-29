@@ -100,7 +100,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, isToday, isTomorrow, isYesterday, addDays, isSameDay, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -289,6 +289,71 @@ export default function BookingsManager({
     return allGalleries.filter((gallery) => gallery.bookingId === bookingId);
   };
 
+  // Helper: Ottieni data da timestamp Firestore
+  const getDateFromTimestamp = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp instanceof Date) return timestamp;
+    return new Date(timestamp);
+  };
+
+  // Helper: Etichetta giorno intuitiva
+  const getDayLabel = (date: Date): string => {
+    const now = new Date();
+    if (isToday(date)) return "Oggi";
+    if (isTomorrow(date)) return "Domani";
+    if (isYesterday(date)) return "Ieri";
+    if (isSameDay(date, addDays(now, 2))) return "Dopodomani";
+    return format(date, "EEEE d MMMM yyyy", { locale: it });
+  };
+
+  // Helper: Raggruppa prenotazioni per giorno
+  interface DayGroup {
+    date: Date;
+    dateKey: string;
+    label: string;
+    bookings: Booking[];
+  }
+  
+  const groupBookingsByDay = (bookingsList: Booking[]): DayGroup[] => {
+    const groups: Map<string, DayGroup> = new Map();
+    
+    for (const booking of bookingsList) {
+      const bookingDate = getDateFromTimestamp(booking.dataShootingInizio);
+      if (!bookingDate) continue;
+      
+      const dayStart = startOfDay(bookingDate);
+      const dateKey = format(dayStart, "yyyy-MM-dd");
+      
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, {
+          date: dayStart,
+          dateKey,
+          label: getDayLabel(dayStart),
+          bookings: [],
+        });
+      }
+      
+      groups.get(dateKey)!.bookings.push(booking);
+    }
+    
+    // Ordina gruppi per data (dal più vicino al più lontano)
+    const sortedGroups = Array.from(groups.values()).sort(
+      (a, b) => a.date.getTime() - b.date.getTime()
+    );
+    
+    // Ordina booking all'interno di ogni gruppo per orario
+    for (const group of sortedGroups) {
+      group.bookings.sort((a, b) => {
+        const timeA = getDateFromTimestamp(a.dataShootingInizio)?.getTime() || 0;
+        const timeB = getDateFromTimestamp(b.dataShootingInizio)?.getTime() || 0;
+        return timeA - timeB;
+      });
+    }
+    
+    return sortedGroups;
+  };
+
   // Filtra, cerca e ordina bookings
   const bookings = useMemo(() => {
     let filtered = [...allBookings];
@@ -413,6 +478,9 @@ export default function BookingsManager({
     selectionFilter,
     allGalleries,
   ]);
+
+  // Gruppi per giorno (calcolato da bookings filtrati)
+  const dayGroups = useMemo(() => groupBookingsByDay(bookings), [bookings]);
 
   // Paginazione
   const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
@@ -1170,111 +1238,165 @@ export default function BookingsManager({
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
-              {paginatedBookings.map((booking, index) => {
-                // Colori rotativi per ogni card
-                const cardColors = [
-                  {
-                    border: "border-l-4 border-l-blue-500",
-                    bg: "bg-blue-50/30",
-                  },
-                  {
-                    border: "border-l-4 border-l-green-500",
-                    bg: "bg-green-50/30",
-                  },
-                  {
-                    border: "border-l-4 border-l-purple-500",
-                    bg: "bg-purple-50/30",
-                  },
-                  {
-                    border: "border-l-4 border-l-orange-500",
-                    bg: "bg-orange-50/30",
-                  },
-                  {
-                    border: "border-l-4 border-l-pink-500",
-                    bg: "bg-pink-50/30",
-                  },
-                  {
-                    border: "border-l-4 border-l-teal-500",
-                    bg: "bg-teal-50/30",
-                  },
-                ];
-                const colorClass =
-                  cardColors[
-                    ((currentPage - 1) * ITEMS_PER_PAGE + index) %
-                      cardColors.length
-                  ];
-                const isApproved =
-                  booking.stato === "confermata" ||
-                  booking.stato === "completata";
-                const canDelete = 
-                  isApproved || booking.stato === "rifiutata";
-
-                const isHighlighted = highlightedId === booking.id;
-
+            <div className="space-y-6">
+              {dayGroups.map((group, groupIndex) => {
+                // Determina stile del header in base al giorno
+                const isSpecialDay = group.label === "Oggi" || group.label === "Domani" || group.label === "Dopodomani";
+                const isPast = group.date < startOfDay(new Date());
+                
                 return (
-                  <Card
-                    key={booking.id}
-                    ref={(el) => {
-                      bookingRefs.current[booking.id] = el;
-                    }}
-                    className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
-                  >
-                    <CardContent className="p-4 md:p-6">
-                      <div className="flex justify-between items-start gap-6">
-                        {/* Info prenotazione */}
-                        <div className="flex-1 space-y-3">
-                          {/* Intestazione */}
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
-                                {booking.cliente.nome} {booking.cliente.cognome}
-                                {booking.isManual && (
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
-                                  >
-                                    👤 Walk-in
-                                  </Badge>
-                                )}
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                {getCampaignName(booking.campaignId)}
-                              </p>
-                            </div>
-                            {getStatoBadge(booking.stato)}
-                          </div>
+                  <div key={group.dateKey} className="space-y-3">
+                    {/* Header del giorno */}
+                    <div className={`sticky top-0 z-10 flex items-center gap-3 p-3 rounded-lg shadow-sm ${
+                      group.label === "Oggi" 
+                        ? "bg-green-100 border border-green-300" 
+                        : group.label === "Domani"
+                        ? "bg-blue-100 border border-blue-300"
+                        : group.label === "Dopodomani"
+                        ? "bg-purple-100 border border-purple-300"
+                        : isPast
+                        ? "bg-gray-100 border border-gray-300"
+                        : "bg-amber-50 border border-amber-200"
+                    }`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        group.label === "Oggi" 
+                          ? "bg-green-500 text-white" 
+                          : group.label === "Domani"
+                          ? "bg-blue-500 text-white"
+                          : group.label === "Dopodomani"
+                          ? "bg-purple-500 text-white"
+                          : isPast
+                          ? "bg-gray-400 text-white"
+                          : "bg-amber-500 text-white"
+                      }`}>
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className={`text-lg font-bold capitalize ${
+                          group.label === "Oggi" 
+                            ? "text-green-800" 
+                            : group.label === "Domani"
+                            ? "text-blue-800"
+                            : group.label === "Dopodomani"
+                            ? "text-purple-800"
+                            : isPast
+                            ? "text-gray-600"
+                            : "text-amber-800"
+                        }`}>
+                          {group.label}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {group.bookings.length} {group.bookings.length === 1 ? "shooting" : "shooting"}
+                        </p>
+                      </div>
+                      {group.label === "Oggi" && (
+                        <Badge className="bg-green-500 text-white animate-pulse">
+                          📸 In programma
+                        </Badge>
+                      )}
+                    </div>
 
-                          {/* Dettagli */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <Calendar className="w-4 h-4 text-sage" />
-                              <span>
-                                {formatDateTime(booking.dataShootingInizio)}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <Clock className="w-4 h-4 text-sage" />
-                              <span>
-                                {formatTime(booking.dataShootingInizio)} -{" "}
-                                {formatTime(booking.dataShootingFine)}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <Mail className="w-4 h-4 text-sage" />
-                              <a
-                                href={`mailto:${booking.cliente.email}`}
-                                className="hover:underline"
-                              >
-                                {booking.cliente.email}
-                              </a>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <Phone className="w-4 h-4 text-sage" />
-                              <a
-                                href={`https://wa.me/${booking.cliente.whatsapp}`}
-                                className="hover:underline"
-                              >
+                    {/* Card delle prenotazioni del giorno */}
+                    <div className="grid gap-3 pl-2 border-l-2 border-gray-200 ml-5">
+                      {group.bookings.map((booking, index) => {
+                        // Colori rotativi per ogni card
+                        const cardColors = [
+                          {
+                            border: "border-l-4 border-l-blue-500",
+                            bg: "bg-blue-50/30",
+                          },
+                          {
+                            border: "border-l-4 border-l-green-500",
+                            bg: "bg-green-50/30",
+                          },
+                          {
+                            border: "border-l-4 border-l-purple-500",
+                            bg: "bg-purple-50/30",
+                          },
+                          {
+                            border: "border-l-4 border-l-orange-500",
+                            bg: "bg-orange-50/30",
+                          },
+                          {
+                            border: "border-l-4 border-l-pink-500",
+                            bg: "bg-pink-50/30",
+                          },
+                          {
+                            border: "border-l-4 border-l-teal-500",
+                            bg: "bg-teal-50/30",
+                          },
+                        ];
+                        const colorClass = cardColors[index % cardColors.length];
+                        const isApproved =
+                          booking.stato === "confermata" ||
+                          booking.stato === "completata";
+                        const canDelete = 
+                          isApproved || booking.stato === "rifiutata";
+
+                        const isHighlighted = highlightedId === booking.id;
+
+                        return (
+                          <Card
+                            key={booking.id}
+                            ref={(el) => {
+                              bookingRefs.current[booking.id] = el;
+                            }}
+                            className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
+                          >
+                            <CardContent className="p-4 md:p-6">
+                              <div className="flex justify-between items-start gap-6">
+                                {/* Info prenotazione */}
+                                <div className="flex-1 space-y-3">
+                                  {/* Intestazione con orario prominente */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      {/* Orario in evidenza */}
+                                      <div className="bg-sage/10 text-sage px-3 py-1.5 rounded-lg font-mono font-bold text-lg">
+                                        {formatTime(booking.dataShootingInizio)}
+                                      </div>
+                                      <div>
+                                        <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
+                                          {booking.cliente.nome} {booking.cliente.cognome}
+                                          {booking.isManual && (
+                                            <Badge
+                                              variant="outline"
+                                              className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
+                                            >
+                                              👤 Walk-in
+                                            </Badge>
+                                          )}
+                                        </h3>
+                                        <p className="text-sm text-gray-600">
+                                          {getCampaignName(booking.campaignId)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {getStatoBadge(booking.stato)}
+                                  </div>
+
+                                  {/* Dettagli */}
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                                    <div className="flex items-center gap-2 text-gray-700">
+                                      <Clock className="w-4 h-4 text-sage" />
+                                      <span>
+                                        {formatTime(booking.dataShootingInizio)} - {formatTime(booking.dataShootingFine)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-700">
+                                      <Mail className="w-4 h-4 text-sage" />
+                                      <a
+                                        href={`mailto:${booking.cliente.email}`}
+                                        className="hover:underline"
+                                      >
+                                        {booking.cliente.email}
+                                      </a>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-700">
+                                      <Phone className="w-4 h-4 text-sage" />
+                                      <a
+                                        href={`https://wa.me/${booking.cliente.whatsapp}`}
+                                        className="hover:underline"
+                                      >
                                 {booking.cliente.whatsapp}
                               </a>
                             </div>
