@@ -174,12 +174,17 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
         body: JSON.stringify({
           collaboratoreEmail: collaboratore?.email,
           collaboratoreNome: `${collaboratore?.nome} ${collaboratore?.cognome}`,
-          jobNome: job?.nomeEvento,
-          jobData: job?.eventDate ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT') : null,
+          jobNome: job?.nomeEvento || 'Lavoro',
+          jobData: job?.eventDate ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          }) : null,
           ruolo: data.ruoloInJob,
           compenso: data.compenso,
           noteAdmin: data.noteAdmin,
-          assignmentId: docRef.id
+          dashboardToken: collaboratore?.dashboardToken
         })
       }).catch(err => console.error('❌ Email invio fallito (non bloccante):', err));
     }

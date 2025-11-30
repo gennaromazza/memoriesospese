@@ -3958,6 +3958,181 @@ export function createQuoteSentEmailHTML(
 }
 
 /**
+ * POST /api/email/collaborator-assignment
+ * Invia email notifica al collaboratore quando gli viene assegnato un lavoro
+ */
+router.post("/collaborator-assignment", async (req, res) => {
+  try {
+    const {
+      collaboratoreEmail,
+      collaboratoreNome,
+      jobNome,
+      jobData,
+      ruolo,
+      compenso,
+      noteAdmin,
+      dashboardToken
+    } = req.body;
+
+    if (!collaboratoreEmail || !collaboratoreNome || !jobNome) {
+      return res.status(400).json({
+        error: "Dati mancanti: collaboratoreEmail, collaboratoreNome, jobNome sono obbligatori"
+      });
+    }
+
+    console.log(`📧 Invio email assegnazione lavoro a ${collaboratoreEmail}...`);
+
+    const studioInfo = await getStudioContactInfo();
+    const siteUrl = getSiteBaseUrl(req);
+    
+    const ruoliLabels: Record<string, string> = {
+      fotografo_secondario: 'Fotografo Secondario',
+      videomaker: 'Videomaker',
+      assistente: 'Assistente',
+      photo_editor: 'Photo Editor',
+      album_designer: 'Album Designer',
+      altro: 'Altro'
+    };
+
+    const ruoloLabel = ruoliLabels[ruolo] || ruolo || 'Collaboratore';
+    const compensoFormatted = compenso ? `€${compenso.toLocaleString('it-IT')}` : 'Da definire';
+    const dataFormatted = jobData || 'Data da confermare';
+    
+    const dashboardUrl = dashboardToken 
+      ? `${siteUrl}/collaboratori/dashboard/${dashboardToken}`
+      : null;
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #8b5a3c 0%, #6b4a2c 100%); padding: 30px 20px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+            🎯 Nuovo Lavoro Assegnato
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+            ${studioInfo.name}
+          </p>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 30px 25px;">
+          
+          <!-- Saluto -->
+          <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+            Ciao <strong style="color: #8b5a3c;">${collaboratoreNome}</strong>,
+          </p>
+          
+          <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+            Ti è stato assegnato un nuovo lavoro. Di seguito trovi tutti i dettagli:
+          </p>
+          
+          <!-- Card Lavoro -->
+          <div style="background: #f8f5f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #8b5a3c;">
+            <h2 style="color: #8b5a3c; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+              📸 ${jobNome}
+            </h2>
+            
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; width: 120px;">📅 Data:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataFormatted}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">👤 Ruolo:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${ruoloLabel}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">💰 Compenso:</td>
+                <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">${compensoFormatted}</td>
+              </tr>
+              ${noteAdmin ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">📝 Note:</td>
+                <td style="padding: 8px 0; color: #333; font-size: 14px;">${noteAdmin}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+          
+          ${dashboardUrl ? `
+          <!-- Call to Action -->
+          <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+            <p style="font-size: 16px; color: #333; margin: 0 0 20px 0;">
+              <strong>Accedi alla tua dashboard</strong> per accettare o rifiutare questo lavoro:
+            </p>
+            
+            <a href="${dashboardUrl}" 
+               style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%); 
+                      color: #ffffff; padding: 16px 40px; text-decoration: none; 
+                      border-radius: 8px; font-weight: 600; font-size: 16px;
+                      box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+              ▶️ Vai alla Dashboard
+            </a>
+            
+            <p style="font-size: 12px; color: #666; margin: 15px 0 0 0;">
+              Link diretto: <a href="${dashboardUrl}" style="color: #8b5a3c;">${dashboardUrl}</a>
+            </p>
+          </div>
+          ` : `
+          <!-- Messaggio senza dashboard -->
+          <div style="background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+            <p style="font-size: 14px; color: #856404; margin: 0;">
+              ⚠️ Per accettare o rifiutare questo lavoro, contatta direttamente lo studio.
+            </p>
+          </div>
+          `}
+          
+          <!-- Info Risposta -->
+          <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin-bottom: 25px; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; font-size: 14px; color: #0c5460;">
+              <strong>📌 Importante:</strong> Rispondi il prima possibile per confermare la tua disponibilità.
+            </p>
+          </div>
+          
+          <!-- Firma -->
+          <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+            Grazie per la collaborazione!<br>
+            <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+          </p>
+          
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+          ${studioInfo.address ? `<p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.address}</p>` : ''}
+          <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">📧 ${studioInfo.email}</p>
+          <p style="margin: 0; font-size: 12px; color: #666;">📱 ${studioInfo.phone}</p>
+        </div>
+        
+      </div>
+    `;
+
+    await sendGmailEmail(
+      collaboratoreEmail,
+      `🎯 Nuovo Lavoro Assegnato: ${jobNome} | ${studioInfo.name}`,
+      htmlContent
+    );
+
+    console.log(`✅ Email assegnazione inviata con successo a ${collaboratoreEmail}`);
+
+    return res.json({
+      success: true,
+      message: `Email assegnazione inviata a ${collaboratoreEmail}`,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error("❌ Errore invio email assegnazione:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Errore invio email assegnazione"
+    });
+  }
+});
+
+/**
  * POST /api/email/send-test
  * Invia email di test per verificare funzionamento Gmail API
  */

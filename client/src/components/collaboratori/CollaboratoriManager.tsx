@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, UserCheck, UserX, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, UserCheck, UserX, Mail, Link2, ExternalLink, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,7 @@ export function CollaboratoriManager() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCollaboratore, setEditingCollaboratore] = useState<Collaboratore | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [formData, setFormData] = useState<InsertCollaboratore>({
     nome: '',
     cognome: '',
@@ -146,6 +147,39 @@ export function CollaboratoriManager() {
     });
   };
 
+  const getDashboardUrl = (collab: Collaboratore): string | null => {
+    if (!collab.dashboardToken || !collab.hasAccess) return null;
+    return `${window.location.origin}/collaboratori/dashboard/${collab.dashboardToken}`;
+  };
+
+  const handleCopyDashboardLink = async (collab: Collaboratore) => {
+    const url = getDashboardUrl(collab);
+    if (!url) {
+      toast({
+        title: '❌ Link non disponibile',
+        description: 'Il collaboratore non ha accesso abilitato o manca il token.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(collab.id);
+      toast({ title: '✅ Link copiato negli appunti!' });
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      toast({ title: '❌ Errore copia link', variant: 'destructive' });
+    }
+  };
+
+  const handleOpenDashboard = (collab: Collaboratore) => {
+    const url = getDashboardUrl(collab);
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
   if (isLoading) {
     return <div className="p-4">Caricamento collaboratori...</div>;
   }
@@ -169,6 +203,7 @@ export function CollaboratoriManager() {
               <TableHead>Contatti</TableHead>
               <TableHead>Tariffe</TableHead>
               <TableHead>Accesso Dashboard</TableHead>
+              <TableHead>Link Dashboard</TableHead>
               <TableHead>Stato</TableHead>
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
@@ -210,6 +245,36 @@ export function CollaboratoriManager() {
                     <Badge variant="default">✅ Abilitato</Badge>
                   ) : (
                     <Badge variant="secondary">❌ Non abilitato</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {collab.hasAccess && collab.dashboardToken ? (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyDashboardLink(collab)}
+                        className="h-8 px-2"
+                        data-testid={`button-copy-dashboard-${collab.id}`}
+                      >
+                        {copiedId === collab.id ? (
+                          <Check className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenDashboard(collab)}
+                        className="h-8 px-2"
+                        data-testid={`button-open-dashboard-${collab.id}`}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">-</span>
                   )}
                 </TableCell>
                 <TableCell>
