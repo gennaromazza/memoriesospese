@@ -3,6 +3,7 @@ import express from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
+import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
 import type {
   Collaboratore,
   InsertCollaboratore,
@@ -24,6 +25,278 @@ function generateCollaboratorToken(): string {
   return Math.random().toString(36).substring(2, 15) + 
          Math.random().toString(36).substring(2, 15) +
          Date.now().toString(36);
+}
+
+/**
+ * Invia email assegnazione lavoro a collaboratore
+ */
+async function sendCollaboratorAssignmentEmail(
+  req: express.Request,
+  collaboratoreId: string,
+  jobId: string,
+  ruolo: string,
+  compenso: number,
+  noteAdmin?: string
+): Promise<void> {
+  const collaboratoreDoc = await db.collection('collaboratori').doc(collaboratoreId).get();
+  const jobDoc = await db.collection('jobs').doc(jobId).get();
+  
+  if (!collaboratoreDoc.exists || !jobDoc.exists) {
+    console.log('⚠️ Collaboratore o job non trovato, email non inviata');
+    return;
+  }
+  
+  const collaboratore = collaboratoreDoc.data();
+  const job = jobDoc.data();
+  
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, email non inviata');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+  
+  const ruoliLabels: Record<string, string> = {
+    fotografo_secondario: 'Fotografo Secondario',
+    videomaker: 'Videomaker',
+    assistente: 'Assistente',
+    photo_editor: 'Photo Editor',
+    album_designer: 'Album Designer',
+    altro: 'Altro'
+  };
+
+  const ruoloLabel = ruoliLabels[ruolo] || ruolo || 'Collaboratore';
+  const compensoFormatted = compenso ? `€${compenso.toLocaleString('it-IT')}` : 'Da definire';
+  const jobNome = job?.nomeEvento || 'Lavoro';
+  const dataFormatted = job?.eventDate 
+    ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }) 
+    : 'Data da confermare';
+  
+  const dashboardUrl = collaboratore?.dashboardToken 
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #8b5a3c 0%, #6b4a2c 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Nuovo Lavoro Assegnato
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #8b5a3c;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Ti è stato assegnato un nuovo lavoro. Di seguito trovi tutti i dettagli:
+        </p>
+        
+        <div style="background: #f8f5f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #8b5a3c;">
+          <h2 style="color: #8b5a3c; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+            ${jobNome}
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 120px;">Data:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataFormatted}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Ruolo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${ruoloLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Compenso:</td>
+              <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">${compensoFormatted}</td>
+            </tr>
+            ${noteAdmin ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Note:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${noteAdmin}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+          <p style="font-size: 16px; color: #333; margin: 0 0 20px 0;">
+            <strong>Accedi alla tua dashboard</strong> per accettare o rifiutare questo lavoro:
+          </p>
+          
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%); 
+                    color: #ffffff; padding: 16px 40px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 16px;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Vai alla Dashboard
+          </a>
+        </div>
+        ` : `
+        <div style="background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
+          <p style="font-size: 14px; color: #856404; margin: 0;">
+            Per accettare o rifiutare questo lavoro, contatta direttamente lo studio.
+          </p>
+        </div>
+        `}
+        
+        <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+          Grazie per la collaborazione!<br>
+          <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+        </p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+        <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+        <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail(
+    collaboratore.email,
+    `Nuovo Lavoro Assegnato: ${jobNome} | ${studioInfo.name}`,
+    htmlContent
+  );
+  
+  console.log(`✅ Email assegnazione inviata a ${collaboratore.email}`);
+}
+
+/**
+ * Invia email benvenuto a nuovo collaboratore
+ */
+async function sendCollaboratorWelcomeEmail(
+  req: express.Request,
+  collaboratore: any
+): Promise<void> {
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, email benvenuto non inviata');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+  
+  const ruoliLabels: Record<string, string> = {
+    fotografo_secondario: 'Fotografo Secondario',
+    videomaker: 'Videomaker',
+    assistente: 'Assistente',
+    photo_editor: 'Photo Editor',
+    album_designer: 'Album Designer',
+    altro: 'Altro'
+  };
+
+  const ruoloLabel = ruoliLabels[collaboratore.ruolo] || collaboratore.ruolo || 'Collaboratore';
+  
+  const dashboardUrl = collaboratore?.dashboardToken 
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #8b5a3c 0%, #6b4a2c 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Benvenuto nel Team!
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #8b5a3c;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Sei stato aggiunto come collaboratore presso <strong>${studioInfo.name}</strong>.
+          Siamo felici di averti nel nostro team!
+        </p>
+        
+        <div style="background: #f8f5f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #8b5a3c;">
+          <h2 style="color: #8b5a3c; margin: 0 0 20px 0; font-size: 18px; font-weight: 600;">
+            I tuoi dati
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 120px;">Ruolo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${ruoloLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Email:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${collaboratore.email}</td>
+            </tr>
+            ${collaboratore.tariffaOraria ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Tariffa oraria:</td>
+              <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">€${collaboratore.tariffaOraria}/h</td>
+            </tr>
+            ` : ''}
+            ${collaboratore.tariffaGiornaliera ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Tariffa giornaliera:</td>
+              <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">€${collaboratore.tariffaGiornaliera}/gg</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+          <p style="font-size: 16px; color: #333; margin: 0 0 20px 0;">
+            <strong>La tua dashboard personale</strong><br>
+            Qui potrai vedere i lavori assegnati, accettarli o rifiutarli:
+          </p>
+          
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%); 
+                    color: #ffffff; padding: 16px 40px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 16px;
+                    box-shadow: 0 4px 15px rgba(139, 90, 60, 0.3);">
+            Accedi alla Dashboard
+          </a>
+          
+          <p style="font-size: 12px; color: #666; margin: 15px 0 0 0;">
+            Conserva questo link per accedere alla tua area riservata
+          </p>
+        </div>
+        ` : ''}
+        
+        <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+          Se hai domande, non esitare a contattarci.<br><br>
+          A presto!<br>
+          <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+        </p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+        <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+        <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail(
+    collaboratore.email,
+    `Benvenuto nel Team | ${studioInfo.name}`,
+    htmlContent
+  );
+  
+  console.log(`✅ Email benvenuto inviata a ${collaboratore.email}`);
 }
 
 /**
@@ -103,6 +376,11 @@ router.post('/collaboratori', async (req, res) => {
     
     const docRef = await db.collection('collaboratori').add(collaboratoreData);
     const created = { id: docRef.id, ...collaboratoreData };
+    
+    // Invia email di benvenuto (fire-and-forget)
+    sendCollaboratorWelcomeEmail(req, created)
+      .catch(err => console.error('❌ Email benvenuto fallita (non bloccante):', err));
+    
     res.json(created);
   } catch (error: any) {
     console.error('❌ Error creating collaboratore:', error);
@@ -119,6 +397,11 @@ router.patch('/collaboratori/:id', async (req, res) => {
     const { id } = req.params;
     const updates: UpdateCollaboratore = req.body;
     
+    // Recupera email precedente per confronto
+    const existingDoc = await db.collection('collaboratori').doc(id).get();
+    const existingData = existingDoc.data();
+    const previousEmail = existingData?.email;
+    
     const updateData: any = {
       ...updates,
       updatedAt: Timestamp.now()
@@ -131,7 +414,16 @@ router.patch('/collaboratori/:id', async (req, res) => {
     await db.collection('collaboratori').doc(id).update(updateData);
     
     const updated = await db.collection('collaboratori').doc(id).get();
-    res.json({ id: updated.id, ...updated.data() });
+    const updatedData = { id: updated.id, ...updated.data() };
+    
+    // Se l'email è cambiata, invia email di benvenuto al nuovo indirizzo
+    if (updates.email && updates.email.toLowerCase() !== previousEmail?.toLowerCase()) {
+      console.log(`📧 Email collaboratore modificata: ${previousEmail} → ${updates.email}`);
+      sendCollaboratorWelcomeEmail(req, updatedData)
+        .catch(err => console.error('❌ Email aggiornamento fallita (non bloccante):', err));
+    }
+    
+    res.json(updatedData);
   } catch (error: any) {
     console.error('❌ Error updating collaboratore:', error);
     res.status(500).json({ error: error.message });
@@ -159,35 +451,9 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
     
     const docRef = await db.collection('jobCollaboratoreAssignments').add(assignmentData);
     
-    // Recupera dati collaboratore e job per email
-    const collaboratoreDoc = await db.collection('collaboratori').doc(data.collaboratoreId).get();
-    const jobDoc = await db.collection('jobs').doc(data.jobId).get();
-    
-    if (collaboratoreDoc.exists && jobDoc.exists) {
-      const collaboratore = collaboratoreDoc.data();
-      const job = jobDoc.data();
-      
-      // Invia email notifica (fire-and-forget, non blocca risposta)
-      fetch(`${process.env.VITE_APP_URL || 'http://localhost:5000'}/api/email/collaborator-assignment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          collaboratoreEmail: collaboratore?.email,
-          collaboratoreNome: `${collaboratore?.nome} ${collaboratore?.cognome}`,
-          jobNome: job?.nomeEvento || 'Lavoro',
-          jobData: job?.eventDate ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
-          }) : null,
-          ruolo: data.ruoloInJob,
-          compenso: data.compenso,
-          noteAdmin: data.noteAdmin,
-          dashboardToken: collaboratore?.dashboardToken
-        })
-      }).catch(err => console.error('❌ Email invio fallito (non bloccante):', err));
-    }
+    // Invia email notifica direttamente (fire-and-forget)
+    sendCollaboratorAssignmentEmail(req, data.collaboratoreId, data.jobId, data.ruoloInJob, data.compenso, data.noteAdmin)
+      .catch(err => console.error('❌ Email assegnazione fallita (non bloccante):', err));
     
     res.json({ id: docRef.id, ...assignmentData });
   } catch (error: any) {

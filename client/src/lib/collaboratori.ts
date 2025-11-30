@@ -30,39 +30,22 @@ const COLLABORATORI_COLLECTION = "collaboratori";
 const ASSIGNMENTS_COLLECTION = "jobCollaboratoreAssignments";
 
 /**
- * Crea nuovo collaboratore
+ * Crea nuovo collaboratore (usa endpoint backend per inviare email benvenuto)
  */
 export async function createCollaboratore(
   data: InsertCollaboratore,
 ): Promise<string> {
   try {
-    const collaboratoreData: any = {
-      nome: data.nome,
-      cognome: data.cognome,
-      email: data.email.toLowerCase(),
-      cellulare: data.cellulare,
-      ruolo: data.ruolo,
-      attivo: true,
-      hasAccess: data.hasAccess || false,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
+    const response = await apiRequest("POST", "/api/collaboratori", data);
 
-    if (data.tariffaOraria !== undefined)
-      collaboratoreData.tariffaOraria = data.tariffaOraria;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore creazione collaboratore");
+    }
 
-    if (data.tariffaGiornaliera !== undefined)
-      collaboratoreData.tariffaGiornaliera = data.tariffaGiornaliera;
-
-    if (data.note !== undefined) collaboratoreData.note = data.note;
-
-    const docRef = await addDoc(
-      collection(db, COLLABORATORI_COLLECTION),
-      collaboratoreData,
-    );
-
-    console.log("✅ Collaboratore creato:", docRef.id);
-    return docRef.id;
+    const result = await response.json();
+    console.log("✅ Collaboratore creato:", result.id);
+    return result.id;
   } catch (error) {
     console.error("❌ Errore creazione collaboratore:", error);
     throw error;
@@ -113,31 +96,19 @@ export async function getAllCollaboratori(
 }
 
 /**
- * Update collaboratore
+ * Update collaboratore (usa endpoint backend per eventuale invio email)
  */
 export async function updateCollaboratore(
   id: string,
   data: UpdateCollaboratore,
 ): Promise<void> {
   try {
-    const updateData: any = { updatedAt: Timestamp.now() };
+    const response = await apiRequest("PATCH", `/api/collaboratori/${id}`, data);
 
-    if (data.nome !== undefined) updateData.nome = data.nome;
-    if (data.cognome !== undefined) updateData.cognome = data.cognome;
-    if (data.email !== undefined) updateData.email = data.email.toLowerCase();
-    if (data.cellulare !== undefined) updateData.cellulare = data.cellulare;
-    if (data.ruolo !== undefined) updateData.ruolo = data.ruolo;
-    if (data.tariffaOraria !== undefined)
-      updateData.tariffaOraria = data.tariffaOraria;
-    if (data.tariffaGiornaliera !== undefined)
-      updateData.tariffaGiornaliera = data.tariffaGiornaliera;
-    if (data.note !== undefined) updateData.note = data.note;
-    if (data.attivo !== undefined) updateData.attivo = data.attivo;
-    if (data.hasAccess !== undefined) updateData.hasAccess = data.hasAccess;
-    if (data.dashboardToken !== undefined)
-      updateData.dashboardToken = data.dashboardToken;
-
-    await updateDoc(doc(db, COLLABORATORI_COLLECTION, id), updateData);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore aggiornamento collaboratore");
+    }
 
     console.log("✅ Collaboratore aggiornato:", id);
   } catch (error) {
@@ -147,36 +118,26 @@ export async function updateCollaboratore(
 }
 
 /**
- * Assegna collaboratore a job
+ * Assegna collaboratore a job (usa endpoint backend per inviare email)
  */
 export async function assignCollaboratoreToJob(
   data: InsertJobCollaboratoreAssignment,
 ): Promise<string> {
   try {
-    const cleanedData = Object.fromEntries(
-      Object.entries(data).filter(
-        ([_, v]) => v !== undefined && v !== null && !Number.isNaN(v),
-      ),
+    const response = await apiRequest(
+      "POST",
+      "/api/collaboratori/assign-to-job",
+      data,
     );
 
-    const assignmentData: Omit<JobCollaboratoreAssignment, "id"> = {
-      ...cleanedData,
-      status: "pending",
-      dataRichiesta: Timestamp.now(),
-      isPagato: false,
-      pagamenti: [],
-      saldoResiduo: cleanedData.compenso || 0,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore assegnazione collaboratore");
+    }
 
-    const docRef = await addDoc(
-      collection(db, ASSIGNMENTS_COLLECTION),
-      assignmentData,
-    );
-
-    console.log("✅ Collaboratore assegnato a job:", docRef.id);
-    return docRef.id;
+    const result = await response.json();
+    console.log("✅ Collaboratore assegnato a job:", result.id);
+    return result.id;
   } catch (error) {
     console.error("❌ Errore assegnazione collaboratore:", error);
     throw error;
