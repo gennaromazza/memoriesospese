@@ -25,7 +25,7 @@ import {
 import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, Euro, Check, X, Loader2, Clock } from 'lucide-react';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
@@ -63,6 +63,8 @@ export default function CollaboratoreDashboard() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState('');
   const [processingAssignmentId, setProcessingAssignmentId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['collaborator-dashboard', token],
@@ -150,10 +152,31 @@ export default function CollaboratoreDashboard() {
 
   const { collaboratore, assignments } = data;
 
-  const filteredAssignments =
-    statusFilter === 'all'
-      ? assignments
-      : assignments.filter((a: JobCollaboratoreAssignment) => a.status === statusFilter);
+  const getEventDate = (assignment: AssignmentWithJob): Date | null => {
+    const job = (assignment as AssignmentWithJob).job;
+    if (!job?.eventDate) return null;
+    return convertFirestoreTimestamp(job.eventDate);
+  };
+
+  const sortedAndFilteredAssignments = (statusFilter === 'all'
+    ? assignments
+    : assignments.filter((a: JobCollaboratoreAssignment) => a.status === statusFilter)
+  ).sort((a: AssignmentWithJob, b: AssignmentWithJob) => {
+    const dateA = getEventDate(a);
+    const dateB = getEventDate(b);
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA.getTime() - dateB.getTime();
+  });
+
+  const totalPages = Math.ceil(sortedAndFilteredAssignments.length / itemsPerPage);
+  const paginatedAssignments = sortedAndFilteredAssignments.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const filteredAssignments = sortedAndFilteredAssignments;
 
   const totalCompensoPending = assignments
     .filter((a: JobCollaboratoreAssignment) => a.status === 'accepted')
@@ -212,7 +235,7 @@ export default function CollaboratoreDashboard() {
                 <Button
                   size="sm"
                   variant={statusFilter === 'all' ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter('all')}
+                  onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
                   data-testid="filter-all"
                 >
                   Tutti
@@ -220,7 +243,7 @@ export default function CollaboratoreDashboard() {
                 <Button
                   size="sm"
                   variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter('pending')}
+                  onClick={() => { setStatusFilter('pending'); setCurrentPage(1); }}
                   data-testid="filter-pending"
                 >
                   In Attesa
@@ -228,7 +251,7 @@ export default function CollaboratoreDashboard() {
                 <Button
                   size="sm"
                   variant={statusFilter === 'accepted' ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter('accepted')}
+                  onClick={() => { setStatusFilter('accepted'); setCurrentPage(1); }}
                   data-testid="filter-accepted"
                 >
                   Accettati
@@ -236,7 +259,7 @@ export default function CollaboratoreDashboard() {
                 <Button
                   size="sm"
                   variant={statusFilter === 'declined' ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter('declined')}
+                  onClick={() => { setStatusFilter('declined'); setCurrentPage(1); }}
                   data-testid="filter-declined"
                 >
                   Rifiutati
@@ -250,6 +273,7 @@ export default function CollaboratoreDashboard() {
                 Nessun lavoro trovato con questo filtro
               </p>
             ) : (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -263,7 +287,7 @@ export default function CollaboratoreDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAssignments.map((assignment: JobCollaboratoreAssignment) => {
+                  {paginatedAssignments.map((assignment: JobCollaboratoreAssignment) => {
                     const pagatoAssignment =
                       assignment.pagamenti?.reduce((sum: number, p: CollaboratorPayment) => sum + p.importo, 0) || 0;
                     const residuoAssignment = assignment.compenso - pagatoAssignment;
@@ -331,6 +355,37 @@ export default function CollaboratoreDashboard() {
                   })}
                 </TableBody>
               </Table>
+              
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Pagina {currentPage} di {totalPages} ({filteredAssignments.length} lavori)
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      data-testid="button-prev-page"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Precedente
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      data-testid="button-next-page"
+                    >
+                      Successiva
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </CardContent>
         </Card>
