@@ -2665,4 +2665,69 @@ router.post("/cleanup-orphaned-events", authenticateFirebase, async (req: AuthRe
   }
 });
 
+/**
+ * POST /api/consultations/check-pending
+ * Controlla se esiste già una richiesta pendente per questa email
+ * Usato per evitare duplicati accidentali
+ */
+router.post("/check-pending", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email richiesta" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const pendingSnap = await db
+      .collection("consultations")
+      .where("cliente.email", "==", normalizedEmail)
+      .where("stato", "==", "in_attesa")
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+
+    if (pendingSnap.empty) {
+      return res.json({ hasPending: false });
+    }
+
+    const pendingDoc = pendingSnap.docs[0];
+    const pendingData = pendingDoc.data();
+
+    const dataConsulenza = pendingData.dataConsulenza?.toDate?.() 
+      || new Date(pendingData.dataConsulenza?.seconds * 1000)
+      || null;
+
+    const formattedDate = dataConsulenza 
+      ? dataConsulenza.toLocaleDateString("it-IT", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "Europe/Rome"
+        })
+      : "data non disponibile";
+
+    const orario = pendingData.orarioInizio && pendingData.orarioFine
+      ? `${pendingData.orarioInizio} - ${pendingData.orarioFine}`
+      : "orario non disponibile";
+
+    console.log(`[POST /check-pending] Found pending consultation for ${normalizedEmail}: ${formattedDate} ${orario}`);
+
+    res.json({
+      hasPending: true,
+      pendingRequest: {
+        id: pendingDoc.id,
+        dataConsulenza: formattedDate,
+        orario,
+        templateName: pendingData.templateName || pendingData.jobType || "Consulenza"
+      }
+    });
+  } catch (error: any) {
+    console.error("[POST /check-pending] Error:", error.message);
+    res.status(500).json({ error: "Errore controllo richieste pendenti" });
+  }
+});
+
 export default router;
