@@ -562,7 +562,7 @@ router.post('/collaboratori/:id/regenerate-token', async (req, res) => {
  * GET /api/collaboratori/dashboard/:token
  * Dashboard collaboratore via link magico (pubblico)
  */
-router.get('/dashboard/:token', async (req, res) => {
+router.get('/collaboratori/dashboard/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
