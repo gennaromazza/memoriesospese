@@ -1,10 +1,11 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard, Pencil } from 'lucide-react';
+import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard, Pencil, Package, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +40,9 @@ import {
   removeAssignment,
   generateDashboardToken,
   updateAssignmentCompenso,
+  updateAssignmentProductsTasks,
 } from '@/lib/collaboratori';
+import { getOrdersByJobId } from '@/lib/orders';
 import type {
   Collaboratore,
   JobCollaboratoreAssignment,
@@ -47,6 +50,7 @@ import type {
   CollaboratoreRole,
   CollaboratorPaymentType,
   PaymentMethod,
+  AssignedProduct,
 } from '@shared/collaboratori-types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -100,6 +104,18 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     noteModifica: '',
     sendEmail: true,
   });
+  const [isProductsTasksModalOpen, setIsProductsTasksModalOpen] = useState(false);
+  const [productsTasksData, setProductsTasksData] = useState<{
+    assignmentId: string;
+    prodottiAssegnati: AssignedProduct[];
+    mansioniAssegnate: string[];
+    nuovaMansione: string;
+  }>({
+    assignmentId: '',
+    prodottiAssegnati: [],
+    mansioniAssegnate: [],
+    nuovaMansione: '',
+  });
 
   const { data: collaboratori = [] } = useQuery({
     queryKey: ['collaboratori', 'attivi'],
@@ -110,6 +126,19 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     queryKey: ['job-assignments', jobId],
     queryFn: () => getJobAssignments(jobId),
   });
+
+  const { data: orders = [] } = useQuery({
+    queryKey: ['orders', 'job', jobId],
+    queryFn: () => getOrdersByJobId(jobId),
+  });
+
+  const availableProducts = orders.flatMap(order => 
+    (order.prodotti || []).map(p => ({
+      orderItemId: p.prodottoId || `order_${order.id}_${p.prodottoNome}`,
+      label: p.prodottoNome,
+      qty: p.quantita || 1,
+    }))
+  );
 
   const assignMutation = useMutation({
     mutationFn: assignCollaboratoreToJob,
@@ -176,6 +205,23 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     },
     onError: () => {
       toast({ title: '❌ Errore aggiornamento compenso', variant: 'destructive' });
+    },
+  });
+
+  const updateProductsTasksMutation = useMutation({
+    mutationFn: ({ assignmentId, prodottiAssegnati, mansioniAssegnate }: { 
+      assignmentId: string; 
+      prodottiAssegnati: AssignedProduct[]; 
+      mansioniAssegnate: string[] 
+    }) => updateAssignmentProductsTasks(assignmentId, { prodottiAssegnati, mansioniAssegnate }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      toast({ title: '✅ Prodotti e mansioni aggiornati' });
+      setIsProductsTasksModalOpen(false);
+      setProductsTasksData({ assignmentId: '', prodottiAssegnati: [], mansioniAssegnate: [], nuovaMansione: '' });
+    },
+    onError: () => {
+      toast({ title: '❌ Errore aggiornamento prodotti/mansioni', variant: 'destructive' });
     },
   });
 
@@ -274,6 +320,60 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     updateCompensoMutation.mutate(editCompensoData);
   };
 
+  const handleOpenProductsTasksModal = (assignment: JobCollaboratoreAssignment) => {
+    setProductsTasksData({
+      assignmentId: assignment.id,
+      prodottiAssegnati: assignment.prodottiAssegnati || [],
+      mansioniAssegnate: assignment.mansioniAssegnate || [],
+      nuovaMansione: '',
+    });
+    setIsProductsTasksModalOpen(true);
+  };
+
+  const handleToggleProduct = (product: AssignedProduct) => {
+    setProductsTasksData(prev => {
+      const exists = prev.prodottiAssegnati.some(p => p.orderItemId === product.orderItemId);
+      if (exists) {
+        return {
+          ...prev,
+          prodottiAssegnati: prev.prodottiAssegnati.filter(p => p.orderItemId !== product.orderItemId),
+        };
+      } else {
+        return {
+          ...prev,
+          prodottiAssegnati: [...prev.prodottiAssegnati, product],
+        };
+      }
+    });
+  };
+
+  const handleAddMansione = () => {
+    const trimmed = productsTasksData.nuovaMansione.trim();
+    if (trimmed && !productsTasksData.mansioniAssegnate.includes(trimmed)) {
+      setProductsTasksData(prev => ({
+        ...prev,
+        mansioniAssegnate: [...prev.mansioniAssegnate, trimmed],
+        nuovaMansione: '',
+      }));
+    }
+  };
+
+  const handleRemoveMansione = (mansione: string) => {
+    setProductsTasksData(prev => ({
+      ...prev,
+      mansioniAssegnate: prev.mansioniAssegnate.filter(m => m !== mansione),
+    }));
+  };
+
+  const handleSubmitProductsTasks = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProductsTasksMutation.mutate({
+      assignmentId: productsTasksData.assignmentId,
+      prodottiAssegnati: productsTasksData.prodottiAssegnati,
+      mansioniAssegnate: productsTasksData.mansioniAssegnate,
+    });
+  };
+
   const getCollaboratoreNome = (id: string) => {
     const collab = collaboratori.find((c) => c.id === id);
     return collab ? `${collab.cognome} ${collab.nome}` : 'N/D';
@@ -312,6 +412,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                 <TableRow>
                   <TableHead>Collaboratore</TableHead>
                   <TableHead>Ruolo</TableHead>
+                  <TableHead>Prodotti/Mansioni</TableHead>
                   <TableHead>Compenso</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead>Pagamento</TableHead>
@@ -328,6 +429,41 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                       <Badge variant="outline">
                         {RUOLI_LABELS[assignment.ruoloInJob]}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {(assignment.prodottiAssegnati?.length || 0) > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {assignment.prodottiAssegnati?.map((p, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                <Package className="w-3 h-3 mr-1" />
+                                {p.label}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {(assignment.mansioniAssegnate?.length || 0) > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {assignment.mansioniAssegnate?.map((m, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                <ClipboardList className="w-3 h-3 mr-1" />
+                                {m}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => handleOpenProductsTasksModal(assignment)}
+                          title="Gestisci prodotti e mansioni"
+                          data-testid={`button-products-tasks-${assignment.id}`}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Modifica
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -621,6 +757,89 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                 </Button>
                 <Button type="submit" disabled={updateCompensoMutation.isPending} data-testid="button-submit-edit-compenso">
                   {updateCompensoMutation.isPending ? 'Aggiornamento...' : 'Salva Compenso'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isProductsTasksModalOpen} onOpenChange={setIsProductsTasksModalOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Gestisci Prodotti e Mansioni</DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmitProductsTasks} className="space-y-4">
+              <div>
+                <Label className="mb-2 block">Prodotti da gestire</Label>
+                {availableProducts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nessun prodotto disponibile per questo lavoro</p>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
+                    {availableProducts.map((product, idx) => (
+                      <div key={idx} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`product-${idx}`}
+                          checked={productsTasksData.prodottiAssegnati.some(p => p.orderItemId === product.orderItemId)}
+                          onCheckedChange={() => handleToggleProduct(product)}
+                          data-testid={`checkbox-product-${idx}`}
+                        />
+                        <Label htmlFor={`product-${idx}`} className="text-sm font-normal cursor-pointer">
+                          <Package className="w-4 h-4 inline mr-1" />
+                          {product.label}
+                          {product.qty && product.qty > 1 && ` (x${product.qty})`}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label className="mb-2 block">Mansioni assegnate</Label>
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    placeholder="Es: Riprese aeree, Post-produzione..."
+                    value={productsTasksData.nuovaMansione}
+                    onChange={(e) => setProductsTasksData(prev => ({ ...prev, nuovaMansione: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddMansione();
+                      }
+                    }}
+                    data-testid="input-nuova-mansione"
+                  />
+                  <Button type="button" variant="outline" onClick={handleAddMansione} data-testid="button-add-mansione">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {productsTasksData.mansioniAssegnate.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {productsTasksData.mansioniAssegnate.map((mansione, idx) => (
+                      <Badge key={idx} variant="secondary" className="gap-1">
+                        <ClipboardList className="w-3 h-3" />
+                        {mansione}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMansione(mansione)}
+                          className="ml-1 hover:text-red-500"
+                          data-testid={`button-remove-mansione-${idx}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsProductsTasksModalOpen(false)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={updateProductsTasksMutation.isPending} data-testid="button-submit-products-tasks">
+                  {updateProductsTasksMutation.isPending ? 'Salvataggio...' : 'Salva'}
                 </Button>
               </div>
             </form>

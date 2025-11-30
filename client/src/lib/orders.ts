@@ -208,6 +208,24 @@ export async function getOrdersByBooking(bookingId: string): Promise<Order[]> {
 }
 
 /**
+ * Ottiene ordini per job (admin only)
+ */
+export async function getOrdersByJobId(jobId: string): Promise<Order[]> {
+  const q = query(
+    collection(db, COLLECTION),
+    where("jobId", "==", jobId),
+    orderBy("createdAt", "desc"),
+  );
+
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...ensureProdottiArray(doc.data()),
+  })) as Order[];
+}
+
+/**
  * Ottiene ordini per stato (admin only)
  */
 export async function getOrdersByStatus(
