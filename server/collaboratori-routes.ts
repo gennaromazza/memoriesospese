@@ -924,7 +924,7 @@ router.post('/collaboratori/public/assignment/:id/decline', async (req, res) => 
  * POST /api/collaboratori/assignments/:id/add-payment
  * Registra pagamento (acconto/saldo) per assegnazione collaboratore
  */
-router.post('/assignments/:id/add-payment', async (req, res) => {
+router.post('/collaboratori/assignments/:id/add-payment', async (req, res) => {
   try {
     const { id } = req.params;
     const { importo, tipo, metodo, note, data } = req.body as {
