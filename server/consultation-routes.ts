@@ -2674,19 +2674,24 @@ router.post("/check-pending", async (req, res) => {
   try {
     const { email } = req.body;
 
+    console.log("[POST /check-pending] Checking for email:", email);
+
     if (!email) {
       return res.status(400).json({ error: "Email richiesta" });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    console.log("[POST /check-pending] Normalized email:", normalizedEmail);
 
+    // Query semplificata senza orderBy per evitare problemi di indice
     const pendingSnap = await db
       .collection("consultations")
       .where("cliente.email", "==", normalizedEmail)
       .where("stato", "==", "in_attesa")
-      .orderBy("createdAt", "desc")
       .limit(1)
       .get();
+
+    console.log("[POST /check-pending] Query result - empty:", pendingSnap.empty, "size:", pendingSnap.size);
 
     if (pendingSnap.empty) {
       return res.json({ hasPending: false });
