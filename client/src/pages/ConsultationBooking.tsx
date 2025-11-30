@@ -111,7 +111,11 @@ export default function ConsultationBooking() {
         email: clienteData.email
       });
       
-      if (!response.ok) return false;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Check pending request failed:', response.status, errorText);
+        return false;
+      }
       
       const data = await response.json();
       
@@ -123,7 +127,7 @@ export default function ConsultationBooking() {
       
       return false;
     } catch (error) {
-      console.error('Error checking pending requests:', error);
+      console.error('Error checking pending requests:', error instanceof Error ? error.message : JSON.stringify(error));
       return false;
     } finally {
       setIsCheckingPending(false);
