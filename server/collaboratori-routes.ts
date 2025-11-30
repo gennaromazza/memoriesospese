@@ -46,12 +46,23 @@ async function sendCollaboratorAssignmentEmail(
     return;
   }
   
-  const collaboratore = collaboratoreDoc.data();
+  let collaboratore = collaboratoreDoc.data();
   const job = jobDoc.data();
   
   if (!collaboratore?.email) {
     console.log('⚠️ Email collaboratore mancante, email non inviata');
     return;
+  }
+
+  // Se il collaboratore ha hasAccess ma non ha dashboardToken, genera e salva
+  if (collaboratore.hasAccess && !collaboratore.dashboardToken) {
+    const newToken = generateCollaboratorToken();
+    await db.collection('collaboratori').doc(collaboratoreId).update({
+      dashboardToken: newToken,
+      updatedAt: Timestamp.now()
+    });
+    collaboratore = { ...collaboratore, dashboardToken: newToken };
+    console.log(`🔑 Token generato per collaboratore esistente: ${collaboratoreId}`);
   }
 
   const studioInfo = await getStudioContactInfo();
@@ -78,7 +89,8 @@ async function sendCollaboratorAssignmentEmail(
       }) 
     : 'Data da confermare';
   
-  const dashboardUrl = collaboratore?.dashboardToken 
+  // Mostra link dashboard solo se hasAccess è true E il token esiste
+  const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
     ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
     : null;
 
