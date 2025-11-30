@@ -468,6 +468,7 @@ const updateEventSchema = z.object({
   type: z.enum(['google', 'consulenza', 'job']),
   entityId: z.string().optional(),
   googleEventId: z.string().optional(),
+  isAllDay: z.boolean().optional(),
 });
 
 router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
@@ -491,6 +492,7 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
         start: startDate,
         end: endDate,
         location: data.location,
+        isAllDay: data.isAllDay,
       });
       
       console.log(`✅ Evento Google Calendar aggiornato: ${googleId}`);
@@ -531,6 +533,7 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
             start: startDate,
             end: endDate,
             location: data.location,
+            isAllDay: data.isAllDay,
           });
           console.log(`✅ Evento Google Calendar sincronizzato: ${consultation.googleCalendarEventId}`);
         } catch (gcError: any) {
@@ -576,6 +579,7 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
             start: startDate,
             end: endDate,
             location: data.location,
+            isAllDay: data.isAllDay,
           });
           console.log(`✅ Evento Google Calendar sincronizzato: ${job.googleCalendarEventId}`);
         } catch (gcError: any) {

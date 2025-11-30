@@ -534,6 +534,7 @@ export async function createEvent(
 
 /**
  * Aggiorna evento esistente
+ * Supporta sia eventi con orario che eventi tutto il giorno
  */
 export async function updateEvent(
   calendarId: string = "primary",
@@ -544,6 +545,7 @@ export async function updateEvent(
     start: Date;
     end: Date;
     location: string;
+    isAllDay: boolean;
   }>,
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -551,27 +553,42 @@ export async function updateEvent(
   const requestBody: any = {};
 
   if (eventData.summary) requestBody.summary = eventData.summary;
-  if (eventData.description) requestBody.description = eventData.description;
-  if (eventData.location) requestBody.location = eventData.location;
+  if (eventData.description !== undefined) requestBody.description = eventData.description;
+  if (eventData.location !== undefined) requestBody.location = eventData.location;
   
-  // FIXED: Usa Luxon per timezone corretto (come createEvent)
   if (eventData.start || eventData.end) {
     const { DateTime } = await import('luxon');
     
-    if (eventData.start) {
-      const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
-      requestBody.start = {
-        dateTime: startDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
-        timeZone: "Europe/Rome",
-      };
-    }
-    
-    if (eventData.end) {
-      const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
-      requestBody.end = {
-        dateTime: endDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
-        timeZone: "Europe/Rome",
-      };
+    if (eventData.isAllDay) {
+      if (eventData.start) {
+        const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
+        requestBody.start = {
+          date: startDT.toFormat('yyyy-MM-dd'),
+        };
+      }
+      
+      if (eventData.end) {
+        const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
+        requestBody.end = {
+          date: endDT.toFormat('yyyy-MM-dd'),
+        };
+      }
+    } else {
+      if (eventData.start) {
+        const startDT = DateTime.fromJSDate(eventData.start, { zone: 'Europe/Rome' });
+        requestBody.start = {
+          dateTime: startDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
+          timeZone: "Europe/Rome",
+        };
+      }
+      
+      if (eventData.end) {
+        const endDT = DateTime.fromJSDate(eventData.end, { zone: 'Europe/Rome' });
+        requestBody.end = {
+          dateTime: endDT.toFormat('yyyy-MM-dd\'T\'HH:mm:ss'),
+          timeZone: "Europe/Rome",
+        };
+      }
     }
   }
 

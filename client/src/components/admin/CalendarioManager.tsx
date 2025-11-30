@@ -101,6 +101,7 @@ export default function CalendarioManager() {
     startTime: '',
     endTime: '',
     location: '',
+    isAllDay: false,
   });
 
   const monthStart = startOfMonth(selectedDate);
@@ -198,6 +199,7 @@ export default function CalendarioManager() {
       type: 'google' | 'consulenza' | 'job';
       entityId?: string;
       googleEventId?: string;
+      isAllDay?: boolean;
     }) => {
       return await apiRequest('PATCH', `/api/calendar/events/${eventData.eventId}`, eventData);
     },
@@ -370,25 +372,18 @@ export default function CalendarioManager() {
   };
   
   const handleOpenEditDialog = (event: CalendarEventDTO) => {
-    if (isAllDayEvent(event)) {
-      toast({
-        title: 'Evento tutto il giorno',
-        description: 'Gli eventi tutto il giorno non possono essere modificati da qui. Modifica l\'evento direttamente da Google Calendar.',
-        variant: 'default',
-      });
-      return;
-    }
-    
     const startDate = safeParseISO(event.start);
     const endDate = safeParseISO(event.end);
+    const allDay = isAllDayEvent(event);
     
     setEditEventData({
       title: event.title || '',
       description: event.description || '',
       startDate: startDate ? format(startDate, 'yyyy-MM-dd') : '',
-      startTime: startDate ? format(startDate, 'HH:mm') : '',
-      endTime: endDate ? format(endDate, 'HH:mm') : '',
+      startTime: allDay ? '' : (startDate ? format(startDate, 'HH:mm') : ''),
+      endTime: allDay ? '' : (endDate ? format(endDate, 'HH:mm') : ''),
       location: event.location || '',
+      isAllDay: allDay,
     });
     setShowEditDialog(true);
   };
@@ -396,25 +391,43 @@ export default function CalendarioManager() {
   const handleUpdateEvent = () => {
     if (!selectedEvent) return;
     
-    if (!editEventData.startDate || !editEventData.startTime || !editEventData.endTime) {
+    if (!editEventData.startDate) {
       toast({
-        title: 'Campi obbligatori',
-        description: 'Compila data e orari',
+        title: 'Campo obbligatorio',
+        description: 'Seleziona una data',
         variant: 'destructive',
       });
       return;
     }
     
-    const startDate = new Date(`${editEventData.startDate}T${editEventData.startTime}:00`);
-    const endDate = new Date(`${editEventData.startDate}T${editEventData.endTime}:00`);
+    let startDate: Date;
+    let endDate: Date;
     
-    if (endDate <= startDate) {
-      toast({
-        title: 'Orario non valido',
-        description: 'L\'ora di fine deve essere dopo l\'ora di inizio',
-        variant: 'destructive',
-      });
-      return;
+    if (editEventData.isAllDay) {
+      startDate = new Date(`${editEventData.startDate}T00:00:00`);
+      endDate = new Date(`${editEventData.startDate}T00:00:00`);
+      endDate.setDate(endDate.getDate() + 1);
+    } else {
+      if (!editEventData.startTime || !editEventData.endTime) {
+        toast({
+          title: 'Campi obbligatori',
+          description: 'Compila gli orari di inizio e fine',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      startDate = new Date(`${editEventData.startDate}T${editEventData.startTime}:00`);
+      endDate = new Date(`${editEventData.startDate}T${editEventData.endTime}:00`);
+      
+      if (endDate <= startDate) {
+        toast({
+          title: 'Orario non valido',
+          description: 'L\'ora di fine deve essere dopo l\'ora di inizio',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
     
     updateEventMutation.mutate({
@@ -427,6 +440,7 @@ export default function CalendarioManager() {
       type: selectedEvent.type,
       entityId: selectedEvent.entityId,
       googleEventId: selectedEvent.googleEventId,
+      isAllDay: editEventData.isAllDay,
     });
   };
 
@@ -954,6 +968,21 @@ export default function CalendarioManager() {
               />
             </div>
             
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-all-day"
+                checked={editEventData.isAllDay}
+                onCheckedChange={(checked) => setEditEventData({ 
+                  ...editEventData, 
+                  isAllDay: checked === true,
+                  startTime: checked === true ? '' : editEventData.startTime,
+                  endTime: checked === true ? '' : editEventData.endTime,
+                })}
+                data-testid="checkbox-edit-all-day"
+              />
+              <Label htmlFor="edit-all-day" className="cursor-pointer">Evento tutto il giorno</Label>
+            </div>
+            
             <div>
               <Label htmlFor="edit-date">Data *</Label>
               <Input
@@ -966,31 +995,33 @@ export default function CalendarioManager() {
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-start-time">Ora Inizio *</Label>
-                <Input
-                  id="edit-start-time"
-                  type="time"
-                  value={editEventData.startTime}
-                  onChange={(e) => setEditEventData({ ...editEventData, startTime: e.target.value })}
-                  required
-                  data-testid="input-edit-start-time"
-                />
+            {!editEventData.isAllDay && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-start-time">Ora Inizio *</Label>
+                  <Input
+                    id="edit-start-time"
+                    type="time"
+                    value={editEventData.startTime}
+                    onChange={(e) => setEditEventData({ ...editEventData, startTime: e.target.value })}
+                    required
+                    data-testid="input-edit-start-time"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-end-time">Ora Fine *</Label>
+                  <Input
+                    id="edit-end-time"
+                    type="time"
+                    value={editEventData.endTime}
+                    onChange={(e) => setEditEventData({ ...editEventData, endTime: e.target.value })}
+                    required
+                    data-testid="input-edit-end-time"
+                  />
+                </div>
               </div>
-              
-              <div>
-                <Label htmlFor="edit-end-time">Ora Fine *</Label>
-                <Input
-                  id="edit-end-time"
-                  type="time"
-                  value={editEventData.endTime}
-                  onChange={(e) => setEditEventData({ ...editEventData, endTime: e.target.value })}
-                  required
-                  data-testid="input-edit-end-time"
-                />
-              </div>
-            </div>
+            )}
             
             <div>
               <Label htmlFor="edit-location">Luogo</Label>
