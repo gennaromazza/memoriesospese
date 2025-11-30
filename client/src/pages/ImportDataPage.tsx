@@ -5,9 +5,10 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, CheckCircle, XCircle, AlertCircle, FileText, FileSpreadsheet, Check, X } from 'lucide-react';
+import { Upload, CheckCircle, XCircle, AlertCircle, FileText, FileSpreadsheet, Check, X, Layers } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { auth } from '@/lib/firebase';
+import JobTypeMappingPanel, { JobTypeMapping } from '@/components/import/JobTypeMappingPanel';
 
 interface PreviewJob {
   nome: string;
@@ -43,13 +44,34 @@ interface ImportResult {
   details: ImportDetail[];
 }
 
+interface DiscoveredJobType {
+  nome: string;
+  slug: string;
+  count: number;
+}
+
+interface ExistingJobType {
+  id: string;
+  nome: string;
+  slug: string;
+  colore: string;
+  icona: string;
+  createdBy?: string;
+}
+
+type ImportStep = 'upload' | 'preview' | 'mapping' | 'result';
+
 export default function ImportDataPage() {
+  const [step, setStep] = useState<ImportStep>('upload');
   const [preview, setPreview] = useState<PreviewJob[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [discoveredJobTypes, setDiscoveredJobTypes] = useState<DiscoveredJobType[]>([]);
+  const [existingJobTypes, setExistingJobTypes] = useState<ExistingJobType[]>([]);
+  const [jobTypeMappings, setJobTypeMappings] = useState<JobTypeMapping[] | null>(null);
   const { toast } = useToast();
 
   const loadPreview = async () => {
@@ -84,6 +106,9 @@ export default function ImportDataPage() {
 
       const data = await response.json();
       setPreview(data.preview);
+      setDiscoveredJobTypes(data.discoveredJobTypes || []);
+      setExistingJobTypes(data.existingJobTypes || []);
+      setStep('preview');
       
       toast({
         title: 'Preview caricata',
@@ -134,7 +159,7 @@ export default function ImportDataPage() {
     }
   };
 
-  const executeImport = async () => {
+  const executeImport = async (mappings?: JobTypeMapping[]) => {
     if (!selectedFile) {
       toast({
         title: 'File richiesto',
@@ -155,6 +180,10 @@ export default function ImportDataPage() {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      
+      if (mappings) {
+        formData.append('jobTypeMappings', JSON.stringify(mappings));
+      }
 
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
 
@@ -174,6 +203,7 @@ export default function ImportDataPage() {
 
       const data: ImportResult = await response.json();
       setResult(data);
+      setStep('result');
       setProgress(100);
 
       if (data.success) {
@@ -200,6 +230,21 @@ export default function ImportDataPage() {
     }
   };
 
+  const handleMappingComplete = (mappings: JobTypeMapping[]) => {
+    setJobTypeMappings(mappings);
+    executeImport(mappings);
+  };
+
+  const resetImport = () => {
+    setStep('upload');
+    setPreview(null);
+    setResult(null);
+    setProgress(0);
+    setDiscoveredJobTypes([]);
+    setExistingJobTypes([]);
+    setJobTypeMappings(null);
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('it-IT', {
       style: 'currency',
@@ -219,7 +264,7 @@ export default function ImportDataPage() {
           </p>
         </div>
 
-        {!preview && !result && (
+        {step === 'upload' && (
           <>
             <Card className="border-blue-200 dark:border-blue-800">
               <CardHeader>
@@ -317,7 +362,7 @@ export default function ImportDataPage() {
           </>
         )}
 
-        {preview && !result && (
+        {step === 'preview' && preview && (
           <>
             <Card>
               <CardHeader>
@@ -327,7 +372,7 @@ export default function ImportDataPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <ScrollArea className="h-[500px] rounded-md border p-4">
+                <ScrollArea className="h-[400px] rounded-md border p-4">
                   <div className="space-y-3">
                     {preview.map((job, index) => (
                       <div
@@ -403,36 +448,50 @@ export default function ImportDataPage() {
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => setPreview(null)}
-                    disabled={importing}
+                    onClick={resetImport}
                     data-testid="button-cancel"
                   >
                     Annulla
                   </Button>
                   <Button
-                    onClick={executeImport}
-                    disabled={importing}
-                    data-testid="button-execute-import"
+                    onClick={() => setStep('mapping')}
+                    data-testid="button-go-to-mapping"
                     className="flex-1"
                   >
-                    {importing ? 'Importazione in corso...' : 'Esegui Importazione'}
+                    <Layers className="h-4 w-4 mr-2" />
+                    Continua: Configura Tipi di Lavoro
                   </Button>
                 </div>
-
-                {importing && (
-                  <div className="space-y-2">
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                      {progress}% completato
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </>
         )}
 
-        {result && (
+        {step === 'mapping' && discoveredJobTypes.length > 0 && (
+          <>
+            <JobTypeMappingPanel
+              discoveredJobTypes={discoveredJobTypes}
+              existingJobTypes={existingJobTypes}
+              initialMappings={jobTypeMappings || undefined}
+              onMappingComplete={handleMappingComplete}
+              onCancel={(currentMappings) => {
+                setJobTypeMappings(currentMappings);
+                setStep('preview');
+              }}
+            />
+
+            {importing && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                  {progress}% completato - Importazione in corso...
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {step === 'result' && result && (
           <>
             <Alert variant={result.success ? 'default' : 'destructive'}>
               <AlertTitle className="flex items-center gap-2">
@@ -554,11 +613,7 @@ export default function ImportDataPage() {
                 <div className="mt-4 pt-4 border-t flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setResult(null);
-                      setPreview(null);
-                      setProgress(0);
-                    }}
+                    onClick={resetImport}
                     data-testid="button-reset"
                   >
                     Nuova Importazione

@@ -181,6 +181,32 @@ router.post('/preview-excel', authenticateFirebase, upload.single('file'), async
     const parser = new LegacyImportParser();
     const jobs = await parser.parseExcelFromBuffer(req.file.buffer);
 
+    // ✅ Raccogli tipi di lavoro unici con conteggio
+    const jobTypesCounts: Record<string, number> = {};
+    for (const job of jobs) {
+      const tipoLavoro = LegacyImportParser.mapJobType(job.tipoLavoro);
+      if (tipoLavoro) {
+        jobTypesCounts[tipoLavoro] = (jobTypesCounts[tipoLavoro] || 0) + 1;
+      }
+    }
+    
+    const discoveredJobTypes = Object.entries(jobTypesCounts).map(([nome, count]) => ({
+      nome,
+      slug: toSlug(nome),
+      count,
+    }));
+
+    // ✅ Recupera tipi esistenti da Firestore
+    const existingTypesSnapshot = await db.collection('jobTypes').get();
+    const existingJobTypes = existingTypesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      nome: doc.data().nome,
+      slug: doc.data().slug,
+      colore: doc.data().colore,
+      icona: doc.data().icona || '📷',
+      createdBy: doc.data().createdBy,
+    }));
+
     const preview = jobs.map(job => ({
       nome: job.nome,
       dataEvento: job.dataEvento,
@@ -200,6 +226,8 @@ router.post('/preview-excel', authenticateFirebase, upload.single('file'), async
       success: true,
       count: jobs.length,
       preview,
+      discoveredJobTypes,
+      existingJobTypes,
     });
   } catch (error) {
     console.error('Error previewing Excel import:', error);
@@ -243,6 +271,118 @@ router.post('/preview', authenticateFirebase, async (req: AuthRequest, res: Resp
   }
 });
 
+// Interfaccia per il mapping dei tipi di lavoro
+interface JobTypeMapping {
+  originalName: string;
+  action: 'map' | 'create' | 'skip';
+  targetSlug?: string;  // Solo per action='map'
+  newName?: string;     // Solo per action='create' (opzionale, default = originalName)
+}
+
+// ✅ Applica mapping personalizzato e crea nuovi tipi se necessario
+async function applyJobTypeMapping(
+  mappings: JobTypeMapping[]
+): Promise<{ 
+  created: Array<{ slug: string; nome: string }>;
+  mappingTable: Record<string, string>; // originalName -> targetSlug
+  skipped: string[];
+}> {
+  const firestore = db;
+  const created: Array<{ slug: string; nome: string }> = [];
+  const mappingTable: Record<string, string> = {};
+  const skipped: string[] = [];
+  
+  // Recupera tipi esistenti
+  const existingTypesSnapshot = await firestore.collection('jobTypes').get();
+  const existingSlugs = new Map<string, string>(); // slug -> nome
+  
+  existingTypesSnapshot.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.slug) existingSlugs.set(data.slug, data.nome);
+  });
+  
+  // Trova il prossimo ordine disponibile
+  let maxOrdine = 0;
+  existingTypesSnapshot.docs.forEach(doc => {
+    const ordine = doc.data().ordine || 0;
+    if (ordine > maxOrdine) maxOrdine = ordine;
+  });
+  
+  let batch = firestore.batch();
+  let batchCount = 0;
+  
+  for (const mapping of mappings) {
+    // ✅ FIX: Usa chiave normalizzata (lowercase) per evitare mismatch case-sensitivity
+    const normalizedKey = mapping.originalName.toLowerCase().trim();
+    
+    if (mapping.action === 'skip') {
+      skipped.push(normalizedKey);
+      continue;
+    }
+    
+    if (mapping.action === 'map' && mapping.targetSlug) {
+      // Verifica che il target esista
+      if (existingSlugs.has(mapping.targetSlug)) {
+        mappingTable[normalizedKey] = mapping.targetSlug;
+      } else {
+        console.warn(`⚠️ Target slug ${mapping.targetSlug} non esiste, skip mapping per ${mapping.originalName}`);
+        skipped.push(normalizedKey);
+      }
+      continue;
+    }
+    
+    if (mapping.action === 'create') {
+      const nome = mapping.newName || mapping.originalName;
+      const slug = toSlug(nome);
+      
+      // Se esiste già, usa quello esistente
+      if (existingSlugs.has(slug)) {
+        mappingTable[normalizedKey] = slug;
+        continue;
+      }
+      
+      // Crea nuovo tipo
+      maxOrdine++;
+      const newTypeRef = firestore.collection('jobTypes').doc();
+      const now = Timestamp.now();
+      
+      batch.set(newTypeRef, {
+        nome,
+        slug,
+        attivo: true,
+        icona: '📷',
+        colore: generateRandomColor(),
+        ordine: maxOrdine,
+        descrizione: `Tipo lavoro importato automaticamente`,
+        createdBy: 'import',
+        createdAt: now,
+        updatedAt: now,
+      });
+      
+      created.push({ slug, nome });
+      existingSlugs.set(slug, nome);
+      mappingTable[normalizedKey] = slug;
+      batchCount++;
+      
+      if (batchCount >= 450) {
+        await batch.commit();
+        batch = firestore.batch();
+        batchCount = 0;
+      }
+    }
+  }
+  
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+  
+  if (created.length > 0) {
+    console.log(`✅ Creati ${created.length} nuovi tipi di lavoro via mapping:`, created.map(t => t.nome).join(', '));
+  }
+  
+  return { created, mappingTable, skipped };
+}
+
 // ✅ NUOVO: Execute import Excel con file upload
 router.post('/execute-excel', authenticateFirebase, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
@@ -257,11 +397,34 @@ router.post('/execute-excel', authenticateFirebase, upload.single('file'), async
       return res.status(400).json({ error: 'File Excel richiesto' });
     }
 
+    // ✅ Leggi mapping dal body (JSON string nel form data)
+    let jobTypeMappings: JobTypeMapping[] | null = null;
+    if (req.body.jobTypeMappings) {
+      try {
+        jobTypeMappings = JSON.parse(req.body.jobTypeMappings);
+      } catch (e) {
+        console.warn('⚠️ Errore parsing jobTypeMappings, uso auto-create');
+      }
+    }
+
     const parser = new LegacyImportParser();
     const jobs = await parser.parseExcelFromBuffer(req.file.buffer);
 
-    // ✅ Auto-crea tipi di lavoro mancanti PRIMA dell'import
-    const { created: newJobTypes } = await ensureJobTypesExist(jobs);
+    let newJobTypes: Array<{ slug: string; nome: string }> = [];
+    let mappingTable: Record<string, string> = {};
+    let skippedTypes: string[] = [];
+
+    if (jobTypeMappings && jobTypeMappings.length > 0) {
+      // ✅ Usa mapping personalizzato
+      const mappingResult = await applyJobTypeMapping(jobTypeMappings);
+      newJobTypes = mappingResult.created;
+      mappingTable = mappingResult.mappingTable;
+      skippedTypes = mappingResult.skipped;
+    } else {
+      // ✅ Fallback: Auto-crea tipi di lavoro mancanti (comportamento legacy)
+      const { created } = await ensureJobTypesExist(jobs);
+      newJobTypes = created;
+    }
 
     const result: ImportResult = {
       success: true,
@@ -276,6 +439,30 @@ router.post('/execute-excel', authenticateFirebase, upload.single('file'), async
 
     for (const jobData of jobs) {
       try {
+        // ✅ Applica mapping se disponibile
+        const originalType = LegacyImportParser.mapJobType(jobData.tipoLavoro);
+        // ✅ FIX: Normalizza la chiave per il lookup (stessa logica usata in applyJobTypeMapping)
+        const normalizedType = originalType.toLowerCase().trim();
+        
+        // Se il tipo è stato skippato, salta questo job
+        if (skippedTypes.includes(normalizedType)) {
+          result.warnings.push({
+            job: jobData.nome,
+            warning: `Tipo lavoro "${originalType}" escluso dal mapping`,
+          });
+          result.details.push({
+            jobName: jobData.nome,
+            status: 'warning',
+            message: `Saltato: tipo lavoro "${originalType}" escluso`,
+          });
+          continue;
+        }
+        
+        // Se c'è un mapping, applica la trasformazione (usa slug come tipoLavoro)
+        if (mappingTable[normalizedType]) {
+          jobData.tipoLavoro = mappingTable[normalizedType];
+        }
+        
         await importSingleJob(jobData, result);
       } catch (error: any) {
         result.errors.push({
