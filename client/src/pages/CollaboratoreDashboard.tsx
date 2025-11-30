@@ -22,12 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment } from '@shared/collaboratori-types';
+import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 
 const STATUS_LABELS = {
@@ -52,6 +53,15 @@ interface AssignmentWithJob extends JobCollaboratoreAssignment {
     eventDate?: any;
     eventLocation?: string;
   } | null;
+  cliente?: {
+    id: string;
+    nome?: string;
+    cognome?: string;
+    email?: string;
+    cellulare?: string;
+  } | null;
+  prodottiAssegnati?: AssignedProduct[];
+  mansioniAssegnate?: string[];
 }
 
 export default function CollaboratoreDashboard() {
@@ -122,6 +132,11 @@ export default function CollaboratoreDashboard() {
   const getJobDate = (job: AssignmentWithJob['job']): Date | null => {
     if (!job?.eventDate) return null;
     return convertFirestoreTimestamp(job.eventDate);
+  };
+
+  const getGoogleMapsLink = (location: string | undefined) => {
+    if (!location) return null;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   };
 
   if (isLoading) {
@@ -274,54 +289,131 @@ export default function CollaboratoreDashboard() {
               </p>
             ) : (
               <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Job</TableHead>
-                    <TableHead>Ruolo</TableHead>
-                    <TableHead>Compenso</TableHead>
-                    <TableHead>Pagato</TableHead>
-                    <TableHead>Residuo</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedAssignments.map((assignment: JobCollaboratoreAssignment) => {
-                    const pagatoAssignment =
-                      assignment.pagamenti?.reduce((sum: number, p: CollaboratorPayment) => sum + p.importo, 0) || 0;
-                    const residuoAssignment = assignment.compenso - pagatoAssignment;
+              <div className="space-y-4">
+                {paginatedAssignments.map((assignment: AssignmentWithJob) => {
+                  const pagatoAssignment =
+                    assignment.pagamenti?.reduce((sum: number, p: CollaboratorPayment) => sum + p.importo, 0) || 0;
+                  const residuoAssignment = assignment.compenso - pagatoAssignment;
+                  const job = assignment.job;
+                  const cliente = assignment.cliente;
+                  const eventDate = job?.eventDate ? convertFirestoreTimestamp(job.eventDate) : null;
+                  const mapsLink = getGoogleMapsLink(job?.eventLocation);
 
-                    return (
-                      <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
-                        <TableCell className="font-medium">
-                          {(assignment as AssignmentWithJob).job?.nomeEvento || `Job #${assignment.jobId.slice(0, 8)}`}
-                          <div className="text-xs text-muted-foreground">
-                            {format(convertFirestoreTimestamp(assignment.dataRichiesta) || new Date(), 'dd/MM/yyyy', {
-                              locale: it,
-                            })}
+                  return (
+                    <Card key={assignment.id} className="border" data-testid={`card-assignment-${assignment.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-lg">
+                                {job?.nomeEvento || `Job #${assignment.jobId.slice(0, 8)}`}
+                              </h3>
+                              <Badge variant={STATUS_LABELS[assignment.status].variant}>
+                                {STATUS_LABELS[assignment.status].label}
+                              </Badge>
+                              <Badge variant="outline">{RUOLI_LABELS[assignment.ruoloInJob] || assignment.ruoloInJob}</Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
+                              {eventDate && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <Calendar className="w-4 h-4" />
+                                  {format(eventDate, 'dd MMMM yyyy', { locale: it })}
+                                </div>
+                              )}
+                              {job?.eventLocation && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <MapPin className="w-4 h-4" />
+                                  <span className="truncate max-w-[150px]">{job.eventLocation}</span>
+                                  {mapsLink && (
+                                    <a 
+                                      href={mapsLink} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:underline"
+                                      data-testid={`link-maps-${assignment.id}`}
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <Euro className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-semibold">€{assignment.compenso.toFixed(2)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-600">+€{pagatoAssignment.toFixed(2)}</span>
+                                {residuoAssignment > 0 && (
+                                  <span className="text-orange-600">(residuo: €{residuoAssignment.toFixed(2)})</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {cliente && (
+                              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                                <div className="text-xs font-medium text-muted-foreground uppercase">Cliente</div>
+                                <div className="flex flex-wrap gap-3 text-sm">
+                                  <div className="flex items-center gap-1">
+                                    <User className="w-4 h-4 text-muted-foreground" />
+                                    {cliente.nome} {cliente.cognome}
+                                  </div>
+                                  {cliente.email && (
+                                    <a href={`mailto:${cliente.email}`} className="flex items-center gap-1 text-primary hover:underline">
+                                      <Mail className="w-4 h-4" />
+                                      {cliente.email}
+                                    </a>
+                                  )}
+                                  {cliente.cellulare && (
+                                    <a href={`tel:${cliente.cellulare}`} className="flex items-center gap-1 text-primary hover:underline">
+                                      <Phone className="w-4 h-4" />
+                                      {cliente.cellulare}
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {((assignment.prodottiAssegnati && assignment.prodottiAssegnati.length > 0) || 
+                              (assignment.mansioniAssegnate && assignment.mansioniAssegnate.length > 0)) && (
+                              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 space-y-2">
+                                {assignment.prodottiAssegnati && assignment.prodottiAssegnati.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-medium text-muted-foreground uppercase mb-1">Prodotti da gestire</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {assignment.prodottiAssegnati.map((p, idx) => (
+                                        <Badge key={idx} variant="secondary" className="gap-1">
+                                          <Package className="w-3 h-3" />
+                                          {p.label}
+                                          {p.qty && p.qty > 1 && ` (x${p.qty})`}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {assignment.mansioniAssegnate && assignment.mansioniAssegnate.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-medium text-muted-foreground uppercase mb-1">Mansioni</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {assignment.mansioniAssegnate.map((m, idx) => (
+                                        <Badge key={idx} variant="outline" className="gap-1">
+                                          <ClipboardList className="w-3 h-3" />
+                                          {m}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{assignment.ruoloInJob}</Badge>
-                        </TableCell>
-                        <TableCell className="font-semibold">€{assignment.compenso.toFixed(2)}</TableCell>
-                        <TableCell className="text-green-600">€{pagatoAssignment.toFixed(2)}</TableCell>
-                        <TableCell className="text-orange-600 font-semibold">
-                          €{residuoAssignment.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_LABELS[assignment.status].variant}>
-                            {STATUS_LABELS[assignment.status].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {assignment.status === 'pending' ? (
-                            <div className="flex gap-2 justify-end">
+
+                          {assignment.status === 'pending' && (
+                            <div className="flex gap-2 md:flex-col">
                               <Button
                                 size="sm"
                                 variant="default"
-                                className="bg-green-600 hover:bg-green-700"
+                                className="bg-green-600 hover:bg-green-700 flex-1"
                                 onClick={() => acceptMutation.mutate(assignment.id)}
                                 disabled={processingAssignmentId !== null}
                                 data-testid={`button-accept-${assignment.id}`}
@@ -338,6 +430,7 @@ export default function CollaboratoreDashboard() {
                               <Button
                                 size="sm"
                                 variant="destructive"
+                                className="flex-1"
                                 onClick={() => handleDecline(assignment.id)}
                                 disabled={processingAssignmentId !== null}
                                 data-testid={`button-decline-${assignment.id}`}
@@ -346,15 +439,13 @@ export default function CollaboratoreDashboard() {
                                 Rifiuta
                               </Button>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
                           )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
               
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t">

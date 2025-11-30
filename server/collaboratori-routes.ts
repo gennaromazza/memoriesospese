@@ -1458,16 +1458,34 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
       .orderBy('dataRichiesta', 'desc')
       .get();
     
-    // Per ogni assegnazione, recupera i dati del job
+    // Per ogni assegnazione, recupera i dati del job e del cliente
     const assignments = await Promise.all(
       assignmentsSnapshot.docs.map(async (assignmentDoc) => {
         const assignment = assignmentDoc.data();
         const jobDoc = await db.collection('jobs').doc(assignment.jobId).get();
+        const jobData = jobDoc.exists ? { id: jobDoc.id, ...jobDoc.data() } : null;
+        
+        // Recupera dati cliente se presente clienteId nel job
+        let cliente = null;
+        if (jobData && (jobData as any).clienteId) {
+          const clienteDoc = await db.collection('clienti').doc((jobData as any).clienteId).get();
+          if (clienteDoc.exists) {
+            const clienteData = clienteDoc.data();
+            cliente = {
+              id: clienteDoc.id,
+              nome: clienteData?.nome,
+              cognome: clienteData?.cognome,
+              email: clienteData?.email,
+              cellulare: clienteData?.cellulare,
+            };
+          }
+        }
         
         return {
           id: assignmentDoc.id,
           ...assignment,
-          job: jobDoc.exists ? { id: jobDoc.id, ...jobDoc.data() } : null
+          job: jobData,
+          cliente
         };
       })
     );
