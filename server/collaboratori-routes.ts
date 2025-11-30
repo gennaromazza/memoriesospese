@@ -847,7 +847,7 @@ router.get('/collaboratori/:id/stats', async (req, res) => {
  * GET /api/collaboratori/public/assignment/:id
  * Ottieni dettagli assegnazione (pubblico, per link email)
  */
-router.get('/public/assignment/:id', async (req, res) => {
+router.get('/collaboratori/public/assignment/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -880,7 +880,7 @@ router.get('/public/assignment/:id', async (req, res) => {
  * POST /api/collaboratori/public/assignment/:id/accept
  * Accetta assegnazione (pubblico, da link email)
  */
-router.post('/public/assignment/:id/accept', async (req, res) => {
+router.post('/collaboratori/public/assignment/:id/accept', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -901,7 +901,7 @@ router.post('/public/assignment/:id/accept', async (req, res) => {
  * POST /api/collaboratori/public/assignment/:id/decline
  * Rifiuta assegnazione (pubblico, da link email)
  */
-router.post('/public/assignment/:id/decline', async (req, res) => {
+router.post('/collaboratori/public/assignment/:id/decline', async (req, res) => {
   try {
     const { id } = req.params;
     const { noteRifiuto } = req.body;
