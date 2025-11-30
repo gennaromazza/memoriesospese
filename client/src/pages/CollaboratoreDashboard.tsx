@@ -26,7 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
@@ -46,20 +46,33 @@ const RUOLI_LABELS: Record<string, string> = {
   altro: '👤 Altro',
 };
 
+interface ClienteInfo {
+  id: string;
+  nome?: string;
+  cognome?: string;
+  email?: string;
+  cellulare?: string;
+  whatsapp?: string;
+  isPrimary?: boolean;
+}
+
 interface AssignmentWithJob extends JobCollaboratoreAssignment {
   job?: {
     id: string;
     nomeEvento?: string;
     eventDate?: any;
     eventLocation?: string;
+    jobType?: string;
+    stato?: string;
+    note?: string;
+    jobDataValues?: Record<string, any>;
+    locationRicevimento?: string;
+    oraRicevimento?: string;
+    oraCerimonia?: string;
+    locationCerimonia?: string;
   } | null;
-  cliente?: {
-    id: string;
-    nome?: string;
-    cognome?: string;
-    email?: string;
-    cellulare?: string;
-  } | null;
+  cliente?: ClienteInfo | null;
+  clienti?: ClienteInfo[];
   prodottiAssegnati?: AssignedProduct[];
   mansioniAssegnate?: string[];
 }
@@ -350,30 +363,6 @@ export default function CollaboratoreDashboard() {
                               </div>
                             </div>
 
-                            {cliente && (
-                              <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                                <div className="text-xs font-medium text-muted-foreground uppercase">Cliente</div>
-                                <div className="flex flex-wrap gap-3 text-sm">
-                                  <div className="flex items-center gap-1">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    {cliente.nome} {cliente.cognome}
-                                  </div>
-                                  {cliente.email && (
-                                    <a href={`mailto:${cliente.email}`} className="flex items-center gap-1 text-primary hover:underline">
-                                      <Mail className="w-4 h-4" />
-                                      {cliente.email}
-                                    </a>
-                                  )}
-                                  {cliente.cellulare && (
-                                    <a href={`tel:${cliente.cellulare}`} className="flex items-center gap-1 text-primary hover:underline">
-                                      <Phone className="w-4 h-4" />
-                                      {cliente.cellulare}
-                                    </a>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
                             {((assignment.prodottiAssegnati && assignment.prodottiAssegnati.length > 0) || 
                               (assignment.mansioniAssegnate && assignment.mansioniAssegnate.length > 0)) && (
                               <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 space-y-2">
@@ -406,6 +395,181 @@ export default function CollaboratoreDashboard() {
                                 )}
                               </div>
                             )}
+
+                            {/* Sezione espandibile con tutti i dettagli */}
+                            <Collapsible>
+                              <CollapsibleTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="w-full justify-between text-muted-foreground hover:text-foreground"
+                                  data-testid={`button-expand-details-${assignment.id}`}
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <Info className="w-4 h-4" />
+                                    Mostra tutti i dettagli evento
+                                  </span>
+                                  <ChevronDown className="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="pt-3 space-y-4">
+                                {/* Sezione Clienti */}
+                                {assignment.clienti && assignment.clienti.length > 0 && (
+                                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <Users className="w-4 h-4 text-primary" />
+                                      Clienti ({assignment.clienti.length})
+                                    </div>
+                                    <div className="space-y-3">
+                                      {assignment.clienti.map((c, idx) => (
+                                        <div key={c.id || idx} className="bg-background rounded-lg p-3 border">
+                                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                                            <span className="font-semibold text-base">
+                                              {c.nome} {c.cognome}
+                                            </span>
+                                            {c.isPrimary && (
+                                              <Badge variant="outline" className="text-xs">Principale</Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-wrap gap-3 text-sm">
+                                            {c.cellulare && (
+                                              <a 
+                                                href={`tel:${c.cellulare}`} 
+                                                className="flex items-center gap-1 text-primary hover:underline"
+                                                data-testid={`link-phone-${c.id}`}
+                                              >
+                                                <Phone className="w-4 h-4" />
+                                                {c.cellulare}
+                                              </a>
+                                            )}
+                                            {c.whatsapp && (
+                                              <a 
+                                                href={`https://wa.me/${c.whatsapp.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1 text-green-600 hover:underline"
+                                                data-testid={`link-whatsapp-${c.id}`}
+                                              >
+                                                <MessageCircle className="w-4 h-4" />
+                                                WhatsApp
+                                              </a>
+                                            )}
+                                            {c.email && (
+                                              <a 
+                                                href={`mailto:${c.email}`} 
+                                                className="flex items-center gap-1 text-primary hover:underline"
+                                                data-testid={`link-email-${c.id}`}
+                                              >
+                                                <Mail className="w-4 h-4" />
+                                                {c.email}
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Sezione Dettagli Evento */}
+                                {job && (
+                                  <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-4 space-y-3">
+                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                      <FileText className="w-4 h-4 text-amber-600" />
+                                      Dettagli Evento
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                      {/* Orario e Location Cerimonia */}
+                                      {(job.oraCerimonia || job.locationCerimonia || job.jobDataValues?.oraCerimonia || job.jobDataValues?.locationCerimonia) && (
+                                        <div className="bg-background rounded-lg p-3 border">
+                                          <div className="text-xs font-medium text-muted-foreground uppercase mb-2">Cerimonia</div>
+                                          {(job.oraCerimonia || job.jobDataValues?.oraCerimonia) && (
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <Clock className="w-4 h-4 text-muted-foreground" />
+                                              <span className="font-medium">{job.oraCerimonia || job.jobDataValues?.oraCerimonia}</span>
+                                            </div>
+                                          )}
+                                          {(job.locationCerimonia || job.jobDataValues?.locationCerimonia) && (
+                                            <div className="flex items-start gap-2">
+                                              <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                              <div>
+                                                <span>{job.locationCerimonia || job.jobDataValues?.locationCerimonia}</span>
+                                                <a 
+                                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.locationCerimonia || job.jobDataValues?.locationCerimonia || '')}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="ml-2 text-primary hover:underline text-xs"
+                                                >
+                                                  Maps
+                                                </a>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Orario e Location Ricevimento */}
+                                      {(job.oraRicevimento || job.locationRicevimento || job.jobDataValues?.oraRicevimento || job.jobDataValues?.locationRicevimento) && (
+                                        <div className="bg-background rounded-lg p-3 border">
+                                          <div className="text-xs font-medium text-muted-foreground uppercase mb-2">Ricevimento</div>
+                                          {(job.oraRicevimento || job.jobDataValues?.oraRicevimento) && (
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <Clock className="w-4 h-4 text-muted-foreground" />
+                                              <span className="font-medium">{job.oraRicevimento || job.jobDataValues?.oraRicevimento}</span>
+                                            </div>
+                                          )}
+                                          {(job.locationRicevimento || job.jobDataValues?.locationRicevimento) && (
+                                            <div className="flex items-start gap-2">
+                                              <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                                              <div>
+                                                <span>{job.locationRicevimento || job.jobDataValues?.locationRicevimento}</span>
+                                                <a 
+                                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.locationRicevimento || job.jobDataValues?.locationRicevimento || '')}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="ml-2 text-primary hover:underline text-xs"
+                                                >
+                                                  Maps
+                                                </a>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Altri dati evento (jobDataValues) */}
+                                    {job.jobDataValues && Object.keys(job.jobDataValues).length > 0 && (
+                                      <div className="pt-2">
+                                        <div className="text-xs font-medium text-muted-foreground uppercase mb-2">Altri Dati Evento</div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                          {Object.entries(job.jobDataValues)
+                                            .filter(([key]) => !['oraCerimonia', 'locationCerimonia', 'oraRicevimento', 'locationRicevimento'].includes(key))
+                                            .map(([key, value]) => (
+                                              value && (
+                                                <div key={key} className="flex justify-between bg-background rounded p-2 border">
+                                                  <span className="text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                                                  <span className="font-medium text-right">{String(value)}</span>
+                                                </div>
+                                              )
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Note */}
+                                    {job.note && (
+                                      <div className="pt-2">
+                                        <div className="text-xs font-medium text-muted-foreground uppercase mb-1">Note</div>
+                                        <div className="bg-background rounded-lg p-3 border text-sm">
+                                          {job.note}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </CollapsibleContent>
+                            </Collapsible>
                           </div>
 
                           {assignment.status === 'pending' && (
@@ -505,7 +669,7 @@ export default function CollaboratoreDashboard() {
                       (a.pagamenti || []).map((pag: CollaboratorPayment) => ({
                         ...pag,
                         jobId: a.jobId,
-                        jobName: a.job?.title || a.job?.clientName || `Job #${a.jobId.slice(0, 8)}`,
+                        jobName: a.job?.nomeEvento || `Job #${a.jobId.slice(0, 8)}`,
                       }))
                     )
                     .sort((a: CollaboratorPayment & { jobId: string; jobName: string }, b: CollaboratorPayment & { jobId: string; jobName: string }) => (convertFirestoreTimestamp(b.data)?.getTime() || 0) - (convertFirestoreTimestamp(a.data)?.getTime() || 0))

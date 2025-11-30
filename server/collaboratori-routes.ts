@@ -1458,34 +1458,129 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
       .orderBy('dataRichiesta', 'desc')
       .get();
     
-    // Per ogni assegnazione, recupera i dati del job e del cliente
+    // Per ogni assegnazione, recupera i dati del job e dei clienti
     const assignments = await Promise.all(
       assignmentsSnapshot.docs.map(async (assignmentDoc) => {
         const assignment = assignmentDoc.data();
         const jobDoc = await db.collection('jobs').doc(assignment.jobId).get();
-        const jobData = jobDoc.exists ? { id: jobDoc.id, ...jobDoc.data() } : null;
+        const rawJobData = jobDoc.exists ? jobDoc.data() : null;
         
-        // Recupera dati cliente se presente clienteId nel job
-        let cliente = null;
-        if (jobData && (jobData as any).clienteId) {
-          const clienteDoc = await db.collection('clienti').doc((jobData as any).clienteId).get();
+        // Prepara dati job con campi rilevanti per il collaboratore
+        let jobData: any = null;
+        if (rawJobData) {
+          jobData = {
+            id: jobDoc.id,
+            nomeEvento: rawJobData.nomeEvento,
+            eventDate: rawJobData.eventDate,
+            eventLocation: rawJobData.eventLocation,
+            jobType: rawJobData.jobType,
+            stato: rawJobData.stato,
+            note: rawJobData.note,
+            // Dati evento compilati (orario cerimonia, location rito, ecc.)
+            jobDataValues: rawJobData.jobDataValues || {},
+            // Altri campi utili
+            locationRicevimento: rawJobData.locationRicevimento,
+            oraRicevimento: rawJobData.oraRicevimento,
+            oraCerimonia: rawJobData.oraCerimonia,
+            locationCerimonia: rawJobData.locationCerimonia,
+          };
+        }
+        
+        // Recupera TUTTI i clienti collegati al job
+        const clienti: any[] = [];
+        
+        // Cliente principale
+        if (rawJobData?.clienteId) {
+          const clienteDoc = await db.collection('clienti').doc(rawJobData.clienteId).get();
           if (clienteDoc.exists) {
             const clienteData = clienteDoc.data();
-            cliente = {
+            clienti.push({
               id: clienteDoc.id,
               nome: clienteData?.nome,
               cognome: clienteData?.cognome,
               email: clienteData?.email,
               cellulare: clienteData?.cellulare,
-            };
+              whatsapp: clienteData?.whatsapp,
+              isPrimary: true,
+            });
           }
         }
+        
+        // Clienti secondari da clientiIds (se presenti)
+        const processedClientIds = new Set<string>();
+        if (rawJobData?.clienteId) processedClientIds.add(rawJobData.clienteId);
+        
+        if (rawJobData?.clientiIds && Array.isArray(rawJobData.clientiIds)) {
+          for (const clienteId of rawJobData.clientiIds) {
+            if (!processedClientIds.has(clienteId)) {
+              processedClientIds.add(clienteId);
+              const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+              if (clienteDoc.exists) {
+                const clienteData = clienteDoc.data();
+                clienti.push({
+                  id: clienteDoc.id,
+                  nome: clienteData?.nome,
+                  cognome: clienteData?.cognome,
+                  email: clienteData?.email,
+                  cellulare: clienteData?.cellulare,
+                  whatsapp: clienteData?.whatsapp,
+                  isPrimary: false,
+                });
+              }
+            }
+          }
+        }
+        
+        // Clienti da clientiRefs (se presenti)
+        if (rawJobData?.clientiRefs && Array.isArray(rawJobData.clientiRefs)) {
+          for (const ref of rawJobData.clientiRefs) {
+            const clienteId = typeof ref === 'string' ? ref : ref?.id;
+            if (clienteId && !processedClientIds.has(clienteId)) {
+              processedClientIds.add(clienteId);
+              const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+              if (clienteDoc.exists) {
+                const clienteData = clienteDoc.data();
+                clienti.push({
+                  id: clienteDoc.id,
+                  nome: clienteData?.nome,
+                  cognome: clienteData?.cognome,
+                  email: clienteData?.email,
+                  cellulare: clienteData?.cellulare,
+                  whatsapp: clienteData?.whatsapp,
+                  isPrimary: false,
+                });
+              }
+            }
+          }
+        }
+        
+        // Clienti embedded in clientiData (se presenti)
+        if (rawJobData?.clientiData && Array.isArray(rawJobData.clientiData)) {
+          for (const embeddedCliente of rawJobData.clientiData) {
+            if (embeddedCliente && embeddedCliente.id && !processedClientIds.has(embeddedCliente.id)) {
+              processedClientIds.add(embeddedCliente.id);
+              clienti.push({
+                id: embeddedCliente.id,
+                nome: embeddedCliente.nome,
+                cognome: embeddedCliente.cognome,
+                email: embeddedCliente.email,
+                cellulare: embeddedCliente.cellulare,
+                whatsapp: embeddedCliente.whatsapp,
+                isPrimary: false,
+              });
+            }
+          }
+        }
+        
+        // Mantiene anche il singolo cliente per retrocompatibilità
+        const cliente = clienti.length > 0 ? clienti[0] : null;
         
         return {
           id: assignmentDoc.id,
           ...assignment,
           job: jobData,
-          cliente
+          cliente,
+          clienti, // Array con tutti i clienti
         };
       })
     );
