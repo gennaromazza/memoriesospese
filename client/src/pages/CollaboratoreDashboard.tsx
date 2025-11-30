@@ -62,6 +62,7 @@ export default function CollaboratoreDashboard() {
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState('');
+  const [processingAssignmentId, setProcessingAssignmentId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['collaborator-dashboard', token],
@@ -71,27 +72,37 @@ export default function CollaboratoreDashboard() {
 
   const acceptMutation = useMutation({
     mutationFn: (assignmentId: string) => respondToAssignmentPublic(assignmentId, 'accept'),
+    onMutate: (assignmentId) => {
+      setProcessingAssignmentId(assignmentId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collaborator-dashboard', token] });
       toast({ title: '✅ Lavoro accettato con successo!' });
+      setProcessingAssignmentId(null);
     },
     onError: () => {
       toast({ title: '❌ Errore durante l\'accettazione', variant: 'destructive' });
+      setProcessingAssignmentId(null);
     }
   });
 
   const declineMutation = useMutation({
     mutationFn: ({ assignmentId, note }: { assignmentId: string; note: string }) => 
       respondToAssignmentPublic(assignmentId, 'decline', note),
+    onMutate: ({ assignmentId }) => {
+      setProcessingAssignmentId(assignmentId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collaborator-dashboard', token] });
       toast({ title: 'Lavoro rifiutato' });
       setDeclineDialogOpen(false);
       setDeclineNote('');
       setSelectedAssignmentId(null);
+      setProcessingAssignmentId(null);
     },
     onError: () => {
       toast({ title: '❌ Errore durante il rifiuto', variant: 'destructive' });
+      setProcessingAssignmentId(null);
     }
   });
 
@@ -248,6 +259,7 @@ export default function CollaboratoreDashboard() {
                     <TableHead>Pagato</TableHead>
                     <TableHead>Residuo</TableHead>
                     <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -278,6 +290,41 @@ export default function CollaboratoreDashboard() {
                           <Badge variant={STATUS_LABELS[assignment.status].variant}>
                             {STATUS_LABELS[assignment.status].label}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {assignment.status === 'pending' ? (
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => acceptMutation.mutate(assignment.id)}
+                                disabled={processingAssignmentId !== null}
+                                data-testid={`button-accept-${assignment.id}`}
+                              >
+                                {processingAssignmentId === assignment.id && acceptMutation.isPending ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4 mr-1" />
+                                    Accetta
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDecline(assignment.id)}
+                                disabled={processingAssignmentId !== null}
+                                data-testid={`button-decline-${assignment.id}`}
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                Rifiuta
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -336,6 +383,51 @@ export default function CollaboratoreDashboard() {
             </CardContent>
           </Card>
         )}
+        
+        <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Conferma Rifiuto</DialogTitle>
+              <DialogDescription>
+                Stai rifiutando questo lavoro. Puoi indicare un motivo (opzionale).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Textarea
+                placeholder="Motivo del rifiuto (opzionale)..."
+                value={declineNote}
+                onChange={(e) => setDeclineNote(e.target.value)}
+                rows={3}
+                data-testid="textarea-decline-note"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeclineDialogOpen(false);
+                  setDeclineNote('');
+                  setSelectedAssignmentId(null);
+                }}
+              >
+                Annulla
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDecline}
+                disabled={declineMutation.isPending}
+                data-testid="button-confirm-decline"
+              >
+                {declineMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <X className="w-4 h-4 mr-2" />
+                )}
+                Conferma Rifiuto
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
