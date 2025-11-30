@@ -136,6 +136,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
       addPaymentToAssignment(assignmentId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
       toast({ title: '✅ Pagamento registrato e movimento cassa creato' });
       setIsPaymentModalOpen(false);
       setSelectedAssignment(null);
@@ -156,6 +157,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     mutationFn: removeAssignment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
       toast({ title: '✅ Collaboratore rimosso dal lavoro' });
     },
     onError: () => {
@@ -282,8 +284,8 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     .reduce((sum, a) => sum + a.compenso, 0);
 
   const totalePagato = assignments
-    .filter((a) => a.status === 'accepted' && a.isPagato)
-    .reduce((sum, a) => sum + a.compenso, 0);
+    .filter((a) => a.status === 'accepted')
+    .reduce((sum, a) => sum + (a.pagamenti?.reduce((pSum, p) => pSum + p.importo, 0) || 0), 0);
 
   return (
     <Card>

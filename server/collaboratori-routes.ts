@@ -637,7 +637,7 @@ router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', async (r
 
 /**
  * DELETE /api/collaboratori/assignments/:id
- * Rimuovi assegnazione collaboratore
+ * Rimuovi assegnazione collaboratore e movimenti cassa associati
  */
 router.delete('/collaboratori/assignments/:id', async (req, res) => {
   try {
@@ -647,6 +647,24 @@ router.delete('/collaboratori/assignments/:id', async (req, res) => {
     
     if (!assignmentDoc.exists) {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    
+    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+    
+    // Elimina movimenti cassa associati ai pagamenti
+    if (assignment.pagamenti && assignment.pagamenti.length > 0) {
+      const cashMovementIds = assignment.pagamenti
+        .map(p => p.cashMovementId)
+        .filter(Boolean);
+      
+      if (cashMovementIds.length > 0) {
+        const batch = db.batch();
+        for (const cashMovementId of cashMovementIds) {
+          batch.delete(db.collection('cashMovements').doc(cashMovementId));
+        }
+        await batch.commit();
+        console.log(`🗑️ Eliminati ${cashMovementIds.length} movimenti cassa associati`);
+      }
     }
     
     await db.collection('jobCollaboratoreAssignments').doc(id).delete();
