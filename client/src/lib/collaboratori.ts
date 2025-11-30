@@ -191,6 +191,34 @@ export async function generateDashboardToken(collaboratoreId: string): Promise<s
 }
 
 /**
+ * Modifica compenso assegnazione con notifica email opzionale
+ */
+export async function updateAssignmentCompenso(
+  assignmentId: string,
+  compenso: number,
+  noteModifica?: string,
+  sendEmail: boolean = true,
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "PATCH",
+      `/api/collaboratori/assignments/${assignmentId}/compenso`,
+      { compenso, noteModifica, sendEmail },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore aggiornamento compenso");
+    }
+
+    console.log("✅ Compenso aggiornato:", assignmentId);
+  } catch (error) {
+    console.error("❌ Errore aggiornamento compenso:", error);
+    throw error;
+  }
+}
+
+/**
  * Get assegnazioni per job
  */
 export async function getJobAssignments(

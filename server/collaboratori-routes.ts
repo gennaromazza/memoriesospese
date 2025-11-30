@@ -681,10 +681,10 @@ router.patch('/collaboratori/assignments/:id/compenso', async (req, res) => {
     const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
     const vecchioCompenso = assignment.compenso || 0;
     
-    // Ricalcola saldo residuo
+    // Ricalcola saldo residuo (minimo 0 per evitare valori negativi)
     const totalePagato = (assignment.pagamenti || []).reduce((sum, p) => sum + p.importo, 0);
-    const nuovoSaldoResiduo = compenso - totalePagato;
-    const isPagato = nuovoSaldoResiduo <= 0;
+    const nuovoSaldoResiduo = Math.max(0, compenso - totalePagato);
+    const isPagato = compenso > 0 && nuovoSaldoResiduo <= 0;
     
     // Aggiorna assegnazione
     await db.collection('jobCollaboratoreAssignments').doc(id).update({

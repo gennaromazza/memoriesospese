@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard } from 'lucide-react';
+import { Plus, Check, X, Euro, Clock, Calendar, Trash2, Link2, CreditCard, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,7 @@ import {
   addPaymentToAssignment,
   removeAssignment,
   generateDashboardToken,
+  updateAssignmentCompenso,
 } from '@/lib/collaboratori';
 import type {
   Collaboratore,
@@ -91,6 +92,13 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     metodo: 'bonifico' as PaymentMethod,
     note: '',
     data: new Date().toISOString().split('T')[0],
+  });
+  const [isEditCompensoModalOpen, setIsEditCompensoModalOpen] = useState(false);
+  const [editCompensoData, setEditCompensoData] = useState({
+    assignmentId: '',
+    compenso: 0,
+    noteModifica: '',
+    sendEmail: true,
   });
 
   const { data: collaboratori = [] } = useQuery({
@@ -152,6 +160,20 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     },
     onError: () => {
       toast({ title: '❌ Errore rimozione collaboratore', variant: 'destructive' });
+    },
+  });
+
+  const updateCompensoMutation = useMutation({
+    mutationFn: ({ assignmentId, compenso, noteModifica, sendEmail }: { assignmentId: string; compenso: number; noteModifica: string; sendEmail: boolean }) =>
+      updateAssignmentCompenso(assignmentId, compenso, noteModifica, sendEmail),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      toast({ title: editCompensoData.sendEmail ? '✅ Compenso aggiornato e collaboratore notificato' : '✅ Compenso aggiornato' });
+      setIsEditCompensoModalOpen(false);
+      setEditCompensoData({ assignmentId: '', compenso: 0, noteModifica: '', sendEmail: true });
+    },
+    onError: () => {
+      toast({ title: '❌ Errore aggiornamento compenso', variant: 'destructive' });
     },
   });
 
@@ -235,6 +257,21 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     }
   };
 
+  const handleOpenEditCompensoModal = (assignment: JobCollaboratoreAssignment) => {
+    setEditCompensoData({
+      assignmentId: assignment.id,
+      compenso: assignment.compenso,
+      noteModifica: '',
+      sendEmail: true,
+    });
+    setIsEditCompensoModalOpen(true);
+  };
+
+  const handleSubmitEditCompenso = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateCompensoMutation.mutate(editCompensoData);
+  };
+
   const getCollaboratoreNome = (id: string) => {
     const collab = collaboratori.find((c) => c.id === id);
     return collab ? `${collab.cognome} ${collab.nome}` : 'N/D';
@@ -292,7 +329,21 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="font-semibold">€{assignment.compenso}</div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold">
+                            {assignment.compenso > 0 ? `€${assignment.compenso}` : 'Da definire'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() => handleOpenEditCompensoModal(assignment)}
+                            title="Modifica compenso"
+                            data-testid={`button-edit-compenso-${assignment.id}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {assignment.tipoPagamento === 'orario' &&
                             `${assignment.oreStimate}h x €${
@@ -324,36 +375,36 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                       )}
                     </TableCell>
                     <TableCell>
-                      {assignment.status === 'accepted' && (
-                        <div className="space-y-2">
-                          <div className="text-sm">
-                            <div className="font-semibold text-green-600">
-                              Pagato: €{assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0).toFixed(2) || '0.00'}
-                            </div>
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          <div className="font-semibold text-green-600">
+                            Pagato: €{assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0).toFixed(2) || '0.00'}
+                          </div>
+                          {assignment.compenso > 0 && (
                             <div className="font-semibold text-orange-600">
                               Residuo: €{(assignment.saldoResiduo ?? assignment.compenso).toFixed(2)}
                             </div>
-                          </div>
-                          {assignment.pagamenti && assignment.pagamenti.length > 0 && (
-                            <div className="text-xs text-muted-foreground space-y-1">
-                              {assignment.pagamenti.slice(0, 2).map((pag) => (
-                                <div key={pag.id}>
-                                  {format(pag.data.toDate(), 'dd/MM/yy', { locale: it })} - €{pag.importo} ({pag.metodo})
-                                </div>
-                              ))}
-                            </div>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenPaymentModal(assignment)}
-                            data-testid={`button-registra-pagamento-${assignment.id}`}
-                          >
-                            <CreditCard className="w-3 h-3 mr-1" />
-                            Registra Pag
-                          </Button>
                         </div>
-                      )}
+                        {assignment.pagamenti && assignment.pagamenti.length > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            {assignment.pagamenti.slice(0, 2).map((pag) => (
+                              <div key={pag.id}>
+                                {format(pag.data.toDate(), 'dd/MM/yy', { locale: it })} - €{pag.importo} ({pag.metodo})
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenPaymentModal(assignment)}
+                          data-testid={`button-registra-pagamento-${assignment.id}`}
+                        >
+                          <CreditCard className="w-3 h-3 mr-1" />
+                          {assignment.status === 'accepted' ? 'Registra Pag' : 'Acconto'}
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -503,6 +554,71 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                 </Button>
                 <Button type="submit" disabled={addPaymentMutation.isPending} data-testid="button-submit-pagamento">
                   {addPaymentMutation.isPending ? 'Registrazione...' : 'Registra Pagamento'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditCompensoModalOpen} onOpenChange={setIsEditCompensoModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Modifica Compenso</DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSubmitEditCompenso} className="space-y-4">
+              <div>
+                <Label htmlFor="editCompenso">Nuovo Compenso (€) *</Label>
+                <Input
+                  id="editCompenso"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editCompensoData.compenso}
+                  onChange={(e) =>
+                    setEditCompensoData({ ...editCompensoData, compenso: parseFloat(e.target.value) || 0 })
+                  }
+                  required
+                  data-testid="input-edit-compenso"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="noteModifica">Note (opzionale)</Label>
+                <Textarea
+                  id="noteModifica"
+                  placeholder="Es: Aggiornato dopo accordo con collaboratore"
+                  value={editCompensoData.noteModifica}
+                  onChange={(e) =>
+                    setEditCompensoData({ ...editCompensoData, noteModifica: e.target.value })
+                  }
+                  rows={2}
+                  data-testid="textarea-note-modifica"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="sendEmail"
+                  checked={editCompensoData.sendEmail}
+                  onChange={(e) =>
+                    setEditCompensoData({ ...editCompensoData, sendEmail: e.target.checked })
+                  }
+                  className="rounded border-gray-300"
+                  data-testid="checkbox-send-email"
+                />
+                <Label htmlFor="sendEmail" className="text-sm font-normal">
+                  Notifica il collaboratore via email
+                </Label>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditCompensoModalOpen(false)}>
+                  Annulla
+                </Button>
+                <Button type="submit" disabled={updateCompensoMutation.isPending} data-testid="button-submit-edit-compenso">
+                  {updateCompensoMutation.isPending ? 'Aggiornamento...' : 'Salva Compenso'}
                 </Button>
               </div>
             </form>
