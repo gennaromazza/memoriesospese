@@ -5,7 +5,7 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp, Timestamp, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { getAllClienti, updateCliente, createCliente } from "@/lib/clienti";
@@ -706,6 +706,45 @@ export default function AdminLegacyImporter() {
       if (operations > 0) {
         await batch.commit();
       }
+      
+      // FASE CRITICA: Sincronizza sourceRefs.jobIds per tutti i clienti coinvolti
+      // Questo assicura che le statistiche cliente mostrino correttamente i job legacy
+      console.log('📊 Sincronizzazione sourceRefs.jobIds per job importati...');
+      
+      // Raggruppa jobIds per clienteId
+      const clienteJobsMap = new Map<string, string[]>();
+      for (const job of legacyData.jobs) {
+        const mappedClientiIds = job.clientiIds.map((oldId) => idMap.get(oldId) || oldId);
+        for (const clienteId of mappedClientiIds) {
+          if (!clienteJobsMap.has(clienteId)) {
+            clienteJobsMap.set(clienteId, []);
+          }
+          clienteJobsMap.get(clienteId)!.push(job.id);
+        }
+      }
+      
+      // Aggiorna ogni cliente con i suoi jobIds usando arrayUnion
+      let clientiUpdatedWithJobs = 0;
+      const updatePromises: Promise<void>[] = [];
+      
+      for (const [clienteId, jobIds] of clienteJobsMap) {
+        const promise = (async () => {
+          try {
+            const clienteRef = doc(db, 'clienti', clienteId);
+            await updateDoc(clienteRef, {
+              'sourceRefs.jobIds': arrayUnion(...jobIds),
+              updatedAt: serverTimestamp()
+            });
+            clientiUpdatedWithJobs++;
+          } catch (error) {
+            console.warn(`⚠️ Impossibile aggiornare sourceRefs per cliente ${clienteId}:`, error);
+          }
+        })();
+        updatePromises.push(promise);
+      }
+      
+      await Promise.all(updatePromises);
+      console.log(`✅ Sincronizzati sourceRefs.jobIds per ${clientiUpdatedWithJobs} clienti`);
       
       setImportResult({
         clientiCreated,

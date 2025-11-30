@@ -1121,12 +1121,12 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
     
     if (clienteDoc.exists) {
       const currentSourceRefs = clienteDoc.data()?.sourceRefs || {};
-      const bookingIds = currentSourceRefs.bookingIds || [];
+      const jobIds = currentSourceRefs.jobIds || [];
       
-      // Aggiungi jobId a bookingIds se non già presente
-      if (!bookingIds.includes(jobId)) {
+      // Aggiungi jobId a jobIds se non già presente
+      if (!jobIds.includes(jobId)) {
         await clienteRef.update({
-          'sourceRefs.bookingIds': [...bookingIds, jobId],
+          'sourceRefs.jobIds': [...jobIds, jobId],
           'lifecycle.lastInteractionAt': Timestamp.now(),
           updatedAt: Timestamp.now(),
         });
