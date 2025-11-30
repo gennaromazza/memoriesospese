@@ -159,6 +159,37 @@ export default function ImportDataPage() {
     }
   };
 
+  const syncClientJobRefs = async () => {
+    if (!confirm('Questa operazione sincronizzerà i riferimenti ai lavori per tutti i clienti. Vuoi procedere?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiRequest('POST', '/api/import/sync-client-jobrefs');
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
+        throw new Error(errorData.error || 'Errore nella sincronizzazione');
+      }
+
+      const data = await response.json();
+      
+      toast({
+        title: 'Sincronizzazione completata',
+        description: `${data.clientiAggiornati} clienti aggiornati con i riferimenti ai lavori`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Errore nella sincronizzazione',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const executeImport = async (mappings?: JobTypeMapping[]) => {
     if (!selectedFile) {
       toast({
@@ -347,16 +378,32 @@ export default function ImportDataPage() {
                   {loading ? 'Caricamento...' : 'Carica Preview Dati Excel'}
                 </Button>
                 
-                <Button
-                  onClick={deleteLegacyJobs}
-                  disabled={loading}
-                  variant="destructive"
-                  data-testid="button-delete-legacy"
-                  className="w-full"
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Cancella Job Legacy Importati
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={deleteLegacyJobs}
+                    disabled={loading}
+                    variant="destructive"
+                    data-testid="button-delete-legacy"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancella Job Legacy
+                  </Button>
+                  
+                  <Button
+                    onClick={syncClientJobRefs}
+                    disabled={loading}
+                    variant="outline"
+                    data-testid="button-sync-refs"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/20"
+                  >
+                    <Layers className="h-4 w-4 mr-2" />
+                    Sincronizza Riferimenti Clienti
+                  </Button>
+                </div>
+                
+                <p className="text-xs text-muted-foreground">
+                  Usa "Sincronizza Riferimenti Clienti" per aggiornare le statistiche dei clienti con i lavori già importati.
+                </p>
               </CardContent>
             </Card>
           </>

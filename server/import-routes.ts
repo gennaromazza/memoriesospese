@@ -1183,4 +1183,92 @@ router.delete('/delete-legacy', authenticateFirebase, async (req: AuthRequest, r
   }
 });
 
+// POST /api/import/sync-client-jobrefs - Sincronizza sourceRefs.jobIds per tutti i clienti
+// Utile per riparare dati legacy importati prima del fix
+router.post('/sync-client-jobrefs', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.user!;
+    
+    if (email !== 'gennaro.mazzacane@gmail.com') {
+      return res.status(403).json({ error: 'Solo gli amministratori possono eseguire la sincronizzazione' });
+    }
+
+    const firestore = db;
+    
+    console.log('🔄 Avvio sincronizzazione sourceRefs.jobIds...');
+    
+    // 1. Leggi tutti i job
+    const jobsSnapshot = await firestore.collection('jobs').get();
+    console.log(`📊 Trovati ${jobsSnapshot.size} job totali`);
+    
+    // 2. Crea mappa cliente -> jobIds
+    const clienteJobsMap = new Map<string, Set<string>>();
+    
+    jobsSnapshot.docs.forEach(doc => {
+      const job = doc.data();
+      const jobId = doc.id;
+      const clientiIds = job.clientiIds || [];
+      
+      for (const clienteId of clientiIds) {
+        if (!clienteJobsMap.has(clienteId)) {
+          clienteJobsMap.set(clienteId, new Set());
+        }
+        clienteJobsMap.get(clienteId)!.add(jobId);
+      }
+    });
+    
+    console.log(`👥 Trovati ${clienteJobsMap.size} clienti con job associati`);
+    
+    // 3. Aggiorna ogni cliente
+    let clientiAggiornati = 0;
+    let clientiNonTrovati = 0;
+    let errori = 0;
+    
+    for (const [clienteId, jobIdsSet] of clienteJobsMap) {
+      try {
+        const clienteRef = firestore.collection('clienti').doc(clienteId);
+        const clienteDoc = await clienteRef.get();
+        
+        if (!clienteDoc.exists) {
+          clientiNonTrovati++;
+          console.warn(`⚠️ Cliente ${clienteId} non trovato`);
+          continue;
+        }
+        
+        const currentSourceRefs = clienteDoc.data()?.sourceRefs || {};
+        const currentJobIds = new Set(currentSourceRefs.jobIds || []);
+        const newJobIds = Array.from(new Set([...currentJobIds, ...jobIdsSet]));
+        
+        // Aggiorna solo se ci sono nuovi jobIds da aggiungere
+        if (newJobIds.length > currentJobIds.size) {
+          await clienteRef.update({
+            'sourceRefs.jobIds': newJobIds,
+            updatedAt: Timestamp.now(),
+          });
+          clientiAggiornati++;
+          console.log(`✅ Cliente ${clienteId}: ${currentJobIds.size} → ${newJobIds.length} jobIds`);
+        }
+      } catch (error: any) {
+        errori++;
+        console.error(`❌ Errore aggiornamento cliente ${clienteId}:`, error.message);
+      }
+    }
+    
+    console.log(`🎉 Sincronizzazione completata: ${clientiAggiornati} clienti aggiornati, ${clientiNonTrovati} non trovati, ${errori} errori`);
+    
+    res.json({
+      success: true,
+      totalJobs: jobsSnapshot.size,
+      totalClientiConJob: clienteJobsMap.size,
+      clientiAggiornati,
+      clientiNonTrovati,
+      errori,
+      message: `Sincronizzazione completata: ${clientiAggiornati} clienti aggiornati con i riferimenti ai job`,
+    });
+  } catch (error: any) {
+    console.error('Error syncing client job refs:', error);
+    res.status(500).json({ error: error.message || 'Errore nella sincronizzazione' });
+  }
+});
+
 export default router;
