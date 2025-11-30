@@ -145,6 +145,35 @@ export async function assignCollaboratoreToJob(
 }
 
 /**
+ * Aggiorna prodotti e mansioni assegnate
+ */
+export async function updateAssignmentProductsTasks(
+  assignmentId: string,
+  data: {
+    prodottiAssegnati?: Array<{ orderItemId: string; label: string; qty?: number }>;
+    mansioniAssegnate?: string[];
+  }
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "PATCH",
+      `/api/collaboratori/assignments/${assignmentId}/products-tasks`,
+      data
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore aggiornamento assegnazione");
+    }
+
+    console.log("✅ Prodotti/mansioni aggiornati per assegnazione:", assignmentId);
+  } catch (error) {
+    console.error("❌ Errore aggiornamento prodotti/mansioni:", error);
+    throw error;
+  }
+}
+
+/**
  * Rimuovi assegnazione collaboratore da job
  */
 export async function removeAssignment(assignmentId: string): Promise<void> {

@@ -839,6 +839,43 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
 });
 
 /**
+ * PATCH /api/collaboratori/assignments/:id/products-tasks
+ * Aggiorna prodotti e mansioni assegnate
+ */
+router.patch('/collaboratori/assignments/:id/products-tasks', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prodottiAssegnati, mansioniAssegnate } = req.body;
+    
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    
+    const updateData: any = {
+      updatedAt: Timestamp.now()
+    };
+    
+    if (prodottiAssegnati !== undefined) {
+      updateData.prodottiAssegnati = prodottiAssegnati;
+    }
+    
+    if (mansioniAssegnate !== undefined) {
+      updateData.mansioniAssegnate = mansioniAssegnate;
+    }
+    
+    await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);
+    
+    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    res.json({ id: updated.id, ...updated.data() });
+  } catch (error: any) {
+    console.error('❌ Error updating assignment products/tasks:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/collaboratori/assignments/job/:jobId
  * Ottieni assegnazioni per job
  */
