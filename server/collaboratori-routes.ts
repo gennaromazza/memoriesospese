@@ -312,6 +312,261 @@ async function sendCollaboratorWelcomeEmail(
 }
 
 /**
+ * Invia email notifica pagamento registrato
+ */
+async function sendPaymentRegisteredEmail(
+  req: express.Request,
+  collaboratore: any,
+  jobNome: string,
+  dataJob: string,
+  importo: number,
+  tipoPagamento: 'acconto' | 'saldo',
+  metodoPagamento: string,
+  totalePagato: number,
+  saldoResiduo: number,
+  note?: string
+): Promise<void> {
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, email pagamento non inviata');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+  
+  const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const metodiLabels: Record<string, string> = {
+    contante: 'Contante',
+    carta: 'Carta',
+    bonifico: 'Bonifico',
+    paypal: 'PayPal',
+    altro: 'Altro'
+  };
+
+  const metodoLabel = metodiLabels[metodoPagamento] || metodoPagamento;
+  const tipoLabel = tipoPagamento === 'acconto' ? 'Acconto' : 'Saldo';
+  const isComplete = saldoResiduo <= 0;
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #28a745 0%, #20963d 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Pagamento Registrato
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #28a745;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Ti confermiamo la registrazione di un pagamento per il seguente lavoro:
+        </p>
+        
+        <div style="background: #f0fdf4; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #28a745;">
+          <h2 style="color: #28a745; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+            ${jobNome}
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 150px;">Data evento:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataJob}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Tipo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${tipoLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Importo:</td>
+              <td style="padding: 8px 0; color: #28a745; font-size: 18px; font-weight: 700;">+€${importo.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Metodo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${metodoLabel}</td>
+            </tr>
+            ${note ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Note:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${note}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        <div style="background: ${isComplete ? '#dcfce7' : '#fef3c7'}; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 5px 0; color: #666; font-size: 14px;">Totale ricevuto:</td>
+              <td style="padding: 5px 0; color: #28a745; font-size: 14px; font-weight: 600; text-align: right;">€${totalePagato.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 5px 0; color: #666; font-size: 14px;">Saldo residuo:</td>
+              <td style="padding: 5px 0; color: ${isComplete ? '#28a745' : '#f59e0b'}; font-size: 14px; font-weight: 600; text-align: right;">€${saldoResiduo.toFixed(2)}</td>
+            </tr>
+          </table>
+          ${isComplete ? `
+          <p style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #bbf7d0; font-size: 14px; color: #166534; font-weight: 600; text-align: center;">
+            Pagamento completato!
+          </p>
+          ` : ''}
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+          <p style="font-size: 14px; color: #333; margin: 0 0 15px 0;">
+            Visualizza tutti i dettagli nella tua dashboard:
+          </p>
+          
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20963d 100%); 
+                    color: #ffffff; padding: 14px 35px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 14px;">
+            Vai alla Dashboard
+          </a>
+        </div>
+        ` : ''}
+        
+        <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+          Grazie per la collaborazione!<br>
+          <strong style="color: #28a745;">${studioInfo.name}</strong>
+        </p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+        <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+        <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail(
+    collaboratore.email,
+    `Pagamento Registrato: ${jobNome} | ${studioInfo.name}`,
+    htmlContent
+  );
+  
+  console.log(`✅ Email pagamento registrato inviata a ${collaboratore.email}`);
+}
+
+/**
+ * Invia email notifica pagamento eliminato
+ */
+async function sendPaymentDeletedEmail(
+  req: express.Request,
+  collaboratore: any,
+  jobNome: string,
+  dataJob: string,
+  importoEliminato: number,
+  tipoPagamento: 'acconto' | 'saldo',
+  nuovoSaldoResiduo: number
+): Promise<void> {
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, email eliminazione pagamento non inviata');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+  
+  const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const tipoLabel = tipoPagamento === 'acconto' ? 'Acconto' : 'Saldo';
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Pagamento Rimosso
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #dc2626;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Ti informiamo che un pagamento relativo al seguente lavoro e stato rimosso:
+        </p>
+        
+        <div style="background: #fef2f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #dc2626;">
+          <h2 style="color: #dc2626; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+            ${jobNome}
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 150px;">Data evento:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataJob}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Tipo rimosso:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${tipoLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Importo rimosso:</td>
+              <td style="padding: 8px 0; color: #dc2626; font-size: 18px; font-weight: 700;">-€${importoEliminato.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Nuovo saldo residuo:</td>
+              <td style="padding: 8px 0; color: #f59e0b; font-size: 14px; font-weight: 600;">€${nuovoSaldoResiduo.toFixed(2)}</td>
+            </tr>
+          </table>
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+          <p style="font-size: 14px; color: #333; margin: 0 0 15px 0;">
+            Visualizza tutti i dettagli nella tua dashboard:
+          </p>
+          
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%); 
+                    color: #ffffff; padding: 14px 35px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 14px;">
+            Vai alla Dashboard
+          </a>
+        </div>
+        ` : ''}
+        
+        <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+          Per qualsiasi chiarimento, contattaci.<br>
+          <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+        </p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+        <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+        <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail(
+    collaboratore.email,
+    `Pagamento Rimosso: ${jobNome} | ${studioInfo.name}`,
+    htmlContent
+  );
+  
+  console.log(`✅ Email pagamento rimosso inviata a ${collaboratore.email}`);
+}
+
+/**
  * Invia email notifica modifica compenso
  */
 async function sendCompensoModificatoEmail(
@@ -651,11 +906,22 @@ router.delete('/collaboratori/assignments/:id', async (req, res) => {
     
     const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
     
+    // Recupera dati collaboratore e job per notifica email
+    const [collaboratoreDoc, jobDoc] = await Promise.all([
+      db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
+      db.collection('jobs').doc(assignment.jobId).get()
+    ]);
+    
+    const collaboratore = collaboratoreDoc.exists ? collaboratoreDoc.data() : null;
+    const job = jobDoc.exists ? jobDoc.data() : null;
+    const nomeJob = job?.nomeEvento || 'Lavoro';
+    const totalePagamentiRimossi = assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0) || 0;
+    
     // Elimina movimenti cassa associati ai pagamenti
     if (assignment.pagamenti && assignment.pagamenti.length > 0) {
       const cashMovementIds = assignment.pagamenti
         .map(p => p.cashMovementId)
-        .filter(Boolean);
+        .filter((id): id is string => Boolean(id));
       
       if (cashMovementIds.length > 0) {
         const batch = db.batch();
@@ -664,6 +930,28 @@ router.delete('/collaboratori/assignments/:id', async (req, res) => {
         }
         await batch.commit();
         console.log(`🗑️ Eliminati ${cashMovementIds.length} movimenti cassa associati`);
+      }
+      
+      // Invia email notifica eliminazione pagamenti (fire-and-forget)
+      if (collaboratore && totalePagamentiRimossi > 0) {
+        const dataJob = job?.eventDate 
+          ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            }) 
+          : 'Data da confermare';
+        
+        sendPaymentDeletedEmail(
+          req,
+          { ...collaboratore, id: collaboratoreDoc.id },
+          nomeJob,
+          dataJob,
+          totalePagamentiRimossi,
+          'saldo',
+          assignment.compenso
+        ).catch(err => console.error('❌ Email eliminazione pagamenti fallita (non bloccante):', err));
       }
     }
     
@@ -1038,6 +1326,29 @@ router.post('/collaboratori/assignments/:id/add-payment', async (req, res) => {
       dataPagamento: isPagato ? Timestamp.now() : assignment.dataPagamento,
       updatedAt: Timestamp.now()
     });
+    
+    // Invia email notifica pagamento (fire-and-forget)
+    const dataJob = job?.eventDate 
+      ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }) 
+      : 'Data da confermare';
+    
+    sendPaymentRegisteredEmail(
+      req,
+      { ...collaboratore, id: collaboratoreDoc.id },
+      nomeJob,
+      dataJob,
+      importo,
+      tipo,
+      metodo,
+      totalePagato,
+      nuovoSaldoResiduo,
+      note
+    ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
     
     res.json({ 
       success: true,
