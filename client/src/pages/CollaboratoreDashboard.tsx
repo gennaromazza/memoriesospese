@@ -261,7 +261,7 @@ export default function CollaboratoreDashboard() {
                         <TableCell className="font-medium">
                           Job #{assignment.jobId.slice(0, 8)}
                           <div className="text-xs text-muted-foreground">
-                            {format(assignment.dataRichiesta.toDate(), 'dd/MM/yyyy', {
+                            {format(convertFirestoreTimestamp(assignment.dataRichiesta) || new Date(), 'dd/MM/yyyy', {
                               locale: it,
                             })}
                           </div>
@@ -314,11 +314,11 @@ export default function CollaboratoreDashboard() {
                         jobId: a.jobId,
                       }))
                     )
-                    .sort((a: CollaboratorPayment & { jobId: string }, b: CollaboratorPayment & { jobId: string }) => b.data.toDate().getTime() - a.data.toDate().getTime())
+                    .sort((a: CollaboratorPayment & { jobId: string }, b: CollaboratorPayment & { jobId: string }) => (convertFirestoreTimestamp(b.data)?.getTime() || 0) - (convertFirestoreTimestamp(a.data)?.getTime() || 0))
                     .map((pag: CollaboratorPayment & { jobId: string }) => (
                       <TableRow key={pag.id}>
                         <TableCell>
-                          {format(pag.data.toDate(), 'dd/MM/yyyy', { locale: it })}
+                          {format(convertFirestoreTimestamp(pag.data) || new Date(), 'dd/MM/yyyy', { locale: it })}
                         </TableCell>
                         <TableCell className="text-xs">Job #{pag.jobId.slice(0, 8)}</TableCell>
                         <TableCell>

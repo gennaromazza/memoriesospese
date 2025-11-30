@@ -1,0 +1,201 @@
+Uncaught TypeError: assignment.dataRichiesta.toDate is not a function
+    at CollaboratoreDashboard.tsx:264:62
+    at Array.map (<anonymous>)
+    at CollaboratoreDashboard (CollaboratoreDashboard.tsx:254:40)
+    at renderWithHooks (chunk-O52DP7B5.js?v=68f13e18:11548:26)
+    at updateFunctionComponent (chunk-O52DP7B5.js?v=68f13e18:14582:28)
+    at beginWork (chunk-O52DP7B5.js?v=68f13e18:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-O52DP7B5.js?v=68f13e18:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-O52DP7B5.js?v=68f13e18:3699:24)
+    at invokeGuardedCallback (chunk-O52DP7B5.js?v=68f13e18:3733:39)
+    at beginWork$1 (chunk-O52DP7B5.js?v=68f13e18:19765:15)
+(anonymous) @ CollaboratoreDashboard.tsx:264
+CollaboratoreDashboard @ CollaboratoreDashboard.tsx:254
+renderWithHooks @ chunk-O52DP7B5.js?v=68f13e18:11548
+updateFunctionComponent @ chunk-O52DP7B5.js?v=68f13e18:14582
+beginWork @ chunk-O52DP7B5.js?v=68f13e18:15924
+callCallback2 @ chunk-O52DP7B5.js?v=68f13e18:3674
+invokeGuardedCallbackDev @ chunk-O52DP7B5.js?v=68f13e18:3699
+invokeGuardedCallback @ chunk-O52DP7B5.js?v=68f13e18:3733
+beginWork$1 @ chunk-O52DP7B5.js?v=68f13e18:19765
+performUnitOfWork @ chunk-O52DP7B5.js?v=68f13e18:19198
+workLoopSync @ chunk-O52DP7B5.js?v=68f13e18:19137
+renderRootSync @ chunk-O52DP7B5.js?v=68f13e18:19116
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18874
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+(anonymous) @ chunk-O52DP7B5.js?v=68f13e18:18627
+setTimeout
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:268
+sleep @ @tanstack_react-query.js?v=68f13e18:267
+scheduleMicrotask @ @tanstack_react-query.js?v=68f13e18:272
+flush @ @tanstack_react-query.js?v=68f13e18:603
+batch @ @tanstack_react-query.js?v=68f13e18:578
+dispatch @ @tanstack_react-query.js?v=68f13e18:1004
+setData @ @tanstack_react-query.js?v=68f13e18:685
+onSuccess @ @tanstack_react-query.js?v=68f13e18:893
+resolve @ @tanstack_react-query.js?v=68f13e18:471
+Promise.then
+run @ @tanstack_react-query.js?v=68f13e18:511
+createRetryer @ @tanstack_react-query.js?v=68f13e18:541
+fetch @ @tanstack_react-query.js?v=68f13e18:881
+executeFetch @ @tanstack_react-query.js?v=68f13e18:2014
+onSubscribe @ @tanstack_react-query.js?v=68f13e18:1896
+subscribe @ @tanstack_react-query.js?v=68f13e18:25
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:2960
+subscribeToStore @ chunk-O52DP7B5.js?v=68f13e18:11984
+commitHookEffectListMount @ chunk-O52DP7B5.js?v=68f13e18:16915
+commitPassiveMountOnFiber @ chunk-O52DP7B5.js?v=68f13e18:18156
+commitPassiveMountEffects_complete @ chunk-O52DP7B5.js?v=68f13e18:18129
+commitPassiveMountEffects_begin @ chunk-O52DP7B5.js?v=68f13e18:18119
+commitPassiveMountEffects @ chunk-O52DP7B5.js?v=68f13e18:18109
+flushPassiveEffectsImpl @ chunk-O52DP7B5.js?v=68f13e18:19490
+flushPassiveEffects @ chunk-O52DP7B5.js?v=68f13e18:19447
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18868
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+commitRootImpl @ chunk-O52DP7B5.js?v=68f13e18:19432
+commitRoot @ chunk-O52DP7B5.js?v=68f13e18:19277
+finishConcurrentRender @ chunk-O52DP7B5.js?v=68f13e18:18783
+performConcurrentWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18718
+workLoop @ chunk-O52DP7B5.js?v=68f13e18:197
+flushWork @ chunk-O52DP7B5.js?v=68f13e18:176
+performWorkUntilDeadline @ chunk-O52DP7B5.js?v=68f13e18:384
+CollaboratoreDashboard.tsx:264 Uncaught TypeError: assignment.dataRichiesta.toDate is not a function
+    at CollaboratoreDashboard.tsx:264:62
+    at Array.map (<anonymous>)
+    at CollaboratoreDashboard (CollaboratoreDashboard.tsx:254:40)
+    at renderWithHooks (chunk-O52DP7B5.js?v=68f13e18:11548:26)
+    at updateFunctionComponent (chunk-O52DP7B5.js?v=68f13e18:14582:28)
+    at beginWork (chunk-O52DP7B5.js?v=68f13e18:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-O52DP7B5.js?v=68f13e18:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-O52DP7B5.js?v=68f13e18:3699:24)
+    at invokeGuardedCallback (chunk-O52DP7B5.js?v=68f13e18:3733:39)
+    at beginWork$1 (chunk-O52DP7B5.js?v=68f13e18:19765:15)
+(anonymous) @ CollaboratoreDashboard.tsx:264
+CollaboratoreDashboard @ CollaboratoreDashboard.tsx:254
+renderWithHooks @ chunk-O52DP7B5.js?v=68f13e18:11548
+updateFunctionComponent @ chunk-O52DP7B5.js?v=68f13e18:14582
+beginWork @ chunk-O52DP7B5.js?v=68f13e18:15924
+callCallback2 @ chunk-O52DP7B5.js?v=68f13e18:3674
+invokeGuardedCallbackDev @ chunk-O52DP7B5.js?v=68f13e18:3699
+invokeGuardedCallback @ chunk-O52DP7B5.js?v=68f13e18:3733
+beginWork$1 @ chunk-O52DP7B5.js?v=68f13e18:19765
+performUnitOfWork @ chunk-O52DP7B5.js?v=68f13e18:19198
+workLoopSync @ chunk-O52DP7B5.js?v=68f13e18:19137
+renderRootSync @ chunk-O52DP7B5.js?v=68f13e18:19116
+recoverFromConcurrentError @ chunk-O52DP7B5.js?v=68f13e18:18736
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18879
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+(anonymous) @ chunk-O52DP7B5.js?v=68f13e18:18627
+setTimeout
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:268
+sleep @ @tanstack_react-query.js?v=68f13e18:267
+scheduleMicrotask @ @tanstack_react-query.js?v=68f13e18:272
+flush @ @tanstack_react-query.js?v=68f13e18:603
+batch @ @tanstack_react-query.js?v=68f13e18:578
+dispatch @ @tanstack_react-query.js?v=68f13e18:1004
+setData @ @tanstack_react-query.js?v=68f13e18:685
+onSuccess @ @tanstack_react-query.js?v=68f13e18:893
+resolve @ @tanstack_react-query.js?v=68f13e18:471
+Promise.then
+run @ @tanstack_react-query.js?v=68f13e18:511
+createRetryer @ @tanstack_react-query.js?v=68f13e18:541
+fetch @ @tanstack_react-query.js?v=68f13e18:881
+executeFetch @ @tanstack_react-query.js?v=68f13e18:2014
+onSubscribe @ @tanstack_react-query.js?v=68f13e18:1896
+subscribe @ @tanstack_react-query.js?v=68f13e18:25
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:2960
+subscribeToStore @ chunk-O52DP7B5.js?v=68f13e18:11984
+commitHookEffectListMount @ chunk-O52DP7B5.js?v=68f13e18:16915
+commitPassiveMountOnFiber @ chunk-O52DP7B5.js?v=68f13e18:18156
+commitPassiveMountEffects_complete @ chunk-O52DP7B5.js?v=68f13e18:18129
+commitPassiveMountEffects_begin @ chunk-O52DP7B5.js?v=68f13e18:18119
+commitPassiveMountEffects @ chunk-O52DP7B5.js?v=68f13e18:18109
+flushPassiveEffectsImpl @ chunk-O52DP7B5.js?v=68f13e18:19490
+flushPassiveEffects @ chunk-O52DP7B5.js?v=68f13e18:19447
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18868
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+commitRootImpl @ chunk-O52DP7B5.js?v=68f13e18:19432
+commitRoot @ chunk-O52DP7B5.js?v=68f13e18:19277
+finishConcurrentRender @ chunk-O52DP7B5.js?v=68f13e18:18783
+performConcurrentWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18718
+workLoop @ chunk-O52DP7B5.js?v=68f13e18:197
+flushWork @ chunk-O52DP7B5.js?v=68f13e18:176
+performWorkUntilDeadline @ chunk-O52DP7B5.js?v=68f13e18:384
+chunk-O52DP7B5.js?v=68f13e18:14032 The above error occurred in the <CollaboratoreDashboard> component:
+
+    at CollaboratoreDashboard (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/CollaboratoreDashboard.tsx:52:21)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=68f13e18:206:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=68f13e18:262:17)
+    at Suspense
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:129:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:57:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=68f13e18:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=68f13e18:160:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=68f13e18:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=68f13e18:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=68f13e18:2763:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=68f13e18:161:17)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+logCapturedError @ chunk-O52DP7B5.js?v=68f13e18:14032
+callback @ chunk-O52DP7B5.js?v=68f13e18:14078
+callCallback @ chunk-O52DP7B5.js?v=68f13e18:11248
+commitUpdateQueue @ chunk-O52DP7B5.js?v=68f13e18:11265
+commitLayoutEffectOnFiber @ chunk-O52DP7B5.js?v=68f13e18:17075
+commitLayoutMountEffects_complete @ chunk-O52DP7B5.js?v=68f13e18:17980
+commitLayoutEffects_begin @ chunk-O52DP7B5.js?v=68f13e18:17969
+commitLayoutEffects @ chunk-O52DP7B5.js?v=68f13e18:17920
+commitRootImpl @ chunk-O52DP7B5.js?v=68f13e18:19353
+commitRoot @ chunk-O52DP7B5.js?v=68f13e18:19277
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18895
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+(anonymous) @ chunk-O52DP7B5.js?v=68f13e18:18627
+setTimeout
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:268
+sleep @ @tanstack_react-query.js?v=68f13e18:267
+scheduleMicrotask @ @tanstack_react-query.js?v=68f13e18:272
+flush @ @tanstack_react-query.js?v=68f13e18:603
+batch @ @tanstack_react-query.js?v=68f13e18:578
+dispatch @ @tanstack_react-query.js?v=68f13e18:1004
+setData @ @tanstack_react-query.js?v=68f13e18:685
+onSuccess @ @tanstack_react-query.js?v=68f13e18:893
+resolve @ @tanstack_react-query.js?v=68f13e18:471
+Promise.then
+run @ @tanstack_react-query.js?v=68f13e18:511
+createRetryer @ @tanstack_react-query.js?v=68f13e18:541
+fetch @ @tanstack_react-query.js?v=68f13e18:881
+executeFetch @ @tanstack_react-query.js?v=68f13e18:2014
+onSubscribe @ @tanstack_react-query.js?v=68f13e18:1896
+subscribe @ @tanstack_react-query.js?v=68f13e18:25
+(anonymous) @ @tanstack_react-query.js?v=68f13e18:2960
+subscribeToStore @ chunk-O52DP7B5.js?v=68f13e18:11984
+commitHookEffectListMount @ chunk-O52DP7B5.js?v=68f13e18:16915
+commitPassiveMountOnFiber @ chunk-O52DP7B5.js?v=68f13e18:18156
+commitPassiveMountEffects_complete @ chunk-O52DP7B5.js?v=68f13e18:18129
+commitPassiveMountEffects_begin @ chunk-O52DP7B5.js?v=68f13e18:18119
+commitPassiveMountEffects @ chunk-O52DP7B5.js?v=68f13e18:18109
+flushPassiveEffectsImpl @ chunk-O52DP7B5.js?v=68f13e18:19490
+flushPassiveEffects @ chunk-O52DP7B5.js?v=68f13e18:19447
+performSyncWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18868
+flushSyncCallbacks @ chunk-O52DP7B5.js?v=68f13e18:9119
+commitRootImpl @ chunk-O52DP7B5.js?v=68f13e18:19432
+commitRoot @ chunk-O52DP7B5.js?v=68f13e18:19277
+finishConcurrentRender @ chunk-O52DP7B5.js?v=68f13e18:18783
+performConcurrentWorkOnRoot @ chunk-O52DP7B5.js?v=68f13e18:18718
+workLoop @ chunk-O52DP7B5.js?v=68f13e18:197
+flushWork @ chunk-O52DP7B5.js?v=68f13e18:176
+performWorkUntilDeadline @ chunk-O52DP7B5.js?v=68f13e18:384
+logger.ts:88 [2025-11-30T10:18:48.920Z] [ERROR] [ErrorBoundary] React Error Boundary catturato errore TypeError: assignment.dataRichiesta.toDate is not a function
+    at CollaboratoreDashboard.tsx:264:62
+    at Array.map (<anonymous>)
+    at CollaboratoreDashboard (CollaboratoreDashboard.tsx:254:40)
+    at renderWithHooks (chunk-O52DP7B5.js?v=68f13e18:11548:26)
+    at updateFunctionComponent (chunk-O52DP7B5.js?v=68f13e18:14582:28)
+    at beginWork (chunk-O52DP7B5.js?v=68f13e18:15924:22)
+    at beginWork$1 (chunk-O52DP7B5.js?v=68f13e18:19753:22)
+    at performUnitOfWork (chunk-O52DP7B5.js?v=68f13e18:19198:20)
+    at workLoopSync (chunk-O52DP7B5.js?v=68f13e18:19137:13)
+    at renderRootSync (chunk-O52DP7B5.js?v=68f13e18:19116:15)
