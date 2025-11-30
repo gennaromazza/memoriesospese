@@ -73,6 +73,15 @@ export interface Collaboratore {
 }
 
 /**
+ * Prodotto assegnato a collaboratore
+ */
+export interface AssignedProduct {
+  orderItemId: string;    // ID del prodotto nell'ordine
+  label: string;          // Nome prodotto (es. "Drone", "Trailer")
+  qty?: number;           // Quantità (opzionale)
+}
+
+/**
  * Assegnazione collaboratore a job
  */
 export interface JobCollaboratoreAssignment {
@@ -86,6 +95,10 @@ export interface JobCollaboratoreAssignment {
   tipoPagamento: 'orario' | 'giornaliero' | 'forfait';
   oreStimate?: number;          // Se pagamento orario
   giorniStimati?: number;       // Se pagamento giornaliero
+  
+  // Prodotti e mansioni assegnate
+  prodottiAssegnati?: AssignedProduct[];  // Prodotti specifici da gestire
+  mansioniAssegnate?: string[];           // Lista mansioni (testo libero)
   
   // Stato accettazione
   status: JobAcceptanceStatus;
@@ -102,6 +115,10 @@ export interface JobCollaboratoreAssignment {
   // Note
   noteAdmin?: string;
   noteCollaboratore?: string;
+  
+  // Reminder
+  reminderSent?: boolean;        // Se il reminder è stato inviato
+  reminderSentAt?: Timestamp;    // Data invio reminder
   
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -162,5 +179,16 @@ export interface InsertJobCollaboratoreAssignment {
   tipoPagamento: 'orario' | 'giornaliero' | 'forfait';
   oreStimate?: number;
   giorniStimati?: number;
+  noteAdmin?: string;
+  prodottiAssegnati?: AssignedProduct[];
+  mansioniAssegnate?: string[];
+}
+
+/**
+ * UPDATE Assegnazione (prodotti e mansioni)
+ */
+export interface UpdateJobCollaboratoreAssignment {
+  prodottiAssegnati?: AssignedProduct[];
+  mansioniAssegnate?: string[];
   noteAdmin?: string;
 }
