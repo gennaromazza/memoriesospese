@@ -31,6 +31,15 @@ import {
 } from '@/components/ui/dialog';
 import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
+import { AlertTriangle } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+
+interface PendingRequest {
+  id: string;
+  dataConsulenza: string;
+  orario: string;
+  templateName: string;
+}
 
 export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
@@ -42,7 +51,7 @@ export default function ConsultationBooking() {
   const { studioSettings } = useStudio();
 
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
-  const availableSlotsMutation = useAvailableSlots(); // 🔵 Using Calendar Engine V2 with ghost event filtering
+  const availableSlotsMutation = useAvailableSlots();
   const createConsultationMutation = useCreateConsultation();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -56,6 +65,9 @@ export default function ConsultationBooking() {
   });
   const [jobData, setJobData] = useState<Record<string, ConsultationJobFieldValue>>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
+  const [isCheckingPending, setIsCheckingPending] = useState(false);
 
   // Debounce timer per evitare chiamate API troppo frequenti
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,11 +102,38 @@ export default function ConsultationBooking() {
     }
   }, [templateId, availableSlotsMutation, toast]);
 
-  const handleSubmit = async () => {
+  const checkPendingRequest = async (): Promise<boolean> => {
+    if (!clienteData.email) return false;
+    
+    setIsCheckingPending(true);
+    try {
+      const response = await apiRequest('POST', '/api/consultations/check-pending', {
+        email: clienteData.email
+      });
+      
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      
+      if (data.hasPending && data.pendingRequest) {
+        setPendingRequest(data.pendingRequest);
+        setShowDuplicateModal(true);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking pending requests:', error);
+      return false;
+    } finally {
+      setIsCheckingPending(false);
+    }
+  };
+
+  const submitConsultation = async () => {
     if (!selectedSlot || !template || !selectedDate) return;
 
     try {
-      // 🔄 STEP 1: Refetch degli slot disponibili per verificare che lo slot sia ancora libero
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
       const refreshedSlots = await availableSlotsMutation.mutateAsync({
@@ -102,7 +141,6 @@ export default function ConsultationBooking() {
         date: dateStr
       });
 
-      // 🔍 STEP 2: Verifica che lo slot selezionato sia ancora disponibile E libero
       const slotStillAvailable = refreshedSlots.slots?.some((slot: any) => {
         const slotStart = new Date(slot.start);
         return slotStart.getTime() === selectedSlot.start.getTime() && slot.available !== false;
@@ -114,13 +152,11 @@ export default function ConsultationBooking() {
           title: 'Slot non più disponibile',
           description: 'Lo slot selezionato è stato prenotato da poco o è occupato su Google Calendar. Scegli un altro orario.',
         });
-        // Reset slot selezionato e riporta l'utente allo step 1 per sceglierne un altro
         setSelectedSlot(null);
         setStep(1);
         return;
       }
 
-      // ✅ STEP 3: Slot ancora disponibile → procedi con la prenotazione
       const consultationData = {
         templateId: template.id,
         cliente: {
@@ -146,6 +182,21 @@ export default function ConsultationBooking() {
         description: errorMessage
       });
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedSlot || !template || !selectedDate) return;
+
+    const hasPending = await checkPendingRequest();
+    if (hasPending) return;
+
+    await submitConsultation();
+  };
+
+  const handleProceedAnyway = async () => {
+    setShowDuplicateModal(false);
+    setPendingRequest(null);
+    await submitConsultation();
   };
 
   const canProceedStep1 = selectedSlot !== null;
@@ -550,11 +601,16 @@ export default function ConsultationBooking() {
             ) : (
               <Button
                 onClick={handleSubmit}
-                disabled={createConsultationMutation.isPending || !canProceedStep3()}
+                disabled={createConsultationMutation.isPending || isCheckingPending || !canProceedStep3()}
                 className="w-full sm:w-auto bg-sage hover:bg-dark-sage text-white"
                 data-testid="button-confirm-booking"
               >
-                {createConsultationMutation.isPending ? (
+                {isCheckingPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verifica...
+                  </>
+                ) : createConsultationMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Prenotazione...
@@ -570,6 +626,70 @@ export default function ConsultationBooking() {
           </CardFooter>
         </Card>
       </div>
+
+      {/* Modale Richiesta Duplicata */}
+      <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
+        <DialogContent className="sm:max-w-md border-beige">
+          <DialogHeader className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mx-auto mb-4">
+              <AlertTriangle className="h-10 w-10 text-amber-600" />
+            </div>
+            <DialogTitle className="text-2xl font-playfair text-blue-gray">
+              Richiesta Già Presente
+            </DialogTitle>
+            <DialogDescription className="text-center space-y-4 pt-4">
+              <p className="text-base">
+                Risulta già una tua richiesta per:
+              </p>
+              {pendingRequest && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
+                  <p className="font-semibold text-amber-800">{pendingRequest.templateName}</p>
+                  <p className="text-amber-700 mt-1">
+                    <CalendarIcon className="inline h-4 w-4 mr-1" />
+                    {pendingRequest.dataConsulenza}
+                  </p>
+                  <p className="text-amber-700">
+                    <Clock className="inline h-4 w-4 mr-1" />
+                    {pendingRequest.orario}
+                  </p>
+                </div>
+              )}
+              <p className="text-gray-600 text-sm">
+                Attendi che la tua richiesta venga approvata, oppure procedi per richiedere un'altra consulenza.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center gap-3 mt-4 flex-col sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDuplicateModal(false);
+                setPendingRequest(null);
+              }}
+              className="border-sage text-sage hover:bg-sage/10"
+              data-testid="button-wait-approval"
+            >
+              Attendi Approvazione
+            </Button>
+            <Button
+              onClick={handleProceedAnyway}
+              disabled={createConsultationMutation.isPending}
+              className="bg-sage hover:bg-dark-sage text-white"
+              data-testid="button-proceed-anyway"
+            >
+              {createConsultationMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Invio...
+                </>
+              ) : (
+                'Procedi Comunque'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="sm:max-w-md border-beige">
           <DialogHeader className="text-center">
