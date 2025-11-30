@@ -5,8 +5,8 @@
  */
 
 import express from 'express';
-import { getEvents, createEvent } from './google-calendar.js';
-import { db } from './firebase-admin.js';
+import { getEvents, createEvent, updateEvent } from './google-calendar.js';
+import { db, Timestamp } from './firebase-admin.js';
 import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
 import { format } from 'date-fns';
@@ -442,6 +442,165 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
     }
     
     res.status(500).json({ error: 'Failed to create event' });
+  }
+});
+
+/**
+ * PATCH /api/calendar/events/:eventId
+ * Aggiorna evento esistente - supporta Google Calendar, Consulenze e Jobs
+ * 
+ * Body: {
+ *   title?: string,
+ *   description?: string,
+ *   start: string (ISO),
+ *   end: string (ISO),
+ *   location?: string,
+ *   type: 'google' | 'consulenza' | 'job',
+ *   entityId?: string (ID puro senza prefix per consulenza/job)
+ * }
+ */
+const updateEventSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  start: z.string().min(1, 'Data inizio richiesta'),
+  end: z.string().min(1, 'Data fine richiesta'),
+  location: z.string().optional(),
+  type: z.enum(['google', 'consulenza', 'job']),
+  entityId: z.string().optional(),
+  googleEventId: z.string().optional(),
+});
+
+router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const data = updateEventSchema.parse(req.body);
+    
+    console.log(`📅 Modifica evento: ${eventId} (tipo: ${data.type})`);
+    
+    const startDate = new Date(data.start);
+    const endDate = new Date(data.end);
+    
+    // Gestione per tipo di evento
+    if (data.type === 'google') {
+      // Evento Google Calendar puro - aggiorna direttamente
+      const googleId = data.googleEventId || eventId.replace('g-', '');
+      
+      await updateEvent('primary', googleId, {
+        summary: data.title,
+        description: data.description,
+        start: startDate,
+        end: endDate,
+        location: data.location,
+      });
+      
+      console.log(`✅ Evento Google Calendar aggiornato: ${googleId}`);
+      
+    } else if (data.type === 'consulenza') {
+      // Consulenza - aggiorna Firestore + Google Calendar se sincronizzato
+      const consultationId = data.entityId || eventId.replace('c-', '');
+      
+      const consultationDoc = await db.collection('consultations').doc(consultationId).get();
+      if (!consultationDoc.exists) {
+        return res.status(404).json({ error: 'Consulenza non trovata' });
+      }
+      
+      const consultation = consultationDoc.data();
+      
+      // Prepara update Firestore con tutti i campi rilevanti
+      const firestoreUpdate: Record<string, any> = {
+        dataConsulenza: Timestamp.fromDate(startDate),
+        dataConsulenzaFine: Timestamp.fromDate(endDate),
+        updatedAt: Timestamp.now(),
+      };
+      
+      if (data.description !== undefined) {
+        firestoreUpdate.note = data.description;
+      }
+      if (data.location !== undefined) {
+        firestoreUpdate.luogo = data.location;
+      }
+      
+      await db.collection('consultations').doc(consultationId).update(firestoreUpdate);
+      
+      // Se ha evento Google Calendar, aggiorna anche quello
+      if (consultation?.googleCalendarEventId) {
+        try {
+          await updateEvent('primary', consultation.googleCalendarEventId, {
+            summary: data.title || `Consulenza: ${consultation.cliente?.nome || ''} ${consultation.cliente?.cognome || ''}`.trim(),
+            description: data.description,
+            start: startDate,
+            end: endDate,
+            location: data.location,
+          });
+          console.log(`✅ Evento Google Calendar sincronizzato: ${consultation.googleCalendarEventId}`);
+        } catch (gcError: any) {
+          console.error('⚠️ Errore aggiornamento Google Calendar (consulenza aggiornata comunque):', gcError.message);
+        }
+      }
+      
+      console.log(`✅ Consulenza aggiornata: ${consultationId}`);
+      
+    } else if (data.type === 'job') {
+      // Job - aggiorna Firestore + Google Calendar se sincronizzato
+      const jobId = data.entityId || eventId.replace('j-', '');
+      
+      const jobDoc = await db.collection('jobs').doc(jobId).get();
+      if (!jobDoc.exists) {
+        return res.status(404).json({ error: 'Job non trovato' });
+      }
+      
+      const job = jobDoc.data();
+      
+      // Prepara update Firestore con tutti i campi rilevanti
+      const firestoreUpdate: Record<string, any> = {
+        eventDate: Timestamp.fromDate(startDate),
+        eventEndDate: Timestamp.fromDate(endDate),
+        updatedAt: Timestamp.now(),
+      };
+      
+      if (data.description !== undefined) {
+        firestoreUpdate.noteInterne = data.description;
+      }
+      if (data.location !== undefined) {
+        firestoreUpdate.luogo = data.location;
+      }
+      
+      await db.collection('jobs').doc(jobId).update(firestoreUpdate);
+      
+      // Se ha evento Google Calendar, aggiorna anche quello
+      if (job?.googleCalendarEventId) {
+        try {
+          await updateEvent('primary', job.googleCalendarEventId, {
+            summary: data.title || job.nomeEvento || job.jobType || 'Job',
+            description: data.description,
+            start: startDate,
+            end: endDate,
+            location: data.location,
+          });
+          console.log(`✅ Evento Google Calendar sincronizzato: ${job.googleCalendarEventId}`);
+        } catch (gcError: any) {
+          console.error('⚠️ Errore aggiornamento Google Calendar (job aggiornato comunque):', gcError.message);
+        }
+      }
+      
+      console.log(`✅ Job aggiornato: ${jobId}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Evento aggiornato con successo' 
+    });
+  } catch (error: any) {
+    console.error('❌ Error updating calendar event:', error);
+    
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ 
+        error: 'Dati non validi',
+        details: error.errors 
+      });
+    }
+    
+    res.status(500).json({ error: 'Failed to update event', message: error.message });
   }
 });
 

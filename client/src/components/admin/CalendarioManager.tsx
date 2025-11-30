@@ -16,7 +16,8 @@ import {
   Mail,
   Loader2,
   Eye,
-  Trash2
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,6 +92,16 @@ export default function CalendarioManager() {
   const [isAllDay, setIsAllDay] = useState(false);
   const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
   const [customDurationHours, setCustomDurationHours] = useState('1');
+  
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editEventData, setEditEventData] = useState({
+    title: '',
+    description: '',
+    startDate: '',
+    startTime: '',
+    endTime: '',
+    location: '',
+  });
 
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
@@ -171,6 +182,40 @@ export default function CalendarioManager() {
       toast({
         title: 'Errore',
         description: error.message || 'Impossibile eliminare l\'evento',
+        variant: 'destructive',
+      });
+    },
+  });
+  
+  const updateEventMutation = useMutation({
+    mutationFn: async (eventData: {
+      eventId: string;
+      title?: string;
+      description?: string;
+      start: string;
+      end: string;
+      location?: string;
+      type: 'google' | 'consulenza' | 'job';
+      entityId?: string;
+      googleEventId?: string;
+    }) => {
+      return await apiRequest('PATCH', `/api/calendar/events/${eventData.eventId}`, eventData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/consultations'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'], exact: false });
+      toast({
+        title: 'Evento aggiornato',
+        description: 'L\'evento è stato modificato con successo',
+      });
+      setShowEditDialog(false);
+      setSelectedEvent(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile modificare l\'evento',
         variant: 'destructive',
       });
     },
@@ -312,6 +357,77 @@ export default function CalendarioManager() {
     setIsAllDay(false);
     setDurationPreset('1h');
     setCustomDurationHours('1');
+  };
+  
+  const isAllDayEvent = (event: CalendarEventDTO): boolean => {
+    const startDate = safeParseISO(event.start);
+    const endDate = safeParseISO(event.end);
+    if (!startDate || !endDate) return false;
+    
+    const startTime = format(startDate, 'HH:mm');
+    const endTime = format(endDate, 'HH:mm');
+    return startTime === '00:00' && endTime === '00:00';
+  };
+  
+  const handleOpenEditDialog = (event: CalendarEventDTO) => {
+    if (isAllDayEvent(event)) {
+      toast({
+        title: 'Evento tutto il giorno',
+        description: 'Gli eventi tutto il giorno non possono essere modificati da qui. Modifica l\'evento direttamente da Google Calendar.',
+        variant: 'default',
+      });
+      return;
+    }
+    
+    const startDate = safeParseISO(event.start);
+    const endDate = safeParseISO(event.end);
+    
+    setEditEventData({
+      title: event.title || '',
+      description: event.description || '',
+      startDate: startDate ? format(startDate, 'yyyy-MM-dd') : '',
+      startTime: startDate ? format(startDate, 'HH:mm') : '',
+      endTime: endDate ? format(endDate, 'HH:mm') : '',
+      location: event.location || '',
+    });
+    setShowEditDialog(true);
+  };
+  
+  const handleUpdateEvent = () => {
+    if (!selectedEvent) return;
+    
+    if (!editEventData.startDate || !editEventData.startTime || !editEventData.endTime) {
+      toast({
+        title: 'Campi obbligatori',
+        description: 'Compila data e orari',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const startDate = new Date(`${editEventData.startDate}T${editEventData.startTime}:00`);
+    const endDate = new Date(`${editEventData.startDate}T${editEventData.endTime}:00`);
+    
+    if (endDate <= startDate) {
+      toast({
+        title: 'Orario non valido',
+        description: 'L\'ora di fine deve essere dopo l\'ora di inizio',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    updateEventMutation.mutate({
+      eventId: selectedEvent.id,
+      title: editEventData.title || undefined,
+      description: editEventData.description || undefined,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      location: editEventData.location || undefined,
+      type: selectedEvent.type,
+      entityId: selectedEvent.entityId,
+      googleEventId: selectedEvent.googleEventId,
+    });
   };
 
   const getEventTypeBadge = (type: string) => {
@@ -778,7 +894,7 @@ export default function CalendarioManager() {
           )}
 
           <DialogFooter className="flex justify-between">
-            <div>
+            <div className="flex gap-2">
               {selectedEvent && selectedEvent.entityId && selectedEvent.entityStatus === 'rifiutata' && (
                 <Button
                   variant="destructive"
@@ -798,7 +914,120 @@ export default function CalendarioManager() {
                 </Button>
               )}
             </div>
-            <Button onClick={() => setSelectedEvent(null)}>Chiudi</Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  if (selectedEvent) {
+                    handleOpenEditDialog(selectedEvent);
+                  }
+                }}
+                data-testid="button-edit-event"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Modifica
+              </Button>
+              <Button onClick={() => setSelectedEvent(null)}>Chiudi</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Modifica Evento</DialogTitle>
+            <DialogDescription>
+              Modifica data e orario dell'evento. Le modifiche verranno sincronizzate con Google Calendar.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-title">Titolo</Label>
+              <Input
+                id="edit-title"
+                value={editEventData.title}
+                onChange={(e) => setEditEventData({ ...editEventData, title: e.target.value })}
+                placeholder="Titolo evento"
+                data-testid="input-edit-title"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-date">Data *</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={editEventData.startDate}
+                onChange={(e) => setEditEventData({ ...editEventData, startDate: e.target.value })}
+                required
+                data-testid="input-edit-date"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-start-time">Ora Inizio *</Label>
+                <Input
+                  id="edit-start-time"
+                  type="time"
+                  value={editEventData.startTime}
+                  onChange={(e) => setEditEventData({ ...editEventData, startTime: e.target.value })}
+                  required
+                  data-testid="input-edit-start-time"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-end-time">Ora Fine *</Label>
+                <Input
+                  id="edit-end-time"
+                  type="time"
+                  value={editEventData.endTime}
+                  onChange={(e) => setEditEventData({ ...editEventData, endTime: e.target.value })}
+                  required
+                  data-testid="input-edit-end-time"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-location">Luogo</Label>
+              <Input
+                id="edit-location"
+                value={editEventData.location}
+                onChange={(e) => setEditEventData({ ...editEventData, location: e.target.value })}
+                placeholder="Es. Studio, Online, etc."
+                data-testid="input-edit-location"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="edit-description">Note</Label>
+              <Textarea
+                id="edit-description"
+                value={editEventData.description}
+                onChange={(e) => setEditEventData({ ...editEventData, description: e.target.value })}
+                placeholder="Eventuali note..."
+                rows={3}
+                data-testid="textarea-edit-description"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={handleUpdateEvent}
+              disabled={updateEventMutation.isPending}
+              data-testid="button-save-edit"
+            >
+              {updateEventMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salva Modifiche
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
