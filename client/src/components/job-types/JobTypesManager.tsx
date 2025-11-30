@@ -600,6 +600,11 @@ export default function JobTypesManager() {
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">{entity.icona}</span>
                         <span className="font-medium">{entity.nome}</span>
+                        {(entity as JobType).createdBy === 'import' && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
+                            Importato
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

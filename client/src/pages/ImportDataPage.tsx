@@ -36,6 +36,8 @@ interface ImportResult {
   success: boolean;
   jobsImported: number;
   clientsCreated: number;
+  jobTypesCreated: number;
+  newJobTypes: Array<{ slug: string; nome: string }>;
   errors: Array<{ job: string; error: string }>;
   warnings: Array<{ job: string; warning: string }>;
   details: ImportDetail[];
@@ -445,6 +447,11 @@ export default function ImportDataPage() {
                 <div className="mt-2 space-y-1">
                   <p>Jobs importati: {result.jobsImported}</p>
                   <p>Nuovi clienti creati: {result.clientsCreated}</p>
+                  {result.jobTypesCreated > 0 && (
+                    <p className="text-blue-600 dark:text-blue-400">
+                      Nuovi tipi di lavoro creati: {result.jobTypesCreated}
+                    </p>
+                  )}
                   {result.errors.length > 0 && (
                     <p className="text-red-600 dark:text-red-400">
                       Errori: {result.errors.length}
@@ -458,6 +465,42 @@ export default function ImportDataPage() {
                 </div>
               </AlertDescription>
             </Alert>
+
+            {result.newJobTypes && result.newJobTypes.length > 0 && (
+              <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+                <CardHeader>
+                  <CardTitle className="text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                    <FileSpreadsheet className="h-5 w-5" />
+                    Nuovi Tipi di Lavoro Creati
+                  </CardTitle>
+                  <CardDescription>
+                    Questi tipi sono stati creati automaticamente durante l'importazione
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {result.newJobTypes.map((jobType, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200"
+                        data-testid={`new-job-type-${jobType.slug}`}
+                      >
+                        📷 {jobType.nome}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Puoi gestire questi tipi nella sezione{' '}
+                    <a
+                      href="/admin?tab=lavori"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    >
+                      Admin → Lavori → Tipi di Lavoro
+                    </a>
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>

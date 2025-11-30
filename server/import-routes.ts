@@ -35,6 +35,8 @@ interface ImportResult {
   success: boolean;
   jobsImported: number;
   clientsCreated: number;
+  jobTypesCreated: number;
+  newJobTypes: Array<{ slug: string; nome: string }>;
   errors: Array<{ job: string; error: string }>;
   warnings: Array<{ job: string; warning: string }>;
   details: Array<{
@@ -44,6 +46,122 @@ interface ImportResult {
     status: 'success' | 'error' | 'warning';
     message: string;
   }>;
+}
+
+// Helper: Genera colore casuale per nuovi tipi di lavoro
+function generateRandomColor(): string {
+  const colors = [
+    '#ec4899', '#60a5fa', '#a78bfa', '#fbbf24', '#34d399',
+    '#f472b6', '#94a3b8', '#6366f1', '#f97316', '#14b8a6'
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// Helper: Normalizza stringa in slug
+function toSlug(str: string): string {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[àáâãäå]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõö]/g, 'o')
+    .replace(/[ùúûü]/g, 'u')
+    .replace(/[^a-z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+// ✅ Auto-crea tipi di lavoro mancanti prima dell'import
+async function ensureJobTypesExist(jobs: ParsedJobData[]): Promise<{ created: Array<{ slug: string; nome: string }> }> {
+  const firestore = db;
+  const created: Array<{ slug: string; nome: string }> = [];
+  
+  // 1. Raccogli tutti i tipi di lavoro unici dai job
+  const uniqueJobTypes = new Set<string>();
+  for (const job of jobs) {
+    const tipoLavoro = job.tipoLavoro?.trim();
+    if (tipoLavoro) {
+      uniqueJobTypes.add(tipoLavoro);
+    }
+  }
+  
+  if (uniqueJobTypes.size === 0) {
+    return { created };
+  }
+  
+  // 2. Recupera tutti i tipi esistenti da Firestore
+  const existingTypesSnapshot = await firestore.collection('jobTypes').get();
+  const existingSlugs = new Set<string>();
+  const existingNames = new Set<string>();
+  
+  existingTypesSnapshot.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.slug) existingSlugs.add(data.slug.toLowerCase());
+    if (data.nome) existingNames.add(data.nome.toLowerCase());
+  });
+  
+  // 3. Trova il prossimo ordine disponibile
+  let maxOrdine = 0;
+  existingTypesSnapshot.docs.forEach(doc => {
+    const ordine = doc.data().ordine || 0;
+    if (ordine > maxOrdine) maxOrdine = ordine;
+  });
+  
+  // 4. Crea i tipi mancanti
+  let batch = firestore.batch();
+  let batchCount = 0;
+  
+  for (const tipoLavoro of uniqueJobTypes) {
+    const slug = toSlug(tipoLavoro);
+    const nomeLower = tipoLavoro.toLowerCase();
+    
+    // Salta se già esiste (per slug o nome)
+    if (existingSlugs.has(slug) || existingNames.has(nomeLower)) {
+      continue;
+    }
+    
+    // Crea nuovo tipo
+    maxOrdine++;
+    const newTypeRef = firestore.collection('jobTypes').doc();
+    const now = Timestamp.now();
+    
+    batch.set(newTypeRef, {
+      nome: tipoLavoro,
+      slug: slug,
+      attivo: true,
+      icona: '📷',
+      colore: generateRandomColor(),
+      ordine: maxOrdine,
+      descrizione: `Tipo lavoro importato automaticamente`,
+      createdBy: 'import',
+      createdAt: now,
+      updatedAt: now,
+    });
+    
+    created.push({ slug, nome: tipoLavoro });
+    existingSlugs.add(slug);
+    existingNames.add(nomeLower);
+    batchCount++;
+    
+    // Commit batch ogni 450 operazioni (limite Firestore = 500)
+    if (batchCount >= 450) {
+      await batch.commit();
+      batch = firestore.batch(); // ✅ FIX: Crea nuovo batch dopo commit
+      batchCount = 0;
+    }
+  }
+  
+  // Commit rimanenti
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+  
+  if (created.length > 0) {
+    console.log(`✅ Creati ${created.length} nuovi tipi di lavoro:`, created.map(t => t.nome).join(', '));
+  }
+  
+  return { created };
 }
 
 // ✅ NUOVO: Preview import Excel con file upload
@@ -142,10 +260,15 @@ router.post('/execute-excel', authenticateFirebase, upload.single('file'), async
     const parser = new LegacyImportParser();
     const jobs = await parser.parseExcelFromBuffer(req.file.buffer);
 
+    // ✅ Auto-crea tipi di lavoro mancanti PRIMA dell'import
+    const { created: newJobTypes } = await ensureJobTypesExist(jobs);
+
     const result: ImportResult = {
       success: true,
       jobsImported: 0,
       clientsCreated: 0,
+      jobTypesCreated: newJobTypes.length,
+      newJobTypes,
       errors: [],
       warnings: [],
       details: [],
@@ -188,10 +311,15 @@ router.post('/execute', authenticateFirebase, async (req: AuthRequest, res: Resp
     const parser = new LegacyImportParser();
     const jobs = await parser.parseAll();
 
+    // ✅ Auto-crea tipi di lavoro mancanti PRIMA dell'import
+    const { created: newJobTypes } = await ensureJobTypesExist(jobs);
+
     const result: ImportResult = {
       success: true,
       jobsImported: 0,
       clientsCreated: 0,
+      jobTypesCreated: newJobTypes.length,
+      newJobTypes,
       errors: [],
       warnings: [],
       details: [],

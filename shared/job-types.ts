@@ -8,6 +8,7 @@ export interface JobType {
   ordine: number;
   descrizione?: string;
   imageUrl?: string;
+  createdBy?: 'import' | 'manual';
   createdAt: Date;
   updatedAt: Date;
 }
