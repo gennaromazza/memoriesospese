@@ -42,6 +42,7 @@ import ProductCategoriesManager from "@/components/product-categories/ProductCat
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import PhotosMigration from "@/components/PhotosMigration";
+import SyncClientJobRefs from "@/components/SyncClientJobRefs";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -2461,6 +2462,9 @@ export default function AdminDashboard() {
                         Apri Importatore Legacy
                       </Button>
                     </div>
+                    
+                    <SyncClientJobRefs />
+                    
                     <PhotosMigration />
                   </div>
                 </TabsContent>
