@@ -145,6 +145,52 @@ export async function assignCollaboratoreToJob(
 }
 
 /**
+ * Rimuovi assegnazione collaboratore da job
+ */
+export async function removeAssignment(assignmentId: string): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "DELETE",
+      `/api/collaboratori/assignments/${assignmentId}`,
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore rimozione assegnazione");
+    }
+
+    console.log("✅ Assegnazione rimossa:", assignmentId);
+  } catch (error) {
+    console.error("❌ Errore rimozione assegnazione:", error);
+    throw error;
+  }
+}
+
+/**
+ * Genera token dashboard per collaboratore esistente
+ */
+export async function generateDashboardToken(collaboratoreId: string): Promise<string> {
+  try {
+    const response = await apiRequest(
+      "POST",
+      `/api/collaboratori/${collaboratoreId}/generate-token`,
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Errore generazione token");
+    }
+
+    const result = await response.json();
+    console.log("✅ Token generato per collaboratore:", collaboratoreId);
+    return result.dashboardToken;
+  } catch (error) {
+    console.error("❌ Errore generazione token:", error);
+    throw error;
+  }
+}
+
+/**
  * Get assegnazioni per job
  */
 export async function getJobAssignments(

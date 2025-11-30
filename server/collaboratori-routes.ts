@@ -527,6 +527,59 @@ router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', async (r
 });
 
 /**
+ * DELETE /api/collaboratori/assignments/:id
+ * Rimuovi assegnazione collaboratore
+ */
+router.delete('/collaboratori/assignments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    
+    await db.collection('jobCollaboratoreAssignments').doc(id).delete();
+    
+    console.log(`🗑️ Assegnazione ${id} rimossa`);
+    res.json({ success: true, message: 'Assegnazione rimossa' });
+  } catch (error: any) {
+    console.error('❌ Error deleting assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/collaboratori/:id/generate-token
+ * Genera token dashboard per collaboratore esistente
+ */
+router.post('/collaboratori/:id/generate-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const collaboratoreDoc = await db.collection('collaboratori').doc(id).get();
+    
+    if (!collaboratoreDoc.exists) {
+      return res.status(404).json({ error: 'Collaboratore non trovato' });
+    }
+    
+    const newToken = generateCollaboratorToken();
+    await db.collection('collaboratori').doc(id).update({
+      dashboardToken: newToken,
+      hasAccess: true,
+      updatedAt: Timestamp.now()
+    });
+    
+    console.log(`🔑 Token generato per collaboratore ${id}`);
+    res.json({ dashboardToken: newToken });
+  } catch (error: any) {
+    console.error('❌ Error generating token:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * PATCH /api/collaboratori/assignments/:id/respond
  * Rispondi a assegnazione (accetta/rifiuta)
  */

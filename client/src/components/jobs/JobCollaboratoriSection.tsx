@@ -36,6 +36,8 @@ import {
   assignCollaboratoreToJob,
   markAssignmentAsPaid,
   addPaymentToAssignment,
+  removeAssignment,
+  generateDashboardToken,
 } from '@/lib/collaboratori';
 import type {
   Collaboratore,
@@ -142,6 +144,17 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     },
   });
 
+  const removeAssignmentMutation = useMutation({
+    mutationFn: removeAssignment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-assignments', jobId] });
+      toast({ title: '✅ Collaboratore rimosso dal lavoro' });
+    },
+    onError: () => {
+      toast({ title: '❌ Errore rimozione collaboratore', variant: 'destructive' });
+    },
+  });
+
   const handleOpenModal = () => {
     setFormData({
       jobId,
@@ -188,21 +201,37 @@ export function JobCollaboratoriSection({ jobId }: Props) {
 
   const handleCopyDashboardLink = async (collaboratoreId: string) => {
     const collab = collaboratori.find((c) => c.id === collaboratoreId);
-    if (!collab || !collab.dashboardToken) {
-      toast({
-        title: '❌ Link non disponibile',
-        description: 'Il collaboratore non ha un token dashboard generato.',
-        variant: 'destructive',
-      });
-      return;
+    
+    let dashboardToken = collab?.dashboardToken;
+    
+    // Se il token non esiste, lo genera
+    if (!dashboardToken) {
+      try {
+        toast({ title: '🔄 Generazione token in corso...' });
+        dashboardToken = await generateDashboardToken(collaboratoreId);
+        // Invalida la cache per aggiornare i dati
+        queryClient.invalidateQueries({ queryKey: ['collaboratori'] });
+      } catch (error) {
+        toast({
+          title: '❌ Errore generazione token',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
-    const link = `${window.location.origin}/collaboratori/dashboard/${collab.dashboardToken}`;
+    const link = `${window.location.origin}/collaboratori/dashboard/${dashboardToken}`;
     try {
       await navigator.clipboard.writeText(link);
       toast({ title: '✅ Link copiato negli appunti!' });
     } catch (error) {
       toast({ title: '❌ Errore copia link', variant: 'destructive' });
+    }
+  };
+
+  const handleRemoveAssignment = (assignmentId: string) => {
+    if (window.confirm('Sei sicuro di voler rimuovere questo collaboratore dal lavoro?')) {
+      removeAssignmentMutation.mutate(assignmentId);
     }
   };
 
@@ -327,14 +356,28 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
-                        data-testid={`button-copy-dashboard-link-${assignment.id}`}
-                      >
-                        <Link2 className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
+                          title="Copia link dashboard"
+                          data-testid={`button-copy-dashboard-link-${assignment.id}`}
+                        >
+                          <Link2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveAssignment(assignment.id)}
+                          title="Rimuovi collaboratore"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          disabled={removeAssignmentMutation.isPending}
+                          data-testid={`button-remove-assignment-${assignment.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
