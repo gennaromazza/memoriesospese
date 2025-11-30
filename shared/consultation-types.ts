@@ -348,7 +348,7 @@ const ClienteDataSchema = z.object({
   nome: z.string().min(1, "Nome obbligatorio"),
   cognome: z.string().min(1, "Cognome obbligatorio"),
   email: z.string().email("Email non valida"),
-  whatsapp: z.string().min(1, "WhatsApp obbligatorio"),
+  whatsapp: z.string().optional(),
 });
 
 // Schema job data value (validazione flessibile)
