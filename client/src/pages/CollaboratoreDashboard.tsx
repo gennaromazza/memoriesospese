@@ -410,19 +410,20 @@ export default function CollaboratoreDashboard() {
                 <TableBody>
                   {filteredAssignments
                     .filter((a: JobCollaboratoreAssignment) => a.pagamenti && a.pagamenti.length > 0)
-                    .flatMap((a: JobCollaboratoreAssignment) =>
+                    .flatMap((a: AssignmentWithJob) =>
                       (a.pagamenti || []).map((pag: CollaboratorPayment) => ({
                         ...pag,
                         jobId: a.jobId,
+                        jobName: a.job?.title || a.job?.clientName || `Job #${a.jobId.slice(0, 8)}`,
                       }))
                     )
-                    .sort((a: CollaboratorPayment & { jobId: string }, b: CollaboratorPayment & { jobId: string }) => (convertFirestoreTimestamp(b.data)?.getTime() || 0) - (convertFirestoreTimestamp(a.data)?.getTime() || 0))
-                    .map((pag: CollaboratorPayment & { jobId: string }) => (
+                    .sort((a: CollaboratorPayment & { jobId: string; jobName: string }, b: CollaboratorPayment & { jobId: string; jobName: string }) => (convertFirestoreTimestamp(b.data)?.getTime() || 0) - (convertFirestoreTimestamp(a.data)?.getTime() || 0))
+                    .map((pag: CollaboratorPayment & { jobId: string; jobName: string }) => (
                       <TableRow key={pag.id}>
                         <TableCell>
                           {format(convertFirestoreTimestamp(pag.data) || new Date(), 'dd/MM/yyyy', { locale: it })}
                         </TableCell>
-                        <TableCell className="text-xs">Job #{pag.jobId.slice(0, 8)}</TableCell>
+                        <TableCell className="text-sm font-medium">{pag.jobName}</TableCell>
                         <TableCell>
                           <Badge variant={pag.tipo === 'acconto' ? 'secondary' : 'default'}>
                             {pag.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
