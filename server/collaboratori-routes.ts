@@ -312,6 +312,115 @@ async function sendCollaboratorWelcomeEmail(
 }
 
 /**
+ * Invia email notifica modifica compenso
+ */
+async function sendCompensoModificatoEmail(
+  req: express.Request,
+  collaboratore: any,
+  jobNome: string,
+  dataJob: string,
+  vecchioCompenso: number,
+  nuovoCompenso: number,
+  noteModifica?: string
+): Promise<void> {
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, email modifica compenso non inviata');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+  
+  const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Aggiornamento Compenso
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #2563eb;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Il compenso per il seguente lavoro è stato aggiornato:
+        </p>
+        
+        <div style="background: #f0f9ff; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #2563eb;">
+          <h2 style="color: #2563eb; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+            ${jobNome}
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 150px;">Data evento:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataJob}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Compenso precedente:</td>
+              <td style="padding: 8px 0; color: #999; font-size: 14px; text-decoration: line-through;">€${vecchioCompenso.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Nuovo compenso:</td>
+              <td style="padding: 8px 0; color: #28a745; font-size: 18px; font-weight: 700;">€${nuovoCompenso.toFixed(2)}</td>
+            </tr>
+            ${noteModifica ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Note:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${noteModifica}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+          <p style="font-size: 14px; color: #333; margin: 0 0 15px 0;">
+            Visualizza tutti i dettagli nella tua dashboard:
+          </p>
+          
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); 
+                    color: #ffffff; padding: 14px 35px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 14px;">
+            Vai alla Dashboard
+          </a>
+        </div>
+        ` : ''}
+        
+        <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+          Grazie per la collaborazione!<br>
+          <strong style="color: #2563eb;">${studioInfo.name}</strong>
+        </p>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+        <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+        <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail(
+    collaboratore.email,
+    `Aggiornamento Compenso: ${jobNome} | ${studioInfo.name}`,
+    htmlContent
+  );
+  
+  console.log(`✅ Email modifica compenso inviata a ${collaboratore.email}`);
+}
+
+/**
  * GET /api/collaboratori
  * Ottieni tutti i collaboratori (con filtro opzionale per attivi)
  */
@@ -546,6 +655,73 @@ router.delete('/collaboratori/assignments/:id', async (req, res) => {
     res.json({ success: true, message: 'Assegnazione rimossa' });
   } catch (error: any) {
     console.error('❌ Error deleting assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/collaboratori/assignments/:id/compenso
+ * Modifica compenso assegnazione e notifica collaboratore
+ */
+router.patch('/collaboratori/assignments/:id/compenso', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { compenso, noteModifica, sendEmail = true } = req.body;
+    
+    if (compenso === undefined || compenso < 0) {
+      return res.status(400).json({ error: 'Compenso non valido' });
+    }
+    
+    // Recupera assegnazione attuale
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+    
+    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+    const vecchioCompenso = assignment.compenso || 0;
+    
+    // Ricalcola saldo residuo
+    const totalePagato = (assignment.pagamenti || []).reduce((sum, p) => sum + p.importo, 0);
+    const nuovoSaldoResiduo = compenso - totalePagato;
+    const isPagato = nuovoSaldoResiduo <= 0;
+    
+    // Aggiorna assegnazione
+    await db.collection('jobCollaboratoreAssignments').doc(id).update({
+      compenso: compenso,
+      saldoResiduo: nuovoSaldoResiduo,
+      isPagato: isPagato,
+      updatedAt: Timestamp.now()
+    });
+    
+    // Invia email se richiesto e compenso è cambiato
+    if (sendEmail && compenso !== vecchioCompenso) {
+      const [collaboratoreDoc, jobDoc] = await Promise.all([
+        db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
+        db.collection('jobs').doc(assignment.jobId).get()
+      ]);
+      
+      const collaboratore = { id: collaboratoreDoc.id, ...collaboratoreDoc.data() };
+      const job = jobDoc.data();
+      
+      const jobNome = job?.nomeEvento || 'Lavoro';
+      const dataJob = job?.eventDate 
+        ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })
+        : 'Data da confermare';
+      
+      sendCompensoModificatoEmail(req, collaboratore, jobNome, dataJob, vecchioCompenso, compenso, noteModifica)
+        .catch(err => console.error('❌ Email modifica compenso fallita (non bloccante):', err));
+    }
+    
+    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    res.json({ id: updated.id, ...updated.data() });
+  } catch (error: any) {
+    console.error('❌ Error updating compenso:', error);
     res.status(500).json({ error: error.message });
   }
 });
