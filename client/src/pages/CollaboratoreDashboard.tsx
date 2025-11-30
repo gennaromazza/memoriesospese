@@ -259,7 +259,7 @@ export default function CollaboratoreDashboard() {
                     return (
                       <TableRow key={assignment.id} data-testid={`row-assignment-${assignment.id}`}>
                         <TableCell className="font-medium">
-                          Job #{assignment.jobId.slice(0, 8)}
+                          {(assignment as AssignmentWithJob).job?.nomeEvento || `Job #${assignment.jobId.slice(0, 8)}`}
                           <div className="text-xs text-muted-foreground">
                             {format(convertFirestoreTimestamp(assignment.dataRichiesta) || new Date(), 'dd/MM/yyyy', {
                               locale: it,
