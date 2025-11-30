@@ -516,3 +516,46 @@ export async function respondToAssignmentPublic(
     throw error;
   }
 }
+
+/**
+ * Invia reminder email ai collaboratori con eventi il giorno successivo
+ */
+export async function sendCollaboratorReminders(): Promise<{
+  success: boolean;
+  reminders_sent: number;
+  total_assignments: number;
+  errors?: string[];
+}> {
+  try {
+    const response = await apiRequest(
+      "POST",
+      "/api/collaboratori/send-reminders"
+    );
+
+    if (!response.ok) throw new Error("Errore invio reminder");
+
+    return await response.json();
+  } catch (error) {
+    console.error("❌ Errore invio reminder:", error);
+    throw error;
+  }
+}
+
+/**
+ * Ottiene eventi prossimi con assegnazioni
+ */
+export async function getUpcomingEventsWithAssignments(days: number = 7): Promise<any[]> {
+  try {
+    const response = await apiRequest(
+      "GET",
+      `/api/collaboratori/upcoming-events?days=${days}`
+    );
+
+    if (!response.ok) throw new Error("Errore caricamento eventi");
+
+    return await response.json();
+  } catch (error) {
+    console.error("❌ Errore get upcoming events:", error);
+    throw error;
+  }
+}

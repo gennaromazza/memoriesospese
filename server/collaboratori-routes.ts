@@ -1500,4 +1500,353 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
   }
 });
 
+/**
+ * Invia email reminder per evento imminente
+ */
+async function sendEventReminderEmail(
+  req: express.Request,
+  collaboratore: any,
+  job: any,
+  assignment: any
+): Promise<void> {
+  if (!collaboratore?.email) {
+    console.log('⚠️ Email collaboratore mancante, reminder non inviato');
+    return;
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const siteUrl = getSiteBaseUrl(req);
+
+  const ruoliLabels: Record<string, string> = {
+    fotografo_secondario: 'Fotografo Secondario',
+    videomaker: 'Videomaker',
+    assistente: 'Assistente',
+    photo_editor: 'Photo Editor',
+    album_designer: 'Album Designer',
+    altro: 'Altro'
+  };
+
+  const ruoloLabel = ruoliLabels[assignment.ruoloInJob] || assignment.ruoloInJob || 'Collaboratore';
+  const jobNome = job?.nomeEvento || 'Lavoro';
+  const eventLocation = job?.eventLocation || 'Da confermare';
+  const mapsLink = job?.eventLocation 
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.eventLocation)}` 
+    : null;
+  
+  // Gestione sicura della data evento
+  let dataFormatted = 'Data da confermare';
+  let oraFormatted = '';
+  
+  if (job?.eventDate) {
+    try {
+      const eventDate = job.eventDate?.toDate?.() || new Date(job.eventDate);
+      if (!isNaN(eventDate.getTime())) {
+        dataFormatted = eventDate.toLocaleDateString('it-IT', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+        oraFormatted = eventDate.toLocaleTimeString('it-IT', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Impossibile formattare data evento per reminder');
+    }
+  }
+
+  const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
+    ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+    : null;
+
+  const htmlContent = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+          Promemoria: Evento Domani
+        </h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+          ${studioInfo.name}
+        </p>
+      </div>
+      
+      <div style="padding: 30px 25px;">
+        <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+          Ciao <strong style="color: #f59e0b;">${collaboratore.nome} ${collaboratore.cognome}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+          Ti ricordiamo che <strong>domani</strong> hai un lavoro programmato. Ecco i dettagli:
+        </p>
+        
+        <div style="background: #fffbeb; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #f59e0b;">
+          <h2 style="color: #92400e; margin: 0 0 20px 0; font-size: 20px; font-weight: 600;">
+            ${jobNome}
+          </h2>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 120px;">Data:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${dataFormatted}</td>
+            </tr>
+            ${oraFormatted ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Orario:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${oraFormatted}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px;">Ruolo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${ruoloLabel}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Luogo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">
+                ${eventLocation}
+                ${mapsLink ? `<br/><a href="${mapsLink}" style="color: #f59e0b; text-decoration: underline;">Apri in Google Maps</a>` : ''}
+              </td>
+            </tr>
+            ${assignment.prodottiAssegnati?.length > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Prodotti:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">
+                ${assignment.prodottiAssegnati.map((p: any) => `${p.label}${p.qty > 1 ? ` (x${p.qty})` : ''}`).join(', ')}
+              </td>
+            </tr>
+            ` : ''}
+            ${assignment.mansioniAssegnate?.length > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Mansioni:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">
+                ${assignment.mansioniAssegnate.join(', ')}
+              </td>
+            </tr>
+            ` : ''}
+            ${assignment.noteAdmin ? `
+            <tr>
+              <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Note:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px;">${assignment.noteAdmin}</td>
+            </tr>
+            ` : ''}
+          </table>
+        </div>
+        
+        ${dashboardUrl ? `
+        <div style="text-align: center; margin-bottom: 25px;">
+          <a href="${dashboardUrl}" 
+             style="display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+                    color: #ffffff; padding: 14px 35px; text-decoration: none; 
+                    border-radius: 8px; font-weight: 600; font-size: 14px;">
+            Visualizza Dashboard
+          </a>
+        </div>
+        ` : ''}
+        
+        <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 0;">
+          Ti auguriamo un buon lavoro!
+        </p>
+      </div>
+      
+      <div style="background: #f8f5f2; padding: 20px 25px; text-align: center; border-top: 1px solid #e5e5e5;">
+        <p style="font-size: 12px; color: #888; margin: 0;">
+          ${studioInfo.name}<br/>
+          ${studioInfo.email}${studioInfo.phone ? ` | ${studioInfo.phone}` : ''}
+        </p>
+      </div>
+    </div>
+  `;
+
+  await sendGmailEmail({
+    to: collaboratore.email,
+    subject: `Promemoria: ${jobNome} - Domani | ${studioInfo.name}`,
+    html: htmlContent
+  }, req);
+
+  console.log(`📧 Reminder email inviata a ${collaboratore.email} per job ${jobNome}`);
+}
+
+/**
+ * POST /api/collaboratori/send-reminders
+ * Invia reminder email a collaboratori con eventi il giorno successivo
+ * Questo endpoint può essere chiamato da un cron job/scheduled function
+ */
+router.post('/collaboratori/send-reminders', async (req, res) => {
+  try {
+    // Calcola intervallo per "domani" (Europe/Rome timezone)
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Inizio e fine di domani
+    const startOfTomorrow = new Date(tomorrow);
+    startOfTomorrow.setHours(0, 0, 0, 0);
+    const endOfTomorrow = new Date(tomorrow);
+    endOfTomorrow.setHours(23, 59, 59, 999);
+    
+    console.log(`🔔 Cercando eventi tra ${startOfTomorrow.toISOString()} e ${endOfTomorrow.toISOString()}`);
+    
+    // Trova tutti i jobs con eventi domani
+    const jobsSnapshot = await db.collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(startOfTomorrow))
+      .where('eventDate', '<=', Timestamp.fromDate(endOfTomorrow))
+      .get();
+    
+    if (jobsSnapshot.empty) {
+      console.log('📭 Nessun evento programmato per domani');
+      return res.json({ success: true, reminders_sent: 0, message: 'Nessun evento programmato per domani' });
+    }
+    
+    const jobIds = jobsSnapshot.docs.map(doc => doc.id);
+    const jobsMap = new Map(jobsSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
+    
+    console.log(`📅 Trovati ${jobIds.length} jobs con eventi domani`);
+    
+    // Trova tutte le assegnazioni accettate per questi jobs
+    // Firestore non supporta 'in' con più di 30 elementi, quindi dividiamo se necessario
+    let allAssignments: any[] = [];
+    const chunks = [];
+    for (let i = 0; i < jobIds.length; i += 30) {
+      chunks.push(jobIds.slice(i, i + 30));
+    }
+    
+    for (const chunk of chunks) {
+      const assignmentsSnapshot = await db.collection('jobCollaboratoreAssignments')
+        .where('jobId', 'in', chunk)
+        .where('status', '==', 'accepted')
+        .get();
+      
+      allAssignments = allAssignments.concat(
+        assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      );
+    }
+    
+    if (allAssignments.length === 0) {
+      console.log('📭 Nessuna assegnazione accettata per gli eventi di domani');
+      return res.json({ success: true, reminders_sent: 0, message: 'Nessuna assegnazione accettata per gli eventi di domani' });
+    }
+    
+    console.log(`👥 Trovate ${allAssignments.length} assegnazioni accettate`);
+    
+    // Recupera i collaboratori
+    const collaboratoreIds = [...new Set(allAssignments.map(a => a.collaboratoreId))];
+    const collaboratoriMap = new Map<string, any>();
+    
+    for (const colId of collaboratoreIds) {
+      const colDoc = await db.collection('collaboratori').doc(colId).get();
+      if (colDoc.exists) {
+        collaboratoriMap.set(colId, { id: colDoc.id, ...colDoc.data() });
+      }
+    }
+    
+    // Invia i reminder
+    let remindersSent = 0;
+    const errors: string[] = [];
+    
+    for (const assignment of allAssignments) {
+      const collaboratore = collaboratoriMap.get(assignment.collaboratoreId);
+      const job = jobsMap.get(assignment.jobId);
+      
+      if (!collaboratore || !job) {
+        console.log(`⚠️ Collaboratore o job non trovato per assegnazione ${assignment.id}`);
+        continue;
+      }
+      
+      // Controlla se abbiamo già inviato un reminder oggi per questa assegnazione
+      if (assignment.lastReminderSentAt) {
+        const lastReminder = assignment.lastReminderSentAt.toDate?.() || new Date(assignment.lastReminderSentAt);
+        const today = new Date();
+        if (lastReminder.toDateString() === today.toDateString()) {
+          console.log(`⏭️ Reminder già inviato oggi per assegnazione ${assignment.id}`);
+          continue;
+        }
+      }
+      
+      try {
+        await sendEventReminderEmail(req, collaboratore, job, assignment);
+        
+        // Aggiorna timestamp ultimo reminder
+        await db.collection('jobCollaboratoreAssignments').doc(assignment.id).update({
+          lastReminderSentAt: Timestamp.now()
+        });
+        
+        remindersSent++;
+      } catch (err: any) {
+        console.error(`❌ Errore invio reminder per ${assignment.id}:`, err.message);
+        errors.push(`${assignment.id}: ${err.message}`);
+      }
+    }
+    
+    console.log(`✅ Inviati ${remindersSent} reminder su ${allAssignments.length} assegnazioni`);
+    
+    res.json({
+      success: true,
+      reminders_sent: remindersSent,
+      total_assignments: allAssignments.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error: any) {
+    console.error('❌ Error sending reminders:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/collaboratori/upcoming-events
+ * Lista eventi prossimi con assegnazioni (per preview admin)
+ */
+router.get('/collaboratori/upcoming-events', async (req, res) => {
+  try {
+    const { days = '7' } = req.query;
+    const numDays = parseInt(days as string, 10) || 7;
+    
+    const now = new Date();
+    const futureDate = new Date(now);
+    futureDate.setDate(futureDate.getDate() + numDays);
+    
+    // Jobs nei prossimi N giorni
+    const jobsSnapshot = await db.collection('jobs')
+      .where('eventDate', '>=', Timestamp.fromDate(now))
+      .where('eventDate', '<=', Timestamp.fromDate(futureDate))
+      .orderBy('eventDate', 'asc')
+      .get();
+    
+    const events = await Promise.all(
+      jobsSnapshot.docs.map(async (jobDoc) => {
+        const job = { id: jobDoc.id, ...jobDoc.data() };
+        
+        // Assegnazioni per questo job
+        const assignmentsSnapshot = await db.collection('jobCollaboratoreAssignments')
+          .where('jobId', '==', jobDoc.id)
+          .get();
+        
+        const assignments = await Promise.all(
+          assignmentsSnapshot.docs.map(async (aDoc) => {
+            const assignment = aDoc.data();
+            const colDoc = await db.collection('collaboratori').doc(assignment.collaboratoreId).get();
+            return {
+              id: aDoc.id,
+              ...assignment,
+              collaboratore: colDoc.exists ? { id: colDoc.id, ...colDoc.data() } : null
+            };
+          })
+        );
+        
+        return {
+          job,
+          assignments,
+          acceptedCount: assignments.filter(a => a.status === 'accepted').length,
+          pendingCount: assignments.filter(a => a.status === 'pending').length
+        };
+      })
+    );
+    
+    res.json(events);
+  } catch (error: any) {
+    console.error('❌ Error fetching upcoming events:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

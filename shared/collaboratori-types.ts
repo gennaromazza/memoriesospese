@@ -117,8 +117,9 @@ export interface JobCollaboratoreAssignment {
   noteCollaboratore?: string;
   
   // Reminder
-  reminderSent?: boolean;        // Se il reminder è stato inviato
-  reminderSentAt?: Timestamp;    // Data invio reminder
+  reminderSent?: boolean;        // Deprecato - usare lastReminderSentAt
+  reminderSentAt?: Timestamp;    // Deprecato - usare lastReminderSentAt
+  lastReminderSentAt?: Timestamp; // Data ultimo invio reminder (per evitare duplicati)
   
   createdAt: Timestamp;
   updatedAt: Timestamp;
