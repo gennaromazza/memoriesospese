@@ -308,13 +308,29 @@ router.get("/public/:token", async (req: Request, res: Response) => {
     } | null = null;
 
     if (quote.jobInfo) {
-      // Usa dati salvati in quote (più completi: include rito e location)
+      // Usa dati salvati in quote per campi base
       jobInfo = {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
         location: quote.jobInfo.location,
       };
+      
+      // Se il rito non è nello snapshot, prova a recuperarlo dal job attuale
+      if (!jobInfo.rito && quote.jobId) {
+        try {
+          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+          if (jobDoc.exists) {
+            const jobData = jobDoc.data();
+            const ritoFromJob = jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia;
+            const rituTimeFromJob = jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia;
+            if (ritoFromJob) jobInfo.rito = ritoFromJob;
+            if (rituTimeFromJob) jobInfo.rituTime = rituTimeFromJob;
+          }
+        } catch (err) {
+          console.warn("⚠️ Impossibile recuperare dati rito dal job:", err);
+        }
+      }
     } else if (quote.jobId) {
       // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
       const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
@@ -595,17 +611,34 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       nomeEvento?: string;
       eventDate?: string | null;
       rito?: string;
+      rituTime?: string;
       location?: string;
     } | null = null;
 
     if (quote.jobInfo) {
-      // Usa dati salvati in quote (più completi: include rito e location)
+      // Usa dati salvati in quote per campi base
       jobInfo = {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
         location: quote.jobInfo.location,
       };
+      
+      // Se il rito non è nello snapshot, prova a recuperarlo dal job attuale
+      if ((!jobInfo.rito || !(jobInfo as any).rituTime) && quote.jobId) {
+        try {
+          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+          if (jobDoc.exists) {
+            const jobData = jobDoc.data();
+            const ritoFromJob = jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia;
+            const rituTimeFromJob = jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia;
+            if (!jobInfo.rito && ritoFromJob) jobInfo.rito = ritoFromJob;
+            if (rituTimeFromJob) (jobInfo as any).rituTime = rituTimeFromJob;
+          }
+        } catch (err) {
+          console.warn("⚠️ Impossibile recuperare dati rito dal job (signed):", err);
+        }
+      }
     } else if (quote.jobId) {
       // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
       const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
@@ -615,6 +648,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
           rito: jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia || undefined,
+          rituTime: jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia || undefined,
           location: jobData?.eventLocation || undefined,
         };
       }
