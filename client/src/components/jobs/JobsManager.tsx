@@ -273,20 +273,26 @@ export default function JobsManager() {
         const jobId = quote.jobId;
         if (!jobId) return;
         
+        // Controlla firma: signature presente OPPURE status === 'firmato'
+        const quoteIsSigned = !!quote.signature || quote.status === 'firmato';
+        // Controlla invio: emailSentAt, sentTo, oppure status non è 'bozza'
+        const quoteIsEmailSent = !!quote.emailSentAt || !!quote.sentTo || 
+          (quote.status && quote.status !== 'bozza');
+        
         // Se già esiste una entry, aggiorna solo se migliora lo stato
         if (!statusMap[jobId]) {
           statusMap[jobId] = {
             hasQuote: true,
-            isSigned: !!quote.signature,
-            isEmailSent: !!quote.emailSentAt || !!quote.sentTo
+            isSigned: quoteIsSigned,
+            isEmailSent: quoteIsEmailSent
           };
         } else {
           // Se c'è un preventivo firmato, marca come firmato
-          if (quote.signature) {
+          if (quoteIsSigned) {
             statusMap[jobId].isSigned = true;
           }
           // Se almeno un preventivo è stato inviato
-          if (quote.emailSentAt || quote.sentTo) {
+          if (quoteIsEmailSent) {
             statusMap[jobId].isEmailSent = true;
           }
         }
