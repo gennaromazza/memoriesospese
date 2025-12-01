@@ -389,17 +389,24 @@ export default function JobsManager() {
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
       
-      // Filtro stato preventivo - usa dati reali dai preventivi (supporta job legacy)
+      // Filtro stato preventivo - usa dati reali dai preventivi + status job come fallback
       if (filterQuoteStatus !== 'all') {
         // Usa la mappa quotesByJob che legge direttamente dalla collezione quotes
         const quoteStatus = quotesByJob[job.id];
         const hasQuote = quoteStatus?.hasQuote || false;
-        const isSigned = quoteStatus?.isSigned || false;
+        
+        // IMPORTANTE: Un job è considerato "firmato" se:
+        // 1. Il preventivo ha signature o status 'firmato' OPPURE
+        // 2. Il job è in stato confermato o successivo (fallback per job legacy)
+        const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
+        const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
+        const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
+        
         const isEmailSent = quoteStatus?.isEmailSent || false;
         
-        // Firmato: ha un preventivo con firma
+        // Firmato: preventivo firmato OPPURE job confermato
         if (filterQuoteStatus === 'firmato' && !isSigned) return false;
-        // Non firmato: ha un preventivo inviato ma senza firma
+        // Non firmato: ha preventivo inviato, NON firmato, e job NON confermato
         if (filterQuoteStatus === 'non_firmato' && (!hasQuote || isSigned || !isEmailSent)) return false;
         // Non inviato: non ha preventivo o ha preventivo non ancora inviato
         if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
