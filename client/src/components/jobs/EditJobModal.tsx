@@ -76,6 +76,8 @@ const formSchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),
   eventLocation: z.string().optional(),
+  locationCerimonia: z.string().optional(),
+  oraCerimonia: z.string().optional(),
   provenance: z.string().min(1, 'Seleziona una provenienza'),
   noteInterne: z.string().optional()
 }).refine((data) => {
@@ -149,6 +151,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
       endTime: job.endTime || '',
       provenance: job.provenance || '',
       eventLocation: job.eventLocation || '',
+      locationCerimonia: (job as any).locationCerimonia || (job as any).rituLocation || '',
+      oraCerimonia: (job as any).oraCerimonia || (job as any).rituTime || '',
       noteInterne: job.noteInterne || ''
     }
   });
@@ -304,6 +308,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         startTime: data.startTime,
         endTime: data.endTime,
         eventLocation: data.eventLocation,
+        locationCerimonia: data.locationCerimonia,
+        oraCerimonia: data.oraCerimonia,
         provenance: data.provenance,
         noteInterne: data.noteInterne
       }, user.uid);
@@ -610,7 +616,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                 name="eventLocation"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Location</FormLabel>
+                    <FormLabel>Location Evento</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -622,6 +628,45 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                   </FormItem>
                 )}
               />
+
+              {/* Rito/Cerimonia */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <FormField
+                  control={form.control}
+                  name="locationCerimonia"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Luogo Rito/Cerimonia</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="es. Chiesa San Francesco"
+                          data-testid="input-location-cerimonia"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="oraCerimonia"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Orario Cerimonia</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="time"
+                          data-testid="input-ora-cerimonia"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Note Interne */}
               <FormField

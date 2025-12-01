@@ -361,7 +361,17 @@ export default function QuotePublicViewPage() {
                   <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                   <div>
                     <p className="text-sm text-gray-600">Location Evento</p>
-                    <p className="font-semibold">{jobInfo.location}</p>
+                    <p className="font-semibold">
+                      {jobInfo.location}
+                      <a 
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(jobInfo.location)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 text-primary hover:underline text-xs"
+                      >
+                        Apri in Maps
+                      </a>
+                    </p>
                   </div>
                 </div>
               )}
@@ -374,7 +384,17 @@ export default function QuotePublicViewPage() {
                       <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                       <div>
                         <p className="text-sm text-gray-600">Luogo Rito/Celebrazione</p>
-                        <p className="font-semibold">{jobInfo.rito}</p>
+                        <p className="font-semibold">
+                          {jobInfo.rito}
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(jobInfo.rito)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-2 text-primary hover:underline text-xs"
+                          >
+                            Apri in Maps
+                          </a>
+                        </p>
                       </div>
                     </div>
                   )}

@@ -171,6 +171,8 @@ export interface UpdateJob {
   eventLocation?: string;
   rituLocation?: string;
   rituTime?: string;
+  locationCerimonia?: string;  // Alias per rituLocation
+  oraCerimonia?: string;       // Alias per rituTime
   provenance?: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
   status?: JobStatus;

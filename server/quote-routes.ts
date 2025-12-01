@@ -323,9 +323,9 @@ router.get("/public/:token", async (req: Request, res: Response) => {
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || "",
-          location: jobData?.eventLocation || "",
-          rituTime: jobData?.rituTime,
+          rito: jobData?.rituLocation || jobData?.locationCerimonia || undefined,
+          location: jobData?.eventLocation || undefined,
+          rituTime: jobData?.rituTime || jobData?.oraCerimonia || undefined,
           startTime: jobData?.startTime,
           endTime: jobData?.endTime,
           allDay: jobData?.allDay,
@@ -614,8 +614,8 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
         jobInfo = {
           nomeEvento: jobData?.nomeEvento,
           eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || "",
-          location: jobData?.eventLocation || "",
+          rito: jobData?.rituLocation || jobData?.locationCerimonia || undefined,
+          location: jobData?.eventLocation || undefined,
         };
       }
     }

@@ -228,6 +228,18 @@ export async function updateJob(
       updatedAt: Timestamp.now()
     };
     
+    // Mappa locationCerimonia -> rituLocation per compatibilità
+    if (data.locationCerimonia !== undefined) {
+      updateData.rituLocation = data.locationCerimonia;
+      updateData.locationCerimonia = data.locationCerimonia; // Mantieni anche il nuovo nome
+    }
+    
+    // Mappa oraCerimonia -> rituTime per compatibilità
+    if (data.oraCerimonia !== undefined) {
+      updateData.rituTime = data.oraCerimonia;
+      updateData.oraCerimonia = data.oraCerimonia; // Mantieni anche il nuovo nome
+    }
+    
     // Converti date
     if (data.eventDate) {
       updateData.eventDate = Timestamp.fromDate(data.eventDate);
