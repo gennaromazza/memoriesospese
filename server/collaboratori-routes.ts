@@ -1469,9 +1469,20 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
         // Supporta sia job nuovi che job legacy importati
         let jobData: any = null;
         if (rawJobData) {
+          // DEBUG: Log dati cerimonia raw
+          console.log(`📋 Job ${jobDoc.id} - Dati cerimonia raw:`, {
+            oraCerimonia: rawJobData.oraCerimonia,
+            rituTime: rawJobData.rituTime,
+            locationCerimonia: rawJobData.locationCerimonia,
+            rituLocation: rawJobData.rituLocation,
+            jobDataValues: rawJobData.jobDataValues,
+          });
+          
           // Normalizza i campi cerimonia (supporta sia nuovi che legacy)
           const oraCerimonia = rawJobData.oraCerimonia || rawJobData.rituTime || rawJobData.startTime || rawJobData.jobDataValues?.oraCerimonia;
           const locationCerimonia = rawJobData.locationCerimonia || rawJobData.rituLocation || rawJobData.jobDataValues?.locationCerimonia;
+          
+          console.log(`📋 Job ${jobDoc.id} - Dati cerimonia normalizzati:`, { oraCerimonia, locationCerimonia });
           
           // Normalizza ricevimento
           const oraRicevimento = rawJobData.oraRicevimento || rawJobData.jobDataValues?.oraRicevimento;
