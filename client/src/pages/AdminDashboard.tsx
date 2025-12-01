@@ -190,8 +190,16 @@ interface GalleryItem {
   password?: string;
   specialTheme?: string;
   specialPin?: string;
-  selectionStatus?: string; // Aggiunto per il filtro selezioni
-  selectionEnabled?: boolean; // Aggiunto per il filtro selezioni
+  selectionStatus?: string;
+  selectionEnabled?: boolean;
+  requiredPhotoCount?: number;
+  selectionDeadline?: any;
+  selectionDeadlineEnforced?: boolean;
+  selectedPhotoIds?: string[];
+  productRequirements?: any[];
+  bookingId?: string;
+  clientEmail?: string;
+  clientName?: string;
 }
 
 interface StudioSettings {
