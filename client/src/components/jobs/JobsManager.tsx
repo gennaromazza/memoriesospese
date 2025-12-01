@@ -441,16 +441,20 @@ export default function JobsManager() {
         }
       }
       
-      // Ricerca testuale (nome evento, location, note, nomi clienti)
+      // Ricerca testuale (nome evento, location, note, nomi clienti) - supporta campi legacy
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const nomeEvento = job.nomeEvento?.toLowerCase() || '';
-        const eventLocation = job.eventLocation?.toLowerCase() || '';
+        // Supporta campi location alternativi (legacy)
+        const eventLocation = (job.eventLocation || job.rituLocation || (job as any).locationCerimonia || '').toLowerCase();
         const note = job.noteInterne?.toLowerCase() || '';
         
-        // Cerca anche nei nomi dei clienti collegati
-        const clientiNames = (job.clientiIds || [])
-          .map(id => clienteNamesMap[id]?.toLowerCase() || '')
+        // Cerca nei nomi dei clienti - supporta sia clientiIds (array) che clienteId singolo (legacy)
+        const clientIds = job.clientiIds?.length 
+          ? job.clientiIds 
+          : ((job as any).clienteId ? [(job as any).clienteId] : []);
+        const clientiNames = clientIds
+          .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
           .join(' ');
         
         return nomeEvento.includes(query) || 
