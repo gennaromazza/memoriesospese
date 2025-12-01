@@ -345,36 +345,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 sm:space-y-6" id="edit-job-form">
-                {/* Form content will be here */}
-              </form>
-            </Form>
-          </div>
-          <div className="px-4 sm:px-6 py-4 border-t bg-gray-50 dark:bg-gray-900 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={updateMutation.isPending}
-              data-testid="button-cancel"
-              className="flex-1 sm:flex-initial"
-            >
-              Annulla
-            </Button>
-            <Button
-              type="submit"
-              form="edit-job-form"
-              disabled={updateMutation.isPending || checkingConflicts}
-              data-testid="button-save"
-              className="flex-1 sm:flex-initial"
-            >
-              {updateMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Salva
-            </Button>
-          </div>
-
-          {/* Nome Evento */}
+                {/* Nome Evento */}
               <FormField
                 control={form.control}
                 name="nomeEvento"
@@ -672,15 +643,41 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                 )}
               />
 
-              {/* Conflict Warning */}
-              {checkingConflicts && (
-                <div className="flex items-center gap-2 text-sm text-amber-600">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Verifica disponibilità...
-                </div>
+                {/* Conflict Warning */}
+                {checkingConflicts && (
+                  <div className="flex items-center gap-2 text-sm text-amber-600">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Verifica disponibilità...
+                  </div>
+                )}
+              </form>
+            </Form>
+          </div>
+          <div className="px-4 sm:px-6 py-4 border-t bg-gray-50 dark:bg-gray-900 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={updateMutation.isPending}
+              data-testid="button-cancel"
+              className="flex-1 sm:flex-initial"
+            >
+              Annulla
+            </Button>
+            <Button
+              type="submit"
+              form="edit-job-form"
+              disabled={updateMutation.isPending || checkingConflicts}
+              data-testid="button-save"
+              className="flex-1 sm:flex-initial"
+            >
+              {updateMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-
-              </DialogContent>
+              Salva
+            </Button>
+          </div>
+        </DialogContent>
       </Dialog>
 
       {/* Conflicts Alert Dialog */}
