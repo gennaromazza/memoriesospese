@@ -1008,23 +1008,27 @@ router.post('/send-reminders', async (req: Request, res: Response) => {
       const job = jobDoc.data();
       if (!job) continue;
       
-      // Recupera info clienti
-      const clientiIds = job.clientiIds || [];
+      // Recupera info clienti - supporta sia clientiIds (array) che clienteId (legacy singolo)
+      let clientiIds = job.clientiIds || [];
+      // Fallback per jobs legacy con clienteId singolo
+      if (clientiIds.length === 0 && job.clienteId) {
+        clientiIds = [job.clienteId];
+      }
       if (clientiIds.length === 0) {
-        console.log(`Nessun cliente trovato per job ${job.id}`);
+        console.log(`[Payment Reminder] Nessun cliente trovato per job ${schedule.jobId}`);
         continue;
       }
       
-      // Prendi il primo cliente (primary contact)
-      const clienteDoc = await db.collection('clients').doc(clientiIds[0]).get();
+      // Prendi il primo cliente (primary contact) - usa collezione 'clienti' corretta
+      const clienteDoc = await db.collection('clienti').doc(clientiIds[0]).get();
       if (!clienteDoc.exists) {
-        console.log(`Cliente non trovato: ${clientiIds[0]}`);
+        console.log(`[Payment Reminder] Cliente non trovato: ${clientiIds[0]}`);
         continue;
       }
       
       const cliente = clienteDoc.data();
       if (!cliente || !cliente.email) {
-        console.log(`Email cliente mancante per ${clientiIds[0]}`);
+        console.log(`[Payment Reminder] Email cliente mancante per ${clientiIds[0]}`);
         continue;
       }
       
