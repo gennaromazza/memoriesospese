@@ -53,6 +53,8 @@ interface ClienteInfo {
   email?: string;
   cellulare?: string;
   whatsapp?: string;
+  indirizzo?: string;
+  citta?: string;
   isPrimary?: boolean;
 }
 
@@ -465,6 +467,25 @@ export default function CollaboratoreDashboard() {
                                               </a>
                                             )}
                                           </div>
+                                          {/* Indirizzo cliente */}
+                                          {(c.indirizzo || c.citta) && (
+                                            <div className="mt-2 pt-2 border-t text-sm text-muted-foreground">
+                                              <div className="flex items-start gap-2">
+                                                <MapPin className="w-4 h-4 mt-0.5" />
+                                                <div>
+                                                  <span>{[c.indirizzo, c.citta].filter(Boolean).join(', ')}</span>
+                                                  <a 
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([c.indirizzo, c.citta].filter(Boolean).join(', '))}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-2 text-primary hover:underline text-xs"
+                                                  >
+                                                    Maps
+                                                  </a>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
@@ -557,13 +578,14 @@ export default function CollaboratoreDashboard() {
                                       </div>
                                     )}
 
-                                    {/* Note */}
+                                    {/* Note - renderizza HTML per supportare <br> e altri tag */}
                                     {job.note && (
                                       <div className="pt-2">
                                         <div className="text-xs font-medium text-muted-foreground uppercase mb-1">Note</div>
-                                        <div className="bg-background rounded-lg p-3 border text-sm">
-                                          {job.note}
-                                        </div>
+                                        <div 
+                                          className="bg-background rounded-lg p-3 border text-sm"
+                                          dangerouslySetInnerHTML={{ __html: job.note }}
+                                        />
                                       </div>
                                     )}
                                   </div>

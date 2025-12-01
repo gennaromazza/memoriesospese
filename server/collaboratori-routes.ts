@@ -1513,6 +1513,8 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
               email: clienteData?.email,
               cellulare: clienteData?.cellulare,
               whatsapp: clienteData?.whatsapp,
+              indirizzo: clienteData?.indirizzo || clienteData?.via || clienteData?.address,
+              citta: clienteData?.citta || clienteData?.city,
               isPrimary: true,
             });
           }
@@ -1536,6 +1538,8 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
                   email: clienteData?.email,
                   cellulare: clienteData?.cellulare,
                   whatsapp: clienteData?.whatsapp,
+                  indirizzo: clienteData?.indirizzo || clienteData?.via || clienteData?.address,
+                  citta: clienteData?.citta || clienteData?.city,
                   isPrimary: false,
                 });
               }
@@ -1559,6 +1563,8 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
                   email: clienteData?.email,
                   cellulare: clienteData?.cellulare,
                   whatsapp: clienteData?.whatsapp,
+                  indirizzo: clienteData?.indirizzo || clienteData?.via || clienteData?.address,
+                  citta: clienteData?.citta || clienteData?.city,
                   isPrimary: false,
                 });
               }
@@ -1578,6 +1584,8 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
                 email: embeddedCliente.email,
                 cellulare: embeddedCliente.cellulare,
                 whatsapp: embeddedCliente.whatsapp,
+                indirizzo: embeddedCliente.indirizzo || embeddedCliente.via || embeddedCliente.address,
+                citta: embeddedCliente.citta || embeddedCliente.city,
                 isPrimary: false,
               });
             }
