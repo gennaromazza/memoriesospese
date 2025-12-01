@@ -50,6 +50,7 @@ import { BarChart3, Clock, Globe } from "lucide-react";
 import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
 import PortfolioManager from '@/components/admin/PortfolioManager';
 import BlogManager from '@/components/admin/BlogManager';
+import EmailLogsManager from '@/components/admin/EmailLogsManager';
 import WordPressImporter from "@/components/admin/WordPressImporter";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import BulkEmailSender from "./BulkEmailSender";
@@ -252,7 +253,7 @@ export default function AdminDashboard() {
   const [activeConsultationSection, setActiveConsultationSection] = useState<'consulenze' | 'consulenze-templates'>(() => {
     return (sessionStorage.getItem('activeConsultationSection') as any) || 'consulenze';
   });
-  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration'>(() => {
+  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration' | 'email-logs'>(() => {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
   const [activeSitoSection, setActiveSitoSection] = useState<'portfolio' | 'blog'>(() => {
@@ -1315,6 +1316,13 @@ export default function AdminDashboard() {
                   }}>
                     <FolderOpen className="h-4 w-4 mr-2" />
                     Categorie Prodotti
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    setActiveTab('settings');
+                    setSettingsSection('email-logs');
+                  }}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Storico Email
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -2451,6 +2459,12 @@ export default function AdminDashboard() {
                 <TabsContent value="product-categories">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <ProductCategoriesManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="email-logs">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <EmailLogsManager />
                   </div>
                 </TabsContent>
 

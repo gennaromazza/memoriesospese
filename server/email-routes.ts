@@ -7,8 +7,42 @@ import { Router, Request, Response, NextFunction } from "express";
 import { google } from "googleapis";
 import { db } from './firebase-admin.js';
 import { DateTime } from 'luxon';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const router = Router();
+
+/**
+ * Email Log Entry Interface
+ */
+interface EmailLogEntry {
+  to: string | string[];
+  subject: string;
+  type: string;
+  status: 'sent' | 'failed';
+  sentAt: FirebaseFirestore.FieldValue;
+  senderEmail?: string;
+  relatedDocId?: string;
+  relatedDocType?: string;
+  clientName?: string;
+  errorMessage?: string;
+}
+
+/**
+ * Helper: Salva log email in Firestore
+ */
+async function logEmailSent(entry: Omit<EmailLogEntry, 'sentAt'>): Promise<string | null> {
+  try {
+    const logRef = await db.collection('emailLogs').add({
+      ...entry,
+      sentAt: FieldValue.serverTimestamp(),
+    });
+    console.log(`📝 Email log saved: ${logRef.id} - ${entry.type} to ${Array.isArray(entry.to) ? entry.to.join(', ') : entry.to}`);
+    return logRef.id;
+  } catch (error) {
+    console.error('❌ Failed to save email log:', error);
+    return null;
+  }
+}
 
 // Firebase Project ID per Firestore REST API
 const FIREBASE_PROJECT_ID = "wedding-gallery-397b6";
@@ -494,6 +528,51 @@ export async function sendGmailEmail(
     );
   } catch (error) {
     console.error("❌ Gmail send error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Invia email tramite Gmail API CON logging automatico
+ * Usa questa versione per tutte le email che devono essere tracciate
+ */
+export async function sendGmailEmailWithLog(
+  to: string | string[],
+  subject: string,
+  htmlContent: string,
+  logInfo: {
+    type: string;
+    relatedDocId?: string;
+    relatedDocType?: string;
+    clientName?: string;
+  },
+  from: string = "Memorie Sospese <memoriesospese@gennaromazzacane.it>",
+): Promise<void> {
+  try {
+    await sendGmailEmail(to, subject, htmlContent, from);
+    
+    // Log email inviata con successo
+    await logEmailSent({
+      to,
+      subject,
+      type: logInfo.type,
+      status: 'sent',
+      relatedDocId: logInfo.relatedDocId,
+      relatedDocType: logInfo.relatedDocType,
+      clientName: logInfo.clientName,
+    });
+  } catch (error: any) {
+    // Log email fallita
+    await logEmailSent({
+      to,
+      subject,
+      type: logInfo.type,
+      status: 'failed',
+      relatedDocId: logInfo.relatedDocId,
+      relatedDocType: logInfo.relatedDocType,
+      clientName: logInfo.clientName,
+      errorMessage: error.message || 'Unknown error',
+    });
     throw error;
   }
 }
@@ -4226,6 +4305,116 @@ router.get("/test-connection", async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       error: error.message || "Connection test failed"
+    });
+  }
+});
+
+/**
+ * GET /api/email/logs
+ * Recupera storico email inviate (admin only)
+ * Query params: limit (default 50), type (optional filter)
+ */
+router.get("/logs", authenticateFirebase, async (req: any, res) => {
+  try {
+    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    if (!req.user || !adminEmails.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Accesso non autorizzato' });
+    }
+
+    const limit = parseInt(req.query.limit as string) || 50;
+    const type = req.query.type as string;
+    const startAfter = req.query.startAfter as string;
+
+    let query = db.collection('emailLogs')
+      .orderBy('sentAt', 'desc')
+      .limit(limit);
+
+    if (type) {
+      query = db.collection('emailLogs')
+        .where('type', '==', type)
+        .orderBy('sentAt', 'desc')
+        .limit(limit);
+    }
+
+    const snapshot = await query.get();
+    
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      sentAt: doc.data().sentAt?.toDate?.()?.toISOString() || null
+    }));
+
+    // Conta totale per statistiche
+    const statsSnapshot = await db.collection('emailLogs').count().get();
+    const totalCount = statsSnapshot.data().count;
+
+    return res.json({
+      success: true,
+      logs,
+      total: totalCount,
+      hasMore: logs.length === limit
+    });
+  } catch (error: any) {
+    console.error("❌ Errore recupero log email:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore recupero log email"
+    });
+  }
+});
+
+/**
+ * GET /api/email/logs/stats
+ * Statistiche email inviate (admin only)
+ */
+router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
+  try {
+    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    if (!req.user || !adminEmails.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Accesso non autorizzato' });
+    }
+
+    // Statistiche ultime 24 ore
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const last24hSnapshot = await db.collection('emailLogs')
+      .where('sentAt', '>=', yesterday)
+      .count()
+      .get();
+
+    // Statistiche ultimi 7 giorni
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+
+    const last7dSnapshot = await db.collection('emailLogs')
+      .where('sentAt', '>=', lastWeek)
+      .count()
+      .get();
+
+    // Statistiche totali
+    const totalSnapshot = await db.collection('emailLogs').count().get();
+
+    // Email fallite
+    const failedSnapshot = await db.collection('emailLogs')
+      .where('status', '==', 'failed')
+      .count()
+      .get();
+
+    return res.json({
+      success: true,
+      stats: {
+        last24h: last24hSnapshot.data().count,
+        last7d: last7dSnapshot.data().count,
+        total: totalSnapshot.data().count,
+        failed: failedSnapshot.data().count
+      }
+    });
+  } catch (error: any) {
+    console.error("❌ Errore recupero statistiche email:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore recupero statistiche"
     });
   }
 });
