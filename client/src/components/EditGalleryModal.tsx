@@ -70,6 +70,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [showPassword, setShowPassword] = useState(false);
   const [specialTheme, setSpecialTheme] = useState<string>("none");
   const [specialPin, setSpecialPin] = useState("");
+  const [originalSpecialPin, setOriginalSpecialPin] = useState(""); // PIN originale per confronto
   const [showSpecialPin, setShowSpecialPin] = useState(false);
   const [clientEmail, setClientEmail] = useState(""); // Email cliente per invio PIN
   const [clientName, setClientName] = useState(""); // Nome cliente per personalizzazione email
