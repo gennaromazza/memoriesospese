@@ -1013,6 +1013,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // Invalida cache React Query per aggiornare UI senza reload
       queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+      // Invalida anche la cache della singola galleria (per client che la stanno visualizzando)
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.code] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
       
       onClose();
     } catch (error) {
