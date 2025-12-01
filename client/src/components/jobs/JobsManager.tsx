@@ -116,9 +116,11 @@ export default function JobsManager() {
   const [, navigate] = useLocation();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('matrimonio'); // Default: Matrimonio
   const [filterYear, setFilterYear] = useState<string>('all');
   const [filterSemester, setFilterSemester] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all'); // Nuovo: filtro mese
+  const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('firmato'); // Nuovo: stato preventivo (default: firmato)
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -306,6 +308,34 @@ export default function JobsManager() {
     });
     return Array.from(years).sort((a, b) => b - a);
   }, [jobs]);
+  
+  // Conteggio lavori per tipo (esclude archiviati)
+  const jobCountsByType = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    jobs.forEach(job => {
+      if (job.status !== 'archiviato') {
+        counts.all = (counts.all || 0) + 1;
+        counts[job.jobType] = (counts[job.jobType] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [jobs]);
+  
+  // Mesi disponibili per l'anno selezionato
+  const availableMonths = useMemo(() => {
+    if (filterYear === 'all') return [];
+    const months = new Set<number>();
+    const year = parseInt(filterYear);
+    jobs.forEach(job => {
+      if (job.eventDate) {
+        const date = convertFirestoreTimestamp(job.eventDate);
+        if (date && !isNaN(date.getTime()) && date.getFullYear() === year) {
+          months.add(date.getMonth() + 1); // 1-12
+        }
+      }
+    });
+    return Array.from(months).sort((a, b) => a - b);
+  }, [jobs, filterYear]);
 
   // Filtra jobs
   const filteredJobs = useMemo(() => {
@@ -316,7 +346,20 @@ export default function JobsManager() {
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
       
-      // Filtri date (precedenza: custom range > anno+semestre > anno)
+      // Filtro stato preventivo
+      if (filterQuoteStatus !== 'all') {
+        const hasQuote = job.quoteIds && job.quoteIds.length > 0;
+        // Per controllare se il preventivo è firmato, dobbiamo usare lo status del job
+        // confermato/shooting_fatto/produzione/consegnato = preventivo firmato
+        const confirmedStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
+        const isConfirmed = confirmedStatuses.includes(job.status);
+        
+        if (filterQuoteStatus === 'firmato' && !isConfirmed) return false;
+        if (filterQuoteStatus === 'non_firmato' && (isConfirmed || !hasQuote)) return false;
+        if (filterQuoteStatus === 'non_inviato' && hasQuote) return false;
+      }
+      
+      // Filtri date (precedenza: custom range > mese > anno+semestre > anno)
       if (job.eventDate) {
         const eventDate = convertFirestoreTimestamp(job.eventDate);
         
@@ -329,7 +372,16 @@ export default function JobsManager() {
             });
             if (!inRange) return false;
           }
-          // 2. Anno + Semestre
+          // 2. Anno + Mese specifico
+          else if (filterYear !== 'all' && filterMonth !== 'all') {
+            const year = parseInt(filterYear);
+            const month = parseInt(filterMonth);
+            const eventYear = eventDate.getFullYear();
+            const eventMonth = eventDate.getMonth() + 1; // 1-12
+            
+            if (eventYear !== year || eventMonth !== month) return false;
+          }
+          // 3. Anno + Semestre
           else if (filterYear !== 'all' && filterSemester !== 'all') {
             const year = parseInt(filterYear);
             const eventYear = eventDate.getFullYear();
@@ -340,7 +392,7 @@ export default function JobsManager() {
             if (filterSemester === 'S1' && (eventMonth < 1 || eventMonth > 6)) return false;
             if (filterSemester === 'S2' && (eventMonth < 7 || eventMonth > 12)) return false;
           }
-          // 3. Solo Anno
+          // 4. Solo Anno
           else if (filterYear !== 'all') {
             const year = parseInt(filterYear);
             const eventYear = eventDate.getFullYear();
@@ -369,7 +421,7 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, customDateRange, searchQuery, clienteNamesMap]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, customDateRange, searchQuery, clienteNamesMap]);
   
   // Funzione helper per convertire date Firestore
   const toDate = (val: any): Date => {
@@ -595,6 +647,60 @@ export default function JobsManager() {
         )}
       </div>
       
+      {/* Card Navigazione Tipi Lavoro */}
+      <div className="overflow-x-auto pb-2">
+        <div className="flex gap-2 min-w-max">
+          {/* Card "Tutti" */}
+          <button
+            onClick={() => setFilterType('all')}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[100px]",
+              filterType === 'all'
+                ? "bg-slate-100 border-slate-400 text-slate-800 shadow-sm"
+                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+            )}
+            data-testid="card-filter-all"
+          >
+            <span className="text-lg">📋</span>
+            <div className="text-left">
+              <div className="font-medium text-sm">Tutti</div>
+              <div className="text-xs text-muted-foreground">{jobCountsByType.all || 0}</div>
+            </div>
+          </button>
+          
+          {/* Card per ogni tipo attivo */}
+          {jobTypes
+            .filter(jt => jt.attivo)
+            .sort((a, b) => a.ordine - b.ordine)
+            .map(jobType => (
+              <button
+                key={jobType.id}
+                onClick={() => setFilterType(jobType.slug)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all min-w-[120px]",
+                  filterType === jobType.slug
+                    ? "shadow-sm"
+                    : "bg-white hover:bg-opacity-10"
+                )}
+                style={{
+                  borderColor: filterType === jobType.slug ? jobType.colore : '#e2e8f0',
+                  backgroundColor: filterType === jobType.slug ? `${jobType.colore}15` : 'white',
+                  color: filterType === jobType.slug ? jobType.colore : '#64748b'
+                }}
+                data-testid={`card-filter-${jobType.slug}`}
+              >
+                <span className="text-lg">{jobType.icona}</span>
+                <div className="text-left">
+                  <div className="font-medium text-sm" style={{ color: filterType === jobType.slug ? jobType.colore : '#334155' }}>
+                    {jobType.nome}
+                  </div>
+                  <div className="text-xs opacity-70">{jobCountsByType[jobType.slug] || 0}</div>
+                </div>
+              </button>
+            ))}
+        </div>
+      </div>
+      
       {/* Filters */}
       <div className="space-y-4">
         <div className="flex flex-wrap gap-4">
@@ -610,27 +716,26 @@ export default function JobsManager() {
             />
           </div>
           
-          {/* Filtro Tipo */}
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-48" data-testid="select-filter-type">
-              <SelectValue placeholder="Tutti i tipi" />
+          {/* Filtro Stato Preventivo */}
+          <Select value={filterQuoteStatus} onValueChange={setFilterQuoteStatus}>
+            <SelectTrigger className="w-44" data-testid="select-filter-quote">
+              <SelectValue placeholder="Stato Preventivo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti i tipi</SelectItem>
-              {jobTypes
-                .filter(jt => jt.attivo)
-                .sort((a, b) => a.ordine - b.ordine)
-                .map(jobType => (
-                  <SelectItem key={jobType.id} value={jobType.slug}>
-                    {jobType.icona} {jobType.nome}
-                  </SelectItem>
-                ))}
+              <SelectItem value="all">Tutti i preventivi</SelectItem>
+              <SelectItem value="firmato">✅ Firmato</SelectItem>
+              <SelectItem value="non_firmato">⏳ Non firmato</SelectItem>
+              <SelectItem value="non_inviato">📝 Non inviato</SelectItem>
             </SelectContent>
           </Select>
           
           {/* Filtro Anno */}
-          <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="w-32" data-testid="select-filter-year">
+          <Select value={filterYear} onValueChange={(val) => {
+            setFilterYear(val);
+            setFilterMonth('all'); // Reset mese quando cambia anno
+            setFilterSemester('all'); // Reset semestre
+          }}>
+            <SelectTrigger className="w-28" data-testid="select-filter-year">
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
@@ -643,19 +748,58 @@ export default function JobsManager() {
             </SelectContent>
           </Select>
           
-          {/* Filtro Semestre */}
+          {/* Filtro Mese */}
+          <Select 
+            value={filterMonth} 
+            onValueChange={(val) => {
+              setFilterMonth(val);
+              if (val !== 'all') setFilterSemester('all'); // Reset semestre se scelgo mese
+            }}
+            disabled={filterYear === 'all'}
+          >
+            <SelectTrigger className="w-32" data-testid="select-filter-month">
+              <SelectValue placeholder="Mese" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i mesi</SelectItem>
+              {[
+                { val: '1', label: 'Gennaio' },
+                { val: '2', label: 'Febbraio' },
+                { val: '3', label: 'Marzo' },
+                { val: '4', label: 'Aprile' },
+                { val: '5', label: 'Maggio' },
+                { val: '6', label: 'Giugno' },
+                { val: '7', label: 'Luglio' },
+                { val: '8', label: 'Agosto' },
+                { val: '9', label: 'Settembre' },
+                { val: '10', label: 'Ottobre' },
+                { val: '11', label: 'Novembre' },
+                { val: '12', label: 'Dicembre' }
+              ].filter(m => availableMonths.includes(parseInt(m.val)) || availableMonths.length === 0)
+               .map(month => (
+                <SelectItem key={month.val} value={month.val}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro Semestre (alternativo al mese) */}
           <Select 
             value={filterSemester} 
-            onValueChange={setFilterSemester}
-            disabled={filterYear === 'all'}
+            onValueChange={(val) => {
+              setFilterSemester(val);
+              if (val !== 'all') setFilterMonth('all'); // Reset mese se scelgo semestre
+            }}
+            disabled={filterYear === 'all' || filterMonth !== 'all'}
           >
             <SelectTrigger className="w-32" data-testid="select-filter-semester">
               <SelectValue placeholder="Semestre" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Intero Anno</SelectItem>
-              <SelectItem value="S1">1° Semestre</SelectItem>
-              <SelectItem value="S2">2° Semestre</SelectItem>
+              <SelectItem value="all">Tutto</SelectItem>
+              <SelectItem value="S1">1° Sem</SelectItem>
+              <SelectItem value="S2">2° Sem</SelectItem>
             </SelectContent>
           </Select>
           
@@ -698,9 +842,10 @@ export default function JobsManager() {
                     from: range?.from,
                     to: range?.to
                   });
-                  // Reset year/semester quando usi custom range
+                  // Reset year/semester/month quando usi custom range
                   if (range?.from && range?.to) {
                     setFilterYear('all');
+                    setFilterMonth('all');
                     setFilterSemester('all');
                   }
                 }}
@@ -711,13 +856,15 @@ export default function JobsManager() {
           </Popover>
           
           {/* Clear Filters Button */}
-          {(filterType !== 'all' || filterYear !== 'all' || filterSemester !== 'all' || customDateRange.from || searchQuery) && (
+          {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterSemester !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from || searchQuery) && (
             <Button
               variant="ghost"
               onClick={() => {
-                setFilterType('all');
+                setFilterType('matrimonio'); // Default: Matrimonio
                 setFilterYear('all');
+                setFilterMonth('all');
                 setFilterSemester('all');
+                setFilterQuoteStatus('firmato'); // Default: firmato
                 setCustomDateRange({ from: undefined, to: undefined });
                 setSearchQuery('');
               }}
@@ -731,18 +878,23 @@ export default function JobsManager() {
         </div>
         
         {/* Active Filters Summary */}
-        {(filterType !== 'all' || filterYear !== 'all' || customDateRange.from) && (
+        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from) && (
           <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             <span>Filtri attivi:</span>
-            {filterType !== 'all' && (
+            {filterType !== 'matrimonio' && (
               <Badge variant="secondary">
-                {jobTypeMap[filterType]?.nome || filterType}
+                {filterType === 'all' ? 'Tutti i tipi' : (jobTypeMap[filterType]?.nome || filterType)}
+              </Badge>
+            )}
+            {filterQuoteStatus !== 'firmato' && (
+              <Badge variant="secondary">
+                {filterQuoteStatus === 'all' ? 'Tutti prev.' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Non inviato'}
               </Badge>
             )}
             {filterYear !== 'all' && !customDateRange.from && (
               <Badge variant="secondary">
-                {filterYear} {filterSemester !== 'all' ? `(${filterSemester})` : ''}
+                {filterYear} {filterMonth !== 'all' ? `(${['', 'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'][parseInt(filterMonth)]})` : (filterSemester !== 'all' ? `(${filterSemester})` : '')}
               </Badge>
             )}
             {customDateRange.from && customDateRange.to && (
@@ -952,7 +1104,7 @@ export default function JobsManager() {
                     <TableCell>
                       <Badge 
                         variant="outline" 
-                        className="text-xs font-medium gap-1.5 border-2"
+                        className="text-xs font-medium gap-1.5 border-2 min-w-[120px] justify-center"
                         style={{
                           borderColor: jobTypeInfo?.colore || '#94a3b8',
                           backgroundColor: jobTypeInfo?.colore ? `${jobTypeInfo.colore}15` : 'transparent',
@@ -960,7 +1112,7 @@ export default function JobsManager() {
                         }}
                       >
                         <span className="text-base leading-none">{jobTypeInfo?.icona || '📸'}</span>
-                        <span>{jobTypeInfo?.nome || job.jobType}</span>
+                        <span className="truncate">{jobTypeInfo?.nome || job.jobType}</span>
                       </Badge>
                     </TableCell>
                     
