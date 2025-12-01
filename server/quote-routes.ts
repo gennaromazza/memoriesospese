@@ -295,7 +295,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       }
     }
 
-    // 4. Fetch job info - priorità dati salvati in quote, fallback a Firestore
+    // 4. Fetch job info - SEMPRE dal job attuale per avere dati aggiornati
     let jobInfo: {
       nomeEvento?: string;
       eventDate?: string | null;
@@ -307,46 +307,52 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       allDay?: boolean;
     } | null = null;
 
-    if (quote.jobInfo) {
-      // Usa dati salvati in quote per campi base
+    // SEMPRE recupera dati real-time dal job per avere info aggiornate
+    if (quote.jobId) {
+      try {
+        const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+        if (jobDoc.exists) {
+          const jobData = jobDoc.data();
+          jobInfo = {
+            nomeEvento: jobData?.nomeEvento,
+            eventDate: serializeTimestamp(jobData?.eventDate),
+            rito: jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia || undefined,
+            location: jobData?.eventLocation || undefined,
+            rituTime: jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia || undefined,
+            startTime: jobData?.startTime,
+            endTime: jobData?.endTime,
+            allDay: jobData?.allDay,
+          };
+        } else if (quote.jobInfo) {
+          // Job non esiste più (cancellato/archiviato) - usa snapshot
+          console.log(`ℹ️ Job ${quote.jobId} non trovato, uso snapshot per quote ${quote.id}`);
+          jobInfo = {
+            nomeEvento: quote.jobInfo.nomeEvento,
+            eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+            rito: quote.jobInfo.rito,
+            location: quote.jobInfo.location,
+          };
+        }
+      } catch (err) {
+        console.warn("⚠️ Impossibile recuperare dati job, uso snapshot:", err);
+        // Fallback allo snapshot solo se job non accessibile
+        if (quote.jobInfo) {
+          jobInfo = {
+            nomeEvento: quote.jobInfo.nomeEvento,
+            eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+            rito: quote.jobInfo.rito,
+            location: quote.jobInfo.location,
+          };
+        }
+      }
+    } else if (quote.jobInfo) {
+      // Fallback: usa snapshot se non c'è jobId (legacy)
       jobInfo = {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
         location: quote.jobInfo.location,
       };
-      
-      // Se il rito non è nello snapshot, prova a recuperarlo dal job attuale
-      if (!jobInfo.rito && quote.jobId) {
-        try {
-          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            const ritoFromJob = jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia;
-            const rituTimeFromJob = jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia;
-            if (ritoFromJob) jobInfo.rito = ritoFromJob;
-            if (rituTimeFromJob) jobInfo.rituTime = rituTimeFromJob;
-          }
-        } catch (err) {
-          console.warn("⚠️ Impossibile recuperare dati rito dal job:", err);
-        }
-      }
-    } else if (quote.jobId) {
-      // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
-      const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
-      if (jobDoc.exists) {
-        const jobData = jobDoc.data();
-        jobInfo = {
-          nomeEvento: jobData?.nomeEvento,
-          eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia || undefined,
-          location: jobData?.eventLocation || undefined,
-          rituTime: jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia || undefined,
-          startTime: jobData?.startTime,
-          endTime: jobData?.endTime,
-          allDay: jobData?.allDay,
-        };
-      }
     }
 
     // 5. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
@@ -606,7 +612,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       }
     }
 
-    // 5. Fetch job info - priorità dati salvati in quote, fallback a Firestore
+    // 5. Fetch job info - SEMPRE dal job attuale per avere dati aggiornati
     let jobInfo: {
       nomeEvento?: string;
       eventDate?: string | null;
@@ -615,43 +621,49 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       location?: string;
     } | null = null;
 
-    if (quote.jobInfo) {
-      // Usa dati salvati in quote per campi base
+    // SEMPRE recupera dati real-time dal job per avere info aggiornate
+    if (quote.jobId) {
+      try {
+        const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+        if (jobDoc.exists) {
+          const jobData = jobDoc.data();
+          jobInfo = {
+            nomeEvento: jobData?.nomeEvento,
+            eventDate: serializeTimestamp(jobData?.eventDate),
+            rito: jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia || undefined,
+            rituTime: jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia || undefined,
+            location: jobData?.eventLocation || undefined,
+          };
+        } else if (quote.jobInfo) {
+          // Job non esiste più (cancellato/archiviato) - usa snapshot
+          console.log(`ℹ️ Job ${quote.jobId} non trovato (signed), uso snapshot per quote ${quote.id}`);
+          jobInfo = {
+            nomeEvento: quote.jobInfo.nomeEvento,
+            eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+            rito: quote.jobInfo.rito,
+            location: quote.jobInfo.location,
+          };
+        }
+      } catch (err) {
+        console.warn("⚠️ Impossibile recuperare dati job (signed), uso snapshot:", err);
+        // Fallback allo snapshot solo se job non accessibile
+        if (quote.jobInfo) {
+          jobInfo = {
+            nomeEvento: quote.jobInfo.nomeEvento,
+            eventDate: serializeTimestamp(quote.jobInfo.eventDate),
+            rito: quote.jobInfo.rito,
+            location: quote.jobInfo.location,
+          };
+        }
+      }
+    } else if (quote.jobInfo) {
+      // Fallback: usa snapshot se non c'è jobId (legacy)
       jobInfo = {
         nomeEvento: quote.jobInfo.nomeEvento,
         eventDate: serializeTimestamp(quote.jobInfo.eventDate),
         rito: quote.jobInfo.rito,
         location: quote.jobInfo.location,
       };
-      
-      // Se il rito non è nello snapshot, prova a recuperarlo dal job attuale
-      if ((!jobInfo.rito || !(jobInfo as any).rituTime) && quote.jobId) {
-        try {
-          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            const ritoFromJob = jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia;
-            const rituTimeFromJob = jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia;
-            if (!jobInfo.rito && ritoFromJob) jobInfo.rito = ritoFromJob;
-            if (rituTimeFromJob) (jobInfo as any).rituTime = rituTimeFromJob;
-          }
-        } catch (err) {
-          console.warn("⚠️ Impossibile recuperare dati rito dal job (signed):", err);
-        }
-      }
-    } else if (quote.jobId) {
-      // Fallback: fetch da Firestore se quote non ha jobInfo (backward compatibility)
-      const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
-      if (jobDoc.exists) {
-        const jobData = jobDoc.data();
-        jobInfo = {
-          nomeEvento: jobData?.nomeEvento,
-          eventDate: serializeTimestamp(jobData?.eventDate),
-          rito: jobData?.rituLocation || jobData?.locationCerimonia || jobData?.jobDataValues?.locationCerimonia || undefined,
-          rituTime: jobData?.rituTime || jobData?.oraCerimonia || jobData?.jobDataValues?.oraCerimonia || undefined,
-          location: jobData?.eventLocation || undefined,
-        };
-      }
     }
 
     // 6. Fetch clienti info - SEMPRE fetch real-time da Firestore per avere dati aggiornati
