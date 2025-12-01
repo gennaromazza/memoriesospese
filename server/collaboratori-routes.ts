@@ -1466,8 +1466,17 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
         const rawJobData = jobDoc.exists ? jobDoc.data() : null;
         
         // Prepara dati job con campi rilevanti per il collaboratore
+        // Supporta sia job nuovi che job legacy importati
         let jobData: any = null;
         if (rawJobData) {
+          // Normalizza i campi cerimonia (supporta sia nuovi che legacy)
+          const oraCerimonia = rawJobData.oraCerimonia || rawJobData.rituTime || rawJobData.startTime || rawJobData.jobDataValues?.oraCerimonia;
+          const locationCerimonia = rawJobData.locationCerimonia || rawJobData.rituLocation || rawJobData.jobDataValues?.locationCerimonia;
+          
+          // Normalizza ricevimento
+          const oraRicevimento = rawJobData.oraRicevimento || rawJobData.jobDataValues?.oraRicevimento;
+          const locationRicevimento = rawJobData.locationRicevimento || rawJobData.jobDataValues?.locationRicevimento || rawJobData.eventLocation;
+          
           jobData = {
             id: jobDoc.id,
             nomeEvento: rawJobData.nomeEvento,
@@ -1475,14 +1484,17 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
             eventLocation: rawJobData.eventLocation,
             jobType: rawJobData.jobType,
             stato: rawJobData.stato,
-            note: rawJobData.note,
+            note: rawJobData.note || rawJobData.noteInterne,
             // Dati evento compilati (orario cerimonia, location rito, ecc.)
             jobDataValues: rawJobData.jobDataValues || {},
-            // Altri campi utili
-            locationRicevimento: rawJobData.locationRicevimento,
-            oraRicevimento: rawJobData.oraRicevimento,
-            oraCerimonia: rawJobData.oraCerimonia,
-            locationCerimonia: rawJobData.locationCerimonia,
+            // Campi normalizzati (funzionano per nuovi e legacy)
+            locationRicevimento,
+            oraRicevimento,
+            oraCerimonia,
+            locationCerimonia,
+            // Campi legacy aggiuntivi
+            rituLocation: rawJobData.rituLocation,
+            rituTime: rawJobData.rituTime,
           };
         }
         
