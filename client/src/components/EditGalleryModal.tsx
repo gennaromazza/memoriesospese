@@ -401,16 +401,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             console.log('✅ Secrets caricati:', { hasPassword: !!secrets.password, hasPin: !!secrets.specialPin });
             setPassword(secrets.password || "");
             setSpecialPin(secrets.specialPin || "");
+            setOriginalSpecialPin(secrets.specialPin || ""); // Salva PIN originale per confronto
           } else {
             console.error('❌ Errore caricamento secrets:', response.status);
             // Fallback a valori vuoti
             setPassword("");
             setSpecialPin("");
+            setOriginalSpecialPin("");
           }
         } catch (error) {
           console.error('❌ Eccezione caricamento secrets:', error);
           setPassword("");
           setSpecialPin("");
+          setOriginalSpecialPin("");
         }
       };
 
@@ -955,11 +958,15 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         });
       }
 
-      // INVIO EMAIL AUTOMATICO: Se galleria speciale con PIN e email cliente fornita
-      if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim()) {
-        console.log('📧 Invio email PIN al cliente...');
+      // INVIO EMAIL AUTOMATICO: Solo se il PIN è stato CAMBIATO (non ad ogni salvataggio)
+      const pinIsChanged = specialPin.trim() !== originalSpecialPin.trim();
+      const isNewPin = !originalSpecialPin.trim() && specialPin.trim(); // PIN nuovo (prima non c'era)
+      
+      if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim() && (pinIsChanged || isNewPin)) {
+        console.log('📧 Invio email PIN al cliente (PIN cambiato)...');
         console.log('📧 Email destinatario:', clientEmail.trim());
         console.log('📧 Gallery ID:', gallery.id);
+        console.log('📧 PIN cambiato:', pinIsChanged, '| Nuovo PIN:', isNewPin);
         
         try {
           // ATTENDI 500ms per assicurare che Firestore abbia propagato il salvataggio
