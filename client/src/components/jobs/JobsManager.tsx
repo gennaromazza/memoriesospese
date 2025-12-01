@@ -13,6 +13,7 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 import type { Order } from '@shared/booking-types';
 import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
+import type { Quote } from '@shared/quotes-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
 import type { JobType as JobTypeDoc } from '@shared/job-types';
@@ -260,6 +261,42 @@ export default function JobsManager() {
     staleTime: 30000 // Cache per 30 secondi
   });
   
+  // Query tutti i preventivi per determinare stato firma (supporta job legacy)
+  const { data: quotesByJob = {} } = useQuery<Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>>({
+    queryKey: ['jobQuotesStatus'],
+    queryFn: async () => {
+      const quotesSnapshot = await getDocs(collection(db, 'quotes'));
+      const statusMap: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }> = {};
+      
+      quotesSnapshot.docs.forEach(doc => {
+        const quote = doc.data() as Quote;
+        const jobId = quote.jobId;
+        if (!jobId) return;
+        
+        // Se già esiste una entry, aggiorna solo se migliora lo stato
+        if (!statusMap[jobId]) {
+          statusMap[jobId] = {
+            hasQuote: true,
+            isSigned: !!quote.signature,
+            isEmailSent: !!quote.emailSentAt || !!quote.sentTo
+          };
+        } else {
+          // Se c'è un preventivo firmato, marca come firmato
+          if (quote.signature) {
+            statusMap[jobId].isSigned = true;
+          }
+          // Se almeno un preventivo è stato inviato
+          if (quote.emailSentAt || quote.sentTo) {
+            statusMap[jobId].isEmailSent = true;
+          }
+        }
+      });
+      
+      return statusMap;
+    },
+    staleTime: 30000
+  });
+  
   // Deriva conteggio transazioni per job dai dati caricati
   const transazioniPerJob = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -346,17 +383,20 @@ export default function JobsManager() {
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
       
-      // Filtro stato preventivo
+      // Filtro stato preventivo - usa dati reali dai preventivi (supporta job legacy)
       if (filterQuoteStatus !== 'all') {
-        const hasQuote = job.quoteIds && job.quoteIds.length > 0;
-        // Per controllare se il preventivo è firmato, dobbiamo usare lo status del job
-        // confermato/shooting_fatto/produzione/consegnato = preventivo firmato
-        const confirmedStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
-        const isConfirmed = confirmedStatuses.includes(job.status);
+        // Usa la mappa quotesByJob che legge direttamente dalla collezione quotes
+        const quoteStatus = quotesByJob[job.id];
+        const hasQuote = quoteStatus?.hasQuote || false;
+        const isSigned = quoteStatus?.isSigned || false;
+        const isEmailSent = quoteStatus?.isEmailSent || false;
         
-        if (filterQuoteStatus === 'firmato' && !isConfirmed) return false;
-        if (filterQuoteStatus === 'non_firmato' && (isConfirmed || !hasQuote)) return false;
-        if (filterQuoteStatus === 'non_inviato' && hasQuote) return false;
+        // Firmato: ha un preventivo con firma
+        if (filterQuoteStatus === 'firmato' && !isSigned) return false;
+        // Non firmato: ha un preventivo inviato ma senza firma
+        if (filterQuoteStatus === 'non_firmato' && (!hasQuote || isSigned || !isEmailSent)) return false;
+        // Non inviato: non ha preventivo o ha preventivo non ancora inviato
+        if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
       }
       
       // Filtri date (precedenza: custom range > mese > anno+semestre > anno)
@@ -421,7 +461,7 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, customDateRange, searchQuery, clienteNamesMap]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, customDateRange, searchQuery, clienteNamesMap, quotesByJob]);
   
   // Funzione helper per convertire date Firestore
   const toDate = (val: any): Date => {
