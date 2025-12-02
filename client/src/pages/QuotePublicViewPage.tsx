@@ -299,13 +299,13 @@ export default function QuotePublicViewPage() {
           
           {/* Banner immagine copertina tipo lavoro */}
           {jobTypeInfo?.imageUrl && (
-            <div className="relative w-full h-48 sm:h-64 md:h-80 overflow-hidden">
+            <div className="relative w-full aspect-[16/9] sm:aspect-[21/9] overflow-hidden">
               <img 
                 src={jobTypeInfo.imageUrl} 
                 alt={jobTypeInfo.nome || 'Tipo lavoro'} 
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
             </div>
           )}
           
