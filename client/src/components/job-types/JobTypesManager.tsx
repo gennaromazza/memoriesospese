@@ -70,6 +70,7 @@ import {
   X,
   Image as ImageIcon
 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -598,7 +599,11 @@ export default function JobTypesManager() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{entity.icona}</span>
+                        {activeTab === 'jobType' ? (
+                          <JobTypeIcon slug={entity.slug} size="lg" />
+                        ) : (
+                          <span className="text-2xl">{entity.icona}</span>
+                        )}
                         <span className="font-medium">{entity.nome}</span>
                         {(entity as JobType).createdBy === 'import' && (
                           <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
