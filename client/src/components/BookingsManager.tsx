@@ -9,7 +9,6 @@ import { useLocation } from "wouter";
 import { nextMonday, isToday, isTomorrow, isYesterday, addDays, isSameDay, startOfDay } from "date-fns";
 import {
   getAllBookings,
-  getBookingsByStatus,
   approveBooking,
   rejectBooking,
   updateBookingStatus,
@@ -21,7 +20,7 @@ import {
   updateWorkflowState,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
-import { getAllOrders, createOrder, addAccontoPayment, recordSaldoPayment, getOrderTotals, updateOrder } from "@/lib/orders";
+import { getAllOrders, createOrder, addAccontoPayment, recordSaldoPayment, getOrderTotals } from "@/lib/orders";
 import EditOrderModal from "@/components/EditOrderModal";
 import { getActiveProducts } from "@/lib/products";
 import { GalleryService, type Gallery } from "@/lib/galleries";
@@ -35,16 +34,10 @@ import type {
 import { WorkflowState } from "@shared/schema";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { OrdersManager } from "@/components/OrdersManager";
 import ManualBookingModal from "@/components/ManualBookingModal";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -65,13 +58,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -80,7 +66,6 @@ import {
 import {
   Calendar,
   Clock,
-  User,
   Mail,
   Phone,
   Package,
@@ -96,13 +81,10 @@ import {
   Plus,
   Image as ImageIcon,
   Receipt,
-  MoreVertical,
   Edit,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ChevronUp,
-  CreditCard,
   Wallet,
   MessageCircle,
   Euro,
@@ -177,13 +159,11 @@ function getStatoBadge(stato: string) {
 interface BookingsManagerProps {
   highlightBookingId?: string | null;
   onHighlightComplete?: () => void;
-  onRequestOpenOrdersTab?: (orderId: string) => void;
 }
 
 export default function BookingsManager({
   highlightBookingId,
   onHighlightComplete,
-  onRequestOpenOrdersTab,
 }: BookingsManagerProps = {}) {
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
@@ -1116,61 +1096,6 @@ export default function BookingsManager({
     };
   };
 
-  // Handler: Gestione pagamento (acconto o saldo)
-  const handlePayment = () => {
-    if (!paymentDialog) return;
-
-    if (paymentDialog.tipo === 'acconto') {
-      const importo = parseFloat(paymentAmount);
-      if (isNaN(importo) || importo <= 0) {
-        toast({
-          title: 'Importo non valido',
-          description: 'Inserisci un importo maggiore di zero',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const order = getOrderByBookingId(paymentDialog.bookingId);
-      if (!order) return;
-
-      const summary = getAccontoSummary(order);
-      if (!summary.isValid) {
-        toast({
-          title: 'Importo non valido',
-          description: `L'acconto totale non può superare il totale ordine. Massimo aggiungibile: €${summary.saldoMassimo.toFixed(2)}`,
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const mutationData: any = {
-        orderId: paymentDialog.orderId,
-        importo,
-        metodo: paymentMethod,
-      };
-      
-      const trimmedNote = paymentNote.trim();
-      if (trimmedNote) {
-        mutationData.note = trimmedNote;
-      }
-      
-      accontoMutation.mutate(mutationData);
-    } else {
-      const saldoData: any = {
-        orderId: paymentDialog.orderId,
-        metodo: paymentMethod,
-      };
-      
-      const trimmedNote = paymentNote.trim();
-      if (trimmedNote) {
-        saldoData.note = trimmedNote;
-      }
-      
-      saldoMutation.mutate(saldoData);
-    }
-  };
-
   // Helper: Apri WhatsApp con messaggio pre-compilato per ordine
   const openWhatsAppForOrder = (order: Order, booking: Booking) => {
     const phone = booking.cliente.whatsapp?.replace(/\D/g, '');
@@ -1489,7 +1414,7 @@ export default function BookingsManager({
                         ];
                         const colorClass = cardColors[index % cardColors.length];
                         const isApproved = booking.stato === "confermata" || booking.stato === "completata";
-                        const canDelete = isApproved || booking.stato === "rifiutata";
+
                         const isHighlighted = highlightedId === booking.id;
 
                         return (
@@ -1882,7 +1807,7 @@ export default function BookingsManager({
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    disabled={!canDelete}
+                                    disabled={false}
                                     onClick={() =>
                                       handleRequestCascadeDelete(booking.id)
                                     }
@@ -2754,7 +2679,7 @@ export default function BookingsManager({
                 <NewGalleryModal
                   isOpen={true}
                   onClose={() => setSelectedBookingForGallery(null)}
-                  onGalleryCreated={(galleryId, galleryCode) => {
+                  onGalleryCreated={(galleryId) => {
                     queryClient.invalidateQueries({ queryKey: ["galleries"] });
                     setSelectedBookingForGallery(null);
                     toast({
@@ -2797,15 +2722,10 @@ export default function BookingsManager({
       {editingOrder && (
         <EditOrderModal
           order={editingOrder}
-          isOpen={true}
-          onClose={() => setEditingOrder(null)}
-          onSuccess={() => {
+          products={products}
+          onClose={() => {
             queryClient.invalidateQueries({ queryKey: ["orders"] });
             setEditingOrder(null);
-            toast({
-              title: "Ordine aggiornato",
-              description: "Le modifiche sono state salvate correttamente.",
-            });
           }}
         />
       )}
@@ -2838,7 +2758,7 @@ export default function BookingsManager({
           </DialogHeader>
 
           {paymentDialog && (() => {
-            const order = orders.find(o => o.id === paymentDialog.orderId);
+            const order = allOrders.find((o: Order) => o.id === paymentDialog.orderId);
             if (!order) return null;
             const totals = getOrderTotals(order);
             
@@ -2937,8 +2857,8 @@ export default function BookingsManager({
             <Button
               onClick={() => {
                 if (!paymentDialog) return;
-                const order = orders.find(o => o.id === paymentDialog.orderId);
-                if (!order) return;
+                const foundOrder = allOrders.find((o: Order) => o.id === paymentDialog.orderId);
+                if (!foundOrder) return;
                 
                 if (paymentDialog.tipo === 'acconto') {
                   const amount = parseFloat(paymentAmount);
@@ -2947,16 +2867,16 @@ export default function BookingsManager({
                     return;
                   }
                   accontoMutation.mutate({
-                    orderId: order.id,
+                    orderId: foundOrder.id,
                     importo: amount,
                     metodo: paymentMethod,
-                    nota: paymentNote || undefined,
+                    note: paymentNote || undefined,
                   });
                 } else {
                   saldoMutation.mutate({
-                    orderId: order.id,
+                    orderId: foundOrder.id,
                     metodo: paymentMethod,
-                    nota: paymentNote || undefined,
+                    note: paymentNote || undefined,
                   });
                 }
               }}

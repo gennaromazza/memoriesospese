@@ -1,0 +1,83 @@
+'getBookingsByStatus' is declared but its value is never read.
+(typescript)
+Ln 12, Col 3
+'updateOrder' is declared but its value is never read.
+(typescript)
+Ln 25, Col 92
+'OrdersManager' is declared but its value is never read.
+(typescript)
+Ln 39, Col 1
+'CardDescription' is declared but its value is never read.
+(typescript)
+Ln 45, Col 3
+'CardHeader' is declared but its value is never read.
+(typescript)
+Ln 46, Col 3
+'CardTitle' is declared but its value is never read.
+(typescript)
+Ln 47, Col 3
+All imports in import declaration are unused.
+(typescript)
+Ln 68, Col 1
+'User' is declared but its value is never read.
+(typescript)
+Ln 84, Col 3
+'MoreVertical' is declared but its value is never read.
+(typescript)
+Ln 100, Col 3
+'ChevronDown' is declared but its value is never read.
+(typescript)
+Ln 104, Col 3
+'CreditCard' is declared but its value is never read.
+(typescript)
+Ln 106, Col 3
+'onRequestOpenOrdersTab' is declared but its value is never read.
+(typescript)
+Ln 187, Col 3
+'orderId' is declared but its value is never read.
+(typescript)
+Ln 820, Col 23
+'handlePayment' is declared but its value is never read.
+(typescript)
+Ln 1121, Col 9
+This comparison appears to be unintentional because the types '"in_attesa" | "confermata" | "completata" | "annullata"' and '"rifiutata"' have no overlap.
+(typescript)
+Ln 1493, Col 57
+'galleryCode' is declared but its value is never read.
+(typescript)
+Ln 2760, Col 49
+Type '{ order: Order; isOpen: boolean; onClose: () => void; onSuccess: () => void; }' is not assignable to type 'IntrinsicAttributes & EditOrderModalProps'. Property 'isOpen' does not exist on type 'IntrinsicAttributes & EditOrderModalProps'.
+(typescript)
+Ln 2803, Col 11
+Cannot find name 'orders'. Did you mean 'order'?
+(typescript)
+Ln 2844, Col 27
+Parameter 'o' implicitly has an 'any' type.
+(typescript)
+Ln 2844, Col 39
+Cannot find name 'Checkbox'.
+(typescript)
+Ln 2923, Col 20
+'order' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+(typescript)
+Ln 2943, Col 23
+Block-scoped variable 'order' used before its declaration.
+(typescript)
+Ln 2943, Col 31
+Parameter 'o' implicitly has an 'any' type.
+(typescript)
+Ln 2943, Col 42
+Unused label.
+(typescript)
+Ln 2944, Col 19
+Expression expected.
+(typescript)
+Ln 2945, Col 17
+Object literal may only specify known properties, and 'nota' does not exist in type '{ orderId: string; importo: number; metodo: "contante" | "carta" | "bonifico" | "paypal"; note?: string | undefined; }'.
+(typescript)
+Ln 2957, Col 21
+Object literal may only specify known properties, and 'nota' does not exist in type '{ orderId: string; metodo: "contante" | "carta" | "bonifico" | "paypal"; note?: string | undefined; }'.
+(typescript)
+Ln 2963, Col 21
+'product' is declared but its value is never read.
+(typescript)
