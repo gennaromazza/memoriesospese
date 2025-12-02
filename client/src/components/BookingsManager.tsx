@@ -21,7 +21,8 @@ import {
   updateWorkflowState,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
-import { getAllOrders, createOrder } from "@/lib/orders";
+import { getAllOrders, createOrder, addAccontoPayment, recordSaldoPayment, getOrderTotals, updateOrder } from "@/lib/orders";
+import EditOrderModal from "@/components/EditOrderModal";
 import { getActiveProducts } from "@/lib/products";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import type {
@@ -99,6 +100,13 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  Wallet,
+  MessageCircle,
+  Euro,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -233,6 +241,18 @@ export default function BookingsManager({
   const [editEmail, setEditEmail] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editNote, setEditNote] = useState("");
+
+  // State per gestione ordini inline (pagamenti, modifica, ecc.)
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const [paymentDialog, setPaymentDialog] = useState<{
+    orderId: string;
+    tipo: 'acconto' | 'saldo';
+    bookingId: string;
+  } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [paymentNote, setPaymentNote] = useState<string>('');
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   // Query bookings - sempre tutti per permettere filtro client-side
   const {
@@ -889,6 +909,60 @@ export default function BookingsManager({
     },
   });
 
+  // Mutation: Registra acconto
+  const accontoMutation = useMutation({
+    mutationFn: ({ 
+      orderId, 
+      importo, 
+      metodo, 
+      note 
+    }: { 
+      orderId: string; 
+      importo: number; 
+      metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
+      note?: string;
+    }) => addAccontoPayment(orderId, importo, metodo, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({
+        title: "Acconto registrato",
+        description: "Il pagamento è stato registrato e il cliente riceverà una email di conferma",
+      });
+      setPaymentDialog(null);
+      setPaymentAmount('');
+      setPaymentNote('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore registrazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation: Registra saldo
+  const saldoMutation = useMutation({
+    mutationFn: ({ orderId, metodo, note }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal'; note?: string }) =>
+      recordSaldoPayment(orderId, metodo, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      toast({
+        title: "Saldo registrato",
+        description: "Il pagamento finale è stato registrato e il cliente riceverà una email di conferma",
+      });
+      setPaymentDialog(null);
+      setPaymentNote('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore registrazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Mutation: Aggiorna stato workflow
   const workflowStateMutation = useMutation({
     mutationFn: async ({
@@ -1018,6 +1092,113 @@ export default function BookingsManager({
       },
       oldEmail: editBooking.cliente.email, // Per rilevare cambio email
     });
+  };
+
+  // Helper: Toggle espansione ordine
+  const toggleOrderExpansion = (bookingId: string) => {
+    setExpandedOrders(prev => ({
+      ...prev,
+      [bookingId]: !prev[bookingId]
+    }));
+  };
+
+  // Helper: Calcola riepilogo pagamenti per acconto (per validazione importo massimo)
+  const getAccontoSummary = (order: Order) => {
+    const totals = getOrderTotals(order);
+    const importoNumerico = parseFloat(paymentAmount) || 0;
+    const nuovoTotale = totals.totalePagato + importoNumerico;
+    return {
+      totale: totals.totale,
+      giaPagato: totals.totalePagato,
+      saldoMassimo: totals.saldoResiduo,
+      nuovoTotale,
+      isValid: nuovoTotale <= totals.totale && importoNumerico > 0,
+    };
+  };
+
+  // Handler: Gestione pagamento (acconto o saldo)
+  const handlePayment = () => {
+    if (!paymentDialog) return;
+
+    if (paymentDialog.tipo === 'acconto') {
+      const importo = parseFloat(paymentAmount);
+      if (isNaN(importo) || importo <= 0) {
+        toast({
+          title: 'Importo non valido',
+          description: 'Inserisci un importo maggiore di zero',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const order = getOrderByBookingId(paymentDialog.bookingId);
+      if (!order) return;
+
+      const summary = getAccontoSummary(order);
+      if (!summary.isValid) {
+        toast({
+          title: 'Importo non valido',
+          description: `L'acconto totale non può superare il totale ordine. Massimo aggiungibile: €${summary.saldoMassimo.toFixed(2)}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const mutationData: any = {
+        orderId: paymentDialog.orderId,
+        importo,
+        metodo: paymentMethod,
+      };
+      
+      const trimmedNote = paymentNote.trim();
+      if (trimmedNote) {
+        mutationData.note = trimmedNote;
+      }
+      
+      accontoMutation.mutate(mutationData);
+    } else {
+      const saldoData: any = {
+        orderId: paymentDialog.orderId,
+        metodo: paymentMethod,
+      };
+      
+      const trimmedNote = paymentNote.trim();
+      if (trimmedNote) {
+        saldoData.note = trimmedNote;
+      }
+      
+      saldoMutation.mutate(saldoData);
+    }
+  };
+
+  // Helper: Apri WhatsApp con messaggio pre-compilato per ordine
+  const openWhatsAppForOrder = (order: Order, booking: Booking) => {
+    const phone = booking.cliente.whatsapp?.replace(/\D/g, '');
+    if (!phone) {
+      toast({
+        title: 'Numero non disponibile',
+        description: 'Il cliente non ha un numero WhatsApp registrato',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const totals = getOrderTotals(order);
+    const prodottoNome = order.prodotti && order.prodotti.length > 0
+      ? order.prodotti.map(p => p.prodottoNome).join(', ')
+      : 'Ordine';
+    
+    const message = encodeURIComponent(
+      `Ciao ${booking.cliente.nome}! 👋\n\n` +
+      `Ecco il riepilogo del tuo ordine:\n` +
+      `📦 Prodotto: ${prodottoNome}\n` +
+      `💰 Totale: €${totals.totale.toFixed(2)}\n` +
+      `✅ Pagato: €${totals.totalePagato.toFixed(2)}\n` +
+      `📝 Saldo: €${totals.saldoResiduo.toFixed(2)}\n\n` +
+      `Per qualsiasi domanda sono a disposizione!`
+    );
+    
+    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
   // Handler: Richiesta cancellazione a cascata
@@ -1625,25 +1806,24 @@ export default function BookingsManager({
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    variant="outline"
+                                    variant={getOrderByBookingId(booking.id) && expandedOrders[booking.id] ? "default" : "outline"}
                                     size="icon"
                                     disabled={!isApproved}
                                     onClick={() => {
-                                      const order = getOrderByBookingId(
-                                        booking.id,
-                                      );
+                                      const order = getOrderByBookingId(booking.id);
                                       if (!order) {
                                         setSelectedBookingForOrder(booking);
                                       } else {
-                                        // Richiedi apertura tab Ordini con highlight
-                                        onRequestOpenOrdersTab?.(order.id);
+                                        toggleOrderExpansion(booking.id);
                                       }
                                     }}
                                     data-testid={`button-order-${booking.id}`}
-                                    className="h-10 w-10"
+                                    className={`h-10 w-10 ${getOrderByBookingId(booking.id) && expandedOrders[booking.id] ? 'bg-sage text-white' : ''}`}
                                   >
                                     {!getOrderByBookingId(booking.id) ? (
                                       <Plus className="w-4 h-4" />
+                                    ) : expandedOrders[booking.id] ? (
+                                      <ChevronUp className="w-4 h-4" />
                                     ) : (
                                       <Receipt className="w-4 h-4" />
                                     )}
@@ -1653,7 +1833,9 @@ export default function BookingsManager({
                                   <p>
                                     {!getOrderByBookingId(booking.id)
                                       ? "Crea Ordine"
-                                      : "Gestisci Ordine"}
+                                      : expandedOrders[booking.id]
+                                        ? "Chiudi Ordine"
+                                        : "Gestisci Ordine"}
                                   </p>
                                 </TooltipContent>
                               </Tooltip>
@@ -1811,6 +1993,146 @@ export default function BookingsManager({
                           )}
                         </div>
                       </div>
+                      
+                      {/* Sezione Ordine Espandibile - Solo se c'è un ordine */}
+                      {isApproved && getOrderByBookingId(booking.id) && expandedOrders[booking.id] && (() => {
+                        const order = getOrderByBookingId(booking.id)!;
+                        const totals = getOrderTotals(order);
+                        const isPaidFull = totals.saldoResiduo === 0;
+                        const hasPartialPayment = totals.totalePagato > 0 && totals.saldoResiduo > 0;
+                        
+                        return (
+                          <div className="mt-4 pt-4 border-t border-sage/30 bg-sage/5 rounded-lg p-4 animate-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-semibold text-sage flex items-center gap-2">
+                                <Receipt className="w-4 h-4" />
+                                Gestione Ordine
+                              </h4>
+                              <Badge 
+                                variant="outline" 
+                                className={isPaidFull 
+                                  ? "bg-green-50 text-green-700 border-green-200" 
+                                  : hasPartialPayment 
+                                    ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                    : "bg-gray-50 text-gray-600 border-gray-200"
+                                }
+                              >
+                                {isPaidFull ? "✓ Saldato" : hasPartialPayment ? "Acconto Versato" : "Da Pagare"}
+                              </Badge>
+                            </div>
+                            
+                            {/* Riepilogo Pagamenti */}
+                            <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+                              <div className="bg-white rounded-lg p-2 border">
+                                <p className="text-xs text-gray-500">Totale</p>
+                                <p className="font-bold text-lg">€{totals.totale.toFixed(2)}</p>
+                              </div>
+                              <div className="bg-white rounded-lg p-2 border">
+                                <p className="text-xs text-gray-500">Pagato</p>
+                                <p className="font-bold text-lg text-green-600">€{totals.totalePagato.toFixed(2)}</p>
+                              </div>
+                              <div className="bg-white rounded-lg p-2 border">
+                                <p className="text-xs text-gray-500">Saldo</p>
+                                <p className={`font-bold text-lg ${totals.saldoResiduo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                  €{totals.saldoResiduo.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {/* Prodotti */}
+                            {order.prodotti && order.prodotti.length > 0 && (
+                              <div className="mb-4 p-2 bg-white rounded border text-sm">
+                                <p className="text-xs text-gray-500 mb-1">Prodotti:</p>
+                                {order.prodotti.map((p, idx) => (
+                                  <span key={idx} className="inline-block bg-sage/10 text-sage px-2 py-0.5 rounded text-xs mr-1 mb-1">
+                                    {p.prodottoNome}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Cronologia Pagamenti (se esistono transactions) */}
+                            {order.transactions && order.transactions.length > 0 && (
+                              <div className="mb-4 p-2 bg-white rounded border">
+                                <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                                  <History className="w-3 h-3" /> Cronologia Pagamenti
+                                </p>
+                                <div className="space-y-1">
+                                  {order.transactions.map((t, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-xs py-1 border-b last:border-0">
+                                      <span className={t.tipo === 'acconto' ? 'text-blue-600' : 'text-green-600'}>
+                                        {t.tipo === 'acconto' ? '💳 Acconto' : '✅ Saldo'}
+                                      </span>
+                                      <span className="font-medium">€{t.importo.toFixed(2)}</span>
+                                      <span className="text-gray-400">
+                                        {t.data?.toDate ? format(t.data.toDate(), 'dd/MM/yy', { locale: it }) : '-'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Pulsanti Azione */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {/* Registra Acconto */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isPaidFull}
+                                onClick={() => {
+                                  setPaymentDialog({ orderId: order.id, tipo: 'acconto', bookingId: booking.id });
+                                  setPaymentAmount('');
+                                  setPaymentNote('');
+                                  setPaymentMethod('contante');
+                                }}
+                                className="h-10"
+                              >
+                                <Wallet className="w-4 h-4 mr-1" />
+                                Acconto
+                              </Button>
+                              
+                              {/* Registra Saldo */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isPaidFull || totals.saldoResiduo === 0}
+                                onClick={() => {
+                                  setPaymentDialog({ orderId: order.id, tipo: 'saldo', bookingId: booking.id });
+                                  setPaymentNote('');
+                                  setPaymentMethod('contante');
+                                }}
+                                className="h-10"
+                              >
+                                <Euro className="w-4 h-4 mr-1" />
+                                Saldo
+                              </Button>
+                              
+                              {/* Modifica Ordine */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingOrder(order)}
+                                className="h-10"
+                              >
+                                <Edit className="w-4 h-4 mr-1" />
+                                Modifica
+                              </Button>
+                              
+                              {/* WhatsApp */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openWhatsAppForOrder(order, booking)}
+                                className="h-10 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <MessageCircle className="w-4 h-4 mr-1" />
+                                WhatsApp
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                           </Card>
                         );
@@ -2470,6 +2792,197 @@ export default function BookingsManager({
           gallery={selectedGalleryForEdit}
         />
       )}
+
+      {/* Edit Order Modal */}
+      {editingOrder && (
+        <EditOrderModal
+          order={editingOrder}
+          isOpen={true}
+          onClose={() => setEditingOrder(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["orders"] });
+            setEditingOrder(null);
+            toast({
+              title: "Ordine aggiornato",
+              description: "Le modifiche sono state salvate correttamente.",
+            });
+          }}
+        />
+      )}
+
+      {/* Dialog Registrazione Pagamento */}
+      <Dialog
+        open={!!paymentDialog}
+        onOpenChange={() => setPaymentDialog(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {paymentDialog?.tipo === 'acconto' ? (
+                <>
+                  <Wallet className="w-5 h-5 text-blue-600" />
+                  Registra Acconto
+                </>
+              ) : (
+                <>
+                  <Euro className="w-5 h-5 text-green-600" />
+                  Registra Saldo
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {paymentDialog?.tipo === 'acconto' 
+                ? 'Inserisci l\'importo dell\'acconto ricevuto'
+                : 'Conferma il pagamento del saldo residuo'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentDialog && (() => {
+            const order = orders.find(o => o.id === paymentDialog.orderId);
+            if (!order) return null;
+            const totals = getOrderTotals(order);
+            
+            return (
+              <div className="space-y-4 py-4">
+                {/* Info ordine */}
+                <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Totale ordine:</span>
+                    <span className="font-medium">€{totals.totale.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Già pagato:</span>
+                    <span className="text-green-600">€{totals.totalePagato.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2 mt-2">
+                    <span className="text-gray-600 font-medium">Saldo residuo:</span>
+                    <span className="font-bold text-orange-600">€{totals.saldoResiduo.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Importo (solo per acconto) */}
+                {paymentDialog.tipo === 'acconto' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-amount">Importo Acconto *</Label>
+                    <div className="relative">
+                      <Euro className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="payment-amount"
+                        type="number"
+                        min="0"
+                        max={totals.saldoResiduo}
+                        step="0.01"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9"
+                        data-testid="input-payment-amount"
+                      />
+                    </div>
+                    {parseFloat(paymentAmount) > totals.saldoResiduo && (
+                      <p className="text-xs text-red-500">
+                        L'importo non può superare il saldo residuo
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Metodo di pagamento */}
+                <div className="space-y-2">
+                  <Label>Metodo di Pagamento</Label>
+                  <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as "contante" | "carta" | "bonifico" | "paypal")}>
+                    <SelectTrigger data-testid="select-payment-method">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contante">Contante</SelectItem>
+                      <SelectItem value="bonifico">Bonifico</SelectItem>
+                      <SelectItem value="carta">Carta</SelectItem>
+                      <SelectItem value="paypal">PayPal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Note */}
+                <div className="space-y-2">
+                  <Label htmlFor="payment-note">Note (opzionale)</Label>
+                  <Input
+                    id="payment-note"
+                    value={paymentNote}
+                    onChange={(e) => setPaymentNote(e.target.value)}
+                    placeholder="Note aggiuntive..."
+                    data-testid="input-payment-note"
+                  />
+                </div>
+
+                {/* Email notification checkbox */}
+                <div className="flex items-center gap-2">
+                  <Checkbox id="send-email" defaultChecked />
+                  <Label htmlFor="send-email" className="text-sm text-gray-600">
+                    Invia email di conferma al cliente
+                  </Label>
+                </div>
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPaymentDialog(null)}
+              disabled={accontoMutation.isPending || saldoMutation.isPending}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (!paymentDialog) return;
+                const order = orders.find(o => o.id === paymentDialog.orderId);
+                if (!order) return;
+                
+                if (paymentDialog.tipo === 'acconto') {
+                  const amount = parseFloat(paymentAmount);
+                  if (isNaN(amount) || amount <= 0) {
+                    toast({ title: "Inserisci un importo valido", variant: "destructive" });
+                    return;
+                  }
+                  accontoMutation.mutate({
+                    orderId: order.id,
+                    importo: amount,
+                    metodo: paymentMethod,
+                    nota: paymentNote || undefined,
+                  });
+                } else {
+                  saldoMutation.mutate({
+                    orderId: order.id,
+                    metodo: paymentMethod,
+                    nota: paymentNote || undefined,
+                  });
+                }
+              }}
+              disabled={
+                accontoMutation.isPending || 
+                saldoMutation.isPending ||
+                (paymentDialog?.tipo === 'acconto' && (!paymentAmount || parseFloat(paymentAmount) <= 0))
+              }
+              className="bg-sage hover:bg-dark-sage"
+              data-testid="button-confirm-payment"
+            >
+              {(accontoMutation.isPending || saldoMutation.isPending) ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvataggio...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Conferma Pagamento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* AlertDialog Cancellazione a Cascata */}
       <AlertDialog
