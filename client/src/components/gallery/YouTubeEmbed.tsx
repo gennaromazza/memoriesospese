@@ -8,11 +8,12 @@ interface YouTubeEmbedProps {
   videoUrls?: string[]; // Nuovo: array di URL
 }
 
-// Funzione per estrarre l'ID del video da un URL di YouTube
+// Funzione per estrarre l'ID del video da un URL di YouTube (supporta anche Shorts)
 function getYouTubeVideoId(url: string): string {
   try {
+    // Pattern che supporta: watch, embed, youtu.be, shorts
     const regExp =
-      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|&v=)([^#&?\s]*).*/;
     const match = url.match(regExp);
     return match && match[2].length === 11 ? match[2] : "";
   } catch (error) {
