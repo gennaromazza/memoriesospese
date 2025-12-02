@@ -30,6 +30,7 @@ import {
   Loader2,
   Eye
 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import type { ContractClauseTemplate } from '@shared/contract-clause-types';
 import type { JobType } from '@shared/jobs-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
@@ -175,7 +176,7 @@ export default function ContractClausesManager() {
               data-testid={`tab-${type.slug}`}
               className="flex items-center gap-2"
             >
-              <span>{type.icona}</span>
+              <JobTypeIcon slug={type.slug} size="sm" />
               <span className="hidden sm:inline">{type.nome}</span>
             </TabsTrigger>
           ))}

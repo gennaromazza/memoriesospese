@@ -15,6 +15,7 @@ import {
   Link2,
   Ban
 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 
 interface DiscoveredJobType {
   nome: string;
@@ -269,7 +270,10 @@ export default function JobTypeMappingPanel({
               <SelectContent>
                 {existingJobTypes.map(type => (
                   <SelectItem key={type.id} value={type.slug}>
-                    {type.icona} {type.nome}
+                    <span className="flex items-center gap-2">
+                      <JobTypeIcon slug={type.slug} size="sm" />
+                      {type.nome}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -371,7 +375,8 @@ export default function JobTypeMappingPanel({
                                     className="inline-block w-3 h-3 rounded-full mr-1" 
                                     style={{ backgroundColor: type.colore }}
                                   />
-                                  {type.icona} {type.nome}
+                                  <JobTypeIcon slug={type.slug} size="sm" />
+                                  {type.nome}
                                   {type.createdBy === 'import' && (
                                     <Badge variant="outline" className="text-[10px] py-0 ml-1">
                                       importato

@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Play, Loader2, Eye, Sparkles, TrendingUp, Heart, Share2 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { getActiveJobTypes } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
@@ -350,7 +351,7 @@ export default function WeddingVideosPage() {
             {videosByJobType.map(({ jobType, videos: typeVideos }) => (
               <div key={jobType.id} className="mb-12">
                 <div className="flex items-center gap-3 mb-6">
-                  {jobType.icona && <span className="text-2xl">{jobType.icona}</span>}
+                  <JobTypeIcon slug={jobType.slug} size="lg" />
                   <h2 className="text-2xl font-semibold">{jobType.nome}</h2>
                   <Badge variant="outline">{typeVideos.length}</Badge>
                 </div>

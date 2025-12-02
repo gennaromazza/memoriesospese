@@ -42,6 +42,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import type { JobType as JobsJobType } from '@shared/jobs-types';
 import type { JobType as DynamicJobType } from '@shared/job-types';
 
@@ -166,7 +167,7 @@ export default function CreateTemplateModal({
                           value={type.slug}
                         >
                           <span className="flex items-center gap-2">
-                            <span>{type.icona}</span>
+                            <JobTypeIcon slug={type.slug} size="sm" />
                             <span>{type.nome}</span>
                           </span>
                         </SelectItem>
