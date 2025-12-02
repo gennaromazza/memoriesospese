@@ -205,7 +205,7 @@ export default function BookingsManager({
   >({});
   const [timeFilter, setTimeFilter] = useState<
     "all" | "today" | "tomorrow" | "next-week" | "next-month"
-  >("all");
+  >("today");
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
     "all",
   );
@@ -370,8 +370,11 @@ export default function BookingsManager({
   const bookings = useMemo(() => {
     let filtered = [...allBookings];
 
-    // 1. Filtra per stato
-    if (selectedStato !== "all") {
+    // 1. Filtra per stato (escludi annullate se "all")
+    if (selectedStato === "all") {
+      // Escludi le annullate dalla vista "Tutte" per evitare confusione
+      filtered = filtered.filter((b) => b.stato !== "annullata");
+    } else {
       filtered = filtered.filter((b) => b.stato === selectedStato);
     }
 
