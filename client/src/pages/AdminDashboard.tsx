@@ -32,7 +32,6 @@ import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, Chevr
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
-import { OrdersManager } from "@/components/OrdersManager";
 import CashDashboard from "@/components/CashDashboard";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
@@ -242,10 +241,10 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico' | 'videos' | 'quote-templates'>(() => {
     return (sessionStorage.getItem('activeTab') as any) || 'calendario';
   });
-  const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns' | 'orders'>(() => {
+  const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns'>(() => {
     const stored = sessionStorage.getItem('activeBookingSection') as any;
     // Sanitize legacy values
-    if (stored === 'commesse' || !['bookings-list', 'campaigns', 'orders'].includes(stored)) {
+    if (!['bookings-list', 'campaigns'].includes(stored)) {
       return 'bookings-list';
     }
     return stored || 'bookings-list';
@@ -263,7 +262,6 @@ export default function AdminDashboard() {
     return (sessionStorage.getItem('activeJobSection') as any) || 'jobs-list';
   });
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
-  const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
   const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
 
   // Stati per la gestione dei Collapsible
@@ -705,13 +703,6 @@ export default function AdminDashboard() {
     setActiveBookingSection('bookings-list');
     sessionStorage.setItem('activeTab', 'bookings');
     sessionStorage.setItem('activeBookingSection', 'bookings-list');
-  };
-
-  // Handler: Apri ordine specifico e scroll + highlight
-  const handleOpenOrder = (orderId: string) => {
-    setHighlightOrderId(orderId);
-    setActiveTab('bookings');
-    setActiveBookingSection('orders');
   };
 
   // Handler: Apri gestione selezioni foto
@@ -1993,13 +1984,13 @@ export default function AdminDashboard() {
                         <div>
                           <h2 className="text-2xl font-bold text-blue-gray">📅 Gestione Prenotazioni</h2>
                           <p className="text-sm text-muted-foreground">
-                            Gestisci prenotazioni, campagne e ordini
+                            Gestisci prenotazioni e campagne
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <TabsList className="grid w-full grid-cols-3 gap-1 mb-4">
+                    <TabsList className="grid w-full grid-cols-2 gap-1 mb-4">
                       <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
                         <CalendarCheck className="h-4 w-4 flex-shrink-0" />
                         Prenotazioni
@@ -2008,32 +1999,17 @@ export default function AdminDashboard() {
                         <Calendar className="h-4 w-4 flex-shrink-0" />
                         Campagne
                       </TabsTrigger>
-                      <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                        <ShoppingBag className="h-4 w-4 flex-shrink-0" />
-                        Ordini
-                      </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="bookings-list">
                       <BookingsManager
                         highlightBookingId={highlightBookingId}
                         onHighlightComplete={handleBookingHighlightComplete}
-                        onRequestOpenOrdersTab={(orderId) => {
-                          setActiveBookingSection('orders');
-                          setHighlightOrderId(orderId);
-                        }}
                       />
                     </TabsContent>
 
                     <TabsContent value="campaigns">
                       <CampaignsManager />
-                    </TabsContent>
-
-                    <TabsContent value="orders">
-                      <OrdersManager
-                        highlightOrderId={highlightOrderId}
-                        onHighlightComplete={() => setHighlightOrderId(null)}
-                      />
                     </TabsContent>
                   </Tabs>
                 </Collapsible>
