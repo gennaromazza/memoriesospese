@@ -1600,8 +1600,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               {youtubeUrls.length > 0 && (
                 <div className="space-y-2">
                   {youtubeUrls.map((url, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
-                      <span className="text-sm flex-1 truncate">{url}</span>
+                    <div key={index} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200">
+                      <span className="text-green-600 mr-1">✓</span>
+                      <span className="text-sm flex-1 truncate text-green-800">{url}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -1616,27 +1617,51 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 </div>
               )}
               
-              {/* Input per nuovo URL */}
-              <div className="flex gap-2">
-                <Input
-                  value={newYoutubeUrl}
-                  onChange={(e) => setNewYoutubeUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (newYoutubeUrl.trim()) {
-                      setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
-                      setNewYoutubeUrl("");
-                    }
-                  }}
-                  disabled={!newYoutubeUrl.trim()}
-                >
-                  Aggiungi
-                </Button>
+              {/* Input per nuovo URL con feedback visivo migliorato */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Input
+                      value={newYoutubeUrl}
+                      onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className={`${newYoutubeUrl.trim() ? 'border-amber-400 bg-amber-50 pr-20' : ''}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newYoutubeUrl.trim()) {
+                          e.preventDefault();
+                          setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
+                          setNewYoutubeUrl("");
+                          toast({ title: "✓ Video aggiunto!", description: "Ricorda di salvare le modifiche" });
+                        }
+                      }}
+                    />
+                    {newYoutubeUrl.trim() && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 font-medium">
+                        In attesa...
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant={newYoutubeUrl.trim() ? "default" : "outline"}
+                    onClick={() => {
+                      if (newYoutubeUrl.trim()) {
+                        setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
+                        setNewYoutubeUrl("");
+                        toast({ title: "✓ Video aggiunto!", description: "Ricorda di salvare le modifiche" });
+                      }
+                    }}
+                    disabled={!newYoutubeUrl.trim()}
+                    className={newYoutubeUrl.trim() ? "bg-green-600 hover:bg-green-700 animate-pulse" : ""}
+                  >
+                    {newYoutubeUrl.trim() ? "➕ Aggiungi" : "Aggiungi"}
+                  </Button>
+                </div>
+                {newYoutubeUrl.trim() && (
+                  <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                    ⚠️ Clicca "Aggiungi" o premi Invio per confermare il video
+                  </p>
+                )}
               </div>
               <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
             </div>

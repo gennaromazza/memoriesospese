@@ -187,6 +187,18 @@ export default function Gallery() {
   const [accessValidatedTrigger, setAccessValidatedTrigger] = useState(0);
   const hasDetectedAccessRef = useRef(false);
 
+  // 🔐 AUTO-BYPASS: Se l'utente è admin, imposta automaticamente il token di accesso
+  useEffect(() => {
+    if (isAdmin && id) {
+      const authKey = `gallery_auth_${id}`;
+      if (!localStorage.getItem(authKey)) {
+        console.log('✅ Admin bypass: accesso automatico alla galleria', id);
+        localStorage.setItem(authKey, 'true');
+        setAccessValidatedTrigger(prev => prev + 1); // Trigger re-render
+      }
+    }
+  }, [isAdmin, id]);
+
   // 📄 Paginazione client-side per lazy loading
   const PHOTOS_PER_PAGE = 30; // ⚡ Aumentato da 20 a 30 per schermi moderni
   const [displayedPhotosCount, setDisplayedPhotosCount] = useState(PHOTOS_PER_PAGE);
