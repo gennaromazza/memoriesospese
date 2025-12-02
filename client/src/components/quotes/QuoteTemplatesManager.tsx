@@ -97,6 +97,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import {
   DndContext,
   closestCenter,
@@ -202,7 +203,7 @@ function SortableTemplateCard({
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    {jobType && <span>{jobType.icona}</span>}
+                    {jobType && <JobTypeIcon slug={jobType.slug} size="md" />}
                     {template.nome}
                   </CardTitle>
                   <CardDescription>
@@ -836,7 +837,7 @@ export default function QuoteTemplatesManager() {
                             <SelectValue placeholder="Seleziona tipo...">
                               {field.value && jobTypes.length > 0 ? (
                                 <span className="flex items-center gap-2">
-                                  {jobTypes.find(jt => jt.slug === field.value)?.icona}{' '}
+                                  <JobTypeIcon slug={field.value} size="sm" />
                                   {jobTypes.find(jt => jt.slug === field.value)?.nome}
                                 </span>
                               ) : (
@@ -854,7 +855,8 @@ export default function QuoteTemplatesManager() {
                             jobTypes.map(jt => (
                               <SelectItem key={jt.id} value={jt.slug}>
                                 <span className="flex items-center gap-2">
-                                  {jt.icona} {jt.nome}
+                                  <JobTypeIcon slug={jt.slug} size="sm" />
+                                  {jt.nome}
                                 </span>
                               </SelectItem>
                             ))

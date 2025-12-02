@@ -66,6 +66,7 @@ import {
   Package,
   GripVertical
 } from 'lucide-react';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import {
   DndContext,
   closestCenter,
@@ -844,7 +845,7 @@ export default function QuoteBuilder({
         <div className="max-h-[90vh] overflow-y-auto px-6 py-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span className="text-2xl">{jobType.icona}</span>
+              <JobTypeIcon slug={jobType.slug} size="lg" />
               <FileText className="w-5 h-5" />
               {editQuoteId ? 'Modifica Preventivo' : 'Crea Preventivo'}
             </DialogTitle>
