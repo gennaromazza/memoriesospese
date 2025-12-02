@@ -13,6 +13,7 @@ import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
 import { Lock, Mail, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 import { Label } from "../components/ui/label";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface GalleryData {
   id: string;
@@ -48,6 +49,7 @@ export default function GalleryAccess() {
   const [passwordError, setPasswordError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
+  const isAdmin = useIsAdmin();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +59,23 @@ export default function GalleryAccess() {
   // Re-encode galleryId for the request password link
   const encodedGalleryId = id ? btoa(id) : null;
 
+  // 🔐 ADMIN BYPASS: Se l'utente è admin, salta la password e vai direttamente alla galleria
+  useEffect(() => {
+    if (isAdmin && id) {
+      console.log('✅ Admin bypass in GalleryAccess: accesso diretto alla galleria', id);
+      localStorage.setItem(`gallery_auth_${id}`, "true");
+      navigate(createUrl(`/view/${id}`), { replace: true });
+    }
+  }, [isAdmin, id, navigate]);
 
   // Check if gallery exists on component mount
   useEffect(() => {
     async function checkGallery() {
+      // Se è admin, non fare nulla - il bypass gestisce il redirect
+      if (isAdmin) {
+        return;
+      }
+      
       if (!id) {
         setError("ID galleria non specificato.");
         setLoading(false);
@@ -157,7 +172,7 @@ export default function GalleryAccess() {
     }
 
     checkGallery();
-  }, [id, toast, navigate]);
+  }, [id, toast, navigate, isAdmin]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
