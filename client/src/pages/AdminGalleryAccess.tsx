@@ -41,10 +41,13 @@ export default function AdminGalleryAccess() {
       return;
     }
 
-    // ✅ Admin verificato: bypassa autenticazione password galleria
+    // ✅ Admin verificato: bypassa autenticazione password galleria e redirect alla route normale
     if (galleryId) {
       console.log('✅ Admin verificato - accesso diretto alla galleria:', galleryId);
+      // Imposta il token di bypass (galleryId qui è il code della galleria)
       localStorage.setItem(`gallery_auth_${galleryId}`, "true");
+      // Redirect alla route normale della galleria per caricarla correttamente
+      navigate(createUrl(`/gallery/${galleryId}`), { replace: true });
     }
   }, [galleryId, isAdmin, authLoading, user, navigate]);
 

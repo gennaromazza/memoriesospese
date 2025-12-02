@@ -1579,7 +1579,7 @@ export default function AdminDashboard() {
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                       <div className="flex gap-1">
-                                        <Link to={createUrl(`/admin/galleries/${gallery.id}`)} target="_blank">
+                                        <Link to={createUrl(`/admin/galleries/${gallery.code}`)} target="_blank">
                                           <Button
                                             variant="outline"
                                             size="icon"
