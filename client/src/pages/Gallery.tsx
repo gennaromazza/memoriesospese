@@ -82,19 +82,39 @@ import { CoupleStory } from "@shared/schema";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
 // Memoized PhotoCard component for optimization with lazy loading
-const PhotoCard = memo(({ photo, index, onClick }: { photo: Photo, index: number, onClick: (index: number) => void }) => {
+const PhotoCard = memo(({ 
+  photo, 
+  index, 
+  onClick, 
+  isSelected = false,
+  isSelectionMode = false,
+  assignedProducts = []
+}: { 
+  photo: Photo, 
+  index: number, 
+  onClick: (index: number) => void,
+  isSelected?: boolean,
+  isSelectionMode?: boolean,
+  assignedProducts?: string[]
+}) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
 
   return (
     <div className="masonry-item">
       <div
-        className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
+          isSelected 
+            ? 'ring-4 ring-green-500 ring-offset-2 shadow-xl' 
+            : ''
+        }`}
         onClick={handleClick}
       >
         <img
           src={photo.url}
           alt={photo.name || `Foto ${index + 1}`}
-          className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
+          className={`w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200 ${
+            isSelected ? 'brightness-105' : ''
+          }`}
           loading="lazy"
           decoding="async"
           title={
@@ -104,16 +124,49 @@ const PhotoCard = memo(({ photo, index, onClick }: { photo: Photo, index: number
           }
           style={{
             backgroundColor: "transparent",
-            willChange: index < 20 ? 'transform' : 'auto', // Ottimizza solo prime 20
+            willChange: index < 20 ? 'transform' : 'auto',
           }}
         />
+        
+        {/* Badge SELEZIONATA - visibile quando foto è selezionata */}
+        {isSelected && isSelectionMode && (
+          <div className="absolute top-2 right-2 z-10">
+            <span className="bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              SELEZIONATA
+            </span>
+          </div>
+        )}
+        
+        {/* Indicatore prodotti assegnati (multi-product mode) */}
+        {assignedProducts.length > 0 && isSelectionMode && (
+          <div className="absolute bottom-2 left-2 right-2 z-10 flex flex-wrap gap-1">
+            {assignedProducts.map((productIdx) => {
+              const colorIndex = parseInt(productIdx) % 6;
+              const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
+              return (
+                <span 
+                  key={productIdx}
+                  className={`${colors[colorIndex]} text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow`}
+                >
+                  P{parseInt(productIdx) + 1}
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparator: re-render solo se cambiano ID o index
+  // Custom comparator: re-render solo se cambiano ID, index, isSelected o assignedProducts
   return prevProps.photo.id === nextProps.photo.id &&
-         prevProps.index === nextProps.index;
+         prevProps.index === nextProps.index &&
+         prevProps.isSelected === nextProps.isSelected &&
+         prevProps.isSelectionMode === nextProps.isSelectionMode &&
+         JSON.stringify(prevProps.assignedProducts) === JSON.stringify(nextProps.assignedProducts);
 });
 
 PhotoCard.displayName = 'PhotoCard';
@@ -2604,6 +2657,9 @@ export default function Gallery() {
                             <PhotoCard
                               photo={photo}
                               index={index}
+                              isSelected={selectedPhotoIds.includes(photo.id)}
+                              isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                              assignedProducts={photoAssignments[photo.id] || []}
                               onClick={(clickedIndex) => {
                                 // 🔥 REFACTORED: UX semplificata basata su modalità selezione
                                 if (isMultiProductMode) {
