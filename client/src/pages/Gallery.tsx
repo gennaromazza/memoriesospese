@@ -1,7 +1,6 @@
 import React, {
   useState,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useCallback,
@@ -10,9 +9,7 @@ import React, {
 import { useParams, useLocation } from "wouter";
 import { createUrl } from "@/lib/basePath";
 import { useStudio } from "@/context/StudioContext";
-import { User } from "lucide-react";
 import Navigation from "@/components/Navigation";
-import { FixedSizeGrid as Grid } from 'react-window';
 import "@/styles/themes/natale.css";
 import "@/styles/themes/carnevale.css";
 import "@/styles/themes/san-valentino.css";
@@ -37,9 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
-import LoadMoreButton from "@/components/gallery/LoadMoreButton";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
-import { PhotoData } from "@/hooks/use-gallery-data";
 import { useQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
 import PhotoService, { Photo } from "@/lib/photos"; // 🔧 Import Photo type per allineamento tipi
@@ -51,17 +46,15 @@ import GuestUpload from "@/components/GuestUpload";
 import { GalleryActions } from "@/components/gallery/GalleryActions";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
-import InteractionWrapper from "@/components/InteractionWrapper";
 import InteractionPanel from "@/components/InteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
-import { SubscriptionPrompt } from "@/components/SubscriptionPrompt";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen, Trash2, Info } from "lucide-react";
+import { Edit3, BookOpen, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -74,11 +67,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { PrettyCountdown } from "@/components/PrettyCountdown";
-import { resolveEventDate, convertFirestoreTimestamp } from "@/lib/firebase";
+import { convertFirestoreTimestamp } from "@/lib/firebase";
 import CoupleStoryBook from "@/components/CoupleStoryBook";
 import StoryUploadForm from "@/components/StoryUploadForm";
 import StoryService from "@/lib/storyService";
-import { CoupleStory } from "@shared/schema";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
 // Memoized PhotoCard component for optimization with lazy loading
@@ -178,7 +170,7 @@ export default function Gallery() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const { studioSettings } = useStudio();
-  const { user, userProfile, isAuthenticated } = useFirebaseAuth();
+  const { user, isAuthenticated } = useFirebaseAuth();
   const isAdmin = useIsAdmin();
   const userInfo = useUserInfo();
   const { toast } = useToast();
@@ -224,8 +216,6 @@ export default function Gallery() {
   const {
     refreshPhotos,
     refreshGallery,
-    refreshVoiceMemos,
-    refreshInteractions,
   } = useGalleryRefresh(id);
 
   // Stato per triggare il refresh dei voice memos
@@ -233,9 +223,6 @@ export default function Gallery() {
 
   // Stato per gestire l'apertura del modal EditGallery
   const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
-
-  // Stato per gestire il prompt di iscrizione (lo mostriamo ogni 20 foto)
-  const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(true);
 
   // Stati per gestire la storia della coppia
   const [showStoryUpload, setShowStoryUpload] = useState(false);
@@ -285,7 +272,6 @@ export default function Gallery() {
   // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste E accesso validato)
   const {
     data: guestPhotos = [],
-    isLoading: isLoadingGuestPhotos,
     error: guestPhotosError
   } = useQuery({
     queryKey: ['guest-photos', galleryData?.id], // 🔧 Standardized key
@@ -311,7 +297,6 @@ export default function Gallery() {
   const {
     data: coupleStory,
     isLoading: storyLoading,
-    error: storyError
   } = useQuery({
     queryKey: ['coupleStory', id],
     queryFn: () => StoryService.getStoryByGalleryId(id!),
@@ -398,7 +383,7 @@ export default function Gallery() {
 
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
-  const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
+  const [selectedPhotoForMobileAssignment] = useState<string | null>(null);
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
@@ -1343,11 +1328,6 @@ export default function Gallery() {
     requiredPhotoCount,
     galleryData?.productRequirements,
   ]);
-
-  const handleSignOut = () => {
-    localStorage.removeItem(`gallery_auth_${id}`);
-    navigate(createUrl("/"));
-  };
 
   if (isLoadingPhotos) {
     return (
