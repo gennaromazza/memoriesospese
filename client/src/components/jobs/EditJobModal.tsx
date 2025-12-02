@@ -28,16 +28,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   Form,
   FormControl,
   FormDescription,
@@ -64,6 +54,24 @@ import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucid
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+
+// Helper per formattare date in modo sicuro (gestisce null/undefined/invalid)
+const formatConflictDate = (dateStr: string | undefined, allDay: boolean = false): string => {
+  if (!dateStr) return 'Data non disponibile';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'Data non valida';
+    return date.toLocaleString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: allDay ? undefined : '2-digit',
+      minute: allDay ? undefined : '2-digit'
+    });
+  } catch {
+    return 'Data non valida';
+  }
+};
 
 const formSchema = z.object({
   nomeEvento: z.string().min(2, 'Nome evento troppo corto'),
@@ -105,20 +113,14 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [loadingClienti, setLoadingClienti] = useState(true);
-  const [conflictsAlert, setConflictsAlert] = useState<{
-    open: boolean;
-    conflicts: Array<{
-      type: 'calendar' | 'booking';
-      title: string;
-      start: string;
-      end: string;
-      allDay?: boolean;
-      clientName?: string;
-    }>;
-  }>({
-    open: false,
-    conflicts: []
-  });
+  const [detectedConflicts, setDetectedConflicts] = useState<Array<{
+    type: 'calendar' | 'booking';
+    title: string;
+    start: string;
+    end: string;
+    allDay?: boolean;
+    clientName?: string;
+  }>>([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   
   // Query job types dinamici
@@ -229,15 +231,9 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         const data = await response.json();
         
         if (data.hasConflicts && data.conflicts.length > 0) {
-          setConflictsAlert({
-            open: true,
-            conflicts: data.conflicts
-          });
+          setDetectedConflicts(data.conflicts);
         } else {
-          setConflictsAlert({
-            open: false,
-            conflicts: []
-          });
+          setDetectedConflicts([]);
         }
       } catch (error) {
         console.error('[Conflict Check] Error:', error);
@@ -688,11 +684,47 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                 )}
               />
 
-                {/* Conflict Warning */}
+                {/* Avviso conflitti inline */}
                 {checkingConflicts && (
-                  <div className="flex items-center gap-2 text-sm text-amber-600">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Verifica disponibilità...
+                  <div className="flex items-center gap-2 text-sm text-amber-600 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Verifica disponibilità calendario...
+                  </div>
+                )}
+
+                {!checkingConflicts && detectedConflicts.length > 0 && (
+                  <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2 text-amber-700 font-medium">
+                      <AlertTriangle className="w-5 h-5" />
+                      <span>
+                        {detectedConflicts.length} {detectedConflicts.length === 1 ? 'conflitto rilevato' : 'conflitti rilevati'}
+                      </span>
+                    </div>
+                    <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                      {detectedConflicts.map((conflict, index) => (
+                        <div
+                          key={index}
+                          className="p-2 bg-white rounded border border-amber-200 text-sm"
+                        >
+                          <p className="font-medium text-gray-800">
+                            {conflict.type === 'calendar' ? '📅' : '📸'} {conflict.title}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {formatConflictDate(conflict.start, conflict.allDay)}
+                            {' → '}
+                            {formatConflictDate(conflict.end, conflict.allDay)}
+                          </p>
+                          {conflict.clientName && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Cliente: {conflict.clientName}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-amber-600">
+                      Puoi comunque salvare le modifiche, ma verifica che non ci siano sovrapposizioni indesiderate.
+                    </p>
                   </div>
                 )}
               </form>
@@ -724,49 +756,6 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Conflicts Alert Dialog */}
-      <AlertDialog
-        open={conflictsAlert.open}
-        onOpenChange={(open) => setConflictsAlert({ ...conflictsAlert, open })}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Conflitti di Calendario
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Ci sono eventi già programmati in questo slot orario:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {conflictsAlert.conflicts.map((conflict, idx) => (
-              <div
-                key={idx}
-                className="border rounded-lg p-3 bg-amber-50"
-              >
-                <div className="font-medium text-sm">{conflict.title}</div>
-                <div className="text-xs text-gray-600 mt-1">
-                  {conflict.type === 'calendar' ? '📅 Google Calendar' : '📝 Prenotazione'}
-                  {conflict.clientName && ` • ${conflict.clientName}`}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {conflict.start}{conflict.end ? ` - ${conflict.end}` : ''}
-                  {conflict.allDay && ' (Tutto il giorno)'}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setConflictsAlert({ open: false, conflicts: [] })}>
-              Ho capito
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
