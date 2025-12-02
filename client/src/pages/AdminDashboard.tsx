@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload, Home, Palette, Camera, CheckCircle, List } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -1426,7 +1426,7 @@ export default function AdminDashboard() {
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-generic-galleries"
                             >
-                              <span className="text-base">🏠</span>
+                              <Home className="h-4 w-4" />
                               <span className="text-xs sm:text-sm">Generiche</span>
                             </Button>
                             <Button
@@ -1436,7 +1436,7 @@ export default function AdminDashboard() {
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-special-galleries"
                             >
-                              <span className="text-base">🎨</span>
+                              <Palette className="h-4 w-4" />
                               <span className="text-xs sm:text-sm">Tematiche</span>
                             </Button>
                             <Button
@@ -1446,7 +1446,7 @@ export default function AdminDashboard() {
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-all-galleries"
                             >
-                              <span className="text-base">📋</span>
+                              <List className="h-4 w-4" />
                               <span className="text-xs sm:text-sm">Tutte</span>
                             </Button>
                           </div>
@@ -1463,7 +1463,7 @@ export default function AdminDashboard() {
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-all-selections"
                             >
-                              <span className="text-base">📷</span>
+                              <Camera className="h-4 w-4" />
                               <span className="text-xs sm:text-sm">Tutte</span>
                             </Button>
                             <Button
@@ -1473,7 +1473,7 @@ export default function AdminDashboard() {
                               className="flex-1 sm:flex-initial min-w-[140px] flex items-center justify-center gap-2 transition-all bg-green-50 hover:bg-green-100 border-green-200"
                               data-testid="filter-approved-selections"
                             >
-                              <span className="text-base">✅</span>
+                              <CheckCircle className="h-4 w-4" />
                               <span className="text-xs sm:text-sm">Approvate</span>
                             </Button>
                           </div>
