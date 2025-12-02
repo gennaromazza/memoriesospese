@@ -86,6 +86,7 @@ import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 import CreateJobModal from './CreateJobModal';
 
 // Status pipeline labels
@@ -718,7 +719,7 @@ export default function JobsManager() {
             )}
             data-testid="card-filter-all"
           >
-            <span className="text-lg">📋</span>
+            <FileText className="w-5 h-5" />
             <div className="text-left">
               <div className="font-medium text-sm">Tutti</div>
               <div className="text-xs text-muted-foreground">{jobCountsByType.all || 0}</div>
@@ -746,7 +747,7 @@ export default function JobsManager() {
                 }}
                 data-testid={`card-filter-${jobType.slug}`}
               >
-                <span className="text-lg">{jobType.icona}</span>
+                <JobTypeIcon slug={jobType.slug} size="lg" />
                 <div className="text-left">
                   <div className="font-medium text-sm" style={{ color: filterType === jobType.slug ? jobType.colore : '#334155' }}>
                     {jobType.nome}
@@ -1008,7 +1009,6 @@ export default function JobsManager() {
                 
                 return paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
-                  const displayType = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
                   const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
                   const isSelected = selectedJobs.has(job.id);
                   const jobDate = eventDate ? new Date(eventDate) : new Date(0);
@@ -1168,7 +1168,7 @@ export default function JobsManager() {
                           color: jobTypeInfo?.colore || '#64748b'
                         }}
                       >
-                        <span className="text-base leading-none">{jobTypeInfo?.icona || '📸'}</span>
+                        <JobTypeIcon slug={job.jobType} size="sm" />
                         <span className="truncate">{jobTypeInfo?.nome || job.jobType}</span>
                       </Badge>
                     </TableCell>
@@ -1467,7 +1467,6 @@ interface JobCardInternalProps extends JobCardProps {
 
 function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
   const jobTypeInfo = jobTypeMap[job.jobType];
-  const displayName = jobTypeInfo ? `${jobTypeInfo.icona} ${jobTypeInfo.nome}` : job.jobType;
   
   return (
     <Card
@@ -1483,8 +1482,9 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
           <CardTitle className="text-sm font-semibold line-clamp-1">
             {job.nomeEvento}
           </CardTitle>
-          <Badge variant="outline" className="text-xs shrink-0">
-            {displayName}
+          <Badge variant="outline" className="text-xs shrink-0 gap-1">
+            <JobTypeIcon slug={job.jobType} size="sm" />
+            {jobTypeInfo?.nome || job.jobType}
           </Badge>
         </div>
       </CardHeader>
