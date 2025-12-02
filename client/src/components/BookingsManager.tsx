@@ -89,6 +89,12 @@ import {
   MessageCircle,
   Euro,
   History,
+  Camera,
+  CheckCircle2,
+  Palette,
+  Timer,
+  PartyPopper,
+  PackageCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -114,13 +120,13 @@ const STATI_BOOKING = [
 ] as const;
 
 const STATI_WORKFLOW = [
-  { value: "all", label: "Tutti i workflow" },
-  { value: WorkflowState.SHOOTING_DA_SVOLGERE, label: "📸 Shooting da svolgere" },
-  { value: WorkflowState.SHOOTING_COMPLETATO, label: "✅ Shooting completato" },
-  { value: WorkflowState.IN_LAVORAZIONE, label: "🎨 In lavorazione" },
-  { value: WorkflowState.IN_ATTESA_SELEZIONE, label: "⏳ In attesa selezione" },
-  { value: WorkflowState.COMPLETATO, label: "🎉 Completato" },
-  { value: WorkflowState.CONSEGNATO, label: "📦 Consegnato" },
+  { value: "all", label: "Tutti i workflow", icon: FileText },
+  { value: WorkflowState.SHOOTING_DA_SVOLGERE, label: "Shooting da svolgere", icon: Camera },
+  { value: WorkflowState.SHOOTING_COMPLETATO, label: "Shooting completato", icon: CheckCircle2 },
+  { value: WorkflowState.IN_LAVORAZIONE, label: "In lavorazione", icon: Palette },
+  { value: WorkflowState.IN_ATTESA_SELEZIONE, label: "In attesa selezione", icon: Timer },
+  { value: WorkflowState.COMPLETATO, label: "Completato", icon: PartyPopper },
+  { value: WorkflowState.CONSEGNATO, label: "Consegnato", icon: PackageCheck },
 ] as const;
 
 function getStatoBadge(stato: string) {
@@ -1214,11 +1220,17 @@ export default function BookingsManager({
                       <SelectValue placeholder="Tutti" />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATI_BOOKING.map((stato) => (
-                        <SelectItem key={stato.value} value={stato.value}>
-                          {stato.label}
-                        </SelectItem>
-                      ))}
+                      {STATI_BOOKING.map((stato) => {
+                        const IconComponent = stato.icon;
+                        return (
+                          <SelectItem key={stato.value} value={stato.value}>
+                            <span className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              {stato.label}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1236,11 +1248,17 @@ export default function BookingsManager({
                       <SelectValue placeholder="Tutti i workflow" />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATI_WORKFLOW.map((stato) => (
-                        <SelectItem key={stato.value} value={stato.value}>
-                          {stato.label}
-                        </SelectItem>
-                      ))}
+                      {STATI_WORKFLOW.map((stato) => {
+                        const IconComponent = stato.icon;
+                        return (
+                          <SelectItem key={stato.value} value={stato.value}>
+                            <span className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              {stato.label}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1423,8 +1441,9 @@ export default function BookingsManager({
                         </p>
                       </div>
                       {group.label === "Oggi" && (
-                        <Badge className="bg-green-500 text-white animate-pulse">
-                          📸 In programma
+                        <Badge className="bg-green-500 text-white animate-pulse flex items-center gap-1">
+                          <Camera className="h-3 w-3" />
+                          In programma
                         </Badge>
                       )}
                     </div>
@@ -1917,28 +1936,46 @@ export default function BookingsManager({
                                   <SelectItem
                                     value={WorkflowState.SHOOTING_DA_SVOLGERE}
                                   >
-                                    📸 Shooting da svolgere
+                                    <span className="flex items-center gap-2">
+                                      <Camera className="h-4 w-4" />
+                                      Shooting da svolgere
+                                    </span>
                                   </SelectItem>
                                   <SelectItem
                                     value={WorkflowState.SHOOTING_COMPLETATO}
                                   >
-                                    ✅ Shooting completato
+                                    <span className="flex items-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4" />
+                                      Shooting completato
+                                    </span>
                                   </SelectItem>
                                   <SelectItem
                                     value={WorkflowState.IN_LAVORAZIONE}
                                   >
-                                    🎨 In lavorazione
+                                    <span className="flex items-center gap-2">
+                                      <Palette className="h-4 w-4" />
+                                      In lavorazione
+                                    </span>
                                   </SelectItem>
                                   <SelectItem
                                     value={WorkflowState.IN_ATTESA_SELEZIONE}
                                   >
-                                    ⏳ In attesa selezione
+                                    <span className="flex items-center gap-2">
+                                      <Timer className="h-4 w-4" />
+                                      In attesa selezione
+                                    </span>
                                   </SelectItem>
                                   <SelectItem value={WorkflowState.COMPLETATO}>
-                                    🎉 Completato
+                                    <span className="flex items-center gap-2">
+                                      <PartyPopper className="h-4 w-4" />
+                                      Completato
+                                    </span>
                                   </SelectItem>
                                   <SelectItem value={WorkflowState.CONSEGNATO}>
-                                    📦 Consegnato
+                                    <span className="flex items-center gap-2">
+                                      <PackageCheck className="h-4 w-4" />
+                                      Consegnato
+                                    </span>
                                   </SelectItem>
                                 </SelectContent>
                               </Select>
@@ -3038,22 +3075,31 @@ export default function BookingsManager({
                       <span className="text-sm text-gray-700">
                         Nuovo stato:
                       </span>
-                      <span className="font-bold text-blue-900">
+                      <span className="font-bold text-blue-900 flex items-center gap-2">
                         {workflowChangeBooking.newState ===
-                          WorkflowState.SHOOTING_DA_SVOLGERE &&
-                          "📸 Shooting da svolgere"}
+                          WorkflowState.SHOOTING_DA_SVOLGERE && (
+                          <><Camera className="h-4 w-4" /> Shooting da svolgere</>
+                        )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.SHOOTING_COMPLETATO &&
-                          "✅ Shooting completato"}
+                          WorkflowState.SHOOTING_COMPLETATO && (
+                          <><CheckCircle2 className="h-4 w-4" /> Shooting completato</>
+                        )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.IN_LAVORAZIONE && "🎨 In lavorazione"}
+                          WorkflowState.IN_LAVORAZIONE && (
+                          <><Palette className="h-4 w-4" /> In lavorazione</>
+                        )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.IN_ATTESA_SELEZIONE &&
-                          "⏳ In attesa selezione"}
+                          WorkflowState.IN_ATTESA_SELEZIONE && (
+                          <><Timer className="h-4 w-4" /> In attesa selezione</>
+                        )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.COMPLETATO && "🎉 Completato"}
+                          WorkflowState.COMPLETATO && (
+                          <><PartyPopper className="h-4 w-4" /> Completato</>
+                        )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.CONSEGNATO && "📦 Consegnato"}
+                          WorkflowState.CONSEGNATO && (
+                          <><PackageCheck className="h-4 w-4" /> Consegnato</>
+                        )}
                       </span>
                     </div>
                   </div>

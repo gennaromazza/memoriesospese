@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { Button } from "../ui/button";
 
 interface YouTubeEmbedProps {
@@ -18,6 +18,60 @@ function getYouTubeVideoId(url: string): string {
   } catch (error) {
     return "";
   }
+}
+
+// Componente per singolo video con gestione errori
+function YouTubeIframe({ videoId, title, isVertical = false }: { videoId: string; title: string; isVertical?: boolean }) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Reset error state when videoId changes
+  useEffect(() => {
+    setHasError(false);
+    setIsLoading(true);
+  }, [videoId]);
+
+  if (hasError) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
+        <AlertCircle className="h-12 w-12 text-gray-400 mb-3" />
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center px-4">
+          Video non disponibile
+        </p>
+        <a 
+          href={`https://www.youtube.com/watch?v=${videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 text-sm text-terracotta-600 hover:underline"
+        >
+          Apri su YouTube
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
+          <div className="animate-pulse text-gray-400">Caricamento video...</div>
+        </div>
+      )}
+      <iframe
+        src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0`}
+        title={title}
+        className="absolute top-0 left-0 w-full h-full rounded-lg"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        onLoad={() => setIsLoading(false)}
+        onError={() => {
+          setHasError(true);
+          setIsLoading(false);
+        }}
+      />
+    </>
+  );
 }
 
 export default function YouTubeEmbed({
@@ -49,14 +103,7 @@ export default function YouTubeEmbed({
             Video
           </h3>
           <div className="relative w-full pb-[56.25%]">
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}`}
-              title="Video"
-              className="absolute top-0 left-0 w-full h-full rounded-lg"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
+            <YouTubeIframe videoId={videoId} title="Video" />
           </div>
         </div>
       </div>
@@ -136,14 +183,7 @@ function YouTubeSlider({ videoUrls }: { videoUrls: string[] }) {
                 return (
                   <div key={index} className="flex-[0_0_100%] min-w-0 px-0">
                     <div className="relative w-full pb-[56.25%]">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${videoId}`}
-                        title={`Video ${index + 1}`}
-                        className="absolute top-0 left-0 w-full h-full rounded-lg"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      ></iframe>
+                      <YouTubeIframe videoId={videoId} title={`Video ${index + 1}`} />
                     </div>
                   </div>
                 );

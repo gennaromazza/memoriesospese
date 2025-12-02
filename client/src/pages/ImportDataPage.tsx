@@ -5,7 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, CheckCircle, XCircle, AlertCircle, FileText, FileSpreadsheet, Check, X, Layers } from 'lucide-react';
+import { Upload, CheckCircle, XCircle, AlertCircle, FileText, FileSpreadsheet, Check, X, Layers, Camera } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { auth } from '@/lib/firebase';
 import JobTypeMappingPanel, { JobTypeMapping } from '@/components/import/JobTypeMappingPanel';
@@ -588,10 +588,11 @@ export default function ImportDataPage() {
                     {result.newJobTypes.map((jobType, index) => (
                       <span
                         key={index}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200"
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200"
                         data-testid={`new-job-type-${jobType.slug}`}
                       >
-                        📷 {jobType.nome}
+                        <Camera className="h-4 w-4" />
+                        {jobType.nome}
                       </span>
                     ))}
                   </div>
