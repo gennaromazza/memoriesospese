@@ -816,7 +816,7 @@ export default function BookingsManager({
   // Mutation: Crea ordine da booking
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
-    onSuccess: async (orderId: string, orderData: any) => {
+    onSuccess: async (_orderId: string, orderData: any) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
 
@@ -1100,20 +1100,6 @@ export default function BookingsManager({
       ...prev,
       [bookingId]: !prev[bookingId]
     }));
-  };
-
-  // Helper: Calcola riepilogo pagamenti per acconto (per validazione importo massimo)
-  const getAccontoSummary = (order: Order) => {
-    const totals = getOrderTotals(order);
-    const importoNumerico = parseFloat(paymentAmount) || 0;
-    const nuovoTotale = totals.totalePagato + importoNumerico;
-    return {
-      totale: totals.totale,
-      giaPagato: totals.totalePagato,
-      saldoMassimo: totals.saldoResiduo,
-      nuovoTotale,
-      isValid: nuovoTotale <= totals.totale && importoNumerico > 0,
-    };
   };
 
   // Helper: Apri WhatsApp con messaggio pre-compilato per ordine
