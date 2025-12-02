@@ -113,6 +113,16 @@ const STATI_BOOKING = [
   { value: "annullata", label: "Annullate", icon: XCircle },
 ] as const;
 
+const STATI_WORKFLOW = [
+  { value: "all", label: "Tutti i workflow" },
+  { value: WorkflowState.SHOOTING_DA_SVOLGERE, label: "📸 Shooting da svolgere" },
+  { value: WorkflowState.SHOOTING_COMPLETATO, label: "✅ Shooting completato" },
+  { value: WorkflowState.IN_LAVORAZIONE, label: "🎨 In lavorazione" },
+  { value: WorkflowState.IN_ATTESA_SELEZIONE, label: "⏳ In attesa selezione" },
+  { value: WorkflowState.COMPLETATO, label: "🎉 Completato" },
+  { value: WorkflowState.CONSEGNATO, label: "📦 Consegnato" },
+] as const;
+
 function getStatoBadge(stato: string) {
   switch (stato) {
     case "in_attesa":
@@ -199,6 +209,7 @@ export default function BookingsManager({
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
     "all",
   );
+  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
 
   // State per workflow state change con conferma
   const [workflowChangeBooking, setWorkflowChangeBooking] = useState<{
@@ -389,7 +400,12 @@ export default function BookingsManager({
       });
     }
 
-    // 4. Filtra per intervallo temporale
+    // 4. Filtra per stato workflow
+    if (workflowFilter !== "all") {
+      filtered = filtered.filter((b) => b.statoWorkflow === workflowFilter);
+    }
+
+    // 5. Filtra per intervallo temporale
     if (timeFilter !== "all") {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -477,6 +493,7 @@ export default function BookingsManager({
     campaigns,
     timeFilter,
     selectionFilter,
+    workflowFilter,
     allGalleries,
   ]);
 
@@ -493,7 +510,7 @@ export default function BookingsManager({
   // Reset currentPage quando cambiano filtri
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedStato, searchQuery, timeFilter, selectionFilter]);
+  }, [selectedStato, searchQuery, timeFilter, selectionFilter, workflowFilter]);
 
   // 🔔 Auto-mark bookings in_attesa come visualizzati (per notifiche)
   useEffect(() => {
@@ -1195,8 +1212,8 @@ export default function BookingsManager({
             <div className="px-6 py-4 space-y-4">
               {/* Prima riga filtri */}
               <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-                {/* Filtro stato */}
-                <div className="w-full lg:w-48">
+                {/* Filtro stato prenotazione */}
+                <div className="w-full lg:w-40">
                   <Select
                     value={selectedStato}
                     onValueChange={setSelectedStato}
@@ -1209,6 +1226,28 @@ export default function BookingsManager({
                     </SelectTrigger>
                     <SelectContent>
                       {STATI_BOOKING.map((stato) => (
+                        <SelectItem key={stato.value} value={stato.value}>
+                          {stato.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filtro stato workflow */}
+                <div className="w-full lg:w-52">
+                  <Select
+                    value={workflowFilter}
+                    onValueChange={setWorkflowFilter}
+                  >
+                    <SelectTrigger
+                      data-testid="select-workflow-filter"
+                      className="h-10"
+                    >
+                      <SelectValue placeholder="Tutti i workflow" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATI_WORKFLOW.map((stato) => (
                         <SelectItem key={stato.value} value={stato.value}>
                           {stato.label}
                         </SelectItem>
