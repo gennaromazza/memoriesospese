@@ -307,6 +307,13 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       allDay?: boolean;
     } | null = null;
 
+    // 4b. Fetch jobType info per immagine copertina
+    let jobTypeInfo: {
+      id?: string;
+      nome?: string;
+      imageUrl?: string;
+    } | null = null;
+
     // SEMPRE recupera dati real-time dal job per avere info aggiornate
     if (quote.jobId) {
       try {
@@ -323,6 +330,29 @@ router.get("/public/:token", async (req: Request, res: Response) => {
             endTime: jobData?.endTime,
             allDay: jobData?.allDay,
           };
+
+          // Recupera immagine copertina dal jobType
+          const jobTypeSlug = jobData?.jobType;
+          if (jobTypeSlug) {
+            try {
+              const jobTypesSnapshot = await db
+                .collection("jobTypes")
+                .where("slug", "==", jobTypeSlug)
+                .limit(1)
+                .get();
+              
+              if (!jobTypesSnapshot.empty) {
+                const jobTypeData = jobTypesSnapshot.docs[0].data();
+                jobTypeInfo = {
+                  id: jobTypesSnapshot.docs[0].id,
+                  nome: jobTypeData?.nome,
+                  imageUrl: jobTypeData?.imageUrl,
+                };
+              }
+            } catch (jobTypeErr) {
+              console.warn("⚠️ Impossibile recuperare jobType:", jobTypeErr);
+            }
+          }
         } else if (quote.jobInfo) {
           // Job non esiste più (cancellato/archiviato) - usa snapshot
           console.log(`ℹ️ Job ${quote.jobId} non trovato, uso snapshot per quote ${quote.id}`);
@@ -448,6 +478,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
         quote: safeQuote,
         jobInfo,
         clientiInfo,
+        jobTypeInfo,
       },
     });
   } catch (error) {

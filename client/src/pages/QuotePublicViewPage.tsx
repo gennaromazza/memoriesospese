@@ -46,6 +46,11 @@ interface QuotePublicData {
     citta?: string;
     cap?: string;
   }>;
+  jobTypeInfo?: {
+    id?: string;
+    nome?: string;
+    imageUrl?: string;
+  } | null;
 }
 
 export default function QuotePublicViewPage() {
@@ -78,6 +83,7 @@ export default function QuotePublicViewPage() {
   const quote = portalData?.quote;
   const jobInfo = portalData?.jobInfo;
   const clientiInfo = portalData?.clientiInfo || [];
+  const jobTypeInfo = portalData?.jobTypeInfo;
 
   // Initialize selected products for variabile quotes (only already selected, not selectable)
   useEffect(() => {
@@ -278,21 +284,33 @@ export default function QuotePublicViewPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header con stile October Mist */}
         <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
-          <CardHeader className="relative text-center py-8 sm:py-12 px-6">
+          {/* Logo Studio - piccolo in alto */}
+          {studioLogo && (
+            <div className="flex justify-center pt-6 pb-2">
+              <div className="p-2 bg-white rounded-xl shadow-sm">
+                <img 
+                  src={studioLogo} 
+                  alt="Studio Logo" 
+                  className="h-10 sm:h-12 w-auto object-contain"
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Banner immagine copertina tipo lavoro */}
+          {jobTypeInfo?.imageUrl && (
+            <div className="relative w-full h-48 sm:h-64 md:h-80 overflow-hidden">
+              <img 
+                src={jobTypeInfo.imageUrl} 
+                alt={jobTypeInfo.nome || 'Tipo lavoro'} 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            </div>
+          )}
+          
+          <CardHeader className="relative text-center py-6 sm:py-8 px-6">
             <div className="space-y-4">
-              {/* Logo Studio */}
-              {studioLogo && (
-                <div className="flex justify-center mb-6">
-                  <div className="p-3 bg-white rounded-2xl shadow-md">
-                    <img 
-                      src={studioLogo} 
-                      alt="Studio Logo" 
-                      className="h-12 sm:h-16 w-auto object-contain"
-                    />
-                  </div>
-                </div>
-              )}
-              
               {/* Badge tipo preventivo */}
               <div className="flex justify-center mb-4">
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-gray/10 backdrop-blur-sm rounded-full border border-blue-gray/20">
