@@ -85,8 +85,23 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 Galleria di <span>{galleryOwner}</span>
               </span>
 
-              {/* Pulsante Richiedi Password */}
-              {galleryCode && (
+              {/* Pulsante Pannello Admin - solo per admin */}
+              {isAdmin && (
+                <Button
+                  onClick={() => navigate(createUrl('/admin'))}
+                  className="bg-blue-gray hover:bg-blue-gray/90 text-white"
+                  size="sm"
+                >
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span className="hidden sm:inline">Pannello Admin</span>
+                  <span className="sm:hidden">Admin</span>
+                </Button>
+              )}
+
+              {/* Pulsante Richiedi Password - solo per non-admin */}
+              {galleryCode && !isAdmin && (
                 <Button
                   onClick={() => navigate(createUrl(`/request-password/${galleryCode}`))}
                   className="bg-terracotta hover:bg-terracotta-dark text-white"
