@@ -49,6 +49,7 @@ import { Badge } from '@/components/ui/badge';
 import { DateInput } from '@/components/ui/date-input';
 import { Loader2, X, User, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 
 // Helper per formattare date in modo sicuro (gestisce null/undefined/invalid)
 const formatConflictDate = (dateStr: string | undefined, allDay: boolean = false): string => {
@@ -354,7 +355,10 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
                           .sort((a, b) => a.ordine - b.ordine)
                           .map(jobType => (
                             <SelectItem key={jobType.id} value={jobType.slug}>
-                              {jobType.icona} {jobType.nome}
+                              <span className="flex items-center gap-2">
+                                <JobTypeIcon slug={jobType.slug} size="sm" />
+                                {jobType.nome}
+                              </span>
                             </SelectItem>
                           ))}
                       </SelectContent>

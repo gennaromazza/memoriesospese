@@ -54,6 +54,7 @@ import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucid
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { JobTypeIcon } from '@/lib/job-type-icons';
 
 // Helper per formattare date in modo sicuro (gestisce null/undefined/invalid)
 const formatConflictDate = (dateStr: string | undefined, allDay: boolean = false): string => {
@@ -446,7 +447,10 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                               value={type.slug}
                               data-testid={`option-type-${type.slug}`}
                             >
-                              {type.icona} {type.nome}
+                              <span className="flex items-center gap-2">
+                                <JobTypeIcon slug={type.slug} size="sm" />
+                                {type.nome}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
