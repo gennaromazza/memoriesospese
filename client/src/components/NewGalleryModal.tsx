@@ -34,8 +34,36 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
-import { Info, Eye, EyeOff } from "lucide-react";
+import { Info, Eye, EyeOff, Trash } from "lucide-react";
 import { createAbsoluteUrl } from "@/lib/basePath";
+
+// Helper function to extract YouTube video ID from URL - supports multiple formats
+function extractYouTubeVideoId(url: string): string | null {
+  if (!url.trim()) return null;
+  const trimmedUrl = url.trim();
+  
+  // Direct video ID (11 characters alphanumeric with - and _)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmedUrl)) return trimmedUrl;
+  
+  // Standard YouTube URL patterns - extract ID from various formats
+  const regExp = /^.*(youtu.be\/|youtube.com\/watch\?v=|youtube.com\/embed\/|youtube.com\/v\/|youtube.com\/shorts\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([a-zA-Z0-9_-]{11}).*/;
+  const match = trimmedUrl.match(regExp);
+  if (match && match[2] && match[2].length === 11) return match[2];
+  
+  return null;
+}
+
+// Helper function to validate YouTube URLs - returns true if we can extract a valid ID
+function isValidYouTubeUrl(url: string): boolean {
+  return extractYouTubeVideoId(url) !== null;
+}
+
+// Helper to check if a URL is already in the list (by video ID, not exact string)
+function isYouTubeUrlDuplicate(url: string, existingUrls: string[]): boolean {
+  const newId = extractYouTubeVideoId(url);
+  if (!newId) return false;
+  return existingUrls.some(existingUrl => extractYouTubeVideoId(existingUrl) === newId);
+}
 
 interface NewGalleryModalProps {
   isOpen: boolean;
@@ -89,6 +117,10 @@ export default function NewGalleryModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomProduct, setIsCustomProduct] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // YouTube URLs support
+  const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
 
   // Multi-product selection support (NEW: array for multiple products)
   const [selectedProductIndices, setSelectedProductIndices] = useState<
@@ -106,6 +138,7 @@ export default function NewGalleryModal({
   const availableThemes = getAllThemes();
 
   // CRITICAL: Reset selectedProductIndices AND selection state when booking changes
+  // NOTE: youtubeUrls is NOT reset here as it's independent of booking context
   useEffect(() => {
     setSelectedProductIndices([]);
     setIsCustomProduct(false);
@@ -336,6 +369,11 @@ export default function NewGalleryModal({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      
+      // Add YouTube URLs if any
+      if (youtubeUrls.length > 0) {
+        galleryData.youtubeUrls = youtubeUrls;
+      }
 
       // Add special theme fields if theme is selected (solo ID tema, NO PIN)
       if (specialTheme !== "none") {
@@ -987,6 +1025,101 @@ export default function NewGalleryModal({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* YouTube Videos Section */}
+            <div className="border-t pt-4 space-y-3">
+              <Label>Video YouTube (opzionale)</Label>
+              
+              {/* Lista URL esistenti */}
+              {youtubeUrls.length > 0 && (
+                <div className="space-y-2">
+                  {youtubeUrls.map((url, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200">
+                      <span className="text-green-600 mr-1">✓</span>
+                      <span className="text-sm flex-1 truncate text-green-800">{url}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setYoutubeUrls(urls => urls.filter((_, i) => i !== index))}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Input per nuovo URL con feedback visivo migliorato */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Input
+                      value={newYoutubeUrl}
+                      onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      className={`${newYoutubeUrl.trim() ? (isValidYouTubeUrl(newYoutubeUrl) ? 'border-green-400 bg-green-50 pr-20' : 'border-red-400 bg-red-50 pr-20') : ''}`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newYoutubeUrl.trim()) {
+                          e.preventDefault();
+                          if (!isValidYouTubeUrl(newYoutubeUrl)) {
+                            toast.error("URL non valido. Inserisci un URL YouTube valido.");
+                            return;
+                          }
+                          if (isYouTubeUrlDuplicate(newYoutubeUrl, youtubeUrls)) {
+                            toast.error("Questo video è già nella lista.");
+                            return;
+                          }
+                          setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
+                          setNewYoutubeUrl("");
+                          toast.success("Video aggiunto!");
+                        }
+                      }}
+                    />
+                    {newYoutubeUrl.trim() && (
+                      <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${isValidYouTubeUrl(newYoutubeUrl) ? 'text-green-600' : 'text-red-600'}`}>
+                        {isValidYouTubeUrl(newYoutubeUrl) ? '✓ Valido' : '✗ Non valido'}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant={newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "default" : "outline"}
+                    onClick={() => {
+                      if (newYoutubeUrl.trim()) {
+                        if (!isValidYouTubeUrl(newYoutubeUrl)) {
+                          toast.error("URL non valido. Inserisci un URL YouTube valido.");
+                          return;
+                        }
+                        if (isYouTubeUrlDuplicate(newYoutubeUrl, youtubeUrls)) {
+                          toast.error("Questo video è già nella lista.");
+                          return;
+                        }
+                        setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
+                        setNewYoutubeUrl("");
+                        toast.success("Video aggiunto!");
+                      }
+                    }}
+                    disabled={!newYoutubeUrl.trim() || !isValidYouTubeUrl(newYoutubeUrl)}
+                    className={newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "bg-green-600 hover:bg-green-700 animate-pulse" : ""}
+                  >
+                    {newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "➕ Aggiungi" : "Aggiungi"}
+                  </Button>
+                </div>
+                {newYoutubeUrl.trim() && !isValidYouTubeUrl(newYoutubeUrl) && (
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                    ❌ URL non valido. Usa un formato come: youtube.com/watch?v=... o youtu.be/...
+                  </p>
+                )}
+                {newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) && (
+                  <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    ✓ URL valido! Clicca "Aggiungi" o premi Invio per confermare
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
             </div>
           </div>
 

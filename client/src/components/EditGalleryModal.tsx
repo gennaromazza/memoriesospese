@@ -23,6 +23,34 @@ import { queryClient } from "../lib/queryClient";
 import { Info } from 'lucide-react';
 import { createAbsoluteUrl } from "../lib/basePath";
 
+// Helper function to extract YouTube video ID from URL - supports multiple formats
+function extractYouTubeVideoId(url: string): string | null {
+  if (!url.trim()) return null;
+  const trimmedUrl = url.trim();
+  
+  // Direct video ID (11 characters alphanumeric with - and _)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmedUrl)) return trimmedUrl;
+  
+  // Standard YouTube URL patterns - extract ID from various formats
+  const regExp = /^.*(youtu.be\/|youtube.com\/watch\?v=|youtube.com\/embed\/|youtube.com\/v\/|youtube.com\/shorts\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([a-zA-Z0-9_-]{11}).*/;
+  const match = trimmedUrl.match(regExp);
+  if (match && match[2] && match[2].length === 11) return match[2];
+  
+  return null;
+}
+
+// Helper function to validate YouTube URLs - returns true if we can extract a valid ID
+function isValidYouTubeUrl(url: string): boolean {
+  return extractYouTubeVideoId(url) !== null;
+}
+
+// Helper to check if a URL is already in the list (by video ID, not exact string)
+function isYouTubeUrlDuplicate(url: string, existingUrls: string[]): boolean {
+  const newId = extractYouTubeVideoId(url);
+  if (!newId) return false;
+  return existingUrls.some(existingUrl => extractYouTubeVideoId(existingUrl) === newId);
+}
+
 interface PhotoData {
   id: string;
   name: string;
@@ -1625,10 +1653,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       value={newYoutubeUrl}
                       onChange={(e) => setNewYoutubeUrl(e.target.value)}
                       placeholder="https://www.youtube.com/watch?v=..."
-                      className={`${newYoutubeUrl.trim() ? 'border-amber-400 bg-amber-50 pr-20' : ''}`}
+                      className={`${newYoutubeUrl.trim() ? (isValidYouTubeUrl(newYoutubeUrl) ? 'border-green-400 bg-green-50 pr-20' : 'border-red-400 bg-red-50 pr-20') : ''}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && newYoutubeUrl.trim()) {
                           e.preventDefault();
+                          if (!isValidYouTubeUrl(newYoutubeUrl)) {
+                            toast({ title: "URL non valido", description: "Inserisci un URL YouTube valido", variant: "destructive" });
+                            return;
+                          }
+                          if (isYouTubeUrlDuplicate(newYoutubeUrl, youtubeUrls)) {
+                            toast({ title: "Duplicato", description: "Questo video è già nella lista", variant: "destructive" });
+                            return;
+                          }
                           setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
                           setNewYoutubeUrl("");
                           toast({ title: "✓ Video aggiunto!", description: "Ricorda di salvare le modifiche" });
@@ -1636,30 +1672,43 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       }}
                     />
                     {newYoutubeUrl.trim() && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-600 font-medium">
-                        In attesa...
+                      <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${isValidYouTubeUrl(newYoutubeUrl) ? 'text-green-600' : 'text-red-600'}`}>
+                        {isValidYouTubeUrl(newYoutubeUrl) ? '✓ Valido' : '✗ Non valido'}
                       </span>
                     )}
                   </div>
                   <Button
                     type="button"
-                    variant={newYoutubeUrl.trim() ? "default" : "outline"}
+                    variant={newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "default" : "outline"}
                     onClick={() => {
                       if (newYoutubeUrl.trim()) {
+                        if (!isValidYouTubeUrl(newYoutubeUrl)) {
+                          toast({ title: "URL non valido", description: "Inserisci un URL YouTube valido", variant: "destructive" });
+                          return;
+                        }
+                        if (isYouTubeUrlDuplicate(newYoutubeUrl, youtubeUrls)) {
+                          toast({ title: "Duplicato", description: "Questo video è già nella lista", variant: "destructive" });
+                          return;
+                        }
                         setYoutubeUrls([...youtubeUrls, newYoutubeUrl.trim()]);
                         setNewYoutubeUrl("");
                         toast({ title: "✓ Video aggiunto!", description: "Ricorda di salvare le modifiche" });
                       }
                     }}
-                    disabled={!newYoutubeUrl.trim()}
-                    className={newYoutubeUrl.trim() ? "bg-green-600 hover:bg-green-700 animate-pulse" : ""}
+                    disabled={!newYoutubeUrl.trim() || !isValidYouTubeUrl(newYoutubeUrl)}
+                    className={newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "bg-green-600 hover:bg-green-700 animate-pulse" : ""}
                   >
-                    {newYoutubeUrl.trim() ? "➕ Aggiungi" : "Aggiungi"}
+                    {newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) ? "➕ Aggiungi" : "Aggiungi"}
                   </Button>
                 </div>
-                {newYoutubeUrl.trim() && (
-                  <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
-                    ⚠️ Clicca "Aggiungi" o premi Invio per confermare il video
+                {newYoutubeUrl.trim() && !isValidYouTubeUrl(newYoutubeUrl) && (
+                  <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                    ❌ URL non valido. Usa un formato come: youtube.com/watch?v=... o youtu.be/...
+                  </p>
+                )}
+                {newYoutubeUrl.trim() && isValidYouTubeUrl(newYoutubeUrl) && (
+                  <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    ✓ URL valido! Clicca "Aggiungi" o premi Invio per confermare
                   </p>
                 )}
               </div>

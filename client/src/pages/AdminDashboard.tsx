@@ -1579,12 +1579,12 @@ export default function AdminDashboard() {
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                       <div className="flex gap-1">
-                                        <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank">
+                                        <Link to={createUrl(`/admin/galleries/${gallery.id}`)} target="_blank">
                                           <Button
                                             variant="outline"
                                             size="icon"
                                             className="h-9 w-9 bg-green-50 hover:bg-green-100 border-green-200 transition-colors"
-                                            title="Visualizza galleria"
+                                            title="Visualizza galleria (bypass admin)"
                                           >
                                             <Eye className="h-4 w-4 text-green-600" />
                                           </Button>
