@@ -305,6 +305,7 @@ export async function checkFreeBusyAllCalendars(
  * - Eventi trasparenti (transparency: "transparent")
  * - Eventi con visibilità "free"
  * 
+ * OTTIMIZZAZIONE: Logging ridotto in produzione per migliorare performance I/O
  * Questa funzione SOSTITUISCE checkFreeBusyAllCalendars per il Calendar Engine V2
  * perché l'API freebusy NON filtra eventi cancellati/trasparenti.
  */
@@ -325,10 +326,15 @@ export async function getEventsWithDetailsAllCalendars(
   }>
 > {
   try {
+    // Determina se siamo in produzione per ridurre logging
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     const calendar = await getGoogleCalendarClient();
 
     // 1. Recupera lista di tutti i calendari
-    console.log("[Google Calendar V2] 📋 Recupero lista calendari con filtri avanzati...");
+    if (!isProduction) {
+      console.log("[Google Calendar V2] 📋 Recupero lista calendari con filtri avanzati...");
+    }
     const calendars = await listCalendars();
 
     if (!calendars || calendars.length === 0) {
@@ -336,7 +342,9 @@ export async function getEventsWithDetailsAllCalendars(
       return [];
     }
 
-    console.log(`[Google Calendar V2] ✅ Trovati ${calendars.length} calendari`);
+    if (!isProduction) {
+      console.log(`[Google Calendar V2] ✅ Trovati ${calendars.length} calendari`);
+    }
 
     // 2. Recupera eventi dettagliati da OGNI calendario
     const allEvents: Array<{
@@ -388,14 +396,20 @@ export async function getEventsWithDetailsAllCalendars(
           // FILTRO #1: Skip eventi cancellati
           if (status === 'cancelled') {
             totalCancelled++;
-            console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
+            // Log VERBOSE solo in desarrollo para diagnostica
+            if (!isProduction) {
+              console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
+            }
             continue;
           }
 
           // FILTRO #2: Skip eventi trasparenti (non bloccano calendario)
           if (transparency === 'transparent') {
             totalTransparent++;
-            console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
+            // Log VERBOSE solo in desarrollo para diagnostica
+            if (!isProduction) {
+              console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
+            }
             continue;
           }
 
@@ -405,6 +419,7 @@ export async function getEventsWithDetailsAllCalendars(
           const isAllDay = !!event.start?.date; // All-day events use .date instead of .dateTime
 
           if (!start || !end) {
+            // Log WARNING solo se evento invalido
             console.warn(`[Google Calendar V2] ⚠️ Evento senza start/end: "${summary}" [${eventId}]`);
             continue;
           }
@@ -424,7 +439,9 @@ export async function getEventsWithDetailsAllCalendars(
         }
         } while (pageToken); // Continua finché ci sono altre pagine
         
-        console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
+        if (!isProduction) {
+          console.log(`[Google Calendar V2] 📅 Calendario "${cal.summary}": ${calendarEventCount} eventi trovati (paginati)`);
+        }
         
       } catch (calError: any) {
         console.error(
@@ -435,11 +452,14 @@ export async function getEventsWithDetailsAllCalendars(
       }
     }
 
-    console.log(`[Google Calendar V2] 📊 SUMMARY:`);
-    console.log(`  Total fetched: ${totalFetched}`);
-    console.log(`  Filtered (cancelled): ${totalCancelled}`);
-    console.log(`  Filtered (transparent): ${totalTransparent}`);
-    console.log(`  Valid busy events: ${totalValid}`);
+    // Log riassuntivo solo in sviluppo
+    if (!isProduction) {
+      console.log(`[Google Calendar V2] 📊 SUMMARY:`);
+      console.log(`  Total fetched: ${totalFetched}`);
+      console.log(`  Filtered (cancelled): ${totalCancelled}`);
+      console.log(`  Filtered (transparent): ${totalTransparent}`);
+      console.log(`  Valid busy events: ${totalValid}`);
+    }
 
     return allEvents;
   } catch (error: any) {
