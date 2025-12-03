@@ -15,8 +15,6 @@ import {
   createQuoteSentEmailHTML, // Importato il nuovo template
 } from "./email-routes.js";
 import { nanoid } from "nanoid";
-// Importo admin per Timestamp.now()
-import * as admin from "firebase-admin";
 
 const router = Router();
 
@@ -787,7 +785,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       quote.clientiInfo &&
       quote.clientiInfo.length > 0
     ) {
-      clientiInfo = quote.clientiInfo.map((c) => ({
+      clientiInfo = quote.clientiInfo.map((c: any) => ({
         id: c.id,
         nome: c.nome,
         cognome: c.cognome,
@@ -1450,17 +1448,6 @@ router.post(
           `${firstCliente.nome || ""} ${firstCliente.cognome || ""}`.trim();
       }
 
-      // Data firma
-      const signedAt = quote.signature.signedAt
-        .toDate()
-        .toLocaleDateString("it-IT", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
       // Recupera dati studio
       const studioInfo = await getStudioContactInfo();
 
@@ -1679,7 +1666,6 @@ router.get(
     try {
       const { id } = req.params;
       const { newStatus } = req.query;
-      const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
 
       // 2. Validate newStatus
       const validStatuses = [
