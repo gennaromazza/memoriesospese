@@ -6,7 +6,7 @@
 import { useState, useMemo, Fragment, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllJobs, deleteMultipleJobs } from '@/lib/jobs';
+import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
 import { db } from '@/lib/firebase';
@@ -60,7 +60,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Calendar as CalendarUI } from '@/components/ui/calendar';
+import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 import {
   Plus,
   Search,
@@ -140,6 +147,9 @@ export default function JobsManager() {
   // Privacy toggle - nascondi statistiche finanziarie di default
   const [showFinancialStats, setShowFinancialStats] = useState(false);
   
+  // Dialog gestione collaboratori inline
+  const [collaboratoriDialogJobId, setCollaboratoriDialogJobId] = useState<string | null>(null);
+  
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
   const queryClient = useQueryClient();
@@ -186,6 +196,27 @@ export default function JobsManager() {
       toast({
         title: 'Errore',
         description: 'Impossibile eliminare i lavori selezionati',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Mutation per aggiornare tipo lavoro inline
+  const updateJobTypeMutation = useMutation({
+    mutationFn: async ({ jobId, newJobType }: { jobId: string; newJobType: string }) => {
+      return updateJob(jobId, { jobType: newJobType }, user?.uid || 'admin');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      toast({
+        title: 'Tipo aggiornato',
+        description: 'Il tipo lavoro è stato modificato',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Errore',
+        description: 'Impossibile aggiornare il tipo lavoro',
         variant: 'destructive'
       });
     }
@@ -1196,20 +1227,40 @@ export default function JobsManager() {
                       )}
                     </TableCell>
                     
-                    {/* Tipo */}
-                    <TableCell>
-                      <Badge 
-                        variant="outline" 
-                        className="text-xs font-medium gap-1.5 border-2 min-w-[120px] justify-center"
-                        style={{
-                          borderColor: jobTypeInfo?.colore || '#94a3b8',
-                          backgroundColor: jobTypeInfo?.colore ? `${jobTypeInfo.colore}15` : 'transparent',
-                          color: jobTypeInfo?.colore || '#64748b'
+                    {/* Tipo - Select inline */}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={job.jobType}
+                        onValueChange={(newType) => {
+                          if (newType !== job.jobType) {
+                            updateJobTypeMutation.mutate({ jobId: job.id, newJobType: newType });
+                          }
                         }}
+                        disabled={updateJobTypeMutation.isPending}
                       >
-                        <JobTypeIcon slug={job.jobType} size="sm" />
-                        <span className="truncate">{jobTypeInfo?.nome || job.jobType}</span>
-                      </Badge>
+                        <SelectTrigger 
+                          className="h-8 min-w-[130px] border-2 text-xs font-medium"
+                          style={{
+                            borderColor: jobTypeInfo?.colore || '#94a3b8',
+                            backgroundColor: jobTypeInfo?.colore ? `${jobTypeInfo.colore}15` : 'transparent',
+                          }}
+                        >
+                          <div className="flex items-center gap-1.5" style={{ color: jobTypeInfo?.colore || '#64748b' }}>
+                            <JobTypeIcon slug={job.jobType} size="sm" />
+                            <span className="truncate">{jobTypeInfo?.nome || job.jobType}</span>
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {jobTypes.map((jt) => (
+                            <SelectItem key={jt.id} value={jt.slug}>
+                              <div className="flex items-center gap-2">
+                                <JobTypeIcon slug={jt.slug} size="sm" />
+                                <span>{jt.nome}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     
                     {/* Status */}
@@ -1219,43 +1270,53 @@ export default function JobsManager() {
                       </Badge>
                     </TableCell>
                     
-                    {/* Collaboratori */}
-                    <TableCell className="hidden lg:table-cell text-center">
+                    {/* Collaboratori - con pulsante gestione */}
+                    <TableCell className="hidden lg:table-cell text-center" onClick={(e) => e.stopPropagation()}>
                       {(() => {
                         const details = collaboratoriByJob[job.id];
                         const count = details?.count || 0;
                         const nomi = details?.nomi || [];
                         
-                        if (count > 0) {
-                          return (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="text-xs cursor-help">
-                                    <Users className="w-3 h-3 mr-1" />
-                                    {count}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs">
-                                  <div className="text-xs space-y-1">
-                                    <p className="font-semibold">Collaboratori assegnati:</p>
-                                    {nomi.length > 0 ? (
-                                      <ul className="list-disc list-inside">
-                                        {nomi.map((nome, i) => (
-                                          <li key={i}>{nome}</li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="text-muted-foreground">{count} collaboratore/i</p>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          );
-                        }
-                        
-                        return <span className="text-muted-foreground text-xs">—</span>;
+                        return (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className={cn(
+                                    "h-7 text-xs gap-1",
+                                    count > 0 ? "border-sage text-sage" : "border-gray-300 text-gray-500"
+                                  )}
+                                  onClick={() => setCollaboratoriDialogJobId(job.id)}
+                                >
+                                  <Users className="w-3 h-3" />
+                                  {count > 0 ? count : '+'}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <div className="text-xs space-y-1">
+                                  {count > 0 ? (
+                                    <>
+                                      <p className="font-semibold">Collaboratori assegnati:</p>
+                                      {nomi.length > 0 ? (
+                                        <ul className="list-disc list-inside">
+                                          {nomi.map((nome, i) => (
+                                            <li key={i}>{nome}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p className="text-muted-foreground">{count} collaboratore/i</p>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <p>Clicca per assegnare collaboratori</p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
                       })()}
                     </TableCell>
                     
@@ -1488,6 +1549,24 @@ export default function JobsManager() {
           </Card>
         </div>
       )}
+      
+      {/* Dialog gestione collaboratori */}
+      <Dialog 
+        open={!!collaboratoriDialogJobId} 
+        onOpenChange={(open) => !open && setCollaboratoriDialogJobId(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Gestione Collaboratori
+            </DialogTitle>
+          </DialogHeader>
+          {collaboratoriDialogJobId && (
+            <JobCollaboratoriSection jobId={collaboratoriDialogJobId} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
