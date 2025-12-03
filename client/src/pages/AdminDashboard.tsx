@@ -2469,33 +2469,6 @@ export default function AdminDashboard() {
               </Tabs>
             </TabsContent>
 
-            {/* Contenuto Tab Richieste Info con Sub-Tabs */}
-            <TabsContent value="consulenze">
-              <Tabs value={activeConsultationSection} onValueChange={(v) => setActiveConsultationSection(v as any)} className="w-full">
-                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger value="consulenze" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <CalendarCheck className="h-4 w-4 flex-shrink-0" />
-                    Richieste Info
-                  </TabsTrigger>
-                  <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
-                    <FileText className="h-4 w-4 flex-shrink-0" />
-                    Template Richieste
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="consulenze">
-                  <ConsultationsManager
-                    highlightConsultationId={highlightConsultationId}
-                    onHighlightComplete={handleConsultationHighlightComplete}
-                  />
-                </TabsContent>
-
-                <TabsContent value="consulenze-templates">
-                  <ConsultationTemplatesManager />
-                </TabsContent>
-              </Tabs>
-            </TabsContent>
-
             {/* Contenuto Tab Collaboratori */}
             <TabsContent value="collaboratori">
               <CollaboratoriManager />
