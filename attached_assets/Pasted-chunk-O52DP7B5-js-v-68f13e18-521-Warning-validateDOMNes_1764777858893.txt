@@ -1,0 +1,55 @@
+chunk-O52DP7B5.js?v=68f13e18:521 Warning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.
+    at div
+    at Skeleton (https://imagestudiofotografico.com/src/components/ui/skeleton.tsx:19:3)
+    at p
+    at div
+    at div
+    at div
+    at _c9 (https://imagestudiofotografico.com/src/components/ui/card.tsx:106:12)
+    at div
+    at _c (https://imagestudiofotografico.com/src/components/ui/card.tsx:20:11)
+    at div
+    at div
+    at EmailLogsManager (https://imagestudiofotografico.com/src/components/admin/EmailLogsManager.tsx:66:39)
+    at div
+    at div
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=68f13e18:140:13
+    at Presence (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-TUYK5Y4P.js?v=68f13e18:24:11)
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=68f13e18:176:13
+    at _c5 (https://imagestudiofotografico.com/src/components/ui/tabs.tsx:68:12)
+    at div
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=68f13e18:140:13
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=68f13e18:38:15)
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=68f13e18:53:7
+    at div
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=68f13e18:140:13
+    at Presence (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-TUYK5Y4P.js?v=68f13e18:24:11)
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=68f13e18:176:13
+    at _c5 (https://imagestudiofotografico.com/src/components/ui/tabs.tsx:68:12)
+    at div
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=68f13e18:140:13
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=68f13e18:38:15)
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=68f13e18:53:7
+    at div
+    at main
+    at div
+    at AdminDashboard (https://imagestudiofotografico.com/src/pages/AdminDashboard.tsx:264:41)
+    at Route (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=68f13e18:206:16)
+    at Switch (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=68f13e18:262:17)
+    at Suspense
+    at AppRoutes (https://imagestudiofotografico.com/src/App.tsx:129:3)
+    at StudioProvider (https://imagestudiofotografico.com/src/context/StudioContext.tsx:57:34)
+    at FirebaseAuthProvider (https://imagestudiofotografico.com/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=68f13e18:38:15)
+    at TooltipProvider (https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=68f13e18:160:5)
+    at V (https://imagestudiofotografico.com/node_modules/.vite/deps/next-themes.js?v=68f13e18:44:25)
+    at J (https://imagestudiofotografico.com/node_modules/.vite/deps/next-themes.js?v=68f13e18:42:18)
+    at QueryClientProvider (https://imagestudiofotografico.com/node_modules/.vite/deps/@tanstack_react-query.js?v=68f13e18:2763:3)
+    at ErrorBoundary (https://imagestudiofotografico.com/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=68f13e18:161:17)
+printWarning	@	chunk-O52DP7B5.js?v=68f13e18:521
+:24678/:1 
+ Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+﻿
+

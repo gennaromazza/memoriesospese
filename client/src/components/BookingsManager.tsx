@@ -210,8 +210,8 @@ export default function BookingsManager({
     Record<string, boolean>
   >({});
   const [timeFilter, setTimeFilter] = useState<
-    "all" | "today" | "tomorrow" | "next-week" | "next-month"
-  >("today");
+    "all" | "upcoming" | "past" | "today" | "tomorrow" | "next-week" | "next-month"
+  >("upcoming");
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
     "all",
   );
@@ -432,7 +432,13 @@ export default function BookingsManager({
 
         const bookingTime = getTime(b.dataShootingInizio);
 
-        if (timeFilter === "today") {
+        if (timeFilter === "upcoming") {
+          // Prossimi Impegni: da oggi in poi (>= oggi 00:00)
+          return bookingTime >= today.getTime();
+        } else if (timeFilter === "past") {
+          // Impegni Passati: prima di oggi (< oggi 00:00)
+          return bookingTime < today.getTime();
+        } else if (timeFilter === "today") {
           // Oggi: >= oggi 00:00 e < domani 00:00
           return (
             bookingTime >= today.getTime() && bookingTime < tomorrow.getTime()
@@ -476,7 +482,7 @@ export default function BookingsManager({
       });
     }
 
-    // 5. Ordina per data e ora (più vicine prima per filtri temporali, più recenti per 'all')
+    // 5. Ordina per data e ora
     filtered.sort((a, b) => {
       const getTime = (timestamp: any): number => {
         if (!timestamp) return 0;
@@ -485,9 +491,10 @@ export default function BookingsManager({
         return new Date(timestamp).getTime();
       };
 
-      // Se filtro temporale attivo: ordine crescente (più vicine prima)
-      // Se 'all': ordine decrescente (più recenti prima)
-      const multiplier = timeFilter !== "all" ? 1 : -1;
+      // - "past": ordine decrescente (più recenti prima)
+      // - "upcoming", "today", "tomorrow", etc: ordine crescente (più vicini prima)
+      // - "all": ordine decrescente (più recenti prima)
+      const multiplier = (timeFilter === "all" || timeFilter === "past") ? -1 : 1;
       return (
         multiplier *
         (getTime(a.dataShootingInizio) - getTime(b.dataShootingInizio))
@@ -1279,6 +1286,8 @@ export default function BookingsManager({
                       <SelectValue placeholder="Tutte le date" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="upcoming">Prossimi Impegni</SelectItem>
+                      <SelectItem value="past">Impegni Passati</SelectItem>
                       <SelectItem value="all">Tutte le date</SelectItem>
                       <SelectItem value="today">Oggi</SelectItem>
                       <SelectItem value="tomorrow">Domani</SelectItem>
