@@ -17,7 +17,10 @@ import {
   Loader2,
   Eye,
   Trash2,
-  Pencil
+  Pencil,
+  RefreshCw,
+  AlertTriangle,
+  WifiOff
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,7 +110,14 @@ export default function CalendarioManager() {
   const monthStart = startOfMonth(selectedDate);
   const monthEnd = endOfMonth(selectedDate);
 
-  const { data: eventsData, isLoading: eventsLoading } = useQuery<{ events: CalendarEventDTO[]; warnings?: string[] }>({
+  const { 
+    data: eventsData, 
+    isLoading: eventsLoading, 
+    isError: eventsError,
+    error: eventsErrorDetails,
+    refetch: refetchEvents,
+    isFetching: eventsFetching,
+  } = useQuery<{ events: CalendarEventDTO[]; warnings?: string[] }>({
     queryKey: ['/api/calendar/events', monthStart.toISOString(), monthEnd.toISOString()],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -130,6 +140,9 @@ export default function CalendarioManager() {
       return data;
     },
     enabled: !authLoading && isAuthenticated,
+    staleTime: 2 * 60 * 1000,
+    retry: 2,
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   const createEventMutation = useMutation({
@@ -472,15 +485,71 @@ export default function CalendarioManager() {
             Gestisci tutti gli eventi e appuntamenti
           </p>
         </div>
-        <Button 
-          onClick={() => setShowCreateDialog(true)} 
-          data-testid="button-new-event"
-          className="w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Evento
-        </Button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {eventsFetching && !eventsLoading && (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="hidden sm:inline">Aggiornamento...</span>
+            </div>
+          )}
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => refetchEvents()}
+            disabled={eventsFetching}
+            className="flex-shrink-0"
+            data-testid="button-refresh-calendar"
+          >
+            <RefreshCw className={`h-4 w-4 ${eventsFetching ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button 
+            onClick={() => setShowCreateDialog(true)} 
+            data-testid="button-new-event"
+            className="flex-1 sm:flex-initial"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Evento
+          </Button>
+        </div>
       </div>
+
+      {eventsError && (
+        <Card className="mb-6 border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+              <div className="flex-shrink-0">
+                <WifiOff className="h-10 w-10 text-red-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-800">Impossibile caricare il calendario</h3>
+                <p className="text-sm text-red-600 mt-1">
+                  Si è verificato un problema durante il caricamento degli eventi. 
+                  Controlla la connessione e riprova.
+                </p>
+                {eventsErrorDetails && (
+                  <p className="text-xs text-red-500 mt-2 font-mono">
+                    {eventsErrorDetails instanceof Error ? eventsErrorDetails.message : String(eventsErrorDetails)}
+                  </p>
+                )}
+              </div>
+              <Button 
+                variant="outline"
+                onClick={() => refetchEvents()}
+                disabled={eventsFetching}
+                className="flex-shrink-0 border-red-300 text-red-700 hover:bg-red-100"
+                data-testid="button-retry-calendar"
+              >
+                {eventsFetching ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Riprova
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <Card 
@@ -595,9 +664,29 @@ export default function CalendarioManager() {
             <CardContent>
               {eventsLoading ? (
                 <div className="space-y-3">
-                  {[1, 2, 3].map(i => (
+                  {[1, 2, 3].map((i: number) => (
                     <Skeleton key={i} className="h-24 w-full" />
                   ))}
+                </div>
+              ) : eventsError ? (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-amber-400" />
+                  <p className="text-sm sm:text-base text-gray-600 mb-3">
+                    Impossibile caricare gli eventi
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => refetchEvents()}
+                    disabled={eventsFetching}
+                  >
+                    {eventsFetching ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Riprova
+                  </Button>
                 </div>
               ) : eventsForSelectedDate.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
