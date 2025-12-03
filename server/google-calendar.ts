@@ -366,13 +366,13 @@ export async function getEventsWithDetailsAllCalendars(
 
     for (const cal of calendars) {
       try {
-        let pageToken: string | null | undefined = undefined;
+        let pageToken: string | undefined = undefined;
         let calendarEventCount = 0;
         
         // Pagina attraverso TUTTI gli eventi del calendario
         do {
           const response = await calendar.events.list({
-            calendarId: cal.id,
+            calendarId: cal.id!,
             timeMin: timeMin.toISOString(),
             timeMax: timeMax.toISOString(),
             singleEvents: true, // Espande eventi ricorrenti
@@ -385,7 +385,7 @@ export async function getEventsWithDetailsAllCalendars(
           calendarEventCount += events.length;
           totalFetched += events.length;
           
-          pageToken = response.data.nextPageToken;
+          pageToken = response.data.nextPageToken ?? undefined;
 
           for (const event of events) {
           const eventId = event.id || '';
@@ -428,8 +428,8 @@ export async function getEventsWithDetailsAllCalendars(
           allEvents.push({
             start,
             end,
-            calendarId: cal.id,
-            calendarName: cal.summary || cal.id,
+            calendarId: cal.id ?? undefined,
+            calendarName: cal.summary || cal.id || undefined,
             eventId,
             summary,
             status,

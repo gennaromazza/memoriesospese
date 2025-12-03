@@ -16,8 +16,8 @@
 
 import { db } from "../firebase-admin.js";
 import { getEventsWithDetailsAllCalendars } from "../google-calendar.js";
-import type { Consultation } from "@/shared/consultation-types";
-import type { Booking } from "@/shared/booking-types";
+import type { Consultation } from "../../shared/consultation-types.js";
+import type { Booking } from "../../shared/booking-types.js";
 
 // ========================================
 // TYPES
