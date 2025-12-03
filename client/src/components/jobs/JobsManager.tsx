@@ -123,6 +123,7 @@ export default function JobsManager() {
   const [filterSemester, setFilterSemester] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all'); // Nuovo: filtro mese
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('firmato'); // Nuovo: stato preventivo (default: firmato)
+  const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -383,9 +384,24 @@ export default function JobsManager() {
 
   // Filtra jobs
   const filteredJobs = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale
       if (job.status === 'archiviato') return false;
+      
+      // Filtro tempo (Prossimi Impegni / Impegni Passati)
+      if (timeFilter !== 'all' && job.eventDate) {
+        const eventDate = convertFirestoreTimestamp(job.eventDate);
+        if (eventDate && !isNaN(eventDate.getTime())) {
+          const eventTime = eventDate.getTime();
+          const todayTime = startOfToday.getTime();
+          
+          if (timeFilter === 'upcoming' && eventTime < todayTime) return false;
+          if (timeFilter === 'past' && eventTime >= todayTime) return false;
+        }
+      }
       
       // Filtro tipo
       if (filterType !== 'all' && job.jobType !== filterType) return false;
@@ -479,7 +495,7 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, customDateRange, searchQuery, clienteNamesMap, quotesByJob]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob]);
   
   // Funzione helper per convertire date Firestore
   const toDate = (val: any): Date => {
@@ -500,7 +516,7 @@ export default function JobsManager() {
     return result;
   };
   
-  // Sort jobs: prima i lavori futuri (dal più vicino), poi i passati (dal più recente)
+  // Sort jobs in base al filtro temporale
   const sortedJobs = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -509,6 +525,17 @@ export default function JobsManager() {
       const dateA = toDate(a.eventDate);
       const dateB = toDate(b.eventDate);
       
+      // Se filtro "past": ordina dal più recente (decrescente)
+      if (timeFilter === 'past') {
+        return dateB.getTime() - dateA.getTime();
+      }
+      
+      // Se filtro "upcoming": ordina dal più vicino (crescente)
+      if (timeFilter === 'upcoming') {
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Se filtro "all": logica mista (futuri prima, poi passati)
       const aIsFuture = dateA >= startOfToday;
       const bIsFuture = dateB >= startOfToday;
       
@@ -524,7 +551,7 @@ export default function JobsManager() {
       // Se entrambi passati: ordina dal più recente (decrescente)
       return dateB.getTime() - dateA.getTime();
     });
-  }, [filteredJobs]);
+  }, [filteredJobs, timeFilter]);
   
   // Paginated jobs
   const paginatedJobs = useMemo(() => {
@@ -538,7 +565,7 @@ export default function JobsManager() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterYear, filterSemester, customDateRange, searchQuery]);
+  }, [filterType, filterYear, filterSemester, timeFilter, customDateRange, searchQuery]);
   
   // Clamp currentPage when totalPages decreases (e.g., after deletion or filtering)
   useEffect(() => {
@@ -774,6 +801,18 @@ export default function JobsManager() {
             />
           </div>
           
+          {/* Filtro Periodo (Prossimi/Passati) */}
+          <Select value={timeFilter} onValueChange={(val: 'all' | 'upcoming' | 'past') => setTimeFilter(val)}>
+            <SelectTrigger className="w-44" data-testid="select-filter-time">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">Prossimi Impegni</SelectItem>
+              <SelectItem value="past">Impegni Passati</SelectItem>
+              <SelectItem value="all">Tutti</SelectItem>
+            </SelectContent>
+          </Select>
+          
           {/* Filtro Stato Preventivo */}
           <Select value={filterQuoteStatus} onValueChange={setFilterQuoteStatus}>
             <SelectTrigger className="w-44" data-testid="select-filter-quote">
@@ -781,9 +820,9 @@ export default function JobsManager() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti i preventivi</SelectItem>
-              <SelectItem value="firmato">✅ Firmato</SelectItem>
-              <SelectItem value="non_firmato">⏳ Non firmato</SelectItem>
-              <SelectItem value="non_inviato">📝 Non inviato</SelectItem>
+              <SelectItem value="firmato">Firmato</SelectItem>
+              <SelectItem value="non_firmato">Non firmato</SelectItem>
+              <SelectItem value="non_inviato">Non inviato</SelectItem>
             </SelectContent>
           </Select>
           
