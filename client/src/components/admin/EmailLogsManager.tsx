@@ -132,9 +132,9 @@ export default function EmailLogsManager() {
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-500" />
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoadingStats ? <Skeleton className="h-8 w-12" /> : stats.last24h}
-                </p>
+                </div>
                 <p className="text-xs text-gray-500">Ultime 24h</p>
               </div>
             </div>
@@ -146,9 +146,9 @@ export default function EmailLogsManager() {
             <div className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-green-500" />
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoadingStats ? <Skeleton className="h-8 w-12" /> : stats.last7d}
-                </p>
+                </div>
                 <p className="text-xs text-gray-500">Ultimi 7 giorni</p>
               </div>
             </div>
@@ -160,9 +160,9 @@ export default function EmailLogsManager() {
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-sage" />
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoadingStats ? <Skeleton className="h-8 w-12" /> : stats.total}
-                </p>
+                </div>
                 <p className="text-xs text-gray-500">Totale inviate</p>
               </div>
             </div>
@@ -174,9 +174,9 @@ export default function EmailLogsManager() {
             <div className="flex items-center gap-2">
               <XCircle className="h-5 w-5 text-red-500" />
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoadingStats ? <Skeleton className="h-8 w-12" /> : stats.failed}
-                </p>
+                </div>
                 <p className="text-xs text-gray-500">Fallite</p>
               </div>
             </div>
