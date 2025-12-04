@@ -18,9 +18,10 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder } from 'lucide-react';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
+import ChaptersManager from '@/components/gallery/ChaptersManager';
 
 interface UploadProgress {
   fileName: string;
@@ -460,10 +461,14 @@ export default function GalleryManagementWorkspace() {
 
         {/* Tabs */}
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="upload" data-testid="tab-upload">
               <Upload className="w-4 h-4 mr-2" />
               Carica Foto
+            </TabsTrigger>
+            <TabsTrigger value="chapters" data-testid="tab-chapters">
+              <Folder className="w-4 h-4 mr-2" />
+              Capitoli
             </TabsTrigger>
             <TabsTrigger value="selections" data-testid="tab-selections" disabled={!gallery.selectionEnabled}>
               <Users className="w-4 h-4 mr-2" />
@@ -946,7 +951,12 @@ export default function GalleryManagementWorkspace() {
             </Card>
           </TabsContent>
 
-          {/* Tab 2: Selezioni Cliente */}
+          {/* Tab 2: Capitoli */}
+          <TabsContent value="chapters">
+            <ChaptersManager gallery={gallery} galleryId={galleryId!} />
+          </TabsContent>
+
+          {/* Tab 3: Selezioni Cliente */}
           <TabsContent value="selections">
             <Card>
               <CardHeader>
@@ -1223,7 +1233,7 @@ export default function GalleryManagementWorkspace() {
             </Card>
           </TabsContent>
 
-          {/* Tab 3: Impostazioni */}
+          {/* Tab 4: Impostazioni */}
           <TabsContent value="settings">
             <Card>
               <CardHeader>

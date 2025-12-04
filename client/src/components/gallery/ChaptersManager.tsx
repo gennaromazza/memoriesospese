@@ -1,0 +1,689 @@
+/**
+ * ChaptersManager - Gestione capitoli galleria
+ * Tab per organizzare le foto in capitoli
+ */
+
+import { useState, useMemo, useCallback, memo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  Plus, 
+  GripVertical, 
+  Folder, 
+  FolderOpen, 
+  Image as ImageIcon,
+  Trash2, 
+  Edit2, 
+  MoreVertical, 
+  CheckCircle,
+  FolderPlus,
+  ArrowRight,
+  X,
+  Loader2,
+  ImagePlus,
+  Check
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { Gallery, Chapter } from '@/lib/galleries';
+import { ChapterService } from '@/lib/chapters';
+import { PhotoService, type Photo } from '@/lib/photos';
+
+interface ChaptersManagerProps {
+  gallery: Gallery;
+  galleryId: string;
+}
+
+const ChapterItem = memo(({ 
+  chapter, 
+  isActive, 
+  photoCount, 
+  onClick, 
+  onEdit, 
+  onDelete,
+  onSetCover
+}: { 
+  chapter: Chapter; 
+  isActive: boolean; 
+  photoCount: number;
+  onClick: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSetCover: () => void;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: chapter.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all group",
+        isActive 
+          ? "border-sage bg-sage/10 shadow-md" 
+          : "border-gray-200 hover:border-sage/50 hover:bg-gray-50"
+      )}
+      onClick={onClick}
+      data-testid={`chapter-item-${chapter.id}`}
+    >
+      <div 
+        {...attributes} 
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400" />
+      </div>
+      
+      {isActive ? (
+        <FolderOpen className="w-5 h-5 text-sage" />
+      ) : (
+        <Folder className="w-5 h-5 text-gray-500" />
+      )}
+      
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{chapter.titolo}</p>
+        {chapter.descrizione && (
+          <p className="text-xs text-gray-500 truncate">{chapter.descrizione}</p>
+        )}
+      </div>
+      
+      <Badge variant="secondary" className="text-xs shrink-0">
+        {photoCount}
+      </Badge>
+      
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onEdit}>
+            <Edit2 className="w-4 h-4 mr-2" />
+            Modifica
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onSetCover}>
+            <ImageIcon className="w-4 h-4 mr-2" />
+            Imposta copertina
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onDelete} className="text-red-600">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Elimina
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+});
+ChapterItem.displayName = 'ChapterItem';
+
+const PhotoGridItem = memo(({ 
+  photo, 
+  isSelected, 
+  onToggle,
+  isDragging
+}: { 
+  photo: Photo; 
+  isSelected: boolean;
+  onToggle: () => void;
+  isDragging?: boolean;
+}) => {
+  return (
+    <div
+      className={cn(
+        "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group",
+        isSelected 
+          ? "border-sage shadow-lg ring-2 ring-sage/50" 
+          : "border-gray-200 hover:border-sage/50",
+        isDragging && "opacity-50"
+      )}
+      onClick={onToggle}
+      data-testid={`chapter-photo-${photo.id}`}
+    >
+      <img
+        src={photo.url}
+        alt={photo.name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+      
+      <div className={cn(
+        "absolute top-2 left-2 transition-opacity",
+        isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      )}>
+        <div className={cn(
+          "w-6 h-6 rounded-full flex items-center justify-center border-2",
+          isSelected 
+            ? "bg-sage border-sage text-white" 
+            : "bg-white/90 border-gray-300"
+        )}>
+          {isSelected && <Check className="w-4 h-4" />}
+        </div>
+      </div>
+      
+      {photo.chapterId && (
+        <div className="absolute bottom-2 right-2">
+          <Badge variant="secondary" className="text-xs bg-white/90">
+            <Folder className="w-3 h-3 mr-1" />
+          </Badge>
+        </div>
+      )}
+    </div>
+  );
+});
+PhotoGridItem.displayName = 'PhotoGridItem';
+
+export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const [activeChapter, setActiveChapter] = useState<string | 'unassigned' | 'all'>('all');
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
+  const [newChapterTitle, setNewChapterTitle] = useState('');
+  const [newChapterDescription, setNewChapterDescription] = useState('');
+  const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const chapters = useMemo(() => 
+    ChapterService.getOrderedChapters(gallery),
+    [gallery.chapters]
+  );
+
+  const { data: allPhotos = [], isLoading: isLoadingPhotos } = useQuery({
+    queryKey: ['gallery-photos', galleryId],
+    queryFn: () => PhotoService.getGalleryPhotos(galleryId, undefined, 'exclude-guest'),
+    enabled: !!galleryId
+  });
+
+  const { data: photoCounts = {} } = useQuery({
+    queryKey: ['photo-counts-by-chapter', galleryId],
+    queryFn: () => PhotoService.countPhotosByChapter(galleryId),
+    enabled: !!galleryId
+  });
+
+  const filteredPhotos = useMemo(() => {
+    if (activeChapter === 'all') return allPhotos;
+    if (activeChapter === 'unassigned') return allPhotos.filter(p => !p.chapterId);
+    return allPhotos.filter(p => p.chapterId === activeChapter);
+  }, [allPhotos, activeChapter]);
+
+  const createChapterMutation = useMutation({
+    mutationFn: async () => {
+      return ChapterService.createChapter(galleryId, newChapterTitle, newChapterDescription);
+    },
+    onSuccess: () => {
+      toast({ title: 'Capitolo creato', description: `"${newChapterTitle}" aggiunto alla galleria` });
+      setShowCreateDialog(false);
+      setNewChapterTitle('');
+      setNewChapterDescription('');
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+    },
+    onError: (err) => {
+      toast({ title: 'Errore', description: 'Impossibile creare il capitolo', variant: 'destructive' });
+    }
+  });
+
+  const updateChapterMutation = useMutation({
+    mutationFn: async ({ chapterId, updates }: { chapterId: string; updates: Partial<Chapter> }) => {
+      return ChapterService.updateChapter(galleryId, gallery, chapterId, updates);
+    },
+    onSuccess: () => {
+      toast({ title: 'Capitolo aggiornato' });
+      setShowEditDialog(false);
+      setEditingChapter(null);
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+    }
+  });
+
+  const deleteChapterMutation = useMutation({
+    mutationFn: async (chapterId: string) => {
+      const photosInChapter = allPhotos.filter(p => p.chapterId === chapterId);
+      if (photosInChapter.length > 0) {
+        await PhotoService.removePhotosFromChapter(photosInChapter.map(p => p.id));
+      }
+      return ChapterService.deleteChapter(galleryId, gallery, chapterId);
+    },
+    onSuccess: () => {
+      toast({ title: 'Capitolo eliminato', description: 'Le foto sono state spostate in "Non assegnate"' });
+      if (typeof activeChapter === 'string' && activeChapter !== 'all' && activeChapter !== 'unassigned') {
+        setActiveChapter('all');
+      }
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', galleryId] });
+      queryClient.invalidateQueries({ queryKey: ['photo-counts-by-chapter', galleryId] });
+    }
+  });
+
+  const reorderChaptersMutation = useMutation({
+    mutationFn: async (reordered: Chapter[]) => {
+      return ChapterService.reorderChapters(galleryId, reordered);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+    }
+  });
+
+  const assignPhotosMutation = useMutation({
+    mutationFn: async ({ photoIds, chapterId }: { photoIds: string[]; chapterId: string | null }) => {
+      return PhotoService.assignPhotosToChapter(photoIds, chapterId);
+    },
+    onSuccess: (_, variables) => {
+      const count = variables.photoIds.length;
+      const chapterName = variables.chapterId 
+        ? chapters.find(c => c.id === variables.chapterId)?.titolo 
+        : 'Non assegnate';
+      toast({ 
+        title: 'Foto spostate', 
+        description: `${count} foto spostate in "${chapterName}"` 
+      });
+      setSelectedPhotos(new Set());
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', galleryId] });
+      queryClient.invalidateQueries({ queryKey: ['photo-counts-by-chapter', galleryId] });
+    }
+  });
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setDragActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setDragActiveId(null);
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+    
+    const oldIndex = chapters.findIndex(c => c.id === active.id);
+    const newIndex = chapters.findIndex(c => c.id === over.id);
+    
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(chapters, oldIndex, newIndex);
+      reorderChaptersMutation.mutate(reordered);
+    }
+  };
+
+  const handleTogglePhoto = useCallback((photoId: string) => {
+    setSelectedPhotos(prev => {
+      const next = new Set(prev);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedPhotos(new Set(filteredPhotos.map(p => p.id)));
+  }, [filteredPhotos]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedPhotos(new Set());
+  }, []);
+
+  const handleEditChapter = (chapter: Chapter) => {
+    setEditingChapter(chapter);
+    setNewChapterTitle(chapter.titolo);
+    setNewChapterDescription(chapter.descrizione || '');
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteChapter = (chapterId: string) => {
+    const chapter = chapters.find(c => c.id === chapterId);
+    const photoCount = photoCounts[chapterId] || 0;
+    
+    if (!confirm(`Eliminare il capitolo "${chapter?.titolo}"?\n\n${photoCount > 0 ? `Le ${photoCount} foto verranno spostate in "Non assegnate".` : 'Il capitolo è vuoto.'}`)) {
+      return;
+    }
+    
+    deleteChapterMutation.mutate(chapterId);
+  };
+
+  const handleMoveToChapter = (chapterId: string | null) => {
+    if (selectedPhotos.size === 0) return;
+    assignPhotosMutation.mutate({ 
+      photoIds: Array.from(selectedPhotos), 
+      chapterId 
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Folder className="w-5 h-5" />
+              Organizza in Capitoli
+            </CardTitle>
+            <CardDescription>
+              Organizza le foto in sezioni logiche (es. Preparazione, Cerimonia, Ricevimento)
+            </CardDescription>
+          </div>
+          <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-chapter">
+            <Plus className="w-4 h-4 mr-2" />
+            Nuovo Capitolo
+          </Button>
+        </div>
+      </CardHeader>
+      
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-1 space-y-4">
+            <h4 className="font-semibold text-sm text-gray-700 mb-3">Capitoli</h4>
+            
+            <div
+              className={cn(
+                "flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all",
+                activeChapter === 'all' 
+                  ? "border-sage bg-sage/10" 
+                  : "border-gray-200 hover:border-sage/50"
+              )}
+              onClick={() => setActiveChapter('all')}
+              data-testid="chapter-all"
+            >
+              <ImageIcon className="w-5 h-5 text-gray-500" />
+              <span className="font-medium text-sm flex-1">Tutte le foto</span>
+              <Badge variant="secondary">{allPhotos.length}</Badge>
+            </div>
+            
+            <div
+              className={cn(
+                "flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all",
+                activeChapter === 'unassigned' 
+                  ? "border-amber-500 bg-amber-50" 
+                  : "border-dashed border-gray-300 hover:border-amber-300"
+              )}
+              onClick={() => setActiveChapter('unassigned')}
+              data-testid="chapter-unassigned"
+            >
+              <FolderPlus className="w-5 h-5 text-amber-600" />
+              <span className="font-medium text-sm flex-1">Non assegnate</span>
+              <Badge variant="outline" className="border-amber-300 text-amber-700">
+                {photoCounts.unassigned || 0}
+              </Badge>
+            </div>
+            
+            {chapters.length > 0 && (
+              <div className="border-t pt-4 mt-4">
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={chapters.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {chapters.map(chapter => (
+                        <ChapterItem
+                          key={chapter.id}
+                          chapter={chapter}
+                          isActive={activeChapter === chapter.id}
+                          photoCount={photoCounts[chapter.id] || 0}
+                          onClick={() => setActiveChapter(chapter.id)}
+                          onEdit={() => handleEditChapter(chapter)}
+                          onDelete={() => handleDeleteChapter(chapter.id)}
+                          onSetCover={() => {}}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                  
+                  <DragOverlay>
+                    {dragActiveId && (
+                      <div className="p-3 bg-white rounded-lg border-2 border-sage shadow-lg">
+                        <div className="flex items-center gap-2">
+                          <Folder className="w-5 h-5 text-sage" />
+                          <span className="font-medium text-sm">
+                            {chapters.find(c => c.id === dragActiveId)?.titolo}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </DragOverlay>
+                </DndContext>
+              </div>
+            )}
+            
+            {chapters.length === 0 && (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                <Folder className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p>Nessun capitolo creato</p>
+                <p className="text-xs">Clicca "Nuovo Capitolo" per iniziare</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="lg:col-span-3">
+            {selectedPhotos.size > 0 && (
+              <div className="bg-sage/10 border-2 border-sage rounded-lg p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-sage" />
+                  <span className="font-medium">{selectedPhotos.size} foto selezionate</span>
+                </div>
+                
+                <div className="flex items-center gap-2 flex-wrap">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="default" size="sm" disabled={assignPhotosMutation.isPending}>
+                        {assignPhotosMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <ArrowRight className="w-4 h-4 mr-2" />
+                        )}
+                        Sposta in...
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => handleMoveToChapter(null)}>
+                        <FolderPlus className="w-4 h-4 mr-2 text-amber-600" />
+                        Non assegnate
+                      </DropdownMenuItem>
+                      {chapters.length > 0 && <DropdownMenuSeparator />}
+                      {chapters.map(chapter => (
+                        <DropdownMenuItem 
+                          key={chapter.id} 
+                          onClick={() => handleMoveToChapter(chapter.id)}
+                        >
+                          <Folder className="w-4 h-4 mr-2" />
+                          {chapter.titolo}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  <Button variant="outline" size="sm" onClick={handleDeselectAll}>
+                    <X className="w-4 h-4 mr-2" />
+                    Deseleziona
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-sm text-gray-700">
+                {activeChapter === 'all' && 'Tutte le foto'}
+                {activeChapter === 'unassigned' && 'Foto non assegnate'}
+                {typeof activeChapter === 'string' && activeChapter !== 'all' && activeChapter !== 'unassigned' && (
+                  chapters.find(c => c.id === activeChapter)?.titolo
+                )}
+                <span className="font-normal text-gray-500 ml-2">
+                  ({filteredPhotos.length} foto)
+                </span>
+              </h4>
+              
+              {filteredPhotos.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={handleSelectAll}>
+                  Seleziona tutte
+                </Button>
+              )}
+            </div>
+            
+            {isLoadingPhotos ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-sage" />
+              </div>
+            ) : filteredPhotos.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <ImagePlus className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="font-medium">Nessuna foto</p>
+                <p className="text-sm">
+                  {activeChapter === 'unassigned' 
+                    ? 'Tutte le foto sono già assegnate a un capitolo' 
+                    : 'Questo capitolo è vuoto'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                {filteredPhotos.map(photo => (
+                  <PhotoGridItem
+                    key={photo.id}
+                    photo={photo}
+                    isSelected={selectedPhotos.has(photo.id)}
+                    onToggle={() => handleTogglePhoto(photo.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+      
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuovo Capitolo</DialogTitle>
+            <DialogDescription>
+              Crea un nuovo capitolo per organizzare le foto della galleria.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Titolo *</label>
+              <Input
+                placeholder="Es. Preparazione Sposa"
+                value={newChapterTitle}
+                onChange={(e) => setNewChapterTitle(e.target.value)}
+                data-testid="input-chapter-title"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Descrizione (opzionale)</label>
+              <Textarea
+                placeholder="Descrizione del capitolo..."
+                value={newChapterDescription}
+                onChange={(e) => setNewChapterDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={() => createChapterMutation.mutate()}
+              disabled={!newChapterTitle.trim() || createChapterMutation.isPending}
+              data-testid="button-confirm-create-chapter"
+            >
+              {createChapterMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Crea Capitolo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica Capitolo</DialogTitle>
+            <DialogDescription>
+              Modifica titolo e descrizione del capitolo.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Titolo *</label>
+              <Input
+                placeholder="Es. Preparazione Sposa"
+                value={newChapterTitle}
+                onChange={(e) => setNewChapterTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Descrizione (opzionale)</label>
+              <Textarea
+                placeholder="Descrizione del capitolo..."
+                value={newChapterDescription}
+                onChange={(e) => setNewChapterDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={() => {
+                if (editingChapter) {
+                  updateChapterMutation.mutate({
+                    chapterId: editingChapter.id,
+                    updates: { 
+                      titolo: newChapterTitle, 
+                      descrizione: newChapterDescription 
+                    }
+                  });
+                }
+              }}
+              disabled={!newChapterTitle.trim() || updateChapterMutation.isPending}
+            >
+              {updateChapterMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salva Modifiche
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
