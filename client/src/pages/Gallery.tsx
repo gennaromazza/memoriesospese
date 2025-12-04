@@ -1228,6 +1228,19 @@ export default function Gallery() {
   // Usa allDisplayPhotos invece di displayPhotos per evitare problemi di paginazione con i capitoli
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
   
+  // Debug capitoli
+  useEffect(() => {
+    if (galleryData) {
+      console.log('📚 CHAPTERS DEBUG:', {
+        galleryId: galleryData.id,
+        chaptersEnabled: galleryData.chaptersEnabled,
+        chaptersCount: galleryData.chapters?.length ?? 0,
+        chapters: galleryData.chapters,
+        finalChaptersEnabled: chaptersEnabled
+      });
+    }
+  }, [galleryData, chaptersEnabled]);
+  
   // Reset collapsed chapters quando cambiano i capitoli della galleria
   const chaptersKey = useMemo(() => 
     galleryData?.chapters?.map(c => c.id).join(',') || '', 
