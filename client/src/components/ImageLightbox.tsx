@@ -271,7 +271,8 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
               const isSelected = selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
               const currentCount = selectionInfo.selectedPhotoIds.length;
               const requiredCount = selectionInfo.requiredPhotoCount;
-              const canSelect = currentCount < requiredCount;
+              const canAddMore = currentCount < requiredCount;
+              const canToggle = isSelected || canAddMore;
               
               return (
                 <div className="flex flex-col items-center gap-2">
@@ -280,14 +281,14 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                     {currentCount} / {requiredCount} foto selezionate
                   </div>
                   
-                  {/* Bottone Seleziona/Rimuovi */}
+                  {/* Bottone Seleziona/Rimuovi - sempre attivo se foto selezionata o se c'è spazio */}
                   <button
                     onClick={() => selectionInfo.onToggleSelection(currentPhoto.id)}
-                    disabled={!isSelected && !canSelect}
+                    disabled={!canToggle}
                     className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
                       isSelected 
                         ? 'bg-terracotta text-white hover:bg-terracotta/80' 
-                        : canSelect
+                        : canAddMore
                           ? 'bg-sage text-white hover:bg-dark-sage'
                           : 'bg-gray-500/50 text-gray-300 cursor-not-allowed'
                     }`}
@@ -298,7 +299,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                         <Minus size={20} />
                         Rimuovi dalla selezione
                       </>
-                    ) : canSelect ? (
+                    ) : canAddMore ? (
                       <>
                         <Plus size={20} />
                         Aggiungi alla selezione
@@ -306,10 +307,17 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                     ) : (
                       <>
                         <Check size={20} />
-                        Selezione completa
+                        Limite raggiunto
                       </>
                     )}
                   </button>
+                  
+                  {/* Hint quando limite raggiunto ma foto non selezionata */}
+                  {!isSelected && !canAddMore && (
+                    <p className="text-white/70 text-xs text-center max-w-[280px]">
+                      Hai già selezionato {requiredCount} foto. Rimuovi una foto per selezionare questa.
+                    </p>
+                  )}
                 </div>
               );
             })()}

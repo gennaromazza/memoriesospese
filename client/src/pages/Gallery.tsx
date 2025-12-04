@@ -3298,6 +3298,13 @@ export default function Gallery() {
           createdAt: photo.createdAt || new Date(),
         }))}
         initialIndex={currentPhotoIndex}
+        selectionInfo={isSelectionMode && !isMultiProductMode && selectionStatus !== "completed" ? {
+          isSelectionMode: true,
+          selectedPhotoIds,
+          requiredPhotoCount,
+          onToggleSelection: handleTogglePhotoSelection,
+          selectionStatus,
+        } : undefined}
       />
 
       {/* Edit Gallery Modal - Solo per Admin */}
