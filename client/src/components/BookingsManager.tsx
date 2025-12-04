@@ -1821,7 +1821,7 @@ export default function BookingsManager({
                                 </TooltipContent>
                               </Tooltip>
 
-                              {/* Pulsante Galleria */}
+                              {/* Pulsante Galleria - Gestisci */}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -1856,6 +1856,31 @@ export default function BookingsManager({
                                   </p>
                                 </TooltipContent>
                               </Tooltip>
+
+                              {/* Pulsante Galleria - Visualizza (come cliente) */}
+                              {getGalleryByBookingId(booking.id) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => {
+                                        const gallery = getGalleryByBookingId(booking.id);
+                                        if (gallery) {
+                                          window.open(`/gallery/${gallery.code}`, '_blank');
+                                        }
+                                      }}
+                                      data-testid={`button-view-gallery-${booking.id}`}
+                                      className="h-10 w-10 text-sage hover:bg-sage/10"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Visualizza Galleria</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
 
                               {/* Pulsante Elimina */}
                               <Tooltip>

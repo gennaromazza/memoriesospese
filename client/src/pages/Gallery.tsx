@@ -2239,26 +2239,29 @@ export default function Gallery() {
                               </ol>
                             </div>
                           ) : (
-                            // Multi-product: usa chip/badge
+                            // Multi-product: apri foto e usa pannello assegnazione
                             <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
                               <p className="font-semibold text-sage mb-2">
                                 📋 Come assegnare le foto ai prodotti:
                               </p>
                               <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
                                 <li>
-                                  <strong className="hidden md:inline">Desktop:</strong> Clicca sui <strong>chip colorati</strong> sotto ogni foto per assegnarla ai prodotti
+                                  <strong>Clicca su una foto</strong> per aprirla a schermo intero
                                 </li>
                                 <li>
-                                  <strong className="md:hidden">Mobile:</strong> Tocca il badge <strong>"🏷️ Assegna"</strong> sotto la foto per scegliere i prodotti
+                                  Nel pannello in basso, <strong>tocca i prodotti</strong> per assegnare la foto
                                 </li>
                                 <li>
                                   Puoi <strong>riutilizzare</strong> la stessa foto per più prodotti (es: Album + Stampe)
                                 </li>
                                 <li>
-                                  Il <strong>progresso</strong> per ogni prodotto è mostrato qui sotto in tempo reale
+                                  Usa le <strong>frecce</strong> per navigare tra le foto senza chiudere
                                 </li>
                                 <li>
-                                  Quando hai assegnato tutte le foto richieste, clicca{" "}
+                                  Il <strong>progresso</strong> per ogni prodotto è mostrato in tempo reale
+                                </li>
+                                <li>
+                                  Quando hai assegnato tutte le foto, clicca{" "}
                                   <strong>"Conferma Selezione"</strong> in fondo alla pagina
                                 </li>
                               </ol>

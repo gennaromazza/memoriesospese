@@ -122,6 +122,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [associatedProducts, setAssociatedProducts] = useState<Array<{ nome: string; numeroFoto: number; isCustom: boolean }>>([]);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   
+  // 🔢 Logica priorità numero foto: campo manuale > somma prodotti
+  // Calcola somma foto dai prodotti associati
+  const productsSumPhotoCount = associatedProducts.reduce((sum, p) => sum + (p.numeroFoto || 0), 0);
+  
+  // Controlla se ci sono prodotti custom senza numero foto definito
+  const hasProductsWithNoPhotoCount = associatedProducts.some(p => p.isCustom && (!p.numeroFoto || p.numeroFoto === 0));
+  
+  // Controlla se la selezione è già iniziata (blocca modifiche al campo manuale)
+  const isSelectionStarted = selectedPhotoIds.length > 0;
+  
+  // Il campo manuale ha la priorità se è > 0 e diverso dalla somma prodotti
+  // OPPURE se ci sono prodotti custom senza numero (obbliga manuale)
+  const isManualOverrideActive = requiredPhotoCount > 0 && requiredPhotoCount !== productsSumPhotoCount;
+  
   const availableThemes = getAllThemes();
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
@@ -928,8 +942,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         // Photo Selection Workflow fields (Task 2)
+        // 🔢 Logica priorità: campo manuale > somma prodotti
+        // Se requiredPhotoCount > 0, usa quello. Altrimenti usa somma prodotti (se disponibile)
         selectionEnabled,
-        requiredPhotoCount: selectionEnabled ? requiredPhotoCount : null,
+        requiredPhotoCount: selectionEnabled 
+          ? (requiredPhotoCount > 0 ? requiredPhotoCount : (productsSumPhotoCount > 0 ? productsSumPhotoCount : null))
+          : null,
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
         // Client info per invio email PIN (opzionale)
@@ -1571,19 +1589,51 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="requiredPhotoCount">Numero Foto Richieste</Label>
+                      <Label htmlFor="requiredPhotoCount" className="flex items-center gap-2">
+                        Numero Foto Richieste
+                        {associatedProducts.length > 0 && (
+                          <span 
+                            className="text-xs text-gray-500 cursor-help" 
+                            title="Se impostato, questo valore ha la priorità sulla somma dei prodotti associati"
+                          >
+                            ⓘ
+                          </span>
+                        )}
+                      </Label>
                       <Input
                         id="requiredPhotoCount"
                         type="number"
-                        min="1"
+                        min="0"
                         max="500"
                         value={requiredPhotoCount}
-                        onChange={(e) => setRequiredPhotoCount(parseInt(e.target.value) || 50)}
-                        placeholder="Es. 50"
+                        onChange={(e) => setRequiredPhotoCount(parseInt(e.target.value) || 0)}
+                        placeholder={associatedProducts.length > 0 ? `Auto: ${productsSumPhotoCount}` : "Es. 50"}
+                        disabled={isSelectionStarted}
+                        className={isSelectionStarted ? 'bg-gray-100 cursor-not-allowed' : ''}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Quante foto deve selezionare il cliente
-                      </p>
+                      
+                      {/* Messaggi contestuali */}
+                      {isSelectionStarted ? (
+                        <p className="text-xs text-orange-600 flex items-center gap-1">
+                          🔒 Selezione già iniziata ({selectedPhotoIds.length} foto). Non modificabile.
+                        </p>
+                      ) : hasProductsWithNoPhotoCount ? (
+                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                          ⚠️ Prodotto custom senza numero foto. Imposta manualmente.
+                        </p>
+                      ) : associatedProducts.length > 0 && requiredPhotoCount === 0 ? (
+                        <p className="text-xs text-sage flex items-center gap-1">
+                          ✓ Usa somma prodotti: <strong>{productsSumPhotoCount} foto</strong>
+                        </p>
+                      ) : isManualOverrideActive ? (
+                        <p className="text-xs text-blue-600 flex items-center gap-1">
+                          ℹ️ Valore manuale attivo (ignora somma prodotti: {productsSumPhotoCount})
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Quante foto deve selezionare il cliente
+                        </p>
+                      )}
                     </div>
                     
                     <div className="space-y-2">

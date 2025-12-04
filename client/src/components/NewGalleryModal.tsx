@@ -983,26 +983,55 @@ export default function NewGalleryModal({
               {selectionEnabled && (
                 <div className="ml-6 space-y-4 border-l-2 border-sage/30 pl-4">
                   <div className="space-y-2">
-                    <Label htmlFor="requiredPhotoCount">
-                      Numero Foto da Selezionare *
+                    <Label htmlFor="requiredPhotoCount" className="flex items-center gap-2">
+                      Numero Foto da Selezionare
+                      {(selectedProductIndices.length > 0 || product) && (
+                        <span 
+                          className="text-xs text-gray-500 cursor-help" 
+                          title="Se impostato, questo valore ha la priorità sulla somma dei prodotti"
+                        >
+                          ⓘ
+                        </span>
+                      )}
                     </Label>
                     <Input
                       id="requiredPhotoCount"
                       type="number"
-                      min="1"
+                      min="0"
                       value={requiredPhotoCount || ""}
                       onChange={(e) =>
                         setRequiredPhotoCount(parseInt(e.target.value) || 0)
                       }
-                      placeholder="Es. 50"
-                      required={selectionEnabled}
+                      placeholder={selectedProductIndices.length > 0 
+                        ? `Auto: ${calculateTotalPhotos()}` 
+                        : product 
+                          ? `Auto: ${product.numeroFoto}` 
+                          : "Es. 50"}
                       data-testid="input-required-photo-count"
                     />
-                    <p className="text-sm text-muted-foreground">
-                      {product
-                        ? `Pre-compilato da prodotto: ${product.numeroFoto} foto (puoi modificarlo)`
-                        : "Quante foto deve selezionare il cliente?"}
-                    </p>
+                    
+                    {/* Messaggi contestuali */}
+                    {selectedProductIndices.length > 0 && requiredPhotoCount === 0 ? (
+                      <p className="text-xs text-sage flex items-center gap-1">
+                        ✓ Usa somma prodotti: <strong>{calculateTotalPhotos()} foto</strong>
+                      </p>
+                    ) : selectedProductIndices.length > 0 && requiredPhotoCount > 0 && requiredPhotoCount !== calculateTotalPhotos() ? (
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
+                        ℹ️ Valore manuale attivo (ignora somma prodotti: {calculateTotalPhotos()})
+                      </p>
+                    ) : product && requiredPhotoCount === 0 ? (
+                      <p className="text-xs text-sage flex items-center gap-1">
+                        ✓ Usa numero prodotto: <strong>{product.numeroFoto} foto</strong>
+                      </p>
+                    ) : product && requiredPhotoCount > 0 ? (
+                      <p className="text-xs text-blue-600 flex items-center gap-1">
+                        ℹ️ Valore manuale (prodotto suggeriva: {product.numeroFoto})
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Quante foto deve selezionare il cliente?
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
