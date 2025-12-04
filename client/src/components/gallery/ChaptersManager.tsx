@@ -3,7 +3,7 @@
  * Tab per organizzare le foto in capitoli
  */
 
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -150,17 +150,20 @@ const PhotoGridItem = memo(({
   photo, 
   isSelected, 
   onToggle,
-  isDragging
+  isDragging,
+  registerRef
 }: { 
   photo: Photo; 
   isSelected: boolean;
   onToggle: () => void;
   isDragging?: boolean;
+  registerRef?: (el: HTMLDivElement | null) => void;
 }) => {
   return (
     <div
+      ref={registerRef}
       className={cn(
-        "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group",
+        "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group select-none",
         isSelected 
           ? "border-sage shadow-lg ring-2 ring-sage/50" 
           : "border-gray-200 hover:border-sage/50",
@@ -172,12 +175,13 @@ const PhotoGridItem = memo(({
       <img
         src={photo.url}
         alt={photo.name}
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover pointer-events-none"
         loading="lazy"
+        draggable={false}
       />
       
       <div className={cn(
-        "absolute top-2 left-2 transition-opacity",
+        "absolute top-2 left-2 transition-opacity pointer-events-none",
         isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
       )}>
         <div className={cn(
@@ -191,7 +195,7 @@ const PhotoGridItem = memo(({
       </div>
       
       {photo.chapterId && (
-        <div className="absolute bottom-2 right-2">
+        <div className="absolute bottom-2 right-2 pointer-events-none">
           <Badge variant="secondary" className="text-xs bg-white/90">
             <Folder className="w-3 h-3 mr-1" />
           </Badge>
@@ -214,6 +218,14 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [newChapterDescription, setNewChapterDescription] = useState('');
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+  
+  // Drag-to-select state
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  const photoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const didDragSelect = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -338,6 +350,9 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   };
 
   const handleTogglePhoto = useCallback((photoId: string) => {
+    // Skip if we just did a drag selection
+    if (didDragSelect.current) return;
+    
     setSelectedPhotos(prev => {
       const next = new Set(prev);
       if (next.has(photoId)) {
@@ -355,6 +370,109 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
 
   const handleDeselectAll = useCallback(() => {
     setSelectedPhotos(new Set());
+  }, []);
+
+  // Drag-to-select handlers
+  const getSelectionBox = useCallback(() => {
+    if (!selectionStart || !selectionEnd) return null;
+    return {
+      left: Math.min(selectionStart.x, selectionEnd.x),
+      top: Math.min(selectionStart.y, selectionEnd.y),
+      width: Math.abs(selectionEnd.x - selectionStart.x),
+      height: Math.abs(selectionEnd.y - selectionStart.y)
+    };
+  }, [selectionStart, selectionEnd]);
+
+  const isElementInSelection = useCallback((element: HTMLDivElement, box: { left: number; top: number; width: number; height: number }) => {
+    const rect = element.getBoundingClientRect();
+    const gridRect = gridRef.current?.getBoundingClientRect();
+    if (!gridRect) return false;
+    
+    const elLeft = rect.left - gridRect.left;
+    const elTop = rect.top - gridRect.top;
+    const elRight = elLeft + rect.width;
+    const elBottom = elTop + rect.height;
+    
+    const boxRight = box.left + box.width;
+    const boxBottom = box.top + box.height;
+    
+    return !(elLeft > boxRight || elRight < box.left || elTop > boxBottom || elBottom < box.top);
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button, a, [role="checkbox"]')) return;
+    
+    const gridRect = gridRef.current?.getBoundingClientRect();
+    if (!gridRect) return;
+    
+    const x = e.clientX - gridRect.left;
+    const y = e.clientY - gridRect.top;
+    
+    setIsSelecting(true);
+    setSelectionStart({ x, y });
+    setSelectionEnd({ x, y });
+    
+    if (!e.shiftKey) {
+      setSelectedPhotos(new Set());
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isSelecting || !gridRef.current) return;
+    
+    const gridRect = gridRef.current.getBoundingClientRect();
+    const x = e.clientX - gridRect.left;
+    const y = e.clientY - gridRect.top;
+    
+    setSelectionEnd({ x, y });
+  }, [isSelecting]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!isSelecting) return;
+    
+    const box = getSelectionBox();
+    if (box && box.width > 10 && box.height > 10) {
+      didDragSelect.current = true;
+      const newSelected = new Set(selectedPhotos);
+      
+      photoRefs.current.forEach((element, photoId) => {
+        if (isElementInSelection(element, box)) {
+          newSelected.add(photoId);
+        }
+      });
+      
+      setSelectedPhotos(newSelected);
+      
+      // Reset flag after a short delay to allow click events to be suppressed
+      setTimeout(() => {
+        didDragSelect.current = false;
+      }, 100);
+    }
+    
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  }, [isSelecting, getSelectionBox, isElementInSelection, selectedPhotos]);
+
+  // Global mouse up listener
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isSelecting) {
+        handleMouseUp();
+      }
+    };
+    
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [isSelecting, handleMouseUp]);
+
+  const registerPhotoRef = useCallback((photoId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      photoRefs.current.set(photoId, element);
+    } else {
+      photoRefs.current.delete(photoId);
+    }
   }, []);
 
   const handleEditChapter = (chapter: Chapter) => {
@@ -570,15 +688,36 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+              <div 
+                ref={gridRef}
+                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 relative select-none"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                style={{ cursor: isSelecting ? 'crosshair' : 'default' }}
+              >
                 {filteredPhotos.map(photo => (
                   <PhotoGridItem
                     key={photo.id}
                     photo={photo}
                     isSelected={selectedPhotos.has(photo.id)}
                     onToggle={() => handleTogglePhoto(photo.id)}
+                    registerRef={(el) => registerPhotoRef(photo.id, el)}
                   />
                 ))}
+                
+                {/* Selection rectangle */}
+                {isSelecting && selectionStart && selectionEnd && (
+                  <div
+                    className="absolute border-2 border-sage bg-sage/20 pointer-events-none z-50"
+                    style={{
+                      left: Math.min(selectionStart.x, selectionEnd.x),
+                      top: Math.min(selectionStart.y, selectionEnd.y),
+                      width: Math.abs(selectionEnd.x - selectionStart.x),
+                      height: Math.abs(selectionEnd.y - selectionStart.y)
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>
