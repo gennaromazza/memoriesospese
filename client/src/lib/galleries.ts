@@ -441,7 +441,11 @@ export class GalleryService {
         productRequirements: galleryData.productRequirements,
         photoAssignments: galleryData.photoAssignments,
         bookingId: galleryData.bookingId,
-        password: galleryData.password
+        password: galleryData.password,
+        // 📚 Capitoli
+        chaptersEnabled: galleryData.chaptersEnabled || false,
+        chapters: galleryData.chapters || [],
+        chaptersOrder: galleryData.chaptersOrder
       } as Gallery;
     } catch (error) {
       console.error('Errore recupero galleria con fallback:', error);
