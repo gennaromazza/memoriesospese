@@ -433,6 +433,8 @@ export default function Gallery() {
   const [showSidebar, setShowSidebar] = useState(false); // Sidebar miniature
   const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
+  const [showReviewModal, setShowReviewModal] = useState(false); // Modale review selezione prima conferma
+  const [showResetDialog, setShowResetDialog] = useState(false); // Dialog conferma reset selezione
 
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
@@ -659,14 +661,28 @@ export default function Gallery() {
     let isComplete = false;
     
     if (isMultiProductMode && productRequirements) {
-      // Multi-product: verifica che ogni prodotto abbia il numero richiesto
-      isComplete = productRequirements.every((prod, idx) => {
-        const assignedCount = Object.values(photoAssignments).filter(
-          assignments => assignments.includes(String(idx))
-        ).length;
-        const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
-        return assignedCount >= requiredCount;
-      });
+      // Multi-product: verifica che ogni prodotto CON LIMITE abbia il numero richiesto
+      // I prodotti senza limite (0 o undefined) sono sempre considerati "ok"
+      const productsWithLimits = productRequirements.filter(
+        prod => (Number(prod.prodottoNumeroFoto) || 0) > 0
+      );
+      
+      // Se ci sono prodotti con limiti, verifica che siano tutti completati
+      if (productsWithLimits.length > 0) {
+        isComplete = productRequirements.every((prod, idx) => {
+          const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+          // Prodotti senza limite (<=0) sono sempre "completi"
+          if (requiredCount <= 0) return true;
+          
+          const assignedCount = Object.values(photoAssignments).filter(
+            assignments => assignments.includes(String(idx))
+          ).length;
+          return assignedCount >= requiredCount;
+        });
+      } else {
+        // Se tutti i prodotti sono senza limite, considera completo solo se c'è almeno una foto assegnata
+        isComplete = Object.keys(photoAssignments).length > 0;
+      }
     } else {
       // Single-product (legacy o con productRequirements[0]): verifica count totale
       isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
@@ -675,27 +691,32 @@ export default function Gallery() {
     if (isComplete && !hasShownCompletionToast) {
       setHasShownCompletionToast(true);
       
-      // Mostra toast di successo
-      toast({
-        title: "🎉 Selezione completata!",
-        description: isMultiProductMode 
-          ? "Hai completato la selezione per tutti i prodotti. Scorri per confermare!"
-          : `Hai selezionato tutte le ${requiredPhotoCount} foto. Scorri per confermare la selezione.`,
-        duration: 5000,
-      });
-      
-      // Auto-scroll al bottone conferma dopo un breve ritardo
-      setTimeout(() => {
-        confirmButtonRef.current?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }, 500);
+      // Apri automaticamente il modale di review
+      setShowReviewModal(true);
     }
     
-    // Reset il flag se l'utente deseleziona alcune foto
-    if (!isComplete && hasShownCompletionToast) {
-      setHasShownCompletionToast(false);
+    // Reset il flag se un prodotto CON LIMITE scende sotto la quota richiesta
+    // (ignoriamo i prodotti illimitati per questo check)
+    if (hasShownCompletionToast) {
+      let anyLimitedProductIncomplete = false;
+      
+      if (isMultiProductMode && productRequirements) {
+        anyLimitedProductIncomplete = productRequirements.some((prod, idx) => {
+          const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+          if (requiredCount <= 0) return false; // Ignora prodotti illimitati
+          
+          const assignedCount = Object.values(photoAssignments).filter(
+            assignments => assignments.includes(String(idx))
+          ).length;
+          return assignedCount < requiredCount;
+        });
+      } else {
+        anyLimitedProductIncomplete = selectedPhotoIds.length < requiredPhotoCount;
+      }
+      
+      if (anyLimitedProductIncomplete) {
+        setHasShownCompletionToast(false);
+      }
     }
   }, [selectedPhotoIds.length, requiredPhotoCount, isSelectionMode, selectionStatus, hasInitializedSelection, hasShownCompletionToast, toast, isMultiProductMode, productRequirements, photoAssignments]);
 
@@ -913,6 +934,50 @@ export default function Gallery() {
     },
     [isDeadlinePassed, selectionStatus, requiredPhotoCount, galleryData?.productRequirements, toast],
   );
+
+  // Reset all selections
+  const handleResetSelection = useCallback(() => {
+    // Clear localStorage
+    if (galleryData?.id) {
+      localStorage.removeItem(`gallery-selection-${galleryData.id}`);
+    }
+    
+    // Reset tutti gli stati di selezione
+    setSelectedPhotoIdsLegacy([]);
+    setPhotoAssignments({});
+    setHasShownCompletionToast(false);
+    setShowResetDialog(false);
+    
+    // Reset anche stati UI correlati
+    setShowOnlySelected(false);
+    setShowSidebar(false);
+    setFilterByProduct(null);
+    setShowReviewModal(false);
+    
+    // Scroll to top della galleria (safe per mobile e desktop)
+    requestAnimationFrame(() => {
+      try {
+        // Prima prova scrollTo standard
+        document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+        document.body.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // Poi prova ref se disponibile
+        if (galleryGridRef.current) {
+          galleryGridRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch (e) {
+        // Fallback per browser che non supportano smooth scroll
+        window.scrollTo(0, 0);
+      }
+    });
+    
+    toast({
+      title: "🔄 Selezione resettata",
+      description: "Puoi ricominciare la selezione da zero.",
+      duration: 3000,
+    });
+  }, [galleryData?.id, toast]);
 
   // Confirm selection
   const handleConfirmSelection = useCallback(async () => {
@@ -2380,8 +2445,8 @@ export default function Gallery() {
                             </div>
                           )}
 
-                          {/* 🎨 UX Enhancement #1 & #5: Toggle Filtro + Sidebar */}
-                          <div className="flex items-center justify-center gap-4 mb-4">
+                          {/* 🎨 UX Enhancement #1 & #5: Toggle Filtro + Sidebar + Reset */}
+                          <div className="flex items-center justify-center gap-3 mb-4 flex-wrap">
                             <Button
                               variant={showOnlySelected ? "default" : "outline"}
                               size="sm"
@@ -2406,13 +2471,24 @@ export default function Gallery() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setShowSidebar(!showSidebar)}
+                              onClick={() => setShowReviewModal(true)}
                               disabled={selectedPhotoIds.length === 0}
-                              data-testid="button-toggle-sidebar"
+                              data-testid="button-open-review"
                             >
-                              {showSidebar ? "✕ Nascondi" : "🖼️ Anteprima"}{" "}
+                              🖼️ Rivedi Selezione
                               {selectedPhotoIds.length > 0 &&
-                                `(${selectedPhotoIds.length})`}
+                                ` (${selectedPhotoIds.length})`}
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowResetDialog(true)}
+                              disabled={selectedPhotoIds.length === 0}
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
+                              data-testid="button-reset-selection"
+                            >
+                              🔄 Ricomincia
                             </Button>
                           </div>
                           {selectionDeadline && (
@@ -2504,6 +2580,221 @@ export default function Gallery() {
                           </SheetContent>
                         </Sheet>
                       )}
+
+                      {/* 🔄 Dialog Conferma Reset Selezione */}
+                      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-xl font-playfair text-blue-gray">
+                              🔄 Vuoi ricominciare da zero?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-600">
+                              Questa azione rimuoverà tutte le {selectedPhotoIds.length} foto selezionate
+                              {isMultiProductMode && " e tutte le assegnazioni ai prodotti"}.
+                              <br /><br />
+                              <strong>Sei sicuro di voler procedere?</strong>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter className="gap-3">
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowResetDialog(false)}
+                              data-testid="button-cancel-reset"
+                            >
+                              Annulla
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={handleResetSelection}
+                              data-testid="button-confirm-reset"
+                            >
+                              Sì, ricomincia da zero
+                            </Button>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      {/* 🖼️ Modal Review Selezione - Riepilogo prima della conferma */}
+                      <AlertDialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+                        <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
+                              🎉 Riepilogo Selezione
+                              <span className="text-base font-normal text-sage bg-sage/10 px-3 py-1 rounded-full">
+                                {selectedPhotoIds.length}/{requiredPhotoCount} foto
+                              </span>
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-600">
+                              {selectedPhotoIds.length === requiredPhotoCount 
+                                ? "Hai completato la selezione! Rivedi le foto scelte prima di confermare."
+                                : `Hai selezionato ${selectedPhotoIds.length} foto su ${requiredPhotoCount} richieste.`}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+
+                          <div className="mt-4 space-y-6">
+                            {/* Multi-Product View */}
+                            {isMultiProductMode && productRequirements ? (
+                              productRequirements.map((prod, idx) => {
+                                const productIdStr = String(idx);
+                                const assignedPhotoIds = Object.entries(photoAssignments)
+                                  .filter(([, assignments]) => assignments.includes(productIdStr))
+                                  .map(([photoId]) => photoId);
+                                const productColors = [
+                                  'border-sage bg-sage/5',
+                                  'border-terracotta bg-terracotta/5',
+                                  'border-blue-gray bg-blue-gray/5',
+                                  'border-dark-sage bg-dark-sage/5',
+                                  'border-mint bg-mint/5',
+                                  'border-cream bg-cream/5',
+                                ];
+                                const colorClass = productColors[idx % productColors.length];
+                                const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                const hasNoLimit = requiredCount <= 0;
+                                const isComplete = hasNoLimit || assignedPhotoIds.length >= requiredCount;
+
+                                return (
+                                  <div key={idx} className={`border-2 rounded-xl p-4 ${colorClass}`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h4 className="font-semibold text-lg text-blue-gray">
+                                        {prod.prodottoNome}
+                                      </h4>
+                                      <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                        isComplete ? 'bg-sage text-white' : 'bg-terracotta/20 text-terracotta'
+                                      }`}>
+                                        {hasNoLimit 
+                                          ? `${assignedPhotoIds.length} foto (∞)` 
+                                          : `${assignedPhotoIds.length}/${requiredCount}`}
+                                        {isComplete && !hasNoLimit && ' ✓'}
+                                      </span>
+                                    </div>
+                                    {assignedPhotoIds.length === 0 ? (
+                                      <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                        <p className="text-3xl mb-2">📷</p>
+                                        <p className="text-sm text-gray-500">Nessuna foto assegnata</p>
+                                        {!hasNoLimit && requiredCount > 0 && (
+                                          <>
+                                            <div className="w-24 h-1.5 bg-gray-200 rounded-full mx-auto mt-3 overflow-hidden">
+                                              <div className="h-full bg-terracotta rounded-full" style={{ width: '0%' }} />
+                                            </div>
+                                            <p className="text-xs text-terracotta mt-2 font-medium">
+                                              0/{requiredCount} - Mancano tutte le {requiredCount} foto
+                                            </p>
+                                          </>
+                                        )}
+                                        {hasNoLimit && (
+                                          <p className="text-xs text-gray-400 mt-1">
+                                            Nessun limite richiesto - puoi aggiungere quante ne vuoi
+                                          </p>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                          {assignedPhotoIds.map((photoId, photoIdx) => {
+                                            const photo = photos.find(p => p.id === photoId);
+                                            if (!photo) return null;
+                                            return (
+                                              <div key={photoId} className="relative aspect-square">
+                                                <img
+                                                  src={photo.url}
+                                                  alt={`Foto ${photoIdx + 1}`}
+                                                  className="w-full h-full object-cover rounded-lg"
+                                                />
+                                                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                                  {photoIdx + 1}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        {!hasNoLimit && requiredCount > 0 && (
+                                          <div className="mt-3">
+                                            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                              <div 
+                                                className={`h-full rounded-full transition-all ${isComplete ? 'bg-sage' : 'bg-terracotta'}`} 
+                                                style={{ width: `${Math.min((assignedPhotoIds.length / requiredCount) * 100, 100)}%` }} 
+                                              />
+                                            </div>
+                                            {!isComplete && (requiredCount - assignedPhotoIds.length) > 0 && (
+                                              <p className="text-xs text-terracotta mt-1 text-center font-medium">
+                                                ⚠️ Mancano ancora {requiredCount - assignedPhotoIds.length} foto
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              /* Single-Product View */
+                              <div className="border-2 border-sage/30 rounded-xl p-4 bg-sage/5">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-semibold text-lg text-blue-gray">
+                                    Foto Selezionate
+                                  </h4>
+                                  <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                    selectedPhotoIds.length === requiredPhotoCount 
+                                      ? 'bg-sage text-white' 
+                                      : 'bg-terracotta/20 text-terracotta'
+                                  }`}>
+                                    {selectedPhotoIds.length}/{requiredPhotoCount}
+                                    {selectedPhotoIds.length === requiredPhotoCount && ' ✓'}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                  {selectedPhotoIds.map((photoId, idx) => {
+                                    const photo = photos.find(p => p.id === photoId);
+                                    if (!photo) return null;
+                                    return (
+                                      <div key={photoId} className="relative aspect-square">
+                                        <img
+                                          src={photo.url}
+                                          alt={`Foto ${idx + 1}`}
+                                          className="w-full h-full object-cover rounded-lg"
+                                        />
+                                        <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                          {idx + 1}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <AlertDialogFooter className="mt-6 gap-3 flex-col sm:flex-row">
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowReviewModal(false)}
+                              className="w-full sm:w-auto"
+                              data-testid="button-continue-editing"
+                            >
+                              ← Continua a modificare
+                            </Button>
+                            {selectedPhotoIds.length === requiredPhotoCount && (
+                              <Button
+                                onClick={() => {
+                                  setShowReviewModal(false);
+                                  // Scroll to confirm button
+                                  setTimeout(() => {
+                                    confirmButtonRef.current?.scrollIntoView({
+                                      behavior: 'smooth',
+                                      block: 'center'
+                                    });
+                                  }, 100);
+                                }}
+                                className="w-full sm:w-auto bg-sage hover:bg-sage/90"
+                                data-testid="button-go-to-confirm"
+                              >
+                                ✓ Vai alla conferma →
+                              </Button>
+                            )}
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
 
                       {/* Banner Istruzioni Multi-Prodotto - NASCOSTO per UX pulita */}
                       {false && isSelectionMode &&
