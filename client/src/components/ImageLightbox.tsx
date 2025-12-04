@@ -12,12 +12,26 @@ interface SelectionInfo {
   selectionStatus?: string;
 }
 
+interface ProductRequirement {
+  prodottoNome: string;
+  prodottoNumeroFoto: number;
+}
+
+interface MultiProductInfo {
+  isMultiProductMode: boolean;
+  productRequirements: ProductRequirement[];
+  photoAssignments: Record<string, string[]>;
+  onToggleProductAssignment: (photoId: string, productIndex: string) => void;
+  selectionStatus?: string;
+}
+
 interface ImageLightboxProps {
   isOpen: boolean;
   onClose: () => void;
   photos: PhotoData[];
   initialIndex: number;
   selectionInfo?: SelectionInfo;
+  multiProductInfo?: MultiProductInfo;
 }
 
 export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, selectionInfo }: ImageLightboxProps) {
