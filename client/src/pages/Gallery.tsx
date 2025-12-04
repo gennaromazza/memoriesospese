@@ -1229,14 +1229,24 @@ export default function Gallery() {
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
   
   // Reset collapsed chapters quando cambiano i capitoli della galleria
+  // 📚 LAZY LOADING: Tutti i capitoli iniziano collassati di default
   const chaptersKey = useMemo(() => 
     galleryData?.chapters?.map(c => c.id).join(',') || '', 
     [galleryData?.chapters]
   );
   
   useEffect(() => {
-    setCollapsedChapters({});
-  }, [chaptersKey]);
+    if (galleryData?.chapters && galleryData.chapters.length > 0) {
+      const allCollapsed: Record<string, boolean> = {};
+      galleryData.chapters.forEach(chapter => {
+        allCollapsed[chapter.id] = true;
+      });
+      allCollapsed['__unassigned__'] = true;
+      setCollapsedChapters(allCollapsed);
+    } else {
+      setCollapsedChapters({});
+    }
+  }, [chaptersKey, galleryData?.chapters]);
   
   const photosByChapter = useMemo(() => {
     if (!chaptersEnabled || !galleryData?.chapters) return null;
@@ -2327,7 +2337,7 @@ export default function Gallery() {
                               ) : (
                                 <div className="grid grid-cols-2 gap-3">
                                   {selectedPhotoIds.map((photoId, idx) => {
-                                    const photo = displayPhotos.find(
+                                    const photo = photos.find(
                                       (p) => p.id === photoId,
                                     );
                                     if (!photo) return null;
