@@ -1,17 +1,26 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { PhotoData } from "../hooks/use-gallery-data";
-import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
+
+interface SelectionInfo {
+  isSelectionMode: boolean;
+  selectedPhotoIds: string[];
+  requiredPhotoCount: number;
+  onToggleSelection: (photoId: string) => void;
+  selectionStatus?: string;
+}
 
 interface ImageLightboxProps {
   isOpen: boolean;
   onClose: () => void;
   photos: PhotoData[];
   initialIndex: number;
+  selectionInfo?: SelectionInfo;
 }
 
-export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }: ImageLightboxProps) {
+export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, selectionInfo }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -255,7 +264,59 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex }:
           {currentIndex + 1} / {photos.length}
         </div>
         
-        {/* Controlli */}
+        {/* 🎯 Controlli Selezione - Solo in modalità selezione */}
+        {selectionInfo?.isSelectionMode && selectionInfo.selectionStatus !== 'completed' && currentPhoto && (
+          <div className="mb-3">
+            {(() => {
+              const isSelected = selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
+              const currentCount = selectionInfo.selectedPhotoIds.length;
+              const requiredCount = selectionInfo.requiredPhotoCount;
+              const canSelect = currentCount < requiredCount;
+              
+              return (
+                <div className="flex flex-col items-center gap-2">
+                  {/* Contatore selezione */}
+                  <div className="text-white text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
+                    {currentCount} / {requiredCount} foto selezionate
+                  </div>
+                  
+                  {/* Bottone Seleziona/Rimuovi */}
+                  <button
+                    onClick={() => selectionInfo.onToggleSelection(currentPhoto.id)}
+                    disabled={!isSelected && !canSelect}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
+                      isSelected 
+                        ? 'bg-terracotta text-white hover:bg-terracotta/80' 
+                        : canSelect
+                          ? 'bg-sage text-white hover:bg-dark-sage'
+                          : 'bg-gray-500/50 text-gray-300 cursor-not-allowed'
+                    }`}
+                    data-testid="lightbox-selection-button"
+                  >
+                    {isSelected ? (
+                      <>
+                        <Minus size={20} />
+                        Rimuovi dalla selezione
+                      </>
+                    ) : canSelect ? (
+                      <>
+                        <Plus size={20} />
+                        Aggiungi alla selezione
+                      </>
+                    ) : (
+                      <>
+                        <Check size={20} />
+                        Selezione completa
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+        
+        {/* Controlli navigazione */}
         <div className={`grid ${isMobile ? 'grid-cols-3' : 'grid-cols-5'} gap-2`}>
           {isMobile ? (
             <>
