@@ -2915,7 +2915,17 @@ export default function Gallery() {
                                             isSelected={selectedPhotoIds.includes(photo.id)}
                                             isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                             assignedProducts={photoAssignments[photo.id] || []}
-                                            onClick={() => openLightbox(globalIndex)}
+                                            onClick={(clickedIndex) => {
+                                              if (isMultiProductMode) {
+                                                openLightbox(globalIndex);
+                                              } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
+                                                         isSelectionMode &&
+                                                         selectionStatus !== "completed") {
+                                                handleTogglePhotoSelection(photo.id);
+                                              } else {
+                                                openLightbox(globalIndex);
+                                              }
+                                            }}
                                           />
                                           {!isSelectionMode && (
                                             <div className="mt-2">
@@ -2948,7 +2958,17 @@ export default function Gallery() {
                                 isSelected={selectedPhotoIds.includes(photo.id)}
                                 isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                 assignedProducts={photoAssignments[photo.id] || []}
-                                onClick={() => openLightbox(index)}
+                                onClick={(clickedIndex) => {
+                                  if (isMultiProductMode) {
+                                    openLightbox(clickedIndex);
+                                  } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
+                                             isSelectionMode &&
+                                             selectionStatus !== "completed") {
+                                    handleTogglePhotoSelection(photo.id);
+                                  } else {
+                                    openLightbox(clickedIndex);
+                                  }
+                                }}
                               />
                               {!isSelectionMode && (
                                 <div className="mt-2">
@@ -3298,13 +3318,6 @@ export default function Gallery() {
           createdAt: photo.createdAt || new Date(),
         }))}
         initialIndex={currentPhotoIndex}
-        selectionInfo={isSelectionMode && !isMultiProductMode && selectionStatus !== "completed" ? {
-          isSelectionMode: true,
-          selectedPhotoIds,
-          requiredPhotoCount,
-          onToggleSelection: handleTogglePhotoSelection,
-          selectionStatus,
-        } : undefined}
       />
 
       {/* Edit Gallery Modal - Solo per Admin */}
