@@ -95,17 +95,21 @@
   background-color: hsla(var(--rose), 0.15) !important;
 }
 
-/* Override text colors */
+/* Override text colors - Usa taupe scuro per leggibilità */
 .theme-natale .text-blue-gray {
-  color: hsl(var(--white)) !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  color: hsl(var(--taupe)) !important;
 }
 
-.theme-natale .text-blue-gray\/80,
-.theme-natale .text-blue-gray\/70,
+.theme-natale .text-blue-gray\/80 {
+  color: hsla(var(--taupe), 0.85) !important;
+}
+
+.theme-natale .text-blue-gray\/70 {
+  color: hsla(var(--taupe), 0.75) !important;
+}
+
 .theme-natale .text-blue-gray\/60 {
-  color: hsla(var(--white), 0.85) !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: hsla(var(--taupe), 0.65) !important;
 }
 
 .theme-natale .text-sage {
@@ -151,16 +155,14 @@
   text-shadow: none !important;
 }
 
-/* Titoli Playfair - Bianchi con ombra per contrasto */
+/* Titoli Playfair - Colore natalizio scuro per contrasto */
 .theme-natale .font-playfair,
 .theme-natale h1,
 .theme-natale h2,
 .theme-natale h3 {
   font-family: 'Playfair Display', serif !important;
   letter-spacing: -0.5px;
-  color: hsl(var(--white)) !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7),
-    0 0 0.5px rgba(0, 0, 0, 0.8);
+  color: hsl(var(--christmas-green)) !important;
 }
 
 /* Stelline decorative sui titoli */
@@ -367,15 +369,15 @@
 }
 
 /* ========================================
-   13. FOOTER GALLERIA
+   13. FOOTER GALLERIA - Sfondo visibile
    ======================================== */
 .theme-natale footer,
 .theme-natale .gallery-footer {
-  background-color: hsla(var(--cream), 0.5) !important;
-  border-top: 1px solid hsla(var(--beige), 0.3);
+  background-color: hsla(var(--sage), 0.15) !important;
+  border-top: 2px solid hsla(var(--sage), 0.3) !important;
 }
 
-.theme-natale footer .text-blue-gray\/80 {
+.theme-natale footer .text-blue-gray\/80,
+.theme-natale .gallery-footer .text-blue-gray\/80 {
   color: hsl(var(--taupe)) !important;
-  text-shadow: none !important;
 }
