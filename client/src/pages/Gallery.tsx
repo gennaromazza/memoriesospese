@@ -392,6 +392,12 @@ export default function Gallery() {
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
+  
+  // Ref per scrollare al bottone di conferma
+  const confirmButtonRef = useRef<HTMLDivElement>(null);
+  
+  // Stato per tracciare se abbiamo già mostrato il toast di completamento
+  const [hasShownCompletionToast, setHasShownCompletionToast] = useState(false);
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
@@ -596,6 +602,37 @@ export default function Gallery() {
     selectionStatus,
     hasInitializedSelection,
   ]);
+
+  // 🎉 Auto-scroll al bottone conferma quando selezione completata
+  useEffect(() => {
+    if (!isSelectionMode || selectionStatus === 'completed' || !hasInitializedSelection) return;
+    
+    const isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+    
+    if (isComplete && !hasShownCompletionToast) {
+      setHasShownCompletionToast(true);
+      
+      // Mostra toast di successo
+      toast({
+        title: "🎉 Selezione completata!",
+        description: `Hai selezionato tutte le ${requiredPhotoCount} foto. Scorri per confermare la selezione.`,
+        duration: 5000,
+      });
+      
+      // Auto-scroll al bottone conferma dopo un breve ritardo
+      setTimeout(() => {
+        confirmButtonRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 500);
+    }
+    
+    // Reset il flag se l'utente deseleziona alcune foto
+    if (!isComplete && hasShownCompletionToast) {
+      setHasShownCompletionToast(false);
+    }
+  }, [selectedPhotoIds.length, requiredPhotoCount, isSelectionMode, selectionStatus, hasInitializedSelection, hasShownCompletionToast, toast]);
 
   // 🔄 Restore selezioni da localStorage all'avvio (UX Enhancement #2)
   useEffect(() => {
@@ -2713,6 +2750,26 @@ export default function Gallery() {
                       )}
 
                       {/* ✅ Visualizzazione immediata con lazy loading */}
+                      
+                      {/* 📚 Banner informativo per capitoli */}
+                      {chaptersEnabled && photosByChapter && photosByChapter.length > 0 && (
+                        <div className="mb-6 bg-gradient-to-r from-sage/10 to-mint/10 border border-sage/30 rounded-xl p-4 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0 bg-sage/20 rounded-full p-2">
+                              <BookOpen className="w-5 h-5 text-sage" />
+                            </div>
+                            <div>
+                              <p className="text-blue-gray font-medium">
+                                📖 Le foto sono organizzate in <strong>{photosByChapter.length} {photosByChapter.length === 1 ? 'capitolo' : 'capitoli'}</strong>
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                Clicca su ogni capitolo per espanderlo e vedere le foto al suo interno
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {photosByChapter ? (
                         /* 📚 Vista per Capitoli */
                         <div ref={galleryGridRef} className="space-y-8">
@@ -2869,7 +2926,7 @@ export default function Gallery() {
 
                       {/* Conferma Selezione Button (Task 14) */}
                       {isSelectionMode && selectionStatus !== "completed" && (
-                        <div className="mt-8 mb-6 text-center">
+                        <div ref={confirmButtonRef} className="mt-8 mb-6 text-center">
                           <div className="bg-white rounded-lg border-2 border-sage p-6 shadow-lg max-w-2xl mx-auto">
                             <h4 className="text-xl font-playfair text-blue-gray mb-4">
                               Pronto a confermare la selezione?
