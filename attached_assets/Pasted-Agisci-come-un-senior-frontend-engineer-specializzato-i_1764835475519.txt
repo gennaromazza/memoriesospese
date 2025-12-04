@@ -1,0 +1,212 @@
+Agisci come un senior frontend engineer specializzato in React e TypeScript, con forte attenzione a UX e performance, in un’applicazione di gestione gallerie fotografiche per studi fotografici.
+
+Ho già un pannello di amministrazione nel quale gestisco le gallerie foto (componente principale: Gallery.tsx). Attualmente il sistema carica e mostra tutte le foto della galleria in modo “piatto” e gestisce le “Selezioni Cliente” su questo insieme di foto. Voglio estendere questo sistema introducendo il concetto di “Capitoli” all’interno di ogni galleria, mantenendo perfettamente funzionante la logica di selezione cliente già esistente.
+
+Il tuo compito è progettare in dettaglio architettura, flusso, UX e modifiche al componente Gallery.tsx (e componenti correlati) per:
+
+Aggiungere un modulo / sezione “Manage Gallery” con gestione dei Capitoli
+
+Gestire il caricamento e lo smistamento delle foto in Capitoli
+
+Rendere compatibile il sistema di selezione cliente con la presenza o meno dei Capitoli
+
+Migliorare performance e reattività grazie al caricamento per capitoli
+
+Descrivi tutto in modo estremamente dettagliato, passo per passo, ma senza scrivere codice effettivo: voglio una specifica funzionale e tecnica, non direttamente implementazione.
+
+Di seguito i requisiti dettagliati.
+
+CONTESTO E POSIZIONAMENTO NELLA UI
+
+Esiste già un pannello di gestione della galleria, con varie tab.
+
+Attualmente ho una tab per il caricamento delle foto e una tab “Selezioni Cliente”.
+
+Voglio introdurre una nuova tab “Capitoli” che si posiziona tra:
+• Tab “Caricamento foto” (o equivalente)
+• Tab “Selezioni Cliente”
+
+Il flusso logico per l’utente admin deve diventare:
+
+Carico le foto nella galleria
+
+Vado nella tab “Capitoli” per organizzarle
+
+Solo dopo vado in “Selezioni Cliente”
+
+OBIETTIVO DELLA TAB “CAPITOLI”
+La tab “Capitoli” deve permettermi di:
+
+Creare, modificare, riordinare ed eliminare capitoli all’interno di una galleria.
+
+Smistare le foto nei vari capitoli tramite operazioni massime (multi selezione) e drag and drop.
+
+Visualizzare rapidamente quali foto sono:
+• Assegnate a un capitolo specifico
+• Non ancora assegnate ad alcun capitolo (es. “Senza Capitolo” o “Non assegnate”)
+
+MODELLO CONCETTUALE (NON CODICE, MA DESCRIZIONE LOGICA)
+Definisci chiaramente, in forma descrittiva (non in codice), i seguenti concetti:
+
+Foto:
+• Identificativo univoco
+• Percorso file / URL
+• Metadati base (nome file, data, eventuali tag, ecc.)
+• Stato di selezione cliente (se già presente nel sistema)
+• Informazione di appartenenza a un capitolo (eventuale)
+
+Capitolo:
+• Identificativo univoco
+• Titolo del capitolo (es. “Preparazione Sposa”, “Cerimonia”, “Ricevimento”, ecc.)
+• Descrizione opzionale
+• Ordine all’interno della galleria (per definire la sequenza dei capitoli)
+• Copertina del capitolo (ad esempio la prima foto, o una foto selezionata come cover)
+
+Galleria:
+• Insieme di foto
+• Insieme di capitoli
+• Stato: galleria con o senza capitoli attivi
+
+Descrivi come questi concetti si relazionano tra loro e come devono essere propagati nel frontend (stato locale, store globale se presente, ecc.) in modo chiaro e coerente.
+
+UX DELLA TAB “CAPITOLI”
+Progetta la UX completa di questa tab. Descrivi nel dettaglio:
+
+Layout generale
+
+Una sezione per la lista dei capitoli (ad esempio barra laterale o header con tab dei capitoli).
+
+Una vista centrale/principale in cui vengono mostrate le foto:
+• Filtrate per capitolo selezionato
+• Oppure “Tutte le foto”
+• Oppure “Non assegnate”
+
+Controlli per selezione multipla delle foto (tipo checkbox, selezione per range, ecc.).
+
+Controlli per operazioni massive sulle foto selezionate (assegna a capitolo, sposta capitolo, rimuovi dal capitolo, elimina, ecc.).
+
+Gestione Capitoli
+
+Creazione capitolo:
+• Pulsante “Nuovo capitolo”
+• Modal o inline edit per inserire titolo e eventuale descrizione.
+
+Modifica capitolo:
+• Possibilità di rinominare un capitolo.
+• Possibilità di cambiare l’ordine dei capitoli (drag and drop o controlli freccia su/giù).
+• Possibilità di scegliere una foto di copertina del capitolo.
+
+Eliminazione capitolo:
+• Comportamento chiaro per le foto appartenenti al capitolo eliminato (ad esempio: vengono spostate automaticamente in “Non assegnate”).
+
+Gestione Foto nei Capitoli
+
+Lista o griglia di foto con:
+• Thumbnail
+• Stato di appartenenza a capitolo
+• Stato di selezione cliente (se già definito)
+
+Interazioni principali:
+• Selezione multipla con click + tasto modificatore, oppure checkbox per ogni foto.
+• Drag and drop di una singola foto o di un gruppo di foto da:
+– “Non assegnate” verso un capitolo
+– Un capitolo verso un altro capitolo
+• Operazioni massive (tramite pulsanti o menù contestuale) per:
+– Assegnare foto a un capitolo
+– Spostare le foto selezionate da un capitolo a un altro
+– Rimuovere le foto dal capitolo (tornano in “Non assegnate”)
+– Facoltativo: eliminare foto dalla galleria (non solo dal capitolo)
+
+Feedback visivi chiari:
+• Quando una foto viene spostata, lo si deve percepire immediatamente.
+• Quando il capitolo corrente è vuoto, mostrare un messaggio o CTA per trascinare foto dentro.
+
+REQUISITI DI PERFORMANCE E CARICAMENTO
+Uno degli obiettivi principali è evitare il caricamento forzato di tutte le foto in un’unica vista, per migliorare velocità e reattività. Definisci una strategia dettagliata per:
+
+Caricamento per capitoli:
+• Quando l’utente seleziona un capitolo, si caricano solo le foto di quel capitolo (o, almeno, solo le loro thumbnail).
+
+Caricamento delle foto “Non assegnate”.
+
+Eventuale lazy loading o virtualizzazione della lista foto per gestire gallerie con molte immagini.
+
+Come minimizzare i re-render del componente Gallery.tsx e delle sottoviste quando si cambia capitolo, quando si riorganizzano le foto o quando si eseguono operazioni massive.
+
+COMPATIBILITÀ CON IL SISTEMA DI SELEZIONE CLIENTE
+È fondamentale che il sistema di selezione cliente continui a funzionare sia quando i capitoli sono presenti sia quando non lo sono. Devi definire chiaramente:
+
+Comportamento logico
+
+Se la galleria non ha capitoli:
+• Il comportamento deve essere identico all’attuale: tutte le foto sono in un’unica lista “piatta” e la selezione cliente lavora su quella lista.
+
+Se la galleria ha capitoli:
+• L’utente cliente potrebbe visualizzare la galleria come suddivisa in capitoli, ma il sistema di selezione deve continuare a trabajar su un unico set coerente di foto.
+• La selezione di una foto deve essere indipendente dal capitolo di appartenenza (un capitolo è solo una suddivisione “logica/visiva”).
+• Spostare una foto da un capitolo a un altro non deve rompere né perdere le selezioni già effettuate.
+
+Comportamento lato UI nella sezione “Selezioni Cliente”
+
+Se i capitoli esistono, definisci come deve essere presentata la galleria al cliente:
+• Vista per capitoli, con possibilità di filtrare per capitolo o vedere tutto.
+• Ma con un unico sistema di conteggio selezioni, preferiti, ecc.
+
+Se non esistono capitoli:
+• Vista invariata rispetto allo stato attuale del sistema.
+
+Robustezza del sistema
+
+Il sistema deve funzionare correttamente:
+• Con capitoli presenti
+• Senza capitoli
+• Nel passaggio da “nessun capitolo” a “ci sono capitoli” e viceversa (ad esempio, se l’admin elimina tutti i capitoli).
+
+Descrivi eventuali migrazioni o adattamenti dei dati, se necessari, per garantire che le selezioni cliente esistenti non vadano perse quando introduco i capitoli su una galleria già usata.
+
+MODIFICHE A GALLERY.TSX (DESCRIZIONE CONCETTUALE)
+Senza scrivere codice, descrivi in modo molto chiaro come deve cambiare il componente Gallery.tsx (e/o eventuali sottocomponenti) per:
+
+Integrare la nuova tab “Capitoli” nel sistema di navigazione del pannello.
+
+Gestire uno stato interno o condiviso che includa:
+• Lista foto
+• Lista capitoli
+• Stato di assegnazione foto-capitolo
+• Stato selezioni cliente (se condiviso qui o passato da/verso altri moduli)
+
+Esporre a monte (o verso componenti figli) tutte le informazioni necessarie perché:
+• La tab “Capitoli” possa leggere e modificare l’assegnazione foto-capitolo.
+• La tab “Selezioni Cliente” possa continuare a funzionare senza modifiche invasive, idealmente ricevendo i dati in un formato compatibile col sistema attuale.
+
+Definire eventuali punti di estensione o refactoring per rendere il codice più modulare e gestibile (ad es. separare logica di caricamento foto, logica di capitoli, logica di selezione).
+
+EDGE CASE E COMPORTAMENTI PARTICOLARI
+Descrivi come gestire in dettaglio almeno i seguenti casi:
+
+Galleria senza alcuna foto.
+
+Galleria con foto ma nessun capitolo creato.
+
+Galleria con capitoli ma alcuni capitoli vuoti.
+
+Spostamento di una foto selezionata dal cliente da un capitolo a un altro (la selezione deve restare valida).
+
+Eliminazione di un capitolo contenente foto già selezionate dal cliente.
+
+Possibili conflitti tra operazioni massive e aggiornamento dello stato (es. mentre si sta ricaricando la lista o mentre il cliente sta guardando la galleria).
+
+OUTPUT CHE VOGLIO DA TE
+Nel tuo output voglio:
+
+Una descrizione testuale, molto dettagliata e strutturata, del design del componente/feature senza nessun blocco di codice.
+
+Una sezione dedicata all’architettura dello stato e alla comunicazione tra componenti.
+
+Una sezione dedicata alla UX completa dal punto di vista dell’admin (che crea capitoli e smista foto) e del cliente (che fa le selezioni).
+
+Una sezione dedicata alle performance e alle rationale delle scelte proposte.
+
+Una sezione dedicata alla compatibilità e all’evoluzione futura (come sarà facile estendere questo sistema in seguito, ad esempio per introdurre filtri, tag, rating, ecc.).
+
+Non scrivere codice, non usare snippet, non usare pseudo-codice. Voglio solo una specifica funzionale/tecnica iper-dettagliata, espressa interamente in testo descrittivo.

@@ -73,6 +73,22 @@ export interface Gallery {
   
   // Workflow Management
   workflowState?: WorkflowState;
+  
+  // Chapters System - Organizzazione foto in capitoli
+  chaptersEnabled?: boolean;
+  chapters?: Chapter[];
+  chaptersOrder?: string[]; // Array ordinato di chapter IDs
+}
+
+// Chapter Interface - Capitolo galleria
+export interface Chapter {
+  id: string;
+  titolo: string;
+  descrizione?: string;
+  ordine: number;
+  coverPhotoId?: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface GalleryAccessInfo {

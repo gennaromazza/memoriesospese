@@ -671,6 +671,90 @@ export class PhotoService {
       throw error;
     }
   }
+
+  /**
+   * Assegna multiple foto a un capitolo (bulk)
+   */
+  static async assignPhotosToChapter(photoIds: string[], chapterId: string | null): Promise<void> {
+    try {
+      await Promise.all(
+        photoIds.map((photoId, index) => 
+          PhotoService.assignPhotoToChapter(photoId, chapterId, index)
+        )
+      );
+    } catch (error) {
+      console.error('Errore assegnazione bulk foto a capitolo:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ottieni foto di un capitolo specifico
+   */
+  static async getPhotosByChapter(galleryId: string, chapterId: string): Promise<Photo[]> {
+    try {
+      const photosQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', galleryId),
+        where('chapterId', '==', chapterId),
+        orderBy('chapterPosition', 'asc')
+      );
+      
+      const snapshot = await getDocs(photosQuery);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Photo));
+    } catch (error) {
+      console.error('Errore recupero foto per capitolo:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Ottieni foto non assegnate a nessun capitolo
+   */
+  static async getUnassignedPhotos(galleryId: string): Promise<Photo[]> {
+    try {
+      const allPhotos = await PhotoService.getGalleryPhotos(galleryId, undefined, 'exclude-guest');
+      return allPhotos.filter(photo => !photo.chapterId);
+    } catch (error) {
+      console.error('Errore recupero foto non assegnate:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Rimuovi foto da un capitolo (torna a non assegnata)
+   */
+  static async removePhotosFromChapter(photoIds: string[]): Promise<void> {
+    try {
+      await PhotoService.assignPhotosToChapter(photoIds, null);
+    } catch (error) {
+      console.error('Errore rimozione foto da capitolo:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Conta foto per capitolo in una galleria
+   */
+  static async countPhotosByChapter(galleryId: string): Promise<Record<string, number>> {
+    try {
+      const allPhotos = await PhotoService.getGalleryPhotos(galleryId, undefined, 'exclude-guest');
+      const counts: Record<string, number> = { unassigned: 0 };
+      
+      allPhotos.forEach(photo => {
+        if (photo.chapterId) {
+          counts[photo.chapterId] = (counts[photo.chapterId] || 0) + 1;
+        } else {
+          counts.unassigned++;
+        }
+      });
+      
+      return counts;
+    } catch (error) {
+      console.error('Errore conteggio foto per capitolo:', error);
+      return { unassigned: 0 };
+    }
+  }
 }
 
 // Funzioni di convenienza per importazione diretta

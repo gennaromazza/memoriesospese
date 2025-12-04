@@ -976,7 +976,7 @@ export default function GalleryManagementWorkspace() {
                       <p className="text-2xl font-bold text-sage" data-testid="text-selected-count">
                         {gallery.productRequirements
                           ? `${Object.keys(gallery.photoAssignments || {}).length} foto assegnate`
-                          : `${selectedPhotos.length} / ${gallery?.requiredPhotoCount || 0}`
+                          : `${selectedPhotoIds.size} / ${gallery?.requiredPhotoCount || 0}`
                         }
                       </p>
                     </div>
