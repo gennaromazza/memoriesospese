@@ -91,11 +91,17 @@ export class ChapterService {
     const photosSnapshot = await getDocs(photosQuery);
     
     if (!photosSnapshot.empty) {
-      const batch = writeBatch(db);
-      photosSnapshot.docs.forEach(photoDoc => {
-        batch.update(photoDoc.ref, { chapterId: null });
-      });
-      await batch.commit();
+      const BATCH_LIMIT = 450;
+      const docs = photosSnapshot.docs;
+      
+      for (let i = 0; i < docs.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        const chunk = docs.slice(i, i + BATCH_LIMIT);
+        chunk.forEach(photoDoc => {
+          batch.update(photoDoc.ref, { chapterId: null });
+        });
+        await batch.commit();
+      }
     }
     
     const filteredChapters = (gallery.chapters || []).filter(ch => ch.id !== chapterId);

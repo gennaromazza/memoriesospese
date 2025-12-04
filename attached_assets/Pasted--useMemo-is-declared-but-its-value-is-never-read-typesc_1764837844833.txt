@@ -1,0 +1,485 @@
+'useMemo' is declared but its value is never read.
+(typescript)
+Ln 1, Col 44
+Cannot find module '@/lib/firebase' or its corresponding type declarations.
+(typescript)
+Ln 16, Col 20
+Cannot find module '@/context/StudioContext' or its corresponding type declarations.
+(typescript)
+Ln 17, Col 27
+'trackGalleryView' is declared but its value is never read.
+(typescript)
+Ln 18, Col 1
+Cannot find module '@/lib/analytics' or its corresponding type declarations.
+(typescript)
+Ln 18, Col 34
+'createAbsoluteUrl' is declared but its value is never read.
+(typescript)
+Ln 19, Col 21
+Cannot find module '@/basePath' or its corresponding type declarations.
+(typescript)
+Ln 19, Col 46
+Cannot find module '@/components/Navigation' or its corresponding type declarations.
+(typescript)
+Ln 20, Col 24
+Cannot find module '@/components/ImageLightbox' or its corresponding type declarations.
+(typescript)
+Ln 21, Col 27
+Cannot find module '@/hooks/use-toast' or its corresponding type declarations.
+(typescript)
+Ln 22, Col 26
+Cannot find module '@/components/ui/skeleton' or its corresponding type declarations.
+(typescript)
+Ln 23, Col 26
+Cannot find module '@/components/ui/tabs' or its corresponding type declarations.
+(typescript)
+Ln 24, Col 58
+'Photo' is declared but its value is never read.
+(typescript)
+Ln 25, Col 1
+Cannot find module '@shared/schema' or its corresponding type declarations.
+(typescript)
+Ln 25, Col 23
+Cannot find module '@/components/WeddingIllustrations' or its corresponding type declarations.
+(typescript)
+Ln 30, Col 8
+Cannot find module '@/components/WeddingImages' or its corresponding type declarations.
+(typescript)
+Ln 31, Col 47
+Cannot find module '@/components/ui/dialog' or its corresponding type declarations.
+(typescript)
+Ln 38, Col 8
+Cannot find module '@/components/ui/label' or its corresponding type declarations.
+(typescript)
+Ln 39, Col 23
+Cannot find module '@/components/ui/input' or its corresponding type declarations.
+(typescript)
+Ln 40, Col 23
+Cannot find module '@/components/ui/button' or its corresponding type declarations.
+(typescript)
+Ln 41, Col 24
+'ImportClientiDialog' is declared but its value is never read.
+(typescript)
+Ln 89, Col 7
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 90, Col 4
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 91, Col 6
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 92, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 93, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 95, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 96, Col 8
+'setPhotosPerPage' is declared but its value is never read.
+(typescript)
+Ln 113, Col 25
+'queryClient' is declared but its value is never read.
+(typescript)
+Ln 116, Col 9
+'showImportDialog' is declared but its value is never read.
+(typescript)
+Ln 119, Col 10
+'setShowImportDialog' is declared but its value is never read.
+(typescript)
+Ln 119, Col 28
+Variable 'photosQuery' implicitly has an 'any' type, but a better type may be inferred from usage.
+(typescript)
+Ln 216, Col 13
+Spread types may only be created from object types.
+(typescript)
+Ln 233, Col 11
+Cannot find module '@/lib/firebase' or its corresponding type declarations.
+(typescript)
+Ln 254, Col 46
+'handleSignOut' is declared but its value is never read.
+(typescript)
+Ln 398, Col 9
+Variable 'photosQuery' implicitly has an 'any' type, but a better type may be inferred from usage.
+(typescript)
+Ln 410, Col 11
+Spread types may only be created from object types.
+(typescript)
+Ln 468, Col 11
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 516, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 517, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 518, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 519, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 520, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 521, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 523, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 525, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 536, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 537, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 538, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 541, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 544, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 556, Col 6
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 557, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 560, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 562, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 563, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 568, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 571, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 572, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 573, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 581, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 584, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 585, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 590, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 599, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 602, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 603, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 604, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 611, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 612, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 613, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 614, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 615, Col 18
+'frameBorder' is deprecated.
+(typescript)
+Ln 619, Col 19
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 628, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 629, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 630, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 632, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 633, Col 20
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 634, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 635, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 641, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 644, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 650, Col 17
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 652, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 658, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 659, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 660, Col 28
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 667, Col 28
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 676, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 690, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 693, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 694, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 696, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 705, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 729, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 730, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 734, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 743, Col 34
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 767, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 773, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 778, Col 28
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 782, Col 34
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 793, Col 36
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 817, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 818, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 819, Col 34
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 820, Col 36
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 826, Col 34
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 836, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 838, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 843, Col 28
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 867, Col 22
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 868, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 869, Col 26
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 871, Col 24
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 877, Col 28
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 878, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 884, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 892, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 901, Col 27
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 902, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 905, Col 30
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 906, Col 32
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 921, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 923, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 927, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 931, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 932, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 935, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 936, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 937, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 940, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 941, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 942, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 943, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 948, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 949, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 952, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 960, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 961, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 973, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 974, Col 20
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 976, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 981, Col 20
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 983, Col 18
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 988, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 989, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 990, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 995, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 999, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1000, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1010, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1025, Col 8
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1026, Col 10
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1027, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1028, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1031, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1036, Col 12
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1037, Col 14
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1038, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)
+Ln 1039, Col 16
+'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+(typescript)

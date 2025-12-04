@@ -10,6 +10,7 @@
   --white: 0 0% 100%;
   --rose: 0 23% 60%;
   --taupe: 0 22% 36%;
+  --taupe-darker: 0 25% 25%;
   --peach: 30 93% 77%;
   --orange: 18 78% 53%;
   --bg-light: #faf7f5;
@@ -17,6 +18,8 @@
 
   /* Forza il font su tutto il contenitore */
   font-family: 'Inter', system-ui, sans-serif;
+
+  /* IMP.: Il colore di base del testo TORNA a scuro (Taupe) per il corpo e il menu */
   color: hsl(var(--taupe));
 }
 
@@ -26,7 +29,7 @@
 .theme-natale.bg-off-white,
 .theme-natale .bg-off-white {
   background-color: var(--bg-light) !important;
-  color: hsl(var(--taupe));
+  /* Colore del testo qui resta scuro, ereditando da .theme-natale */
   position: relative;
 }
 
@@ -47,13 +50,43 @@
 }
 
 /* 2. TIPOGRAFIA & DECORAZIONI */
-.theme-natale .font-playfair {
-  font-family: 'Playfair Display', serif !important;
-  letter-spacing: -0.5px;
+
+/* NAVIGAZIONE E TESTO GENERALE: Forza il colore scuro per tutti gli altri elementi non specificati */
+.theme-natale a:not(.text-white),
+.theme-natale .text-gray-500,
+.theme-natale p {
   color: hsl(var(--taupe)) !important;
+  text-shadow: none !important;
 }
 
+
+/* Titoli Playfair: SOLO questi rimangono BIANCHI con ombra, per contrastare il chiaro background */
+.theme-natale .font-playfair,
+.theme-natale h1,
+.theme-natale h2,
+.theme-natale h3 {
+  font-family: 'Playfair Display', serif !important;
+  letter-spacing: -0.5px;
+  /* FORZA IL BIANCO PER I TITOLI */
+  color: hsl(var(--white)) !important;
+
+  /* Ombra scura e netta per garantire il contrasto su sfondo chiaro */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7),
+    0 0 0.5px rgba(0, 0, 0, 0.8);
+}
+
+/* SOTTOTITOLI/DESCRIZIONE (Aggancio a .text-blue-gray che probabilmente è il sottotitolo) */
+.theme-natale .text-blue-gray {
+  /* CAMBIO QUI: Forza il bianco ANCHE per la descrizione */
+  color: hsl(var(--white)) !important;
+
+  /* Ombra scura leggera per leggibilità */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+
 /* Stelline ✨ SOLO dentro il tema */
+/* Targettiamo gli H1 che sono sopra il Light Background (quelli che non hanno la classe text-white) */
 .theme-natale h1.font-playfair:not(.text-white) {
   display: inline-block;
   position: relative;
@@ -62,22 +95,25 @@
 .theme-natale h1.font-playfair:not(.text-white)::before {
   content: '✨';
   margin-right: 12px;
-  color: hsl(var(--rose));
-  opacity: 0.6;
+  /* Usa il Taupe scuro per le stelline su sfondo chiaro */
+  color: hsl(var(--taupe-darker));
+  opacity: 0.8;
   font-size: 0.8em;
+  text-shadow: none;
+  /* Rimuovi l'ombra per un effetto più netto */
 }
 
 .theme-natale h1.font-playfair:not(.text-white)::after {
   content: '✨';
   margin-left: 12px;
-  color: hsl(var(--rose));
-  opacity: 0.6;
+  /* Usa il Taupe scuro per le stelline su sfondo chiaro */
+  color: hsl(var(--taupe-darker));
+  opacity: 0.8;
   font-size: 0.8em;
+  text-shadow: none;
+  /* Rimuovi l'ombra per un effetto più netto */
 }
 
-.theme-natale .text-blue-gray {
-  color: hsl(var(--taupe)) !important;
-}
 
 /* 3. BOTTONI */
 .theme-natale button.bg-sage,
