@@ -81,6 +81,23 @@ export class ChapterService {
   ): Promise<void> {
     const galleryRef = doc(db, 'galleries', galleryId);
     
+    const { collection, query, where, getDocs, writeBatch } = await import('firebase/firestore');
+    const photosRef = collection(db, 'photos');
+    const photosQuery = query(
+      photosRef,
+      where('galleryId', '==', galleryId),
+      where('chapterId', '==', chapterId)
+    );
+    const photosSnapshot = await getDocs(photosQuery);
+    
+    if (!photosSnapshot.empty) {
+      const batch = writeBatch(db);
+      photosSnapshot.docs.forEach(photoDoc => {
+        batch.update(photoDoc.ref, { chapterId: null });
+      });
+      await batch.commit();
+    }
+    
     const filteredChapters = (gallery.chapters || []).filter(ch => ch.id !== chapterId);
     
     await updateDoc(galleryRef, {

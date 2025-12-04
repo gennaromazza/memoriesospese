@@ -1,30 +1,38 @@
-/* === TEMA NATALE PALE ADAPTIVE === 
-   Questo CSS si aggancia alle classi esistenti in gallery.tsx
+/* === TEMA NATALE PALE ADAPTIVE (SCOPED) === 
+   Queste regole si attivano SOLO se il contenitore padre ha la classe .theme-natale
+   Esempio HTML: <div className="min-h-screen theme-natale"> ... </div>
 */
 
-:root {
+/* Applicare le variabili solo all'interno del tema */
+.theme-natale {
   /* Palette Octobermist */
   --sage: 127 42% 61%;
   --white: 0 0% 100%;
   --rose: 0 23% 60%;
   --taupe: 0 22% 36%;
-  /* Sostituisce il blue-gray */
   --peach: 30 93% 77%;
   --orange: 18 78% 53%;
   --bg-light: #faf7f5;
   --bg-dark: #2d2927;
+
+  /* Forza il font su tutto il contenitore */
+  font-family: 'Inter', system-ui, sans-serif;
+  color: hsl(var(--taupe));
 }
 
-/* 1. SFONDO E TEXTURE (Aggancio a .bg-off-white) */
-body,
-.bg-off-white {
+/* 1. SFONDO E TEXTURE */
+/* Si applica solo se l'elemento ha SIA .bg-off-white CHE .theme-natale, 
+   oppure se .bg-off-white è DENTRO .theme-natale */
+.theme-natale.bg-off-white,
+.theme-natale .bg-off-white {
   background-color: var(--bg-light) !important;
   color: hsl(var(--taupe));
   position: relative;
 }
 
-/* Texture sottile applicata al contenitore principale */
-.bg-off-white::before {
+/* Texture sottile */
+.theme-natale.bg-off-white::before,
+.theme-natale .bg-off-white::before {
   content: '';
   position: fixed;
   top: 0;
@@ -38,20 +46,20 @@ body,
   z-index: 0;
 }
 
-/* 2. TIPOGRAFIA & DECORAZIONI (Aggancio a .font-playfair) */
-.font-playfair {
+/* 2. TIPOGRAFIA & DECORAZIONI */
+.theme-natale .font-playfair {
   font-family: 'Playfair Display', serif !important;
   letter-spacing: -0.5px;
   color: hsl(var(--taupe)) !important;
 }
 
-/* Aggiunge le stelline ✨ SOLO al titolo principale h1 */
-h1.font-playfair:not(.text-white) {
+/* Stelline ✨ SOLO dentro il tema */
+.theme-natale h1.font-playfair:not(.text-white) {
   display: inline-block;
   position: relative;
 }
 
-h1.font-playfair:not(.text-white)::before {
+.theme-natale h1.font-playfair:not(.text-white)::before {
   content: '✨';
   margin-right: 12px;
   color: hsl(var(--rose));
@@ -59,7 +67,7 @@ h1.font-playfair:not(.text-white)::before {
   font-size: 0.8em;
 }
 
-h1.font-playfair:not(.text-white)::after {
+.theme-natale h1.font-playfair:not(.text-white)::after {
   content: '✨';
   margin-left: 12px;
   color: hsl(var(--rose));
@@ -67,16 +75,13 @@ h1.font-playfair:not(.text-white)::after {
   font-size: 0.8em;
 }
 
-/* Override del colore blue-gray generico */
-.text-blue-gray {
+.theme-natale .text-blue-gray {
   color: hsl(var(--taupe)) !important;
 }
 
-/* 3. BOTTONI (Aggancio a .bg-sage) 
-   Trasformiamo il bottone verde standard nel bottone natalizio
-*/
-button.bg-sage,
-.bg-sage {
+/* 3. BOTTONI */
+.theme-natale button.bg-sage,
+.theme-natale .bg-sage {
   background-color: hsl(var(--sage)) !important;
   color: hsl(var(--white));
   border-radius: 10px;
@@ -85,106 +90,98 @@ button.bg-sage,
   border: 1px solid transparent;
 }
 
-/* Hover: diventa ROSA (Rose) invece di verde scuro */
-button.bg-sage:hover,
-.bg-sage:hover {
+/* Hover Rosa SOLO dentro il tema */
+.theme-natale button.bg-sage:hover,
+.theme-natale .bg-sage:hover {
   background-color: hsl(var(--rose)) !important;
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(180, 125, 125, 0.25);
 }
 
-/* 4. CARD FOTO (Aggancio a .gallery-image) */
-.gallery-image {
+/* 4. CARD FOTO */
+.theme-natale .gallery-image {
   position: relative;
   background: hsl(var(--white));
   padding: 8px;
-  /* Crea una cornice bianca tipo polaroid moderna */
   border-radius: 14px;
-  /* Arrotondamento esterno */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
   cursor: pointer;
   z-index: 10;
 }
 
-/* Gestione immagine interna */
-.gallery-image img {
+.theme-natale .gallery-image img {
   border-radius: 8px !important;
-  /* Arrotondamento interno leggermente minore */
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-/* Effetto Hover sulla Card */
-.gallery-image:hover {
+.theme-natale .gallery-image:hover {
   transform: translateY(-4px) scale(1.01);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(127, 176, 178, 0.3);
 }
 
-/* 5. TABS (Aggancio ai componenti UI Tabs) */
-/* Sfondo tab list */
-[role="tablist"] {
+/* 5. TABS */
+.theme-natale [role="tablist"] {
   background: rgba(127, 176, 178, 0.05) !important;
-  /* Sage molto chiaro */
   border-radius: 12px;
   padding: 4px;
 }
 
-/* Tab Attivo */
-button[data-state="active"] {
+.theme-natale button[data-state="active"] {
   background-color: hsl(var(--white)) !important;
   color: hsl(var(--sage)) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
   border-bottom: 2px solid hsl(var(--sage)) !important;
 }
 
-/* Tab Inattivo hover */
-button[data-state="inactive"]:hover {
+.theme-natale button[data-state="inactive"]:hover {
   color: hsl(var(--rose)) !important;
   background-color: rgba(255, 255, 255, 0.5) !important;
 }
 
-/* 6. INPUT E DIALOGHI (Aggancio a classi generiche) */
-input,
-textarea {
+/* 6. INPUT E DIALOGHI */
+.theme-natale input,
+.theme-natale textarea {
   border-radius: 10px !important;
   border: 1px solid rgba(0, 0, 0, 0.1) !important;
   background: hsl(var(--white)) !important;
 }
 
-input:focus,
-textarea:focus {
+.theme-natale input:focus,
+.theme-natale textarea:focus {
   border-color: hsl(var(--sage)) !important;
   box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.2) !important;
   outline: none;
 }
 
-/* Dialog Content */
-[role="dialog"] {
+/* Dialog - Qui usiamo una strategia diversa perché i dialog spesso sono al root */
+/* Se il dialog è dentro il container theme-natale */
+.theme-natale [role="dialog"],
+/* Oppure se aggiungi manualmente theme-natale al dialog */
+[role="dialog"].theme-natale {
   background-color: #faf7f5 !important;
-  /* Sfondo chiaro del tema */
   border-radius: 16px !important;
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-/* 7. SCROLLBAR PERSONALIZZATA */
-::-webkit-scrollbar {
+/* 7. SCROLLBAR (Solo se il container scrollabile ha la classe) */
+.theme-natale::-webkit-scrollbar {
   width: 10px;
 }
 
-::-webkit-scrollbar-track {
+.theme-natale::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.02);
 }
 
-::-webkit-scrollbar-thumb {
+.theme-natale::-webkit-scrollbar-thumb {
   background: hsl(var(--sage));
   border-radius: 10px;
   border: 2px solid #faf7f5;
-  /* Crea spazio bianco attorno */
 }
 
-::-webkit-scrollbar-thumb:hover {
+.theme-natale::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--rose));
 }
