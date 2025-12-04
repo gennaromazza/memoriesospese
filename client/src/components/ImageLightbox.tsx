@@ -34,7 +34,7 @@ interface ImageLightboxProps {
   multiProductInfo?: MultiProductInfo;
 }
 
-export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, selectionInfo }: ImageLightboxProps) {
+export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, selectionInfo, multiProductInfo }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -330,6 +330,74 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                   {!isSelected && !canAddMore && (
                     <p className="text-white/70 text-xs text-center max-w-[280px]">
                       Hai già selezionato {requiredCount} foto. Rimuovi una foto per selezionare questa.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+        
+        {/* 🏷️ Controlli Multi-Product - Assegnazione a prodotti */}
+        {multiProductInfo?.isMultiProductMode && multiProductInfo.selectionStatus !== 'completed' && currentPhoto && (
+          <div className="mb-3">
+            {(() => {
+              const photoId = currentPhoto.id;
+              const currentAssignments = multiProductInfo.photoAssignments[photoId] || [];
+              const productColors = [
+                { bg: 'bg-sage', hover: 'hover:bg-dark-sage', activeBg: 'bg-sage', border: 'border-sage' },
+                { bg: 'bg-terracotta', hover: 'hover:bg-terracotta/80', activeBg: 'bg-terracotta', border: 'border-terracotta' },
+                { bg: 'bg-blue-gray', hover: 'hover:bg-blue-gray/80', activeBg: 'bg-blue-gray', border: 'border-blue-gray' },
+                { bg: 'bg-dark-sage', hover: 'hover:bg-dark-sage/80', activeBg: 'bg-dark-sage', border: 'border-dark-sage' },
+                { bg: 'bg-mint', hover: 'hover:bg-mint/80', activeBg: 'bg-mint', border: 'border-mint' },
+                { bg: 'bg-cream', hover: 'hover:bg-cream/80', activeBg: 'bg-cream', border: 'border-cream' },
+              ];
+              
+              return (
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-white text-sm font-medium">Assegna questa foto a:</p>
+                  
+                  {/* Chip per ogni prodotto */}
+                  <div className="flex flex-wrap justify-center gap-2 max-w-md">
+                    {multiProductInfo.productRequirements.map((prod, idx) => {
+                      const productIdStr = String(idx);
+                      const isAssigned = currentAssignments.includes(productIdStr);
+                      const color = productColors[idx % productColors.length];
+                      
+                      const assignedCount = Object.values(multiProductInfo.photoAssignments).filter(
+                        assignments => assignments.includes(productIdStr)
+                      ).length;
+                      const productLimit = prod.prodottoNumeroFoto || 0;
+                      const isFull = assignedCount >= productLimit && !isAssigned;
+                      
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => multiProductInfo.onToggleProductAssignment(photoId, productIdStr)}
+                          disabled={isFull}
+                          className={`px-4 py-2 rounded-full font-semibold text-sm transition-all flex items-center gap-2 ${
+                            isAssigned
+                              ? `${color.activeBg} text-white ring-2 ring-white shadow-lg`
+                              : isFull
+                                ? 'bg-gray-500/50 text-gray-400 cursor-not-allowed'
+                                : `bg-white/20 text-white ${color.hover} border border-white/30`
+                          }`}
+                          data-testid={`lightbox-product-chip-${idx}`}
+                        >
+                          {isAssigned && <Check size={16} />}
+                          <span className="truncate max-w-[120px]">{prod.prodottoNome}</span>
+                          <span className={`text-xs ${isAssigned ? 'text-white/80' : 'text-white/60'}`}>
+                            ({assignedCount}/{productLimit})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Riepilogo assegnazioni correnti */}
+                  {currentAssignments.length > 0 && (
+                    <p className="text-white/70 text-xs">
+                      Questa foto è assegnata a {currentAssignments.length} prodott{currentAssignments.length === 1 ? 'o' : 'i'}
                     </p>
                   )}
                 </div>

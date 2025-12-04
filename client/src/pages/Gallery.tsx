@@ -436,7 +436,7 @@ export default function Gallery() {
 
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
-  const [selectedPhotoForMobileAssignment] = useState<string | null>(null);
+  const [selectedPhotoForMobileAssignment, setSelectedPhotoForMobileAssignment] = useState<string | null>(null);
 
   // Ref per scrollare alla griglia
   const galleryGridRef = useRef<HTMLDivElement>(null);
@@ -3303,6 +3303,16 @@ export default function Gallery() {
           selectedPhotoIds,
           requiredPhotoCount,
           onToggleSelection: handleTogglePhotoSelection,
+          selectionStatus,
+        } : undefined}
+        multiProductInfo={isSelectionMode && isMultiProductMode && selectionStatus !== "completed" && productRequirements ? {
+          isMultiProductMode: true,
+          productRequirements: productRequirements.map(p => ({
+            prodottoNome: p.prodottoNome,
+            prodottoNumeroFoto: p.prodottoNumeroFoto,
+          })),
+          photoAssignments,
+          onToggleProductAssignment: handleToggleProductAssignment,
           selectionStatus,
         } : undefined}
       />
