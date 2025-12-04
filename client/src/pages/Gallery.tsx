@@ -98,7 +98,7 @@ const PhotoCard = memo(({
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
           isSelected 
-            ? 'ring-4 ring-green-500 ring-offset-2 shadow-xl' 
+            ? 'ring-4 ring-sage ring-offset-2 shadow-xl' 
             : ''
         }`}
         onClick={handleClick}
@@ -125,7 +125,7 @@ const PhotoCard = memo(({
         {/* Badge SELEZIONATA - visibile quando foto è selezionata */}
         {isSelected && isSelectionMode && (
           <div className="absolute top-2 right-2 z-10">
-            <span className="bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+            <span className="bg-sage text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
@@ -139,7 +139,7 @@ const PhotoCard = memo(({
           <div className="absolute bottom-2 left-2 right-2 z-10 flex flex-wrap gap-1">
             {assignedProducts.map((productIdx) => {
               const colorIndex = parseInt(productIdx) % 6;
-              const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
+              const colors = ['bg-sage', 'bg-terracotta', 'bg-blue-gray', 'bg-dark-sage', 'bg-mint text-blue-gray', 'bg-cream text-blue-gray border border-beige'];
               return (
                 <span 
                   key={productIdx}
@@ -1310,31 +1310,31 @@ export default function Gallery() {
       return {
         emoji: "✨",
         text: `Inizia selezionando le tue ${required} foto preferite!`,
-        color: "text-blue-600",
+        color: "text-blue-gray",
       };
     } else if (count < required * 0.25) {
       return {
         emoji: "🎯",
         text: `Ottimo inizio! Continua così!`,
-        color: "text-green-600",
+        color: "text-sage",
       };
     } else if (count < required * 0.5) {
       return {
         emoji: "💪",
         text: `Stai andando alla grande! Sei a ${count}/${required}`,
-        color: "text-green-600",
+        color: "text-sage",
       };
     } else if (count < required * 0.75) {
       return {
         emoji: "🔥",
         text: `Fantastico! Più della metà completata!`,
-        color: "text-orange-600",
+        color: "text-terracotta",
       };
     } else if (count < required) {
       return {
         emoji: "🎉",
         text: `Quasi fatto! Mancano solo ${required - count} foto!`,
-        color: "text-orange-600",
+        color: "text-terracotta",
       };
     } else if (count === required) {
       return {
@@ -1346,7 +1346,7 @@ export default function Gallery() {
       return {
         emoji: "⚠️",
         text: `Troppe foto! Rimuovine ${count - required}`,
-        color: "text-red-600",
+        color: "text-terracotta",
       };
     }
   }, [
@@ -1633,7 +1633,7 @@ export default function Gallery() {
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => setIsEditGalleryOpen(true)}
-                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 shadow-sm"
+                            className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-light-mint text-blue-gray hover:bg-mint hover:text-dark-sage border border-sage/30 shadow-sm"
                           >
                             <Edit3 className="h-4 w-4" />
                             <span className="hidden sm:inline">
@@ -1966,11 +1966,11 @@ export default function Gallery() {
                                     </ol>
                                   </div>
 
-                                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                    <p className="font-semibold text-blue-800 mb-1">
+                                  <div className="bg-light-mint p-3 rounded-lg border border-sage/30">
+                                    <p className="font-semibold text-blue-gray mb-1">
                                       💡 Suggerimenti
                                     </p>
-                                    <ul className="text-gray-700 space-y-1 text-sm">
+                                    <ul className="text-blue-gray/80 space-y-1 text-sm">
                                       <li>
                                         • Prenditi il tempo necessario per
                                         scegliere le tue foto preferite
@@ -2003,11 +2003,11 @@ export default function Gallery() {
                                   </div>
 
                                   {isDeadlinePassed && (
-                                    <div className="bg-red-50 p-3 rounded-lg border border-red-200">
-                                      <p className="font-semibold text-red-700">
+                                    <div className="bg-terracotta/10 p-3 rounded-lg border border-terracotta/30">
+                                      <p className="font-semibold text-terracotta">
                                         ⚠️ La scadenza è superata!
                                       </p>
-                                      <p className="text-sm text-gray-700 mt-1">
+                                      <p className="text-sm text-blue-gray/80 mt-1">
                                         Contatta lo studio per ricevere
                                         assistenza.
                                       </p>
@@ -2105,32 +2105,32 @@ export default function Gallery() {
                                     key={idx}
                                     className={`p-3 rounded-lg border-2 transition-all ${
                                       progress.isComplete
-                                        ? 'bg-green-50 border-green-300'
+                                        ? 'bg-mint/30 border-sage'
                                         : progress.assignedCount > 0
-                                          ? 'bg-yellow-50 border-yellow-300'
-                                          : 'bg-gray-50 border-gray-300'
+                                          ? 'bg-cream border-terracotta/50'
+                                          : 'bg-beige/30 border-beige'
                                     }`}
                                     data-testid={`product-progress-${idx}`}
                                   >
                                     <div className="flex items-start justify-between mb-2">
-                                      <p className="text-xs font-semibold text-gray-700 line-clamp-2">
+                                      <p className="text-xs font-semibold text-blue-gray line-clamp-2">
                                         {progress.prodottoNome}
                                       </p>
                                       {progress.isComplete && (
-                                        <span className="text-green-600">✓</span>
+                                        <span className="text-sage">✓</span>
                                       )}
                                     </div>
-                                    <p className="text-lg font-bold text-gray-900 mb-1">
+                                    <p className="text-lg font-bold text-blue-gray mb-1">
                                       {progress.assignedCount}/{progress.requiredCount}
                                     </p>
-                                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                    <div className="w-full bg-beige/50 rounded-full h-1.5 overflow-hidden">
                                       <div
                                         className={`h-full transition-all ${
                                           progress.isComplete
-                                            ? 'bg-green-500'
+                                            ? 'bg-sage'
                                             : progress.assignedCount > 0
-                                              ? 'bg-yellow-500'
-                                              : 'bg-gray-400'
+                                              ? 'bg-terracotta'
+                                              : 'bg-beige'
                                         }`}
                                         style={{ width: `${progress.percentage}%` }}
                                       />
@@ -2144,7 +2144,7 @@ export default function Gallery() {
                           {/* 🎨 UX Enhancement #4: Progress Bar */}
                           <div className="mb-4">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">
+                              <span className="text-sm font-medium text-blue-gray">
                                 Progresso {calculateProductProgress ? "Totale" : ""}
                               </span>
                               <span className="text-sm font-bold text-sage">
@@ -2165,9 +2165,9 @@ export default function Gallery() {
                                 )}
                               </span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div className="w-full bg-beige/50 rounded-full h-3 overflow-hidden">
                               <div
-                                className="h-full bg-gradient-to-r from-sage to-green-500 transition-all duration-500 ease-out rounded-full"
+                                className="h-full bg-gradient-to-r from-sage to-mint transition-all duration-500 ease-out rounded-full"
                                 style={{
                                   width: calculateProductProgress
                                     ? `${Math.min(
@@ -2194,7 +2194,7 @@ export default function Gallery() {
                           {/* 🎨 UX Enhancement #6: Smart Message */}
                           {smartMessage && (
                             <div
-                              className={`mb-4 p-3 rounded-lg bg-white/80 border-2 ${smartMessage.color === "text-sage" ? "border-sage" : smartMessage.color === "text-red-600" ? "border-red-300" : "border-blue-300"}`}
+                              className={`mb-4 p-3 rounded-lg bg-white/80 border-2 ${smartMessage.color === "text-sage" ? "border-sage" : smartMessage.color === "text-terracotta" ? "border-terracotta/50" : "border-blue-gray/30"}`}
                             >
                               <p
                                 className={`text-center font-semibold ${smartMessage.color}`}
@@ -2383,28 +2383,27 @@ export default function Gallery() {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                               {calculateProductProgress?.map((prog, idx) => {
-                                // Colori distintivi prodotto (stesso array dei chip)
                                 const productColors = [
-                                  { bg: 'bg-blue-500', ring: 'ring-blue-200' },
-                                  { bg: 'bg-green-500', ring: 'ring-green-200' },
-                                  { bg: 'bg-purple-500', ring: 'ring-purple-200' },
-                                  { bg: 'bg-orange-500', ring: 'ring-orange-200' },
-                                  { bg: 'bg-pink-500', ring: 'ring-pink-200' },
-                                  { bg: 'bg-teal-500', ring: 'ring-teal-200' },
+                                  { bg: 'bg-sage', ring: 'ring-sage/30' },
+                                  { bg: 'bg-terracotta', ring: 'ring-terracotta/30' },
+                                  { bg: 'bg-blue-gray', ring: 'ring-blue-gray/30' },
+                                  { bg: 'bg-dark-sage', ring: 'ring-dark-sage/30' },
+                                  { bg: 'bg-mint', ring: 'ring-mint/30' },
+                                  { bg: 'bg-cream', ring: 'ring-cream/30' },
                                 ];
                                 const color = productColors[idx % productColors.length];
 
                                 return (
                                   <div key={idx} className={`bg-white/90 rounded-lg p-3 ring-2 ${color.ring}`}>
                                     <div className="flex items-start justify-between mb-2">
-                                      <span className="text-xs font-semibold text-gray-700 truncate" title={prog.prodottoNome}>
+                                      <span className="text-xs font-semibold text-blue-gray truncate" title={prog.prodottoNome}>
                                         {prog.prodottoNome}
                                       </span>
-                                      <span className={`text-xs font-bold ${prog.percentage === 100 ? 'text-green-600' : 'text-gray-600'}`}>
+                                      <span className={`text-xs font-bold ${prog.percentage === 100 ? 'text-sage' : 'text-blue-gray/70'}`}>
                                         {prog.assignedCount}/{prog.requiredCount}
                                       </span>
                                     </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="w-full bg-beige/50 rounded-full h-2">
                                       <div
                                         className={`h-full ${color.bg} rounded-full transition-all duration-300`}
                                         style={{ width: `${Math.min(prog.percentage, 100)}%` }}
@@ -2437,12 +2436,12 @@ export default function Gallery() {
                             <div className="mt-6 space-y-4">
                               {calculateProductProgress?.map((prog, idx) => {
                                 const productColors = [
-                                  { bg: 'bg-blue-500', text: 'text-blue-500', border: 'border-blue-500' },
-                                  { bg: 'bg-green-500', text: 'text-green-500', border: 'border-green-500' },
-                                  { bg: 'bg-purple-500', text: 'text-purple-500', border: 'border-purple-500' },
-                                  { bg: 'bg-orange-500', text: 'text-orange-500', border: 'border-orange-500' },
-                                  { bg: 'bg-pink-500', text: 'text-pink-500', border: 'border-pink-500' },
-                                  { bg: 'bg-teal-500', text: 'text-teal-500', border: 'border-teal-500' },
+                                  { bg: 'bg-sage', text: 'text-sage', border: 'border-sage' },
+                                  { bg: 'bg-terracotta', text: 'text-terracotta', border: 'border-terracotta' },
+                                  { bg: 'bg-blue-gray', text: 'text-blue-gray', border: 'border-blue-gray' },
+                                  { bg: 'bg-dark-sage', text: 'text-dark-sage', border: 'border-dark-sage' },
+                                  { bg: 'bg-mint', text: 'text-dark-sage', border: 'border-mint' },
+                                  { bg: 'bg-cream', text: 'text-blue-gray', border: 'border-cream' },
                                 ];
                                 const color = productColors[idx % productColors.length];
                                 const isFiltered = filterByProduct === idx;
@@ -2450,11 +2449,11 @@ export default function Gallery() {
                                 return (
                                   <div
                                     key={idx}
-                                    className={`bg-white rounded-lg border-2 ${isFiltered ? color.border + ' shadow-lg' : 'border-gray-200'} p-4 transition-all`}
+                                    className={`bg-off-white rounded-lg border-2 ${isFiltered ? color.border + ' shadow-lg' : 'border-beige'} p-4 transition-all`}
                                   >
                                     <div className="flex items-start justify-between mb-3">
                                       <div className="flex-1">
-                                        <h4 className="font-semibold text-gray-800 mb-1">
+                                        <h4 className="font-semibold text-blue-gray mb-1">
                                           {prog.prodottoNome}
                                         </h4>
                                         <div className="flex items-center gap-2">
@@ -2462,13 +2461,13 @@ export default function Gallery() {
                                             {prog.assignedCount}/{prog.requiredCount}
                                           </span>
                                           {prog.isComplete && (
-                                            <span className="text-green-600 text-sm">✓ Completo</span>
+                                            <span className="text-sage text-sm">✓ Completo</span>
                                           )}
                                         </div>
                                       </div>
                                     </div>
 
-                                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                                    <div className="w-full bg-beige/50 rounded-full h-2 mb-3">
                                       <div
                                         className={`h-full ${color.bg} rounded-full transition-all duration-300`}
                                         style={{ width: `${Math.min(prog.percentage, 100)}%` }}
@@ -2547,16 +2546,15 @@ export default function Gallery() {
                                 : false;
 
                               const productColors = [
-                                { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-500' },
-                                { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600', ring: 'ring-green-500' },
-                                { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600', ring: 'ring-purple-500' },
-                                { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500' },
-                                { bg: 'bg-pink-500', hover: 'hover:bg-pink-600', text: 'text-pink-600', ring: 'ring-pink-500' },
-                                { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600', ring: 'ring-teal-500' },
+                                { bg: 'bg-sage', hover: 'hover:bg-dark-sage', text: 'text-sage', ring: 'ring-sage' },
+                                { bg: 'bg-terracotta', hover: 'hover:bg-terracotta/80', text: 'text-terracotta', ring: 'ring-terracotta' },
+                                { bg: 'bg-blue-gray', hover: 'hover:bg-blue-gray/80', text: 'text-blue-gray', ring: 'ring-blue-gray' },
+                                { bg: 'bg-dark-sage', hover: 'hover:bg-dark-sage/80', text: 'text-dark-sage', ring: 'ring-dark-sage' },
+                                { bg: 'bg-mint', hover: 'hover:bg-mint/80', text: 'text-dark-sage', ring: 'ring-mint' },
+                                { bg: 'bg-cream', hover: 'hover:bg-cream/80', text: 'text-blue-gray', ring: 'ring-cream' },
                               ];
                               const color = productColors[idx % productColors.length];
 
-                              // Calcola progresso prodotto
                               const assignedCount = Object.values(photoAssignments).filter(
                                 assignments => assignments.includes(productIdStr)
                               ).length;
@@ -2572,7 +2570,7 @@ export default function Gallery() {
                                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                                     isAssigned
                                       ? `${color.bg} text-white border-transparent shadow-lg ring-2 ${color.ring}`
-                                      : `bg-white ${color.text} border-gray-200 hover:border-gray-300`
+                                      : `bg-off-white ${color.text} border-beige hover:border-sage/50`
                                   }`}
                                   data-testid={`mobile-chip-product-${idx}`}
                                 >
@@ -2582,7 +2580,7 @@ export default function Gallery() {
                                         {isAssigned && '✓ '}
                                         {prod.prodottoNome}
                                       </div>
-                                      <div className={`text-sm ${isAssigned ? 'text-white/90' : 'text-gray-600'}`}>
+                                      <div className={`text-sm ${isAssigned ? 'text-white/90' : 'text-blue-gray/70'}`}>
                                         {assignedCount}/{prod.prodottoNumeroFoto} foto assegnate
                                       </div>
                                     </div>
@@ -2614,20 +2612,20 @@ export default function Gallery() {
                       {/* Selezione Completata Message - Mostrato PRIMA della griglia (nascosto se ordine Pronto) */}
                       {isSelectionMode && selectionStatus === "completed" && galleryData?.orderStatus !== "Pronto" && (
                         <div className="mt-8 mb-6 text-center">
-                          <div className="bg-gradient-to-br from-green-50 to-sage/10 border-2 border-green-300 rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
+                          <div className="bg-gradient-to-br from-mint/30 to-sage/10 border-2 border-sage rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
                             <div className="mb-6">
                               <div className="text-6xl mb-3">✨</div>
-                              <h4 className="text-3xl font-playfair text-green-800 mb-3">
+                              <h4 className="text-3xl font-playfair text-sage mb-3">
                                 Selezione Confermata!
                               </h4>
-                              <p className="text-lg text-gray-700 mb-2">
+                              <p className="text-lg text-blue-gray mb-2">
                                 Hai confermato la tua selezione di{" "}
                                 <strong className="text-sage">
                                   {requiredPhotoCount} foto
                                 </strong>{" "}
                                 per il tuo album personalizzato.
                               </p>
-                              <p className="text-sm text-gray-600">
+                              <p className="text-sm text-blue-gray/70">
                                 Riceverai presto il tuo album! 🎉
                               </p>
                             </div>
@@ -2645,10 +2643,10 @@ export default function Gallery() {
 
                             {/* Messaggio WhatsApp per modifiche */}
                             <div className="mt-6 bg-white/80 rounded-lg p-6 border border-sage/30 shadow-sm">
-                              <p className="text-sm text-gray-700 mb-3">
+                              <p className="text-sm text-blue-gray mb-3">
                                 💡 <strong>Hai bisogno di modificare la selezione?</strong>
                               </p>
-                              <p className="text-sm text-gray-600 mb-4">
+                              <p className="text-sm text-blue-gray/70 mb-4">
                                 Contattaci su WhatsApp e ti aiuteremo subito!
                               </p>
                               {studioSettings?.phone && (
@@ -2656,7 +2654,7 @@ export default function Gallery() {
                                   href={`https://wa.me/${studioSettings.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Ciao! Vorrei modificare la selezione per la galleria "${galleryData.name}"`)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                                  className="inline-flex items-center gap-2 bg-sage hover:bg-dark-sage text-white px-6 py-3 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
                                   data-testid="link-whatsapp-modification"
                                 >
                                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

@@ -209,7 +209,7 @@ export default function GalleryHeader({
       {description && description.trim() !== "" && (
         <div className="px-4 mb-4 sm:mb-6 max-w-7xl mx-auto">
           <div className="max-w-4xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-sm">
-            <p className="text-sm sm:text-base text-gray-700 italic">{description}</p>
+            <p className="text-sm sm:text-base text-blue-gray italic">{description}</p>
           </div>
         </div>
       )}

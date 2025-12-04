@@ -26,7 +26,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Authentication:** Unified Firebase Auth with backend validation; admin access via hardcoded list.
 - **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage. Enhanced `convertFirestoreTimestamp()` for seamless compatibility.
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads using Firebase Storage and signed URLs.
-- **Galleries:** Professional client-selection galleries with real-time updates, secure access, and full preloading system for simultaneous image display.
+- **Galleries:** Professional client-selection galleries with real-time updates, secure access, and full preloading system for simultaneous image display. **Chapter System (Dec 2025):** Optional chapter-based photo organization allowing photographers to group photos into sections (e.g., "Preparazione Sposa", "Cerimonia", "Ricevimento"). Chapters are completely independent from client selections - moving photos between chapters never affects client choices. Features: ChaptersManager admin UI with drag & drop, client view with collapsible sections, chunked batch updates for large galleries (450 photos per batch to stay under Firestore 500 limit), automatic photo reassignment when chapters are deleted.
 - **Email System:** Express.js server via Gmail API with dynamic templates and timezone-aware "Add to Calendar" links.
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection, aiming for Firebase-only.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.

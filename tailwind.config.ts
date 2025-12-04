@@ -28,6 +28,7 @@ export default {
         cream: "hsl(var(--cream))",
         "off-white": "hsl(var(--off-white))",
         mint: "hsl(var(--mint))",
+        "light-mint": "hsl(var(--light-mint))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

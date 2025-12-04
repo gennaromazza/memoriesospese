@@ -109,7 +109,7 @@ export default function GalleryTabs({
           <h3 className="text-xl font-playfair text-blue-gray mb-2">
             Nessuna foto disponibile
           </h3>
-          <p className="text-gray-500">
+          <p className="text-blue-gray/70">
             Non ci sono ancora foto in questa galleria.
           </p>
         </div>
@@ -122,13 +122,13 @@ export default function GalleryTabs({
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="h-12 w-12 animate-spin text-sage mb-4" />
-        <h3 className="text-lg font-medium text-gray-700 mb-2">
+        <h3 className="text-lg font-medium text-blue-gray mb-2">
           Caricamento foto in corso...
         </h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-blue-gray/70">
           {loadedCount} / {photos.length} foto caricate
         </p>
-        <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
+        <div className="w-64 h-2 bg-beige/50 rounded-full mt-4 overflow-hidden">
           <div 
             className="h-full bg-sage transition-all duration-300"
             style={{ width: `${(loadedCount / photos.length) * 100}%` }}

@@ -55,7 +55,7 @@ export default function GalleryFooter({ studioSettings }: GalleryFooterProps) {
               <h3 className="text-xl font-playfair text-blue-gray font-medium mb-2">
                 Ti sono piaciute queste fotografie?
               </h3>
-              <p className="text-gray-600 max-w-lg leading-relaxed">
+              <p className="text-blue-gray/80 max-w-lg leading-relaxed">
                 Ogni scatto custodisce un ricordo. Seguici su Instagram e
                 continua a vivere con noi le emozioni di chi ha reso unico il
                 proprio giorno.

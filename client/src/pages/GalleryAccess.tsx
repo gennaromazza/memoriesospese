@@ -237,7 +237,7 @@ export default function GalleryAccess() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
         <div className="text-center px-4">
           <Loader2 className="h-10 w-10 sm:h-12 sm:w-12 animate-spin text-sage mx-auto mb-4" />
-          <p className="text-base sm:text-lg text-gray-600">Caricamento galleria...</p>
+          <p className="text-base sm:text-lg text-blue-gray/80">Caricamento galleria...</p>
         </div>
       </div>
     );
@@ -251,7 +251,7 @@ export default function GalleryAccess() {
             <CardTitle className="text-xl sm:text-2xl text-red-600">Errore</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-base sm:text-lg text-gray-700">{error}</p>
+            <p className="text-base sm:text-lg text-blue-gray">{error}</p>
             <Link href="/">
               <Button variant="outline" className="w-full border-sage text-sage hover:bg-sage/10">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -293,12 +293,12 @@ export default function GalleryAccess() {
             {galleryDetails?.name || 'Galleria'}
           </h1>
           {galleryDetails?.date && (
-            <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
+            <p className="text-lg sm:text-xl text-blue-gray/80 mb-3 sm:mb-4">
               {galleryDetails.date}
             </p>
           )}
           {galleryDetails?.location && (
-            <p className="text-base sm:text-lg text-gray-500">
+            <p className="text-base sm:text-lg text-blue-gray/70">
               {galleryDetails.location}
             </p>
           )}
@@ -338,7 +338,7 @@ export default function GalleryAccess() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700 transition-colors"
+                      className="absolute inset-y-0 right-3 flex items-center text-blue-gray/60 hover:text-blue-gray transition-colors"
                       data-testid="button-toggle-password-visibility"
                     >
                       {showPassword ? (
@@ -375,15 +375,15 @@ export default function GalleryAccess() {
 
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-200" />
+                  <span className="w-full border-t border-beige" />
                 </div>
                 <div className="relative flex justify-center text-xs sm:text-sm uppercase">
-                  <span className="bg-white px-3 sm:px-4 text-gray-500 font-medium">oppure</span>
+                  <span className="bg-white px-3 sm:px-4 text-blue-gray/60 font-medium">oppure</span>
                 </div>
               </div>
 
               <div className="text-center space-y-3 sm:space-y-4">
-                <p className="text-sm sm:text-base text-gray-600">
+                <p className="text-sm sm:text-base text-blue-gray/80">
                   Non hai la password?
                 </p>
                 <Link href={createUrl(`/request-password/${id}`)}>
