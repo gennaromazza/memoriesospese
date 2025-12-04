@@ -1,39 +1,51 @@
-/* === TEMA NATALE PALE ADAPTIVE (SCOPED) === 
+/* === TEMA NATALE - October Mist Adaptive (SCOPED) === 
    Queste regole si attivano SOLO se il contenitore padre ha la classe .theme-natale
    Esempio HTML: <div className="min-h-screen theme-natale"> ... </div>
 */
 
-/* Applicare le variabili solo all'interno del tema */
+/* ========================================
+   1. VARIABILI - Allineate con October Mist globale
+   ======================================== */
 .theme-natale {
-  /* Palette Octobermist */
-  --sage: 127 42% 61%;
+  /* Eredita variabili October Mist globali */
+  --sage: 120 11% 66%;
+  --dark-sage: 120 7% 46%;
+  --blue-gray: 200 21% 47%;
+  --mint: 140 23% 84%;
+  --light-mint: 140 26% 92%;
+  --beige: 41 18% 79%;
+  --cream: 43 42% 85%;
+  --off-white: 60 20% 96%;
+  --terracotta: 14 37% 63%;
+
+  /* Colori specifici tema Natale */
   --white: 0 0% 100%;
   --rose: 0 23% 60%;
   --taupe: 0 22% 36%;
   --taupe-darker: 0 25% 25%;
   --peach: 30 93% 77%;
-  --orange: 18 78% 53%;
-  --bg-light: #faf7f5;
+  --christmas-red: 0 70% 45%;
+  --christmas-green: 140 35% 40%;
+
+  /* Sfondi coerenti con October Mist */
+  --bg-light: hsl(var(--off-white));
   --bg-dark: #2d2927;
 
-  /* Forza il font su tutto il contenitore */
+  /* Font e colore base */
   font-family: 'Inter', system-ui, sans-serif;
-
-  /* IMP.: Il colore di base del testo TORNA a scuro (Taupe) per il corpo e il menu */
   color: hsl(var(--taupe));
 }
 
-/* 1. SFONDO E TEXTURE */
-/* Si applica solo se l'elemento ha SIA .bg-off-white CHE .theme-natale, 
-   oppure se .bg-off-white è DENTRO .theme-natale */
+/* ========================================
+   2. SFONDO E TEXTURE
+   ======================================== */
 .theme-natale.bg-off-white,
 .theme-natale .bg-off-white {
   background-color: var(--bg-light) !important;
-  /* Colore del testo qui resta scuro, ereditando da .theme-natale */
   position: relative;
 }
 
-/* Texture sottile */
+/* Texture sottile natalizia */
 .theme-natale.bg-off-white::before,
 .theme-natale .bg-off-white::before {
   content: '';
@@ -43,50 +55,115 @@
   right: 0;
   bottom: 0;
   background:
-    radial-gradient(circle at 25% 30%, rgba(127, 176, 178, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 75% 70%, rgba(180, 125, 125, 0.05) 0%, transparent 50%);
+    radial-gradient(circle at 25% 30%, hsla(var(--sage), 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 75% 70%, hsla(var(--rose), 0.05) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* 2. TIPOGRAFIA & DECORAZIONI */
+/* ========================================
+   3. OVERRIDE CLASSI OCTOBER MIST
+   ======================================== */
 
-/* NAVIGAZIONE E TESTO GENERALE: Forza il colore scuro per tutti gli altri elementi non specificati */
+/* Override bg-beige e bg-cream */
+.theme-natale .bg-beige,
+.theme-natale .bg-cream {
+  background-color: hsla(var(--cream), 0.6) !important;
+}
+
+.theme-natale .bg-beige\/50,
+.theme-natale .bg-cream\/50 {
+  background-color: hsla(var(--cream), 0.3) !important;
+}
+
+/* Override bg-light-mint e bg-mint */
+.theme-natale .bg-light-mint,
+.theme-natale .bg-mint {
+  background-color: hsla(var(--mint), 0.4) !important;
+}
+
+.theme-natale .bg-mint\/30 {
+  background-color: hsla(var(--mint), 0.2) !important;
+}
+
+/* Override bg-terracotta - usa rose natalizio */
+.theme-natale .bg-terracotta {
+  background-color: hsl(var(--rose)) !important;
+}
+
+.theme-natale .bg-terracotta\/10 {
+  background-color: hsla(var(--rose), 0.15) !important;
+}
+
+/* Override text colors */
+.theme-natale .text-blue-gray {
+  color: hsl(var(--white)) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.theme-natale .text-blue-gray\/80,
+.theme-natale .text-blue-gray\/70,
+.theme-natale .text-blue-gray\/60 {
+  color: hsla(var(--white), 0.85) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.theme-natale .text-sage {
+  color: hsl(var(--sage)) !important;
+}
+
+.theme-natale .text-terracotta {
+  color: hsl(var(--rose)) !important;
+}
+
+.theme-natale .text-dark-sage {
+  color: hsl(var(--taupe)) !important;
+}
+
+/* Override border colors */
+.theme-natale .border-sage,
+.theme-natale .border-sage\/30 {
+  border-color: hsla(var(--sage), 0.4) !important;
+}
+
+.theme-natale .border-beige {
+  border-color: hsla(var(--cream), 0.5) !important;
+}
+
+/* Override ring colors per selezione foto */
+.theme-natale .ring-sage {
+  --tw-ring-color: hsl(var(--christmas-green)) !important;
+}
+
+.theme-natale .ring-terracotta {
+  --tw-ring-color: hsl(var(--rose)) !important;
+}
+
+/* ========================================
+   4. TIPOGRAFIA & DECORAZIONI
+   ======================================== */
+
+/* Navigazione e testo generale */
 .theme-natale a:not(.text-white),
 .theme-natale .text-gray-500,
-.theme-natale p {
+.theme-natale p:not(.text-white):not(.text-blue-gray) {
   color: hsl(var(--taupe)) !important;
   text-shadow: none !important;
 }
 
-
-/* Titoli Playfair: SOLO questi rimangono BIANCHI con ombra, per contrastare il chiaro background */
+/* Titoli Playfair - Bianchi con ombra per contrasto */
 .theme-natale .font-playfair,
 .theme-natale h1,
 .theme-natale h2,
 .theme-natale h3 {
   font-family: 'Playfair Display', serif !important;
   letter-spacing: -0.5px;
-  /* FORZA IL BIANCO PER I TITOLI */
   color: hsl(var(--white)) !important;
-
-  /* Ombra scura e netta per garantire il contrasto su sfondo chiaro */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7),
     0 0 0.5px rgba(0, 0, 0, 0.8);
 }
 
-/* SOTTOTITOLI/DESCRIZIONE (Aggancio a .text-blue-gray che probabilmente è il sottotitolo) */
-.theme-natale .text-blue-gray {
-  /* CAMBIO QUI: Forza il bianco ANCHE per la descrizione */
-  color: hsl(var(--white)) !important;
-
-  /* Ombra scura leggera per leggibilità */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-
-/* Stelline ✨ SOLO dentro il tema */
-/* Targettiamo gli H1 che sono sopra il Light Background (quelli che non hanno la classe text-white) */
+/* Stelline decorative sui titoli */
 .theme-natale h1.font-playfair:not(.text-white) {
   display: inline-block;
   position: relative;
@@ -95,46 +172,66 @@
 .theme-natale h1.font-playfair:not(.text-white)::before {
   content: '✨';
   margin-right: 12px;
-  /* Usa il Taupe scuro per le stelline su sfondo chiaro */
   color: hsl(var(--taupe-darker));
   opacity: 0.8;
   font-size: 0.8em;
   text-shadow: none;
-  /* Rimuovi l'ombra per un effetto più netto */
 }
 
 .theme-natale h1.font-playfair:not(.text-white)::after {
   content: '✨';
   margin-left: 12px;
-  /* Usa il Taupe scuro per le stelline su sfondo chiaro */
   color: hsl(var(--taupe-darker));
   opacity: 0.8;
   font-size: 0.8em;
   text-shadow: none;
-  /* Rimuovi l'ombra per un effetto più netto */
 }
 
-
-/* 3. BOTTONI */
+/* ========================================
+   5. BOTTONI - Coerenti con bg-sage
+   ======================================== */
 .theme-natale button.bg-sage,
 .theme-natale .bg-sage {
   background-color: hsl(var(--sage)) !important;
   color: hsl(var(--white));
   border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(127, 176, 178, 0.2);
+  box-shadow: 0 4px 10px hsla(var(--sage), 0.2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   border: 1px solid transparent;
 }
 
-/* Hover Rosa SOLO dentro il tema */
 .theme-natale button.bg-sage:hover,
 .theme-natale .bg-sage:hover {
   background-color: hsl(var(--rose)) !important;
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(180, 125, 125, 0.25);
+  box-shadow: 0 6px 15px hsla(var(--rose), 0.25);
 }
 
-/* 4. CARD FOTO */
+/* Bottoni dark-sage */
+.theme-natale button.bg-dark-sage,
+.theme-natale .bg-dark-sage {
+  background-color: hsl(var(--dark-sage)) !important;
+  color: hsl(var(--white));
+}
+
+.theme-natale button.bg-dark-sage:hover,
+.theme-natale .bg-dark-sage:hover {
+  background-color: hsl(var(--christmas-green)) !important;
+}
+
+/* Bottoni terracotta - usa rose */
+.theme-natale button.bg-terracotta,
+.theme-natale .bg-terracotta:not(.bg-terracotta\/10) {
+  background-color: hsl(var(--rose)) !important;
+}
+
+.theme-natale button.bg-terracotta:hover {
+  background-color: hsl(var(--christmas-red)) !important;
+}
+
+/* ========================================
+   6. CARD FOTO
+   ======================================== */
 .theme-natale .gallery-image {
   position: relative;
   background: hsl(var(--white));
@@ -156,12 +253,20 @@
 .theme-natale .gallery-image:hover {
   transform: translateY(-4px) scale(1.01);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(127, 176, 178, 0.3);
+  border: 1px solid hsla(var(--sage), 0.3);
 }
 
-/* 5. TABS */
+/* Card selezionata */
+.theme-natale .gallery-image.ring-4 {
+  border: 3px solid hsl(var(--christmas-green)) !important;
+  box-shadow: 0 0 20px hsla(var(--christmas-green), 0.3);
+}
+
+/* ========================================
+   7. TABS
+   ======================================== */
 .theme-natale [role="tablist"] {
-  background: rgba(127, 176, 178, 0.05) !important;
+  background: hsla(var(--sage), 0.08) !important;
   border-radius: 12px;
   padding: 4px;
 }
@@ -178,46 +283,99 @@
   background-color: rgba(255, 255, 255, 0.5) !important;
 }
 
-/* 6. INPUT E DIALOGHI */
+/* ========================================
+   8. INPUT E DIALOGHI
+   ======================================== */
 .theme-natale input,
 .theme-natale textarea {
   border-radius: 10px !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid hsla(var(--beige), 0.5) !important;
   background: hsl(var(--white)) !important;
 }
 
 .theme-natale input:focus,
 .theme-natale textarea:focus {
   border-color: hsl(var(--sage)) !important;
-  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.2) !important;
+  box-shadow: 0 0 0 3px hsla(var(--sage), 0.2) !important;
   outline: none;
 }
 
-/* Dialog - Qui usiamo una strategia diversa perché i dialog spesso sono al root */
-/* Se il dialog è dentro il container theme-natale */
 .theme-natale [role="dialog"],
-/* Oppure se aggiungi manualmente theme-natale al dialog */
 [role="dialog"].theme-natale {
-  background-color: #faf7f5 !important;
+  background-color: var(--bg-light) !important;
   border-radius: 16px !important;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid hsla(var(--beige), 0.3);
 }
 
-/* 7. SCROLLBAR (Solo se il container scrollabile ha la classe) */
+/* ========================================
+   9. BADGE E CHIP MULTI-PRODOTTO
+   ======================================== */
+.theme-natale .badge,
+.theme-natale [class*="rounded-full"][class*="text-xs"] {
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+/* Badge "SELEZIONATA" */
+.theme-natale .bg-sage.text-white {
+  background-color: hsl(var(--christmas-green)) !important;
+  color: hsl(var(--white)) !important;
+}
+
+/* ========================================
+   10. PROGRESS BAR
+   ======================================== */
+.theme-natale [role="progressbar"],
+.theme-natale .bg-beige\/50 + div {
+  background-color: hsl(var(--christmas-green)) !important;
+}
+
+/* ========================================
+   11. ALERT E MESSAGGI
+   ======================================== */
+.theme-natale .bg-light-mint.border-sage,
+.theme-natale [class*="bg-light-mint"] {
+  background-color: hsla(var(--mint), 0.3) !important;
+  border-color: hsla(var(--sage), 0.4) !important;
+}
+
+.theme-natale .bg-terracotta\/10.border-terracotta,
+.theme-natale [class*="bg-terracotta"][class*="border"] {
+  background-color: hsla(var(--rose), 0.15) !important;
+  border-color: hsla(var(--rose), 0.4) !important;
+}
+
+/* ========================================
+   12. SCROLLBAR
+   ======================================== */
 .theme-natale::-webkit-scrollbar {
   width: 10px;
 }
 
 .theme-natale::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.02);
+  background: hsla(var(--beige), 0.2);
 }
 
 .theme-natale::-webkit-scrollbar-thumb {
   background: hsl(var(--sage));
   border-radius: 10px;
-  border: 2px solid #faf7f5;
+  border: 2px solid var(--bg-light);
 }
 
 .theme-natale::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--rose));
+}
+
+/* ========================================
+   13. FOOTER GALLERIA
+   ======================================== */
+.theme-natale footer,
+.theme-natale .gallery-footer {
+  background-color: hsla(var(--cream), 0.5) !important;
+  border-top: 1px solid hsla(var(--beige), 0.3);
+}
+
+.theme-natale footer .text-blue-gray\/80 {
+  color: hsl(var(--taupe)) !important;
+  text-shadow: none !important;
 }
