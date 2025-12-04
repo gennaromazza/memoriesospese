@@ -1,256 +1,190 @@
-/* === TEMA NATALE PALE, CLEAN & MODERNO === */
-.theme-natale {
+/* === TEMA NATALE PALE ADAPTIVE === 
+   Questo CSS si aggancia alle classi esistenti in gallery.tsx
+*/
+
+:root {
+  /* Palette Octobermist */
   --sage: 127 42% 61%;
   --white: 0 0% 100%;
   --rose: 0 23% 60%;
   --taupe: 0 22% 36%;
+  /* Sostituisce il blue-gray */
   --peach: 30 93% 77%;
   --orange: 18 78% 53%;
+  --bg-light: #faf7f5;
+  --bg-dark: #2d2927;
+}
 
-  /* Sfondo chiaro pulito */
-  background: #faf7f5;
-  background-attachment: fixed;
-  min-height: 100vh;
+/* 1. SFONDO E TEXTURE (Aggancio a .bg-off-white) */
+body,
+.bg-off-white {
+  background-color: var(--bg-light) !important;
   color: hsl(var(--taupe));
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  padding-bottom: 40px;
   position: relative;
 }
 
-/* Dark Mode soft */
-.theme-natale.dark {
-  background: #2d2927;
-  color: #f2e9e4;
-}
-
-/* Texture sottile e pulita */
-.theme-natale::before {
+/* Texture sottile applicata al contenitore principale */
+.bg-off-white::before {
   content: '';
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 25% 30%, rgba(127, 176, 178, 0.03) 0%, transparent 50%),
-              radial-gradient(circle at 75% 70%, rgba(180, 125, 125, 0.03) 0%, transparent 50%);
+  background:
+    radial-gradient(circle at 25% 30%, rgba(127, 176, 178, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 75% 70%, rgba(180, 125, 125, 0.05) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* === TITOLI ELEGANTI === */
-.theme-natale .gallery-title {
-  position: relative;
-  color: hsl(var(--taupe));
-  font-family: 'Playfair Display', 'Georgia', serif;
-  font-weight: 700;
+/* 2. TIPOGRAFIA & DECORAZIONI (Aggancio a .font-playfair) */
+.font-playfair {
+  font-family: 'Playfair Display', serif !important;
   letter-spacing: -0.5px;
-  z-index: 1;
+  color: hsl(var(--taupe)) !important;
 }
 
-.theme-natale.dark .gallery-title {
-  color: hsl(var(--peach));
-}
-
-.theme-natale h1,
-.theme-natale h2,
-.theme-natale h3 {
-  color: hsl(var(--taupe));
-  font-family: 'Playfair Display', 'Georgia', serif;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.theme-natale.dark h1,
-.theme-natale.dark h2,
-.theme-natale.dark h3 {
-  color: hsl(var(--peach));
-}
-
-/* === CARD PULITA E MODERNA === */
-.theme-natale .photo-card,
-.theme-natale .card,
-.theme-natale [class*="card"] {
+/* Aggiunge le stelline ✨ SOLO al titolo principale h1 */
+h1.font-playfair:not(.text-white) {
+  display: inline-block;
   position: relative;
-  background: hsl(var(--white));
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1;
 }
 
-.theme-natale .photo-card:hover,
-.theme-natale .card:hover,
-.theme-natale [class*="card"]:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-  border-color: rgba(127, 176, 178, 0.3);
-}
-
-/* DARK MODE CARD */
-.theme-natale.dark .photo-card,
-.theme-natale.dark .card,
-.theme-natale.dark [class*="card"] {
-  background: #3a3532;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.theme-natale.dark .photo-card:hover,
-.theme-natale.dark .card:hover,
-.theme-natale.dark [class*="card"]:hover {
-  border-color: rgba(127, 176, 178, 0.4);
-}
-
-/* === BOTTONI MINIMAL CON PALETTE === */
-.theme-natale button,
-.theme-natale .button,
-.theme-natale [class*="button"] {
-  background: hsl(var(--sage));
-  color: hsl(var(--white));
-  border-radius: 10px;
-  padding: 10px 18px;
-  font-weight: 600;
-  border: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-.theme-natale button:hover,
-.theme-natale .button:hover,
-.theme-natale [class*="button"]:hover {
-  background: hsl(var(--rose));
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-}
-
-/* SECONDARY BUTTON */
-.theme-natale .button-secondary {
-  background: hsl(var(--peach));
-  color: hsl(var(--taupe));
-}
-
-.theme-natale .button-secondary:hover {
-  background: hsl(var(--orange));
-  color: hsl(var(--white));
-}
-
-/* === BADGE MINIMAL === */
-.theme-natale .badge {
-  background: hsl(var(--sage));
-  color: hsl(var(--white));
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.875rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-  border: none;
-}
-
-/* === TESTO MUTED === */
-.theme-natale .text-muted {
-  color: #8d837f !important;
-  font-weight: 400;
-}
-
-.theme-natale.dark .text-muted {
-  color: #c8bdb8 !important;
-}
-
-/* === DIVIDER MINIMAL === */
-.theme-natale .divider,
-.theme-natale hr {
-  border: none;
-  height: 2px;
-  background: linear-gradient(to right, 
-    transparent, 
-    rgba(0, 0, 0, 0.08) 20%, 
-    rgba(0, 0, 0, 0.08) 80%, 
-    transparent
-  );
-  margin: 24px 0;
-}
-
-.theme-natale.dark .divider,
-.theme-natale.dark hr {
-  background: linear-gradient(to right, 
-    transparent, 
-    rgba(255, 255, 255, 0.15) 20%, 
-    rgba(255, 255, 255, 0.15) 80%, 
-    transparent
-  );
-}
-
-/* === SCROLLBAR MINIMAL === */
-.theme-natale::-webkit-scrollbar {
-  width: 8px;
-}
-
-.theme-natale::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 10px;
-}
-
-.theme-natale::-webkit-scrollbar-thumb {
-  background: hsl(var(--sage));
-  border-radius: 10px;
-  transition: background 0.2s ease;
-}
-
-.theme-natale::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--rose));
-}
-
-.theme-natale.dark::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-/* === ACCENTI NATALIZI SOTTILI === */
-.theme-natale .gallery-title::before {
+h1.font-playfair:not(.text-white)::before {
   content: '✨';
   margin-right: 12px;
+  color: hsl(var(--rose));
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: 0.8em;
 }
 
-.theme-natale .gallery-title::after {
+h1.font-playfair:not(.text-white)::after {
   content: '✨';
   margin-left: 12px;
+  color: hsl(var(--rose));
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: 0.8em;
 }
 
-/* === INPUT E FORM === */
-.theme-natale input,
-.theme-natale textarea,
-.theme-natale select {
-  background: hsl(var(--white));
-  border: 1px solid rgba(0, 0, 0, 0.08);
+/* Override del colore blue-gray generico */
+.text-blue-gray {
+  color: hsl(var(--taupe)) !important;
+}
+
+/* 3. BOTTONI (Aggancio a .bg-sage) 
+   Trasformiamo il bottone verde standard nel bottone natalizio
+*/
+button.bg-sage,
+.bg-sage {
+  background-color: hsl(var(--sage)) !important;
+  color: hsl(var(--white));
   border-radius: 10px;
-  padding: 10px 14px;
-  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(127, 176, 178, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 1px solid transparent;
 }
 
-.theme-natale input:focus,
-.theme-natale textarea:focus,
-.theme-natale select:focus {
-  border-color: hsl(var(--sage));
+/* Hover: diventa ROSA (Rose) invece di verde scuro */
+button.bg-sage:hover,
+.bg-sage:hover {
+  background-color: hsl(var(--rose)) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(180, 125, 125, 0.25);
+}
+
+/* 4. CARD FOTO (Aggancio a .gallery-image) */
+.gallery-image {
+  position: relative;
+  background: hsl(var(--white));
+  padding: 8px;
+  /* Crea una cornice bianca tipo polaroid moderna */
+  border-radius: 14px;
+  /* Arrotondamento esterno */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  z-index: 10;
+}
+
+/* Gestione immagine interna */
+.gallery-image img {
+  border-radius: 8px !important;
+  /* Arrotondamento interno leggermente minore */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Effetto Hover sulla Card */
+.gallery-image:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(127, 176, 178, 0.3);
+}
+
+/* 5. TABS (Aggancio ai componenti UI Tabs) */
+/* Sfondo tab list */
+[role="tablist"] {
+  background: rgba(127, 176, 178, 0.05) !important;
+  /* Sage molto chiaro */
+  border-radius: 12px;
+  padding: 4px;
+}
+
+/* Tab Attivo */
+button[data-state="active"] {
+  background-color: hsl(var(--white)) !important;
+  color: hsl(var(--sage)) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  border-bottom: 2px solid hsl(var(--sage)) !important;
+}
+
+/* Tab Inattivo hover */
+button[data-state="inactive"]:hover {
+  color: hsl(var(--rose)) !important;
+  background-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* 6. INPUT E DIALOGHI (Aggancio a classi generiche) */
+input,
+textarea {
+  border-radius: 10px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  background: hsl(var(--white)) !important;
+}
+
+input:focus,
+textarea:focus {
+  border-color: hsl(var(--sage)) !important;
+  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.2) !important;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.1);
 }
 
-.theme-natale.dark input,
-.theme-natale.dark textarea,
-.theme-natale.dark select {
-  background: #3a3532;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #f2e9e4;
+/* Dialog Content */
+[role="dialog"] {
+  background-color: #faf7f5 !important;
+  /* Sfondo chiaro del tema */
+  border-radius: 16px !important;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.theme-natale.dark input:focus,
-.theme-natale.dark textarea:focus,
-.theme-natale.dark select:focus {
-  border-color: hsl(var(--sage));
-  box-shadow: 0 0 0 3px rgba(127, 176, 178, 0.15);
+/* 7. SCROLLBAR PERSONALIZZATA */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--sage));
+  border-radius: 10px;
+  border: 2px solid #faf7f5;
+  /* Crea spazio bianco attorno */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--rose));
 }

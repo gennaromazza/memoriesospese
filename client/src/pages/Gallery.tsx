@@ -71,6 +71,8 @@ import { convertFirestoreTimestamp } from "@/lib/firebase";
 import CoupleStoryBook from "@/components/CoupleStoryBook";
 import StoryUploadForm from "@/components/StoryUploadForm";
 import StoryService from "@/lib/storyService";
+import { ChapterService } from "@/lib/chapters";
+import { Chapter } from "@/lib/galleries";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
 
 // Memoized PhotoCard component for optimization with lazy loading
@@ -1210,6 +1212,32 @@ export default function Gallery() {
   const displayPhotos = useMemo(() => {
     return allDisplayPhotos.slice(0, displayedPhotosCount);
   }, [allDisplayPhotos, displayedPhotosCount]);
+
+  // 📚 Foto raggruppate per capitolo (per visualizzazione client)
+  const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
+  const photosByChapter = useMemo(() => {
+    if (!chaptersEnabled || !galleryData?.chapters) return null;
+    
+    const sortedChapters = [...galleryData.chapters].sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    const result: { chapter: Chapter; photos: Photo[] }[] = [];
+    
+    sortedChapters.forEach(chapter => {
+      const chapterPhotos = displayPhotos.filter(photo => (photo as any).chapterId === chapter.id);
+      if (chapterPhotos.length > 0) {
+        result.push({ chapter, photos: chapterPhotos });
+      }
+    });
+    
+    const unassignedPhotos = displayPhotos.filter(photo => !(photo as any).chapterId);
+    if (unassignedPhotos.length > 0) {
+      result.push({
+        chapter: { id: '__unassigned__', titolo: 'Altre Foto', descrizione: '', ordine: Number.MAX_SAFE_INTEGER, createdAt: new Date(), updatedAt: new Date() },
+        photos: unassignedPhotos
+      });
+    }
+    
+    return result;
+  }, [chaptersEnabled, galleryData?.chapters, displayPhotos]);
 
   // 📄 Funzione per caricare altre foto
   const loadMoreDisplayPhotos = useCallback(() => {
@@ -2643,49 +2671,105 @@ export default function Gallery() {
                       )}
 
                       {/* ✅ Visualizzazione immediata con lazy loading */}
-                      <div ref={galleryGridRef} className="masonry-grid">
-                          {displayPhotos.map((photo, index) => (
-                          <React.Fragment key={photo.id}>
-                            <PhotoCard
-                              photo={photo}
-                              index={index}
-                              isSelected={selectedPhotoIds.includes(photo.id)}
-                              isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
-                              assignedProducts={photoAssignments[photo.id] || []}
-                              onClick={(clickedIndex) => {
-                                // 🔥 REFACTORED: UX semplificata basata su modalità selezione
-                                if (isMultiProductMode) {
-                                  // Multi-product (2+ prodotti): click foto apre lightbox
-                                  // Assegnazione prodotti avviene tramite badge mobile o chip desktop
-                                  openLightbox(clickedIndex);
-                                } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
-                                           isSelectionMode &&
-                                           selectionStatus !== "completed") {
-                                  // Single-product (1 prodotto o legacy): click foto toggling DIRETTO
-                                  // NO lightbox, selezione immediata con 1 click
-                                  handleTogglePhotoSelection(photo.id);
-                                } else {
-                                  // Modalità normale (no selezione): lightbox standard
-                                  openLightbox(clickedIndex);
-                                }
-                              }}
-                            />
-
-                            {/* Interaction panel below photo - nascosto in modalità selezione */}
-                            {!isSelectionMode && (
-                              <div className="mt-2">
-                                <InteractionPanel
-                                  itemId={photo.id}
-                                  itemType="photo"
-                                  galleryId={galleryData.id}
-                                  isAdmin={isAdmin}
-                                  variant="default"
-                                />
+                      {photosByChapter ? (
+                        /* 📚 Vista per Capitoli */
+                        <div ref={galleryGridRef} className="space-y-12">
+                          {photosByChapter.map((group, groupIndex) => (
+                            <div key={group.chapter.id} className="chapter-section">
+                              {/* Intestazione Capitolo */}
+                              <div className="mb-6 pb-4 border-b-2 border-sage/30">
+                                <h3 className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
+                                  <BookOpen className="w-6 h-6 text-sage" />
+                                  {group.chapter.titolo}
+                                </h3>
+                                {group.chapter.descrizione && (
+                                  <p className="text-gray-600 mt-2 text-sm">{group.chapter.descrizione}</p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {group.photos.length} foto
+                                </p>
                               </div>
-                            )}
-                          </React.Fragment>
-                        ))}
+                              
+                              {/* Griglia Foto del Capitolo */}
+                              <div className="masonry-grid">
+                                {group.photos.map((photo) => {
+                                  const globalIndex = displayPhotos.findIndex(p => p.id === photo.id);
+                                  return (
+                                    <React.Fragment key={photo.id}>
+                                      <PhotoCard
+                                        photo={photo}
+                                        index={globalIndex}
+                                        isSelected={selectedPhotoIds.includes(photo.id)}
+                                        isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                        assignedProducts={photoAssignments[photo.id] || []}
+                                        onClick={(clickedIndex) => {
+                                          if (isMultiProductMode) {
+                                            openLightbox(globalIndex);
+                                          } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
+                                                     isSelectionMode &&
+                                                     selectionStatus !== "completed") {
+                                            handleTogglePhotoSelection(photo.id);
+                                          } else {
+                                            openLightbox(globalIndex);
+                                          }
+                                        }}
+                                      />
+                                      {!isSelectionMode && (
+                                        <div className="mt-2">
+                                          <InteractionPanel
+                                            itemId={photo.id}
+                                            itemType="photo"
+                                            galleryId={galleryData.id}
+                                            isAdmin={isAdmin}
+                                            variant="default"
+                                          />
+                                        </div>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
+                      ) : (
+                        /* Vista Standard (senza capitoli) */
+                        <div ref={galleryGridRef} className="masonry-grid">
+                          {displayPhotos.map((photo, index) => (
+                            <React.Fragment key={photo.id}>
+                              <PhotoCard
+                                photo={photo}
+                                index={index}
+                                isSelected={selectedPhotoIds.includes(photo.id)}
+                                isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                assignedProducts={photoAssignments[photo.id] || []}
+                                onClick={(clickedIndex) => {
+                                  if (isMultiProductMode) {
+                                    openLightbox(clickedIndex);
+                                  } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
+                                             isSelectionMode &&
+                                             selectionStatus !== "completed") {
+                                    handleTogglePhotoSelection(photo.id);
+                                  } else {
+                                    openLightbox(clickedIndex);
+                                  }
+                                }}
+                              />
+                              {!isSelectionMode && (
+                                <div className="mt-2">
+                                  <InteractionPanel
+                                    itemId={photo.id}
+                                    itemType="photo"
+                                    galleryId={galleryData.id}
+                                    isAdmin={isAdmin}
+                                    variant="default"
+                                  />
+                                </div>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
 
                       {/* 📄 Sentinella per auto-load infinito */}
                       {hasMorePhotosToShow && (
