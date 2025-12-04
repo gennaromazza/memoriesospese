@@ -231,6 +231,9 @@ export default function Gallery() {
   
   // 📚 Stato per gestire i capitoli collassati (oggetto per garantire re-render)
   const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
+  
+  // ⏱️ Stima tempo di caricamento basata su connessione
+  const [loadingTimeEstimate, setLoadingTimeEstimate] = useState<string | null>(null);
 
   // 🔧 React Query: Carica galleria per code con fallback a ID
   const {
@@ -297,6 +300,51 @@ export default function Gallery() {
   useEffect(() => {
     setDisplayedPhotosCount(PHOTOS_PER_PAGE);
   }, [activeTab, id]);
+
+  // ⏱️ Calcola stima tempo di caricamento basata sulla connessione
+  useEffect(() => {
+    if (!galleryData?.photoCount || galleryData.photoCount === 0) {
+      setLoadingTimeEstimate(null);
+      return;
+    }
+
+    const photoCount = galleryData.photoCount;
+    
+    // Usa Network Information API se disponibile
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    
+    // Stima dimensione media foto (circa 300KB per foto compressa)
+    const avgPhotoSizeKB = 300;
+    const totalSizeMB = (photoCount * avgPhotoSizeKB) / 1024;
+    
+    // Velocità di download stimata in Mbps
+    let downloadSpeedMbps = 10; // Default: connessione media
+    
+    if (connection?.downlink) {
+      downloadSpeedMbps = connection.downlink;
+    } else if (connection?.effectiveType) {
+      // Stima basata sul tipo di connessione
+      switch (connection.effectiveType) {
+        case '4g': downloadSpeedMbps = 20; break;
+        case '3g': downloadSpeedMbps = 2; break;
+        case '2g': downloadSpeedMbps = 0.3; break;
+        case 'slow-2g': downloadSpeedMbps = 0.1; break;
+        default: downloadSpeedMbps = 10;
+      }
+    }
+    
+    // Calcola tempo in secondi (MB / (Mbps / 8)) con margine del 20%
+    const timeSeconds = Math.ceil((totalSizeMB / (downloadSpeedMbps / 8)) * 1.2);
+    
+    if (timeSeconds < 10) {
+      setLoadingTimeEstimate("pochi secondi");
+    } else if (timeSeconds < 60) {
+      setLoadingTimeEstimate(`circa ${Math.ceil(timeSeconds / 10) * 10} secondi`);
+    } else {
+      const minutes = Math.ceil(timeSeconds / 60);
+      setLoadingTimeEstimate(`circa ${minutes} ${minutes === 1 ? 'minuto' : 'minuti'}`);
+    }
+  }, [galleryData?.photoCount]);
 
   // 🔧 React Query: Carica storia coppia (enabled solo quando id esiste)
   const {
@@ -607,7 +655,22 @@ export default function Gallery() {
   useEffect(() => {
     if (!isSelectionMode || selectionStatus === 'completed' || !hasInitializedSelection) return;
     
-    const isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+    // Determina se la selezione è completa in base alla modalità
+    let isComplete = false;
+    
+    if (isMultiProductMode && productRequirements) {
+      // Multi-product: verifica che ogni prodotto abbia il numero richiesto
+      isComplete = productRequirements.every((prod, idx) => {
+        const assignedCount = Object.values(photoAssignments).filter(
+          assignments => assignments.includes(String(idx))
+        ).length;
+        const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+        return assignedCount >= requiredCount;
+      });
+    } else {
+      // Single-product (legacy o con productRequirements[0]): verifica count totale
+      isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+    }
     
     if (isComplete && !hasShownCompletionToast) {
       setHasShownCompletionToast(true);
@@ -615,7 +678,9 @@ export default function Gallery() {
       // Mostra toast di successo
       toast({
         title: "🎉 Selezione completata!",
-        description: `Hai selezionato tutte le ${requiredPhotoCount} foto. Scorri per confermare la selezione.`,
+        description: isMultiProductMode 
+          ? "Hai completato la selezione per tutti i prodotti. Scorri per confermare!"
+          : `Hai selezionato tutte le ${requiredPhotoCount} foto. Scorri per confermare la selezione.`,
         duration: 5000,
       });
       
@@ -632,7 +697,7 @@ export default function Gallery() {
     if (!isComplete && hasShownCompletionToast) {
       setHasShownCompletionToast(false);
     }
-  }, [selectedPhotoIds.length, requiredPhotoCount, isSelectionMode, selectionStatus, hasInitializedSelection, hasShownCompletionToast, toast]);
+  }, [selectedPhotoIds.length, requiredPhotoCount, isSelectionMode, selectionStatus, hasInitializedSelection, hasShownCompletionToast, toast, isMultiProductMode, productRequirements, photoAssignments]);
 
   // 🔄 Restore selezioni da localStorage all'avvio (UX Enhancement #2)
   useEffect(() => {
@@ -1445,7 +1510,31 @@ export default function Gallery() {
         <div className="py-10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <Skeleton className="h-10 w-80 mb-2" />
-            <Skeleton className="h-6 w-60 mb-8" />
+            <Skeleton className="h-6 w-60 mb-4" />
+
+            {/* ⏱️ Stima tempo di caricamento */}
+            {galleryData?.photoCount && galleryData.photoCount > 0 && (
+              <div className="mb-8 bg-gradient-to-r from-sage/10 to-mint/10 border border-sage/30 rounded-xl p-4 shadow-sm max-w-lg">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="animate-spin rounded-full h-8 w-8 border-3 border-sage border-t-transparent"></div>
+                  </div>
+                  <div>
+                    <p className="text-blue-gray font-medium">
+                      📷 Caricamento di <strong>{galleryData.photoCount}</strong> foto in corso...
+                    </p>
+                    {loadingTimeEstimate && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        ⏱️ Tempo stimato: <strong>{loadingTimeEstimate}</strong>
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      💡 Attendi il completamento prima di iniziare a sfogliare o selezionare
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {[...Array(9)].map((_, i) => (
