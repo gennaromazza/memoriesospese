@@ -2915,17 +2915,7 @@ export default function Gallery() {
                                             isSelected={selectedPhotoIds.includes(photo.id)}
                                             isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                             assignedProducts={photoAssignments[photo.id] || []}
-                                            onClick={(clickedIndex) => {
-                                              if (isMultiProductMode) {
-                                                openLightbox(globalIndex);
-                                              } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
-                                                         isSelectionMode &&
-                                                         selectionStatus !== "completed") {
-                                                handleTogglePhotoSelection(photo.id);
-                                              } else {
-                                                openLightbox(globalIndex);
-                                              }
-                                            }}
+                                            onClick={() => openLightbox(globalIndex)}
                                           />
                                           {!isSelectionMode && (
                                             <div className="mt-2">
@@ -2958,17 +2948,7 @@ export default function Gallery() {
                                 isSelected={selectedPhotoIds.includes(photo.id)}
                                 isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                 assignedProducts={photoAssignments[photo.id] || []}
-                                onClick={(clickedIndex) => {
-                                  if (isMultiProductMode) {
-                                    openLightbox(clickedIndex);
-                                  } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
-                                             isSelectionMode &&
-                                             selectionStatus !== "completed") {
-                                    handleTogglePhotoSelection(photo.id);
-                                  } else {
-                                    openLightbox(clickedIndex);
-                                  }
-                                }}
+                                onClick={() => openLightbox(index)}
                               />
                               {!isSelectionMode && (
                                 <div className="mt-2">
