@@ -54,7 +54,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen, Info } from "lucide-react";
+import { Edit3, BookOpen, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -228,6 +228,9 @@ export default function Gallery() {
 
   // Stati per gestire la storia della coppia
   const [showStoryUpload, setShowStoryUpload] = useState(false);
+  
+  // 📚 Stato per gestire i capitoli collassati (oggetto per garantire re-render)
+  const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
 
   // 🔧 React Query: Carica galleria per code con fallback a ID
   const {
@@ -1000,6 +1003,14 @@ export default function Gallery() {
     }
   }, []);
 
+  // 📚 Toggle collapse/expand capitolo
+  const toggleChapterCollapse = useCallback((chapterId: string) => {
+    setCollapsedChapters(prev => ({
+      ...prev,
+      [chapterId]: !prev[chapterId]
+    }));
+  }, []);
+
   // Funzione per eliminare la storia (solo admin)
   const handleDeleteStory = useCallback(async () => {
     if (!isAdmin || !id || !coupleStory) return;
@@ -1214,21 +1225,38 @@ export default function Gallery() {
   }, [allDisplayPhotos, displayedPhotosCount]);
 
   // 📚 Foto raggruppate per capitolo (per visualizzazione client)
+  // Usa allDisplayPhotos invece di displayPhotos per evitare problemi di paginazione con i capitoli
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
+  
+  // Reset collapsed chapters quando cambiano i capitoli della galleria
+  const chaptersKey = useMemo(() => 
+    galleryData?.chapters?.map(c => c.id).join(',') || '', 
+    [galleryData?.chapters]
+  );
+  
+  useEffect(() => {
+    setCollapsedChapters({});
+  }, [chaptersKey]);
+  
   const photosByChapter = useMemo(() => {
     if (!chaptersEnabled || !galleryData?.chapters) return null;
+    
+    // Usa allDisplayPhotos per rispettare i filtri attivi
+    const photosToUse = allDisplayPhotos;
     
     const sortedChapters = [...galleryData.chapters].sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
     const result: { chapter: Chapter; photos: Photo[] }[] = [];
     
     sortedChapters.forEach(chapter => {
-      const chapterPhotos = displayPhotos.filter(photo => (photo as any).chapterId === chapter.id);
+      const chapterPhotos = photosToUse
+        .filter(photo => (photo as any).chapterId === chapter.id)
+        .sort((a, b) => ((a as any).chapterPosition || 0) - ((b as any).chapterPosition || 0));
       if (chapterPhotos.length > 0) {
         result.push({ chapter, photos: chapterPhotos });
       }
     });
     
-    const unassignedPhotos = displayPhotos.filter(photo => !(photo as any).chapterId);
+    const unassignedPhotos = photosToUse.filter(photo => !(photo as any).chapterId);
     if (unassignedPhotos.length > 0) {
       result.push({
         chapter: { id: '__unassigned__', titolo: 'Altre Foto', descrizione: '', ordine: Number.MAX_SAFE_INTEGER, createdAt: new Date(), updatedAt: new Date() },
@@ -1237,7 +1265,13 @@ export default function Gallery() {
     }
     
     return result;
-  }, [chaptersEnabled, galleryData?.chapters, displayPhotos]);
+  }, [chaptersEnabled, galleryData?.chapters, allDisplayPhotos]);
+  
+  // 📚 Array flat delle foto nell'ordine dei capitoli (per lightbox e indice)
+  const flatChapterPhotos = useMemo(() => {
+    if (!photosByChapter) return allDisplayPhotos;
+    return photosByChapter.flatMap(group => group.photos);
+  }, [photosByChapter, allDisplayPhotos]);
 
   // 📄 Funzione per caricare altre foto
   const loadMoreDisplayPhotos = useCallback(() => {
@@ -2671,64 +2705,91 @@ export default function Gallery() {
                       {/* ✅ Visualizzazione immediata con lazy loading */}
                       {photosByChapter ? (
                         /* 📚 Vista per Capitoli */
-                        <div ref={galleryGridRef} className="space-y-12">
-                          {photosByChapter.map((group, groupIndex) => (
-                            <div key={group.chapter.id} className="chapter-section">
-                              {/* Intestazione Capitolo */}
-                              <div className="mb-6 pb-4 border-b-2 border-sage/30">
-                                <h3 className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
-                                  <BookOpen className="w-6 h-6 text-sage" />
-                                  {group.chapter.titolo}
-                                </h3>
-                                {group.chapter.descrizione && (
-                                  <p className="text-gray-600 mt-2 text-sm">{group.chapter.descrizione}</p>
-                                )}
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {group.photos.length} foto
-                                </p>
-                              </div>
-                              
-                              {/* Griglia Foto del Capitolo */}
-                              <div className="masonry-grid">
-                                {group.photos.map((photo) => {
-                                  const globalIndex = displayPhotos.findIndex(p => p.id === photo.id);
-                                  return (
-                                    <React.Fragment key={photo.id}>
-                                      <PhotoCard
-                                        photo={photo}
-                                        index={globalIndex}
-                                        isSelected={selectedPhotoIds.includes(photo.id)}
-                                        isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
-                                        assignedProducts={photoAssignments[photo.id] || []}
-                                        onClick={(clickedIndex) => {
-                                          if (isMultiProductMode) {
-                                            openLightbox(globalIndex);
-                                          } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
-                                                     isSelectionMode &&
-                                                     selectionStatus !== "completed") {
-                                            handleTogglePhotoSelection(photo.id);
-                                          } else {
-                                            openLightbox(globalIndex);
-                                          }
-                                        }}
-                                      />
-                                      {!isSelectionMode && (
-                                        <div className="mt-2">
-                                          <InteractionPanel
-                                            itemId={photo.id}
-                                            itemType="photo"
-                                            galleryId={galleryData.id}
-                                            isAdmin={isAdmin}
-                                            variant="default"
-                                          />
-                                        </div>
+                        <div ref={galleryGridRef} className="space-y-8">
+                          {photosByChapter.map((group, groupIndex) => {
+                            const isCollapsed = !!collapsedChapters[group.chapter.id];
+                            const selectedInChapter = group.photos.filter(p => selectedPhotoIds.includes(p.id)).length;
+                            
+                            return (
+                              <div key={group.chapter.id} className="chapter-section" data-testid={`chapter-${group.chapter.id}`}>
+                                {/* Intestazione Capitolo - Cliccabile per collapse */}
+                                <button
+                                  onClick={() => toggleChapterCollapse(group.chapter.id)}
+                                  className="w-full mb-4 pb-3 border-b-2 border-sage/30 hover:border-sage/50 transition-colors cursor-pointer text-left group"
+                                  data-testid={`chapter-header-${group.chapter.id}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      {isCollapsed ? (
+                                        <ChevronRight className="w-5 h-5 text-sage group-hover:text-dark-sage transition-colors" />
+                                      ) : (
+                                        <ChevronDown className="w-5 h-5 text-sage group-hover:text-dark-sage transition-colors" />
                                       )}
-                                    </React.Fragment>
-                                  );
-                                })}
+                                      <BookOpen className="w-5 h-5 text-sage" />
+                                      <h3 className="text-xl font-playfair text-blue-gray group-hover:text-sage transition-colors">
+                                        {group.chapter.titolo}
+                                      </h3>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {isSelectionMode && selectedInChapter > 0 && (
+                                        <span className="bg-sage text-white text-xs font-bold px-2 py-1 rounded-full">
+                                          {selectedInChapter} selezionate
+                                        </span>
+                                      )}
+                                      <span className="text-sm text-gray-500 bg-beige/50 px-2 py-1 rounded">
+                                        {group.photos.length} foto
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {group.chapter.descrizione && !isCollapsed && (
+                                    <p className="text-gray-600 mt-2 text-sm ml-8">{group.chapter.descrizione}</p>
+                                  )}
+                                </button>
+                                
+                                {/* Griglia Foto del Capitolo - Collassabile */}
+                                {!isCollapsed && (
+                                  <div className="masonry-grid">
+                                    {group.photos.map((photo) => {
+                                      const globalIndex = flatChapterPhotos.findIndex(p => p.id === photo.id);
+                                      return (
+                                        <React.Fragment key={photo.id}>
+                                          <PhotoCard
+                                            photo={photo}
+                                            index={globalIndex}
+                                            isSelected={selectedPhotoIds.includes(photo.id)}
+                                            isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                            assignedProducts={photoAssignments[photo.id] || []}
+                                            onClick={(clickedIndex) => {
+                                              if (isMultiProductMode) {
+                                                openLightbox(globalIndex);
+                                              } else if ((isSingleProductRequirement || isLegacySingleProductMode) &&
+                                                         isSelectionMode &&
+                                                         selectionStatus !== "completed") {
+                                                handleTogglePhotoSelection(photo.id);
+                                              } else {
+                                                openLightbox(globalIndex);
+                                              }
+                                            }}
+                                          />
+                                          {!isSelectionMode && (
+                                            <div className="mt-2">
+                                              <InteractionPanel
+                                                itemId={photo.id}
+                                                itemType="photo"
+                                                galleryId={galleryData.id}
+                                                isAdmin={isAdmin}
+                                                variant="default"
+                                              />
+                                            </div>
+                                          )}
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         /* Vista Standard (senza capitoli) */
@@ -2769,8 +2830,8 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      {/* 📄 Sentinella per auto-load infinito */}
-                      {hasMorePhotosToShow && (
+                      {/* 📄 Sentinella per auto-load infinito - Solo quando NON ci sono capitoli */}
+                      {hasMorePhotosToShow && !photosByChapter && (
                         <div
                           ref={sentinelRef}
                           className="flex justify-center mt-8 py-4"
@@ -2785,7 +2846,7 @@ export default function Gallery() {
                       )}
 
                       {/* Pulsante manuale fallback (nascosto, disponibile per accessibilità) */}
-                      {hasMorePhotosToShow && (
+                      {hasMorePhotosToShow && !photosByChapter && (
                         <div className="sr-only">
                           <Button
                             onClick={loadMoreDisplayPhotos}
@@ -3083,14 +3144,14 @@ export default function Gallery() {
       {/* Instagram Call to Action e Footer */}
       <GalleryFooter studioSettings={studioSettings} />
 
-      {/* Photo Lightbox - usa displayPhotos in modalità selezione per supportare filtro "Solo Selezionate" */}
+      {/* Photo Lightbox - usa flatChapterPhotos quando capitoli attivi, altrimenti displayPhotos in modalità selezione */}
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
         photos={(activeTab === "photographer" &&
         isSelectionMode &&
         selectionStatus !== "completed"
-          ? displayPhotos
+          ? (photosByChapter ? flatChapterPhotos : displayPhotos)
           : allPhotos
         ).map((photo) => ({
           id: photo.id,
