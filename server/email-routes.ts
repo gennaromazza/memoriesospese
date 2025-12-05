@@ -3173,6 +3173,7 @@ export function createConsultationRejectedEmailHTML(
 
 /**
  * Template HTML per email Reminder Consulenza (24h prima)
+ * Palette October Mist: sage #8b9a7d, terracotta #c17f59, cream #f5f0e8, blue-gray #6b7d8a
  */
 export function createConsultationReminderEmailHTML(
   clienteName: string,
@@ -3190,35 +3191,59 @@ export function createConsultationReminderEmailHTML(
   };
 
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #ff9800; text-align: center;">⏰ Promemoria Consulenza</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+      <div style="background: linear-gradient(135deg, #8b9a7d 0%, #a8c5b5 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 600;">Promemoria Consulenza</h1>
+        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Il tuo appuntamento è domani</p>
+      </div>
+      
+      <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+        <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Ti ricordiamo che <strong style="color: #8b5a3c;">domani</strong> hai la consulenza per <strong>${jobType}</strong>! 📸
-        </p>
+        
+        <div style="background: #f5f0e8; border-left: 4px solid #c17f59; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+          <h3 style="color: #c17f59; margin: 0 0 10px 0; font-size: 18px;">Consulenza tra 24 ore</h3>
+          <p style="color: #555; margin: 0; font-size: 14px; line-height: 1.5;">
+            Ti ricordiamo che <strong>domani</strong> hai la consulenza per <strong style="color: #8b9a7d;">${jobType}</strong>.
+          </p>
+        </div>
 
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 2px solid #ff9800;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Appuntamento</h3>
-          <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${consultationDate}</p>
-          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${consultationTime}</p>
-          <p style="margin: 8px 0;"><strong>📸 Servizio:</strong> ${jobType}</p>
-          ${studio.address ? `<p style="margin: 8px 0;"><strong>📍 Luogo:</strong> ${studio.address}</p>` : ''}
+        <div style="background: #faf8f5; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #e8e4de;">
+          <h3 style="color: #6b7d8a; margin: 0 0 15px 0; font-size: 18px;">Dettagli Appuntamento</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px; width: 30%;">Data:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${consultationDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Orario:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${consultationTime}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Servizio:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${jobType}</td>
+            </tr>
+            ${studio.address ? `
+            <tr>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Luogo:</td>
+              <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${studio.address}</td>
+            </tr>
+            ` : ''}
+          </table>
         </div>
 
         ${calendarLink ? `
         <div style="text-align: center; margin: 20px 0;">
-          <a href="${calendarLink}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-            📅 Aggiungi al Calendario
+          <a href="${calendarLink}" style="display: inline-block; background: #8b9a7d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Aggiungi al Calendario
           </a>
         </div>
         ` : ''}
 
-        <div style="background: #fff3cd; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0;">
-          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💡 Suggerimenti</h4>
-          <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
+        <div style="background: #f0f5f2; padding: 15px 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #d4e0d8;">
+          <h4 style="color: #6b7d8a; margin: 0 0 12px 0; font-size: 15px;">Suggerimenti</h4>
+          <ul style="margin: 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.8;">
             <li>Prepara eventuali domande o richieste specifiche</li>
             <li>Se hai foto di riferimento, portale con te</li>
             <li>Arriva qualche minuto in anticipo</li>
@@ -3226,16 +3251,16 @@ export function createConsultationReminderEmailHTML(
           </ul>
         </div>
 
-        <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
-          <p style="margin: 0; font-size: 14px; color: #155724;">
+        <div style="background: #f5f0e8; padding: 15px 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+          <p style="margin: 0; font-size: 14px; color: #555;">
             <strong>Hai bisogno di modificare l'appuntamento?</strong><br>
             Chiamaci al ${studio.phone} o rispondi a questa email
           </p>
         </div>
       </div>
 
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+      <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e8e4de;">
+        <p style="margin: 5px 0; font-weight: 600; color: #555;">${studio.name}</p>
         ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>

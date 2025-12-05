@@ -20,6 +20,7 @@ const router = Router();
 
 /**
  * Template HTML per email Reminder Booking (24h prima dello shooting)
+ * Palette October Mist: sage #8b9a7d, terracotta #c17f59, cream #f5f0e8, blue-gray #6b7d8a
  */
 function createBookingReminderEmailHTML(
   clienteName: string,
@@ -30,37 +31,38 @@ function createBookingReminderEmailHTML(
   calendarLink?: string
 ): string {
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #8b7355 0%, #a08060 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
-        <h1 style="margin: 0; font-size: 28px;">⏰ Promemoria Shooting</h1>
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+      <div style="background: linear-gradient(135deg, #8b9a7d 0%, #a8c5b5 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 600;">Promemoria Shooting</h1>
+        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Il tuo appuntamento è domani</p>
       </div>
       
-      <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
         <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         
-        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 25px 0; border-radius: 8px;">
-          <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 18px;">📸 Shooting tra 24 ore!</h3>
+        <div style="background: #f5f0e8; border-left: 4px solid #c17f59; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+          <h3 style="color: #c17f59; margin: 0 0 10px 0; font-size: 18px;">Shooting tra 24 ore</h3>
           <p style="color: #555; margin: 0; font-size: 14px; line-height: 1.5;">
-            Ti ricordiamo che <strong>domani</strong> hai lo shooting fotografico <strong style="color: #8b7355;">${campaignName}</strong>.
+            Ti ricordiamo che <strong>domani</strong> hai lo shooting fotografico <strong style="color: #8b9a7d;">${campaignName}</strong>.
           </p>
         </div>
         
-        <div style="background: #f9f7f4; padding: 20px; border-radius: 8px; margin: 25px 0;">
-          <h3 style="color: #8b5a3c; margin: 0 0 15px 0; font-size: 18px;">📋 Dettagli Appuntamento</h3>
+        <div style="background: #faf8f5; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #e8e4de;">
+          <h3 style="color: #6b7d8a; margin: 0 0 15px 0; font-size: 18px;">Dettagli Appuntamento</h3>
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 14px; width: 30%;">📅 Data:</td>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px; width: 30%;">Data:</td>
               <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${shootingDate}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 14px;">🕐 Orario:</td>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Orario:</td>
               <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${shootingTime}</td>
             </tr>
             ${studioInfo.address ? `
             <tr>
-              <td style="padding: 8px 0; color: #666; font-size: 14px;">📍 Luogo:</td>
+              <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Luogo:</td>
               <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${studioInfo.address}</td>
             </tr>
             ` : ''}
@@ -69,24 +71,24 @@ function createBookingReminderEmailHTML(
 
         ${calendarLink ? `
         <div style="text-align: center; margin: 20px 0;">
-          <a href="${calendarLink}" style="display: inline-block; background: #8b7355; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-            📅 Aggiungi al Calendario
+          <a href="${calendarLink}" style="display: inline-block; background: #8b9a7d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            Aggiungi al Calendario
           </a>
         </div>
         ` : ''}
         
-        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 25px 0;">
-          <h4 style="color: #0056b3; margin: 0 0 10px 0; font-size: 16px;">💡 Suggerimenti Last Minute</h4>
+        <div style="background: #f0f5f2; padding: 15px 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #d4e0d8;">
+          <h4 style="color: #6b7d8a; margin: 0 0 12px 0; font-size: 15px;">Suggerimenti Last Minute</h4>
           <ul style="margin: 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.8;">
             <li>Arriva 10-15 minuti prima dell'orario</li>
             <li>Porta gli accessori/abiti che desideri includere</li>
             <li>Assicurati che il cellulare sia carico</li>
-            <li>Rilassati e divertiti! 📸</li>
+            <li>Rilassati e divertiti!</li>
           </ul>
         </div>
         
         <p style="font-size: 15px; color: #555; text-align: center; margin: 25px 0;">
-          Ci vediamo domani! Per qualsiasi necessità, contattaci su WhatsApp.
+          Ci vediamo domani! Per qualsiasi necessità, contattaci.
         </p>
         
         <div style="text-align: center; margin: 30px 0;">
@@ -94,13 +96,13 @@ function createBookingReminderEmailHTML(
              style="background: #25D366; color: white; padding: 12px 30px; 
                     text-decoration: none; border-radius: 25px; font-weight: 600; 
                     display: inline-block; font-size: 15px;">
-            💬 Contattaci su WhatsApp
+            Contattaci su WhatsApp
           </a>
         </div>
       </div>
       
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
+      <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e8e4de;">
+        <p style="margin: 5px 0; font-weight: 600; color: #555;">${studioInfo.name}</p>
         ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
         <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
         <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
@@ -202,7 +204,7 @@ router.post("/send-all", async (req, res) => {
         
         // Genera calendar link
         const calendarLink = generateGoogleCalendarLink({
-          title: `📸 ${campaignName}`,
+          title: `Shooting: ${campaignName}`,
           description: `Shooting fotografico con ${studioInfo.name}`,
           location: studioInfo.address || "",
           startDate: shootingStart,
@@ -221,7 +223,7 @@ router.post("/send-all", async (req, res) => {
         
         await sendGmailEmail(
           booking.cliente.email,
-          `⏰ Promemoria Shooting Domani - ${campaignName}`,
+          `Promemoria Shooting Domani - ${campaignName}`,
           emailHTML
         );
         
@@ -307,7 +309,7 @@ router.post("/send-all", async (req, res) => {
         ).toJSDate();
         
         const calendarLink = generateGoogleCalendarLink({
-          title: `🗓️ Consulenza ${consultation.jobType || ""}`,
+          title: `Consulenza: ${consultation.jobType || "Appuntamento"}`,
           description: `Consulenza con ${studioInfo.name}`,
           location: studioInfo.address || "",
           startDate: startDateTime,
@@ -326,7 +328,7 @@ router.post("/send-all", async (req, res) => {
         
         await sendGmailEmail(
           consultation.cliente.email,
-          `⏰ Promemoria Consulenza Domani - ${consultation.jobType || "Consulenza"}`,
+          `Promemoria Consulenza Domani - ${consultation.jobType || "Consulenza"}`,
           emailHTML
         );
         
