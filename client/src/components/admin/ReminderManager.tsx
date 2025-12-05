@@ -61,10 +61,8 @@ export default function ReminderManager() {
 
   const sendRemindersMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('/api/reminders/send-all', {
-        method: 'POST',
-      });
-      return response as SendRemindersResult;
+      const response = await apiRequest('POST', '/api/reminders/send-all');
+      return await response.json() as SendRemindersResult;
     },
     onSuccess: (data) => {
       setLastSendResult(data);
