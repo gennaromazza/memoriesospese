@@ -52,6 +52,7 @@ import BlogManager from '@/components/admin/BlogManager';
 import EmailLogsManager from '@/components/admin/EmailLogsManager';
 import WordPressImporter from "@/components/admin/WordPressImporter";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
+import ReminderManager from "@/components/admin/ReminderManager";
 import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
@@ -1348,7 +1349,14 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
-              <CalendarioManager />
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3">
+                  <CalendarioManager />
+                </div>
+                <div className="lg:col-span-1">
+                  <ReminderManager />
+                </div>
+              </div>
             </TabsContent>
 
             {/* Gallerie Tab */}
