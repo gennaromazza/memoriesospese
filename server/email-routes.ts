@@ -471,33 +471,45 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * Invia email tramite Gmail API
+ * Invia email tramite Gmail API CON LOGGING AUTOMATICO
  * ESPORTATA per uso diretto da altri moduli (booking-routes.ts)
+ * 
+ * Il tipo di email viene determinato automaticamente dal subject se non specificato.
+ * Tutte le email inviate vengono salvate nella collezione emailLogs di Firestore.
  */
 export async function sendGmailEmail(
   to: string | string[],
   subject: string,
   htmlContent: string,
   from: string = "Memorie Sospese <memoriesospese@gennaromazzacane.it>",
+  logOptions?: {
+    type?: string;
+    relatedDocId?: string;
+    relatedDocType?: string;
+    clientName?: string;
+    skipLog?: boolean;
+  }
 ): Promise<void> {
+  const toList = Array.isArray(to) ? to : [to];
+  const recipients = toList.join(", ");
+  
+  // Determina automaticamente il tipo di email dal subject se non specificato
+  const emailType = logOptions?.type || detectEmailType(subject);
+  
   try {
-    // 1. Normalizza destinatari
-    const toList = Array.isArray(to) ? to : [to];
-    const recipients = toList.join(", ");
-
     console.log(
       `📧 Sending email to ${toList.length} recipient(s): ${recipients}`,
     );
 
-    // 2. Ottieni access token
+    // 1. Ottieni access token
     const accessToken = await getAccessToken();
 
-    // 3. Crea client Gmail autenticato
+    // 2. Crea client Gmail autenticato
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: accessToken });
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-    // 4. Crea messaggio RFC2822
+    // 3. Crea messaggio RFC2822
     const message = [
       `From: ${from}`,
       `To: ${recipients}`,
@@ -508,14 +520,14 @@ export async function sendGmailEmail(
       htmlContent,
     ].join("\n");
 
-    // 5. Codifica in base64url
+    // 4. Codifica in base64url
     const encodedMessage = Buffer.from(message)
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
 
-    // 6. Invia email
+    // 5. Invia email
     await gmail.users.messages.send({
       userId: "me",
       requestBody: {
@@ -526,15 +538,68 @@ export async function sendGmailEmail(
     console.log(
       `✅ Email sent successfully via Gmail API to ${toList.length} recipient(s)`,
     );
-  } catch (error) {
+    
+    // 6. Log automatico (a meno che non sia esplicitamente disabilitato)
+    if (!logOptions?.skipLog) {
+      await logEmailSent({
+        to,
+        subject,
+        type: emailType,
+        status: 'sent',
+        relatedDocId: logOptions?.relatedDocId,
+        relatedDocType: logOptions?.relatedDocType,
+        clientName: logOptions?.clientName,
+      });
+    }
+  } catch (error: any) {
     console.error("❌ Gmail send error:", error);
+    
+    // Log anche le email fallite
+    if (!logOptions?.skipLog) {
+      await logEmailSent({
+        to,
+        subject,
+        type: emailType,
+        status: 'failed',
+        errorMessage: error.message || 'Unknown error',
+        relatedDocId: logOptions?.relatedDocId,
+        relatedDocType: logOptions?.relatedDocType,
+        clientName: logOptions?.clientName,
+      });
+    }
+    
     throw error;
   }
 }
 
 /**
- * Invia email tramite Gmail API CON logging automatico
- * Usa questa versione per tutte le email che devono essere tracciate
+ * Rileva automaticamente il tipo di email dal subject
+ */
+function detectEmailType(subject: string): string {
+  const subjectLower = subject.toLowerCase();
+  
+  if (subjectLower.includes('promemoria') && subjectLower.includes('shooting')) return 'booking_reminder';
+  if (subjectLower.includes('promemoria') && subjectLower.includes('consulenza')) return 'consultation_reminder';
+  if (subjectLower.includes('conferma') && subjectLower.includes('prenotazione')) return 'booking_confirmation';
+  if (subjectLower.includes('conferma') && subjectLower.includes('consulenza')) return 'consultation_confirmation';
+  if (subjectLower.includes('preventivo')) return 'quote';
+  if (subjectLower.includes('ordine')) return 'order';
+  if (subjectLower.includes('pagamento')) return 'payment';
+  if (subjectLower.includes('galleria')) return 'gallery';
+  if (subjectLower.includes('selezione')) return 'selection';
+  if (subjectLower.includes('questionario')) return 'questionnaire';
+  if (subjectLower.includes('collaboratore') || subjectLower.includes('collaboratori')) return 'collaborator';
+  if (subjectLower.includes('annullat') || subjectLower.includes('cancellat')) return 'cancellation';
+  if (subjectLower.includes('rifiutat')) return 'rejection';
+  if (subjectLower.includes('ricevuta')) return 'receipt';
+  if (subjectLower.includes('contratto')) return 'contract';
+  
+  return 'general';
+}
+
+/**
+ * @deprecated Usa sendGmailEmail direttamente - ora include logging automatico
+ * Wrapper legacy mantenuto per retrocompatibilità
  */
 export async function sendGmailEmailWithLog(
   to: string | string[],
@@ -548,33 +613,13 @@ export async function sendGmailEmailWithLog(
   },
   from: string = "Memorie Sospese <memoriesospese@gennaromazzacane.it>",
 ): Promise<void> {
-  try {
-    await sendGmailEmail(to, subject, htmlContent, from);
-    
-    // Log email inviata con successo
-    await logEmailSent({
-      to,
-      subject,
-      type: logInfo.type,
-      status: 'sent',
-      relatedDocId: logInfo.relatedDocId,
-      relatedDocType: logInfo.relatedDocType,
-      clientName: logInfo.clientName,
-    });
-  } catch (error: any) {
-    // Log email fallita
-    await logEmailSent({
-      to,
-      subject,
-      type: logInfo.type,
-      status: 'failed',
-      relatedDocId: logInfo.relatedDocId,
-      relatedDocType: logInfo.relatedDocType,
-      clientName: logInfo.clientName,
-      errorMessage: error.message || 'Unknown error',
-    });
-    throw error;
-  }
+  // Delega a sendGmailEmail che ora include logging automatico
+  await sendGmailEmail(to, subject, htmlContent, from, {
+    type: logInfo.type,
+    relatedDocId: logInfo.relatedDocId,
+    relatedDocType: logInfo.relatedDocType,
+    clientName: logInfo.clientName,
+  });
 }
 
 // Estendi Request per includere user
