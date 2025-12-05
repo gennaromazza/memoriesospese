@@ -3289,16 +3289,90 @@ export default function Gallery() {
                             <h4 className="text-xl font-playfair text-blue-gray mb-4">
                               Pronto a confermare la selezione?
                             </h4>
-                            <div className="mb-4">
-                              <div className="text-3xl font-bold text-sage mb-2">
-                                {selectedPhotoIds.length} / {requiredPhotoCount}
+                            {/* Progresso Multi-Prodotto Dettagliato */}
+                            {isMultiProductMode && productRequirements && productRequirements.length > 1 ? (
+                              <div className="mb-6 space-y-3">
+                                {productRequirements.map((prod, idx) => {
+                                  const assignedCount = Object.values(photoAssignments).filter(
+                                    assignments => assignments.includes(String(idx))
+                                  ).length;
+                                  const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                  const hasNoLimit = requiredCount <= 0;
+                                  const isComplete = hasNoLimit || assignedCount >= requiredCount;
+                                  const missingCount = hasNoLimit ? 0 : Math.max(0, requiredCount - assignedCount);
+                                  const progressPercent = hasNoLimit ? 100 : Math.min((assignedCount / requiredCount) * 100, 100);
+                                  
+                                  const productColors = [
+                                    { bg: 'bg-sage/20', border: 'border-sage', progress: 'bg-sage', text: 'text-sage' },
+                                    { bg: 'bg-terracotta/20', border: 'border-terracotta', progress: 'bg-terracotta', text: 'text-terracotta' },
+                                    { bg: 'bg-blue-gray/20', border: 'border-blue-gray', progress: 'bg-blue-gray', text: 'text-blue-gray' },
+                                    { bg: 'bg-cream/40', border: 'border-cream', progress: 'bg-amber-600', text: 'text-amber-700' },
+                                  ];
+                                  const colorClass = productColors[idx % productColors.length];
+                                  
+                                  return (
+                                    <div key={idx} className={`rounded-lg border-2 ${colorClass.border} ${colorClass.bg} p-3`}>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-semibold text-blue-gray text-sm">
+                                          {prod.prodottoNome}
+                                        </span>
+                                        <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                                          isComplete ? 'bg-sage text-white' : 'bg-terracotta/20 text-terracotta'
+                                        }`}>
+                                          {hasNoLimit ? `${assignedCount} ∞` : `${assignedCount}/${requiredCount}`}
+                                          {isComplete && !hasNoLimit && ' ✓'}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Progress Bar */}
+                                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-1">
+                                        <div 
+                                          className={`h-full rounded-full transition-all ${isComplete ? 'bg-sage' : colorClass.progress}`}
+                                          style={{ width: `${progressPercent}%` }}
+                                        />
+                                      </div>
+                                      
+                                      {/* Status Text */}
+                                      <p className={`text-xs ${isComplete ? 'text-sage' : 'text-terracotta'} font-medium`}>
+                                        {isComplete 
+                                          ? (hasNoLimit ? `${assignedCount} foto selezionate` : '✓ Completato')
+                                          : `⚠️ Mancano ${missingCount} foto`
+                                        }
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                                
+                                {/* Riepilogo Totale */}
+                                <div className="pt-2 border-t border-gray-200 text-center">
+                                  {productRequirements.every((prod, idx) => {
+                                    const assignedCount = Object.values(photoAssignments).filter(
+                                      assignments => assignments.includes(String(idx))
+                                    ).length;
+                                    const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                    return requiredCount <= 0 || assignedCount >= requiredCount;
+                                  }) ? (
+                                    <p className="text-sage font-semibold">✅ Tutti i prodotti completati! Puoi confermare.</p>
+                                  ) : (
+                                    <p className="text-terracotta font-semibold">
+                                      ⚠️ Completa tutti i prodotti per confermare
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <p className="text-sm text-gray-600">
-                                {selectedPhotoIds.length === requiredPhotoCount
-                                  ? "✅ Perfetto! Puoi confermare la tua selezione."
-                                  : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
-                              </p>
-                            </div>
+                            ) : (
+                              /* Vista Single-Product (Legacy) */
+                              <div className="mb-4">
+                                <div className="text-3xl font-bold text-sage mb-2">
+                                  {selectedPhotoIds.length} / {requiredPhotoCount}
+                                </div>
+                                <p className="text-sm text-gray-600">
+                                  {selectedPhotoIds.length === requiredPhotoCount
+                                    ? "✅ Perfetto! Puoi confermare la tua selezione."
+                                    : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
+                                </p>
+                              </div>
+                            )}
 
                             {/* 📝 Campo Note Aggiuntive */}
                             <div className="mb-6 text-left">
