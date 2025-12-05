@@ -396,7 +396,13 @@ service cloud.firestore {
     match /quotes/{quoteId} {
       allow read: if true; // Public read with token validation in app layer (publicToken)
       allow create: if isAdmin(); // Only admin can create quotes
-      allow update: if true; // Allow client-side signature updates (signature, selectedProducts, totaleSelezionato)
+      // SICUREZZA: Client può aggiornare SOLO campi specifici per firma
+      // Tutti gli altri update richiedono autenticazione admin
+      allow update: if isAdmin() || 
+        // Clienti (anche anonimi) possono firmare: solo campi specifici per workflow firma
+        (request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'signature', 'signedAt', 'contractClauses', 'products', 'totaleSelezionato', 'viewedAt', 'updatedAt']) &&
+         request.resource.data.status in ['visionato', 'firmato']);
       allow delete: if isAdmin(); // Only admin can delete quotes
     }
     

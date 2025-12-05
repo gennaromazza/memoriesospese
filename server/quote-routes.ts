@@ -837,7 +837,8 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       contractClauses: quote.contractClauses,
       signature: normalizedSignature,
       status: quote.status,
-      signedAt: serializeTimestamp(quote.signature?.signedAt),
+      // FIX: Usa signedAt a livello root (priorità) o fallback a signature.signedAt
+      signedAt: serializeTimestamp((quote as any).signedAt) || serializeTimestamp(quote.signature?.signedAt),
     };
 
     // 8. Return dati completi
@@ -1851,6 +1852,9 @@ router.patch(
  * PATCH /api/quotes/:id/signature/manual
  * Inserimento manuale firma cliente (retroattiva o forzata)
  * Admin-only + Firebase Auth
+ * 
+ * FIX Dicembre 2025: Aggiunto signedAt a livello root + invio email conferma
+ * Il portale firmato usa quote.signedAt per mostrare la data della firma
  */
 router.patch(
   "/:id/signature/manual",
@@ -1858,10 +1862,10 @@ router.patch(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { clientName, signedAt, reason } = req.body;
-      const adminEmail = (req as any).verifiedAdmin.email; // Usa identità verificata da middleware
+      const { clientName, signedAt, reason, sendEmail = true } = req.body;
+      const adminEmail = (req as any).verifiedAdmin.email;
 
-      // 2. Validate input
+      // 1. Validate input
       if (!clientName || !signedAt) {
         return res.status(400).json({
           error: "Dati incompleti",
@@ -1869,7 +1873,7 @@ router.patch(
         });
       }
 
-      // 3. Fetch quote
+      // 2. Fetch quote
       const quoteRef = db.collection("quotes").doc(id);
       const quoteDoc = await quoteRef.get();
 
@@ -1881,24 +1885,26 @@ router.patch(
       }
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+      const signedAtDate = new Date(signedAt);
 
-      // 4. Crea oggetto firma manuale
+      // 3. Crea oggetto firma manuale
       const manualSignature = {
         clientName: clientName.trim(),
-        signedAt: new Date(signedAt),
+        signedAt: signedAtDate,
         ipAddress: "admin-manual-override",
         userAgent: `Admin: ${adminEmail}`,
-        // imageUrl non presente per firme manuali
       };
 
-      // 5. Update preventivo con firma + stato firmato
+      // 4. Update preventivo con firma + stato firmato + signedAt root
+      // IMPORTANTE: signedAt a livello root è usato da QuoteSignedPortalPage
       await quoteRef.update({
         signature: manualSignature,
+        signedAt: signedAtDate, // FIX: Aggiunto signedAt a livello root per visualizzazione portale
         status: "firmato",
         updatedAt: new Date(),
       });
 
-      // 6. Log inserimento firma manuale
+      // 5. Log inserimento firma manuale
       await logAuditEvent({
         quoteId: id,
         adminEmail,
@@ -1914,6 +1920,81 @@ router.patch(
         },
       });
 
+      // 6. Invia email conferma (se richiesto)
+      let emailSent = false;
+      if (sendEmail) {
+        try {
+          // Fetch job e clienti per email
+          let clientEmail: string | null = null;
+          let jobInfo: any = null;
+
+          if (quote.jobId) {
+            const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+            if (jobDoc.exists) {
+              const jobData = jobDoc.data();
+              jobInfo = {
+                nomeEvento: jobData?.nomeEvento,
+                eventDate: jobData?.eventDate,
+              };
+
+              // Recupera email da clienti collegati
+              if (jobData?.clientiIds && jobData.clientiIds.length > 0) {
+                const clienteDoc = await db
+                  .collection("clienti")
+                  .doc(jobData.clientiIds[0])
+                  .get();
+                if (clienteDoc.exists) {
+                  clientEmail = clienteDoc.data()?.email || null;
+                }
+              }
+            }
+          }
+
+          if (clientEmail) {
+            // Genera email conferma firma
+            const studioInfo = await getStudioContactInfo();
+            const baseUrl =
+              process.env.REPLIT_DOMAINS
+                ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+                : "http://localhost:5000";
+            const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
+
+            // Usa la firma corretta della funzione createQuoteSignedEmailHTML
+            const emailHTML = createQuoteSignedEmailHTML(
+              clientName.trim(),
+              quote.type || "fisso",
+              jobInfo?.nomeEvento || "Il tuo evento",
+              quote.totalAfterDiscount || quote.totaleBase || 0,
+              signedAtDate,
+              portalUrl,
+              undefined, // nextPayment
+              undefined, // payments
+              studioInfo
+            );
+
+            await sendGmailEmail(
+              clientEmail,
+              `Contratto Firmato - ${jobInfo?.nomeEvento || "Il tuo evento"}`,
+              emailHTML,
+              undefined,
+              {
+                type: "contract",
+                relatedDocId: id,
+                relatedDocType: "quote",
+                clientName: clientName.trim(),
+              }
+            );
+
+            emailSent = true;
+            console.log(`✅ Email conferma firma manuale inviata a ${clientEmail}`);
+          } else {
+            console.log("⚠️ Nessuna email cliente trovata per invio conferma firma manuale");
+          }
+        } catch (emailError) {
+          console.error("⚠️ Errore invio email conferma firma manuale:", emailError);
+        }
+      }
+
       return res.status(200).json({
         success: true,
         message: "Firma inserita manualmente con successo",
@@ -1922,6 +2003,7 @@ router.patch(
           signedAt,
           insertedBy: adminEmail,
         },
+        emailSent,
       });
     } catch (error) {
       console.error("❌ Errore inserimento firma manuale:", error);

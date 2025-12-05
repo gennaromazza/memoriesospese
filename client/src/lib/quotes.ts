@@ -433,11 +433,14 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     }
     
     // Prepara payload update (pulisci undefined nested)
+    // FIX Dicembre 2025: Aggiunto signedAt a livello root per QuoteSignedPortalPage
+    const signedAtTimestamp = Timestamp.now();
     const updatePayload = removeUndefinedFields({
       status: 'firmato' as QuoteStatus,
+      signedAt: signedAtTimestamp, // FIX: signedAt a livello root per visualizzazione portale
       signature: {
         ...(signatureUrl ? { imageUrl: signatureUrl } : {}),
-        signedAt: Timestamp.now(),
+        signedAt: signedAtTimestamp,
         ipAddress,
         userAgent: navigator.userAgent,
         clientName: data.signature.clientName
