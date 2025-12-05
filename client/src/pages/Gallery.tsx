@@ -2774,24 +2774,19 @@ export default function Gallery() {
                             >
                               ← Continua a modificare
                             </Button>
-                            {selectedPhotoIds.length === requiredPhotoCount && (
-                              <Button
+                            <Button
                                 onClick={() => {
                                   setShowReviewModal(false);
-                                  // Scroll to confirm button
+                                  // Conferma direttamente
                                   setTimeout(() => {
-                                    confirmButtonRef.current?.scrollIntoView({
-                                      behavior: 'smooth',
-                                      block: 'center'
-                                    });
+                                    handleConfirmSelection();
                                   }, 100);
                                 }}
                                 className="w-full sm:w-auto bg-sage hover:bg-sage/90"
-                                data-testid="button-go-to-confirm"
+                                data-testid="button-confirm-selection-modal"
                               >
-                                ✓ Vai alla conferma →
+                                ✓ Conferma Selezione
                               </Button>
-                            )}
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
