@@ -54,7 +54,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import EditGalleryModal from "@/components/EditGalleryModal";
-import { Edit3, BookOpen, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -435,6 +435,14 @@ export default function Gallery() {
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
   const [showReviewModal, setShowReviewModal] = useState(false); // Modale review selezione prima conferma
   const [showResetDialog, setShowResetDialog] = useState(false); // Dialog conferma reset selezione
+  const [hideConfirmationBanner, setHideConfirmationBanner] = useState(() => {
+    // Recupera preferenza da localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('gallery-hide-confirmation-banner');
+      return saved === 'true';
+    }
+    return false;
+  });
 
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
@@ -3068,10 +3076,23 @@ export default function Gallery() {
                         </SheetContent>
                       </Sheet>
 
-                      {/* Selezione Completata Message - Mostrato PRIMA della griglia (nascosto se ordine Pronto) */}
-                      {isSelectionMode && selectionStatus === "completed" && galleryData?.orderStatus !== "Pronto" && (
+                      {/* Selezione Completata Message - Mostrato PRIMA della griglia (nascosto se ordine Pronto o se l'utente ha chiuso) */}
+                      {isSelectionMode && selectionStatus === "completed" && galleryData?.orderStatus !== "Pronto" && !hideConfirmationBanner && (
                         <div className="mt-8 mb-6 text-center">
-                          <div className="bg-gradient-to-br from-mint/30 to-sage/10 border-2 border-sage rounded-lg p-8 shadow-xl max-w-3xl mx-auto">
+                          <div className="bg-gradient-to-br from-mint/30 to-sage/10 border-2 border-sage rounded-lg p-8 shadow-xl max-w-3xl mx-auto relative">
+                            {/* Pulsante X per chiudere */}
+                            <button
+                              onClick={() => {
+                                setHideConfirmationBanner(true);
+                                localStorage.setItem('gallery-hide-confirmation-banner', 'true');
+                              }}
+                              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 hover:bg-white border border-sage/30 text-blue-gray hover:text-terracotta transition-all shadow-sm"
+                              aria-label="Chiudi messaggio"
+                              data-testid="button-close-confirmation-banner"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            
                             <div className="mb-6">
                               <div className="text-6xl mb-3">✨</div>
                               <h4 className="text-3xl font-playfair text-sage mb-3">
