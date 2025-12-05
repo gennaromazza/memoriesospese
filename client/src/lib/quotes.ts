@@ -28,7 +28,7 @@ import type {
   PaymentScheduleConfig
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
-import { addTimelineEvent, updateJobStatus } from './jobs';
+// NOTE: addTimelineEvent e updateJobStatus rimossi - ora gestiti da backend POST /api/quotes/:id/post-signature
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import type { QuoteProduct } from '@shared/quotes-types';
 import type { Product } from '@shared/booking-types';
@@ -451,35 +451,52 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       updatedAt: Timestamp.now()
     });
     
-    // Update quote
+    // Update quote (Firestore - permesso dalle regole per clienti anonimi)
     await updateDoc(doc(db, QUOTES_COLLECTION, data.quoteId), updatePayload);
+    console.log('✅ Quote aggiornato in Firestore');
     
-    // Update job status
-    await updateJobStatus(quote.jobId, 'confermato', quote.createdBy);
-    
-    // Update job financials
-    await updateDoc(doc(db, 'jobs', quote.jobId), {
-      'financials.totalePreventivato': totaleSelezionato,
-      updatedAt: Timestamp.now()
-    });
-    
-    // Timeline event
-    await addTimelineEvent({
-      jobId: quote.jobId,
-      tipo: 'preventivo_firmato',
-      descrizione: `Preventivo firmato da ${data.signature.clientName}`,
-      metadata: { quoteId: data.quoteId, totale: totaleSelezionato }
-    });
+    // BACKEND POST-SIGNATURE: Chiama endpoint server per update job/timeline/email
+    // Motivazione: Le regole Firestore per jobs/jobTimeline richiedono isAdmin(),
+    // quindi usiamo il backend per eseguire questi update con privilegi server-side
+    try {
+      const postSignatureResponse = await fetch(`/api/quotes/${data.quoteId}/post-signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicToken: quote.publicToken,
+          clientName: data.signature.clientName,
+          totaleSelezionato
+        })
+      });
+
+      if (!postSignatureResponse.ok) {
+        const errorData = await postSignatureResponse.json();
+        console.error('⚠️ Errore post-signature backend:', errorData);
+        // Non bloccare la firma se il backend fallisce
+      } else {
+        const result = await postSignatureResponse.json();
+        console.log('✅ Post-signature updates completati:', result);
+      }
+    } catch (postSignatureError) {
+      console.error('⚠️ Errore chiamata post-signature:', postSignatureError);
+      // Non bloccare la firma se il backend fallisce
+    }
     
     // Auto-genera piano pagamenti se configurato
+    // NOTA: Questo rimane client-side perché usa endpoint API già esistenti
     if (quote.paymentScheduleConfig?.autoGenerate && totaleSelezionato > 0) {
       try {
-        // Fetch job per eventDate
-        const jobDoc = await getDoc(doc(db, 'jobs', quote.jobId));
-        const jobData = jobDoc.exists() ? jobDoc.data() : null;
-        const eventDate = jobData?.eventDate ? 
-          (jobData.eventDate instanceof Date ? jobData.eventDate : jobData.eventDate.toDate?.() || null)
-          : null;
+        // Fetch job per eventDate (può fallire per regole Firestore, ma proviamo)
+        let eventDate: Date | undefined;
+        try {
+          const jobDoc = await getDoc(doc(db, 'jobs', quote.jobId));
+          const jobData = jobDoc.exists() ? jobDoc.data() : null;
+          eventDate = jobData?.eventDate ? 
+            (jobData.eventDate instanceof Date ? jobData.eventDate : jobData.eventDate.toDate?.() || null)
+            : undefined;
+        } catch (jobError) {
+          console.warn('⚠️ Impossibile leggere job per eventDate:', jobError);
+        }
 
         await autoGeneratePaymentSchedule(
           data.quoteId,
@@ -487,51 +504,13 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
           quote.clienteId,
           totaleSelezionato,
           quote.paymentScheduleConfig,
-          eventDate || undefined
+          eventDate
         );
         console.log('✅ Piano pagamenti auto-generato');
       } catch (error) {
         console.error('⚠️ Errore auto-generazione piano pagamenti:', error);
         // Non bloccare la firma se la generazione fallisce
       }
-    }
-    
-    // Invia email conferma firma al cliente
-    try {
-      const response = await fetch('/api/quotes/quote-signed-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quoteId: data.quoteId })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Errore invio email conferma');
-      }
-
-      console.log('✅ Email conferma firma inviata al cliente');
-    } catch (emailError) {
-      console.error('⚠️ Errore invio email conferma firma:', emailError);
-      // Non bloccare la firma se l'email fallisce
-    }
-    
-    // Invia email notifica admin (Instagram-ready)
-    try {
-      const adminResponse = await fetch('/api/quotes/admin-quote-signed-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quoteId: data.quoteId })
-      });
-
-      if (!adminResponse.ok) {
-        const errorData = await adminResponse.json();
-        throw new Error(errorData.message || 'Errore invio email admin');
-      }
-
-      console.log('✅ Email notifica admin inviata (Instagram-ready)');
-    } catch (adminEmailError) {
-      console.error('⚠️ Errore invio email admin:', adminEmailError);
-      // Non bloccare la firma se l'email admin fallisce
     }
     
     console.log('✅ Preventivo accettato e firmato');

@@ -2016,6 +2016,230 @@ router.patch(
 );
 
 /**
+ * POST /api/quotes/:id/post-signature
+ * Endpoint PUBBLICO per aggiornamenti post-firma (job status, timeline, email)
+ * Chiamato automaticamente dopo che il cliente firma il preventivo
+ * 
+ * MOTIVAZIONE: Le regole Firestore per jobs/jobTimeline richiedono isAdmin(),
+ * quindi il client non può aggiornare direttamente. Questo endpoint esegue
+ * gli update con privilegi server-side.
+ * 
+ * Sicurezza: Verifica publicToken + stato firmato + idempotenza
+ */
+router.post(
+  "/:id/post-signature",
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { publicToken, clientName, totaleSelezionato } = req.body;
+
+      console.log(`📝 Post-signature request per quote ${id}`);
+
+      // 1. Validate input
+      if (!publicToken) {
+        return res.status(400).json({
+          error: "Token mancante",
+          message: "publicToken è obbligatorio",
+        });
+      }
+
+      // 2. Fetch quote
+      const quoteRef = db.collection("quotes").doc(id);
+      const quoteDoc = await quoteRef.get();
+
+      if (!quoteDoc.exists) {
+        return res.status(404).json({
+          error: "Preventivo non trovato",
+          message: "Il preventivo specificato non esiste",
+        });
+      }
+
+      const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+
+      // 3. Verify publicToken matches
+      if (quote.publicToken !== publicToken) {
+        return res.status(403).json({
+          error: "Token non valido",
+          message: "Il token fornito non corrisponde",
+        });
+      }
+
+      // 4. Verify quote is signed (firma già avvenuta)
+      if (quote.status !== "firmato") {
+        return res.status(400).json({
+          error: "Preventivo non firmato",
+          message: "Il preventivo deve essere firmato prima di chiamare questo endpoint",
+        });
+      }
+
+      // 5. Idempotency check: se job già confermato, skip
+      const jobRef = db.collection("jobs").doc(quote.jobId);
+      const jobDoc = await jobRef.get();
+      
+      if (!jobDoc.exists) {
+        console.warn(`⚠️ Job ${quote.jobId} non trovato per quote ${id}`);
+        return res.status(200).json({
+          success: true,
+          message: "Operazione completata (job non trovato)",
+          skipped: true,
+        });
+      }
+
+      const job = jobDoc.data();
+      
+      // IDEMPOTENZA GRANULARE: Traccia cosa è stato fatto per supportare retry parziali
+      const completedSteps = {
+        jobStatusUpdated: false,
+        timelineEventAdded: false,
+        clientEmailSent: false,
+        adminEmailSent: false,
+      };
+      
+      // 6. Update job status a "confermato" (skip se già fatto)
+      if (job?.status !== "confermato" && job?.status !== "completato") {
+        await jobRef.update({
+          status: "confermato",
+          updatedAt: new Date(),
+          "financials.totalePreventivato": totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+        });
+        completedSteps.jobStatusUpdated = true;
+        console.log(`✅ Job ${quote.jobId} aggiornato a stato "confermato"`);
+      } else {
+        console.log(`⏭️ Job ${quote.jobId} già in stato ${job?.status}, skip update`);
+      }
+
+      // 7. Add timeline event (check se già esiste per questo quote)
+      const existingTimelineEvent = await db.collection("jobTimeline")
+        .where("jobId", "==", quote.jobId)
+        .where("tipo", "==", "preventivo_firmato")
+        .where("metadata.quoteId", "==", id)
+        .limit(1)
+        .get();
+      
+      if (existingTimelineEvent.empty) {
+        await db.collection("jobTimeline").add({
+          jobId: quote.jobId,
+          tipo: "preventivo_firmato",
+          descrizione: `Preventivo firmato da ${clientName || quote.signature?.clientName || "Cliente"}`,
+          data: new Date(),
+          metadata: { 
+            quoteId: id, 
+            totale: totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0 
+          },
+        });
+        completedSteps.timelineEventAdded = true;
+        console.log(`✅ Timeline event aggiunto per job ${quote.jobId}`);
+      } else {
+        console.log(`⏭️ Timeline event già esiste per quote ${id}, skip`);
+      }
+
+      // 8. Invia email conferma al cliente
+      try {
+        const studioInfo = await getStudioContactInfo();
+        const baseUrl =
+          process.env.REPLIT_DOMAINS
+            ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+            : "http://localhost:5000";
+        const portalUrl = `${baseUrl}/quote/${quote.publicToken}`;
+
+        // Recupera email clienti dal job
+        let clientEmails: string[] = [];
+        if (job?.clientiIds && job.clientiIds.length > 0) {
+          const clienteDocs = await Promise.all(
+            job.clientiIds.map((cid: string) => db.collection("clienti").doc(cid).get())
+          );
+          clientEmails = clienteDocs
+            .filter(doc => doc.exists && doc.data()?.email)
+            .map(doc => doc.data()?.email);
+        }
+
+        if (clientEmails.length > 0) {
+          const signedAt = quote.signedAt || quote.signature?.signedAt || new Date();
+          const signedAtDate = signedAt instanceof Date ? signedAt : 
+            (signedAt as any).toDate ? (signedAt as any).toDate() : new Date(signedAt);
+
+          const emailHTML = createQuoteSignedEmailHTML(
+            clientName || quote.signature?.clientName || "Cliente",
+            quote.type || "fisso",
+            job?.nomeEvento || "Il tuo evento",
+            totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+            signedAtDate,
+            portalUrl,
+            undefined, // nextPayment
+            undefined, // payments
+            studioInfo
+          );
+
+          await sendGmailEmail(
+            clientEmails.join(","),
+            `Contratto Firmato - ${job?.nomeEvento || "Il tuo evento"}`,
+            emailHTML,
+            undefined,
+            {
+              type: "contract",
+              relatedDocId: id,
+              relatedDocType: "quote",
+              clientName: clientName || quote.signature?.clientName || "Cliente",
+            }
+          );
+          completedSteps.clientEmailSent = true;
+          console.log(`✅ Email conferma firma inviata a ${clientEmails.join(", ")}`);
+        }
+      } catch (emailError) {
+        console.error("⚠️ Errore invio email post-firma:", emailError);
+        // Non blocchiamo per errore email
+      }
+
+      // 9. Invia email notifica all'admin
+      try {
+        const studioInfo = await getStudioContactInfo();
+        const adminEmail = studioInfo?.email || "gennaro.mazzacane@gmail.com";
+        
+        const adminEmailHTML = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #8b9a7d;">Nuovo Contratto Firmato</h2>
+            <p>Il cliente <strong>${clientName || quote.signature?.clientName || "Cliente"}</strong> ha firmato il preventivo per:</p>
+            <ul>
+              <li><strong>Evento:</strong> ${job?.nomeEvento || "N/A"}</li>
+              <li><strong>Totale:</strong> €${(totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0).toLocaleString("it-IT")}</li>
+            </ul>
+            <p>Accedi al pannello admin per visualizzare i dettagli.</p>
+          </div>
+        `;
+
+        await sendGmailEmail(
+          adminEmail,
+          `Contratto Firmato - ${clientName || quote.signature?.clientName || "Cliente"} - ${job?.nomeEvento || "Evento"}`,
+          adminEmailHTML,
+          undefined,
+          {
+            type: "contract",
+            relatedDocId: id,
+            relatedDocType: "quote",
+          }
+        );
+        completedSteps.adminEmailSent = true;
+        console.log(`✅ Email notifica admin inviata a ${adminEmail}`);
+      } catch (adminEmailError) {
+        console.error("⚠️ Errore invio email admin:", adminEmailError);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Post-signature updates completati",
+        completedSteps,
+      });
+    } catch (error) {
+      console.error("❌ Errore post-signature:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    }
+  },
+);
+
+/**
  * GET /api/quotes/health
  * Health check per quote API
  */
