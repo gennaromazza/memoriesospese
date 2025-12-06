@@ -446,6 +446,31 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       }
     }
 
+    // 5b. Fetch appuntamenti clienti dal job (per mostrare orari appuntamento)
+    let appuntamentiClienti: Array<{
+      clienteId: string;
+      orarioAppuntamento?: string;
+      noteAppuntamento?: string;
+    }> = [];
+    
+    if (quote.jobId) {
+      try {
+        const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+        if (jobDoc.exists) {
+          const jobData = jobDoc.data();
+          if (jobData?.appuntamentiClienti && Array.isArray(jobData.appuntamentiClienti)) {
+            appuntamentiClienti = jobData.appuntamentiClienti.map((app: any) => ({
+              clienteId: app.clienteId,
+              orarioAppuntamento: app.orarioAppuntamento,
+              noteAppuntamento: app.noteAppuntamento,
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ Impossibile recuperare appuntamenti clienti:", err);
+      }
+    }
+
     // 6. Prepara dati sicuri (redact internal fields + serialize timestamps)
     const safeQuote = {
       id: quote.id,
@@ -476,6 +501,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
         quote: safeQuote,
         jobInfo,
         clientiInfo,
+        appuntamentiClienti,
         jobTypeInfo,
       },
     });
@@ -695,6 +721,31 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       };
     }
 
+    // 5b. Fetch appuntamenti clienti dal job (per mostrare orari appuntamento)
+    let appuntamentiClientiSigned: Array<{
+      clienteId: string;
+      orarioAppuntamento?: string;
+      noteAppuntamento?: string;
+    }> = [];
+    
+    if (quote.jobId) {
+      try {
+        const jobDocApp = await db.collection("jobs").doc(quote.jobId).get();
+        if (jobDocApp.exists) {
+          const jobDataApp = jobDocApp.data();
+          if (jobDataApp?.appuntamentiClienti && Array.isArray(jobDataApp.appuntamentiClienti)) {
+            appuntamentiClientiSigned = jobDataApp.appuntamentiClienti.map((app: any) => ({
+              clienteId: app.clienteId,
+              orarioAppuntamento: app.orarioAppuntamento,
+              noteAppuntamento: app.noteAppuntamento,
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ Impossibile recuperare appuntamenti clienti (signed):", err);
+      }
+    }
+
     // 6. Fetch clienti info - SEMPRE fetch real-time da Firestore per avere dati aggiornati
     let clientiInfo: Array<{
       id: string;
@@ -850,6 +901,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
         legacyOrderData: legacyOrderData, // Fallback per ordini legacy senza paymentSchedule
         jobInfo: jobInfo || null,
         clientiInfo: clientiInfo || [],
+        appuntamentiClienti: appuntamentiClientiSigned || [],
       },
     });
   } catch (error) {

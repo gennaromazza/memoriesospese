@@ -1,15 +1,17 @@
 import { Cliente } from '@shared/clienti-types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, MessageCircle, Edit } from 'lucide-react';
+import { Mail, Phone, MessageCircle, Edit, Clock, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { AppuntamentoCliente } from '@shared/jobs-types';
 
 interface ClienteJobCardProps {
   cliente: Cliente;
+  appuntamento?: AppuntamentoCliente;
   onViewDetails?: () => void;
   onEdit?: () => void;
 }
 
-export default function ClienteJobCard({ cliente, onViewDetails, onEdit }: ClienteJobCardProps) {
+export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, onEdit }: ClienteJobCardProps) {
   const handleEmail = () => {
     if (cliente.email) {
       window.location.href = `mailto:${cliente.email}`;
@@ -58,6 +60,24 @@ export default function ClienteJobCard({ cliente, onViewDetails, onEdit }: Clien
                 </div>
               )}
             </div>
+            
+            {/* Appuntamento */}
+            {appuntamento?.orarioAppuntamento && (
+              <div className="mt-3 pt-3 border-t">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-3.5 w-3.5 text-sage flex-shrink-0" />
+                  <span className="font-medium text-sage">
+                    Appuntamento: {appuntamento.orarioAppuntamento}
+                  </span>
+                </div>
+                {appuntamento.noteAppuntamento && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                    <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>{appuntamento.noteAppuntamento}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Quick Actions */}

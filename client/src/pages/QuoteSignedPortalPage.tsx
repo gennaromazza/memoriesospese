@@ -44,6 +44,11 @@ interface QuoteSignedPortalData {
     cap?: string;
     provincia?: string;
   }>;
+  appuntamentiClienti?: Array<{
+    clienteId: string;
+    orarioAppuntamento?: string;
+    noteAppuntamento?: string;
+  }>;
 }
 
 export default function QuoteSignedPortalPage() {
@@ -72,6 +77,7 @@ export default function QuoteSignedPortalPage() {
   const legacyOrderData = portalData?.legacyOrderData;
   const jobInfo = portalData?.jobInfo;
   const clientiInfo = portalData?.clientiInfo || [];
+  const appuntamentiClienti = portalData?.appuntamentiClienti || [];
 
   // Load studio settings and logo
   useEffect(() => {
@@ -334,7 +340,9 @@ export default function QuoteSignedPortalPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-              {clientiInfo.map((cliente, idx) => (
+              {clientiInfo.map((cliente, idx) => {
+                const appuntamento = appuntamentiClienti.find(a => a.clienteId === cliente.id);
+                return (
                 <div 
                   key={cliente.id} 
                   className="p-4 border-2 border-beige rounded-lg bg-white space-y-3"
@@ -353,6 +361,20 @@ export default function QuoteSignedPortalPage() {
                       <p className="font-semibold text-gray-900 truncate">{cliente.nome} {cliente.cognome}</p>
                     </div>
                   </div>
+
+                  {/* Appuntamento */}
+                  {appuntamento?.orarioAppuntamento && (
+                    <div className="flex items-center gap-3 p-2 bg-sage/10 rounded border border-sage/20">
+                      <Calendar className="w-4 h-4 text-sage flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-sage font-semibold uppercase">Appuntamento</p>
+                        <p className="font-bold text-blue-gray">{appuntamento.orarioAppuntamento}</p>
+                        {appuntamento.noteAppuntamento && (
+                          <p className="text-xs text-dark-sage mt-0.5">{appuntamento.noteAppuntamento}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
                   {cliente.email && (
                     <div className="flex items-center gap-3 p-2 bg-off-white rounded">
@@ -393,7 +415,8 @@ export default function QuoteSignedPortalPage() {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

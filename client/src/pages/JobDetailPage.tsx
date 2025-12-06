@@ -735,13 +735,19 @@ export default function JobDetailPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {clienti.map(cliente => (
-                        <ClienteJobCard 
-                          key={cliente.id} 
-                          cliente={cliente}
-                          onEdit={() => setEditingCliente(cliente)}
-                        />
-                      ))}
+                      {clienti.map(cliente => {
+                        const appuntamento = job.appuntamentiClienti?.find(
+                          app => app.clienteId === cliente.id
+                        );
+                        return (
+                          <ClienteJobCard 
+                            key={cliente.id} 
+                            cliente={cliente}
+                            appuntamento={appuntamento}
+                            onEdit={() => setEditingCliente(cliente)}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

@@ -50,11 +50,12 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { JobTypeIcon } from '@/lib/job-type-icons';
+import type { AppuntamentoCliente } from '@shared/jobs-types';
 
 // Helper per formattare date in modo sicuro (gestisce null/undefined/invalid)
 const formatConflictDate = (dateStr: string | undefined, allDay: boolean = false): string => {
@@ -114,6 +115,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const [dateInputValue, setDateInputValue] = useState('');
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [loadingClienti, setLoadingClienti] = useState(true);
+  const [appuntamentiClienti, setAppuntamentiClienti] = useState<Record<string, { orario: string; note: string }>>({});
   const [detectedConflicts, setDetectedConflicts] = useState<Array<{
     type: 'calendar' | 'booking';
     title: string;
@@ -165,7 +167,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const startTime = form.watch('startTime');
   const endTime = form.watch('endTime');
 
-  // Fetch clienti iniziali
+  // Fetch clienti iniziali e inizializza appuntamenti
   useEffect(() => {
     const fetchClienti = async () => {
       try {
@@ -180,6 +182,20 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         }
         
         setSelectedClienti(clientiData);
+        
+        // Inizializza appuntamenti dal job esistente
+        if (job.appuntamentiClienti && job.appuntamentiClienti.length > 0) {
+          const appuntamentiMap: Record<string, { orario: string; note: string }> = {};
+          job.appuntamentiClienti.forEach(app => {
+            appuntamentiMap[app.clienteId] = {
+              orario: app.orarioAppuntamento || '',
+              note: app.noteAppuntamento || ''
+            };
+          });
+          setAppuntamentiClienti(appuntamentiMap);
+        } else {
+          setAppuntamentiClienti({});
+        }
       } catch (error) {
         console.error('Error fetching clienti:', error);
       } finally {
@@ -190,7 +206,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     if (open && job.clientiIds?.length > 0) {
       fetchClienti();
     }
-  }, [open, job.clientiIds]);
+  }, [open, job.clientiIds, job.appuntamentiClienti]);
 
   // Sync dateInputValue when eventDate changes
   useEffect(() => {
@@ -269,6 +285,20 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     const currentIds = form.getValues('clientiIds');
     form.setValue('clientiIds', currentIds.filter(id => id !== clienteId));
     setSelectedClienti(selectedClienti.filter(c => c.id !== clienteId));
+    // Rimuovi anche l'appuntamento associato
+    const newAppuntamenti = { ...appuntamentiClienti };
+    delete newAppuntamenti[clienteId];
+    setAppuntamentiClienti(newAppuntamenti);
+  };
+
+  const handleAppuntamentoChange = (clienteId: string, field: 'orario' | 'note', value: string) => {
+    setAppuntamentiClienti(prev => ({
+      ...prev,
+      [clienteId]: {
+        ...prev[clienteId],
+        [field]: value
+      }
+    }));
   };
 
   // Date input handlers
@@ -296,6 +326,15 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     mutationFn: async (data: FormData) => {
       if (!user) throw new Error('User not authenticated');
       
+      // Converti appuntamentiClienti da oggetto a array
+      const appuntamenti: AppuntamentoCliente[] = Object.entries(appuntamentiClienti)
+        .filter(([_, val]) => val.orario) // Solo se ha un orario
+        .map(([clienteId, val]) => ({
+          clienteId,
+          orarioAppuntamento: val.orario,
+          ...(val.note && { noteAppuntamento: val.note })
+        }));
+      
       await updateJob(job.id, {
         nomeEvento: data.nomeEvento,
         clientiIds: data.clientiIds,
@@ -308,7 +347,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         locationCerimonia: data.locationCerimonia,
         oraCerimonia: data.oraCerimonia,
         provenance: data.provenance,
-        noteInterne: data.noteInterne
+        noteInterne: data.noteInterne,
+        appuntamentiClienti: appuntamenti.length > 0 ? appuntamenti : undefined
       }, user.uid);
     },
     onSuccess: () => {
@@ -390,25 +430,52 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                         )}
                         
                         {!loadingClienti && selectedClienti.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
+                          <div className="space-y-3 mt-2">
                             {selectedClienti.map((cliente) => (
-                              <Badge
+                              <div
                                 key={cliente.id}
-                                variant="secondary"
-                                className="pl-3 pr-1 py-1"
-                                data-testid={`badge-cliente-${cliente.id}`}
+                                className="p-3 border rounded-lg bg-muted/30"
+                                data-testid={`cliente-appuntamento-${cliente.id}`}
                               >
-                                <User className="h-3 w-3 mr-1" />
-                                {cliente.nome} {cliente.cognome}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveCliente(cliente.id)}
-                                  className="ml-2 hover:bg-gray-200 rounded-full p-1"
-                                  data-testid={`remove-cliente-${cliente.id}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </Badge>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <User className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium">{cliente.nome} {cliente.cognome}</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-auto p-1 hover:bg-transparent text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleRemoveCliente(cliente.id)}
+                                    data-testid={`button-remove-${cliente.id}`}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    <Input
+                                      type="time"
+                                      placeholder="Orario appuntamento"
+                                      value={appuntamentiClienti[cliente.id]?.orario || ''}
+                                      onChange={(e) => handleAppuntamentoChange(cliente.id, 'orario', e.target.value)}
+                                      className="h-8"
+                                      data-testid={`input-orario-${cliente.id}`}
+                                    />
+                                  </div>
+                                  <Input
+                                    type="text"
+                                    placeholder="Note (es. indirizzo, citofono...)"
+                                    value={appuntamentiClienti[cliente.id]?.note || ''}
+                                    onChange={(e) => handleAppuntamentoChange(cliente.id, 'note', e.target.value)}
+                                    className="h-8"
+                                    data-testid={`input-note-${cliente.id}`}
+                                  />
+                                </div>
+                              </div>
                             ))}
                           </div>
                         )}

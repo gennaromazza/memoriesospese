@@ -46,6 +46,11 @@ interface QuotePublicData {
     citta?: string;
     cap?: string;
   }>;
+  appuntamentiClienti?: Array<{
+    clienteId: string;
+    orarioAppuntamento?: string;
+    noteAppuntamento?: string;
+  }>;
   jobTypeInfo?: {
     id?: string;
     nome?: string;
@@ -83,6 +88,7 @@ export default function QuotePublicViewPage() {
   const quote = portalData?.quote;
   const jobInfo = portalData?.jobInfo;
   const clientiInfo = portalData?.clientiInfo || [];
+  const appuntamentiClienti = portalData?.appuntamentiClienti || [];
   const jobTypeInfo = portalData?.jobTypeInfo;
 
   // Initialize selected products for variabile quotes (only already selected, not selectable)
@@ -437,7 +443,9 @@ export default function QuotePublicViewPage() {
                     {clientiInfo.length === 1 ? 'Informazioni Cliente' : 'Informazioni Clienti'}
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
-                    {clientiInfo.map((cliente, idx) => (
+                    {clientiInfo.map((cliente, idx) => {
+                      const appuntamento = appuntamentiClienti.find(a => a.clienteId === cliente.id);
+                      return (
                       <div key={cliente.id} className="bg-gradient-to-br from-white to-light-mint/20 p-5 rounded-xl border border-sage/20 shadow-sm hover:shadow-md transition-all hover:border-sage/40">
                         {/* Nome */}
                         <div className="flex items-center gap-3 mb-4 pb-3 border-b border-mint/30">
@@ -455,6 +463,24 @@ export default function QuotePublicViewPage() {
                             )}
                           </div>
                         </div>
+
+                        {/* Appuntamento */}
+                        {appuntamento?.orarioAppuntamento && (
+                          <div className="mb-4 p-3 bg-sage/10 rounded-lg border border-sage/20">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-sage/20 flex items-center justify-center flex-shrink-0">
+                                <Clock className="w-4 h-4 text-sage" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-sage uppercase font-semibold">Appuntamento</p>
+                                <p className="text-sm text-blue-gray font-bold">{appuntamento.orarioAppuntamento}</p>
+                                {appuntamento.noteAppuntamento && (
+                                  <p className="text-xs text-dark-sage mt-1">{appuntamento.noteAppuntamento}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-3">
                           {/* Email */}
@@ -505,7 +531,8 @@ export default function QuotePublicViewPage() {
                           )}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
