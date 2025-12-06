@@ -76,6 +76,15 @@ export interface NoteFotoItem {
 }
 
 /**
+ * Appuntamento cliente - Orario e note per ogni cliente del job
+ */
+export interface AppuntamentoCliente {
+  clienteId: string;
+  orarioAppuntamento: string;  // HH:mm format
+  noteAppuntamento?: string;   // Note opzionali (es. indirizzo specifico, citofono)
+}
+
+/**
  * Snapshot economico job
  */
 export interface JobFinancials {
@@ -132,6 +141,9 @@ export interface Job {
   note?: string;                // Nota generale (legacy/backward compatibility)
   notePerFoto?: NoteFotoItem[]; // Note con foto allegate
   
+  // Appuntamenti clienti (orari per casa di ogni cliente)
+  appuntamentiClienti?: AppuntamentoCliente[];
+  
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -155,6 +167,7 @@ export interface InsertJob {
   rituTime?: string;      // Orario rito/celebrazione (HH:mm)
   provenance: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
+  appuntamentiClienti?: AppuntamentoCliente[];  // Orari appuntamento per ogni cliente
 }
 
 /**
@@ -177,6 +190,7 @@ export interface UpdateJob {
   noteInterne?: string;
   status?: JobStatus;
   costi?: CostoLavoro[];  // Update costi array
+  appuntamentiClienti?: AppuntamentoCliente[];  // Orari appuntamento per ogni cliente
 }
 
 /**

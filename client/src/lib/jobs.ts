@@ -57,6 +57,7 @@ export async function createJob(
       ...(data.rituTime && { rituTime: data.rituTime }),
       provenance: data.provenance,
       ...(data.noteInterne && { noteInterne: data.noteInterne }),
+      ...(data.appuntamentiClienti && data.appuntamentiClienti.length > 0 && { appuntamentiClienti: data.appuntamentiClienti }),
       
       // Riferimenti vuoti inizialmente
       orderIds: [],
