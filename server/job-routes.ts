@@ -7,6 +7,7 @@ import express from 'express';
 import { getEvents, createEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
+import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = express.Router();
 
@@ -481,7 +482,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     } else {
       // WhatsApp
       const message = `Ciao ${cliente.nome}! 📸\n\nÈ arrivato il momento di prenotare la tua ${template.data.nome} per ${job.nomeEvento}.\n\nClicca qui per scegliere l'appuntamento: ${consultationLink}`;
-      const whatsappNumber = cliente.whatsapp?.replace(/[^0-9]/g, '') || '';
+      const whatsappNumber = formatPhoneForWhatsApp(cliente.whatsapp);
       
       if (!whatsappNumber) {
         return res.status(400).json({ error: 'Cliente senza numero WhatsApp' });

@@ -31,6 +31,7 @@ import { Calendar, Clock, Sparkles, Instagram as InstagramIcon, Camera, Calendar
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import type { BookingCampaign } from "@shared/booking-types";
+import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 
 export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1398,8 +1399,8 @@ export default function Home() {
               <a
                 href={
                   studioSettings.phone
-                    ? `https://wa.me/${studioSettings.phone.replace(/\s+/g, "").replace(/^\+/, "")}`
-                    : "https://wa.me/3491234567"
+                    ? `https://wa.me/${formatPhoneForWhatsApp(studioSettings.phone)}`
+                    : "https://wa.me/393491234567"
                 }
                 target="_blank"
                 rel="noopener noreferrer"

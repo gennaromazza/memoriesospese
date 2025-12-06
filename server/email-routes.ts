@@ -8,6 +8,7 @@ import { google } from "googleapis";
 import { db } from './firebase-admin.js';
 import { DateTime } from 'luxon';
 import { FieldValue } from 'firebase-admin/firestore';
+import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = Router();
 
@@ -1519,7 +1520,7 @@ export function createAdminNotificationEmailHTML(
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">👤 Dati Cliente</h3>
           <p style="margin: 8px 0;"><strong>Nome:</strong> ${clienteName}</p>
           <p style="margin: 8px 0;"><strong>📧 Email:</strong> <a href="mailto:${clienteEmail}">${clienteEmail}</a></p>
-          <p style="margin: 8px 0;"><strong>📱 WhatsApp:</strong> <a href="https://wa.me/${clienteWhatsApp}">${clienteWhatsApp}</a></p>
+          <p style="margin: 8px 0;"><strong>📱 WhatsApp:</strong> <a href="https://wa.me/${formatPhoneForWhatsApp(clienteWhatsApp)}">${clienteWhatsApp}</a></p>
         </div>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">

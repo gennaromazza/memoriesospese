@@ -63,6 +63,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 type OrderWithBooking = Order & {
   booking?: Booking;
@@ -588,7 +589,7 @@ export function OrdersManager({
   const getClienteWhatsApp = (order: OrderWithBooking): string | null => {
     const raw = order.whatsappCliente || order.booking?.cliente.whatsapp;
     if (!raw) return null;
-    return raw.replace(/[\s\-\+\(\)]/g, '');
+    return formatPhoneForWhatsApp(raw) || null;
   };
 
   // Helper: Genera messaggio WhatsApp riepilogo ordine

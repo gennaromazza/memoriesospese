@@ -32,6 +32,7 @@ import type {
   OrderItem,
 } from "@shared/booking-types";
 import { WorkflowState } from "@shared/schema";
+import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
 import ManualBookingModal from "@/components/ManualBookingModal";
@@ -1117,7 +1118,7 @@ export default function BookingsManager({
 
   // Helper: Apri WhatsApp con messaggio pre-compilato per ordine
   const openWhatsAppForOrder = (order: Order, booking: Booking) => {
-    const phone = booking.cliente.whatsapp?.replace(/\D/g, '');
+    const phone = formatPhoneForWhatsApp(booking.cliente.whatsapp);
     if (!phone) {
       toast({
         title: 'Numero non disponibile',
@@ -1533,7 +1534,7 @@ export default function BookingsManager({
                             <div className="flex items-center gap-2 text-gray-700">
                               <Phone className="w-4 h-4 text-sage" />
                               <a
-                                href={`https://wa.me/${booking.cliente.whatsapp}`}
+                                href={`https://wa.me/${formatPhoneForWhatsApp(booking.cliente.whatsapp)}`}
                                 className="hover:underline"
                               >
                                 {booking.cliente.whatsapp}

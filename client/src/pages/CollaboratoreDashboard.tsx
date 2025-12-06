@@ -30,6 +30,7 @@ import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronR
 import { useToast } from '@/hooks/use-toast';
 import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 const STATUS_LABELS = {
   pending: { label: '⏳ In Attesa', variant: 'secondary' as const },
@@ -446,7 +447,7 @@ export default function CollaboratoreDashboard() {
                                             )}
                                             {c.whatsapp && (
                                               <a 
-                                                href={`https://wa.me/${c.whatsapp.replace(/\D/g, '')}`}
+                                                href={`https://wa.me/${formatPhoneForWhatsApp(c.whatsapp)}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="flex items-center gap-1 text-green-600 hover:underline"

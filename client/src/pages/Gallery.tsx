@@ -74,6 +74,7 @@ import StoryService from "@/lib/storyService";
 import { ChapterService } from "@/lib/chapters";
 import { Chapter } from "@/lib/galleries";
 import { GalleryOnboardingSpotlight } from "@/components/GalleryOnboardingSpotlight";
+import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 
 // Memoized PhotoCard component for optimization with lazy loading
 const PhotoCard = memo(({ 
@@ -3131,7 +3132,7 @@ export default function Gallery() {
                               </p>
                               {studioSettings?.phone && (
                                 <a
-                                  href={`https://wa.me/${studioSettings.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Ciao! Vorrei modificare la selezione per la galleria "${galleryData.name}"`)}`}
+                                  href={`https://wa.me/${formatPhoneForWhatsApp(studioSettings.phone)}?text=${encodeURIComponent(`Ciao! Vorrei modificare la selezione per la galleria "${galleryData.name}"`)}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-2 bg-sage hover:bg-dark-sage text-white px-6 py-3 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"

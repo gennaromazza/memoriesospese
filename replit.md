@@ -34,6 +34,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Workflow State Management:** Unified WorkflowState enum for booking/order tracking, with email notifications and interactive timeline.
 - **Multi-Product Support:** Backend validation for `prodotti: OrderItem[]` in bookings.
 - **Collaborator Management:** Token-based dashboard access, comprehensive payment tracking integrated with CashMovement.
+- **Phone Number Standardization (Dec 2025):** Centralized `formatPhoneForWhatsApp()` utility in `shared/phone-utils.ts` for consistent WhatsApp link generation. Handles all Italian phone formats: removes non-numeric characters, strips "00" international prefix (0039→39), adds "39" prefix for domestic mobile numbers (starting with 3, 9-10 digits). Applied across all frontend and backend wa.me link generation for consistent behavior.
 
 ### Feature Specifications
 - **Public Website:** SEO-optimized marketing site with portfolio masonry grid, blog system (WordPress import), biography, e-book download, and booking CTAs.

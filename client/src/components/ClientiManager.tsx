@@ -15,6 +15,7 @@ import {
   type AutoMergeResult,
 } from '@/lib/clienti';
 import type { Cliente, InsertCliente, UpdateCliente, ClienteStats } from '@shared/clienti-types';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 import ClientiTable from '@/components/ClientiTable';
 import ClientiTableSkeleton from '@/components/ClientiTableSkeleton';
 import ClienteForm from '@/components/ClienteForm';
@@ -274,8 +275,10 @@ export function ClientiManager() {
         break;
       case 'whatsapp':
         if (cliente.whatsapp && cliente.whatsapp !== 'N/D') {
-          const phone = cliente.whatsapp.replace(/\D/g, '');
-          window.open(`https://wa.me/${phone}`, '_blank');
+          const phone = formatPhoneForWhatsApp(cliente.whatsapp);
+          if (phone) {
+            window.open(`https://wa.me/${phone}`, '_blank');
+          }
         }
         break;
       case 'archive':

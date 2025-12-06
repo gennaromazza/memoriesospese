@@ -18,6 +18,7 @@ import type { PaymentSchedule } from '@shared/payment-schedule-types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import html2pdf from 'html2pdf.js';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 interface QuoteSignedPortalData {
   quote: Quote & { signedAt?: any };
@@ -782,7 +783,7 @@ export default function QuoteSignedPortalPage() {
                   <p className="text-xs sm:text-sm text-mint/80 font-medium">Hai bisogno di assistenza?</p>
                   {studioSettings?.phone && (
                     <a 
-                      href={`https://wa.me/${studioSettings.phone.replace(/\s+/g, '').replace(/^\+/, '')}?text=${encodeURIComponent(`Ciao, ho bisogno di assistenza per il mio contratto: ${window.location.href}`)}`}
+                      href={`https://wa.me/${formatPhoneForWhatsApp(studioSettings.phone)}?text=${encodeURIComponent(`Ciao, ho bisogno di assistenza per il mio contratto: ${window.location.href}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-[#25D366] text-white rounded-full text-sm sm:text-base font-semibold hover:bg-[#20BD5A] transition-colors shadow-lg"

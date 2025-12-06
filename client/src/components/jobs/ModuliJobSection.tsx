@@ -38,6 +38,7 @@ import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { queryClient } from '@/lib/queryClient';
 import GeneraPagamentiModal from './GeneraPagamentiModal';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 interface ModuliJobSectionProps {
   jobId: string;
@@ -501,7 +502,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                                     const message = quote.status === 'firmato'
                                       ? `Ecco il preventivo firmato per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli del contratto e i pagamenti\n\n${getQuoteUrl(quote)}`
                                       : `Ecco il preventivo per *${nomeEvento}* by Image Studio. Aprilo per vedere i dettagli e firmare se sei d'accordo\n\n${getQuoteUrl(quote)}`;
-                                    const phoneNumber = (cliente.whatsapp || cliente.cellulare1 || '').replace(/\s+/g, '').replace(/^\+/, '');
+                                    const phoneNumber = formatPhoneForWhatsApp(cliente.whatsapp || cliente.cellulare1);
                                     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 
                                     return (

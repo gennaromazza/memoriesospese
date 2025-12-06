@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Mail, Phone, MessageCircle, Edit, Clock, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AppuntamentoCliente } from '@shared/jobs-types';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 interface ClienteJobCardProps {
   cliente: Cliente;
@@ -21,8 +22,10 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
   const handleWhatsApp = () => {
     const number = cliente.whatsapp || cliente.cellulare1;
     if (number) {
-      const cleanNumber = number.replace(/\s/g, '');
-      window.open(`https://wa.me/${cleanNumber}`, '_blank');
+      const cleanNumber = formatPhoneForWhatsApp(number);
+      if (cleanNumber) {
+        window.open(`https://wa.me/${cleanNumber}`, '_blank');
+      }
     }
   };
 

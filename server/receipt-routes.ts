@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = Router();
 
@@ -431,7 +432,7 @@ router.post('/send', async (req, res) => {
       // WhatsApp: genera link wa.me con messaggio precompilato
       const whatsappMessage = `Ciao${clienteNome ? ' ' + clienteNome : ''}!\n\nEcco la tua *Ricevuta N° ${numeroRicevuta}*\n\nData: ${new Date(receiptData.data.toDate ? receiptData.data.toDate() : receiptData.data).toLocaleDateString('it-IT')}\nImporto: €${receiptData.importo.toFixed(2)}\nDescrizione: ${receiptData.descrizione}\nPagamento: ${receiptData.metodoPagamento.toUpperCase()}\n\n${receiptData.studioName}\n${receiptData.studioPhone}`;
       
-      const whatsappNumber = recipient.replace(/[^0-9+]/g, '');
+      const whatsappNumber = formatPhoneForWhatsApp(recipient);
       const whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
       
       console.log(`📱 Link WhatsApp generato per ricevuta N° ${numeroRicevuta}: ${whatsappLink}`);

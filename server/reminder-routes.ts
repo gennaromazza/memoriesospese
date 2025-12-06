@@ -15,6 +15,7 @@ import {
   generateGoogleCalendarLink
 } from "./email-routes.js";
 import { DateTime } from "luxon";
+import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = Router();
 
@@ -92,7 +93,7 @@ function createBookingReminderEmailHTML(
         </p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="https://wa.me/${studioInfo.phone.replace(/\D/g, '')}" 
+          <a href="https://wa.me/${formatPhoneForWhatsApp(studioInfo.phone)}" 
              style="background: #25D366; color: white; padding: 12px 30px; 
                     text-decoration: none; border-radius: 25px; font-weight: 600; 
                     display: inline-block; font-size: 15px;">
