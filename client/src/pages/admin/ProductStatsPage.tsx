@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie } from "recharts";
-import { Package, ShoppingCart, TrendingUp, Euro, BarChart3, ListOrdered, Sparkles } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, Euro, BarChart3, ListOrdered, Sparkles, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 interface ProductStat {
   prodottoId: string;
@@ -120,6 +122,16 @@ export default function ProductStatsPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      {/* Navigazione */}
+      <div className="flex items-center gap-4">
+        <Link href="/admin/dashboard">
+          <Button variant="ghost" size="sm" className="gap-2" data-testid="btn-back-dashboard">
+            <ArrowLeft className="h-4 w-4" />
+            Torna alla Dashboard
+          </Button>
+        </Link>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#8b9a7d]" data-testid="title-product-stats">
