@@ -418,6 +418,36 @@ export default function JobsManager() {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
+    // Helper per ricerca testuale
+    const matchesSearch = (job: typeof jobs[0], query: string): boolean => {
+      const nomeEvento = job.nomeEvento?.toLowerCase() || '';
+      const eventLocation = (job.eventLocation || job.rituLocation || (job as any).locationCerimonia || '').toLowerCase();
+      const note = job.noteInterne?.toLowerCase() || '';
+      
+      const clientIds = job.clientiIds?.length 
+        ? job.clientiIds 
+        : ((job as any).clienteId ? [(job as any).clienteId] : []);
+      const clientiNames = clientIds
+        .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
+        .join(' ');
+      
+      return nomeEvento.includes(query) || 
+             eventLocation.includes(query) || 
+             note.includes(query) ||
+             clientiNames.includes(query);
+    };
+    
+    // Se c'è una ricerca attiva, cerca in TUTTI i lavori (ignora filtri)
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return jobs.filter(job => {
+        // Escludi sempre archiviati
+        if (job.status === 'archiviato') return false;
+        return matchesSearch(job, query);
+      });
+    }
+    
+    // Senza ricerca, applica normalmente i filtri
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale
       if (job.status === 'archiviato') return false;
@@ -500,28 +530,6 @@ export default function JobsManager() {
             if (eventYear !== year) return false;
           }
         }
-      }
-      
-      // Ricerca testuale (nome evento, location, note, nomi clienti) - supporta campi legacy
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const nomeEvento = job.nomeEvento?.toLowerCase() || '';
-        // Supporta campi location alternativi (legacy)
-        const eventLocation = (job.eventLocation || job.rituLocation || (job as any).locationCerimonia || '').toLowerCase();
-        const note = job.noteInterne?.toLowerCase() || '';
-        
-        // Cerca nei nomi dei clienti - supporta sia clientiIds (array) che clienteId singolo (legacy)
-        const clientIds = job.clientiIds?.length 
-          ? job.clientiIds 
-          : ((job as any).clienteId ? [(job as any).clienteId] : []);
-        const clientiNames = clientIds
-          .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
-          .join(' ');
-        
-        return nomeEvento.includes(query) || 
-               eventLocation.includes(query) || 
-               note.includes(query) ||
-               clientiNames.includes(query);
       }
       
       return true;

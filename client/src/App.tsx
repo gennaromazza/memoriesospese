@@ -55,6 +55,7 @@ const AdminConsultationsRoute = lazy(() => import("./pages/admin/AdminConsultati
 const AdminJsonImporter = lazy(() => import("./pages/admin/AdminJsonImporter"));
 const AdminLegacyImporter = lazy(() => import("./pages/admin/AdminLegacyImporter"));
 const QuoteManagementDemo = lazy(() => import("./pages/admin/QuoteManagementDemo"));
+const ProductStatsPage = lazy(() => import("./pages/admin/ProductStatsPage"));
 const BulkEmailSender = lazy(() => import("./pages/BulkEmailSender"));
 
 import './scripts/seed-job-types';
@@ -142,6 +143,7 @@ function AppRoutes() {
         <Route path="/admin/consulenze" component={AdminConsultationsRoute} />
         <Route path="/admin/importer" component={AdminJsonImporter} />
         <Route path="/admin/legacy-import" component={AdminLegacyImporter} />
+        <Route path="/admin/product-stats" component={ProductStatsPage} />
         <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
         {/* Public questionnaire route with noindex/nofollow */}

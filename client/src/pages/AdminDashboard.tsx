@@ -1309,6 +1309,12 @@ export default function AdminDashboard() {
                     <FolderOpen className="h-4 w-4 mr-2" />
                     Categorie Prodotti
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/product-stats" className="flex items-center">
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Statistiche Prodotti
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
                     setActiveTab('settings');
                     setSettingsSection('email-logs');
