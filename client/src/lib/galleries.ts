@@ -407,16 +407,20 @@ export class GalleryService {
   static async getGalleryByCodeWithFallback(code: string): Promise<Gallery | null> {
     try {
       const galleriesRef = collection(db, 'galleries');
+      console.log(`[GalleryService] Cercando galleria con code: "${code}"`);
       
       // Cerca prima per "code" esatto
       let q = query(galleriesRef, where('code', '==', code));
       let querySnapshot = await getDocs(q);
+      console.log(`[GalleryService] Query code esatto: ${querySnapshot.size} risultati`);
       
       // Se non trova, prova con codice in MAIUSCOLO (gallerie ripristinate hanno code in uppercase)
       if (querySnapshot.empty) {
         const normalizedCode = code.toUpperCase();
+        console.log(`[GalleryService] Provo codice maiuscolo: "${normalizedCode}"`);
         q = query(galleriesRef, where('code', '==', normalizedCode));
         querySnapshot = await getDocs(q);
+        console.log(`[GalleryService] Query code maiuscolo: ${querySnapshot.size} risultati`);
       }
       
       let galleryDoc;
@@ -424,16 +428,20 @@ export class GalleryService {
       
       // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
       if (querySnapshot.empty) {
+        console.log(`[GalleryService] Provo ricerca per ID documento: "${code}"`);
         const docRef = doc(db, 'galleries', code);
         const docSnapshot = await getDoc(docRef);
         
         if (!docSnapshot.exists()) {
+          console.log(`[GalleryService] Galleria NON trovata per code/ID: "${code}"`);
           return null;
         }
         
+        console.log(`[GalleryService] Galleria trovata per ID documento`);
         galleryDoc = docSnapshot;
         galleryData = docSnapshot.data();
       } else {
+        console.log(`[GalleryService] Galleria trovata per code field, docId: ${querySnapshot.docs[0].id}`);
         galleryDoc = querySnapshot.docs[0];
         galleryData = galleryDoc.data();
       }
