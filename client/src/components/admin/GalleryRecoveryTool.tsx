@@ -136,24 +136,44 @@ export default function GalleryRecoveryTool() {
     try {
       let recovered = 0;
       
+      // Carica tutti i gallerySecrets per trovare password/PIN anche per ID diversi
+      const allSecretsSnapshot = await getDocs(collection(db, 'gallerySecrets'));
+      const secretsMap = new Map<string, { password?: string; specialPin?: string }>();
+      allSecretsSnapshot.docs.forEach(doc => {
+        secretsMap.set(doc.id, doc.data() as { password?: string; specialPin?: string });
+      });
+      console.log(`[Recovery] Caricati ${secretsMap.size} documenti da gallerySecrets`);
+      
       for (const gallery of toRecover) {
         setCurrentStep(`Ripristino ${gallery.galleryCode || gallery.galleryId}...`);
         
-        const secretDoc = await getDoc(doc(db, 'gallerySecrets', gallery.galleryId));
-        const hasPassword = secretDoc.exists() && secretDoc.data()?.password;
+        // Cerca secrets per ID galleria
+        let secrets = secretsMap.get(gallery.galleryId);
+        const hasPassword = !!secrets?.password;
+        const hasSpecialPin = !!secrets?.specialPin;
         
-        const galleryData = {
+        // Determina se è una galleria speciale (con PIN) o normale (con password)
+        const isSpecialGallery = hasSpecialPin && !hasPassword;
+        
+        const galleryData: Record<string, any> = {
           name: gallery.recoveredName || `Galleria ${gallery.galleryId.substring(0, 8)}`,
           code: gallery.galleryCode || gallery.galleryId.substring(0, 8).toUpperCase(),
           date: gallery.firstPhotoDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
           active: true,
-          hasPassword: !!hasPassword,
+          hasPassword: hasPassword,
           photoCount: gallery.photoCount,
           createdAt: gallery.firstPhotoDate || new Date(),
           updatedAt: new Date(),
           recoveredAt: new Date(),
           recoveryNote: 'Documento ripristinato automaticamente dalla collezione photos'
         };
+        
+        // Se ha special PIN, è una galleria tematica
+        if (isSpecialGallery) {
+          galleryData.specialTheme = 'elegance'; // Tema di default, admin può cambiarlo
+          galleryData.hasSpecialPin = true;
+          console.log(`[Recovery] Galleria ${gallery.galleryId} è una galleria speciale con PIN`);
+        }
         
         await setDoc(doc(db, 'galleries', gallery.galleryId), galleryData, { merge: true });
         console.log(`[Recovery] Ripristinata galleria: ${gallery.galleryId}`, galleryData);
