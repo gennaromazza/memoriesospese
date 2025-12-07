@@ -2135,7 +2135,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                           Elimina Tutte
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent className="z-[100]">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Elimina Tutte le Foto</AlertDialogTitle>
                           <AlertDialogDescription>
@@ -2249,7 +2249,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         <Trash className="h-3 w-3" />
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent aria-describedby="delete-photo-dialog-description">
+                    <AlertDialogContent className="z-[100]" aria-describedby="delete-photo-dialog-description">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Elimina Foto</AlertDialogTitle>
                         <AlertDialogDescription id="delete-photo-dialog-description">
@@ -2290,7 +2290,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     
     {/* Dialog Unisci Gallerie */}
     <AlertDialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
-      <AlertDialogContent>
+      <AlertDialogContent className="z-[100]">
         <AlertDialogHeader>
           <AlertDialogTitle>🔀 Unisci Galleria</AlertDialogTitle>
           <AlertDialogDescription>
