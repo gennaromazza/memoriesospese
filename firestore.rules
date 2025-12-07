@@ -13,7 +13,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && 
         (request.auth.token.email == 'gennaro.mazzacane@gmail.com' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
     // Users collection

@@ -130,9 +130,10 @@ export class GalleryService {
   static async getAllGalleriesForAdmin(): Promise<Gallery[]> {
     try {
       // Admin vede TUTTE le gallerie (anche disattivate)
+      // Rimuovo orderBy per evitare "failed-precondition" (manca indice composito)
+      // Ordino client-side invece
       const galleriesQuery = query(
-        collection(db, 'galleries'),
-        orderBy('createdAt', 'desc')
+        collection(db, 'galleries')
       );
       const snapshot = await getDocs(galleriesQuery);
       const galleries = snapshot.docs.map(doc => ({ 
@@ -142,7 +143,12 @@ export class GalleryService {
         active: doc.data().active !== undefined ? doc.data().active : true
       } as Gallery));
       
-      return galleries;
+      // Ordina per createdAt (desc) client-side
+      return galleries.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        return bTime - aTime;
+      });
     } catch (error) {
       console.error('Errore recupero gallerie admin:', error);
       throw error; // Lancia errore per error handling React Query
