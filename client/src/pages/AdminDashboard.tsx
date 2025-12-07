@@ -42,6 +42,7 @@ import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import PhotosMigration from "@/components/PhotosMigration";
 import SyncClientJobRefs from "@/components/SyncClientJobRefs";
+import GalleryRecoveryTool from "@/components/admin/GalleryRecoveryTool";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -990,13 +991,16 @@ export default function AdminDashboard() {
 
   // Filtra le gallerie in base alla query di ricerca E tipo (generiche/special)
   const filteredGalleries = galleries.filter(gallery => {
+    // Escludi gallerie senza dati essenziali (documenti vuoti in Firebase)
+    if (!gallery.name && !gallery.code) return false;
+    
     // Filtro ricerca testuale
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesSearch = (
-        gallery.name.toLowerCase().includes(query) ||
-        gallery.code.toLowerCase().includes(query) ||
-        gallery.date.toLowerCase().includes(query)
+        (gallery.name?.toLowerCase() || '').includes(query) ||
+        (gallery.code?.toLowerCase() || '').includes(query) ||
+        (gallery.date?.toLowerCase() || '').includes(query)
       );
       if (!matchesSearch) return false;
     }
@@ -2478,6 +2482,8 @@ export default function AdminDashboard() {
                     <SyncClientJobRefs />
                     
                     <PhotosMigration />
+                    
+                    <GalleryRecoveryTool />
                   </div>
                 </TabsContent>
               </Tabs>

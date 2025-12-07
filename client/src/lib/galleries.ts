@@ -136,12 +136,26 @@ export class GalleryService {
         collection(db, 'galleries')
       );
       const snapshot = await getDocs(galleriesQuery);
-      const galleries = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        // Assicura che active sia sempre boolean (default true)
-        active: doc.data().active !== undefined ? doc.data().active : true
-      } as Gallery));
+      console.log(`[GalleryService] Documenti trovati in 'galleries': ${snapshot.docs.length}`);
+      
+      const galleries = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          // Log per debug: mostra gallerie con dati vuoti
+          if (!data.name && !data.code) {
+            console.log(`[GalleryService] Galleria vuota trovata: ${doc.id}`, data);
+          }
+          return { 
+            id: doc.id, 
+            ...data,
+            // Assicura che active sia sempre boolean (default true)
+            active: data.active !== undefined ? data.active : true
+          } as Gallery;
+        })
+        // Filtra gallerie con documenti vuoti (senza name e code)
+        .filter(g => g.name || g.code);
+      
+      console.log(`[GalleryService] Gallerie valide dopo filtro: ${galleries.length}`);
       
       // Ordina per createdAt (desc) client-side
       return galleries.sort((a, b) => {
