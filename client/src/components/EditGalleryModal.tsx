@@ -91,6 +91,7 @@ interface EditGalleryModalProps {
 
 export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalleryModalProps) {
   const [name, setName] = useState("");
+  const [galleryCode, setGalleryCode] = useState(""); // Codice galleria editabile per QR code
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
@@ -151,6 +152,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Stati per modale successo upload
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [uploadStats, setUploadStats] = useState({ photosCount: 0, notifiedCount: 0 });
+  
+  // Stati per Unisci Gallerie
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [allGalleries, setAllGalleries] = useState<Array<{ id: string; name: string; code: string; photoCount: number }>>([]);
+  const [targetGalleryId, setTargetGalleryId] = useState<string>("");
+  const [isMerging, setIsMerging] = useState(false);
   
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -375,6 +382,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       currentGalleryId.current = gallery.id;
 
       setName(gallery.name || "");
+      setGalleryCode(gallery.code || ""); // Codice per QR code
       setDate(gallery.date || "");
       setLocation(gallery.location || "");
       setDescription(gallery.description || "");
@@ -881,6 +889,176 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, toast]);
 
+  // Carica tutte le gallerie per il dialog Unisci
+  const loadAllGalleries = useCallback(async () => {
+    try {
+      const galleriesSnapshot = await getDocs(
+        query(collection(db, 'galleries'), where('active', '==', true))
+      );
+      const galleries = galleriesSnapshot.docs
+        .filter(d => d.id !== gallery?.id) // Escludi la galleria corrente
+        .map(d => ({
+          id: d.id,
+          name: d.data().name || `Galleria ${d.id.substring(0, 8)}`,
+          code: d.data().code || d.id.substring(0, 8),
+          photoCount: d.data().photoCount || 0
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAllGalleries(galleries);
+    } catch (error) {
+      console.error('Errore caricamento gallerie:', error);
+    }
+  }, [gallery?.id]);
+
+  // Funzione per unire questa galleria in un'altra (sposta le foto)
+  const mergeIntoGallery = useCallback(async () => {
+    if (!gallery || !targetGalleryId) {
+      toast({
+        title: "Errore",
+        description: "Seleziona una galleria di destinazione",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const targetGallery = allGalleries.find(g => g.id === targetGalleryId);
+    if (!targetGallery) return;
+    
+    setIsMerging(true);
+    
+    try {
+      console.log(`🔄 Unione galleria ${gallery.id} -> ${targetGalleryId}`);
+      
+      // ====== FASE 1: Raccogli tutte le foto esistenti nella destinazione per deduplicazione ======
+      const targetPhotosQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', targetGalleryId)
+      );
+      const targetPhotosSnapshot = await getDocs(targetPhotosQuery);
+      const existingUrls = new Set(targetPhotosSnapshot.docs.map(d => d.data().url));
+      
+      // Aggiungi anche le foto legacy della destinazione al set di URL esistenti
+      const targetLegacySnapshot = await getDocs(collection(db, 'galleries', targetGalleryId, 'photos'));
+      targetLegacySnapshot.docs.forEach(d => {
+        const url = d.data().url || d.data().photoUrl;
+        if (url) existingUrls.add(url);
+      });
+      
+      let movedCount = 0;
+      let skippedCount = 0;
+      let legacyMovedCount = 0;
+      
+      // ====== FASE 2: Sposta foto dalla collezione principale (photos) ======
+      const photosQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', gallery.id)
+      );
+      const photosSnapshot = await getDocs(photosQuery);
+      
+      for (const photoDoc of photosSnapshot.docs) {
+        const photoData = photoDoc.data();
+        const photoUrl = photoData.url || photoData.photoUrl;
+        
+        // Salta se foto già esiste nella destinazione
+        if (photoUrl && existingUrls.has(photoUrl)) {
+          skippedCount++;
+          console.log(`⏭️ Foto saltata (duplicato): ${photoData.name}`);
+          continue;
+        }
+        
+        // Aggiorna galleryId e galleryCode
+        await updateDoc(doc(db, 'photos', photoDoc.id), {
+          galleryId: targetGalleryId,
+          galleryCode: targetGallery.code,
+          updatedAt: serverTimestamp()
+        });
+        movedCount++;
+        if (photoUrl) existingUrls.add(photoUrl); // Aggiungi per evitare duplicati successivi
+      }
+      
+      // ====== FASE 3: Migra foto legacy dalla sottocollezione galleries/{id}/photos ======
+      const legacyPhotosSnapshot = await getDocs(collection(db, 'galleries', gallery.id, 'photos'));
+      console.log(`📸 Trovate ${legacyPhotosSnapshot.docs.length} foto legacy nella sottocollezione`);
+      
+      for (const legacyDoc of legacyPhotosSnapshot.docs) {
+        const legacyData = legacyDoc.data();
+        const legacyUrl = legacyData.url || legacyData.photoUrl;
+        
+        // Salta se foto già esiste nella destinazione
+        if (legacyUrl && existingUrls.has(legacyUrl)) {
+          skippedCount++;
+          console.log(`⏭️ Foto legacy saltata (duplicato): ${legacyData.name || legacyDoc.id}`);
+          continue;
+        }
+        
+        // Crea nuovo documento nella collezione photos principale con i dati legacy
+        const newPhotoData = {
+          ...legacyData,
+          galleryId: targetGalleryId,
+          galleryCode: targetGallery.code,
+          migratedFrom: gallery.id,
+          migratedAt: serverTimestamp(),
+          uploadedBy: legacyData.uploadedBy || 'legacy',
+          updatedAt: serverTimestamp()
+        };
+        
+        // Rimuovi campi undefined
+        Object.keys(newPhotoData).forEach(key => {
+          if (newPhotoData[key] === undefined) delete newPhotoData[key];
+        });
+        
+        await addDoc(collection(db, 'photos'), newPhotoData);
+        legacyMovedCount++;
+        if (legacyUrl) existingUrls.add(legacyUrl);
+      }
+      
+      // ====== FASE 4: Ricalcola conteggio foto reale nella destinazione ======
+      const finalTargetPhotosQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', targetGalleryId)
+      );
+      const finalTargetSnapshot = await getDocs(finalTargetPhotosQuery);
+      const actualPhotoCount = finalTargetSnapshot.docs.length;
+      
+      await updateDoc(doc(db, 'galleries', targetGalleryId), {
+        photoCount: actualPhotoCount,
+        updatedAt: serverTimestamp()
+      });
+      
+      // ====== FASE 5: Archivia la galleria sorgente (solo dopo migrazione completa) ======
+      await updateDoc(doc(db, 'galleries', gallery.id), {
+        active: false,
+        mergedInto: targetGalleryId,
+        mergedAt: serverTimestamp(),
+        photoCount: 0,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Invalida cache
+      queryClient.invalidateQueries({ queryKey: ['galleries'] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', targetGalleryId] });
+      
+      const totalMoved = movedCount + legacyMovedCount;
+      toast({
+        title: "Unione completata!",
+        description: `${totalMoved} foto spostate in "${targetGallery.name}"${legacyMovedCount > 0 ? ` (${legacyMovedCount} legacy migrate)` : ''}. ${skippedCount > 0 ? `${skippedCount} duplicati saltati.` : ''} Galleria originale archiviata.`,
+      });
+      
+      setShowMergeDialog(false);
+      onClose(); // Chiudi il modal
+      
+    } catch (error) {
+      console.error('Errore unione gallerie:', error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'unione delle gallerie",
+        variant: "destructive"
+      });
+    } finally {
+      setIsMerging(false);
+    }
+  }, [gallery, targetGalleryId, allGalleries, toast, onClose]);
+
   // Salva le modifiche alla galleria (memoizzata per performance)
   const saveGallery = useCallback(async () => {
     if (!gallery) {
@@ -892,6 +1070,35 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     setIsLoading(true);
 
     try {
+      // VALIDAZIONE: Verifica unicità CODICE GALLERIA se modificato
+      const codeChanged = galleryCode.trim() !== (gallery.code || '');
+      if (codeChanged && galleryCode.trim()) {
+        console.log('🔍 Verifica unicità codice galleria...');
+        
+        // Query Firestore per verificare unicità codice
+        const codeQuery = query(
+          collection(db, 'galleries'), 
+          where('code', '==', galleryCode.trim().toUpperCase())
+        );
+        const existingGalleries = await getDocs(codeQuery);
+        
+        // Controlla se esiste un'altra galleria con lo stesso codice (esclusa quella corrente)
+        const conflictingGallery = existingGalleries.docs.find(d => d.id !== gallery.id);
+        if (conflictingGallery) {
+          const conflictData = conflictingGallery.data();
+          toast({
+            title: "Codice già in uso",
+            description: `Questo codice è già utilizzato dalla galleria "${conflictData.name || conflictingGallery.id}". Scegli un codice diverso.`,
+            variant: "destructive",
+            duration: 5000
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('✅ Codice galleria unico, procedo con il salvataggio');
+      }
+      
       // VALIDAZIONE: Verifica unicità PIN se impostato
       if (specialTheme !== 'none' && specialPin.trim()) {
         console.log('🔍 Verifica unicità PIN...');
@@ -932,6 +1139,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Prepara i dati del tema (SENZA password e specialPin - ora in gallerySecrets)
       const updateData: any = {
         name,
+        code: galleryCode.trim().toUpperCase() || gallery.code, // Codice per QR code (normalizzato in maiuscolo)
         date,
         location,
         description,
@@ -1277,6 +1485,22 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 />
               </div>
               <div>
+                <Label htmlFor="galleryCode">Codice Galleria (QR code)</Label>
+                <Input
+                  id="galleryCode"
+                  value={galleryCode}
+                  onChange={(e) => setGalleryCode(e.target.value.toUpperCase())}
+                  placeholder="Es: ABC12345"
+                  className="font-mono uppercase"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Modifica solo per far funzionare QR code esistenti
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label htmlFor="date">Data dell'Evento</Label>
                 <Input
                   id="date"
@@ -1286,9 +1510,6 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   placeholder="Data dell'Evento"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="location">Luogo</Label>
                 <Input
@@ -1298,34 +1519,35 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   placeholder="Luogo dell'evento"
                 />
               </div>
-              {/* Password Field - Hidden if special theme is selected */}
-              {specialTheme === 'none' && (
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={handlePasswordChange}
-                      placeholder="Password di accesso"
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* Password Field - Hidden if special theme is selected */}
+            {specialTheme === 'none' && (
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={handlePasswordChange}
+                    placeholder="Password di accesso"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="description">Descrizione</Label>
@@ -1807,7 +2029,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex justify-between items-center">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  loadAllGalleries();
+                  setShowMergeDialog(true);
+                }}
+                disabled={isLoading}
+                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+              >
+                🔀 Unisci con...
+              </Button>
               <Button onClick={saveGallery} disabled={isLoading}>
                 {isLoading ? "Salvando..." : "Salva Modifiche"}
               </Button>
@@ -2051,6 +2284,62 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       photosCount={uploadStats.photosCount}
       notifiedCount={uploadStats.notifiedCount}
     />
+    
+    {/* Dialog Unisci Gallerie */}
+    <AlertDialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>🔀 Unisci Galleria</AlertDialogTitle>
+          <AlertDialogDescription>
+            Sposta tutte le foto di <strong>"{gallery?.name}"</strong> in un'altra galleria.
+            <br />
+            <span className="text-orange-600 font-medium">
+              ⚠️ La galleria corrente verrà archiviata dopo l'unione.
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div>
+            <Label>Seleziona galleria di destinazione</Label>
+            <Select value={targetGalleryId} onValueChange={setTargetGalleryId}>
+              <SelectTrigger className="w-full mt-2">
+                <SelectValue placeholder="Scegli una galleria..." />
+              </SelectTrigger>
+              <SelectContent>
+                {allGalleries.map(g => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name} ({g.photoCount} foto) - {g.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {targetGalleryId && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+              <p className="font-medium text-blue-800">Riepilogo operazione:</p>
+              <ul className="list-disc list-inside text-blue-700 mt-1">
+                <li>Le foto verranno spostate (non copiate)</li>
+                <li>I duplicati saranno automaticamente saltati</li>
+                <li>La galleria "{gallery?.name}" sarà archiviata</li>
+              </ul>
+            </div>
+          )}
+        </div>
+        
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isMerging}>Annulla</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={mergeIntoGallery}
+            disabled={!targetGalleryId || isMerging}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            {isMerging ? "Unione in corso..." : "Conferma Unione"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
