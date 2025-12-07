@@ -1070,20 +1070,23 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     setIsLoading(true);
 
     try {
-      // VALIDAZIONE: Verifica unicità CODICE GALLERIA se modificato
-      const codeChanged = galleryCode.trim() !== (gallery.code || '');
-      if (codeChanged && galleryCode.trim()) {
-        console.log('🔍 Verifica unicità codice galleria...');
+      // VALIDAZIONE: Verifica unicità CODICE GALLERIA se modificato (case-insensitive)
+      const newCode = galleryCode.trim();
+      const codeChanged = newCode.toLowerCase() !== (gallery.code || '').toLowerCase();
+      if (codeChanged && newCode) {
+        console.log('🔍 Verifica unicità codice galleria (case-insensitive)...');
         
-        // Query Firestore per verificare unicità codice
-        const codeQuery = query(
-          collection(db, 'galleries'), 
-          where('code', '==', galleryCode.trim().toUpperCase())
-        );
-        const existingGalleries = await getDocs(codeQuery);
+        // Recupera tutte le gallerie e verifica manualmente (Firestore non supporta query case-insensitive)
+        const allGalleriesSnapshot = await getDocs(collection(db, 'galleries'));
+        const newCodeLower = newCode.toLowerCase();
         
-        // Controlla se esiste un'altra galleria con lo stesso codice (esclusa quella corrente)
-        const conflictingGallery = existingGalleries.docs.find(d => d.id !== gallery.id);
+        // Controlla se esiste un'altra galleria con lo stesso codice (case-insensitive, esclusa quella corrente)
+        const conflictingGallery = allGalleriesSnapshot.docs.find(d => {
+          if (d.id === gallery.id) return false;
+          const existingCode = d.data().code || '';
+          return existingCode.toLowerCase() === newCodeLower;
+        });
+        
         if (conflictingGallery) {
           const conflictData = conflictingGallery.data();
           toast({
@@ -1139,7 +1142,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Prepara i dati del tema (SENZA password e specialPin - ora in gallerySecrets)
       const updateData: any = {
         name,
-        code: galleryCode.trim().toUpperCase() || gallery.code, // Codice per QR code (normalizzato in maiuscolo)
+        code: galleryCode.trim() || gallery.code, // Codice per QR code (mantiene case originale per compatibilità QR)
         date,
         location,
         description,
@@ -1489,12 +1492,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 <Input
                   id="galleryCode"
                   value={galleryCode}
-                  onChange={(e) => setGalleryCode(e.target.value.toUpperCase())}
-                  placeholder="Es: ABC12345"
-                  className="font-mono uppercase"
+                  onChange={(e) => setGalleryCode(e.target.value)}
+                  placeholder="Es: ABC12345 o -dAIkIEK"
+                  className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Modifica solo per far funzionare QR code esistenti
+                  Inserisci esattamente come appare nel QR code (maiuscole/minuscole)
                 </p>
               </div>
             </div>
