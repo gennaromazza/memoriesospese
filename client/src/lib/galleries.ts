@@ -187,13 +187,27 @@ export class GalleryService {
    */
   static async getGalleryByCode(code: string): Promise<Gallery | null> {
     try {
-      const galleriesQuery = query(
+      // Cerca prima per codice esatto
+      let galleriesQuery = query(
         collection(db, 'galleries'), 
         where('code', '==', code),
         where('active', '==', true),
         limit(1)
       );
-      const snapshot = await getDocs(galleriesQuery);
+      let snapshot = await getDocs(galleriesQuery);
+      
+      // Se non trova, prova con codice in MAIUSCOLO (gallerie ripristinate)
+      if (snapshot.empty) {
+        const normalizedCode = code.toUpperCase();
+        galleriesQuery = query(
+          collection(db, 'galleries'), 
+          where('code', '==', normalizedCode),
+          where('active', '==', true),
+          limit(1)
+        );
+        snapshot = await getDocs(galleriesQuery);
+      }
+      
       return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Gallery;
     } catch (error) {
       console.error('Errore recupero galleria per codice:', error);
@@ -394,9 +408,16 @@ export class GalleryService {
     try {
       const galleriesRef = collection(db, 'galleries');
       
-      // Cerca prima per "code" (gallerie nuove)
+      // Cerca prima per "code" esatto
       let q = query(galleriesRef, where('code', '==', code));
       let querySnapshot = await getDocs(q);
+      
+      // Se non trova, prova con codice in MAIUSCOLO (gallerie ripristinate hanno code in uppercase)
+      if (querySnapshot.empty) {
+        const normalizedCode = code.toUpperCase();
+        q = query(galleriesRef, where('code', '==', normalizedCode));
+        querySnapshot = await getDocs(q);
+      }
       
       let galleryDoc;
       let galleryData;

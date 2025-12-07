@@ -85,10 +85,19 @@ export default function GalleryAccess() {
       setLoading(true); // Use setLoading for the initial check
       try {
         const galleriesRef = collection(db, "galleries");
+        
+        // Normalizza il codice (case-insensitive matching)
+        const normalizedCode = id.toUpperCase();
 
-        // Cerca prima per "code" (gallerie nuove)
+        // Cerca prima per "code" esatto
         let q = query(galleriesRef, where("code", "==", id));
         let querySnapshot = await getDocs(q);
+        
+        // Se non trova, prova con codice in MAIUSCOLO (gallerie ripristinate)
+        if (querySnapshot.empty) {
+          q = query(galleriesRef, where("code", "==", normalizedCode));
+          querySnapshot = await getDocs(q);
+        }
 
         // Se non trova per code, cerca per ID Firestore (gallerie vecchie)
         if (querySnapshot.empty) {
