@@ -40,8 +40,11 @@ export default function GalleryRecoveryTool() {
       const galleryMap = new Map<string, { 
         galleryId: string; 
         galleryCode?: string; 
+        galleryName?: string;
         photos: any[];
         firstPhotoDate?: Date;
+        fromOrder?: boolean;
+        specialTheme?: string;
       }>();
       
       photosSnapshot.docs.forEach(doc => {
@@ -71,7 +74,54 @@ export default function GalleryRecoveryTool() {
         }
       });
       
-      console.log(`[Recovery] Trovate ${galleryMap.size} gallerie uniche`);
+      // ANCHE cerca gallerie dagli ORDINI (per gallerie vuote create da booking)
+      setCurrentStep('Caricamento ordini per gallerie vuote...');
+      const ordersSnapshot = await getDocs(collection(db, 'orders'));
+      console.log(`[Recovery] Trovati ${ordersSnapshot.docs.length} ordini`);
+      
+      ordersSnapshot.docs.forEach(orderDoc => {
+        const data = orderDoc.data();
+        const galleryId = data.galleryId;
+        if (!galleryId) return;
+        
+        // Se questa galleria non è già stata trovata dalle foto
+        if (!galleryMap.has(galleryId)) {
+          galleryMap.set(galleryId, {
+            galleryId,
+            galleryCode: data.galleryCode,
+            galleryName: data.nomeCliente ? `Galleria ${data.nomeCliente}` : undefined,
+            photos: [],
+            firstPhotoDate: data.createdAt?.toDate?.() || data.dataEvento?.toDate?.() || undefined,
+            fromOrder: true,
+            specialTheme: data.specialTheme
+          });
+          console.log(`[Recovery] Galleria vuota trovata da ordine: ${galleryId}`);
+        }
+      });
+      
+      // ANCHE cerca gallerie dai JOBS (per gallerie vuote create da lavori)
+      setCurrentStep('Caricamento lavori per gallerie associate...');
+      const jobsSnapshot = await getDocs(collection(db, 'jobs'));
+      console.log(`[Recovery] Trovati ${jobsSnapshot.docs.length} lavori`);
+      
+      jobsSnapshot.docs.forEach(jobDoc => {
+        const data = jobDoc.data();
+        const galleryIds = data.galleryIds || [];
+        galleryIds.forEach((galleryId: string) => {
+          if (!galleryMap.has(galleryId)) {
+            galleryMap.set(galleryId, {
+              galleryId,
+              galleryName: data.titolo ? `Galleria ${data.titolo}` : undefined,
+              photos: [],
+              firstPhotoDate: data.dataEvento?.toDate?.() || data.createdAt?.toDate?.() || undefined,
+              fromOrder: true
+            });
+            console.log(`[Recovery] Galleria vuota trovata da job: ${galleryId}`);
+          }
+        });
+      });
+      
+      console.log(`[Recovery] Trovate ${galleryMap.size} gallerie uniche (incluse quelle da ordini/jobs)`);
       setCurrentStep(`Verificando ${galleryMap.size} gallerie...`);
       
       const results: GalleryRecoveryInfo[] = [];
@@ -84,6 +134,10 @@ export default function GalleryRecoveryTool() {
         const documentEmpty = hasDocument && !data.name && !data.code;
         const needsRecovery = !hasDocument || documentEmpty;
         
+        // Priorità nome: galleryName da ordine/job > codice > ID
+        const recoveredName = info.galleryName || 
+          (info.galleryCode ? `Galleria ${info.galleryCode}` : `Galleria ${galleryId.substring(0, 8)}`);
+        
         results.push({
           galleryId,
           galleryCode: info.galleryCode,
@@ -92,8 +146,11 @@ export default function GalleryRecoveryTool() {
           documentEmpty,
           needsRecovery,
           firstPhotoDate: info.firstPhotoDate,
-          recoveredName: info.galleryCode ? `Galleria ${info.galleryCode}` : `Galleria ${galleryId.substring(0, 8)}`
-        });
+          recoveredName,
+          // @ts-ignore - campo extra per tracking
+          fromOrder: info.fromOrder,
+          specialTheme: info.specialTheme
+        } as GalleryRecoveryInfo);
         
         processed++;
         setProgress((processed / galleryMap.size) * 100);
@@ -153,26 +210,35 @@ export default function GalleryRecoveryTool() {
         const hasSpecialPin = !!secrets?.specialPin;
         
         // Determina se è una galleria speciale (con PIN) o normale (con password)
-        const isSpecialGallery = hasSpecialPin && !hasPassword;
+        const isSpecialGallery = hasSpecialPin;
+        // @ts-ignore - campo extra per tracking
+        const themeFromOrder = (gallery as any).specialTheme;
         
         const galleryData: Record<string, any> = {
           name: gallery.recoveredName || `Galleria ${gallery.galleryId.substring(0, 8)}`,
           code: gallery.galleryCode || gallery.galleryId.substring(0, 8).toUpperCase(),
           date: gallery.firstPhotoDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
           active: true,
-          hasPassword: hasPassword,
           photoCount: gallery.photoCount,
           createdAt: gallery.firstPhotoDate || new Date(),
           updatedAt: new Date(),
           recoveredAt: new Date(),
-          recoveryNote: 'Documento ripristinato automaticamente dalla collezione photos'
+          recoveryNote: 'Documento ripristinato automaticamente dalla collezione photos/orders'
         };
         
-        // Se ha special PIN, è una galleria tematica
+        // Se ha special PIN, è una galleria tematica (NO password)
         if (isSpecialGallery) {
-          galleryData.specialTheme = 'elegance'; // Tema di default, admin può cambiarlo
+          galleryData.specialTheme = themeFromOrder || 'elegance'; // Usa tema da ordine o default
           galleryData.hasSpecialPin = true;
-          console.log(`[Recovery] Galleria ${gallery.galleryId} è una galleria speciale con PIN`);
+          galleryData.hasPassword = false; // Special gallery NON hanno password
+          console.log(`[Recovery] Galleria SPECIALE ${gallery.galleryId} con PIN, tema: ${galleryData.specialTheme}`);
+        } else {
+          // Galleria normale con password
+          galleryData.hasPassword = hasPassword;
+          galleryData.hasSpecialPin = false;
+          if (hasPassword) {
+            console.log(`[Recovery] Galleria NORMALE ${gallery.galleryId} con password`);
+          }
         }
         
         await setDoc(doc(db, 'galleries', gallery.galleryId), galleryData, { merge: true });
