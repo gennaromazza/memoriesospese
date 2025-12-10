@@ -751,8 +751,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: `La foto ${photoType} è stata eliminata con successo dalla galleria.`
       });
 
-      // 5. Forza il refresh della galleria principale
+      // 5. Forza il refresh della galleria principale e invalida cache
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
 
     } catch (error) {
       console.error('❌ Errore durante l\'eliminazione:', error);
@@ -834,8 +836,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         description: `Tutte le ${photos.length} foto sono state rimosse dalla galleria con successo.`
       });
 
-      // 5. Forza il refresh della galleria principale
+      // 5. Forza il refresh della galleria principale e invalida cache
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
 
     } catch (error) {
       console.error('❌ Errore durante l\'eliminazione di tutte le foto:', error);
@@ -877,6 +881,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         title: "Selezione sbloccata",
         description: "Il cliente può ora modificare la selezione foto"
       });
+      
+      // Invalida cache per sincronizzare con altri componenti
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
     } catch (error) {
       console.error('Errore sblocco selezione:', error);
       toast({
@@ -1426,8 +1433,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Ricarica le foto
       loadPhotos();
 
-      // Forza il refresh della galleria principale
+      // Forza il refresh della galleria principale e invalida cache
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
 
       // Mostra modale di conferma con statistiche
       setUploadStats({

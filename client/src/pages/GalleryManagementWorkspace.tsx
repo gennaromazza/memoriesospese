@@ -148,6 +148,19 @@ export default function GalleryManagementWorkspace() {
     }
   }, [allPhotos]);
 
+  // Redirect automatico se la galleria viene eliminata mentre siamo nel workspace
+  useEffect(() => {
+    // Se il loading è completato e la galleria non esiste più, redirect
+    if (!isLoading && !gallery && galleryId) {
+      toast({
+        title: "Galleria eliminata",
+        description: "La galleria è stata eliminata. Reindirizzamento alla dashboard...",
+        variant: "destructive"
+      });
+      setLocation('/admin/dashboard');
+    }
+  }, [isLoading, gallery, galleryId, toast, setLocation]);
+
   // Crea preview per file selezionati
   const createPreviews = useCallback((files: File[]) => {
     const previews = files.map(file => {
@@ -463,6 +476,7 @@ export default function GalleryManagementWorkspace() {
                 onClick={() => setEditModalOpen(true)}
                 className="bg-terracotta hover:bg-terracotta/90 text-white"
                 data-testid="button-edit-gallery"
+                disabled={isLoading || !gallery}
               >
                 <Pencil className="w-4 h-4 mr-2" />
                 Modifica Galleria
@@ -1323,15 +1337,17 @@ export default function GalleryManagementWorkspace() {
         </Tabs>
       </div>
 
-      {/* Edit Gallery Modal */}
-      <EditGalleryModal
-        isOpen={editModalOpen}
-        onClose={() => {
-          setEditModalOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
-        }}
-        gallery={gallery}
-      />
+      {/* Edit Gallery Modal - Solo se gallery è caricata */}
+      {gallery && (
+        <EditGalleryModal
+          isOpen={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+          }}
+          gallery={gallery}
+        />
+      )}
     </div>
   );
 }
