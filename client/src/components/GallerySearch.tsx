@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import React, { useState, useEffect, useMemo } from "react";
+import { collection, getDocs, query, orderBy, limit, Timestamp } from "firebase/firestore";
 import { useLocation } from "wouter";
 import { db } from "../lib/firebase";
 import { createUrl, createAbsoluteUrl } from "@/lib/basePath";
 import { formatDateString } from "../lib/dateFormatter";
 import { Input } from "./ui/input";
 import { Card, CardContent } from "./ui/card";
-import { Search } from "lucide-react";
+import { Search, Sparkles, Calendar } from "lucide-react";
 import { getSpecialThemeIds } from "@shared/special-themes";
 
 interface GallerySearchResult {
@@ -14,6 +14,7 @@ interface GallerySearchResult {
   name: string;
   code: string;
   date: string;
+  createdAt?: Date;
 }
 
 export default function GallerySearch() {
@@ -46,11 +47,24 @@ export default function GallerySearch() {
         const hasSpecialTheme = data.specialTheme && specialThemeIds.includes(data.specialTheme);
         
         if (isActive && !hasSpecialTheme) {
+          // Converti createdAt Timestamp in Date
+          let createdAtDate: Date | undefined;
+          if (data.createdAt) {
+            if (data.createdAt instanceof Timestamp) {
+              createdAtDate = data.createdAt.toDate();
+            } else if (data.createdAt.toDate) {
+              createdAtDate = data.createdAt.toDate();
+            } else if (typeof data.createdAt === 'string') {
+              createdAtDate = new Date(data.createdAt);
+            }
+          }
+          
           galleries.push({
             id: doc.id,
             name: data.name || "",
             code: data.code || "",
             date: data.date || "",
+            createdAt: createdAtDate,
           });
         }
       });
@@ -94,18 +108,35 @@ export default function GallerySearch() {
   }, [searchTerm, allGalleries]);
 
   const handleGallerySelect = (code: string) => {
-
-
     // Utilizziamo il router di wouter per la navigazione
     const galleryPath = `/gallery/${code}`;
-
-
     // Utilizziamo createUrl per costruire il URL corretto con il basePath
     const correctPath = createUrl(galleryPath);
-
-
     // Utilizziamo navigate di wouter con il path corretto
     navigate(correctPath);
+  };
+
+  // Ultime 5 gallerie ordinate per data creazione (più recenti prima)
+  const recentGalleries = useMemo(() => {
+    return [...allGalleries]
+      .filter(g => g.createdAt) // Solo gallerie con createdAt
+      .sort((a, b) => {
+        const dateA = a.createdAt?.getTime() || 0;
+        const dateB = b.createdAt?.getTime() || 0;
+        return dateB - dateA; // Più recenti prima
+      })
+      .slice(0, 5);
+  }, [allGalleries]);
+
+  // Controlla se una galleria è stata creata oggi
+  const isToday = (date?: Date): boolean => {
+    if (!date) return false;
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
   };
 
   return (
@@ -167,6 +198,59 @@ export default function GallerySearch() {
         <p className="mt-2 text-sm text-gray-500">
           Nessun risultato trovato. Prova con un altro nome.
         </p>
+      )}
+
+      {/* Gallerie Recenti - mostrate solo se non c'è una ricerca attiva */}
+      {searchTerm.length < 2 && recentGalleries.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-blue-gray/70 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Gallerie Recenti
+          </h3>
+          <div className="space-y-2">
+            {recentGalleries.map((gallery) => {
+              const isTodayGallery = isToday(gallery.createdAt);
+              return (
+                <a
+                  key={gallery.id}
+                  href={createUrl(`/gallery/${gallery.code}`)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleGallerySelect(gallery.code);
+                  }}
+                  className={`block p-3 rounded-lg border transition-all cursor-pointer ${
+                    isTodayGallery 
+                      ? 'bg-gradient-to-r from-sage/10 to-terracotta/10 border-sage/30 hover:border-sage/50 shadow-sm' 
+                      : 'bg-white border-gray-200 hover:border-sage/30 hover:bg-gray-50'
+                  }`}
+                  data-testid={`recent-gallery-${gallery.id}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {isTodayGallery && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sage text-white text-xs font-bold rounded-full animate-pulse">
+                          <Sparkles className="h-3 w-3" />
+                          OGGI
+                        </span>
+                      )}
+                      <span className={`font-medium ${isTodayGallery ? 'text-blue-gray' : 'text-blue-gray/80'}`}>
+                        {gallery.name}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {formatDateString(gallery.date)}
+                    </span>
+                  </div>
+                  {isTodayGallery && (
+                    <p className="text-xs text-sage mt-1 font-medium">
+                      Evento di oggi! Clicca per accedere
+                    </p>
+                  )}
+                </a>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
