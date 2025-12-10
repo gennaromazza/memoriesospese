@@ -202,54 +202,75 @@ export default function GallerySearch() {
 
       {/* Gallerie Recenti - mostrate solo se non c'è una ricerca attiva */}
       {searchTerm.length < 2 && recentGalleries.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-blue-gray/70 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Gallerie Recenti
-          </h3>
-          <div className="space-y-2">
-            {recentGalleries.map((gallery) => {
-              const isTodayGallery = isToday(gallery.createdAt);
-              return (
-                <a
-                  key={gallery.id}
-                  href={createUrl(`/gallery/${gallery.code}`)}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleGallerySelect(gallery.code);
-                  }}
-                  className={`block p-3 rounded-lg border transition-all cursor-pointer ${
-                    isTodayGallery 
-                      ? 'bg-gradient-to-r from-sage/10 to-terracotta/10 border-sage/30 hover:border-sage/50 shadow-sm' 
-                      : 'bg-white border-gray-200 hover:border-sage/30 hover:bg-gray-50'
-                  }`}
-                  data-testid={`recent-gallery-${gallery.id}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {isTodayGallery && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sage text-white text-xs font-bold rounded-full animate-pulse">
-                          <Sparkles className="h-3 w-3" />
-                          OGGI
-                        </span>
-                      )}
-                      <span className={`font-medium ${isTodayGallery ? 'text-blue-gray' : 'text-blue-gray/80'}`}>
-                        {gallery.name}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500">
+        <div className="mt-6 space-y-4">
+          {/* GALLERIE DI OGGI - Card grande e prominente */}
+          {recentGalleries.filter(g => isToday(g.createdAt)).map((gallery) => (
+            <a
+              key={gallery.id}
+              href={createUrl(`/gallery/${gallery.code}`)}
+              onClick={(e) => {
+                e.preventDefault();
+                handleGallerySelect(gallery.code);
+              }}
+              className="block p-5 rounded-2xl bg-gradient-to-br from-sage/20 via-terracotta/10 to-sage/15 border-2 border-sage/40 hover:border-sage/60 shadow-lg hover:shadow-xl transition-all cursor-pointer relative overflow-hidden group"
+              data-testid={`today-gallery-${gallery.id}`}
+            >
+              {/* Effetto glow animato */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-sage text-white text-sm font-bold rounded-full shadow-md">
+                    <Sparkles className="h-4 w-4" />
+                    EVENTO DI OGGI
+                  </span>
+                </div>
+                
+                <h4 className="text-xl font-playfair font-semibold text-blue-gray mb-1">
+                  {gallery.name}
+                </h4>
+                
+                <div className="flex items-center gap-2 text-sage">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-sm font-medium">{formatDateString(gallery.date)}</span>
+                </div>
+                
+                <p className="text-sm text-blue-gray/70 mt-3 font-medium">
+                  🎉 Clicca qui per accedere alla galleria dell'evento!
+                </p>
+              </div>
+            </a>
+          ))}
+
+          {/* GALLERIE PASSATE - Lista discreta */}
+          {recentGalleries.filter(g => !isToday(g.createdAt)).length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+                Gallerie recenti
+              </h3>
+              <div className="space-y-1">
+                {recentGalleries.filter(g => !isToday(g.createdAt)).map((gallery) => (
+                  <a
+                    key={gallery.id}
+                    href={createUrl(`/gallery/${gallery.code}`)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleGallerySelect(gallery.code);
+                    }}
+                    className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-gray-50 transition-colors cursor-pointer group"
+                    data-testid={`past-gallery-${gallery.id}`}
+                  >
+                    <span className="text-sm text-gray-600 group-hover:text-blue-gray transition-colors">
+                      {gallery.name}
+                    </span>
+                    <span className="text-xs text-gray-400">
                       {formatDateString(gallery.date)}
                     </span>
-                  </div>
-                  {isTodayGallery && (
-                    <p className="text-xs text-sage mt-1 font-medium">
-                      Evento di oggi! Clicca per accedere
-                    </p>
-                  )}
-                </a>
-              );
-            })}
-          </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
