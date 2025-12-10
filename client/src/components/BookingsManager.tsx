@@ -34,7 +34,6 @@ import type {
 import { WorkflowState } from "@shared/schema";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
-import EditGalleryModal from "@/components/EditGalleryModal";
 import ManualBookingModal from "@/components/ManualBookingModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -195,8 +194,6 @@ export default function BookingsManager({
     useState<Booking | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
-  const [selectedGalleryForEdit, setSelectedGalleryForEdit] =
-    useState<Gallery | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -2805,18 +2802,6 @@ export default function BookingsManager({
           refetch();
         }}
       />
-
-      {/* Edit Gallery Modal */}
-      {selectedGalleryForEdit && (
-        <EditGalleryModal
-          isOpen={true}
-          onClose={() => {
-            queryClient.invalidateQueries({ queryKey: ["galleries"] });
-            setSelectedGalleryForEdit(null);
-          }}
-          gallery={selectedGalleryForEdit}
-        />
-      )}
 
       {/* Edit Order Modal */}
       {editingOrder && (

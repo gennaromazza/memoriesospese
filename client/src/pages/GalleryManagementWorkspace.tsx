@@ -18,7 +18,8 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil } from 'lucide-react';
+import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
 import ChaptersManager from '@/components/gallery/ChaptersManager';
@@ -83,6 +84,7 @@ export default function GalleryManagementWorkspace() {
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [enableCompression, setEnableCompression] = useState(true);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   // Query gallery data
   const { data: gallery, isLoading } = useQuery<Gallery | null>({
@@ -445,16 +447,26 @@ export default function GalleryManagementWorkspace() {
           </Button>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="font-playfair text-3xl text-blue-gray">
-                Gestisci Galleria: {gallery.name}
-              </CardTitle>
-              <CardDescription>
-                Codice: <strong>{gallery.code}</strong> | Foto: <strong>{gallery.photoCount || 0}</strong>
-                {gallery.selectionEnabled && (
-                  <> | Modalità Selezione: <strong className="text-sage">{gallery.requiredPhotoCount} foto richieste</strong></>
-                )}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle className="font-playfair text-3xl text-blue-gray">
+                  Gestisci Galleria: {gallery.name}
+                </CardTitle>
+                <CardDescription>
+                  Codice: <strong>{gallery.code}</strong> | Foto: <strong>{gallery.photoCount || 0}</strong>
+                  {gallery.selectionEnabled && (
+                    <> | Modalità Selezione: <strong className="text-sage">{gallery.requiredPhotoCount} foto richieste</strong></>
+                  )}
+                </CardDescription>
+              </div>
+              <Button
+                onClick={() => setEditModalOpen(true)}
+                className="bg-terracotta hover:bg-terracotta/90 text-white"
+                data-testid="button-edit-gallery"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Modifica Galleria
+              </Button>
             </CardHeader>
           </Card>
         </div>
@@ -1310,6 +1322,16 @@ export default function GalleryManagementWorkspace() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Gallery Modal */}
+      <EditGalleryModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+        }}
+        gallery={gallery}
+      />
     </div>
   );
 }

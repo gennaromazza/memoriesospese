@@ -687,8 +687,8 @@ export default function AdminDashboard() {
   };
 
   const openEditModal = (gallery: GalleryItem) => {
-    setSelectedGallery(gallery);
-    setIsEditModalOpen(true);
+    // Redirect to GalleryManagementWorkspace instead of opening modal
+    navigate(`/admin/gallery/${gallery.id}/manage`);
   };
 
   const closeEditModal = () => {

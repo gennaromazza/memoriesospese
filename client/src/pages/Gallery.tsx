@@ -53,7 +53,6 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
-import EditGalleryModal from "@/components/EditGalleryModal";
 import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -224,8 +223,6 @@ export default function Gallery() {
   // Stato per triggare il refresh dei voice memos
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Stato per gestire l'apertura del modal EditGallery
-  const [isEditGalleryOpen, setIsEditGalleryOpen] = useState(false);
 
   // Stati per gestire la storia della coppia
   const [showStoryUpload, setShowStoryUpload] = useState(false);
@@ -1876,14 +1873,14 @@ export default function Gallery() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setIsEditGalleryOpen(true)}
+                            onClick={() => navigate(`/admin/gallery/${id}/manage`)}
                             className="px-4 sm:px-6 py-2 rounded-md font-medium transition-all text-sm sm:text-base flex items-center gap-2 bg-light-mint text-blue-gray hover:bg-mint hover:text-dark-sage border border-sage/30 shadow-sm"
                           >
                             <Edit3 className="h-4 w-4" />
                             <span className="hidden sm:inline">
-                              Edit Gallery
+                              Gestisci Galleria
                             </span>
-                            <span className="sm:hidden">Edit</span>
+                            <span className="sm:hidden">Gestisci</span>
                           </button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom" className="text-sm">
@@ -3702,14 +3699,6 @@ export default function Gallery() {
         } : undefined}
       />
 
-      {/* Edit Gallery Modal - Solo per Admin */}
-      {galleryData && isAdmin && (
-        <EditGalleryModal
-          isOpen={isEditGalleryOpen}
-          onClose={() => setIsEditGalleryOpen(false)}
-          gallery={galleryData}
-        />
-      )}
 
       {/* 🎓 Onboarding Tutorial - Gestito autonomamente dal componente wrapper */}
       <GalleryOnboardingSpotlight
