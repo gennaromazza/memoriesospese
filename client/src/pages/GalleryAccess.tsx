@@ -12,6 +12,7 @@ import { Separator } from "../components/ui/separator";
 import Navigation from "../components/Navigation";
 import Footer from "../components/Footer";
 import { Lock, Mail, Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
+import StudioLogo from "../components/StudioLogo";
 import { Label } from "../components/ui/label";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -279,9 +280,10 @@ export default function GalleryAccess() {
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-xl sm:text-2xl font-playfair text-blue-gray">
-              iMaGe <span className="text-sage">Studio</span>
-            </Link>
+            <StudioLogo 
+              imgClassName="h-10 sm:h-12 w-auto" 
+              textClassName="text-xl sm:text-2xl font-playfair text-blue-gray"
+            />
             <Link href="/">
               <Button variant="ghost" className="text-sage hover:text-dark-sage text-sm sm:text-base">
                 <ArrowLeft className="mr-2 h-4 w-4" />

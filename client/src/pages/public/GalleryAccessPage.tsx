@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import GallerySearch from "@/components/GallerySearch";
+import StudioLogo from "@/components/StudioLogo";
 import type { BookingCampaign } from "@shared/booking-types";
 
 export default function GalleryAccessPage() {
@@ -35,9 +36,10 @@ export default function GalleryAccessPage() {
       <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-playfair text-blue-gray">
-              <span className="text-[#C67B5C]">i</span>MaGe Studio
-            </Link>
+            <StudioLogo 
+              imgClassName="h-12 w-auto" 
+              textClassName="text-2xl font-playfair text-blue-gray"
+            />
             <Link href="/">
               <Button variant="ghost" className="text-sage hover:text-dark-sage">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -154,7 +156,12 @@ export default function GalleryAccessPage() {
       {/* Footer */}
       <footer className="bg-blue-gray text-white py-12 px-4 mt-20">
         <div className="max-w-7xl mx-auto text-center">
-          <h3 className="text-2xl font-playfair mb-4">iMaGe Studio</h3>
+          <StudioLogo 
+            showLink={false}
+            imgClassName="h-12 w-auto mb-2 mx-auto" 
+            textClassName="text-2xl font-playfair text-white"
+            className="flex justify-center mb-4"
+          />
           <p className="text-gray-300 mb-6">
             {studioSettings.about ||
               "Studio fotografico per matrimoni ed eventi"}

@@ -37,6 +37,7 @@ import libroPdf from "@assets/lasciati-trasportare.pdf";
 import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
+import StudioLogo from "@/components/StudioLogo";
 
 interface PortfolioPhoto {
   id: string;
@@ -1249,7 +1250,11 @@ export default function PublicHomepage() {
       <footer className="bg-blue-gray text-white py-12 px-4">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
           <div>
-            <h3 className="text-2xl font-playfair mb-4">iMaGe Studio</h3>
+            <StudioLogo 
+              showLink={false}
+              imgClassName="h-10 w-auto mb-2" 
+              textClassName="text-2xl font-playfair text-white"
+            />
             <p className="text-gray-300 mb-4">
               {studioSettings.about ||
                 "Studio fotografico per matrimoni ed eventi a Napoli e Caserta"}

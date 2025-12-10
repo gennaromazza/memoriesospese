@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
+import StudioLogo from "@/components/StudioLogo";
 
 export default function BlogPostPage() {
   const [, params] = useRoute("/blog/:slug");
@@ -215,11 +216,10 @@ export default function BlogPostPage() {
         <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-20">
-              <Link href="/">
-                <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
-                  iMaGe <span className="text-sage">Studio</span>
-                </h1>
-              </Link>
+              <StudioLogo 
+                imgClassName="h-12 w-auto" 
+                textClassName="text-blue-gray font-playfair font-bold text-2xl"
+              />
               <div className="flex gap-2">
                 <Link href="/blog">
                   <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
@@ -259,11 +259,10 @@ export default function BlogPostPage() {
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            <Link href="/">
-              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
-                iMaGe <span className="text-sage">Studio</span>
-              </h1>
-            </Link>
+            <StudioLogo 
+              imgClassName="h-12 w-auto" 
+              textClassName="text-blue-gray font-playfair font-bold text-2xl"
+            />
             <div className="flex gap-2">
               <Link href="/blog">
                 <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">

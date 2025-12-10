@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
+import StudioLogo from "@/components/StudioLogo";
 
 export default function BlogListPage() {
   const { studioSettings } = useStudio();
@@ -112,11 +113,10 @@ export default function BlogListPage() {
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            <Link href="/">
-              <h1 className="text-blue-gray font-playfair font-bold text-2xl cursor-pointer transition-colors duration-300 hover:text-sage">
-                iMaGe <span className="text-sage">Studio</span>
-              </h1>
-            </Link>
+            <StudioLogo 
+              imgClassName="h-12 w-auto" 
+              textClassName="text-blue-gray font-playfair font-bold text-2xl"
+            />
             <Link href="/">
               <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -333,7 +333,11 @@ export default function BlogListPage() {
       <footer className="bg-blue-gray text-white py-12 px-4 mt-20">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
           <div>
-            <h3 className="text-2xl font-playfair mb-4">iMaGe Studio</h3>
+            <StudioLogo 
+              showLink={false}
+              imgClassName="h-10 w-auto mb-2" 
+              textClassName="text-2xl font-playfair text-white"
+            />
             <p className="text-gray-300 mb-4">
               {studioSettings.about || "Studio fotografico per matrimoni ed eventi"}
             </p>
@@ -384,7 +388,7 @@ export default function BlogListPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
-          <p>© 2025 iMaGe Studio. Tutti i diritti riservati.</p>
+          <p>© {new Date().getFullYear()} iMaGe Studio. Tutti i diritti riservati.</p>
         </div>
       </footer>
     </div>
