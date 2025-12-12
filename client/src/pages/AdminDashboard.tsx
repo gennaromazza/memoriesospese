@@ -2484,6 +2484,83 @@ export default function AdminDashboard() {
                     <PhotosMigration />
                     
                     <GalleryRecoveryTool />
+                    
+                    {/* Migrazione Secrets Gallerie */}
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      <h3 className="text-lg font-semibold mb-2">Migrazione Secrets Gallerie</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Migra password e PIN delle gallerie dalla collection pubblica alla collection protetta (gallerySecrets).
+                        Questa operazione è sicura e può essere eseguita più volte.
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        <Button 
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              const token = await auth.currentUser?.getIdToken();
+                              if (!token) {
+                                toast({ title: "Errore", description: "Devi essere autenticato", variant: "destructive" });
+                                return;
+                              }
+                              const response = await fetch('/api/email/admin/check-legacy-secrets', {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              const data = await response.json();
+                              if (data.success) {
+                                toast({ 
+                                  title: `Controllo completato`, 
+                                  description: `Trovate ${data.legacyCount} gallerie con secrets legacy su ${data.totalGalleries} totali.${data.legacyGalleries?.length > 0 ? ' Gallerie: ' + data.legacyGalleries.map((g: any) => g.name).join(', ') : ''}`,
+                                  duration: 10000
+                                });
+                              } else {
+                                toast({ title: "Errore", description: data.error, variant: "destructive" });
+                              }
+                            } catch (error: any) {
+                              toast({ title: "Errore", description: error.message, variant: "destructive" });
+                            }
+                          }}
+                          className="flex items-center gap-2"
+                          data-testid="button-check-legacy-secrets"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Controlla Secrets Legacy
+                        </Button>
+                        <Button 
+                          onClick={async () => {
+                            try {
+                              const token = await auth.currentUser?.getIdToken();
+                              if (!token) {
+                                toast({ title: "Errore", description: "Devi essere autenticato", variant: "destructive" });
+                                return;
+                              }
+                              toast({ title: "Migrazione in corso...", description: "Attendere..." });
+                              const response = await fetch('/api/email/admin/migrate-legacy-secrets', {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              const data = await response.json();
+                              if (data.success) {
+                                const r = data.results;
+                                toast({ 
+                                  title: "Migrazione completata", 
+                                  description: `Migrate: ${r.migrated} | Già migrate: ${r.alreadyMigrated} | Password legacy: ${r.withLegacyPassword} | PIN legacy: ${r.withLegacyPin}`,
+                                  duration: 10000
+                                });
+                              } else {
+                                toast({ title: "Errore", description: data.error, variant: "destructive" });
+                              }
+                            } catch (error: any) {
+                              toast({ title: "Errore", description: error.message, variant: "destructive" });
+                            }
+                          }}
+                          className="flex items-center gap-2 bg-terracotta hover:bg-terracotta/90"
+                          data-testid="button-migrate-legacy-secrets"
+                        >
+                          <Key className="h-4 w-4" />
+                          Esegui Migrazione
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
