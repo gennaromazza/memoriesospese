@@ -160,6 +160,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [targetGalleryId, setTargetGalleryId] = useState<string>("");
   const [isMerging, setIsMerging] = useState(false);
   
+  // Stati per associazione cliente
+  const [clienteId, setClienteId] = useState<string>("");
+  const [clientiList, setClientiList] = useState<Array<{ id: string; nome: string; cognome: string; email?: string }>>([]);
+  
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -262,6 +266,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setSpecialTheme(gallery.specialTheme || "none");
       setClientEmail((gallery as any).clientEmail || "");
       setClientName((gallery as any).clientName || "");
+      setClienteId((gallery as any).clienteId || "");
       
       // Gestione retrocompatibilità: se c'è youtubeUrl singolo, convertilo in array
       const urls: string[] = [];
@@ -439,6 +444,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       loadPhotos();
     }
   }, [isOpen, gallery?.id]);
+
+  // Carica lista clienti quando si apre il modal
+  useEffect(() => {
+    if (isOpen) {
+      const fetchClienti = async () => {
+        try {
+          const clientiQuery = query(collection(db, 'clienti'));
+          const snapshot = await getDocs(clientiQuery);
+          const clienti = snapshot.docs.map(doc => ({
+            id: doc.id,
+            nome: doc.data().nome || '',
+            cognome: doc.data().cognome || '',
+            email: doc.data().email || ''
+          }));
+          setClientiList(clienti.sort((a, b) => `${a.cognome} ${a.nome}`.localeCompare(`${b.cognome} ${b.nome}`)));
+        } catch (error) {
+          console.error('❌ Errore caricamento clienti:', error);
+        }
+      };
+      fetchClienti();
+    }
+  }, [isOpen]);
 
   // Reset currentGalleryId quando il modal si chiude
   useEffect(() => {
@@ -1044,6 +1071,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         // Client info per invio email PIN (opzionale)
         clientEmail: clientEmail.trim() || null,
         clientName: clientName.trim() || null,
+        clienteId: clienteId || null,
         updatedAt: serverTimestamp()
       };
       
@@ -1443,6 +1471,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 placeholder="Descrizione della galleria"
                 rows={3}
               />
+            </div>
+
+            {/* Cliente Associato */}
+            <div>
+              <Label htmlFor="clienteId">Cliente Associato</Label>
+              <Select value={clienteId} onValueChange={setClienteId}>
+                <SelectTrigger id="clienteId" data-testid="select-cliente">
+                  <SelectValue placeholder="Seleziona un cliente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nessun cliente</SelectItem>
+                  {clientiList.map((cliente) => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-1">
+                Collega un cliente esistente per inviare notifiche email
+              </p>
             </div>
 
             {/* Prodotti Associati Section - MULTI-PRODUCT SUPPORT */}
