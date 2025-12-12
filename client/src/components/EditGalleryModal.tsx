@@ -22,6 +22,7 @@ import imageCompression from 'browser-image-compression';
 import { queryClient } from "../lib/queryClient";
 import { Info } from 'lucide-react';
 import { createAbsoluteUrl } from "../lib/basePath";
+import { PhotoService, type Photo } from "../lib/photos";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -198,170 +199,42 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   };
 
-  // Carica le foto dalla galleria (memoizzata per performance)
+  // Carica le foto dalla galleria usando PhotoService centralizzato
   const loadPhotos = useCallback(async () => {
     if (!gallery) {
       console.log('❌ loadPhotos: Gallery non definita');
       return;
     }
 
-    console.log('🔄 Inizio caricamento foto per galleria:', gallery.id);
-    console.log('🔄 Stato photos prima del caricamento:', photos.length);
+    console.log('🔄 [EditGalleryModal] Caricamento foto per galleria:', gallery.id);
     setIsLoading(true);
     try {
-      // 1. Carica foto dal nuovo sistema (collezione photos con uploadedBy)
-      const photosQuery = query(
-        collection(db, "photos"),
-        where("galleryId", "==", gallery.id)
-      );
+      // Usa PhotoService.getGalleryPhotos() - stesso metodo di GalleryManagementWorkspace
+      const servicePhotos = await PhotoService.getGalleryPhotos(gallery.id);
+      
+      // Converti da Photo a PhotoData per compatibilità con il resto del componente
+      const loadedPhotos: PhotoData[] = servicePhotos.map(photo => ({
+        id: photo.id,
+        name: photo.name || "",
+        url: photo.url || "",
+        contentType: photo.contentType || "image/jpeg",
+        size: photo.size || 0,
+        createdAt: photo.createdAt || new Date(),
+        galleryId: photo.galleryId || gallery.id,
+        uploaderEmail: photo.uploaderEmail,
+        uploaderName: photo.uploaderName,
+        uploaderRole: photo.uploadedBy === 'guest' ? 'guest' : 'admin',
+        uploadedBy: photo.uploadedBy || 'legacy'
+      } as PhotoData));
 
-      const photosSnapshot = await getDocs(photosQuery);
-      console.log('📷 Foto nuove trovate:', photosSnapshot.docs.length);
-
-      const loadedPhotos: PhotoData[] = [];
-
-      // Aggiungi foto dal nuovo sistema
-      photosSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        // Foto caricata dal nuovo sistema
-        loadedPhotos.push({
-          id: doc.id,
-          name: data.name || "",
-          url: data.url || "",
-          contentType: data.contentType || "image/jpeg",
-          size: data.size || 0,
-          createdAt: data.createdAt || new Date(),
-          galleryId: data.galleryId || gallery.id,
-          uploaderEmail: data.uploaderEmail,
-          uploaderName: data.uploaderName,
-          uploaderRole: data.uploaderRole,
-          uploadedBy: data.uploadedBy || 'legacy'
-        } as PhotoData);
-      });
-
-      // 2. COMPATIBILITÀ: Carica foto ospiti dalla vecchia collezione galleries/{galleryId}/photos
-      try {
-        const oldGuestPhotosRef = collection(db, "galleries", gallery.id, "photos");
-        const oldGuestPhotosSnapshot = await getDocs(oldGuestPhotosRef);
-
-        // Ottieni nomi foto già caricate per evitare duplicati
-        const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-
-        oldGuestPhotosSnapshot.docs.forEach(doc => {
-          const photoData = doc.data();
-          const photoName = photoData.name || "";
-          const photoUrl = photoData.url || "";
-
-          // Evita duplicati basandoci sul nome della foto
-          if (!existingPhotoNames.has(photoName)) {
-            // Determina se è una foto ospite basandoci sull'URL del Storage
-            const isGuestPhoto = photoUrl.includes('/guests/') || 
-                               photoUrl.includes('guest-') ||
-                               photoData.uploadedBy === 'guest' ||
-                               photoData.uploaderRole === 'guest';
-
-            const oldPhoto: PhotoData = {
-              id: `old-guest-${doc.id}`, // ID speciale per foto vecchie
-              name: photoName,
-              url: photoUrl,
-              contentType: photoData.contentType || "image/jpeg",
-              size: photoData.size || 0,
-              createdAt: photoData.createdAt || new Date(),
-              galleryId: gallery.id,
-              uploaderEmail: photoData.uploaderEmail || (isGuestPhoto ? 'guest@legacy' : 'admin@legacy'),
-              uploaderName: photoData.uploaderName || (isGuestPhoto ? 'Ospite Legacy' : 'Admin Legacy'),
-              uploaderRole: isGuestPhoto ? 'guest' : 'admin',
-              uploadedBy: 'legacy'
-            } as PhotoData;
-
-            loadedPhotos.push(oldPhoto);
-            existingPhotoNames.add(photoName);
-          }
-        });
-
-        console.log('📸 Foto ospiti legacy caricate:', oldGuestPhotosSnapshot.docs.length);
-      } catch (error) {
-        console.log('⚠️ Errore caricamento foto ospiti legacy (normale se non esistono):', error);
-      }
-
-      // 3. COMPATIBILITÀ: Carica foto da Firebase Storage se non in Firestore
-      try {
-        const storageRef = ref(storage, `galleries/${gallery.id}/photos/`);
-        const storageList = await listAll(storageRef);
-
-        const existingPhotoNames = new Set(loadedPhotos.map(p => p.name));
-
-        for (const item of storageList.items) {
-          const fileName = item.name;
-
-          // Evita duplicati basandoci sul nome del file
-          if (!existingPhotoNames.has(fileName)) {
-            try {
-              const url = await getDownloadURL(item);
-              const metadata = await getMetadata(item);
-
-              const storagePhoto: PhotoData = {
-                id: `storage-${fileName}`,
-                name: item.name,
-                url: url,
-                contentType: metadata.contentType || 'image/jpeg',
-                size: metadata.size || 0,
-                createdAt: Timestamp.fromDate(metadata.timeCreated ? new Date(metadata.timeCreated) : new Date()),
-                galleryId: gallery.id,
-                uploaderEmail: 'legacy@storage',
-                uploaderName: 'Sistema Legacy',
-                uploaderRole: 'admin',
-                uploadedBy: 'legacy'
-              } as PhotoData;
-
-              loadedPhotos.push(storagePhoto);
-              existingPhotoNames.add(fileName);
-            } catch (error) {
-              console.log(`⚠️ Errore caricamento foto storage ${fileName}:`, error);
-            }
-          }
-        }
-
-        console.log('📸 Foto da Firebase Storage caricate:', storageList.items.length);
-      } catch (error) {
-        console.log('⚠️ Errore caricamento foto da Storage (normale se non esistono):', error);
-      }
-
-      // Ordina le foto per data (più recenti prima)
-      loadedPhotos.sort((a, b) => {
-        let aTime: number;
-        let bTime: number;
-
-        if (a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt) {
-          aTime = (a.createdAt as Timestamp).seconds * 1000;
-        } else {
-          aTime = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
-        }
-
-        if (b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt) {
-          bTime = (b.createdAt as Timestamp).seconds * 1000;
-        } else {
-          bTime = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
-        }
-
-        return bTime - aTime;
-      });
-
-      // Foto caricate con successo, incluse quelle legacy compatibili
-      console.log('📸 Totale foto caricate:', loadedPhotos.length);
-      console.log('📊 Breakdown foto:', {
-        nuove: loadedPhotos.filter(p => !p.id.startsWith('old-guest-') && !p.id.startsWith('storage-')).length,
-        legacy: loadedPhotos.filter(p => p.id.startsWith('old-guest-')).length,
-        storage: loadedPhotos.filter(p => p.id.startsWith('storage-')).length
+      console.log('📸 [EditGalleryModal] Foto caricate via PhotoService:', loadedPhotos.length);
+      console.log('📊 Breakdown:', {
+        admin: loadedPhotos.filter(p => p.uploadedBy === 'admin').length,
+        guest: loadedPhotos.filter(p => p.uploadedBy === 'guest').length,
+        legacy: loadedPhotos.filter(p => p.uploadedBy === 'legacy').length
       });
 
       setPhotos(loadedPhotos);
-      console.log('✅ Foto settate nello stato, lunghezza:', loadedPhotos.length);
-
-      // Verifica immediata che le foto siano state settate
-      setTimeout(() => {
-        console.log('🔍 Verifica stato photos dopo setPhotos:', photos.length);
-      }, 100);
 
     } catch (error) {
       console.error('❌ Errore nel caricamento foto:', error);
