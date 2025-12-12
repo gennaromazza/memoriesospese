@@ -113,6 +113,7 @@ export default function NewGalleryModal({
   const [clientName, setClientName] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [selectionEnabled, setSelectionEnabled] = useState(false);
+  const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [product, setProduct] = useState<Product | null>(null);
@@ -146,6 +147,7 @@ export default function NewGalleryModal({
     setSelectedProductIndices([]);
     setIsCustomProduct(false);
     setSelectionEnabled(false);
+    setUnlimitedSelection(false);
     setRequiredPhotoCount(0);
     setProduct(null);
     console.log("🔄 Reset completo stato per nuovo booking");
@@ -394,8 +396,16 @@ export default function NewGalleryModal({
 
       // Add photo selection fields if selection is enabled
       if (selectionEnabled) {
+        // 🆕 Selezione Libera (senza limite) - ha priorità su tutto
+        if (unlimitedSelection) {
+          galleryData.unlimitedSelection = true;
+          galleryData.requiredPhotoCount = 0;
+          galleryData.selectionStatus = "pending";
+          galleryData.selectedPhotoIds = [];
+          console.log("💾 Salvando galleria con SELEZIONE LIBERA (illimitata)");
+        }
         // Product-based selection (from availableProducts)
-        if (
+        else if (
           prePopulate?.availableProducts &&
           selectedProductIndices.length > 0
         ) {
@@ -1000,6 +1010,36 @@ export default function NewGalleryModal({
 
               {selectionEnabled && (
                 <div className="ml-6 space-y-4 border-l-2 border-sage/30 pl-4">
+                  {/* Opzione Selezione Libera */}
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="unlimitedSelection"
+                      checked={unlimitedSelection}
+                      onChange={(e) => {
+                        setUnlimitedSelection(e.target.checked);
+                        if (e.target.checked) {
+                          setRequiredPhotoCount(0);
+                        }
+                      }}
+                      className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-purple-300 rounded"
+                      data-testid="checkbox-unlimited-selection"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="unlimitedSelection" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
+                        Selezione Libera (senza limite)
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          Nuovo
+                        </span>
+                      </Label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Il cliente può selezionare quante foto desidera, senza un numero fisso. Perfetto per gallerie di consultazione o selezioni flessibili.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Numero foto richieste - nascosto se selezione libera */}
+                  {!unlimitedSelection && (
                   <div className="space-y-2">
                     <Label htmlFor="requiredPhotoCount" className="flex items-center gap-2">
                       Numero Foto da Selezionare
@@ -1051,6 +1091,7 @@ export default function NewGalleryModal({
                       </p>
                     )}
                   </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="selectionDeadline">
