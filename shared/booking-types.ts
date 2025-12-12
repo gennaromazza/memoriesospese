@@ -280,6 +280,7 @@ export interface Order {
 export interface InsertOrder {
   bookingId?: string;
   galleryId?: string; // Opzionale
+  jobId?: string; // Opzionale - per auto-link ordine a job
   nomeCliente: string;
   emailCliente: string;
   whatsappCliente?: string;

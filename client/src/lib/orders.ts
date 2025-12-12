@@ -16,6 +16,7 @@ import {
   Timestamp,
   serverTimestamp,
   arrayRemove,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiRequest } from "@/lib/queryClient";
@@ -399,9 +400,30 @@ export async function createOrder(data: InsertOrder): Promise<string> {
   console.log("📝 Dati finali per Firestore:", finalData);
 
   const docRef = await addDoc(collection(db, COLLECTION), finalData);
+  const orderId = docRef.id;
 
-  console.log("✅ Ordine creato con successo, ID:", docRef.id);
-  return docRef.id;
+  // Auto-link: Se l'ordine ha un jobId, aggiungi orderId all'array orderIds del job
+  if (data.jobId) {
+    try {
+      const jobRef = doc(db, "jobs", data.jobId);
+      const jobSnap = await getDoc(jobRef);
+      if (jobSnap.exists()) {
+        await updateDoc(jobRef, {
+          orderIds: arrayUnion(orderId),
+          updatedAt: serverTimestamp(),
+        });
+        // Aggiorna anche ordine con jobId
+        await updateDoc(docRef, { jobId: data.jobId });
+        console.log(`🔗 Auto-linked ordine ${orderId} a job ${data.jobId}`);
+      }
+    } catch (error) {
+      console.error("⚠️ Errore auto-link ordine a job:", error);
+      // Non bloccare creazione ordine se link fallisce
+    }
+  }
+
+  console.log("✅ Ordine creato con successo, ID:", orderId);
+  return orderId;
 }
 
 /**

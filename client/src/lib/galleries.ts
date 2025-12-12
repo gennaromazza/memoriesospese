@@ -17,7 +17,8 @@ import {
   serverTimestamp,
   onSnapshot,
   limit,
-  arrayRemove
+  arrayRemove,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { WorkflowState } from '@shared/schema';
@@ -72,6 +73,9 @@ export interface Gallery {
   
   // Booking Integration
   bookingId?: string;
+  
+  // Job Integration - Collegamento diretto job
+  jobId?: string;
   
   // Client Association - Collegamento diretto cliente per notifiche
   clienteId?: string;
@@ -248,6 +252,7 @@ export class GalleryService {
 
   /**
    * Crea nuova galleria (admin only)
+   * Auto-link a job se jobId è presente
    */
   static async createGallery(galleryData: Omit<Gallery, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
@@ -258,7 +263,27 @@ export class GalleryService {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      return docRef.id;
+      const galleryId = docRef.id;
+      
+      // Auto-link: Se la galleria ha un jobId, aggiungi galleryId all'array galleryIds del job
+      if (galleryData.jobId) {
+        try {
+          const jobRef = doc(db, 'jobs', galleryData.jobId);
+          const jobSnap = await getDoc(jobRef);
+          if (jobSnap.exists()) {
+            await updateDoc(jobRef, {
+              galleryIds: arrayUnion(galleryId),
+              updatedAt: serverTimestamp()
+            });
+            console.log(`🔗 Auto-linked galleria ${galleryId} a job ${galleryData.jobId}`);
+          }
+        } catch (error) {
+          console.error('⚠️ Errore auto-link galleria a job:', error);
+          // Non bloccare creazione galleria se link fallisce
+        }
+      }
+      
+      return galleryId;
     } catch (error) {
       console.error('Errore creazione galleria:', error);
       throw error;
