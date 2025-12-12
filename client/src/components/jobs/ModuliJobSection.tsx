@@ -141,8 +141,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
       setDeleteQuoteId(null);
       setForceDeleteMode(false);
 
-      // Navigate to jobs list in admin dashboard
-      navigate('/admin/dashboard');
+      // Stay on current job page - no navigation needed
+      // The cache invalidation will refresh the quotes list
 
       toast({
         title: 'Preventivo eliminato',
@@ -273,8 +273,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                         <div>
                           <span className="font-medium">Totale:</span>{' '}
                           €{quote.type === 'fisso'
-                            ? (quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)
-                            : (quote.totaleSelezionato ?? quote.totaleBase ?? quote.totalAfterDiscount ?? 0).toFixed(2)}
+                            ? (quote.totalAfterDiscount ?? quote.totaleBase ?? 0).toFixed(2)
+                            : (quote.totaleSelezionato ?? quote.totalAfterDiscount ?? quote.totaleBase ?? 0).toFixed(2)}
                         </div>
                         {quote.createdAt && convertFirestoreTimestamp(quote.createdAt) && (
                           <div>
