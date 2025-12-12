@@ -83,22 +83,27 @@ const PhotoCard = memo(({
   onClick, 
   isSelected = false,
   isSelectionMode = false,
-  assignedProducts = []
+  assignedProducts = [],
+  selectionCompleted = false
 }: { 
   photo: Photo, 
   index: number, 
   onClick: (index: number) => void,
   isSelected?: boolean,
   isSelectionMode?: boolean,
-  assignedProducts?: string[]
+  assignedProducts?: string[],
+  selectionCompleted?: boolean
 }) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
+  
+  // Mostra bordino se foto è selezionata (sia durante selezione che dopo completamento)
+  const showBorder = isSelected || (selectionCompleted && isSelected);
 
   return (
     <div className="masonry-item">
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
-          isSelected 
+          showBorder 
             ? 'ring-4 ring-sage ring-offset-2 shadow-xl' 
             : ''
         }`}
@@ -108,7 +113,7 @@ const PhotoCard = memo(({
           src={photo.url}
           alt={photo.name || `Foto ${index + 1}`}
           className={`w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200 ${
-            isSelected ? 'brightness-105' : ''
+            showBorder ? 'brightness-105' : ''
           }`}
           loading="lazy"
           decoding="async"
@@ -123,7 +128,7 @@ const PhotoCard = memo(({
           }}
         />
         
-        {/* Badge SELEZIONATA - visibile quando foto è selezionata */}
+        {/* Badge SELEZIONATA - visibile quando foto è selezionata in modalità selezione attiva */}
         {isSelected && isSelectionMode && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-sage text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
@@ -131,6 +136,17 @@ const PhotoCard = memo(({
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
               SELEZIONATA
+            </span>
+          </div>
+        )}
+        
+        {/* Badge foto scelta - visibile quando selezione è completata */}
+        {isSelected && selectionCompleted && !isSelectionMode && (
+          <div className="absolute top-2 right-2 z-10">
+            <span className="bg-sage/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
             </span>
           </div>
         )}
@@ -161,6 +177,7 @@ const PhotoCard = memo(({
          prevProps.index === nextProps.index &&
          prevProps.isSelected === nextProps.isSelected &&
          prevProps.isSelectionMode === nextProps.isSelectionMode &&
+         prevProps.selectionCompleted === nextProps.selectionCompleted &&
          JSON.stringify(prevProps.assignedProducts) === JSON.stringify(nextProps.assignedProducts);
 });
 
@@ -1539,25 +1556,25 @@ export default function Gallery() {
         return {
           emoji: "💜",
           text: "Seleziona liberamente le foto che preferisci!",
-          color: "text-purple-600",
+          color: "text-terracotta",
         };
       } else if (count < 5) {
         return {
           emoji: "🎯",
           text: `Ottimo! ${count} foto selezionate. Continua a esplorare!`,
-          color: "text-purple-600",
+          color: "text-terracotta",
         };
       } else if (count < 15) {
         return {
           emoji: "💪",
           text: `Stai andando alla grande! ${count} foto selezionate.`,
-          color: "text-purple-600",
+          color: "text-terracotta",
         };
       } else {
         return {
           emoji: "✨",
           text: `Fantastico! Hai selezionato ${count} foto. Clicca "Ho finito" quando sei pronto.`,
-          color: "text-purple-600",
+          color: "text-terracotta",
         };
       }
     }
@@ -2334,14 +2351,14 @@ export default function Gallery() {
                             </AlertDialogContent>
                           </AlertDialog>
 
-                          <h3 className={`text-2xl font-playfair mb-3 ${isUnlimitedSelection ? 'text-purple-700' : 'text-blue-gray'}`}>
-                            {isUnlimitedSelection ? '💜 Selezione Libera 💜' : '✨ Modalità Selezione Foto ✨'}
+                          <h3 className={`text-2xl font-playfair mb-3 ${isUnlimitedSelection ? 'text-terracotta' : 'text-blue-gray'}`}>
+                            {isUnlimitedSelection ? '🧡 Selezione Libera 🧡' : '✨ Modalità Selezione Foto ✨'}
                           </h3>
                           <p className="text-lg text-gray-700 mb-4">
                             {isUnlimitedSelection ? (
                               <>
                                 Seleziona liberamente{" "}
-                                <strong className="text-purple-600">
+                                <strong className="text-terracotta">
                                   tutte le foto che desideri
                                 </strong>{" "}
                                 senza limiti!
@@ -2360,9 +2377,9 @@ export default function Gallery() {
                           {/* Istruzioni chiare - diverse per unlimited, single-product, multi-product */}
                           {isUnlimitedSelection ? (
                             // Selezione libera: istruzioni dedicate
-                            <div className="bg-purple-50 rounded-lg p-4 mb-4 border border-purple-200">
-                              <p className="font-semibold text-purple-700 mb-2">
-                                💜 Come selezionare:
+                            <div className="bg-terracotta/10 rounded-lg p-4 mb-4 border border-terracotta/30">
+                              <p className="font-semibold text-terracotta mb-2">
+                                🧡 Come selezionare:
                               </p>
                               <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
                                 <li>
@@ -2498,14 +2515,14 @@ export default function Gallery() {
                           {/* 🎨 UX Enhancement #4: Progress Bar - Nascosta per selezione libera */}
                           {isUnlimitedSelection ? (
                             // Selezione libera: mostra solo contatore senza progress bar
-                            <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-200 rounded-xl">
+                            <div className="mb-4 p-4 bg-terracotta/10 border-2 border-terracotta/30 rounded-xl">
                               <div className="flex items-center justify-center gap-3">
-                                <span className="text-purple-600 text-2xl">💜</span>
+                                <span className="text-terracotta text-2xl">🧡</span>
                                 <div className="text-center">
-                                  <p className="text-sm text-purple-600 font-medium">Foto selezionate</p>
-                                  <p className="text-3xl font-bold text-purple-700">{selectedPhotoIds.length}</p>
+                                  <p className="text-sm text-terracotta font-medium">Foto selezionate</p>
+                                  <p className="text-3xl font-bold text-terracotta">{selectedPhotoIds.length}</p>
                                 </div>
-                                <span className="text-purple-600 text-2xl">💜</span>
+                                <span className="text-terracotta text-2xl">🧡</span>
                               </div>
                             </div>
                           ) : (
@@ -2750,7 +2767,7 @@ export default function Gallery() {
                           <AlertDialogHeader>
                             <AlertDialogTitle className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
                               Riepilogo Selezione
-                              <span className={`text-base font-normal px-3 py-1 rounded-full ${isUnlimitedSelection ? 'text-purple-600 bg-purple-100' : 'text-sage bg-sage/10'}`}>
+                              <span className={`text-base font-normal px-3 py-1 rounded-full ${isUnlimitedSelection ? 'text-terracotta bg-terracotta/10' : 'text-sage bg-sage/10'}`}>
                                 {isUnlimitedSelection 
                                   ? `${selectedPhotoIds.length} foto` 
                                   : `${selectedPhotoIds.length}/${requiredPhotoCount} foto`}
@@ -2863,14 +2880,14 @@ export default function Gallery() {
                               })
                             ) : (
                               /* Single-Product View o Selezione Libera */
-                              <div className={`border-2 rounded-xl p-4 ${isUnlimitedSelection ? 'border-purple-300 bg-purple-50' : 'border-sage/30 bg-sage/5'}`}>
+                              <div className={`border-2 rounded-xl p-4 ${isUnlimitedSelection ? 'border-terracotta/30 bg-terracotta/10' : 'border-sage/30 bg-sage/5'}`}>
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-semibold text-lg text-blue-gray">
                                     Foto Selezionate
                                   </h4>
                                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${
                                     isUnlimitedSelection
-                                      ? 'bg-purple-600 text-white'
+                                      ? 'bg-terracotta text-white'
                                       : (selectedPhotoIds.length === requiredPhotoCount 
                                         ? 'bg-sage text-white' 
                                         : 'bg-terracotta/20 text-terracotta')
@@ -2934,7 +2951,7 @@ export default function Gallery() {
                        selectionStatus !== "completed" &&
                        galleryData?.productRequirements &&
                        (galleryData?.productRequirements?.length ?? 0) > 1 && (
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-5 mb-6 shadow-md">
+                        <div className="bg-gradient-to-r from-cream to-mint/20 border-2 border-sage/30 rounded-xl p-5 mb-6 shadow-md">
                           <div className="flex items-start gap-4">
                             <div className="flex-shrink-0 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl">
                               ℹ️
@@ -2948,7 +2965,7 @@ export default function Gallery() {
                                   <strong>1.</strong> Clicca sui <span className="font-semibold text-blue-600">chip colorati</span> sotto ogni foto per assegnarla ai prodotti
                                 </p>
                                 <p>
-                                  <strong>2.</strong> Puoi <span className="font-semibold text-purple-600">riutilizzare</span> la stessa foto per più prodotti (es: Album + Stampe)
+                                  <strong>2.</strong> Puoi <span className="font-semibold text-terracotta">riutilizzare</span> la stessa foto per più prodotti (es: Album + Stampe)
                                 </p>
                                 <p>
                                   <strong>3.</strong> I colori ti aiutano a identificare ogni prodotto - guarda il <span className="font-semibold text-sage">progresso</span> in tempo reale qui sotto!
@@ -3230,7 +3247,7 @@ export default function Gallery() {
                               </h4>
                               <p className="text-lg text-blue-gray mb-2">
                                 Hai confermato la tua selezione di{" "}
-                                <strong className={isUnlimitedSelection ? "text-purple-600" : "text-sage"}>
+                                <strong className={isUnlimitedSelection ? "text-terracotta" : "text-sage"}>
                                   {galleryData?.selectedPhotoIds?.length || selectedPhotoIds.length} foto
                                 </strong>{" "}
                                 per il tuo album personalizzato.
@@ -3516,7 +3533,7 @@ export default function Gallery() {
                               <div className="mb-4">
                                 {isUnlimitedSelection ? (
                                   <>
-                                    <div className="text-3xl font-bold text-purple-600 mb-2">
+                                    <div className="text-3xl font-bold text-terracotta mb-2">
                                       {selectedPhotoIds.length} foto
                                     </div>
                                     <p className="text-sm text-gray-600">
@@ -3525,7 +3542,7 @@ export default function Gallery() {
                                         : "Seleziona le foto che preferisci, senza limiti."}
                                     </p>
                                     {selectedPhotoIds.length > 0 && (
-                                      <p className="text-xs text-purple-600 mt-1">
+                                      <p className="text-xs text-terracotta mt-1">
                                         Selezione libera attiva
                                       </p>
                                     )}
@@ -3592,7 +3609,7 @@ export default function Gallery() {
                                             : selectedPhotoIds.length !== requiredPhotoCount
                                       )
                                     }
-                                    className={`${isUnlimitedSelection ? 'bg-purple-600 hover:bg-purple-700' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    className={`${isUnlimitedSelection ? 'bg-terracotta hover:bg-terracotta/90' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
                                     data-testid="button-confirm-selection"
                                   >
                                     {isSubmittingSelection ? (

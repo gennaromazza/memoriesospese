@@ -104,11 +104,11 @@ export default function SelectionConfirmModal({
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            <Check className="h-6 w-6 text-purple-600" />
+            <Check className="h-6 w-6 text-terracotta" />
             Conferma la tua selezione
           </DialogTitle>
           <DialogDescription>
-            Hai selezionato <strong className="text-purple-600">{selectedPhotos.length} foto</strong> dalla galleria "{galleryName}".
+            Hai selezionato <strong className="text-terracotta">{selectedPhotos.length} foto</strong> dalla galleria "{galleryName}".
             Rivedi la tua selezione prima di confermare.
           </DialogDescription>
         </DialogHeader>
@@ -129,7 +129,7 @@ export default function SelectionConfirmModal({
                 {selectedPhotos.map((photo, index) => (
                   <div
                     key={photo.id}
-                    className="relative aspect-square rounded-md overflow-hidden border-2 border-purple-200 shadow-sm"
+                    className="relative aspect-square rounded-md overflow-hidden border-2 border-terracotta/30 shadow-sm"
                     data-testid={`preview-photo-${index}`}
                   >
                     <img
@@ -150,7 +150,7 @@ export default function SelectionConfirmModal({
 
         {/* Opzione copia email */}
         <div className="border-t pt-4 space-y-3">
-          <div className="flex items-start gap-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <div className="flex items-start gap-3 p-3 bg-terracotta/10 border border-terracotta/30 rounded-lg">
             <Checkbox
               id="wantEmailCopy"
               checked={wantEmailCopy}
@@ -160,7 +160,7 @@ export default function SelectionConfirmModal({
             />
             <div className="flex-1">
               <Label htmlFor="wantEmailCopy" className="cursor-pointer font-medium flex items-center gap-2">
-                <Mail className="h-4 w-4 text-purple-600" />
+                <Mail className="h-4 w-4 text-terracotta" />
                 Ricevi una copia via email
               </Label>
               <p className="text-xs text-gray-600 mt-1">
@@ -207,7 +207,7 @@ export default function SelectionConfirmModal({
           <Button
             onClick={handleConfirm}
             disabled={!canConfirm || selectedPhotos.length === 0}
-            className="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 text-white"
+            className="flex-1 sm:flex-none bg-terracotta hover:bg-terracotta/90 text-white"
             data-testid="button-confirm-selection"
           >
             {isSubmitting || isSendingEmail ? (
