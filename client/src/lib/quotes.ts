@@ -28,7 +28,7 @@ import type {
   PaymentScheduleConfig
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
-// NOTE: addTimelineEvent e updateJobStatus rimossi - ora gestiti da backend POST /api/quotes/:id/post-signature
+import { addTimelineEvent, updateJobStatus } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import type { QuoteProduct } from '@shared/quotes-types';
 import type { Product } from '@shared/booking-types';
