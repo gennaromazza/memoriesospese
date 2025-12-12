@@ -798,10 +798,11 @@ export default function QuoteBuilder({
       return createQuote(quoteData, user!.uid);
     },
     onSuccess: async (quoteId: string) => {
-      queryClient.invalidateQueries({ queryKey: ['quotes', 'job', jobId] });
-      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      // Refetch queries to ensure UI updates before closing dialog
+      await queryClient.refetchQueries({ queryKey: ['quotes', 'job', jobId] });
+      await queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       if (editQuoteId) {
-        queryClient.invalidateQueries({ queryKey: ['quotes', editQuoteId] });
+        await queryClient.invalidateQueries({ queryKey: ['quotes', editQuoteId] });
       }
       
       toast({
