@@ -29,6 +29,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import ImageLightbox from "@/components/ImageLightbox";
+import SelectionConfirmModal, { SelectedPhoto } from "@/components/SelectionConfirmModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -424,6 +425,7 @@ export default function Gallery() {
   const [selectedPhotoIdsLegacy, setSelectedPhotoIdsLegacy] = useState<string[]>([]); // Solo per modalità single-product legacy
   const [photoAssignments, setPhotoAssignments] = useState<Record<string, string[]>>({});
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
+  const [showSelectionConfirmModal, setShowSelectionConfirmModal] = useState(false);
   const [selectionNotes, setSelectionNotes] = useState(""); // 📝 Note aggiuntive cliente
 
   // 🎨 UX Enhancement States
@@ -1529,10 +1531,39 @@ export default function Gallery() {
       return null;
     }
 
-    // Logica legacy per modalità single-product
     const count = selectedPhotoIds.length;
+
+    // 🆕 Selezione Libera: messaggi dedicati senza limite
+    if (isUnlimitedSelection) {
+      if (count === 0) {
+        return {
+          emoji: "💜",
+          text: "Seleziona liberamente le foto che preferisci!",
+          color: "text-purple-600",
+        };
+      } else if (count < 5) {
+        return {
+          emoji: "🎯",
+          text: `Ottimo! ${count} foto selezionate. Continua a esplorare!`,
+          color: "text-purple-600",
+        };
+      } else if (count < 15) {
+        return {
+          emoji: "💪",
+          text: `Stai andando alla grande! ${count} foto selezionate.`,
+          color: "text-purple-600",
+        };
+      } else {
+        return {
+          emoji: "✨",
+          text: `Fantastico! Hai selezionato ${count} foto. Clicca "Ho finito" quando sei pronto.`,
+          color: "text-purple-600",
+        };
+      }
+    }
+
+    // Logica legacy per modalità single-product con limite
     const required = requiredPhotoCount;
-    const percentage = required > 0 ? Math.round((count / required) * 100) : 0;
 
     if (count === 0) {
       return {
@@ -1583,7 +1614,35 @@ export default function Gallery() {
     selectedPhotoIds.length,
     requiredPhotoCount,
     galleryData?.productRequirements,
+    isUnlimitedSelection,
+    isMultiProductMode,
   ]);
+
+  // 🆕 Prepara le foto selezionate per il modale di conferma
+  const selectedPhotosForModal: SelectedPhoto[] = useMemo(() => {
+    return selectedPhotoIds.map(photoId => {
+      const photo = photos.find(p => p.id === photoId);
+      return {
+        id: photoId,
+        url: photo?.url || '',
+        thumbnailUrl: photo?.thumbnailUrl || photo?.url,
+        name: photo?.name,
+      };
+    }).filter(p => p.url);
+  }, [selectedPhotoIds, photos]);
+
+  // 🆕 Handler per aprire il modale di conferma (solo per selezione libera)
+  const handleOpenConfirmModal = useCallback(() => {
+    if (selectedPhotoIds.length === 0) {
+      toast({
+        title: "Nessuna foto selezionata",
+        description: "Seleziona almeno una foto prima di confermare.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowSelectionConfirmModal(true);
+  }, [selectedPhotoIds.length, toast]);
 
   if (isLoadingPhotos) {
     return (
@@ -2275,19 +2334,59 @@ export default function Gallery() {
                             </AlertDialogContent>
                           </AlertDialog>
 
-                          <h3 className="text-2xl font-playfair text-blue-gray mb-3">
-                            ✨ Modalità Selezione Foto ✨
+                          <h3 className={`text-2xl font-playfair mb-3 ${isUnlimitedSelection ? 'text-purple-700' : 'text-blue-gray'}`}>
+                            {isUnlimitedSelection ? '💜 Selezione Libera 💜' : '✨ Modalità Selezione Foto ✨'}
                           </h3>
                           <p className="text-lg text-gray-700 mb-4">
-                            Seleziona le tue{" "}
-                            <strong className="text-sage">
-                              {requiredPhotoCount} foto preferite
-                            </strong>{" "}
-                            per il tuo album personalizzato!
+                            {isUnlimitedSelection ? (
+                              <>
+                                Seleziona liberamente{" "}
+                                <strong className="text-purple-600">
+                                  tutte le foto che desideri
+                                </strong>{" "}
+                                senza limiti!
+                              </>
+                            ) : (
+                              <>
+                                Seleziona le tue{" "}
+                                <strong className="text-sage">
+                                  {requiredPhotoCount} foto preferite
+                                </strong>{" "}
+                                per il tuo album personalizzato!
+                              </>
+                            )}
                           </p>
 
-                          {/* Istruzioni chiare - diverse per single-product vs multi-product */}
-                          {!isMultiProductMode ? (
+                          {/* Istruzioni chiare - diverse per unlimited, single-product, multi-product */}
+                          {isUnlimitedSelection ? (
+                            // Selezione libera: istruzioni dedicate
+                            <div className="bg-purple-50 rounded-lg p-4 mb-4 border border-purple-200">
+                              <p className="font-semibold text-purple-700 mb-2">
+                                💜 Come selezionare:
+                              </p>
+                              <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                                <li>
+                                  <strong>Clicca sulla foto</strong> che vuoi
+                                  selezionare
+                                </li>
+                                <li>
+                                  Vedrai un <strong>✓ checkbox viola</strong> e la
+                                  scritta "SELEZIONATA"
+                                </li>
+                                <li>
+                                  Clicca di nuovo per{" "}
+                                  <strong>deselezionare</strong>
+                                </li>
+                                <li>
+                                  <strong>Nessun limite!</strong> Seleziona tutte le foto che vuoi
+                                </li>
+                                <li>
+                                  Quando hai finito, clicca{" "}
+                                  <strong>"Ho finito"</strong> per confermare
+                                </li>
+                              </ol>
+                            </div>
+                          ) : !isMultiProductMode ? (
                             // Single-product legacy: click sulla foto
                             <div className="bg-white/60 rounded-lg p-4 mb-4 border border-sage/30">
                               <p className="font-semibold text-sage mb-2">
@@ -2396,55 +2495,69 @@ export default function Gallery() {
                             </div>
                           )}
 
-                          {/* 🎨 UX Enhancement #4: Progress Bar */}
-                          <div className="mb-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-blue-gray">
-                                Progresso {calculateProductProgress ? "Totale" : ""}
-                              </span>
-                              <span className="text-sm font-bold text-sage">
-                                {calculateProductProgress ? (
-                                  (() => {
-                                    const totalAssigned = calculateProductProgress.reduce(
-                                      (sum, p) => sum + p.assignedCount,
-                                      0
-                                    );
-                                    const totalRequired = calculateProductProgress.reduce(
-                                      (sum, p) => sum + p.requiredCount,
-                                      0
-                                    );
-                                    return `${totalAssigned}/${totalRequired}`;
-                                  })()
-                                ) : (
-                                  `${selectedPhotoIds.length}/${requiredPhotoCount}`
-                                )}
-                              </span>
+                          {/* 🎨 UX Enhancement #4: Progress Bar - Nascosta per selezione libera */}
+                          {isUnlimitedSelection ? (
+                            // Selezione libera: mostra solo contatore senza progress bar
+                            <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-200 rounded-xl">
+                              <div className="flex items-center justify-center gap-3">
+                                <span className="text-purple-600 text-2xl">💜</span>
+                                <div className="text-center">
+                                  <p className="text-sm text-purple-600 font-medium">Foto selezionate</p>
+                                  <p className="text-3xl font-bold text-purple-700">{selectedPhotoIds.length}</p>
+                                </div>
+                                <span className="text-purple-600 text-2xl">💜</span>
+                              </div>
                             </div>
-                            <div className="w-full bg-beige/50 rounded-full h-3 overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-sage to-mint transition-all duration-500 ease-out rounded-full"
-                                style={{
-                                  width: calculateProductProgress
-                                    ? `${Math.min(
-                                        (calculateProductProgress.reduce(
-                                          (sum, p) => sum + p.assignedCount,
-                                          0
-                                        ) /
-                                          Math.max(
-                                            calculateProductProgress.reduce(
-                                              (sum, p) => sum + p.requiredCount,
-                                              0
-                                            ),
-                                            1
-                                          )) *
-                                          100,
-                                        100
-                                      )}%`
-                                    : `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%`,
-                                }}
-                              />
+                          ) : (
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-blue-gray">
+                                  Progresso {calculateProductProgress ? "Totale" : ""}
+                                </span>
+                                <span className="text-sm font-bold text-sage">
+                                  {calculateProductProgress ? (
+                                    (() => {
+                                      const totalAssigned = calculateProductProgress.reduce(
+                                        (sum, p) => sum + p.assignedCount,
+                                        0
+                                      );
+                                      const totalRequired = calculateProductProgress.reduce(
+                                        (sum, p) => sum + p.requiredCount,
+                                        0
+                                      );
+                                      return `${totalAssigned}/${totalRequired}`;
+                                    })()
+                                  ) : (
+                                    `${selectedPhotoIds.length}/${requiredPhotoCount}`
+                                  )}
+                                </span>
+                              </div>
+                              <div className="w-full bg-beige/50 rounded-full h-3 overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-sage to-mint transition-all duration-500 ease-out rounded-full"
+                                  style={{
+                                    width: calculateProductProgress
+                                      ? `${Math.min(
+                                          (calculateProductProgress.reduce(
+                                            (sum, p) => sum + p.assignedCount,
+                                            0
+                                          ) /
+                                            Math.max(
+                                              calculateProductProgress.reduce(
+                                                (sum, p) => sum + p.requiredCount,
+                                                0
+                                              ),
+                                              1
+                                            )) *
+                                            100,
+                                          100
+                                        )}%`
+                                      : `${Math.min((selectedPhotoIds.length / requiredPhotoCount) * 100, 100)}%`,
+                                  }}
+                                />
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {/* 🎨 UX Enhancement #6: Smart Message */}
                           {smartMessage && (
@@ -3460,7 +3573,7 @@ export default function Gallery() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    onClick={handleConfirmSelection}
+                                    onClick={isUnlimitedSelection ? handleOpenConfirmModal : handleConfirmSelection}
                                     disabled={
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
@@ -3732,6 +3845,7 @@ export default function Gallery() {
           unlimitedSelection: isUnlimitedSelection,
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
+          onCompleteSelection: isUnlimitedSelection ? handleOpenUnlimitedConfirmModal : undefined,
         } : undefined}
         multiProductInfo={isSelectionMode && isMultiProductMode && selectionStatus !== "completed" && productRequirements ? {
           isMultiProductMode: true,
@@ -3751,6 +3865,20 @@ export default function Gallery() {
         galleryData={galleryData}
         isSelectionMode={isSelectionMode}
         isDeadlinePassed={isDeadlinePassed}
+      />
+
+      {/* 🆕 Modal di conferma selezione libera */}
+      <SelectionConfirmModal
+        isOpen={showSelectionConfirmModal}
+        onClose={() => setShowSelectionConfirmModal(false)}
+        onConfirm={async () => {
+          setShowSelectionConfirmModal(false);
+          await handleConfirmSelection();
+        }}
+        selectedPhotos={selectedPhotosForModal}
+        galleryName={galleryData?.name || ''}
+        galleryCode={galleryData?.code || ''}
+        isSubmitting={isSubmittingSelection}
       />
     </div>
   );

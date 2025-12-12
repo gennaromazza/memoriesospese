@@ -4856,4 +4856,106 @@ function createGalleryPhotosReadyEmailHTML(params: {
   `;
 }
 
+/**
+ * POST /api/email/selection-copy
+ * Invia copia email delle foto selezionate al cliente (Selezione Libera)
+ */
+router.post("/selection-copy", async (req, res) => {
+  try {
+    const { recipientEmail, galleryName, galleryCode, selectedPhotos } = req.body;
+
+    if (!recipientEmail || !galleryName || !selectedPhotos) {
+      return res.status(400).json({ 
+        error: "Missing required fields: recipientEmail, galleryName, selectedPhotos" 
+      });
+    }
+
+    const photoCount = selectedPhotos.length;
+    const galleryUrl = `${getSiteBaseUrl(req)}/gallery/${galleryCode}`;
+
+    // Genera griglia HTML con thumbnails (max 30 per email leggera)
+    const maxPhotos = Math.min(photoCount, 30);
+    const photosToShow = selectedPhotos.slice(0, maxPhotos);
+    
+    const thumbnailsHtml = photosToShow.map((photo: { url: string; name?: string }, index: number) => `
+      <div style="display: inline-block; width: 80px; height: 80px; margin: 4px; border-radius: 6px; overflow: hidden; border: 2px solid #e8e4de;">
+        <img src="${photo.url}" alt="Foto ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;" />
+      </div>
+    `).join('');
+
+    const morePhotosText = photoCount > maxPhotos 
+      ? `<p style="text-align: center; color: #6b7d8a; font-size: 13px; margin-top: 15px;">...e altre ${photoCount - maxPhotos} foto</p>` 
+      : '';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+        <div style="background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Le tue Foto Selezionate</h1>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Galleria: ${galleryName}</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+          <p style="font-size: 16px; color: #333; margin-bottom: 15px;">
+            Ecco il riepilogo delle foto che hai selezionato:
+          </p>
+
+          <div style="background: #faf8f5; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; border: 1px solid #e8e4de;">
+            <p style="font-size: 14px; color: #6b7d8a; margin-bottom: 8px;">Foto selezionate</p>
+            <p style="font-size: 42px; font-weight: bold; color: #9333ea; margin: 10px 0;">${photoCount}</p>
+          </div>
+
+          <div style="background: #faf5ff; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #e9d5ff;">
+            <p style="font-size: 14px; color: #6b21a8; margin-bottom: 15px; font-weight: 600;">Anteprima foto:</p>
+            <div style="text-align: center;">
+              ${thumbnailsHtml}
+            </div>
+            ${morePhotosText}
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${galleryUrl}" 
+               style="background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%); color: white; padding: 14px 35px; 
+                      text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;
+                      font-size: 15px; box-shadow: 0 4px 12px rgba(147,51,234,0.3);">
+              Visualizza la Galleria
+            </a>
+          </div>
+
+          <div style="background: #f5f0e8; padding: 15px 20px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0; font-size: 13px; color: #6b7d8a; line-height: 1.5;">
+              <strong>Nota:</strong> Questa email è una copia di conferma della tua selezione. 
+              Le foto in alta risoluzione sono disponibili nella galleria online.
+            </p>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
+          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Memorie Sospese</p>
+          <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+        </div>
+      </div>
+    `;
+
+    const subject = `Le tue ${photoCount} foto selezionate - ${galleryName}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    // Log email
+    await logEmailSent({
+      to: recipientEmail,
+      subject,
+      type: 'selection_copy',
+      status: 'sent',
+      relatedDocType: 'gallery',
+    });
+
+    console.log(`✅ Selection copy email sent to ${recipientEmail} - ${photoCount} photos`);
+    res.json({ success: true, message: "Email inviata con successo" });
+
+  } catch (error: any) {
+    console.error("❌ Error sending selection copy email:", error);
+    res.status(500).json({ error: error.message || "Failed to send email" });
+  }
+});
+
 export default router;

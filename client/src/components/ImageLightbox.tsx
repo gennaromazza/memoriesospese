@@ -11,6 +11,7 @@ interface SelectionInfo {
   unlimitedSelection?: boolean; // Selezione libera senza limite
   onToggleSelection: (photoId: string) => void;
   selectionStatus?: string;
+  onCompleteSelection?: () => void; // Callback per "Ho finito" in selezione libera
 }
 
 interface ProductRequirement {
@@ -533,6 +534,22 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
           )}
         </div>
       </div>
+
+      {/* 💜 Pulsante floating "Ho finito" per selezione libera */}
+      {selectionInfo?.isSelectionMode && 
+       selectionInfo.unlimitedSelection === true && 
+       selectionInfo.selectionStatus !== 'completed' &&
+       selectionInfo.selectedPhotoIds.length > 0 &&
+       selectionInfo.onCompleteSelection && (
+        <button
+          onClick={selectionInfo.onCompleteSelection}
+          className="fixed bottom-24 right-4 z-[1002] flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-full shadow-lg transition-all animate-pulse hover:animate-none"
+          data-testid="lightbox-complete-selection-button"
+        >
+          <Check size={20} />
+          Ho finito
+        </button>
+      )}
     </div>
   );
 }
