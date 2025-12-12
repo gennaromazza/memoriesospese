@@ -231,20 +231,20 @@ export async function updateJob(
   userId: string
 ): Promise<void> {
   try {
-    // Se clientiIds è nell'update, dobbiamo sincronizzare sourceRefs
-    if (data.clientiIds && data.clientiIds.length > 0) {
+    // Se clientiIds è nell'update (anche se array vuoto), dobbiamo sincronizzare sourceRefs
+    if (data.clientiIds !== undefined) {
       // Fetch job corrente per confronto
       const currentJobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
       if (currentJobDoc.exists()) {
         const currentClientiIds: string[] = currentJobDoc.data().clientiIds || [];
-        const newClientiIds: string[] = data.clientiIds;
+        const newClientiIds: string[] = data.clientiIds || [];
         
         // Trova clienti rimossi e aggiunti
         const removedClients = currentClientiIds.filter(id => !newClientiIds.includes(id));
         const addedClients = newClientiIds.filter(id => !currentClientiIds.includes(id));
         
-        // Rimuovi jobId dai clienti rimossi
-        for (const clienteId of removedClients) {
+        // Rimuovi jobId dai clienti rimossi (in parallelo)
+        const removePromises = removedClients.map(async (clienteId) => {
           const clienteRef = doc(db, 'clienti', clienteId);
           const clienteSnap = await getDoc(clienteRef);
           if (clienteSnap.exists()) {
@@ -253,10 +253,10 @@ export async function updateJob(
               updatedAt: Timestamp.now()
             });
           }
-        }
+        });
         
-        // Aggiungi jobId ai nuovi clienti
-        for (const clienteId of addedClients) {
+        // Aggiungi jobId ai nuovi clienti (in parallelo)
+        const addPromises = addedClients.map(async (clienteId) => {
           const clienteRef = doc(db, 'clienti', clienteId);
           const clienteSnap = await getDoc(clienteRef);
           if (clienteSnap.exists()) {
@@ -265,7 +265,9 @@ export async function updateJob(
               updatedAt: Timestamp.now()
             });
           }
-        }
+        });
+        
+        await Promise.all([...removePromises, ...addPromises]);
         
         if (removedClients.length > 0 || addedClients.length > 0) {
           console.log(`📝 sourceRefs sincronizzati: +${addedClients.length} -${removedClients.length} clienti`);

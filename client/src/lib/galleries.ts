@@ -16,7 +16,8 @@ import {
   orderBy,
   serverTimestamp,
   onSnapshot,
-  limit
+  limit,
+  arrayRemove
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { WorkflowState } from '@shared/schema';
@@ -330,10 +331,33 @@ export class GalleryService {
 
   /**
    * Elimina galleria (soft delete - admin only)
+   * Rimuove anche galleryId dall'array galleryIds del job associato
    */
   static async deleteGallery(id: string): Promise<void> {
     try {
-      await updateDoc(doc(db, 'galleries', id), { 
+      // 1. Fetch galleria per ottenere jobId
+      const galleryRef = doc(db, 'galleries', id);
+      const galleryDoc = await getDoc(galleryRef);
+      
+      if (galleryDoc.exists()) {
+        const galleryData = galleryDoc.data();
+        
+        // 2. Se la galleria ha un jobId, rimuovi il galleryId dall'array del job
+        if (galleryData.jobId) {
+          const jobRef = doc(db, 'jobs', galleryData.jobId);
+          const jobDoc = await getDoc(jobRef);
+          if (jobDoc.exists()) {
+            await updateDoc(jobRef, {
+              galleryIds: arrayRemove(id),
+              updatedAt: serverTimestamp()
+            });
+            console.log(`✅ Rimosso galleryId ${id} da job ${galleryData.jobId}`);
+          }
+        }
+      }
+      
+      // 3. Soft delete della galleria
+      await updateDoc(galleryRef, { 
         active: false, 
         updatedAt: serverTimestamp() 
       });
