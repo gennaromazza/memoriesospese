@@ -4663,4 +4663,172 @@ router.get("/admin/check-legacy-secrets", authenticateFirebase, async (req: any,
   }
 });
 
+/**
+ * POST /api/email/gallery-photos-ready
+ * Notifica al cliente che la galleria è pronta con foto caricate
+ * Inviata automaticamente dopo upload foto o manualmente da admin
+ */
+router.post("/gallery-photos-ready", authenticateFirebase, async (req: any, res) => {
+  try {
+    const { galleryId, photoCount } = req.body;
+
+    if (!galleryId) {
+      return res.status(400).json({
+        error: "Missing required field: galleryId"
+      });
+    }
+
+    console.log(`📧 Richiesta notifica galleria pronta con foto: ${galleryId}`);
+
+    // Recupera dati galleria
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (!galleryDoc.exists) {
+      return res.status(404).json({ error: "Gallery not found" });
+    }
+
+    const galleryData = galleryDoc.data();
+    const galleryName = galleryData?.name || "Galleria";
+    const galleryCode = galleryData?.code || galleryId;
+    const clienteId = galleryData?.clienteId;
+    
+    // Priorità: clienteId dalla galleria, poi clientEmail legacy
+    let clientEmail = galleryData?.clientEmail;
+    let clientName = galleryData?.clientName || "Cliente";
+    
+    // Se c'è clienteId, recupera email e nome dal cliente
+    if (clienteId) {
+      const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+      if (clienteDoc.exists) {
+        const clienteData = clienteDoc.data();
+        clientEmail = clienteData?.email || clientEmail;
+        clientName = `${clienteData?.nome || ''} ${clienteData?.cognome || ''}`.trim() || clientName;
+        console.log(`📧 Recuperato cliente ${clienteId}: ${clientName} (${clientEmail})`);
+      }
+    }
+    
+    if (!clientEmail) {
+      return res.status(400).json({
+        error: "No client email associated with this gallery"
+      });
+    }
+
+    // Costruisci URL galleria
+    const baseUrl = getSiteBaseUrl(req);
+    const isSpecialGallery = !!galleryData?.specialTheme;
+    const galleryUrl = isSpecialGallery 
+      ? `${baseUrl}/special-gallery` 
+      : `${baseUrl}/g/${galleryCode}`;
+    
+    const actualPhotoCount = photoCount || galleryData?.photoCount || 0;
+    const hasSelection = galleryData?.selectionEnabled;
+    const deadline = galleryData?.selectionDeadline;
+    
+    // Genera HTML email
+    const htmlContent = createGalleryPhotosReadyEmailHTML({
+      clientName,
+      galleryName,
+      galleryUrl,
+      photoCount: actualPhotoCount,
+      hasSelection,
+      deadline: deadline?.toDate?.() || null
+    });
+    
+    // Invia email
+    await sendEmail(
+      clientEmail,
+      `📸 La tua galleria "${galleryName}" è pronta!`,
+      htmlContent
+    );
+
+    console.log(`✅ Email galleria pronta inviata a ${clientEmail}`);
+
+    return res.json({
+      success: true,
+      message: `Notifica inviata a ${clientEmail}`,
+      galleryName,
+      photoCount: actualPhotoCount
+    });
+
+  } catch (error: any) {
+    console.error("❌ Errore invio notifica galleria pronta:", error);
+    return res.status(500).json({ 
+      error: error.message || "Errore invio email"
+    });
+  }
+});
+
+/**
+ * Template HTML per email "Galleria Pronta con Foto"
+ */
+function createGalleryPhotosReadyEmailHTML(params: {
+  clientName: string;
+  galleryName: string;
+  galleryUrl: string;
+  photoCount: number;
+  hasSelection?: boolean;
+  deadline?: Date | null;
+}): string {
+  const { clientName, galleryName, galleryUrl, photoCount, hasSelection, deadline } = params;
+  
+  const deadlineText = deadline 
+    ? `<p style="margin: 8px 0; color: #d32f2f;"><strong>⏰ Scadenza selezione:</strong> ${deadline.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>`
+    : '';
+    
+  const selectionInfo = hasSelection 
+    ? `
+      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+        <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">📋 Selezione Foto Richiesta</h4>
+        <p style="margin: 0; font-size: 14px; color: #856404;">
+          Per questa galleria ti è richiesto di selezionare le foto preferite. 
+          Accedi alla galleria e segui le istruzioni per completare la selezione.
+        </p>
+        ${deadlineText}
+      </div>
+    ` 
+    : '';
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">📸 La tua Galleria è Pronta!</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clientName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Siamo felici di informarti che la tua galleria <strong style="color: #8b5a3c;">${galleryName}</strong> 
+          è pronta per essere visualizzata!
+        </p>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
+          <p style="font-size: 14px; color: #666; margin-bottom: 5px;">Foto disponibili:</p>
+          <p style="font-size: 36px; font-weight: bold; color: #8b5a3c; margin: 10px 0;">${photoCount}</p>
+        </div>
+
+        ${selectionInfo}
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${galleryUrl}" 
+             style="background: #8b5a3c; color: white; padding: 15px 30px; 
+                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Visualizza la Galleria
+          </a>
+        </div>
+
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #0056b3;">
+            <strong>💡 Suggerimento:</strong> Prenditi il tempo necessario per sfogliare tutte le foto 
+            con calma. Puoi accedere alla galleria in qualsiasi momento.
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">Image Studio</p>
+        <p style="margin: 5px 0;">Email: info@imagestudiofotografico.com</p>
+        <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
+      </div>
+    </div>
+  `;
+}
+
 export default router;
