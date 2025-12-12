@@ -35,6 +35,7 @@ import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
 import { Info, Eye, EyeOff, Trash } from "lucide-react";
+import { ClienteSelector } from "./ClienteSelector";
 import { createAbsoluteUrl } from "@/lib/basePath";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
@@ -110,6 +111,7 @@ export default function NewGalleryModal({
   const [specialPin, setSpecialPin] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
+  const [clienteId, setClienteId] = useState("");
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
@@ -254,6 +256,7 @@ export default function NewGalleryModal({
       setSpecialPin(prePopulate.specialPin || "");
       setClientEmail(prePopulate.clienteEmail || "");
       setClientName(prePopulate.clienteNome || "");
+      setClienteId(prePopulate.clienteId || "");
     }
   }, [prePopulate]);
 
@@ -465,9 +468,9 @@ export default function NewGalleryModal({
         galleryData.bookingId = prePopulate.bookingId;
       }
       
-      // Add client association for notifications
-      if (prePopulate?.clienteId) {
-        galleryData.clienteId = prePopulate.clienteId;
+      // Add client association for notifications (from state, not just prePopulate)
+      if (clienteId) {
+        galleryData.clienteId = clienteId;
       }
 
       // Use GalleryService instead of direct Firestore write
@@ -700,6 +703,15 @@ export default function NewGalleryModal({
                 rows={3}
               />
             </div>
+
+            {/* Cliente Selector - permette di associare un cliente alla galleria */}
+            <ClienteSelector
+              value={clienteId}
+              onChange={setClienteId}
+              label="Cliente Associato"
+              placeholder="Cerca e seleziona cliente..."
+              showCurrentClient={true}
+            />
 
             {/* Password Field - Hidden if special theme is selected */}
             {specialTheme === "none" && (
