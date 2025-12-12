@@ -18,7 +18,8 @@ import {
   writeBatch,
   limit as firestoreLimit,
   QueryConstraint,
-  arrayUnion
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type {
@@ -44,6 +45,11 @@ export async function createJob(
   userId: string
 ): Promise<string> {
   try {
+    // Validazione: almeno un cliente è obbligatorio
+    if (!data.clientiIds || data.clientiIds.length === 0) {
+      throw new Error('Almeno un cliente è obbligatorio per creare un lavoro');
+    }
+    
     const jobData: Omit<Job, 'id'> = {
       nomeEvento: data.nomeEvento,
       clientiIds: data.clientiIds,
@@ -395,6 +401,13 @@ export async function attachPDF(
 
 /**
  * Update financials snapshot
+ * 
+ * LOGICA CALCOLO SALDO RESIDUO:
+ * - saldoResiduo = totaleOrdini - totalePagato
+ * - Il totalePreventivato NON entra nel calcolo perché è solo indicativo
+ * - Il saldoResiduo rappresenta quanto resta da incassare sugli ordini effettivi
+ * - Se totaleOrdini > totalePreventivato, significa ordini extra oltre il preventivo
+ * - Se totalePagato > totaleOrdini, saldoResiduo sarà negativo (overpayment)
  */
 export async function updateJobFinancials(
   jobId: string,
@@ -410,7 +423,7 @@ export async function updateJobFinancials(
       ...financials
     };
     
-    // Calcola saldo residuo
+    // Calcola saldo residuo: differenza tra ordini effettivi e pagamenti ricevuti
     updatedFinancials.saldoResiduo = 
       (updatedFinancials.totaleOrdini || 0) - (updatedFinancials.totalePagato || 0);
     
@@ -626,22 +639,22 @@ export async function deleteJob(
       batch.delete(docSnap.ref);
     });
 
-    // 7. Rimuovi jobId da clienti sourceRefs
+    // 7. Rimuovi jobId da clienti sourceRefs (atomico con arrayRemove + existence check)
     if (job.clientiIds && job.clientiIds.length > 0) {
       console.log(`  ├─ Update ${job.clientiIds.length} clienti (rimuovi da sourceRefs)`);
       
       for (const clienteId of job.clientiIds) {
         const clienteRef = doc(db, 'clienti', clienteId);
+        // Verifica esistenza cliente prima di aggiornare (evita fallimento batch su client inesistenti)
         const clienteSnap = await getDoc(clienteRef);
-        
         if (clienteSnap.exists()) {
-          const currentJobIds = clienteSnap.data().sourceRefs?.jobIds || [];
-          const updatedJobIds = currentJobIds.filter((id: string) => id !== jobId);
-          
+          // Usa arrayRemove per operazione atomica
           batch.update(clienteRef, {
-            'sourceRefs.jobIds': updatedJobIds,
+            'sourceRefs.jobIds': arrayRemove(jobId),
             updatedAt: Timestamp.now()
           });
+        } else {
+          console.warn(`  ⚠️ Cliente ${clienteId} non trovato, skip update sourceRefs`);
         }
       }
     }
