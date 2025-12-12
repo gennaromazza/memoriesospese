@@ -1475,9 +1475,57 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Cliente Associato con ricerca e pulsante Associa */}
-            <div>
-              <Label htmlFor="clienteId">Cliente Associato</Label>
+            {/* Cliente Associato - Box migliorato */}
+            <div className="border border-sage/30 rounded-lg p-4 bg-gradient-to-br from-sage/5 to-transparent">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-full bg-sage/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-sage" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <Label className="text-base font-semibold text-sage-dark">Cliente Associato</Label>
+              </div>
+              
+              {/* Stato attuale */}
+              {clienteId && clientiList.find(c => c.id === clienteId) ? (
+                <div className="mb-3 p-3 bg-white rounded-lg border border-sage/20 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-sage text-white flex items-center justify-center font-semibold text-sm">
+                        {(() => {
+                          const c = clientiList.find(c => c.id === clienteId);
+                          return c ? `${c.nome[0]}${c.cognome[0]}`.toUpperCase() : '?';
+                        })()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {(() => {
+                            const c = clientiList.find(c => c.id === clienteId);
+                            return c ? `${c.nome} ${c.cognome}` : 'Cliente';
+                          })()}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {clientiList.find(c => c.id === clienteId)?.email || 'Nessuna email'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Collegato
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <p className="text-sm text-amber-700 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Nessun cliente associato - seleziona per abilitare le notifiche
+                  </p>
+                </div>
+              )}
+              
+              {/* Selezione cliente */}
               <div className="flex gap-2">
                 <Select 
                   value={clienteId || "none"} 
@@ -1487,38 +1535,63 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   }}
                   onOpenChange={(open) => { if (!open) setClienteSearch(""); }}
                 >
-                  <SelectTrigger id="clienteId" data-testid="select-cliente" className="flex-1">
-                    <SelectValue placeholder="Seleziona un cliente..." />
+                  <SelectTrigger id="clienteId" data-testid="select-cliente" className="flex-1 bg-white">
+                    <SelectValue placeholder="Cerca e seleziona cliente..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    <div className="p-2 border-b">
+                  <SelectContent className="max-h-[300px]">
+                    <div className="p-2 border-b sticky top-0 bg-white z-10">
                       <Input
-                        placeholder="Cerca cliente..."
-                        className="h-8"
+                        placeholder="Digita per cercare..."
+                        className="h-9"
                         value={clienteSearch}
                         onChange={(e) => setClienteSearch(e.target.value)}
                         onKeyDown={(e) => e.stopPropagation()}
                         data-testid="search-cliente"
                       />
                     </div>
-                    <SelectItem value="none">Nessun cliente</SelectItem>
+                    <SelectItem value="none" className="text-gray-500">
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Rimuovi associazione
+                      </span>
+                    </SelectItem>
                     {clientiList
                       .filter((cliente) => {
                         if (!clienteSearch) return true;
                         return `${cliente.cognome} ${cliente.nome} ${cliente.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
                       })
+                      .slice(0, 50)
                       .map((cliente) => (
                         <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
+                          <span className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-sage/20 text-sage text-xs flex items-center justify-center font-medium">
+                              {`${cliente.nome[0]}${cliente.cognome[0]}`.toUpperCase()}
+                            </span>
+                            <span className="flex flex-col">
+                              <span className="font-medium">{cliente.cognome} {cliente.nome}</span>
+                              {cliente.email && <span className="text-xs text-gray-500">{cliente.email}</span>}
+                            </span>
+                          </span>
                         </SelectItem>
                       ))}
+                    {clientiList.filter(c => {
+                      if (!clienteSearch) return true;
+                      return `${c.cognome} ${c.nome} ${c.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
+                    }).length > 50 && (
+                      <div className="p-2 text-center text-xs text-gray-500 border-t">
+                        Mostra i primi 50 risultati - affina la ricerca
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant={clienteId ? "default" : "outline"}
+                  size="default"
                   disabled={isLoading}
+                  className={clienteId ? "bg-sage hover:bg-sage/90 text-white min-w-[100px]" : "min-w-[100px]"}
                   onClick={async () => {
                     if (!gallery) return;
                     setIsLoading(true);
@@ -1529,12 +1602,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         updatedAt: serverTimestamp()
                       });
                       toast({
-                        title: clienteId ? "✅ Cliente associato" : "✅ Cliente rimosso",
+                        title: clienteId ? "Cliente associato" : "Associazione rimossa",
                         description: clienteId 
-                          ? `Cliente collegato alla galleria`
-                          : "Associazione cliente rimossa",
+                          ? `Il cliente è stato collegato alla galleria`
+                          : "L'associazione cliente è stata rimossa",
                       });
                       queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+                      queryClient.invalidateQueries({ queryKey: ['galleries'] });
                     } catch (error) {
                       console.error('Errore associazione cliente:', error);
                       toast({
@@ -1548,12 +1622,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   }}
                   data-testid="button-associa-cliente"
                 >
-                  {isLoading ? "..." : (clienteId ? "Associa" : "Rimuovi")}
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Salvo...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Salva
+                    </span>
+                  )}
                 </Button>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Seleziona un cliente e clicca "Associa" per collegarlo alla galleria
-              </p>
             </div>
 
             {/* Prodotti Associati Section - MULTI-PRODUCT SUPPORT */}
