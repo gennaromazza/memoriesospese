@@ -15,7 +15,8 @@ import {
   query,
   where,
   orderBy,
-  Timestamp
+  Timestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import type {
@@ -206,12 +207,11 @@ export async function createQuote(
 
     const docRef = await addDoc(collection(db, QUOTES_COLLECTION), cleanedQuoteData);
     
-    // Aggiorna job con quoteId e financials
+    // Aggiorna job con quoteId e financials (usa arrayUnion per atomic update)
     const jobDoc = await getDoc(doc(db, 'jobs', data.jobId));
     if (jobDoc.exists()) {
-      const currentQuoteIds = jobDoc.data().quoteIds || [];
       await updateDoc(doc(db, 'jobs', data.jobId), {
-        quoteIds: [...currentQuoteIds, docRef.id],
+        quoteIds: arrayUnion(docRef.id),
         'financials.totalePreventivato': totalAfterDiscount, // Server-calculated
         updatedAt: Timestamp.now()
       });
