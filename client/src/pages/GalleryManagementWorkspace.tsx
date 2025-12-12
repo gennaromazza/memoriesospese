@@ -10,7 +10,7 @@ import { useDropzone } from 'react-dropzone';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail } from 'lucide-react';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
@@ -417,6 +417,35 @@ export default function GalleryManagementWorkspace() {
     },
   });
 
+  // Mutation per inviare notifica email galleria pronta
+  const notifyClientMutation = useMutation({
+    mutationFn: async () => {
+      if (!galleryId) throw new Error('Missing galleryId');
+      const response = await apiRequest('POST', '/api/email/gallery-photos-ready', {
+        galleryId,
+        photoCount: gallery?.photoCount || 0,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Errore invio notifica');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: '✅ Notifica inviata',
+        description: data.message || 'Email inviata al cliente',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: '❌ Errore invio notifica',
+        description: error instanceof Error ? error.message : 'Errore sconosciuto',
+        variant: 'destructive',
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-warm-cream via-soft-peach to-light-sage flex items-center justify-center">
@@ -472,15 +501,31 @@ export default function GalleryManagementWorkspace() {
                   )}
                 </CardDescription>
               </div>
-              <Button
-                onClick={() => setEditModalOpen(true)}
-                className="bg-terracotta hover:bg-terracotta/90 text-white"
-                data-testid="button-edit-gallery"
-                disabled={isLoading || !gallery}
-              >
-                <Pencil className="w-4 h-4 mr-2" />
-                Modifica Galleria
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => notifyClientMutation.mutate()}
+                  disabled={notifyClientMutation.isPending || (gallery?.photoCount || 0) === 0}
+                  data-testid="button-notify-client"
+                  className="border-sage text-sage hover:bg-sage/10"
+                >
+                  {notifyClientMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Mail className="w-4 h-4 mr-2" />
+                  )}
+                  Notifica Cliente
+                </Button>
+                <Button
+                  onClick={() => setEditModalOpen(true)}
+                  className="bg-terracotta hover:bg-terracotta/90 text-white"
+                  data-testid="button-edit-gallery"
+                  disabled={isLoading || !gallery}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Modifica Galleria
+                </Button>
+              </div>
             </CardHeader>
           </Card>
         </div>
