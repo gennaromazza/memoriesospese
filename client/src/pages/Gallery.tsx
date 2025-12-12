@@ -3845,7 +3845,7 @@ export default function Gallery() {
           unlimitedSelection: isUnlimitedSelection,
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
-          onCompleteSelection: isUnlimitedSelection ? handleOpenUnlimitedConfirmModal : undefined,
+          onCompleteSelection: isUnlimitedSelection ? handleOpenConfirmModal : undefined,
         } : undefined}
         multiProductInfo={isSelectionMode && isMultiProductMode && selectionStatus !== "completed" && productRequirements ? {
           isMultiProductMode: true,
