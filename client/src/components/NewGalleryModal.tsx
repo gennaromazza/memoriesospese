@@ -79,6 +79,7 @@ interface NewGalleryModalProps {
     specialTheme?: string; // Auto-populated from campaign.temaStagionale
     specialPin?: string;
     bookingId?: string; // Link to booking (for integration)
+    clienteId?: string; // Client ID for direct association and notifications
     prodottoId?: string; // Product ID to fetch data and auto-populate selection settings (legacy single product)
     prodottoNome?: string; // Custom product name (se prodotto non in catalogo)
     prodottoNumeroFoto?: number; // Custom product photo count (se prodotto non in catalogo)
@@ -462,6 +463,11 @@ export default function NewGalleryModal({
       // Add booking link if gallery created from BookingsManager
       if (prePopulate?.bookingId) {
         galleryData.bookingId = prePopulate.bookingId;
+      }
+      
+      // Add client association for notifications
+      if (prePopulate?.clienteId) {
+        galleryData.clienteId = prePopulate.clienteId;
       }
 
       // Use GalleryService instead of direct Firestore write

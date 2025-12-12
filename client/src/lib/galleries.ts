@@ -71,6 +71,9 @@ export interface Gallery {
   // Booking Integration
   bookingId?: string;
   
+  // Client Association - Collegamento diretto cliente per notifiche
+  clienteId?: string;
+  
   // Workflow Management
   workflowState?: WorkflowState;
   
