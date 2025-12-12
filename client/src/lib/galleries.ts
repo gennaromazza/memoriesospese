@@ -292,11 +292,68 @@ export class GalleryService {
 
   /**
    * Aggiorna galleria (admin only)
+   * Gestisce cambio jobId sincronizzando galleryIds tra vecchio e nuovo job
    */
   static async updateGallery(id: string, updates: Partial<Gallery>): Promise<void> {
     try {
       // Rimuovi campi non aggiornabili
       const { id: _, createdAt, ...allowedUpdates } = updates;
+      
+      // Se jobId sta cambiando, gestisci sincronizzazione con job
+      if (updates.jobId !== undefined) {
+        const galleryRef = doc(db, 'galleries', id);
+        const galleryDoc = await getDoc(galleryRef);
+        
+        if (galleryDoc.exists()) {
+          const currentData = galleryDoc.data();
+          const oldJobId = currentData.jobId;
+          const newJobId = updates.jobId;
+          
+          if (newJobId !== oldJobId) {
+            // Valida che il nuovo job esista prima di procedere (evita riferimenti orfani)
+            if (newJobId) {
+              const newJobRef = doc(db, 'jobs', newJobId);
+              const newJobSnap = await getDoc(newJobRef);
+              if (!newJobSnap.exists()) {
+                throw new Error(`Job ${newJobId} non esiste. Impossibile spostare galleria.`);
+              }
+            }
+            
+            const jobUpdatePromises: Promise<void>[] = [];
+            
+            // Rimuovi galleryId dal vecchio job (se esisteva)
+            if (oldJobId) {
+              const oldJobRef = doc(db, 'jobs', oldJobId);
+              jobUpdatePromises.push(
+                getDoc(oldJobRef).then(snap => {
+                  if (snap.exists()) {
+                    return updateDoc(oldJobRef, {
+                      galleryIds: arrayRemove(id),
+                      updatedAt: serverTimestamp()
+                    });
+                  }
+                })
+              );
+              console.log(`🔗 Rimozione galleryId ${id} da vecchio job ${oldJobId}`);
+            }
+            
+            // Aggiungi galleryId al nuovo job
+            if (newJobId) {
+              const newJobRef = doc(db, 'jobs', newJobId);
+              jobUpdatePromises.push(
+                updateDoc(newJobRef, {
+                  galleryIds: arrayUnion(id),
+                  updatedAt: serverTimestamp()
+                })
+              );
+              console.log(`🔗 Aggiunta galleryId ${id} a nuovo job ${newJobId}`);
+            }
+            
+            // Esegui update in parallelo
+            await Promise.all(jobUpdatePromises);
+          }
+        }
+      }
       
       await updateDoc(doc(db, 'galleries', id), {
         ...allowedUpdates,

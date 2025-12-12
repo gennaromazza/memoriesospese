@@ -442,6 +442,13 @@ export async function updateOrder(
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, orderId);
 
+  // Fetch ordine corrente per calcoli e gestione cambio jobId
+  const currentDoc = await getDoc(docRef);
+  if (!currentDoc.exists()) {
+    throw new Error(`Ordine ${orderId} non trovato`);
+  }
+  const currentData = currentDoc.data();
+
   const updateData: any = {
     ...data,
     updatedAt: serverTimestamp(),
@@ -449,26 +456,69 @@ export async function updateOrder(
 
   // Ricalcola totale e saldo se prodotti o acconto cambiano
   if (data.prodotti !== undefined || data.acconto !== undefined) {
-    const currentDoc = await getDoc(docRef);
-    if (currentDoc.exists()) {
-      const currentData = currentDoc.data();
+    // Calcola nuovo totale da prodotti (se cambiano) o usa quello esistente
+    const totale =
+      data.prodotti !== undefined
+        ? calculateTotale(data.prodotti)
+        : currentData.totale;
 
-      // Calcola nuovo totale da prodotti (se cambiano) o usa quello esistente
-      const totale =
-        data.prodotti !== undefined
-          ? calculateTotale(data.prodotti)
-          : currentData.totale;
+    const acconto = data.acconto ?? currentData.acconto;
 
-      const acconto = data.acconto ?? currentData.acconto;
-
-      updateData.totale = totale;
-      updateData.saldo = totale - acconto;
-    }
+    updateData.totale = totale;
+    updateData.saldo = totale - acconto;
   }
 
   // Converti Date in Timestamp se presente
   if (data.dataSaldo) {
     updateData.dataSaldo = Timestamp.fromDate(data.dataSaldo);
+  }
+
+  // Gestione cambio jobId: sincronizza orderIds tra vecchio e nuovo job
+  const oldJobId = currentData.jobId;
+  const newJobId = data.jobId;
+  
+  if (newJobId !== undefined && newJobId !== oldJobId) {
+    // Valida che il nuovo job esista prima di procedere (evita riferimenti orfani)
+    if (newJobId) {
+      const newJobRef = doc(db, "jobs", newJobId);
+      const newJobSnap = await getDoc(newJobRef);
+      if (!newJobSnap.exists()) {
+        throw new Error(`Job ${newJobId} non esiste. Impossibile spostare ordine.`);
+      }
+    }
+    
+    const jobUpdatePromises: Promise<void>[] = [];
+    
+    // Rimuovi orderId dal vecchio job (se esisteva)
+    if (oldJobId) {
+      const oldJobRef = doc(db, "jobs", oldJobId);
+      jobUpdatePromises.push(
+        getDoc(oldJobRef).then(snap => {
+          if (snap.exists()) {
+            return updateDoc(oldJobRef, {
+              orderIds: arrayRemove(orderId),
+              updatedAt: serverTimestamp()
+            });
+          }
+        })
+      );
+      console.log(`🔗 Rimozione orderId ${orderId} da vecchio job ${oldJobId}`);
+    }
+    
+    // Aggiungi orderId al nuovo job
+    if (newJobId) {
+      const newJobRef = doc(db, "jobs", newJobId);
+      jobUpdatePromises.push(
+        updateDoc(newJobRef, {
+          orderIds: arrayUnion(orderId),
+          updatedAt: serverTimestamp()
+        })
+      );
+      console.log(`🔗 Aggiunta orderId ${orderId} a nuovo job ${newJobId}`);
+    }
+    
+    // Esegui update in parallelo
+    await Promise.all(jobUpdatePromises);
   }
 
   // Sanitizza dati (rimuovi undefined) prima di salvare
