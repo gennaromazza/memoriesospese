@@ -14,6 +14,7 @@ import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebas
 import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
+import ShareGalleryButton from "@/components/ShareGalleryButton";
 import SlideshowManager from "@/components/SlideshowManager";
 import ClientiManager from "@/components/ClientiManager";
 import EmailStatusPanel from "@/components/EmailStatusPanel";
@@ -1598,17 +1599,10 @@ export default function AdminDashboard() {
                                             <Eye className="h-4 w-4 text-green-600" />
                                           </Button>
                                         </Link>
-                                        {isCurrentUserAdmin() && (
-                                          <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="h-9 w-9 hover:bg-gray-100 transition-colors"
-                                            onClick={() => openEditModal(gallery)}
-                                            title="Modifica galleria"
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
-                                        )}
+                                        <ShareGalleryButton
+                                          galleryCode={gallery.code}
+                                          galleryName={gallery.name}
+                                        />
                                         {isCurrentUserAdmin() && (
                                           <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
                                             <Button
@@ -1727,17 +1721,13 @@ export default function AdminDashboard() {
                                       </Button>
                                     </Link>
                                   )}
-                                  {isCurrentUserAdmin() && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="flex-1 min-w-[100px]"
-                                      onClick={() => openEditModal(gallery)}
-                                    >
-                                      <Edit className="h-4 w-4 mr-1" />
-                                      Modifica
-                                    </Button>
-                                  )}
+                                  <ShareGalleryButton
+                                    galleryCode={gallery.code}
+                                    galleryName={gallery.name}
+                                    variant="button"
+                                    size="sm"
+                                    className="flex-1 min-w-[100px]"
+                                  />
                                   <Button
                                     variant={gallery.active ? "destructive" : "default"}
                                     size="sm"

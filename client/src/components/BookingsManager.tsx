@@ -34,6 +34,7 @@ import type {
 import { WorkflowState } from "@shared/schema";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
+import ShareGalleryButton from "@/components/ShareGalleryButton";
 import ManualBookingModal from "@/components/ManualBookingModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1691,6 +1692,12 @@ export default function BookingsManager({
                                           Codice: {gallery.code}
                                         </p>
                                       </div>
+                                      <ShareGalleryButton
+                                        galleryCode={gallery.code}
+                                        galleryName={gallery.name}
+                                        clientPhone={booking.cliente?.whatsapp}
+                                        clientName={`${booking.cliente?.nome || ''} ${booking.cliente?.cognome || ''}`.trim()}
+                                      />
                                     </div>
                                   ))}
                                 </div>
