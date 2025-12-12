@@ -29,7 +29,9 @@ const quickAddSchema = z.object({
   nome: z.string().min(2, 'Nome troppo corto'),
   cognome: z.string().min(2, 'Cognome troppo corto'),
   email: z.string().email('Email non valida'),
-  cellulare1: z.string().optional()
+  cellulare1: z.string().optional(),
+  via: z.string().optional(),
+  citta: z.string().optional()
 });
 
 type FormData = z.infer<typeof quickAddSchema>;
@@ -56,7 +58,9 @@ export function ClienteQuickAddDialog({
       nome: '',
       cognome: '',
       email: '',
-      cellulare1: ''
+      cellulare1: '',
+      via: '',
+      citta: ''
     }
   });
 
@@ -66,7 +70,9 @@ export function ClienteQuickAddDialog({
         nome: data.nome,
         cognome: data.cognome,
         email: data.email,
-        cellulare1: data.cellulare1 || undefined
+        cellulare1: data.cellulare1 || undefined,
+        via: data.via || undefined,
+        citta: data.citta || undefined
       });
       
       const cliente = await getClienteById(clienteId);
@@ -201,6 +207,42 @@ export function ClienteQuickAddDialog({
                       type="tel"
                       placeholder="+39 123 456 7890"
                       data-testid="input-cellulare"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="via"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Indirizzo</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Via Roma, 123"
+                      data-testid="input-via"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="citta"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Città</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Milano"
+                      data-testid="input-citta"
                     />
                   </FormControl>
                   <FormMessage />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +64,7 @@ import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } fr
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import { ClienteQuickAddDialog } from '@/components/clienti/ClienteQuickAddDialog';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 import { useJobFinancials } from '@/hooks/useJobFinancials';
@@ -114,6 +115,9 @@ export default function JobDetailPage() {
   const [showConsultationDialog, setShowConsultationDialog] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [sendingConsultation, setSendingConsultation] = useState(false);
+  
+  // Add cliente state
+  const [showAddClienteDialog, setShowAddClienteDialog] = useState(false);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -487,6 +491,31 @@ export default function JobDetailPage() {
     onError: (error) => {
       toast({
         title: 'Errore',
+        description: error instanceof Error ? error.message : 'Errore durante l\'aggiornamento',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Mutation per aggiungere cliente al job
+  const addClienteToJobMutation = useMutation({
+    mutationFn: async (clienteId: string) => {
+      if (!job || !user) throw new Error('Job o utente non disponibile');
+      const updatedClientiIds = [...(job.clientiIds || []), clienteId];
+      await updateJob(jobId!, { clientiIds: updatedClientiIds }, user.uid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      toast({
+        title: 'Cliente aggiunto',
+        description: 'Il cliente è stato associato al lavoro'
+      });
+      setShowAddClienteDialog(false);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
         description: error instanceof Error ? error.message : 'Impossibile aggiornare il cliente',
         variant: 'destructive'
       });
@@ -748,6 +777,20 @@ export default function JobDetailPage() {
                           />
                         );
                       })}
+                      
+                      {/* Pulsante per aggiungere secondo cliente */}
+                      {job.clientiIds.length < 2 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowAddClienteDialog(true)}
+                          className="w-full mt-3 border-dashed border-sage/50 hover:border-sage hover:bg-sage/5"
+                          data-testid="button-add-second-cliente"
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Aggiungi secondo cliente
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -1025,6 +1068,15 @@ export default function JobDetailPage() {
           isPending={updateClienteMutation.isPending}
         />
       )}
+
+      {/* Add Cliente Dialog */}
+      <ClienteQuickAddDialog
+        open={showAddClienteDialog}
+        onOpenChange={setShowAddClienteDialog}
+        onSuccess={(cliente) => {
+          addClienteToJobMutation.mutate(cliente.id);
+        }}
+      />
 
       {/* Create Calendar Event Modal */}
       <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
