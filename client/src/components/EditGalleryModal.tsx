@@ -1560,7 +1560,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     {clientiList
                       .filter((cliente) => {
                         if (!clienteSearch) return true;
-                        return `${cliente.cognome} ${cliente.nome} ${cliente.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
+                        // Ricerca fuzzy: ogni parola digitata deve essere presente (in qualsiasi ordine)
+                        const searchTerms = clienteSearch.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
+                        const clientText = `${cliente.nome} ${cliente.cognome} ${cliente.email || ''}`.toLowerCase();
+                        return searchTerms.every(term => clientText.includes(term));
                       })
                       .slice(0, 50)
                       .map((cliente) => (
@@ -1578,7 +1581,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       ))}
                     {clientiList.filter(c => {
                       if (!clienteSearch) return true;
-                      return `${c.cognome} ${c.nome} ${c.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
+                      const searchTerms = clienteSearch.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
+                      const clientText = `${c.nome} ${c.cognome} ${c.email || ''}`.toLowerCase();
+                      return searchTerms.every(term => clientText.includes(term));
                     }).length > 50 && (
                       <div className="p-2 text-center text-xs text-gray-500 border-t">
                         Mostra i primi 50 risultati - affina la ricerca
