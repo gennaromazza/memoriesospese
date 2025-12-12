@@ -223,6 +223,7 @@ export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
 
 /**
  * Update job
+ * Se clientiIds viene modificato, sincronizza sourceRefs dei clienti
  */
 export async function updateJob(
   jobId: string,
@@ -230,6 +231,48 @@ export async function updateJob(
   userId: string
 ): Promise<void> {
   try {
+    // Se clientiIds è nell'update, dobbiamo sincronizzare sourceRefs
+    if (data.clientiIds && data.clientiIds.length > 0) {
+      // Fetch job corrente per confronto
+      const currentJobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
+      if (currentJobDoc.exists()) {
+        const currentClientiIds: string[] = currentJobDoc.data().clientiIds || [];
+        const newClientiIds: string[] = data.clientiIds;
+        
+        // Trova clienti rimossi e aggiunti
+        const removedClients = currentClientiIds.filter(id => !newClientiIds.includes(id));
+        const addedClients = newClientiIds.filter(id => !currentClientiIds.includes(id));
+        
+        // Rimuovi jobId dai clienti rimossi
+        for (const clienteId of removedClients) {
+          const clienteRef = doc(db, 'clienti', clienteId);
+          const clienteSnap = await getDoc(clienteRef);
+          if (clienteSnap.exists()) {
+            await updateDoc(clienteRef, {
+              'sourceRefs.jobIds': arrayRemove(jobId),
+              updatedAt: Timestamp.now()
+            });
+          }
+        }
+        
+        // Aggiungi jobId ai nuovi clienti
+        for (const clienteId of addedClients) {
+          const clienteRef = doc(db, 'clienti', clienteId);
+          const clienteSnap = await getDoc(clienteRef);
+          if (clienteSnap.exists()) {
+            await updateDoc(clienteRef, {
+              'sourceRefs.jobIds': arrayUnion(jobId),
+              updatedAt: Timestamp.now()
+            });
+          }
+        }
+        
+        if (removedClients.length > 0 || addedClients.length > 0) {
+          console.log(`📝 sourceRefs sincronizzati: +${addedClients.length} -${removedClients.length} clienti`);
+        }
+      }
+    }
+    
     const updateData: any = {
       ...data,
       updatedAt: Timestamp.now()
