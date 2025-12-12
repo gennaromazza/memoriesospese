@@ -1475,46 +1475,84 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Cliente Associato con ricerca */}
+            {/* Cliente Associato con ricerca e pulsante Associa */}
             <div>
               <Label htmlFor="clienteId">Cliente Associato</Label>
-              <Select 
-                value={clienteId || "none"} 
-                onValueChange={(val) => {
-                  setClienteId(val === "none" ? "" : val);
-                  setClienteSearch("");
-                }}
-                onOpenChange={(open) => { if (!open) setClienteSearch(""); }}
-              >
-                <SelectTrigger id="clienteId" data-testid="select-cliente">
-                  <SelectValue placeholder="Seleziona un cliente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <div className="p-2 border-b">
-                    <Input
-                      placeholder="Cerca cliente..."
-                      className="h-8"
-                      value={clienteSearch}
-                      onChange={(e) => setClienteSearch(e.target.value)}
-                      onKeyDown={(e) => e.stopPropagation()}
-                      data-testid="search-cliente"
-                    />
-                  </div>
-                  <SelectItem value="none">Nessun cliente</SelectItem>
-                  {clientiList
-                    .filter((cliente) => {
-                      if (!clienteSearch) return true;
-                      return `${cliente.cognome} ${cliente.nome} ${cliente.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
-                    })
-                    .map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select 
+                  value={clienteId || "none"} 
+                  onValueChange={(val) => {
+                    setClienteId(val === "none" ? "" : val);
+                    setClienteSearch("");
+                  }}
+                  onOpenChange={(open) => { if (!open) setClienteSearch(""); }}
+                >
+                  <SelectTrigger id="clienteId" data-testid="select-cliente" className="flex-1">
+                    <SelectValue placeholder="Seleziona un cliente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="p-2 border-b">
+                      <Input
+                        placeholder="Cerca cliente..."
+                        className="h-8"
+                        value={clienteSearch}
+                        onChange={(e) => setClienteSearch(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        data-testid="search-cliente"
+                      />
+                    </div>
+                    <SelectItem value="none">Nessun cliente</SelectItem>
+                    {clientiList
+                      .filter((cliente) => {
+                        if (!clienteSearch) return true;
+                        return `${cliente.cognome} ${cliente.nome} ${cliente.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
+                      })
+                      .map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    if (!gallery) return;
+                    setIsLoading(true);
+                    try {
+                      const galleryRef = doc(db, "galleries", gallery.id);
+                      await updateDoc(galleryRef, {
+                        clienteId: clienteId || null,
+                        updatedAt: serverTimestamp()
+                      });
+                      toast({
+                        title: clienteId ? "✅ Cliente associato" : "✅ Cliente rimosso",
+                        description: clienteId 
+                          ? `Cliente collegato alla galleria`
+                          : "Associazione cliente rimossa",
+                      });
+                      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+                    } catch (error) {
+                      console.error('Errore associazione cliente:', error);
+                      toast({
+                        title: "Errore",
+                        description: "Impossibile associare il cliente",
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  data-testid="button-associa-cliente"
+                >
+                  {isLoading ? "..." : (clienteId ? "Associa" : "Rimuovi")}
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Collega un cliente esistente per inviare notifiche email
+                Seleziona un cliente e clicca "Associa" per collegarlo alla galleria
               </p>
             </div>
 
