@@ -648,11 +648,11 @@ export async function deleteJob(
         // Verifica esistenza cliente prima di aggiornare (evita fallimento batch su client inesistenti)
         const clienteSnap = await getDoc(clienteRef);
         if (clienteSnap.exists()) {
-          // Usa arrayRemove per operazione atomica
-          batch.update(clienteRef, {
-            'sourceRefs.jobIds': arrayRemove(jobId),
+          // Usa set con merge per tollerare clienti senza struttura sourceRefs inizializzata
+          batch.set(clienteRef, {
+            sourceRefs: { jobIds: arrayRemove(jobId) },
             updatedAt: Timestamp.now()
-          });
+          }, { merge: true });
         } else {
           console.warn(`  ⚠️ Cliente ${clienteId} non trovato, skip update sourceRefs`);
         }
