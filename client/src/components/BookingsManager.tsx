@@ -2744,6 +2744,7 @@ export default function BookingsManager({
                 ),
                 specialTheme: campaign?.temaStagionale || undefined,
                 bookingId: selectedBookingForGallery.id,
+                clienteId: selectedBookingForGallery.clienteId, // Client association for notifications
                 clienteEmail: selectedBookingForGallery.cliente.email,
                 clienteNome: `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
               };
