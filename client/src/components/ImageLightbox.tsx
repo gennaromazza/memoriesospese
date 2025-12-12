@@ -8,6 +8,7 @@ interface SelectionInfo {
   isSelectionMode: boolean;
   selectedPhotoIds: string[];
   requiredPhotoCount: number;
+  unlimitedSelection?: boolean; // Selezione libera senza limite
   onToggleSelection: (photoId: string) => void;
   selectionStatus?: string;
 }
@@ -285,14 +286,18 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
               const isSelected = selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
               const currentCount = selectionInfo.selectedPhotoIds.length;
               const requiredCount = selectionInfo.requiredPhotoCount;
-              const canAddMore = currentCount < requiredCount;
+              const isUnlimited = selectionInfo.unlimitedSelection === true;
+              const canAddMore = isUnlimited || currentCount < requiredCount;
               const canToggle = isSelected || canAddMore;
               
               return (
                 <div className="flex flex-col items-center gap-2">
                   {/* Contatore selezione */}
                   <div className="text-white text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
-                    {currentCount} / {requiredCount} foto selezionate
+                    {isUnlimited 
+                      ? `${currentCount} foto selezionate` 
+                      : `${currentCount} / ${requiredCount} foto selezionate`
+                    }
                   </div>
                   
                   {/* Bottone Seleziona/Rimuovi - sempre attivo se foto selezionata o se c'è spazio */}
@@ -327,7 +332,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                   </button>
                   
                   {/* Hint quando limite raggiunto ma foto non selezionata */}
-                  {!isSelected && !canAddMore && (
+                  {!isSelected && !canAddMore && !isUnlimited && (
                     <p className="text-white/70 text-xs text-center max-w-[280px]">
                       Hai già selezionato {requiredCount} foto. Rimuovi una foto per selezionare questa.
                     </p>

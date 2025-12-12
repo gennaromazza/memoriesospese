@@ -115,6 +115,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   
   // Stati per Photo Selection Workflow (Task 2)
   const [selectionEnabled, setSelectionEnabled] = useState(false);
+  const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(50);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [selectionDeadlineEnforced, setSelectionDeadlineEnforced] = useState(true);
@@ -285,9 +286,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
       
       // Popola campi Photo Selection Workflow (Task 2)
-      setSelectionEnabled((gallery as any).selectionEnabled || false);
+      const gallerySelectionEnabled = (gallery as any).selectionEnabled || false;
+      setSelectionEnabled(gallerySelectionEnabled);
+      // Selezione libera: se unlimitedSelection è true OPPURE se selezione attiva e requiredPhotoCount <= 0 (legacy)
+      const storedUnlimited = (gallery as any).unlimitedSelection === true;
+      const storedCount = (gallery as any).requiredPhotoCount || 0;
+      // Legacy fix: se selezione attiva ma count è 0 e non ci sono productRequirements, trattala come illimitata
+      const hasProductRequirements = Array.isArray((gallery as any).productRequirements) && (gallery as any).productRequirements.length > 0;
+      const isUnlimited = storedUnlimited || (gallerySelectionEnabled && storedCount <= 0 && !hasProductRequirements);
+      setUnlimitedSelection(isUnlimited);
       // 🔥 FIX Task 8: NON usare default 50, lascia 0 se undefined (evita sovrascrittura dati)
-      setRequiredPhotoCount((gallery as any).requiredPhotoCount || 0);
+      setRequiredPhotoCount(storedCount);
       setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
       setSelectionStatus((gallery as any).selectionStatus || 'pending');
       setSelectedPhotoIds((gallery as any).selectedPhotoIds || []);
@@ -1040,11 +1049,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         // Photo Selection Workflow fields (Task 2)
-        // 🔢 Logica priorità: campo manuale > somma prodotti
-        // Se requiredPhotoCount > 0, usa quello. Altrimenti usa somma prodotti (se disponibile)
+        // 🔢 Logica: selezione libera (unlimitedSelection) ha priorità, poi manuale, poi somma prodotti
         selectionEnabled,
+        unlimitedSelection: selectionEnabled ? unlimitedSelection : false,
         requiredPhotoCount: selectionEnabled 
-          ? (requiredPhotoCount > 0 ? requiredPhotoCount : (productsSumPhotoCount > 0 ? productsSumPhotoCount : null))
+          ? (unlimitedSelection ? 0 : (requiredPhotoCount > 0 ? requiredPhotoCount : (productsSumPhotoCount > 0 ? productsSumPhotoCount : 0)))
           : null,
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
@@ -1737,6 +1746,36 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
               {selectionEnabled && (
                 <>
+                  {/* Opzione Selezione Libera */}
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="unlimitedSelection"
+                      checked={unlimitedSelection}
+                      onChange={(e) => {
+                        setUnlimitedSelection(e.target.checked);
+                        if (e.target.checked) {
+                          setRequiredPhotoCount(0);
+                        }
+                      }}
+                      disabled={isSelectionStarted}
+                      className="mt-1 w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="unlimitedSelection" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
+                        Selezione Libera (senza limite)
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          Nuovo
+                        </span>
+                      </Label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Il cliente può selezionare quante foto desidera senza limiti. Al termine, cliccherà "Ho finito" per confermare.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Numero foto richieste - nascosto se selezione libera */}
+                  {!unlimitedSelection && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="requiredPhotoCount" className="flex items-center gap-2">
@@ -1753,7 +1792,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       <Input
                         id="requiredPhotoCount"
                         type="number"
-                        min="0"
+                        min="1"
                         max="500"
                         value={requiredPhotoCount}
                         onChange={(e) => setRequiredPhotoCount(parseInt(e.target.value) || 0)}
@@ -1765,19 +1804,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       {/* Messaggi contestuali */}
                       {isSelectionStarted ? (
                         <p className="text-xs text-orange-600 flex items-center gap-1">
-                          🔒 Selezione già iniziata ({selectedPhotoIds.length} foto). Non modificabile.
+                          Selezione già iniziata ({selectedPhotoIds.length} foto). Non modificabile.
                         </p>
                       ) : hasProductsWithNoPhotoCount ? (
                         <p className="text-xs text-amber-600 flex items-center gap-1">
-                          ⚠️ Prodotto custom senza numero foto. Imposta manualmente.
+                          Prodotto custom senza numero foto. Imposta manualmente.
                         </p>
                       ) : associatedProducts.length > 0 && requiredPhotoCount === 0 ? (
                         <p className="text-xs text-sage flex items-center gap-1">
-                          ✓ Usa somma prodotti: <strong>{productsSumPhotoCount} foto</strong>
+                          Usa somma prodotti: <strong>{productsSumPhotoCount} foto</strong>
                         </p>
                       ) : isManualOverrideActive ? (
                         <p className="text-xs text-blue-600 flex items-center gap-1">
-                          ℹ️ Valore manuale attivo (ignora somma prodotti: {productsSumPhotoCount})
+                          Valore manuale attivo (ignora somma prodotti: {productsSumPhotoCount})
                         </p>
                       ) : (
                         <p className="text-xs text-muted-foreground">
@@ -1799,6 +1838,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       </p>
                     </div>
                   </div>
+                  )}
                   
                   <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <input

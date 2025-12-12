@@ -52,6 +52,7 @@ export interface Gallery {
   
   // Photo Selection Mode
   selectionEnabled?: boolean;
+  unlimitedSelection?: boolean; // Selezione libera senza limite foto
   requiredPhotoCount?: number;
   selectionStatus?: 'pending' | 'completed';
   selectedPhotoIds?: string[];
@@ -484,6 +485,7 @@ export class GalleryService {
         specialTheme: galleryData.specialTheme,
         specialPin: galleryData.specialPin,
         selectionEnabled: galleryData.selectionEnabled || false,
+        unlimitedSelection: galleryData.unlimitedSelection === true,
         requiredPhotoCount: galleryData.requiredPhotoCount,
         selectionStatus: galleryData.selectionStatus || 'pending',
         selectedPhotoIds: galleryData.selectedPhotoIds || [],

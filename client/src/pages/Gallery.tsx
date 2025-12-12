@@ -470,6 +470,11 @@ export default function Gallery() {
   // Modalità 3: Legacy (nessun productRequirements, usa requiredPhotoCount diretto)
   const isLegacySingleProductMode = !productRequirements && (galleryData?.requiredPhotoCount ?? 0) > 0;
 
+  // Modalità 4: Selezione Libera (unlimitedSelection - nessun limite foto)
+  // Legacy support: se selezione attiva ma requiredPhotoCount è 0 e non ci sono productRequirements, tratta come illimitata
+  const isUnlimitedSelection = galleryData?.unlimitedSelection === true || 
+    (isSelectionMode && !productRequirements && (galleryData?.requiredPhotoCount || 0) <= 0);
+
   const selectedPhotoIds = useMemo(() => {
     if (isMultiProductMode) {
       // Multi-product: deriva da photoAssignments (single source of truth)
@@ -691,7 +696,12 @@ export default function Gallery() {
       }
     } else {
       // Single-product (legacy o con productRequirements[0]): verifica count totale
-      isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+      // Per selezione illimitata, non mostrare toast automatico (l'utente decide quando ha finito)
+      if (isUnlimitedSelection) {
+        isComplete = false; // Non mostrare mai automaticamente per selezione libera
+      } else {
+        isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+      }
     }
     
     if (isComplete && !hasShownCompletionToast) {
@@ -923,9 +933,10 @@ export default function Gallery() {
           console.log("➖ Rimossa foto. Nuovo count:", newSelection.length);
           return newSelection;
         } else {
-          if (prev.length >= requiredPhotoCount) {
+          // Selezione illimitata: nessun limite
+          if (!isUnlimitedSelection && prev.length >= requiredPhotoCount) {
             toast({
-              title: "⚠️ Limite raggiunto",
+              title: "Limite raggiunto",
               description: `Puoi selezionare massimo ${requiredPhotoCount} foto. Rimuovi una selezione prima di aggiungerne altre.`,
               variant: "destructive",
             });
@@ -938,7 +949,7 @@ export default function Gallery() {
         }
       });
     },
-    [isDeadlinePassed, selectionStatus, requiredPhotoCount, galleryData?.productRequirements, toast],
+    [isDeadlinePassed, selectionStatus, requiredPhotoCount, isUnlimitedSelection, galleryData?.productRequirements, toast],
   );
 
   // Reset all selections
@@ -2625,15 +2636,19 @@ export default function Gallery() {
                         <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <AlertDialogHeader>
                             <AlertDialogTitle className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
-                              🎉 Riepilogo Selezione
-                              <span className="text-base font-normal text-sage bg-sage/10 px-3 py-1 rounded-full">
-                                {selectedPhotoIds.length}/{requiredPhotoCount} foto
+                              Riepilogo Selezione
+                              <span className={`text-base font-normal px-3 py-1 rounded-full ${isUnlimitedSelection ? 'text-purple-600 bg-purple-100' : 'text-sage bg-sage/10'}`}>
+                                {isUnlimitedSelection 
+                                  ? `${selectedPhotoIds.length} foto` 
+                                  : `${selectedPhotoIds.length}/${requiredPhotoCount} foto`}
                               </span>
                             </AlertDialogTitle>
                             <AlertDialogDescription className="text-gray-600">
-                              {selectedPhotoIds.length === requiredPhotoCount 
-                                ? "Hai completato la selezione! Rivedi le foto scelte prima di confermare."
-                                : `Hai selezionato ${selectedPhotoIds.length} foto su ${requiredPhotoCount} richieste.`}
+                              {isUnlimitedSelection
+                                ? `Hai selezionato ${selectedPhotoIds.length} foto. Rivedi le foto scelte prima di confermare.`
+                                : (selectedPhotoIds.length === requiredPhotoCount 
+                                  ? "Hai completato la selezione! Rivedi le foto scelte prima di confermare."
+                                  : `Hai selezionato ${selectedPhotoIds.length} foto su ${requiredPhotoCount} richieste.`)}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
 
@@ -2734,19 +2749,23 @@ export default function Gallery() {
                                 );
                               })
                             ) : (
-                              /* Single-Product View */
-                              <div className="border-2 border-sage/30 rounded-xl p-4 bg-sage/5">
+                              /* Single-Product View o Selezione Libera */
+                              <div className={`border-2 rounded-xl p-4 ${isUnlimitedSelection ? 'border-purple-300 bg-purple-50' : 'border-sage/30 bg-sage/5'}`}>
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-semibold text-lg text-blue-gray">
                                     Foto Selezionate
                                   </h4>
                                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${
-                                    selectedPhotoIds.length === requiredPhotoCount 
-                                      ? 'bg-sage text-white' 
-                                      : 'bg-terracotta/20 text-terracotta'
+                                    isUnlimitedSelection
+                                      ? 'bg-purple-600 text-white'
+                                      : (selectedPhotoIds.length === requiredPhotoCount 
+                                        ? 'bg-sage text-white' 
+                                        : 'bg-terracotta/20 text-terracotta')
                                   }`}>
-                                    {selectedPhotoIds.length}/{requiredPhotoCount}
-                                    {selectedPhotoIds.length === requiredPhotoCount && ' ✓'}
+                                    {isUnlimitedSelection 
+                                      ? `${selectedPhotoIds.length} foto`
+                                      : `${selectedPhotoIds.length}/${requiredPhotoCount}`}
+                                    {!isUnlimitedSelection && selectedPhotoIds.length === requiredPhotoCount && ' ✓'}
                                   </span>
                                 </div>
                                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -3098,13 +3117,13 @@ export default function Gallery() {
                               </h4>
                               <p className="text-lg text-blue-gray mb-2">
                                 Hai confermato la tua selezione di{" "}
-                                <strong className="text-sage">
-                                  {requiredPhotoCount} foto
+                                <strong className={isUnlimitedSelection ? "text-purple-600" : "text-sage"}>
+                                  {galleryData?.selectedPhotoIds?.length || selectedPhotoIds.length} foto
                                 </strong>{" "}
                                 per il tuo album personalizzato.
                               </p>
                               <p className="text-sm text-blue-gray/70">
-                                Riceverai presto il tuo album! 🎉
+                                Riceverai presto il tuo album!
                               </p>
                             </div>
 
@@ -3380,16 +3399,36 @@ export default function Gallery() {
                                 </div>
                               </div>
                             ) : (
-                              /* Vista Single-Product (Legacy) */
+                              /* Vista Single-Product (Legacy) o Selezione Libera */
                               <div className="mb-4">
-                                <div className="text-3xl font-bold text-sage mb-2">
-                                  {selectedPhotoIds.length} / {requiredPhotoCount}
-                                </div>
-                                <p className="text-sm text-gray-600">
-                                  {selectedPhotoIds.length === requiredPhotoCount
-                                    ? "✅ Perfetto! Puoi confermare la tua selezione."
-                                    : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
-                                </p>
+                                {isUnlimitedSelection ? (
+                                  <>
+                                    <div className="text-3xl font-bold text-purple-600 mb-2">
+                                      {selectedPhotoIds.length} foto
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                      {selectedPhotoIds.length > 0
+                                        ? "Quando hai finito, clicca 'Ho finito' per confermare."
+                                        : "Seleziona le foto che preferisci, senza limiti."}
+                                    </p>
+                                    {selectedPhotoIds.length > 0 && (
+                                      <p className="text-xs text-purple-600 mt-1">
+                                        Selezione libera attiva
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="text-3xl font-bold text-sage mb-2">
+                                      {selectedPhotoIds.length} / {requiredPhotoCount}
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                      {selectedPhotoIds.length === requiredPhotoCount
+                                        ? "Perfetto! Puoi confermare la tua selezione."
+                                        : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
+                                    </p>
+                                  </>
+                                )}
                               </div>
                             )}
 
@@ -3434,11 +3473,13 @@ export default function Gallery() {
                                             const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
                                             return assignedCount >= requiredCount;
                                           })
-                                        : // Single-product (legacy or productRequirements[0]): check selectedPhotoIds count
-                                          selectedPhotoIds.length !== requiredPhotoCount
+                                        : // Single-product o unlimited: per unlimited serve almeno 1 foto
+                                          isUnlimitedSelection 
+                                            ? selectedPhotoIds.length === 0
+                                            : selectedPhotoIds.length !== requiredPhotoCount
                                       )
                                     }
-                                    className="bg-sage hover:bg-sage/90 text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className={`${isUnlimitedSelection ? 'bg-purple-600 hover:bg-purple-700' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
                                     data-testid="button-confirm-selection"
                                   >
                                     {isSubmittingSelection ? (
@@ -3446,8 +3487,10 @@ export default function Gallery() {
                                         <span className="animate-spin mr-2">⏳</span>
                                         Conferma in corso...
                                       </>
+                                    ) : isUnlimitedSelection ? (
+                                      <>Ho finito</>
                                     ) : (
-                                      <>✨ Conferma Selezione</>
+                                      <>Conferma Selezione</>
                                     )}
                                   </Button>
                                 </TooltipTrigger>
@@ -3467,6 +3510,8 @@ export default function Gallery() {
                                         );
                                       })}
                                     </div>
+                                  ) : isUnlimitedSelection ? (
+                                    `${selectedPhotoIds.length} foto selezionate`
                                   ) : (
                                     `${selectedPhotoIds.length}/${requiredPhotoCount} foto selezionate`
                                   )}
@@ -3684,6 +3729,7 @@ export default function Gallery() {
           isSelectionMode: true,
           selectedPhotoIds,
           requiredPhotoCount,
+          unlimitedSelection: isUnlimitedSelection,
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
         } : undefined}
