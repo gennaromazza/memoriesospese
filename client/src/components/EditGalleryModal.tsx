@@ -253,10 +253,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, toast]);
 
-  // Carica i dati della galleria quando cambia l'ID
+  // Carica i dati della galleria quando si apre il modal
+  // Usiamo isOpen come trigger principale per garantire dati freschi dopo le modifiche
   useEffect(() => {
-    if (gallery && gallery.id && currentGalleryId.current !== gallery.id) {
-      console.log('🔄 Caricamento dati galleria nel modal:', gallery.id);
+    if (isOpen && gallery && gallery.id) {
+      console.log('🔄 Caricamento dati galleria nel modal:', gallery.id, 'clienteId:', (gallery as any).clienteId);
       currentGalleryId.current = gallery.id;
 
       setName(gallery.name || "");
@@ -436,7 +437,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // Reset loading state quando cambia la galleria
       setIsLoading(false);
     }
-  }, [gallery]);
+  }, [isOpen, gallery]);
 
   // Carica foto ogni volta che il modal si apre
   useEffect(() => {
