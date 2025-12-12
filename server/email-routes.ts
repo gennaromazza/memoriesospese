@@ -4490,4 +4490,177 @@ router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
   }
 });
 
+/**
+ * POST /api/email/admin/migrate-legacy-secrets
+ * Migra password e specialPin dalla collection galleries a gallerySecrets
+ * Admin only - operazione una tantum
+ */
+router.post("/admin/migrate-legacy-secrets", authenticateFirebase, async (req: any, res) => {
+  try {
+    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    if (!req.user || !adminEmails.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Accesso non autorizzato' });
+    }
+
+    console.log('🔄 Inizio migrazione secrets legacy...');
+
+    // Recupera tutte le gallerie
+    const galleriesSnapshot = await db.collection('galleries').get();
+    
+    const results = {
+      total: galleriesSnapshot.size,
+      withLegacyPassword: 0,
+      withLegacyPin: 0,
+      migrated: 0,
+      alreadyMigrated: 0,
+      errors: [] as string[]
+    };
+
+    for (const galleryDoc of galleriesSnapshot.docs) {
+      const galleryData = galleryDoc.data();
+      const galleryId = galleryDoc.id;
+      
+      // Controlla se ha password o specialPin nel documento principale
+      const hasLegacyPassword = galleryData.password && typeof galleryData.password === 'string' && galleryData.password.trim();
+      const hasLegacyPin = galleryData.specialPin && typeof galleryData.specialPin === 'string' && galleryData.specialPin.trim();
+      
+      if (hasLegacyPassword) results.withLegacyPassword++;
+      if (hasLegacyPin) results.withLegacyPin++;
+      
+      if (!hasLegacyPassword && !hasLegacyPin) {
+        continue; // Nessun secret legacy, salta
+      }
+
+      try {
+        // Controlla se esiste già in gallerySecrets
+        const secretsRef = db.collection('gallerySecrets').doc(galleryId);
+        const secretsDoc = await secretsRef.get();
+        
+        const existingSecrets = secretsDoc.exists ? secretsDoc.data() : {};
+        
+        // Prepara i dati da migrare
+        const migrateData: any = {
+          migratedAt: new Date(),
+          migratedFrom: 'galleries'
+        };
+        
+        // Migra password solo se non esiste già in secrets
+        if (hasLegacyPassword && !existingSecrets?.password) {
+          migrateData.password = galleryData.password.trim();
+          console.log(`📋 Migrazione password per galleria ${galleryId} (${galleryData.name})`);
+        }
+        
+        // Migra PIN solo se non esiste già in secrets
+        if (hasLegacyPin && !existingSecrets?.specialPin) {
+          migrateData.specialPin = galleryData.specialPin.trim();
+          console.log(`📋 Migrazione PIN per galleria ${galleryId} (${galleryData.name})`);
+        }
+        
+        // Se c'è qualcosa da migrare, salva in gallerySecrets
+        if (migrateData.password || migrateData.specialPin) {
+          await secretsRef.set(migrateData, { merge: true });
+          
+          // Rimuovi i campi legacy dalla galleria principale
+          const removeFields: any = {};
+          if (hasLegacyPassword) removeFields.password = FieldValue.delete();
+          if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
+          
+          await db.collection('galleries').doc(galleryId).update(removeFields);
+          
+          results.migrated++;
+          console.log(`✅ Migrazione completata per galleria ${galleryId}`);
+        } else {
+          results.alreadyMigrated++;
+          console.log(`ℹ️ Galleria ${galleryId} già migrata, rimuovo solo campi legacy`);
+          
+          // Rimuovi comunque i campi legacy se presenti
+          const removeFields: any = {};
+          if (hasLegacyPassword) removeFields.password = FieldValue.delete();
+          if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
+          
+          if (Object.keys(removeFields).length > 0) {
+            await db.collection('galleries').doc(galleryId).update(removeFields);
+          }
+        }
+        
+      } catch (error: any) {
+        console.error(`❌ Errore migrazione galleria ${galleryId}:`, error);
+        results.errors.push(`${galleryId}: ${error.message}`);
+      }
+    }
+
+    console.log('✅ Migrazione secrets completata:', results);
+
+    return res.json({
+      success: true,
+      message: 'Migrazione completata',
+      results
+    });
+
+  } catch (error: any) {
+    console.error("❌ Errore migrazione secrets:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore migrazione secrets"
+    });
+  }
+});
+
+/**
+ * GET /api/email/admin/check-legacy-secrets
+ * Verifica quante gallerie hanno ancora secrets nel formato legacy
+ * Admin only - per audit
+ */
+router.get("/admin/check-legacy-secrets", authenticateFirebase, async (req: any, res) => {
+  try {
+    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    if (!req.user || !adminEmails.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Accesso non autorizzato' });
+    }
+
+    console.log('🔍 Controllo secrets legacy...');
+
+    const galleriesSnapshot = await db.collection('galleries').get();
+    
+    const legacyGalleries: Array<{
+      id: string;
+      name: string;
+      hasPassword: boolean;
+      hasPin: boolean;
+    }> = [];
+
+    for (const galleryDoc of galleriesSnapshot.docs) {
+      const galleryData = galleryDoc.data();
+      
+      const hasLegacyPassword = galleryData.password && typeof galleryData.password === 'string' && galleryData.password.trim();
+      const hasLegacyPin = galleryData.specialPin && typeof galleryData.specialPin === 'string' && galleryData.specialPin.trim();
+      
+      if (hasLegacyPassword || hasLegacyPin) {
+        legacyGalleries.push({
+          id: galleryDoc.id,
+          name: galleryData.name || 'Senza nome',
+          hasPassword: !!hasLegacyPassword,
+          hasPin: !!hasLegacyPin
+        });
+      }
+    }
+
+    console.log(`🔍 Trovate ${legacyGalleries.length} gallerie con secrets legacy`);
+
+    return res.json({
+      success: true,
+      totalGalleries: galleriesSnapshot.size,
+      legacyCount: legacyGalleries.length,
+      legacyGalleries
+    });
+
+  } catch (error: any) {
+    console.error("❌ Errore controllo secrets legacy:", error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore controllo secrets"
+    });
+  }
+});
+
 export default router;
