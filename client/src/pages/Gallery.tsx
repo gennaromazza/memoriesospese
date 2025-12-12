@@ -84,7 +84,7 @@ const PhotoCard = memo(({
   isSelected = false,
   isSelectionMode = false,
   assignedProducts = [],
-  selectionCompleted = false
+  isUnlimitedCompleted = false
 }: { 
   photo: Photo, 
   index: number, 
@@ -92,12 +92,12 @@ const PhotoCard = memo(({
   isSelected?: boolean,
   isSelectionMode?: boolean,
   assignedProducts?: string[],
-  selectionCompleted?: boolean
+  isUnlimitedCompleted?: boolean
 }) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
   
-  // Mostra bordino se foto è selezionata (sia durante selezione che dopo completamento)
-  const showBorder = isSelected || (selectionCompleted && isSelected);
+  // Mostra bordino: durante selezione attiva O per selezione libera completata
+  const showBorder = isSelected && (isSelectionMode || isUnlimitedCompleted);
 
   return (
     <div className="masonry-item">
@@ -140,8 +140,8 @@ const PhotoCard = memo(({
           </div>
         )}
         
-        {/* Badge foto scelta - visibile quando selezione è completata */}
-        {isSelected && selectionCompleted && !isSelectionMode && (
+        {/* Badge foto scelta - visibile solo per selezione libera completata */}
+        {isSelected && isUnlimitedCompleted && !isSelectionMode && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-sage/90 text-white text-xs font-bold px-2 py-1 rounded-full shadow flex items-center gap-1">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -177,7 +177,7 @@ const PhotoCard = memo(({
          prevProps.index === nextProps.index &&
          prevProps.isSelected === nextProps.isSelected &&
          prevProps.isSelectionMode === nextProps.isSelectionMode &&
-         prevProps.selectionCompleted === nextProps.selectionCompleted &&
+         prevProps.isUnlimitedCompleted === nextProps.isUnlimitedCompleted &&
          JSON.stringify(prevProps.assignedProducts) === JSON.stringify(nextProps.assignedProducts);
 });
 
@@ -3372,6 +3372,7 @@ export default function Gallery() {
                                             isSelected={selectedPhotoIds.includes(photo.id)}
                                             isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                             assignedProducts={photoAssignments[photo.id] || []}
+                                            isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                             onClick={() => openLightbox(globalIndex)}
                                           />
                                           {!isSelectionMode && (
@@ -3405,6 +3406,7 @@ export default function Gallery() {
                                 isSelected={selectedPhotoIds.includes(photo.id)}
                                 isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                 assignedProducts={photoAssignments[photo.id] || []}
+                                isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                 onClick={() => openLightbox(index)}
                               />
                               {!isSelectionMode && (
