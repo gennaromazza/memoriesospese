@@ -163,6 +163,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Stati per associazione cliente
   const [clienteId, setClienteId] = useState<string>("");
   const [clientiList, setClientiList] = useState<Array<{ id: string; nome: string; cognome: string; email?: string }>>([]);
+  const [clienteSearch, setClienteSearch] = useState("");
   
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -1473,20 +1474,42 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Cliente Associato */}
+            {/* Cliente Associato con ricerca */}
             <div>
               <Label htmlFor="clienteId">Cliente Associato</Label>
-              <Select value={clienteId} onValueChange={setClienteId}>
+              <Select 
+                value={clienteId || "none"} 
+                onValueChange={(val) => {
+                  setClienteId(val === "none" ? "" : val);
+                  setClienteSearch("");
+                }}
+                onOpenChange={(open) => { if (!open) setClienteSearch(""); }}
+              >
                 <SelectTrigger id="clienteId" data-testid="select-cliente">
                   <SelectValue placeholder="Seleziona un cliente..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nessun cliente</SelectItem>
-                  {clientiList.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
-                    </SelectItem>
-                  ))}
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Cerca cliente..."
+                      className="h-8"
+                      value={clienteSearch}
+                      onChange={(e) => setClienteSearch(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      data-testid="search-cliente"
+                    />
+                  </div>
+                  <SelectItem value="none">Nessun cliente</SelectItem>
+                  {clientiList
+                    .filter((cliente) => {
+                      if (!clienteSearch) return true;
+                      return `${cliente.cognome} ${cliente.nome} ${cliente.email || ''}`.toLowerCase().includes(clienteSearch.toLowerCase());
+                    })
+                    .map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.cognome} {cliente.nome} {cliente.email ? `(${cliente.email})` : ''}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground mt-1">
