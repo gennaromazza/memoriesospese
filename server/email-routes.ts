@@ -4723,21 +4723,32 @@ router.post("/gallery-photos-ready", authenticateFirebase, async (req: any, res)
     const hasSelection = galleryData?.selectionEnabled;
     const deadline = galleryData?.selectionDeadline;
     
-    // Genera HTML email
+    // Recupera info studio per email
+    const studioInfo = await getStudioContactInfo();
+    
+    // Genera HTML email con stile October Mist
     const htmlContent = createGalleryPhotosReadyEmailHTML({
       clientName,
       galleryName,
       galleryUrl,
       photoCount: actualPhotoCount,
       hasSelection,
-      deadline: deadline?.toDate?.() || null
+      deadline: deadline?.toDate?.() || null,
+      studioInfo
     });
     
-    // Invia email
-    await sendEmail(
+    // Invia email usando sendGmailEmail esistente (NO emoji nell'oggetto)
+    await sendGmailEmail(
       clientEmail,
-      `📸 La tua galleria "${galleryName}" è pronta!`,
-      htmlContent
+      `La tua galleria "${galleryName}" e pronta`,
+      htmlContent,
+      undefined, // usa default from
+      { 
+        type: 'gallery_ready',
+        relatedDocId: galleryId, 
+        relatedDocType: 'gallery', 
+        clientName 
+      }
     );
 
     console.log(`✅ Email galleria pronta inviata a ${clientEmail}`);
@@ -4759,6 +4770,7 @@ router.post("/gallery-photos-ready", authenticateFirebase, async (req: any, res)
 
 /**
  * Template HTML per email "Galleria Pronta con Foto"
+ * Stile October Mist: sage #8b9a7d, terracotta #c17f59, cream #f5f0e8, blue-gray #6b7d8a, mint #a8c5b5, off-white #faf8f5
  */
 function createGalleryPhotosReadyEmailHTML(params: {
   clientName: string;
@@ -4767,18 +4779,26 @@ function createGalleryPhotosReadyEmailHTML(params: {
   photoCount: number;
   hasSelection?: boolean;
   deadline?: Date | null;
+  studioInfo?: { name: string; email: string; phone: string; address: string };
 }): string {
-  const { clientName, galleryName, galleryUrl, photoCount, hasSelection, deadline } = params;
+  const { clientName, galleryName, galleryUrl, photoCount, hasSelection, deadline, studioInfo } = params;
+  
+  const studio = studioInfo || { 
+    name: "Memorie Sospese", 
+    email: "memoriesospese@gennaromazzacane.it",
+    phone: "+39 334 7103142",
+    address: ""
+  };
   
   const deadlineText = deadline 
-    ? `<p style="margin: 8px 0; color: #d32f2f;"><strong>⏰ Scadenza selezione:</strong> ${deadline.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>`
+    ? `<p style="margin: 8px 0; color: #c17f59;"><strong>Scadenza selezione:</strong> ${deadline.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>`
     : '';
     
   const selectionInfo = hasSelection 
     ? `
-      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
-        <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">📋 Selezione Foto Richiesta</h4>
-        <p style="margin: 0; font-size: 14px; color: #856404;">
+      <div style="background: #f5f0e8; border-left: 4px solid #c17f59; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+        <h4 style="color: #c17f59; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Selezione Foto Richiesta</h4>
+        <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.5;">
           Per questa galleria ti è richiesto di selezionare le foto preferite. 
           Accedi alla galleria e segui le istruzioni per completare la selezione.
         </p>
@@ -4788,44 +4808,49 @@ function createGalleryPhotosReadyEmailHTML(params: {
     : '';
 
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">📸 La tua Galleria è Pronta!</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+      <div style="background: linear-gradient(135deg, #8b9a7d 0%, #a8c5b5 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 600;">La tua Galleria è Pronta</h1>
+        <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${galleryName}</p>
+      </div>
+      
+      <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+        <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
           Ciao <strong>${clientName}</strong>,
         </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Siamo felici di informarti che la tua galleria <strong style="color: #8b5a3c;">${galleryName}</strong> 
-          è pronta per essere visualizzata!
+        <p style="font-size: 16px; color: #555; margin-bottom: 25px; line-height: 1.6;">
+          Siamo felici di informarti che la tua galleria fotografica è pronta per essere visualizzata.
         </p>
 
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
-          <p style="font-size: 14px; color: #666; margin-bottom: 5px;">Foto disponibili:</p>
-          <p style="font-size: 36px; font-weight: bold; color: #8b5a3c; margin: 10px 0;">${photoCount}</p>
+        <div style="background: #faf8f5; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center; border: 1px solid #e8e4de;">
+          <p style="font-size: 14px; color: #6b7d8a; margin-bottom: 8px;">Foto disponibili</p>
+          <p style="font-size: 42px; font-weight: bold; color: #8b9a7d; margin: 10px 0;">${photoCount}</p>
         </div>
 
         ${selectionInfo}
 
-        <div style="text-align: center; margin: 30px 0;">
+        <div style="text-align: center; margin: 35px 0;">
           <a href="${galleryUrl}" 
-             style="background: #8b5a3c; color: white; padding: 15px 30px; 
-                    text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+             style="background: linear-gradient(135deg, #8b9a7d 0%, #6b8a6d 100%); color: white; padding: 16px 40px; 
+                    text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;
+                    font-size: 16px; box-shadow: 0 4px 12px rgba(139,154,125,0.3);">
             Visualizza la Galleria
           </a>
         </div>
 
-        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #0056b3;">
-            <strong>💡 Suggerimento:</strong> Prenditi il tempo necessario per sfogliare tutte le foto 
+        <div style="background: #f5f0e8; padding: 15px 20px; border-radius: 8px; margin: 25px 0;">
+          <p style="margin: 0; font-size: 14px; color: #6b7d8a; line-height: 1.5;">
+            <strong>Suggerimento:</strong> Prenditi il tempo necessario per sfogliare tutte le foto 
             con calma. Puoi accedere alla galleria in qualsiasi momento.
           </p>
         </div>
       </div>
 
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">Image Studio</p>
-        <p style="margin: 5px 0;">Email: info@imagestudiofotografico.com</p>
-        <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
+      <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">${studio.name}</p>
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
       </div>
     </div>
   `;
