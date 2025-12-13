@@ -29,6 +29,13 @@ export const mainNavItems: NavItem[] = [
     mobileOrder: 1,
   },
   {
+    label: 'Come Funziona',
+    href: '#about',
+    showInHeader: false,
+    showInFooter: true,
+    showInMobile: false,
+  },
+  {
     label: 'Portfolio',
     href: '/portfolio',
     icon: Camera,

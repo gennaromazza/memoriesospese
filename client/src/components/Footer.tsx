@@ -53,9 +53,15 @@ export default function Footer() {
         <nav className="flex flex-wrap justify-center mb-8">
           {getFooterItems().map((item) => (
             <div key={item.href} className="px-5 py-2">
-              <Link to={createUrl(item.href)} className="text-base text-off-white hover:text-cream">
-                {item.label}
-              </Link>
+              {item.href.startsWith('#') ? (
+                <a href={item.href} className="text-base text-off-white hover:text-cream">
+                  {item.label}
+                </a>
+              ) : (
+                <Link to={createUrl(item.href)} className="text-base text-off-white hover:text-cream">
+                  {item.label}
+                </Link>
+              )}
             </div>
           ))}
         </nav>
