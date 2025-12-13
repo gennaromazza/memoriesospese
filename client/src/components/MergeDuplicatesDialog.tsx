@@ -33,15 +33,15 @@ export default function MergeDuplicatesDialog({
 }: MergeDuplicatesDialogProps) {
   const [selectedPrimaryId, setSelectedPrimaryId] = useState<string | null>(null);
 
-  // Controlli di sicurezza: verifica che duplicateGroup e i suoi campi esistano
-  if (!duplicateGroup || !duplicateGroup.clienti || !Array.isArray(duplicateGroup.clienti)) {
+  // Estrai i dati in modo sicuro con fallback
+  const clienti = duplicateGroup?.clienti ?? [];
+  const email = duplicateGroup?.email ?? '';
+  const count = duplicateGroup?.count ?? 0;
+
+  // Se non ci sono dati validi, non renderizzare nulla
+  if (!duplicateGroup || !Array.isArray(clienti) || clienti.length === 0) {
     return null;
   }
-
-  const { email, clienti, count } = duplicateGroup;
-  
-  // Ulteriore controllo: se non ci sono clienti, non renderizzare
-  if (clienti.length === 0) return null;
 
   const handleConfirm = () => {
     if (!selectedPrimaryId) return;
