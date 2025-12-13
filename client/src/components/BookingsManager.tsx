@@ -375,15 +375,7 @@ export default function BookingsManager({
   const bookings = useMemo(() => {
     let filtered = [...allBookings];
 
-    // 1. Filtra per stato (escludi annullate se "all")
-    if (selectedStato === "all") {
-      // Escludi le annullate dalla vista "Tutte" per evitare confusione
-      filtered = filtered.filter((b) => b.stato !== "annullata");
-    } else {
-      filtered = filtered.filter((b) => b.stato === selectedStato);
-    }
-
-    // 2. Ricerca per nome, email, campagna
+    // Se c'è una ricerca attiva, cerca in TUTTE le prenotazioni ignorando i filtri
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((b) => {
@@ -391,94 +383,106 @@ export default function BookingsManager({
           `${b.cliente.nome} ${b.cliente.cognome}`.toLowerCase();
         const email = b.cliente.email.toLowerCase();
         const campagna = getCampaignName(b.campaignId).toLowerCase();
+        const whatsapp = (b.cliente.whatsapp || '').toLowerCase();
 
         return (
           nomeCompleto.includes(query) ||
           email.includes(query) ||
-          campagna.includes(query)
+          campagna.includes(query) ||
+          whatsapp.includes(query)
         );
       });
-    }
+    } else {
+      // Senza ricerca, applica i filtri normali
 
-    // 3. Filtra per selezioni approvate
-    if (selectionFilter === "approved") {
-      filtered = filtered.filter((b) => {
-        const gallery = getGalleryByBookingId(b.id!);
-        return gallery && gallery.selectionStatus === "completed";
-      });
-    }
+      // 1. Filtra per stato (escludi annullate se "all")
+      if (selectedStato === "all") {
+        // Escludi le annullate dalla vista "Tutte" per evitare confusione
+        filtered = filtered.filter((b) => b.stato !== "annullata");
+      } else {
+        filtered = filtered.filter((b) => b.stato === selectedStato);
+      }
 
-    // 4. Filtra per stato workflow
-    if (workflowFilter !== "all") {
-      filtered = filtered.filter((b) => b.statoWorkflow === workflowFilter);
-    }
+      // 2. Filtra per selezioni approvate
+      if (selectionFilter === "approved") {
+        filtered = filtered.filter((b) => {
+          const gallery = getGalleryByBookingId(b.id!);
+          return gallery && gallery.selectionStatus === "completed";
+        });
+      }
 
-    // 5. Filtra per intervallo temporale
-    if (timeFilter !== "all") {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      // FIX: Usa math per evitare mutazioni e bug timezone
-      const tomorrow = new Date(today.getTime() + 86400000);
-      const dayAfterTomorrow = new Date(tomorrow.getTime() + 86400000);
+      // 3. Filtra per stato workflow
+      if (workflowFilter !== "all") {
+        filtered = filtered.filter((b) => b.statoWorkflow === workflowFilter);
+      }
 
-      filtered = filtered.filter((b) => {
-        const getTime = (timestamp: any): number => {
-          if (!timestamp) return 0;
-          if (timestamp.toDate) return timestamp.toDate().getTime();
-          if (timestamp instanceof Date) return timestamp.getTime();
-          return new Date(timestamp).getTime();
-        };
+      // 4. Filtra per intervallo temporale
+      if (timeFilter !== "all") {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // FIX: Usa math per evitare mutazioni e bug timezone
+        const tomorrow = new Date(today.getTime() + 86400000);
+        const dayAfterTomorrow = new Date(tomorrow.getTime() + 86400000);
 
-        const bookingTime = getTime(b.dataShootingInizio);
+        filtered = filtered.filter((b) => {
+          const getTime = (timestamp: any): number => {
+            if (!timestamp) return 0;
+            if (timestamp.toDate) return timestamp.toDate().getTime();
+            if (timestamp instanceof Date) return timestamp.getTime();
+            return new Date(timestamp).getTime();
+          };
 
-        if (timeFilter === "upcoming") {
-          // Prossimi Impegni: da oggi in poi (>= oggi 00:00)
-          return bookingTime >= today.getTime();
-        } else if (timeFilter === "past") {
-          // Impegni Passati: prima di oggi (< oggi 00:00)
-          return bookingTime < today.getTime();
-        } else if (timeFilter === "today") {
-          // Oggi: >= oggi 00:00 e < domani 00:00
-          return (
-            bookingTime >= today.getTime() && bookingTime < tomorrow.getTime()
-          );
-        } else if (timeFilter === "tomorrow") {
-          // Domani: >= domani 00:00 e < dopodomani 00:00
-          return (
-            bookingTime >= tomorrow.getTime() &&
-            bookingTime < dayAfterTomorrow.getTime()
-          );
-        } else if (timeFilter === "next-week") {
-          // Prossima settimana: dal prossimo lunedì alla prossima domenica
-          // FIX: Usa date-fns nextMonday per evitare getDay() e timezone issues
-          const monday = nextMonday(today);
-          const nextSunday = new Date(monday.getTime() + 6 * 86400000);
+          const bookingTime = getTime(b.dataShootingInizio);
 
-          return (
-            bookingTime >= monday.getTime() &&
-            bookingTime < nextSunday.getTime()
-          );
-        } else if (timeFilter === "next-month") {
-          // Prossimo mese: dal 1° giorno del prossimo mese all'ultimo
-          const nextMonth = new Date(
-            today.getFullYear(),
-            today.getMonth() + 1,
-            1,
-          );
-          const monthAfter = new Date(
-            today.getFullYear(),
-            today.getMonth() + 2,
-            1,
-          );
+          if (timeFilter === "upcoming") {
+            // Prossimi Impegni: da oggi in poi (>= oggi 00:00)
+            return bookingTime >= today.getTime();
+          } else if (timeFilter === "past") {
+            // Impegni Passati: prima di oggi (< oggi 00:00)
+            return bookingTime < today.getTime();
+          } else if (timeFilter === "today") {
+            // Oggi: >= oggi 00:00 e < domani 00:00
+            return (
+              bookingTime >= today.getTime() && bookingTime < tomorrow.getTime()
+            );
+          } else if (timeFilter === "tomorrow") {
+            // Domani: >= domani 00:00 e < dopodomani 00:00
+            return (
+              bookingTime >= tomorrow.getTime() &&
+              bookingTime < dayAfterTomorrow.getTime()
+            );
+          } else if (timeFilter === "next-week") {
+            // Prossima settimana: dal prossimo lunedì alla prossima domenica
+            // FIX: Usa date-fns nextMonday per evitare getDay() e timezone issues
+            const monday = nextMonday(today);
+            const nextSunday = new Date(monday.getTime() + 6 * 86400000);
 
-          return (
-            bookingTime >= nextMonth.getTime() &&
-            bookingTime < monthAfter.getTime()
-          );
-        }
+            return (
+              bookingTime >= monday.getTime() &&
+              bookingTime < nextSunday.getTime()
+            );
+          } else if (timeFilter === "next-month") {
+            // Prossimo mese: dal 1° giorno del prossimo mese all'ultimo
+            const nextMonth = new Date(
+              today.getFullYear(),
+              today.getMonth() + 1,
+              1,
+            );
+            const monthAfter = new Date(
+              today.getFullYear(),
+              today.getMonth() + 2,
+              1,
+            );
 
-        return true;
-      });
+            return (
+              bookingTime >= nextMonth.getTime() &&
+              bookingTime < monthAfter.getTime()
+            );
+          }
+
+          return true;
+        });
+      }
     }
 
     // 5. Ordina per data e ora
