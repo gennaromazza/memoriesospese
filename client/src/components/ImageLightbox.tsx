@@ -83,6 +83,13 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
     setZoom(1); // Reset zoom quando si cambia foto
   }, [photos.length]);
 
+  // Verifica se Web Share API è supportata per i file (funzione pura, no hook)
+  const canUseWebShare = () => {
+    return typeof navigator !== 'undefined' && 
+           'share' in navigator && 
+           'canShare' in navigator;
+  };
+
   // If no photos or not open, don't render
   if (!isOpen || photos.length === 0) {
     return null;
@@ -138,13 +145,6 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
     setTouchStart(null);
     setTouchEnd(null);
   };
-
-  // Verifica se Web Share API è supportata per i file
-  const canUseWebShare = useCallback(() => {
-    return typeof navigator !== 'undefined' && 
-           'share' in navigator && 
-           'canShare' in navigator;
-  }, []);
 
   // Funzione per condividere/salvare foto (usa Web Share API su mobile)
   const handleShareOrDownload = async (e: React.MouseEvent) => {
