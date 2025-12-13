@@ -121,27 +121,27 @@ export default function MergeDuplicatesDialog({
                             <span className="font-medium">Città:</span> {cliente.citta || '-'}
                           </div>
                           <div>
-                            <span className="font-medium">Status:</span> {cliente.lifecycle.status}
+                            <span className="font-medium">Status:</span> {cliente.lifecycle?.status || '-'}
                           </div>
                           <div className="col-span-2">
                             <span className="font-medium">Sources:</span>{' '}
                             <div className="inline-flex gap-2 mt-1">
-                              {cliente.sourceRefs.bookingIds.length > 0 && (
+                              {(cliente.sourceRefs?.bookingIds?.length || 0) > 0 && (
                                 <Badge variant="secondary" className="text-xs">
                                   {cliente.sourceRefs.bookingIds.length} Booking
                                 </Badge>
                               )}
-                              {cliente.sourceRefs.orderIds.length > 0 && (
+                              {(cliente.sourceRefs?.orderIds?.length || 0) > 0 && (
                                 <Badge variant="secondary" className="text-xs">
                                   {cliente.sourceRefs.orderIds.length} Order
                                 </Badge>
                               )}
-                              {(cliente.sourceRefs.passwordRequestIds?.length || 0) > 0 && (
+                              {(cliente.sourceRefs?.passwordRequestIds?.length || 0) > 0 && (
                                 <Badge variant="secondary" className="text-xs">
                                   {cliente.sourceRefs.passwordRequestIds?.length} Password Request
                                 </Badge>
                               )}
-                              {(cliente.sourceRefs.userIds?.length || 0) > 0 && (
+                              {(cliente.sourceRefs?.userIds?.length || 0) > 0 && (
                                 <Badge variant="secondary" className="text-xs">
                                   {cliente.sourceRefs.userIds?.length} User
                                 </Badge>
