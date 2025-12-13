@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { PhotoData } from "../hooks/use-gallery-data";
-import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus, Share2 } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
 
@@ -139,75 +139,98 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
     setTouchEnd(null);
   };
 
-  // Funzione per il download diretto
-  const handleDownload = async (e: React.MouseEvent) => {
+  // Verifica se Web Share API è supportata per i file
+  const canUseWebShare = useCallback(() => {
+    return typeof navigator !== 'undefined' && 
+           'share' in navigator && 
+           'canShare' in navigator;
+  }, []);
+
+  // Funzione per condividere/salvare foto (usa Web Share API su mobile)
+  const handleShareOrDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
     
     try {
       const fileName = currentPhoto.name || `photo_${currentIndex + 1}.jpg`;
       
-      // Prima mostriamo il toast di avvio download
       toast({
-        title: "Download avviato",
+        title: isMobile ? "Preparazione..." : "Download avviato",
         description: `Scaricamento di ${fileName} in corso...`,
         duration: 3000,
       });
       
-      // Otteniamo l'immagine come blob
       const response = await fetch(currentPhoto.url);
       if (!response.ok) throw new Error('Network response was not ok');
       
-      // Creiamo un URL oggetto per il blob
       const blob = await response.blob();
       
-      // Determiniamo il tipo MIME corretto
       let mimeType = blob.type;
       if (!mimeType || mimeType === 'application/octet-stream') {
-        // Se il tipo non è definito, proviamo a determinarlo dall'estensione del file
         const extension = fileName.split('.').pop()?.toLowerCase();
         if (extension === 'jpg' || extension === 'jpeg') mimeType = 'image/jpeg';
         else if (extension === 'png') mimeType = 'image/png';
         else if (extension === 'gif') mimeType = 'image/gif';
         else if (extension === 'webp') mimeType = 'image/webp';
-        else mimeType = 'image/jpeg'; // Default fallback
+        else mimeType = 'image/jpeg';
       }
       
-      // Creiamo un nuovo blob con il tipo MIME corretto
       const newBlob = new Blob([blob], { type: mimeType });
       
-      // Creiamo un URL per il download
+      // Su mobile, prova prima la Web Share API per salvare nella Galleria
+      if (isMobile && canUseWebShare()) {
+        try {
+          const file = new File([newBlob], fileName, { type: mimeType });
+          
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: fileName,
+            });
+            
+            toast({
+              title: "Condivisione completata",
+              description: "Seleziona 'Salva immagine' per salvare nella Galleria foto.",
+              duration: 5000,
+            });
+            return;
+          }
+        } catch (shareError: unknown) {
+          // Se l'utente annulla, non mostrare errore
+          if (shareError instanceof Error && shareError.name === 'AbortError') {
+            return;
+          }
+          // Se Web Share fallisce, prosegui con download classico
+        }
+      }
+      
+      // Fallback: download classico (va nella cartella Download)
       const url = window.URL.createObjectURL(newBlob);
       
-      // Facciamo una breve pausa prima di iniziare il download
-      // Questo può aiutare alcuni browser a processare meglio la richiesta
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Creiamo e clicchiamo un link invisibile per avviare il download
       const link = document.createElement('a');
       link.style.display = 'none';
       link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       
-      // Clicchiamo il link per avviare il download
       link.click();
       
-      // Puliamo dopo un breve ritardo
       setTimeout(() => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
       }, 200);
       
-      // Mostra un toast di successo dopo un breve ritardo
       setTimeout(() => {
         toast({
           title: "Download completato",
-          description: `${fileName} è stato scaricato con successo.`,
-          duration: 3000,
+          description: isMobile 
+            ? `${fileName} salvato nei Download. Per salvare nella Galleria, tieni premuto sulla foto e seleziona "Salva immagine".`
+            : `${fileName} è stato scaricato con successo.`,
+          duration: isMobile ? 6000 : 3000,
         });
       }, 500);
     } catch (error) {
-      
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il download dell'immagine.",
@@ -215,6 +238,9 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
       });
     }
   };
+
+  // Manteniamo handleDownload per compatibilità
+  const handleDownload = handleShareOrDownload;
 
   return (
     <div 
@@ -476,9 +502,9 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
               <button 
                 onClick={handleDownload}
                 className="btn-lightbox"
-                aria-label="Scarica foto"
+                aria-label="Condividi/Salva foto"
               >
-                <Download size={20} />
+                <Share2 size={20} />
               </button>
               
               <button 
