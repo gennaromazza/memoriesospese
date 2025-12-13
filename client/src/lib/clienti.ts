@@ -728,36 +728,36 @@ export async function mergeClientes(
   // Consolida sourceRefs
   const consolidatedSourceRefs = {
     bookingIds: [...new Set([
-      ...primaryCliente.sourceRefs.bookingIds,
-      ...duplicates.flatMap(d => d.sourceRefs.bookingIds || [])
+      ...(primaryCliente.sourceRefs?.bookingIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs?.bookingIds || [])
     ])],
     orderIds: [...new Set([
-      ...primaryCliente.sourceRefs.orderIds,
-      ...duplicates.flatMap(d => d.sourceRefs.orderIds || [])
+      ...(primaryCliente.sourceRefs?.orderIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs?.orderIds || [])
     ])],
     galleryIds: [...new Set([
-      ...primaryCliente.sourceRefs.galleryIds,
-      ...duplicates.flatMap(d => d.sourceRefs.galleryIds || [])
+      ...(primaryCliente.sourceRefs?.galleryIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs?.galleryIds || [])
     ])],
     passwordRequestIds: [...new Set([
-      ...(primaryCliente.sourceRefs.passwordRequestIds || []),
-      ...duplicates.flatMap(d => d.sourceRefs.passwordRequestIds || [])
+      ...(primaryCliente.sourceRefs?.passwordRequestIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs?.passwordRequestIds || [])
     ])],
     userIds: [...new Set([
-      ...(primaryCliente.sourceRefs.userIds || []),
-      ...duplicates.flatMap(d => d.sourceRefs.userIds || [])
+      ...(primaryCliente.sourceRefs?.userIds || []),
+      ...duplicates.flatMap(d => d.sourceRefs?.userIds || [])
     ])],
   };
   
   // Consolida financials
   const consolidatedFinancials = {
     totalRevenue: duplicates.reduce(
-      (sum, d) => sum + (d.financials.totalRevenue || 0),
-      primaryCliente.financials.totalRevenue || 0
+      (sum, d) => sum + (d.financials?.totalRevenue || 0),
+      primaryCliente.financials?.totalRevenue || 0
     ),
     outstandingBalance: duplicates.reduce(
-      (sum, d) => sum + (d.financials.outstandingBalance || 0),
-      primaryCliente.financials.outstandingBalance || 0
+      (sum, d) => sum + (d.financials?.outstandingBalance || 0),
+      primaryCliente.financials?.outstandingBalance || 0
     ),
     totalOrders: consolidatedSourceRefs.orderIds.length,
   };
