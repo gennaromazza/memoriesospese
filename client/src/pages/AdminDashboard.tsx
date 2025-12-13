@@ -2467,6 +2467,15 @@ export default function AdminDashboard() {
                         <Upload className="h-4 w-4" />
                         Apri Importatore Legacy
                       </Button>
+                      <Button 
+                        onClick={() => window.open('/admin/legacy-analyzer', '_blank')}
+                        className="flex items-center gap-2"
+                        variant="outline"
+                        data-testid="button-legacy-analyzer"
+                      >
+                        <Search className="h-4 w-4" />
+                        Analizza Jobs Legacy
+                      </Button>
                     </div>
                     
                     <SyncClientJobRefs />
