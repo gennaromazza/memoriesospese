@@ -34,7 +34,7 @@ import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
-import { Info, Eye, EyeOff, Trash } from "lucide-react";
+import { Info, Eye, EyeOff, Trash, RefreshCw, Copy, Check } from "lucide-react";
 import { ClienteSelector } from "./ClienteSelector";
 import { createAbsoluteUrl } from "@/lib/basePath";
 
@@ -64,6 +64,31 @@ function isYouTubeUrlDuplicate(url: string, existingUrls: string[]): boolean {
   const newId = extractYouTubeVideoId(url);
   if (!newId) return false;
   return existingUrls.some(existingUrl => extractYouTubeVideoId(existingUrl) === newId);
+}
+
+// Helper: Genera PIN casuale sicuro (4-6 cifre numeriche)
+function generateSecurePin(length: number = 4): string {
+  const digits = '0123456789';
+  let pin = '';
+  for (let i = 0; i < length; i++) {
+    pin += digits.charAt(Math.floor(Math.random() * digits.length));
+  }
+  return pin;
+}
+
+// Helper: Valida formato PIN (minimo 4 caratteri alfanumerici - compatibile con PIN esistenti)
+function isValidPinFormat(pin: string): { valid: boolean; error?: string } {
+  if (!pin || pin.trim().length < 4) {
+    return { valid: false, error: 'Il PIN deve essere di almeno 4 caratteri' };
+  }
+  if (pin.trim().length > 20) {
+    return { valid: false, error: 'Il PIN non può superare 20 caratteri' };
+  }
+  // Accetta alfanumerici per compatibilità con PIN esistenti
+  if (!/^[a-zA-Z0-9]+$/.test(pin.trim())) {
+    return { valid: false, error: 'Il PIN può contenere solo lettere e numeri' };
+  }
+  return { valid: true };
 }
 
 interface NewGalleryModalProps {
@@ -121,6 +146,7 @@ export default function NewGalleryModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomProduct, setIsCustomProduct] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [pinCopied, setPinCopied] = useState(false);
   
   // YouTube URLs support
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
@@ -310,6 +336,15 @@ export default function NewGalleryModal({
     if (specialTheme !== "none" && !specialPin.trim()) {
       toast.error("Il PIN è obbligatorio per le gallerie con tema stagionale");
       return;
+    }
+
+    // Validate PIN format (minimo 4 caratteri alfanumerici)
+    if (specialTheme !== "none" && specialPin.trim()) {
+      const pinValidation = isValidPinFormat(specialPin);
+      if (!pinValidation.valid) {
+        toast.error(pinValidation.error || "Formato PIN non valido");
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -793,17 +828,60 @@ export default function NewGalleryModal({
                       <Label htmlFor="specialPin">
                         PIN Galleria Speciale *
                       </Label>
-                      <Input
-                        id="specialPin"
-                        type="text"
-                        value={specialPin}
-                        onChange={(e) => setSpecialPin(e.target.value)}
-                        placeholder="Es. 2024"
-                        required={specialTheme !== "none"}
-                        data-testid="input-special-pin"
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="specialPin"
+                          name="gallery-special-pin"
+                          type="text"
+                          value={specialPin}
+                          onChange={(e) => {
+                            setSpecialPin(e.target.value);
+                            setPinCopied(false);
+                          }}
+                          placeholder="Es. 2024 (min. 4 caratteri)"
+                          required={specialTheme !== "none"}
+                          autoComplete="new-password"
+                          data-testid="input-special-pin"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            const newPin = generateSecurePin(4);
+                            setSpecialPin(newPin);
+                            setPinCopied(false);
+                            toast.success(`PIN generato: ${newPin}`);
+                          }}
+                          title="Genera PIN casuale"
+                          data-testid="button-generate-pin"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={!specialPin.trim()}
+                          onClick={() => {
+                            navigator.clipboard.writeText(specialPin.trim());
+                            setPinCopied(true);
+                            toast.success("PIN copiato negli appunti");
+                            setTimeout(() => setPinCopied(false), 2000);
+                          }}
+                          title="Copia PIN"
+                          data-testid="button-copy-pin"
+                        >
+                          {pinCopied ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        PIN univoco per accedere a questa galleria speciale
+                        PIN univoco (min. 4 caratteri alfanumerici) per accedere a questa galleria speciale
                       </p>
                     </div>
 
