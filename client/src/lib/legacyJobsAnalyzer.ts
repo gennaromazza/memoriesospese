@@ -46,6 +46,7 @@ export interface AnalysisIssue {
   field?: string;
   expectedValue?: any;
   actualValue?: any;
+  resourceId?: string;
   fixable: boolean;
   fixDescription?: string;
 }
@@ -391,6 +392,7 @@ function analyzeJob(
           field: 'order.jobId',
           expectedValue: job.id,
           actualValue: order.jobId,
+          resourceId: orderId,
           fixable: true,
           fixDescription: 'Correggi jobId nell\'ordine'
         });
@@ -402,6 +404,7 @@ function analyzeJob(
           field: 'order.jobId',
           expectedValue: job.id,
           actualValue: null,
+          resourceId: orderId,
           fixable: true,
           fixDescription: 'Imposta jobId nell\'ordine'
         });
@@ -458,8 +461,21 @@ function analyzeJob(
           field: 'quote.jobId',
           expectedValue: job.id,
           actualValue: quote.jobId,
+          resourceId: quoteId,
           fixable: true,
           fixDescription: 'Correggi jobId nel preventivo'
+        });
+      } else if (!quote.jobId) {
+        issues.push({
+          type: 'warning',
+          category: 'quote_jobid_mismatch',
+          message: `Preventivo ${quoteId} non ha jobId impostato`,
+          field: 'quote.jobId',
+          expectedValue: job.id,
+          actualValue: null,
+          resourceId: quoteId,
+          fixable: true,
+          fixDescription: 'Imposta jobId nel preventivo'
         });
       }
     }
@@ -500,8 +516,21 @@ function analyzeJob(
           field: 'gallery.jobId',
           expectedValue: job.id,
           actualValue: gallery.jobId,
+          resourceId: galleryId,
           fixable: true,
           fixDescription: 'Correggi jobId nella galleria'
+        });
+      } else if (!gallery.jobId) {
+        issues.push({
+          type: 'warning',
+          category: 'gallery_jobid_mismatch',
+          message: `Galleria ${galleryId} non ha jobId impostato`,
+          field: 'gallery.jobId',
+          expectedValue: job.id,
+          actualValue: null,
+          resourceId: galleryId,
+          fixable: true,
+          fixDescription: 'Imposta jobId nella galleria'
         });
       }
     }
@@ -669,9 +698,35 @@ export async function fixJobIssues(
             break;
 
           case 'order_jobid_mismatch':
-            if (issue.actualValue !== undefined || issue.expectedValue) {
-              const orderRef = doc(db, 'orders', issue.field?.replace('order.jobId', '') || '');
-              break;
+            if (issue.resourceId && issue.expectedValue) {
+              const orderRef = doc(db, 'orders', issue.resourceId);
+              await updateDoc(orderRef, {
+                jobId: issue.expectedValue,
+                updatedAt: Timestamp.now()
+              });
+              result.fixesApplied.push(`Corretto jobId ordine ${issue.resourceId}`);
+            }
+            break;
+
+          case 'quote_jobid_mismatch':
+            if (issue.resourceId && issue.expectedValue) {
+              const quoteRef = doc(db, 'quotes', issue.resourceId);
+              await updateDoc(quoteRef, {
+                jobId: issue.expectedValue,
+                updatedAt: Timestamp.now()
+              });
+              result.fixesApplied.push(`Corretto jobId preventivo ${issue.resourceId}`);
+            }
+            break;
+
+          case 'gallery_jobid_mismatch':
+            if (issue.resourceId && issue.expectedValue) {
+              const galleryRef = doc(db, 'galleries', issue.resourceId);
+              await updateDoc(galleryRef, {
+                jobId: issue.expectedValue,
+                updatedAt: Timestamp.now()
+              });
+              result.fixesApplied.push(`Corretto jobId galleria ${issue.resourceId}`);
             }
             break;
 
