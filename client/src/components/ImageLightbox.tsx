@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { PhotoData } from "../hooks/use-gallery-data";
-import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus, Share2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
 
@@ -83,13 +83,6 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
     setZoom(1); // Reset zoom quando si cambia foto
   }, [photos.length]);
 
-  // Verifica se Web Share API è supportata per i file (funzione pura, no hook)
-  const canUseWebShare = () => {
-    return typeof navigator !== 'undefined' && 
-           'share' in navigator && 
-           'canShare' in navigator;
-  };
-
   // If no photos or not open, don't render
   if (!isOpen || photos.length === 0) {
     return null;
@@ -146,15 +139,15 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
     setTouchEnd(null);
   };
 
-  // Funzione per condividere/salvare foto (usa Web Share API su mobile)
-  const handleShareOrDownload = async (e: React.MouseEvent) => {
+  // Funzione per il download diretto (salva nella cartella Download)
+  const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
     
     try {
       const fileName = currentPhoto.name || `photo_${currentIndex + 1}.jpg`;
       
       toast({
-        title: isMobile ? "Preparazione..." : "Download avviato",
+        title: "Download avviato",
         description: `Scaricamento di ${fileName} in corso...`,
         duration: 3000,
       });
@@ -175,35 +168,6 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
       }
       
       const newBlob = new Blob([blob], { type: mimeType });
-      
-      // Su mobile, prova prima la Web Share API per salvare nella Galleria
-      if (isMobile && canUseWebShare()) {
-        try {
-          const file = new File([newBlob], fileName, { type: mimeType });
-          
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: fileName,
-            });
-            
-            toast({
-              title: "Condivisione completata",
-              description: "Seleziona 'Salva immagine' per salvare nella Galleria foto.",
-              duration: 5000,
-            });
-            return;
-          }
-        } catch (shareError: unknown) {
-          // Se l'utente annulla, non mostrare errore
-          if (shareError instanceof Error && shareError.name === 'AbortError') {
-            return;
-          }
-          // Se Web Share fallisce, prosegui con download classico
-        }
-      }
-      
-      // Fallback: download classico (va nella cartella Download)
       const url = window.URL.createObjectURL(newBlob);
       
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -225,9 +189,9 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
         toast({
           title: "Download completato",
           description: isMobile 
-            ? `${fileName} salvato nei Download. Per salvare nella Galleria, tieni premuto sulla foto e seleziona "Salva immagine".`
+            ? `Foto salvata nei Download. Per aggiungerla alla Galleria foto: apri l'app File/Download, trova la foto e seleziona "Salva in Foto".`
             : `${fileName} è stato scaricato con successo.`,
-          duration: isMobile ? 6000 : 3000,
+          duration: isMobile ? 8000 : 3000,
         });
       }, 500);
     } catch (error) {
@@ -238,9 +202,6 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
       });
     }
   };
-
-  // Manteniamo handleDownload per compatibilità
-  const handleDownload = handleShareOrDownload;
 
   return (
     <div 
@@ -502,9 +463,9 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
               <button 
                 onClick={handleDownload}
                 className="btn-lightbox"
-                aria-label="Condividi/Salva foto"
+                aria-label="Scarica foto"
               >
-                <Share2 size={20} />
+                <Download size={20} />
               </button>
               
               <button 
