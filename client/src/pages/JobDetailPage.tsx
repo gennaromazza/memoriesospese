@@ -754,7 +754,7 @@ export default function JobDetailPage() {
                 <CardHeader className="bg-gradient-to-r from-blue-gray/5 to-transparent">
                   <CardTitle className="flex items-center gap-2">
                     <span>Clienti</span>
-                    <Badge variant="outline" className="ml-auto">{job.clientiIds.length}</Badge>
+                    <Badge variant="outline" className="ml-auto">{job.clientiIds?.length || 0}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">
@@ -779,7 +779,7 @@ export default function JobDetailPage() {
                       })}
                       
                       {/* Pulsante per aggiungere secondo cliente */}
-                      {job.clientiIds.length < 2 && (
+                      {(job.clientiIds?.length || 0) < 2 && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -804,7 +804,7 @@ export default function JobDetailPage() {
                 <CardContent className="pt-6">
                   <ModuliJobSection 
                     jobId={job.id}
-                    clienteId={job.clientiIds[0]}
+                    clienteId={job.clientiIds?.[0] || ''}
                     onCreateModulo={() => {
                       setEditingQuoteId(null);
                       setQuoteBuilderOpen(true);
@@ -1005,7 +1005,7 @@ export default function JobDetailPage() {
           </div>
 
         {/* Quote Builder Modal */}
-        {job.clientiIds.length > 0 && quoteBuilderOpen && jobType && (
+        {(job.clientiIds?.length || 0) > 0 && quoteBuilderOpen && jobType && (
           <QuoteBuilder
             open={quoteBuilderOpen}
             onClose={() => {
@@ -1020,7 +1020,7 @@ export default function JobDetailPage() {
             jobId={job.id}
             jobType={jobType}
             jobTypeSlug={job.jobType}
-            clienteId={job.clientiIds[0]}
+            clienteId={job.clientiIds?.[0] || ''}
             editQuoteId={editingQuoteId || undefined}
           />
         )}
@@ -1029,7 +1029,7 @@ export default function JobDetailPage() {
         {generaPagamentiQuoteId && (() => {
           const targetQuote = quotes?.find(q => q.id === generaPagamentiQuoteId);
 
-          if (!targetQuote || !job.clientiIds[0]) return null;
+          if (!targetQuote || !job.clientiIds?.[0]) return null;
           if (targetQuote.status !== 'firmato') {
             console.warn('Tentativo di generare piano pagamenti per preventivo non firmato');
             return null;
@@ -1044,7 +1044,7 @@ export default function JobDetailPage() {
               quoteId={targetQuote.id}
               quoteTotale={totale}
               jobId={job.id}
-              clienteId={job.clientiIds[0]}
+              clienteId={job.clientiIds?.[0] || ''}
               eventDate={eventDateObj}
             />
           );
