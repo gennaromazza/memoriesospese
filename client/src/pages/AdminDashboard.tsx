@@ -46,6 +46,7 @@ import SyncClientJobRefs from "@/components/SyncClientJobRefs";
 import GalleryRecoveryTool from "@/components/admin/GalleryRecoveryTool";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useNotifications } from "@/hooks/useNotifications";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart3, Clock, Globe } from "lucide-react";
 import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
@@ -327,6 +328,11 @@ export default function AdminDashboard() {
     retry: 2, // Riprova 2 volte in caso di errore
     staleTime: 30000, // Cache valida per 30 secondi
   });
+
+  // Hook notifiche per prenotazioni in attesa
+  const { data: notifications = [] } = useNotifications();
+  const pendingBookings = notifications.filter(n => n?.type === 'booking' && !n?.isRead);
+  const hasPendingBookings = pendingBookings.length > 0;
 
   // Persist state changes to sessionStorage
   useEffect(() => {
@@ -1169,6 +1175,51 @@ export default function AdminDashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔔 Banner prominente per prenotazioni in attesa di approvazione */}
+      {hasPendingBookings && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white animate-pulse">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <CalendarCheck className="h-6 w-6 sm:h-7 sm:w-7" />
+                  <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {pendingBookings.length}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-bold text-sm sm:text-base">
+                    {pendingBookings.length === 1 
+                      ? 'Hai 1 nuova prenotazione da approvare!' 
+                      : `Hai ${pendingBookings.length} nuove prenotazioni da approvare!`}
+                  </p>
+                  <p className="text-xs sm:text-sm opacity-90">
+                    {pendingBookings[0]?.description}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  const firstPending = pendingBookings[0];
+                  if (firstPending?.resourceId) {
+                    setActiveTab('bookings');
+                    setActiveBookingSection('bookings-list');
+                    setHighlightBookingId(firstPending.resourceId);
+                  }
+                }}
+                variant="secondary"
+                size="sm"
+                className="bg-white text-orange-600 hover:bg-orange-100 font-semibold shadow-lg whitespace-nowrap"
+                data-testid="button-go-to-pending-booking"
+              >
+                <CalendarCheck className="h-4 w-4 mr-2" />
+                Vai alla prenotazione
+              </Button>
             </div>
           </div>
         </div>

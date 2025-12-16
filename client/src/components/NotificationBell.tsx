@@ -102,7 +102,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs animate-bounce shadow-lg ring-2 ring-red-300 ring-offset-1"
               data-testid="badge-unread-count"
             >
               {unreadCount}
