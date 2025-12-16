@@ -668,6 +668,7 @@ export default function QuotePublicViewPage() {
                         <button
                           onClick={() => toggleDescription(idx)}
                           className="flex items-center gap-1 text-xs text-sage hover:text-dark-sage mt-2 font-medium"
+                          data-testid={`button-toggle-description-${idx}`}
                         >
                           {isExpanded ? (
                             <>
