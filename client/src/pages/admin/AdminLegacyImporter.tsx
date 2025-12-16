@@ -5,14 +5,14 @@ import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp, Timestamp, arrayUnion } from "firebase/firestore";
+import { collection, writeBatch, doc, setDoc, updateDoc, serverTimestamp, Timestamp, arrayUnion, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { getAllClienti, updateCliente, createCliente } from "@/lib/clienti";
 import type { Cliente } from "@shared/clienti-types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Check, AlertCircle, Upload, Users, Briefcase, FileText, ShoppingCart, ArrowRight, Loader2 } from "lucide-react";
+import { Check, AlertCircle, Upload, Users, Briefcase, FileText, ShoppingCart, ArrowRight, Loader2, Wrench } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LegacyCliente {
@@ -154,6 +154,13 @@ export default function AdminLegacyImporter() {
     ordersImported: number;
     quotesImported: number;
     paymentSchedulesImported: number;
+  } | null>(null);
+  const [isFixingSignatures, setIsFixingSignatures] = useState(false);
+  const [fixResult, setFixResult] = useState<{
+    analyzed: number;
+    fixed: number;
+    alreadyOk: number;
+    noSignature: number;
   } | null>(null);
 
   useEffect(() => {
@@ -803,6 +810,149 @@ export default function AdminLegacyImporter() {
     }
   };
 
+  // Fix firme legacy già importate
+  const handleFixLegacySignatures = async () => {
+    setIsFixingSignatures(true);
+    setFixResult(null);
+    
+    try {
+      // Query tutti i preventivi importati da legacy
+      const quotesRef = collection(db, "quotes");
+      const q = query(quotesRef, where("importedFrom", "==", "legacy_json"));
+      const snapshot = await getDocs(q);
+      
+      let analyzed = 0;
+      let fixed = 0;
+      let alreadyOk = 0;
+      let noSignature = 0;
+      
+      const batch = writeBatch(db);
+      let batchCount = 0;
+      
+      for (const docSnap of snapshot.docs) {
+        analyzed++;
+        const data = docSnap.data();
+        
+        // Se non ha signature, skip
+        if (!data.signature) {
+          noSignature++;
+          continue;
+        }
+        
+        const sig = data.signature;
+        
+        // Verifica se la firma è già normalizzata correttamente
+        if (sig.clientName && sig.signedAt?.seconds) {
+          alreadyOk++;
+          continue;
+        }
+        
+        // Normalizza la firma
+        const clientName = 
+          sig.clientName || 
+          sig.nomeFirmatario || 
+          sig.name || 
+          sig.firmatario ||
+          sig.firmatoDa ||
+          sig.firmato_da ||
+          sig.firmato ||
+          (data.clientiInfo?.[0] 
+            ? `${data.clientiInfo[0].nome || ''} ${data.clientiInfo[0].cognome || ''}`.trim()
+            : null);
+        
+        if (!clientName) {
+          console.warn(`⚠️ Preventivo ${docSnap.id}: impossibile determinare clientName`);
+          continue;
+        }
+        
+        // Estrai signedAt
+        const signedAtRaw = 
+          sig.signedAt || 
+          sig.dataFirma || 
+          sig.data_firma || 
+          sig.dataCreazione ||
+          sig.data ||
+          sig.timestamp;
+        
+        // Converti signedAt
+        let signedAt: Timestamp | null = null;
+        if (signedAtRaw) {
+          if (signedAtRaw.seconds !== undefined) {
+            signedAt = new Timestamp(signedAtRaw.seconds, signedAtRaw.nanoseconds || 0);
+          } else if (typeof signedAtRaw === 'string') {
+            // Prova formato italiano DD/MM/YYYY HH:mm
+            const italianMatch = signedAtRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+            if (italianMatch) {
+              const [, day, month, year, hours = '0', minutes = '0'] = italianMatch;
+              const date = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day),
+                parseInt(hours),
+                parseInt(minutes)
+              );
+              signedAt = Timestamp.fromDate(date);
+            } else {
+              const date = new Date(signedAtRaw);
+              if (!isNaN(date.getTime())) {
+                signedAt = Timestamp.fromDate(date);
+              }
+            }
+          } else if (typeof signedAtRaw === 'number') {
+            const date = signedAtRaw > 1e12 ? new Date(signedAtRaw) : new Date(signedAtRaw * 1000);
+            if (!isNaN(date.getTime())) {
+              signedAt = Timestamp.fromDate(date);
+            }
+          }
+        }
+        
+        const normalizedSignature = {
+          clientName,
+          signedAt,
+          imageUrl: sig.imageUrl || sig.firmaUrl || sig.immagine || null,
+          ipAddress: sig.ipAddress || sig.ip || 'legacy_import',
+          userAgent: sig.userAgent || 'legacy_import',
+        };
+        
+        batch.update(doc(db, "quotes", docSnap.id), {
+          signature: normalizedSignature,
+          updatedAt: serverTimestamp()
+        });
+        
+        fixed++;
+        batchCount++;
+        
+        // Commit batch ogni 400 operazioni
+        if (batchCount >= 400) {
+          await batch.commit();
+          batchCount = 0;
+        }
+      }
+      
+      // Commit rimanenti
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+      
+      setFixResult({ analyzed, fixed, alreadyOk, noSignature });
+      
+      toast({
+        title: "Fix completato!",
+        description: `Analizzati ${analyzed} preventivi, corretti ${fixed}, già ok ${alreadyOk}`,
+      });
+      
+    } catch (error: any) {
+      console.error("Errore fix firme:", error);
+      toast({
+        title: "Errore durante il fix",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsFixingSignatures(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 lg:px-8">
       <div className="flex items-center justify-between mb-6">
@@ -871,6 +1021,63 @@ export default function AdminLegacyImporter() {
             <Button onClick={handleParse} disabled={!jsonText.trim()} data-testid="button-parse">
               Analizza JSON
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sezione Fix Firme Legacy - sempre visibile */}
+      {step === 1 && (
+        <Card className="mt-6 border-amber-200 bg-amber-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-amber-800">
+              <Wrench className="w-5 h-5" />
+              Fix Firme Preventivi Legacy
+            </CardTitle>
+            <CardDescription>
+              Corregge le firme dei preventivi già importati che non vengono riconosciute (formati diversi di nome/data)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={handleFixLegacySignatures} 
+              disabled={isFixingSignatures}
+              variant="outline"
+              className="border-amber-300 hover:bg-amber-100"
+              data-testid="button-fix-signatures"
+            >
+              {isFixingSignatures ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Correzione in corso...
+                </>
+              ) : (
+                <>
+                  <Wrench className="w-4 h-4 mr-2" />
+                  Esegui Fix Firme
+                </>
+              )}
+            </Button>
+            
+            {fixResult && (
+              <div className="grid grid-cols-4 gap-3 mt-4">
+                <div className="p-3 bg-white rounded-lg border">
+                  <p className="text-xl font-bold">{fixResult.analyzed}</p>
+                  <p className="text-xs text-muted-foreground">Analizzati</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-xl font-bold text-green-600">{fixResult.fixed}</p>
+                  <p className="text-xs text-muted-foreground">Corretti</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xl font-bold text-blue-600">{fixResult.alreadyOk}</p>
+                  <p className="text-xs text-muted-foreground">Già OK</p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg border">
+                  <p className="text-xl font-bold text-gray-600">{fixResult.noSignature}</p>
+                  <p className="text-xs text-muted-foreground">Senza firma</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
