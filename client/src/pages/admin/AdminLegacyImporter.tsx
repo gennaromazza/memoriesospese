@@ -430,7 +430,24 @@ export default function AdminLegacyImporter() {
     // Se è una stringa, prova a convertirla
     if (typeof value === 'string') {
       try {
-        const date = new Date(value);
+        let date: Date;
+        
+        // Prova formato italiano DD/MM/YYYY HH:mm o DD/MM/YYYY
+        const italianDateMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+        if (italianDateMatch) {
+          const [, day, month, year, hours = '0', minutes = '0'] = italianDateMatch;
+          date = new Date(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            parseInt(hours),
+            parseInt(minutes)
+          );
+        } else {
+          // Fallback al parser standard
+          date = new Date(value);
+        }
+        
         if (isNaN(date.getTime())) {
           console.warn(`⚠️ Data stringa non valida: "${value}"`);
           return null;
@@ -624,17 +641,29 @@ export default function AdminLegacyImporter() {
             sig.nomeFirmatario || 
             sig.name || 
             sig.firmatario ||
+            sig.firmatoDa ||
+            sig.firmato_da ||
+            sig.firmato ||
             // Fallback: usa primo cliente se disponibile
             (mappedClientiInfo && mappedClientiInfo.length > 0
               ? `${mappedClientiInfo[0].nome || ''} ${mappedClientiInfo[0].cognome || ''}`.trim()
               : null);
           
+          // Estrai signedAt da formati alternativi
+          const signedAtRaw = 
+            sig.signedAt || 
+            sig.dataFirma || 
+            sig.data_firma || 
+            sig.dataCreazione ||
+            sig.data ||
+            sig.timestamp;
+          
           if (clientName) {
             normalizedSignature = {
               clientName,
-              signedAt: safeToTimestamp(sig.signedAt),
-              imageUrl: sig.imageUrl || sig.firmaUrl || null,
-              ipAddress: sig.ipAddress || 'legacy_import',
+              signedAt: safeToTimestamp(signedAtRaw),
+              imageUrl: sig.imageUrl || sig.firmaUrl || sig.immagine || null,
+              ipAddress: sig.ipAddress || sig.ip || 'legacy_import',
               userAgent: sig.userAgent || 'legacy_import',
             };
           }
