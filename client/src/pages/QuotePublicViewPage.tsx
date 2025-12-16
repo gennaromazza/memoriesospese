@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
@@ -69,7 +69,21 @@ export default function QuotePublicViewPage() {
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState('');
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   // Removed signatureRef - now using text-based signature
+  
+  // Toggle description expansion
+  const toggleDescription = (idx: number) => {
+    setExpandedDescriptions(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
 
   // Fetch quote data
   const { data, isLoading, error } = useQuery<{ success: boolean; data: QuotePublicData }>({
@@ -546,55 +560,133 @@ export default function QuotePublicViewPage() {
             <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(quote.products ?? []).map((product, idx) => (
-              <div key={idx} className="flex items-start gap-4 p-4 border border-mint/30 rounded-xl bg-white hover:border-sage/50 hover:shadow-lg transition-all">
-                {quote.type === 'variabile' && product.selectable && (
-                  <Checkbox
-                    checked={selectedProducts.includes(product.nome)}
-                    onCheckedChange={(checked) => {
-                      setSelectedProducts(prev => 
-                        checked 
-                          ? [...prev, product.nome]
-                          : prev.filter(p => p !== product.nome)
-                      );
-                    }}
-                    className="mt-1"
-                    data-testid={`checkbox-product-${idx}`}
-                  />
-                )}
-                
-                {/* Product Image */}
-                <div className="flex-shrink-0">
-                  <img 
-                    src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
-                    alt={product.nome}
-                    className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
-                  />
-                </div>
+            {(quote.products ?? []).map((product, idx) => {
+              const isExpanded = expandedDescriptions.has(idx);
+              const hasLongDescription = product.descrizione && product.descrizione.length > 120;
+              
+              return (
+                <div key={idx} className="p-4 border border-mint/30 rounded-xl bg-white hover:border-sage/50 hover:shadow-lg transition-all">
+                  {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                    {/* Checkbox per preventivi variabili */}
+                    {quote.type === 'variabile' && product.selectable && (
+                      <div className="sm:hidden flex items-center gap-2 mb-2">
+                        <Checkbox
+                          checked={selectedProducts.includes(product.nome)}
+                          onCheckedChange={(checked) => {
+                            setSelectedProducts(prev => 
+                              checked 
+                                ? [...prev, product.nome]
+                                : prev.filter(p => p !== product.nome)
+                            );
+                          }}
+                          data-testid={`checkbox-product-mobile-${idx}`}
+                        />
+                        <span className="text-sm text-sage">Seleziona questo prodotto</span>
+                      </div>
+                    )}
+                    
+                    {/* Desktop checkbox */}
+                    {quote.type === 'variabile' && product.selectable && (
+                      <Checkbox
+                        checked={selectedProducts.includes(product.nome)}
+                        onCheckedChange={(checked) => {
+                          setSelectedProducts(prev => 
+                            checked 
+                              ? [...prev, product.nome]
+                              : prev.filter(p => p !== product.nome)
+                          );
+                        }}
+                        className="mt-1 hidden sm:flex"
+                        data-testid={`checkbox-product-${idx}`}
+                      />
+                    )}
+                    
+                    {/* Header mobile: immagine + nome + prezzo */}
+                    <div className="flex items-start gap-3 sm:contents">
+                      {/* Product Image */}
+                      <div className="flex-shrink-0">
+                        <img 
+                          src={product.immagini && product.immagini.length > 0 ? product.immagini[0] : placeholderUrl} 
+                          alt={product.nome}
+                          className="w-20 h-20 sm:w-28 sm:h-28 object-cover rounded-lg border-2 border-mint/30 shadow-sm"
+                        />
+                      </div>
 
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-blue-gray text-lg mb-1 font-playfair">{product.nome}</h3>
-                  {product.descrizione && (
-                    <p className="text-sm text-dark-sage mt-1 leading-relaxed">{product.descrizione}</p>
-                  )}
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {product.numeroFoto && (
-                      <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
-                        📸 {product.numeroFoto} foto
-                      </Badge>
-                    )}
-                    {product.categoria && (
-                      <Badge variant="outline" className="text-xs bg-terracotta/20 border-terracotta/40 text-blue-gray">
-                        {product.categoria}
-                      </Badge>
-                    )}
+                      {/* Mobile: Nome e Prezzo affiancati */}
+                      <div className="flex-1 min-w-0 sm:hidden">
+                        <h3 className="font-bold text-blue-gray text-base font-playfair leading-tight">{product.nome}</h3>
+                        <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {product.numeroFoto && (
+                            <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
+                              📸 {product.numeroFoto} foto
+                            </Badge>
+                          )}
+                          {product.categoria && (
+                            <Badge variant="outline" className="text-xs bg-terracotta/20 border-terracotta/40 text-blue-gray">
+                              {product.categoria}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop: contenuto centrale */}
+                    <div className="hidden sm:block flex-1 min-w-0">
+                      <h3 className="font-bold text-blue-gray text-lg mb-1 font-playfair">{product.nome}</h3>
+                      {product.descrizione && (
+                        <p className="text-sm text-dark-sage mt-1 leading-relaxed">{product.descrizione}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {product.numeroFoto && (
+                          <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
+                            📸 {product.numeroFoto} foto
+                          </Badge>
+                        )}
+                        {product.categoria && (
+                          <Badge variant="outline" className="text-xs bg-terracotta/20 border-terracotta/40 text-blue-gray">
+                            {product.categoria}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Desktop: prezzo a destra */}
+                    <div className="hidden sm:block text-right flex-shrink-0">
+                      <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
+                    </div>
                   </div>
+                  
+                  {/* Mobile: descrizione sotto con "Continua a leggere" */}
+                  {product.descrizione && (
+                    <div className="sm:hidden mt-3 pt-3 border-t border-mint/20">
+                      <p className={`text-sm text-dark-sage leading-relaxed ${!isExpanded && hasLongDescription ? 'line-clamp-2' : ''}`}>
+                        {product.descrizione}
+                      </p>
+                      {hasLongDescription && (
+                        <button
+                          onClick={() => toggleDescription(idx)}
+                          className="flex items-center gap-1 text-xs text-sage hover:text-dark-sage mt-2 font-medium"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="w-3 h-3" />
+                              Mostra meno
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3 h-3" />
+                              Continua a leggere
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             <Separator className="my-4" />
 
