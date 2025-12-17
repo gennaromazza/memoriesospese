@@ -662,7 +662,7 @@ export default function CalendarioManager() {
                     size="sm"
                     className="w-full border-sage text-sage hover:bg-sage/10"
                     onClick={() => {
-                      setNewEventDate(format(selectedDate, 'yyyy-MM-dd'));
+                      setNewEventStartDate(format(selectedDate, 'yyyy-MM-dd'));
                       setShowCreateDialog(true);
                     }}
                     data-testid="button-new-event-for-date"
