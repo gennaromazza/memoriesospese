@@ -20,8 +20,10 @@ import {
   Pencil,
   RefreshCw,
   AlertTriangle,
-  WifiOff
+  WifiOff,
+  ExternalLink
 } from 'lucide-react';
+import { Link } from 'wouter';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -711,7 +713,17 @@ export default function CalendarioManager() {
                             </div>
                             
                             {event.description && (
-                              <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{event.description}</p>
+                              <div 
+                                className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2 [&_br]:hidden [&_*]:inline"
+                                dangerouslySetInnerHTML={{ 
+                                  __html: event.description
+                                    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+                                    .replace(/<br\s*\/?>/gi, ' ')
+                                    .replace(/<[^>]*>/g, ' ')
+                                    .replace(/\s+/g, ' ')
+                                    .trim()
+                                }} 
+                              />
                             )}
                             
                             <div className="flex flex-col gap-1 text-xs sm:text-sm text-gray-500">
@@ -745,9 +757,25 @@ export default function CalendarioManager() {
                             </div>
                           </div>
                           
-                          <Button variant="ghost" size="sm" className="self-start sm:self-auto flex-shrink-0">
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1 self-start sm:self-auto flex-shrink-0">
+                            {event.entityId && event.type === 'job' && (
+                              <Link href={`/admin/jobs/${event.entityId}`} onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="sm" className="text-sage hover:bg-sage/10" title="Vai al Lavoro">
+                                  <Briefcase className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            )}
+                            {event.entityId && event.type === 'consulenza' && (
+                              <Link href="/admin/consultations" onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50" title="Vai alle Consulenze">
+                                  <Users className="w-4 h-4" />
+                                </Button>
+                              </Link>
+                            )}
+                            <Button variant="ghost" size="sm" title="Dettagli">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -939,7 +967,14 @@ export default function CalendarioManager() {
               {selectedEvent.description && (
                 <div>
                   <Label className="text-xs text-gray-500">Descrizione</Label>
-                  <p className="text-sm">{selectedEvent.description}</p>
+                  <div 
+                    className="text-sm prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline"
+                    dangerouslySetInnerHTML={{ 
+                      __html: selectedEvent.description
+                        .replace(/\n/g, '<br>')
+                        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+                    }} 
+                  />
                 </div>
               )}
 
@@ -988,9 +1023,41 @@ export default function CalendarioManager() {
               {selectedEvent.googleEventId && (
                 <div>
                   <Label className="text-xs text-gray-500">Google Event ID</Label>
-                  <p className="text-xs font-mono bg-gray-50 p-2 rounded">
+                  <p className="text-xs font-mono bg-gray-50 p-2 rounded break-all">
                     {selectedEvent.googleEventId}
                   </p>
+                </div>
+              )}
+
+              {/* Link di navigazione a Job/Consulenza */}
+              {selectedEvent.entityId && (
+                <div className="pt-2 border-t">
+                  {selectedEvent.type === 'job' && (
+                    <Link href={`/admin/jobs/${selectedEvent.entityId}`}>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-center gap-2 text-sage hover:text-sage/80 hover:bg-sage/10"
+                        data-testid="link-go-to-job"
+                      >
+                        <Briefcase className="w-4 h-4" />
+                        Vai al Lavoro
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </Link>
+                  )}
+                  {selectedEvent.type === 'consulenza' && (
+                    <Link href={`/admin/consultations`}>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        data-testid="link-go-to-consultation"
+                      >
+                        <Users className="w-4 h-4" />
+                        Vai alle Consulenze
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
