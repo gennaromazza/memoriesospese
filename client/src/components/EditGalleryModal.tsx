@@ -106,6 +106,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [clientEmail, setClientEmail] = useState(""); // Email cliente per invio PIN
   const [clientName, setClientName] = useState(""); // Nome cliente per personalizzazione email
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
+  const [originalYoutubeUrls, setOriginalYoutubeUrls] = useState<string[]>([]); // Video originali per confronto
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImageMobileUrl, setCoverImageMobileUrl] = useState("");
@@ -279,6 +280,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         urls.push(gallery.youtubeUrl);
       }
       setYoutubeUrls(urls);
+      setOriginalYoutubeUrls([...urls]); // Salva video originali per confronto
       setNewYoutubeUrl("");
       
       setCoverImageUrl(gallery.coverImageUrl || "");
@@ -1167,10 +1169,68 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           });
         }
       } else {
-        toast({
-          title: "Galleria aggiornata",
-          description: "Le modifiche alla galleria sono state salvate con successo"
-        });
+        // NOTIFICA VIDEO YOUTUBE: Se ci sono nuovi video e c'è email cliente
+        const newVideos = youtubeUrls.filter(url => !originalYoutubeUrls.includes(url));
+        const hasNewVideos = newVideos.length > 0;
+        const hasClientEmail = clientEmail.trim() !== '';
+
+        if (hasNewVideos && hasClientEmail) {
+          console.log('📹 Nuovi video rilevati, invio notifica email...');
+          console.log('📹 Video nuovi:', newVideos.length);
+          console.log('📹 Email destinatario:', clientEmail.trim());
+          
+          try {
+            const { auth } = await import("../lib/firebase");
+            const currentUser = auth.currentUser;
+            
+            if (currentUser) {
+              const idToken = await currentUser.getIdToken();
+              
+              const videoEmailResponse = await fetch('/api/email/notify-youtube-video', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({
+                  clientEmail: clientEmail.trim(),
+                  clientName: clientName.trim() || undefined,
+                  galleryName: name,
+                  galleryCode: galleryCode || gallery.code,
+                  videoCount: newVideos.length
+                })
+              });
+
+              if (videoEmailResponse.ok) {
+                console.log('✅ Email notifica video inviata con successo');
+                toast({
+                  title: "Galleria aggiornata e notifica inviata",
+                  description: `Il cliente e stato avvisato dei nuovi video`,
+                });
+              } else {
+                const errorData = await videoEmailResponse.json().catch(() => ({}));
+                console.error('❌ Errore invio email video:', errorData);
+                toast({
+                  title: "Galleria aggiornata",
+                  description: `Video aggiunti, ma la notifica email non e stata inviata`,
+                  variant: "destructive"
+                });
+              }
+            }
+          } catch (videoEmailError) {
+            console.error('❌ Eccezione invio email video:', videoEmailError);
+            toast({
+              title: "Galleria aggiornata",
+              description: "Video aggiunti, notifica email non inviata",
+              variant: "destructive"
+            });
+          }
+        } else {
+          toast({
+            title: "Galleria aggiornata",
+            description: "Le modifiche alla galleria sono state salvate con successo"
+          });
+        }
       }
 
       // Invalida cache React Query per aggiornare UI senza reload
@@ -1192,7 +1252,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, youtubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, youtubeUrls, originalYoutubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {

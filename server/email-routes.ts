@@ -5069,4 +5069,92 @@ router.post("/booking-cancelled", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/email/notify-youtube-video
+ * Invia notifica email al cliente quando vengono aggiunti video YouTube alla galleria
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
+ */
+router.post("/notify-youtube-video", authenticateFirebase, async (req: any, res) => {
+  try {
+    const { clientEmail, clientName, galleryName, galleryCode, videoCount } = req.body;
+
+    console.log(`📹 Richiesta notifica video YouTube da utente: ${req.user?.email}`);
+
+    // Validazione campi obbligatori
+    if (!clientEmail || !galleryName || !galleryCode || !videoCount) {
+      return res.status(400).json({
+        error: {
+          code: "invalid-argument",
+          message: "Campi obbligatori mancanti: clientEmail, galleryName, galleryCode, videoCount"
+        }
+      });
+    }
+
+    // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
+    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+
+    if (!isAdmin) {
+      console.log(`❌ Utente ${req.user?.email} non autorizzato per notifica video`);
+      return res.status(403).json({
+        error: { code: "permission-denied", message: "Solo gli admin possono inviare notifiche video" }
+      });
+    }
+
+    // Importa template email
+    const { createYouTubeVideoNotificationEmailHTML, getYouTubeVideoNotificationSubject } = 
+      await import('./email-templates/youtube-video-notification.js');
+
+    // Recupera info studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Genera URL galleria
+    const galleryUrl = `${getSiteBaseUrl(req)}/gallery/${galleryCode}`;
+
+    // Crea contenuto email
+    const htmlContent = createYouTubeVideoNotificationEmailHTML({
+      clientName: clientName || "Cliente",
+      galleryName,
+      videoCount,
+      galleryUrl,
+      studioInfo
+    });
+
+    const subject = getYouTubeVideoNotificationSubject(galleryName, videoCount);
+
+    // Invia email
+    await sendGmailEmail(clientEmail, subject, htmlContent);
+
+    // Log email
+    await logEmailSent({
+      to: clientEmail,
+      subject,
+      type: 'youtube_video_notification',
+      status: 'sent',
+      clientName: clientName || "Cliente",
+      relatedDocType: 'gallery',
+    });
+
+    console.log(`✅ YouTube video notification email sent to ${clientEmail} for gallery ${galleryName}`);
+    res.json({ success: true, message: "Email notifica video inviata con successo" });
+
+  } catch (error: any) {
+    console.error("❌ Error sending YouTube video notification email:", error);
+    
+    // Log email fallita
+    if (req.body.clientEmail) {
+      await logEmailSent({
+        to: req.body.clientEmail,
+        subject: `Nuovi video - ${req.body.galleryName || 'Galleria'}`,
+        type: 'youtube_video_notification',
+        status: 'failed',
+        errorMessage: error.message,
+        relatedDocType: 'gallery',
+      });
+    }
+
+    res.status(500).json({ error: error.message || "Errore invio email" });
+  }
+});
+
 export default router;
