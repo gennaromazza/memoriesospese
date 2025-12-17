@@ -61,6 +61,7 @@ export interface Gallery {
   selectionDeadline?: any;
   selectionDeadlineEnforced?: boolean;
   selectionNotes?: string; // Note cliente durante selezione foto
+  photoNotes?: Record<string, string>; // Note individuali per foto (photoId -> nota)
   orderStatus?: string; // Status dell'ordine associato (sync da orders collection)
   
   // Multi-Product Photo Selection

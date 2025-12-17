@@ -1126,6 +1126,53 @@ export default function GalleryManagementWorkspace() {
                   </div>
                 )}
 
+                {/* 📝 Note Individuali per Foto */}
+                {gallery?.photoNotes && Object.keys(gallery.photoNotes).length > 0 && (
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-gray mb-3 flex items-center gap-2">
+                      <span>📸</span>
+                      Note Specifiche per Foto
+                      <span className="text-sm font-normal text-gray-500">
+                        ({Object.keys(gallery.photoNotes).length} foto con note)
+                      </span>
+                    </h4>
+                    <div className="space-y-3">
+                      {Object.entries(gallery.photoNotes).map(([photoId, note]) => {
+                        const photo = allPhotos.find(p => p.id === photoId);
+                        return (
+                          <div 
+                            key={photoId} 
+                            className="flex gap-3 p-3 bg-white rounded-lg border border-amber-200"
+                            data-testid={`photo-note-${photoId}`}
+                          >
+                            <div className="w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border border-gray-200">
+                              {photo ? (
+                                <img
+                                  src={photo.thumbnailUrl || photo.url}
+                                  alt={photo.name || 'Foto'}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs">
+                                  N/A
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-500 mb-1">
+                                {photo?.name || `Foto ID: ${photoId.substring(0, 8)}...`}
+                              </p>
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                {note as string}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Selected Photos Grid (READONLY) */}
                 {clientSelectedPhotos.length > 0 ? (
                   <div className="space-y-4">
