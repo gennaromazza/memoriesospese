@@ -697,7 +697,7 @@ export default function NewGalleryModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} autoComplete="off">
           <DialogHeader>
             <DialogTitle>Crea Nuova Galleria Evento</DialogTitle>
             <DialogDescription>
@@ -714,6 +714,7 @@ export default function NewGalleryModal({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Nome dell'Evento"
                 required
+                autoComplete="off"
               />
             </div>
 
@@ -725,6 +726,7 @@ export default function NewGalleryModal({
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 placeholder="Data dell'Evento"
+                autoComplete="off"
               />
             </div>
 
@@ -735,6 +737,7 @@ export default function NewGalleryModal({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="es. Villa Rossi, Roma"
+                autoComplete="off"
               />
             </div>
 
@@ -746,6 +749,7 @@ export default function NewGalleryModal({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Una breve descrizione dell'evento..."
                 rows={3}
+                autoComplete="off"
               />
             </div>
 
@@ -770,6 +774,7 @@ export default function NewGalleryModal({
                     onChange={handlePasswordChange}
                     placeholder="Password per accedere alla galleria"
                     className="pr-10"
+                    autoComplete="new-password"
                   />
                   {password && (
                     <button
@@ -896,6 +901,7 @@ export default function NewGalleryModal({
                         value={clientEmail}
                         onChange={(e) => setClientEmail(e.target.value)}
                         placeholder="cliente@esempio.it"
+                        autoComplete="off"
                       />
                       <p className="text-sm text-muted-foreground">
                         Opzionale: se fornita, il cliente riceverà
@@ -911,6 +917,7 @@ export default function NewGalleryModal({
                         value={clientName}
                         onChange={(e) => setClientName(e.target.value)}
                         placeholder="Mario Rossi"
+                        autoComplete="off"
                       />
                       <p className="text-sm text-muted-foreground">
                         Opzionale: per personalizzare l'email
@@ -1144,6 +1151,7 @@ export default function NewGalleryModal({
                           ? `Auto: ${product.numeroFoto}` 
                           : "Es. 50"}
                       data-testid="input-required-photo-count"
+                      autoComplete="off"
                     />
                     
                     {/* Messaggi contestuali */}
@@ -1182,6 +1190,7 @@ export default function NewGalleryModal({
                       onChange={(e) => setSelectionDeadline(e.target.value)}
                       min={new Date().toISOString().split("T")[0]}
                       data-testid="input-selection-deadline"
+                      autoComplete="off"
                     />
                     <p className="text-sm text-muted-foreground">
                       Se impostata, il cliente riceverà email reminder 1 giorno
@@ -1226,6 +1235,7 @@ export default function NewGalleryModal({
                       value={newYoutubeUrl}
                       onChange={(e) => setNewYoutubeUrl(e.target.value)}
                       placeholder="https://www.youtube.com/watch?v=..."
+                      autoComplete="off"
                       className={`${newYoutubeUrl.trim() ? (isValidYouTubeUrl(newYoutubeUrl) ? 'border-green-400 bg-green-50 pr-20' : 'border-red-400 bg-red-50 pr-20') : ''}`}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && newYoutubeUrl.trim()) {

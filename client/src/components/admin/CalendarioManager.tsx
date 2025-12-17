@@ -639,20 +639,37 @@ export default function CalendarioManager() {
                   <Skeleton className="h-[280px] sm:h-[320px] w-full rounded-lg" />
                 </div>
               ) : (
-                <div className="flex justify-center">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    modifiers={{
-                      hasEvent: datesWithEvents
+                <div className="space-y-3">
+                  <div className="flex justify-center">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date) => date && setSelectedDate(date)}
+                      modifiers={{
+                        hasEvent: datesWithEvents
+                      }}
+                      modifiersClassNames={{
+                        hasEvent: 'bg-sage/20 text-sage font-semibold ring-1 ring-sage/40 rounded-md'
+                      }}
+                      className="rounded-lg border-0 shadow-none p-0 w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-head_cell]:w-full [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:font-medium [&_.rdp-head_cell]:text-gray-500 [&_.rdp-cell]:w-full [&_.rdp-day]:w-full [&_.rdp-day]:h-10 [&_.rdp-day]:text-sm [&_.rdp-caption]:text-base [&_.rdp-caption]:font-semibold [&_.rdp-nav_button]:h-8 [&_.rdp-nav_button]:w-8 [&_.rdp-day_selected]:bg-sage [&_.rdp-day_selected]:text-white [&_.rdp-day_today]:bg-amber-100 [&_.rdp-day_today]:text-amber-900"
+                      locale={it}
+                    />
+                  </div>
+                  
+                  {/* Pulsante Nuovo Evento con data preselezionata */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-sage text-sage hover:bg-sage/10"
+                    onClick={() => {
+                      setNewEventDate(format(selectedDate, 'yyyy-MM-dd'));
+                      setShowCreateDialog(true);
                     }}
-                    modifiersClassNames={{
-                      hasEvent: 'bg-sage/20 text-sage font-semibold ring-1 ring-sage/40 rounded-md'
-                    }}
-                    className="rounded-lg border-0 shadow-none p-0 w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-head_cell]:w-full [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:font-medium [&_.rdp-head_cell]:text-gray-500 [&_.rdp-cell]:w-full [&_.rdp-day]:w-full [&_.rdp-day]:h-10 [&_.rdp-day]:text-sm [&_.rdp-caption]:text-base [&_.rdp-caption]:font-semibold [&_.rdp-nav_button]:h-8 [&_.rdp-nav_button]:w-8 [&_.rdp-day_selected]:bg-sage [&_.rdp-day_selected]:text-white [&_.rdp-day_today]:bg-amber-100 [&_.rdp-day_today]:text-amber-900"
-                    locale={it}
-                  />
+                    data-testid="button-new-event-for-date"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuovo Evento per {format(selectedDate, 'd MMM', { locale: it })}
+                  </Button>
                 </div>
               )}
             </CardContent>
