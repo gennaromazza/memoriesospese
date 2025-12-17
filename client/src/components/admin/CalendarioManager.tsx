@@ -528,11 +528,11 @@ export default function CalendarioManager() {
                   Si è verificato un problema durante il caricamento degli eventi. 
                   Controlla la connessione e riprova.
                 </p>
-                {eventsErrorDetails && (
+                {eventsErrorDetails ? (
                   <p className="text-xs text-red-500 mt-2 font-mono">
-                    {eventsErrorDetails instanceof Error ? eventsErrorDetails.message : String(eventsErrorDetails)}
+                    {eventsErrorDetails instanceof Error ? eventsErrorDetails.message : String(eventsErrorDetails as string)}
                   </p>
-                )}
+                ) : null}
               </div>
               <Button 
                 variant="outline"
