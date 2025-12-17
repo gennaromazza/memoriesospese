@@ -626,28 +626,34 @@ export default function CalendarioManager() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         <div className="lg:col-span-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg lg:text-xl">Seleziona Data</CardTitle>
+          <Card className="shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base lg:text-lg flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-sage" />
+                Seleziona Data
+              </CardTitle>
             </CardHeader>
-            <CardContent className="flex justify-center">
+            <CardContent className="p-2 sm:p-4">
               {eventsLoading ? (
                 <div className="space-y-2 w-full">
-                  <Skeleton className="h-[280px] sm:h-[300px] w-full" />
+                  <Skeleton className="h-[280px] sm:h-[320px] w-full rounded-lg" />
                 </div>
               ) : (
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  modifiers={{
-                    hasEvent: datesWithEvents
-                  }}
-                  modifiersClassNames={{
-                    hasEvent: 'bg-blue-100 font-bold'
-                  }}
-                  className="rounded-md border w-full"
-                />
+                <div className="flex justify-center">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    modifiers={{
+                      hasEvent: datesWithEvents
+                    }}
+                    modifiersClassNames={{
+                      hasEvent: 'bg-sage/20 text-sage font-semibold ring-1 ring-sage/40 rounded-md'
+                    }}
+                    className="rounded-lg border-0 shadow-none p-0 w-full [&_.rdp-months]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-head_cell]:w-full [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:font-medium [&_.rdp-head_cell]:text-gray-500 [&_.rdp-cell]:w-full [&_.rdp-day]:w-full [&_.rdp-day]:h-10 [&_.rdp-day]:text-sm [&_.rdp-caption]:text-base [&_.rdp-caption]:font-semibold [&_.rdp-nav_button]:h-8 [&_.rdp-nav_button]:w-8 [&_.rdp-day_selected]:bg-sage [&_.rdp-day_selected]:text-white [&_.rdp-day_today]:bg-amber-100 [&_.rdp-day_today]:text-amber-900"
+                    locale={it}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
