@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Check, Mail, ArrowLeft, Image as ImageIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Check, Mail, ArrowLeft, Image as ImageIcon, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export interface SelectedPhoto {
@@ -20,12 +21,21 @@ export interface SelectedPhoto {
   url: string;
   thumbnailUrl?: string;
   name?: string;
+  note?: string;
+}
+
+export interface PhotoWithNote {
+  id: string;
+  url: string;
+  thumbnailUrl?: string;
+  name?: string;
+  note?: string;
 }
 
 interface SelectionConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (photosWithNotes: PhotoWithNote[]) => Promise<void>;
   selectedPhotos: SelectedPhoto[];
   galleryName: string;
   galleryCode: string;
@@ -46,6 +56,25 @@ export default function SelectionConfirmModal({
   const [email, setEmail] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [photoNotes, setPhotoNotes] = useState<Record<string, string>>({});
+  const [showNotesSection, setShowNotesSection] = useState(false);
+  const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null);
+
+  const updatePhotoNote = (photoId: string, note: string) => {
+    setPhotoNotes(prev => ({
+      ...prev,
+      [photoId]: note
+    }));
+  };
+
+  const getPhotosWithNotes = (): PhotoWithNote[] => {
+    return selectedPhotos.map(photo => ({
+      ...photo,
+      note: photoNotes[photo.id] || undefined
+    }));
+  };
+
+  const notesCount = Object.values(photoNotes).filter(note => note.trim()).length;
 
   const handleConfirm = async () => {
     // Se l'utente vuole una copia via email, invia prima l'email
@@ -88,8 +117,8 @@ export default function SelectionConfirmModal({
       }
     }
 
-    // Procedi con la conferma selezione
-    await onConfirm();
+    // Procedi con la conferma selezione con le note
+    await onConfirm(getPhotosWithNotes());
   };
 
   const isValidEmail = (email: string) => {
@@ -115,16 +144,64 @@ export default function SelectionConfirmModal({
 
         {/* Griglia foto selezionate */}
         <div className="flex-1 min-h-0">
-          <Label className="text-sm font-medium mb-2 block">
-            <ImageIcon className="h-4 w-4 inline mr-1" />
-            Le tue foto selezionate:
-          </Label>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-medium">
+              <ImageIcon className="h-4 w-4 inline mr-1" />
+              Le tue foto selezionate:
+            </Label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowNotesSection(!showNotesSection)}
+              className="text-xs h-7 px-2 text-terracotta hover:text-terracotta/80"
+              data-testid="button-toggle-notes"
+            >
+              <MessageSquare className="h-3 w-3 mr-1" />
+              {showNotesSection ? "Nascondi note" : "Aggiungi note"}
+              {notesCount > 0 && <span className="ml-1 bg-terracotta text-white rounded-full px-1.5 py-0.5 text-xs">{notesCount}</span>}
+            </Button>
+          </div>
+          
           <ScrollArea className="h-[280px] border rounded-lg p-2 bg-gray-50">
             {selectedPhotos.length === 0 ? (
               <div className="flex items-center justify-center h-full text-gray-500">
                 Nessuna foto selezionata
               </div>
+            ) : showNotesSection ? (
+              /* Vista con note - lista verticale */
+              <div className="space-y-3">
+                {selectedPhotos.map((photo, index) => (
+                  <div
+                    key={photo.id}
+                    className="flex gap-3 p-2 bg-white rounded-lg border border-gray-200"
+                    data-testid={`preview-photo-note-${index}`}
+                  >
+                    <div className="relative w-16 h-16 flex-shrink-0 rounded-md overflow-hidden border-2 border-terracotta/30">
+                      <img
+                        src={photo.thumbnailUrl || photo.url}
+                        alt={photo.name || `Foto ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs py-0.5 text-center">
+                        {index + 1}
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Textarea
+                        placeholder="Aggiungi una nota per il fotografo (es: stampa in bianco e nero, ritocco particolare...)"
+                        value={photoNotes[photo.id] || ""}
+                        onChange={(e) => updatePhotoNote(photo.id, e.target.value)}
+                        rows={2}
+                        className="text-sm resize-none"
+                        data-testid={`input-photo-note-${index}`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
+              /* Vista griglia compatta */
               <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
                 {selectedPhotos.map((photo, index) => (
                   <div
@@ -141,6 +218,11 @@ export default function SelectionConfirmModal({
                     <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs py-0.5 text-center">
                       {index + 1}
                     </div>
+                    {photoNotes[photo.id] && (
+                      <div className="absolute top-1 right-1 bg-terracotta text-white rounded-full p-0.5">
+                        <MessageSquare className="h-3 w-3" />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

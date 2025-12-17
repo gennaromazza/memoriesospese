@@ -4958,4 +4958,115 @@ router.post("/selection-copy", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/email/booking-cancelled
+ * Invia email al cliente quando una prenotazione viene cancellata
+ */
+router.post("/booking-cancelled", async (req, res) => {
+  try {
+    const { clientEmail, clientName, prodottoNome, dataPrenotazione, cancelReason } = req.body;
+
+    if (!clientEmail || !clientName) {
+      return res.status(400).json({ 
+        error: "Missing required fields: clientEmail, clientName" 
+      });
+    }
+
+    // Formatta la data se presente
+    let formattedDate = "Data non specificata";
+    if (dataPrenotazione) {
+      try {
+        const date = new Date(dataPrenotazione);
+        formattedDate = date.toLocaleDateString('it-IT', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        formattedDate = dataPrenotazione;
+      }
+    }
+
+    // Sezione motivo (opzionale)
+    const reasonSection = cancelReason ? `
+      <div style="background: #fff8e6; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+        <p style="margin: 0; font-size: 14px; color: #92400e; font-weight: 600; margin-bottom: 8px;">📝 Motivazione:</p>
+        <p style="margin: 0; font-size: 15px; color: #78350f; line-height: 1.6;">${cancelReason}</p>
+      </div>
+    ` : '';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Prenotazione Annullata</h1>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Memorie Sospese</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+            Gentile <strong>${clientName}</strong>,
+          </p>
+          
+          <p style="font-size: 15px; color: #555; margin-bottom: 20px; line-height: 1.6;">
+            Ti informiamo che la tua prenotazione è stata annullata.
+          </p>
+
+          <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2;">
+            <p style="font-size: 14px; color: #6b7d8a; margin-bottom: 8px;">Dettagli prenotazione annullata:</p>
+            <p style="font-size: 16px; color: #333; margin: 5px 0;"><strong>Servizio:</strong> ${prodottoNome || 'Servizio fotografico'}</p>
+            <p style="font-size: 16px; color: #333; margin: 5px 0;"><strong>Data prevista:</strong> ${formattedDate}</p>
+          </div>
+
+          ${reasonSection}
+
+          <div style="background: #f5f0e8; padding: 20px; border-radius: 8px; margin: 25px 0;">
+            <p style="margin: 0; font-size: 14px; color: #6b7d8a; line-height: 1.6;">
+              Se desideri prenotare un nuovo appuntamento o hai domande, non esitare a contattarci.
+            </p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${getSiteBaseUrl(req)}/prenota" 
+               style="background: linear-gradient(135deg, #8b9a7d 0%, #6b7d5a 100%); color: white; padding: 14px 35px; 
+                      text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;
+                      font-size: 15px; box-shadow: 0 4px 12px rgba(139,154,125,0.3);">
+              Prenota un Nuovo Appuntamento
+            </a>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
+          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Memorie Sospese</p>
+          <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+          <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
+        </div>
+      </div>
+    `;
+
+    const subject = `Prenotazione Annullata - ${prodottoNome || 'Servizio fotografico'}`;
+
+    await sendGmailEmail(clientEmail, subject, htmlContent);
+
+    // Log email
+    await logEmailSent({
+      to: clientEmail,
+      subject,
+      type: 'booking_cancelled',
+      status: 'sent',
+      clientName,
+      relatedDocType: 'booking',
+    });
+
+    console.log(`✅ Booking cancelled email sent to ${clientEmail}`);
+    res.json({ success: true, message: "Email inviata con successo" });
+
+  } catch (error: any) {
+    console.error("❌ Error sending booking cancelled email:", error);
+    res.status(500).json({ error: error.message || "Failed to send email" });
+  }
+});
+
 export default router;

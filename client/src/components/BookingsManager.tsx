@@ -57,6 +57,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tooltip,
@@ -230,6 +231,7 @@ export default function BookingsManager({
     ordersCount: number;
     galleriesCount: number;
   } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   // State form modifica prenotazione
   const [editNome, setEditNome] = useState("");
@@ -757,7 +759,7 @@ export default function BookingsManager({
 
   // Mutation: Cancellazione a cascata prenotazione → ordini → gallerie
   const deleteBookingCascadeMutation = useMutation({
-    mutationFn: deleteBookingCascade,
+    mutationFn: (params: { bookingId: string; cancelReason?: string }) => deleteBookingCascade(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -771,6 +773,7 @@ export default function BookingsManager({
 
       setDeleteBookingCascadeId(null);
       setCascadeDeleteCounts(null);
+      setCancelReason("");
     },
     onError: (error: Error) => {
       toast({
@@ -1167,7 +1170,10 @@ export default function BookingsManager({
   // Handler: Conferma cancellazione a cascata
   const handleConfirmCascadeDelete = () => {
     if (!deleteBookingCascadeId) return;
-    deleteBookingCascadeMutation.mutate(deleteBookingCascadeId);
+    deleteBookingCascadeMutation.mutate({
+      bookingId: deleteBookingCascadeId,
+      cancelReason: cancelReason.trim() || undefined,
+    });
   };
 
   // Helper: Formatta data/ora
@@ -3007,6 +3013,7 @@ export default function BookingsManager({
         onOpenChange={() => {
           setDeleteBookingCascadeId(null);
           setCascadeDeleteCounts(null);
+          setCancelReason("");
         }}
       >
         <AlertDialogContent>
@@ -3049,9 +3056,23 @@ export default function BookingsManager({
                 </p>
               </div>
 
-              <p className="text-sm text-gray-600">
-                Vuoi davvero procedere con l'eliminazione?
-              </p>
+              {/* Motivo cancellazione (opzionale) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Motivo della cancellazione (opzionale)
+                </label>
+                <Textarea
+                  placeholder="Inserisci un motivo che verrà comunicato al cliente via email..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                  data-testid="input-cancel-reason"
+                />
+                <p className="text-xs text-gray-500">
+                  Se compili questo campo, il cliente riceverà un'email con il motivo indicato.
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

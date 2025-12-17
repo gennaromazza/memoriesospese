@@ -29,7 +29,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import ImageLightbox from "@/components/ImageLightbox";
-import SelectionConfirmModal, { SelectedPhoto } from "@/components/SelectionConfirmModal";
+import SelectionConfirmModal, { SelectedPhoto, PhotoWithNote } from "@/components/SelectionConfirmModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -444,6 +444,7 @@ export default function Gallery() {
   const [isSubmittingSelection, setIsSubmittingSelection] = useState(false);
   const [showSelectionConfirmModal, setShowSelectionConfirmModal] = useState(false);
   const [selectionNotes, setSelectionNotes] = useState(""); // 📝 Note aggiuntive cliente
+  const [pendingPhotoNotes, setPendingPhotoNotes] = useState<Record<string, string>>({}); // 📝 Note per foto singole
 
   // 🎨 UX Enhancement States
   const [showOnlySelected, setShowOnlySelected] = useState(false); // Filtro solo foto selezionate
@@ -1191,6 +1192,90 @@ export default function Gallery() {
     selectedPhotoIds,
     selectionNotes,
     requiredPhotoCount,
+    galleryData,
+    toast,
+    refreshGallery,
+  ]);
+
+  // 📝 Conferma selezione con note (per Selezione Libera)
+  const handleConfirmSelectionWithNotes = useCallback(async (photoNotes: Record<string, string>) => {
+    if (!id) {
+      toast({
+        title: "❌ Errore",
+        description: "ID galleria non trovato.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmittingSelection(true);
+
+      const { GalleryService } = await import("@/lib/galleries");
+
+      if (!galleryData?.id) {
+        throw new Error("Gallery ID non disponibile");
+      }
+
+      const updateData: any = {
+        selectedPhotoIds,
+        selectionStatus: "completed",
+        selectionNotes: selectionNotes.trim(),
+        photoNotes: Object.keys(photoNotes).length > 0 ? photoNotes : null, // 📝 Note individuali per foto
+      };
+
+      await GalleryService.updateGallery(galleryData.id, updateData);
+
+      // Send email notification to admin
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+
+          await fetch("/api/email/selection-completed", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              galleryId: id,
+              galleryName: galleryData?.name || "Galleria",
+              clienteName: user.displayName || user.email || "Cliente",
+              photoCount: selectedPhotoIds.length,
+              workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
+              hasPhotoNotes: Object.keys(photoNotes).length > 0, // Indica se ci sono note
+            }),
+          });
+        } catch (emailError) {
+          console.error("⚠️ Errore invio email admin:", emailError);
+        }
+      }
+
+      toast({
+        title: "✅ Selezione confermata!",
+        description: `Le tue ${selectedPhotoIds.length} foto sono state confermate${Object.keys(photoNotes).length > 0 ? ' con le tue note' : ''}. Riceverai presto il tuo album!`,
+      });
+
+      await refreshGallery();
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error("Errore conferma selezione:", error);
+      toast({
+        title: "❌ Errore",
+        description: "Errore durante la conferma della selezione. Riprova.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingSelection(false);
+    }
+  }, [
+    id,
+    user,
+    selectedPhotoIds,
+    selectionNotes,
     galleryData,
     toast,
     refreshGallery,
@@ -3890,9 +3975,18 @@ export default function Gallery() {
       <SelectionConfirmModal
         isOpen={showSelectionConfirmModal}
         onClose={() => setShowSelectionConfirmModal(false)}
-        onConfirm={async () => {
+        onConfirm={async (photosWithNotes: PhotoWithNote[]) => {
+          // Salva le note delle foto per usarle in handleConfirmSelection
+          const notesMap: Record<string, string> = {};
+          photosWithNotes.forEach(photo => {
+            if (photo.note?.trim()) {
+              notesMap[photo.id] = photo.note.trim();
+            }
+          });
+          setPendingPhotoNotes(notesMap);
           setShowSelectionConfirmModal(false);
-          await handleConfirmSelection();
+          // Passa le note direttamente alla funzione per evitare race condition
+          await handleConfirmSelectionWithNotes(notesMap);
         }}
         selectedPhotos={selectedPhotosForModal}
         galleryName={galleryData?.name || ''}

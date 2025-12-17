@@ -408,9 +408,12 @@ export async function countRelatedEntities(bookingId: string): Promise<{
 /**
  * Cancella prenotazione con cascata completa su ordini, gallerie, foto, commenti e voice memo (admin only)
  * ATTENZIONE: Operazione irreversibile! Cancella anche i file da Firebase Storage
+ * @param params.bookingId - ID della prenotazione da cancellare
+ * @param params.cancelReason - Motivo opzionale della cancellazione (verrà inviato al cliente via email)
  */
-export async function deleteBookingCascade(bookingId: string): Promise<void> {
-  console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}`);
+export async function deleteBookingCascade(params: { bookingId: string; cancelReason?: string }): Promise<void> {
+  const { bookingId, cancelReason } = params;
+  console.log(`🗑️ Inizio cancellazione a cascata per booking ${bookingId}${cancelReason ? ` - Motivo: ${cancelReason}` : ''}`);
 
   // 1. Conta e trova tutti gli elementi correlati
   const { orderIds, galleryIds } = await countRelatedEntities(bookingId);
@@ -561,7 +564,38 @@ export async function deleteBookingCascade(bookingId: string): Promise<void> {
     }
   }
 
-  // 4. Cancella la prenotazione (con Google Calendar event)
+  // 4. Prima di cancellare, recupera dati booking per email e invia notifica se richiesto
+  try {
+    const bookingSnap = await getDoc(doc(db, COLLECTION, bookingId));
+    if (bookingSnap.exists()) {
+      const bookingData = bookingSnap.data();
+      
+      // Invia email di cancellazione al cliente se abbiamo email e c'è un motivo (opzionale)
+      if (bookingData.cliente?.email) {
+        try {
+          await fetch('/api/email/booking-cancelled', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientEmail: bookingData.cliente.email,
+              clientName: `${bookingData.cliente.nome || ''} ${bookingData.cliente.cognome || ''}`.trim(),
+              prodottoNome: bookingData.prodottoNome || bookingData.prodotti?.[0]?.prodottoNome || 'Servizio fotografico',
+              dataPrenotazione: bookingData.dataShootingInizio?.toDate?.()?.toISOString() || bookingData.dataShootingInizio,
+              cancelReason: cancelReason || null,
+            }),
+          });
+          console.log(`📧 Email cancellazione inviata a ${bookingData.cliente.email}`);
+        } catch (emailError) {
+          console.warn(`⚠️ Impossibile inviare email cancellazione:`, emailError);
+          // Non blocchiamo la cancellazione se l'email fallisce
+        }
+      }
+    }
+  } catch (fetchError) {
+    console.warn(`⚠️ Impossibile recuperare dati booking per email:`, fetchError);
+  }
+
+  // 5. Cancella la prenotazione (con Google Calendar event)
   try {
     await deleteBooking(bookingId);
   } catch (error) {
@@ -569,7 +603,7 @@ export async function deleteBookingCascade(bookingId: string): Promise<void> {
     errors.push({ type: 'booking', id: bookingId, error });
   }
 
-  // 5. Se ci sono errori, lancia eccezione con dettagli
+  // 6. Se ci sono errori, lancia eccezione con dettagli
   if (errors.length > 0) {
     const failedGalleries = errors.filter(e => e.type === 'gallery').map(e => e.id);
     const failedOrders = errors.filter(e => e.type === 'order').map(e => e.id);
