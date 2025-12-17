@@ -100,9 +100,13 @@ type FormData = z.infer<typeof formSchema>;
 interface CreateJobModalProps {
   open: boolean;
   onClose: () => void;
+  initialDate?: Date;
+  initialCliente?: Cliente | null;
+  onJobCreated?: (jobId: string) => void;
+  skipNavigation?: boolean;
 }
 
-export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
+export default function CreateJobModal({ open, onClose, initialDate, initialCliente, onJobCreated, skipNavigation }: CreateJobModalProps) {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -199,6 +203,22 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
     return () => clearTimeout(timer);
   }, [eventDate, allDay, startTime, endTime]);
 
+  // Pre-popola data e cliente iniziali quando il modal si apre
+  useEffect(() => {
+    if (open) {
+      if (initialDate) {
+        form.setValue('eventDate', initialDate);
+      }
+      if (initialCliente) {
+        const currentIds = form.getValues('clientiIds');
+        if (!currentIds.includes(initialCliente.id)) {
+          form.setValue('clientiIds', [initialCliente.id]);
+          setSelectedClienti([initialCliente]);
+        }
+      }
+    }
+  }, [open, initialDate, initialCliente, form]);
+
   // Multi-client handlers
   const handleAddCliente = (cliente: Cliente | null) => {
     if (!cliente) return;
@@ -263,10 +283,18 @@ export default function CreateJobModal({ open, onClose }: CreateJobModalProps) {
       form.reset();
       setSelectedClienti([]);
       setAppuntamentiClienti({});
+      
+      // Callback per notificare il job creato (se fornito)
+      if (onJobCreated) {
+        onJobCreated(jobId);
+      }
+      
       onClose();
       
-      // Redirect automatico a JobDetailPage
-      navigate(`/admin/jobs/${jobId}`);
+      // Redirect automatico a JobDetailPage (solo se non skipNavigation)
+      if (!skipNavigation) {
+        navigate(`/admin/jobs/${jobId}`);
+      }
     },
     onError: (error: any) => {
       toast({

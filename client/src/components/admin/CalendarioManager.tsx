@@ -51,7 +51,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import CreateJobModal from '@/components/jobs/CreateJobModal';
+import { getAllJobs } from '@/lib/jobs';
 import type { Cliente } from '@shared/clienti-types';
+import type { Job } from '@shared/jobs-types';
 
 interface CalendarEventDTO {
   id: string;
@@ -97,6 +100,12 @@ export default function CalendarioManager() {
   const [isAllDay, setIsAllDay] = useState(false);
   const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
   const [customDurationHours, setCustomDurationHours] = useState('1');
+  
+  // Job association states
+  const [jobAssociationMode, setJobAssociationMode] = useState<'none' | 'existing' | 'new'>('none');
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [createJobInitialDate, setCreateJobInitialDate] = useState<Date | undefined>(undefined);
   
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editEventData, setEditEventData] = useState({
@@ -147,6 +156,14 @@ export default function CalendarioManager() {
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
+  // Query per ottenere i jobs (per associazione evento)
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery<Job[]>({
+    queryKey: ['jobs', 'calendar-picker'],
+    queryFn: () => getAllJobs(),
+    enabled: !authLoading && isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const createEventMutation = useMutation({
     mutationFn: async (eventData: {
       title: string;
@@ -157,11 +174,13 @@ export default function CalendarioManager() {
       clienteId?: string;
       notifyCliente: boolean;
       isAllDay?: boolean;
+      jobId?: string;
     }) => {
       return await apiRequest('POST', '/api/calendar/create-event', eventData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/calendar/events'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['jobs'], exact: false });
       toast({
         title: 'Evento creato',
         description: 'L\'evento è stato aggiunto al calendario con successo',
@@ -310,6 +329,19 @@ export default function CalendarioManager() {
       return;
     }
 
+    // Verifica se mode='existing' ma nessun job selezionato
+    if (jobAssociationMode === 'existing' && !selectedJobId) {
+      toast({
+        title: 'Lavoro non selezionato',
+        description: 'Seleziona un lavoro esistente o scegli "Nessuno"',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Determina jobId da associare
+    const jobIdToAssociate = jobAssociationMode === 'existing' && selectedJobId ? selectedJobId : undefined;
+
     if (isAllDay) {
       createEventMutation.mutate({
         title: newEventTitle,
@@ -320,6 +352,7 @@ export default function CalendarioManager() {
         clienteId: selectedCliente?.id,
         notifyCliente: sendNotification,
         isAllDay: true,
+        jobId: jobIdToAssociate,
       });
     } else {
       const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
@@ -358,6 +391,7 @@ export default function CalendarioManager() {
         clienteId: selectedCliente?.id,
         notifyCliente: sendNotification,
         isAllDay: false,
+        jobId: jobIdToAssociate,
       });
     }
   };
@@ -374,6 +408,32 @@ export default function CalendarioManager() {
     setIsAllDay(false);
     setDurationPreset('1h');
     setCustomDurationHours('1');
+    // Reset job association state
+    setJobAssociationMode('none');
+    setSelectedJobId('');
+  };
+  
+  // Handler per aprire CreateJobModal con data precompilata
+  const handleCreateNewJob = () => {
+    const initialDate = newEventStartDate ? new Date(newEventStartDate) : new Date();
+    setCreateJobInitialDate(initialDate);
+    setShowCreateJobModal(true);
+  };
+  
+  // Handler quando un nuovo job viene creato dal modal
+  const handleJobCreated = (jobId: string) => {
+    console.log('📎 Nuovo job creato:', jobId);
+    // Imposta il job selezionato per l'associazione evento
+    setJobAssociationMode('existing');
+    setSelectedJobId(jobId);
+    setShowCreateJobModal(false);
+    // Refresh lista jobs
+    queryClient.invalidateQueries({ queryKey: ['jobs'], exact: false });
+    
+    toast({
+      title: 'Lavoro creato',
+      description: 'Il nuovo lavoro è stato selezionato per l\'associazione all\'evento',
+    });
   };
   
   const isAllDayEvent = (event: CalendarEventDTO): boolean => {
@@ -942,6 +1002,77 @@ export default function CalendarioManager() {
               />
             </div>
 
+            {/* Sezione Associazione Lavoro */}
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Briefcase className="w-4 h-4" />
+                Associa a un Lavoro
+              </Label>
+              
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={jobAssociationMode === 'none' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setJobAssociationMode('none');
+                    setSelectedJobId('');
+                  }}
+                  data-testid="button-job-none"
+                >
+                  Nessuno
+                </Button>
+                <Button
+                  type="button"
+                  variant={jobAssociationMode === 'existing' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setJobAssociationMode('existing')}
+                  data-testid="button-job-existing"
+                >
+                  Lavoro Esistente
+                </Button>
+                <Button
+                  type="button"
+                  variant={jobAssociationMode === 'new' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setJobAssociationMode('new');
+                    handleCreateNewJob();
+                  }}
+                  data-testid="button-job-new"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Nuovo Lavoro
+                </Button>
+              </div>
+
+              {jobAssociationMode === 'existing' && (
+                <div className="space-y-2">
+                  <Select
+                    value={selectedJobId}
+                    onValueChange={setSelectedJobId}
+                  >
+                    <SelectTrigger data-testid="select-existing-job">
+                      <SelectValue placeholder={jobsLoading ? "Caricamento..." : "Seleziona un lavoro"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.nomeEvento} - {job.eventDate?.toDate ? format(job.eventDate.toDate(), 'dd/MM/yyyy') : 'Data N/D'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedJobId && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <CalendarCheck className="w-3 h-3" />
+                      L'evento sarà collegato a questo lavoro
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="send-notification"
@@ -1241,6 +1372,19 @@ export default function CalendarioManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal per creare nuovo job con data precompilata */}
+      <CreateJobModal
+        open={showCreateJobModal}
+        onClose={() => {
+          setShowCreateJobModal(false);
+          setJobAssociationMode('none');
+        }}
+        initialDate={createJobInitialDate}
+        initialCliente={selectedCliente}
+        onJobCreated={handleJobCreated}
+        skipNavigation={true}
+      />
     </div>
   );
 }

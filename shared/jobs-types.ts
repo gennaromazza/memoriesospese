@@ -144,6 +144,9 @@ export interface Job {
   // Appuntamenti clienti (orari per casa di ogni cliente)
   appuntamentiClienti?: AppuntamentoCliente[];
   
+  // Eventi calendario collegati (Google Calendar event IDs)
+  linkedCalendarEventIds?: string[];
+  
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -191,6 +194,7 @@ export interface UpdateJob {
   status?: JobStatus;
   costi?: CostoLavoro[];  // Update costi array
   appuntamentiClienti?: AppuntamentoCliente[];  // Orari appuntamento per ogni cliente
+  linkedCalendarEventIds?: string[];  // Eventi calendario collegati
 }
 
 /**

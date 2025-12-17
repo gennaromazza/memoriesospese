@@ -310,6 +310,7 @@ const createEventSchema = z.object({
   clienteId: z.string().optional(),
   notifyCliente: z.boolean().default(false),
   isAllDay: z.boolean().default(false),
+  jobId: z.string().optional(),
 }).refine(
   (data) => {
     if (data.isAllDay) {
@@ -428,10 +429,38 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
       }
     }
 
+    // 4. Associa evento a job se richiesto
+    if (data.jobId && event.id) {
+      try {
+        const jobRef = db.collection('jobs').doc(data.jobId);
+        const jobDoc = await jobRef.get();
+        
+        if (jobDoc.exists) {
+          const jobData = jobDoc.data();
+          const existingEventIds: string[] = jobData?.linkedCalendarEventIds || [];
+          
+          // Aggiungi evento solo se non già presente
+          if (!existingEventIds.includes(event.id)) {
+            await jobRef.update({
+              linkedCalendarEventIds: [...existingEventIds, event.id],
+              updatedAt: Timestamp.now()
+            });
+            console.log(`📎 Evento ${event.id} collegato al job ${data.jobId}`);
+          }
+        } else {
+          console.warn(`⚠️ Job ${data.jobId} non trovato per associazione evento`);
+        }
+      } catch (jobError) {
+        console.error('⚠️ Errore associazione evento a job:', jobError);
+        // Non bloccare - evento creato comunque
+      }
+    }
+
     res.json({ 
       success: true, 
       eventId: event.id,
-      message: 'Evento creato con successo' 
+      message: 'Evento creato con successo',
+      linkedToJob: data.jobId ? true : false
     });
   } catch (error: any) {
     console.error('❌ Error creating calendar event:', error);
