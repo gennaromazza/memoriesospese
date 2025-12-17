@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
-import { doc, updateDoc, collection, getDocs, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -1172,12 +1172,34 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         // NOTIFICA VIDEO YOUTUBE: Se ci sono nuovi video e c'è email cliente
         const newVideos = youtubeUrls.filter(url => !originalYoutubeUrls.includes(url));
         const hasNewVideos = newVideos.length > 0;
-        const hasClientEmail = clientEmail.trim() !== '';
+        
+        // Recupera email cliente: prima da clientEmail, poi dal documento cliente associato
+        let finalClientEmail = clientEmail.trim();
+        let finalClientName = clientName.trim();
+        
+        if (!finalClientEmail && clienteId) {
+          // Recupera email dal documento cliente
+          try {
+            const clienteDoc = await getDoc(doc(db, 'clienti', clienteId));
+            if (clienteDoc.exists()) {
+              const clienteData = clienteDoc.data();
+              finalClientEmail = clienteData.email || '';
+              if (!finalClientName) {
+                finalClientName = `${clienteData.nome || ''} ${clienteData.cognome || ''}`.trim();
+              }
+              console.log('📧 Email recuperata dal cliente associato:', finalClientEmail);
+            }
+          } catch (clienteError) {
+            console.error('❌ Errore recupero email cliente:', clienteError);
+          }
+        }
+        
+        const hasClientEmail = finalClientEmail !== '';
 
         if (hasNewVideos && hasClientEmail) {
           console.log('📹 Nuovi video rilevati, invio notifica email...');
           console.log('📹 Video nuovi:', newVideos.length);
-          console.log('📹 Email destinatario:', clientEmail.trim());
+          console.log('📹 Email destinatario:', finalClientEmail);
           
           try {
             const { auth } = await import("../lib/firebase");
@@ -1193,8 +1215,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                   'Authorization': `Bearer ${idToken}`
                 },
                 body: JSON.stringify({
-                  clientEmail: clientEmail.trim(),
-                  clientName: clientName.trim() || undefined,
+                  clientEmail: finalClientEmail,
+                  clientName: finalClientName || undefined,
                   galleryName: name,
                   galleryCode: galleryCode || gallery.code,
                   videoCount: newVideos.length
@@ -1252,7 +1274,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, youtubeUrls, originalYoutubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
