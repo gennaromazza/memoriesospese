@@ -33,10 +33,20 @@ interface EmailLogEntry {
  */
 async function logEmailSent(entry: Omit<EmailLogEntry, 'sentAt'>): Promise<string | null> {
   try {
-    const logRef = await db.collection('emailLogs').add({
-      ...entry,
+    // Filtra campi undefined (Firestore non li accetta)
+    const cleanEntry: Record<string, any> = {
+      to: entry.to,
+      subject: entry.subject,
+      type: entry.type,
+      status: entry.status,
       sentAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (entry.relatedDocId) cleanEntry.relatedDocId = entry.relatedDocId;
+    if (entry.relatedDocType) cleanEntry.relatedDocType = entry.relatedDocType;
+    if (entry.clientName) cleanEntry.clientName = entry.clientName;
+    if (entry.errorMessage) cleanEntry.errorMessage = entry.errorMessage;
+    
+    const logRef = await db.collection('emailLogs').add(cleanEntry);
     console.log(`📝 Email log saved: ${logRef.id} - ${entry.type} to ${Array.isArray(entry.to) ? entry.to.join(', ') : entry.to}`);
     return logRef.id;
   } catch (error) {

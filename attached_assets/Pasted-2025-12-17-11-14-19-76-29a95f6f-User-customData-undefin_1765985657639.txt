@@ -1,0 +1,148 @@
+2025-12-17 11:14:19.76
+29a95f6f
+User
+customData: undefined,
+2025-12-17 11:14:19.76
+29a95f6f
+User
+code: 'invalid-argument',
+2025-12-17 11:14:19.76
+29a95f6f
+User
+toString: [Function (anonymous)]
+2025-12-17 11:14:19.76
+29a95f6f
+User
+}
+2025-12-17 11:14:19.76
+29a95f6f
+User
+Errore generazione sitemap: [FirebaseError: Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore] {
+2025-12-17 12:05:53.12
+a0205d35
+User
+at async file:///home/runner/workspace/dist/index.js:1422:59
+2025-12-17 12:05:53.12
+a0205d35
+User
+at /home/runner/workspace/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:214:52
+2025-12-17 12:05:53.12
+a0205d35
+User
+at /home/runner/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-17 12:05:53.12
+a0205d35
+User
+at ProxyTracer.startActiveSpan (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at validateUserInput (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/serializer.js:383:19)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at NoopTracer.startActiveSpan (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at validateUserInput (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/serializer.js:375:13)
+2025-12-17 12:05:53.12
+a0205d35
+User
+❌ Failed to save email log: Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "relatedDocId"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+2025-12-17 12:05:53.12
+a0205d35
+User
+at NoopContextManager.with (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at Ct (file:///home/runner/workspace/dist/index.js:1:2938)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at validateDocumentData (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:609:40)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at CollectionReference.add (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:212:43)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at ContextAPI.with (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at EnabledTraceUtil.startActiveSpan (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-17 12:05:53.12
+a0205d35
+User
+at P (file:///home/runner/workspace/dist/index.js:45:265)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at ContextAPI.with (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at /home/runner/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-17 14:59:58.16
+a0205d35
+User
+at validateDocumentData (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:609:40)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at /home/runner/workspace/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:214:52
+2025-12-17 14:59:58.16
+a0205d35
+User
+at Ct (file:///home/runner/workspace/dist/index.js:1:2938)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at NoopTracer.startActiveSpan (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at validateUserInput (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/serializer.js:383:19)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at EnabledTraceUtil.startActiveSpan (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at ProxyTracer.startActiveSpan (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at CollectionReference.add (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:212:43)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at NoopContextManager.with (/home/runner/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at async file:///home/runner/workspace/dist/index.js:1665:189
+2025-12-17 14:59:58.16
+a0205d35
+User
+❌ Failed to save email log: Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "relatedDocId"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+2025-12-17 14:59:58.16
+a0205d35
+User
+at validateUserInput (/home/runner/workspace/node_modules/@google-cloud/firestore/build/src/serializer.js:375:13)
+2025-12-17 14:59:58.16
+a0205d35
+User
+at P (file:///home/runner/workspace/dist/index.js:45:265)

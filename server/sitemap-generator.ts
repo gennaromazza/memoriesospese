@@ -1,23 +1,27 @@
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from './firebase-admin';
 import { BlogPost, BlogPostStatus } from '../shared/schema';
+
+interface BlogPostMedia {
+  url: string;
+  caption?: string;
+  title?: string;
+  description?: string;
+  thumbnailUrl?: string;
+}
 
 export async function generateDynamicSitemap(): Promise<string> {
   const baseUrl = 'https://imagestudiofotografico.com';
 
-  // Carica tutti i post pubblicati
-  const postsRef = collection(db, 'blogPosts');
-  const q = query(
-    postsRef,
-    where('status', '==', BlogPostStatus.PUBLISHED),
-    orderBy('publishedAt', 'desc')
-  );
+  // Carica tutti i post pubblicati usando Admin SDK
+  const postsSnapshot = await db.collection('blogPosts')
+    .where('status', '==', BlogPostStatus.PUBLISHED)
+    .orderBy('publishedAt', 'desc')
+    .get();
 
-  const snapshot = await getDocs(q);
-  const posts = snapshot.docs.map(doc => ({
+  const posts = postsSnapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data()
-  })) as BlogPost[];
+  })) as (BlogPost & { images?: BlogPostMedia[]; videos?: BlogPostMedia[] })[];
 
   // Costruisci sitemap XML con namespace immagini
   let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
@@ -124,14 +128,21 @@ export async function generateDynamicSitemap(): Promise<string> {
     <priority>0.7</priority>
   </url>
 
-  <!-- Galleria Speciale (Temi Stagionali) -->
+  <!-- Chi Siamo / About -->
   <url>
-    <loc>${baseUrl}/special-gallery</loc>
+    <loc>${baseUrl}/chi-siamo</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
 
-  <!-- Lasciati Trasportare (Landing Page Emozionale) -->
+  <!-- Contatti -->
+  <url>
+    <loc>${baseUrl}/contatti</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- E-book Download -->
   <url>
     <loc>${baseUrl}/lasciati-trasportare</loc>
     <changefreq>monthly</changefreq>
