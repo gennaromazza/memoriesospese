@@ -62,8 +62,7 @@ import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 
 // Componente per visualizzare stato Google Calendar
-function GoogleCalendarStatus() {
-  const { toast } = useToast();
+function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
   const [status, setStatus] = useState<{
     connected: boolean;
     accountEmail?: string;
@@ -2797,7 +2796,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       
-                      <GoogleCalendarStatus />
+                      <GoogleCalendarStatus toast={toast} />
                     </div>
 
                     {/* Gmail Integration Info */}
