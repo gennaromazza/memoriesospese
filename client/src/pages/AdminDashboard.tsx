@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload, Home, Palette, Camera, CheckCircle, List } from "lucide-react";
+import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload, Home, Palette, Camera, CheckCircle, List, Link2, AlertCircle, ExternalLink } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -60,6 +60,87 @@ import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
+
+// Componente per visualizzare stato Google Calendar
+function GoogleCalendarStatus() {
+  const [status, setStatus] = useState<{
+    connected: boolean;
+    accountEmail?: string;
+    error?: string;
+    needsReconnect?: boolean;
+    loading: boolean;
+  }>({ connected: false, loading: true });
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+          setStatus({ connected: false, loading: false, error: 'Non autenticato' });
+          return;
+        }
+        
+        const response = await fetch('/api/calendar/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        setStatus({ ...data, loading: false });
+      } catch (error: any) {
+        setStatus({ connected: false, loading: false, error: error.message });
+      }
+    };
+    
+    checkStatus();
+  }, []);
+
+  if (status.loading) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <RefreshCw className="h-5 w-5 text-gray-400 animate-spin" />
+        <span className="text-sm text-gray-600">Verifica connessione in corso...</span>
+      </div>
+    );
+  }
+
+  if (status.connected) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+        <CheckCircle className="h-5 w-5 text-green-600" />
+        <span className="text-sm text-green-800">
+          Calendario connesso: <strong>{status.accountEmail}</strong>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
+        <AlertCircle className="h-5 w-5 text-red-600" />
+        <div className="flex-1">
+          <span className="text-sm text-red-800 font-medium">
+            {status.needsReconnect ? 'Credenziali scadute' : 'Google Calendar non connesso'}
+          </span>
+          {status.error && (
+            <p className="text-xs text-red-600 mt-1">{status.error}</p>
+          )}
+        </div>
+      </div>
+      
+      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <p className="text-sm text-blue-800 mb-2">
+          <strong>Per riconnettere Google Calendar:</strong>
+        </p>
+        <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
+          <li>Vai nella sezione "Deployments" del tuo progetto Replit</li>
+          <li>Clicca su "Integrations"</li>
+          <li>Trova "Google Calendar" e clicca "Reconnect"</li>
+          <li>Autorizza l'accesso con l'account desiderato</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
 
 // Componente di paginazione riutilizzabile
 interface PaginationControlsProps {
@@ -256,7 +337,7 @@ export default function AdminDashboard() {
   const [activeConsultationSection, setActiveConsultationSection] = useState<'consulenze' | 'consulenze-templates'>(() => {
     return (sessionStorage.getItem('activeConsultationSection') as any) || 'consulenze';
   });
-  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration' | 'email-logs'>(() => {
+  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration' | 'email-logs' | 'integrations'>(() => {
     return (sessionStorage.getItem('settingsSection') as any) || 'studio';
   });
   const [activeSitoSection, setActiveSitoSection] = useState<'portfolio' | 'blog'>(() => {
@@ -2203,6 +2284,10 @@ export default function AdminDashboard() {
                     <RefreshCw className="h-4 w-4 flex-shrink-0" />
                     Migrazione Foto
                   </TabsTrigger>
+                  <TabsTrigger value="integrations" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                    <Link2 className="h-4 w-4 flex-shrink-0" />
+                    Integrazioni
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="studio">
@@ -2609,6 +2694,45 @@ export default function AdminDashboard() {
                           <Key className="h-4 w-4" />
                           Esegui Migrazione
                         </Button>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="integrations">
+                  <div className="space-y-6">
+                    {/* Google Calendar Integration */}
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Calendar className="h-6 w-6 text-blue-600" />
+                        <div>
+                          <h3 className="text-lg font-semibold">Google Calendar</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Sincronizzazione calendario per prenotazioni, consulenze e lavori
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <GoogleCalendarStatus />
+                    </div>
+
+                    {/* Gmail Integration Info */}
+                    <div className="bg-white shadow sm:rounded-lg p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Mail className="h-6 w-6 text-red-500" />
+                        <div>
+                          <h3 className="text-lg font-semibold">Gmail</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Invio email automatiche (conferme, promemoria, notifiche)
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="text-sm text-green-800">
+                          Gmail connesso tramite <strong>image.studio.fotografico@gmail.com</strong>
+                        </span>
                       </div>
                     </div>
                   </div>

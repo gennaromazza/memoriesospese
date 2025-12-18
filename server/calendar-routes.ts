@@ -639,4 +639,98 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/calendar/status
+ * Verifica stato connessione Google Calendar
+ * Ritorna: connected, account email, eventuali errori
+ */
+router.get('/status', authenticateFirebase, async (req, res) => {
+  try {
+    // Prova a ottenere il token per verificare la connessione
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
+    const hasReplIdentity = !!process.env.REPL_IDENTITY;
+    const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
+
+    const xReplitToken = process.env.REPL_IDENTITY
+      ? "repl " + process.env.REPL_IDENTITY
+      : process.env.WEB_REPL_RENEWAL
+        ? "depl " + process.env.WEB_REPL_RENEWAL
+        : null;
+
+    if (!xReplitToken) {
+      return res.json({
+        connected: false,
+        error: 'Token Replit non disponibile',
+        environment: hasReplIdentity ? 'development' : hasWebRenewal ? 'production' : 'unknown'
+      });
+    }
+
+    const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-calendar`;
+    
+    const response = await fetch(connectorUrl, {
+      headers: {
+        Accept: "application/json",
+        X_REPLIT_TOKEN: xReplitToken,
+      },
+    });
+
+    if (!response.ok) {
+      return res.json({
+        connected: false,
+        error: `Errore connettore: ${response.status} ${response.statusText}`,
+        environment: hasReplIdentity ? 'development' : 'production'
+      });
+    }
+
+    const data = await response.json();
+    const connection = data.items?.[0];
+
+    if (!connection?.settings?.access_token) {
+      return res.json({
+        connected: false,
+        error: 'Google Calendar non connesso o token mancante',
+        environment: hasReplIdentity ? 'development' : 'production'
+      });
+    }
+
+    // Prova a fare una chiamata test per verificare che le credenziali funzionino
+    try {
+      const { google } = await import('googleapis');
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({
+        access_token: connection.settings.access_token,
+      });
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      
+      // Ottieni lista calendari per verificare connessione e ottenere email
+      const calendarList = await calendar.calendarList.list({ maxResults: 1 });
+      const primaryCalendar = calendarList.data.items?.find(c => c.primary) || calendarList.data.items?.[0];
+      
+      res.json({
+        connected: true,
+        accountEmail: primaryCalendar?.id || connection.settings.email || 'Account Google connesso',
+        accountName: primaryCalendar?.summary || undefined,
+        environment: hasReplIdentity ? 'development' : 'production',
+        expiresAt: connection.settings.expires_at || undefined
+      });
+    } catch (apiError: any) {
+      // Token presente ma non valido (scaduto o revocato)
+      res.json({
+        connected: false,
+        error: apiError.message?.includes('Invalid Credentials') 
+          ? 'Credenziali scadute - riconnetti il calendario'
+          : `Errore API: ${apiError.message}`,
+        needsReconnect: true,
+        environment: hasReplIdentity ? 'development' : 'production'
+      });
+    }
+  } catch (error: any) {
+    console.error('❌ Error checking calendar status:', error);
+    res.status(500).json({
+      connected: false,
+      error: error.message || 'Errore verifica stato calendario'
+    });
+  }
+});
+
 export default router;
