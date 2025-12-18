@@ -47,10 +47,10 @@ async function getStudioInfo() {
     if (studioDoc.exists) {
       const data = studioDoc.data();
       return {
-        name: data?.name || 'Memorie Sospese',
+        name: data?.name || 'Image Studio Fotografico',
         address: data?.address || '',
         phone: data?.phone || '+39 334 7103142',
-        email: data?.email || 'memoriesospese@gennaromazzacane.it',
+        email: data?.email || 'image.studio.fotografico@gmail.com',
         partitaIVA: data?.partitaIVA || '',
         codiceFiscale: data?.codiceFiscale || '',
       };
@@ -60,10 +60,10 @@ async function getStudioInfo() {
   }
   
   return {
-    name: 'Memorie Sospese',
+    name: 'Image Studio Fotografico',
     address: '',
     phone: '+39 334 7103142',
-    email: 'memoriesospese@gennaromazzacane.it',
+    email: 'image.studio.fotografico@gmail.com',
     partitaIVA: '',
     codiceFiscale: '',
   };

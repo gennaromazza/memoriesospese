@@ -1206,8 +1206,8 @@ async function sendSingleEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       ${personalizedBody}
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-        <p style="margin: 5px 0; font-weight: 600;">Memorie Sospese</p>
-        <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+        <p style="margin: 5px 0; font-weight: 600;">Image Studio Fotografico</p>
+        <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
         <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
       </div>
     </div>

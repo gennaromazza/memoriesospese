@@ -22,8 +22,8 @@ export function createYouTubeVideoNotificationEmailHTML(params: YouTubeVideoNoti
   const { clientName, galleryName, videoCount, galleryUrl, studioInfo } = params;
   
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };

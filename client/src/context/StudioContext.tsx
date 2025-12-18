@@ -30,7 +30,7 @@ export interface StudioSettings {
 }
 
 const defaultSettings: StudioSettings = {
-  name: 'Memorie Sospese',
+  name: 'Image Studio Fotografico',
   slogan: 'Catturiamo momenti, creiamo ricordi',
   address: '',
   phone: '',

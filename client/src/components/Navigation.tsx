@@ -76,7 +76,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                   />
                 ) : (
                   <h1 className="text-blue-gray font-playfair font-semibold text-2xl cursor-pointer">
-                    {studioSettings.name || "Memorie Sospese"}
+                    {studioSettings.name || "Image Studio Fotografico"}
                   </h1>
                 )}
               </Link>

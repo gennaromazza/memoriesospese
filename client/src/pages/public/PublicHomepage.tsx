@@ -86,12 +86,12 @@ export default function PublicHomepage() {
 
     updateMetaTag(
       "description",
-      "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Memorie Sospese. Servizi foto e video a Napoli, Caserta, Costiera Amalfitana.",
+      "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Image Studio. Servizi foto e video a Napoli, Caserta, Costiera Amalfitana.",
     );
 
     updateMetaTag(
       "keywords",
-      "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, fotografo battesimi napoli, gallerie foto interattive, memorie sospese, destination wedding italy, fotografo costiera amalfitana, fotografia eventi napoli",
+      "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, fotografo battesimi napoli, gallerie foto interattive, image studio fotografico, destination wedding italy, fotografo costiera amalfitana, fotografia eventi napoli",
     );
 
     // Open Graph tags

@@ -1605,7 +1605,7 @@ router.get("/calendar/:id", async (req, res) => {
     const icsContent = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Memorie Sospese//Booking System//IT",
+      "PRODID:-//Image Studio Fotografico//Booking System//IT",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
       "BEGIN:VEVENT",

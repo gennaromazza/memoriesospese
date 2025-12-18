@@ -22,7 +22,7 @@ export default function Privacy() {
           <div className="prose prose-blue-gray max-w-none">
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Informazioni Generali</h2>
             <p className="mb-6 text-gray-600">
-              Memorie Sospese si impegna a proteggere la privacy degli utenti e dei loro dati personali. 
+              Image Studio Fotografico si impegna a proteggere la privacy degli utenti e dei loro dati personali. 
               Questa privacy policy descrive come raccogliamo, utilizziamo e proteggiamo le tue informazioni.
             </p>
 
@@ -55,8 +55,8 @@ export default function Privacy() {
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Contatti</h2>
             <p className="text-gray-600">
               Per qualsiasi domanda riguardo alla privacy, contattaci a: 
-              <a href="mailto:privacy@memoriesospese.it" className="text-sage-600 hover:text-sage-700 ml-1">
-                privacy@memoriesospese.it
+              <a href="mailto:image.studio.fotografico@gmail.com" className="text-sage-600 hover:text-sage-700 ml-1">
+                image.studio.fotografico@gmail.com
               </a>
             </p>
           </div>

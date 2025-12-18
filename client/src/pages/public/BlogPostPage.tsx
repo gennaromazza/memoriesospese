@@ -160,7 +160,7 @@ export default function BlogPostPage() {
           "name": "Image Studio",
           "logo": {
             "@type": "ImageObject",
-            "url": "https://www.memoriesospese.it/favicon.png"
+            "url": "https://imagestudiofotografico.replit.app/favicon.png"
           }
         },
         "mainEntityOfPage": {

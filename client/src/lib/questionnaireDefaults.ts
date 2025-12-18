@@ -105,7 +105,7 @@ export const generateChatGPTPrompt = (data: {
   const { galleryId, brideName, groomName, weddingDate, questions, brideAnswers, groomAnswers } = data;
   
   let prompt = `RUOLO
-Sei un romanziere specializzato in storie d'amore. Devi scrivere un VERO RACCONTO NARRATIVO che racconti la storia di questo matrimonio come se fosse un romanzo breve. La storia deve scorrere fluida da inizio a fine, con personaggi, dialoghi interiori, e una narrazione continua che accompagni 35+ pagine dell'album fotografico "Memorie Sospese".
+Sei un romanziere specializzato in storie d'amore. Devi scrivere un VERO RACCONTO NARRATIVO che racconti la storia di questo matrimonio come se fosse un romanzo breve. La storia deve scorrere fluida da inizio a fine, con personaggi, dialoghi interiori, e una narrazione continua che accompagni 35+ pagine dell'album fotografico.
 
 OBIETTIVO - RACCONTO NARRATIVO COMPLETO DA 35+ PAGINE
 Scrivi una STORIA VERA che scorre come un romanzo, divisa in capitoli narrativi:

@@ -24,8 +24,8 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
   } = orderData;
 
   const studio = {
-    name: studioInfo?.name || 'Memorie Sospese',
-    email: studioInfo?.email || 'memoriesospese@gennaromazzacane.it',
+    name: studioInfo?.name || 'Image Studio Fotografico',
+    email: studioInfo?.email || 'image.studio.fotografico@gmail.com',
     phone: studioInfo?.phone || '+39 334 7103142',
     address: studioInfo?.address || ''
   };

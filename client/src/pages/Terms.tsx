@@ -22,13 +22,13 @@ export default function Terms() {
           <div className="prose prose-blue-gray max-w-none">
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Accettazione dei Termini</h2>
             <p className="mb-6 text-gray-600">
-              Utilizzando Memorie Sospese, accetti automaticamente questi termini e condizioni. 
+              Utilizzando Image Studio Fotografico, accetti automaticamente questi termini e condizioni. 
               Se non sei d'accordo, ti preghiamo di non utilizzare il nostro servizio.
             </p>
 
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Servizio Offerto</h2>
             <p className="mb-6 text-gray-600">
-              Memorie Sospese fornisce una piattaforma digitale per la creazione e gestione di gallerie fotografiche 
+              Image Studio Fotografico fornisce una piattaforma digitale per la creazione e gestione di gallerie fotografiche 
               per matrimoni ed eventi. Il servizio include hosting, condivisione e funzionalità interattive.
             </p>
 
@@ -54,15 +54,15 @@ export default function Terms() {
 
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Proprietà Intellettuale</h2>
             <p className="mb-6 text-gray-600">
-              Tu mantieni tutti i diritti sui contenuti che carichi. Concedi a Memorie Sospese una licenza 
+              Tu mantieni tutti i diritti sui contenuti che carichi. Concedi a Image Studio Fotografico una licenza 
               per ospitare e visualizzare i tuoi contenuti come parte del servizio.
             </p>
 
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Contatti</h2>
             <p className="text-gray-600">
               Per domande sui termini di servizio, contattaci a: 
-              <a href="mailto:legale@memoriesospese.it" className="text-sage-600 hover:text-sage-700 ml-1">
-                legale@memoriesospese.it
+              <a href="mailto:image.studio.fotografico@gmail.com" className="text-sage-600 hover:text-sage-700 ml-1">
+                image.studio.fotografico@gmail.com
               </a>
             </p>
           </div>

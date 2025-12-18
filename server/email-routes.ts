@@ -78,7 +78,7 @@ export function getSiteBaseUrl(req?: Request): string {
   }
   
   // 3. Fallback: URL di produzione (dominio ufficiale)
-  return 'https://memoriesospese.gennaromazzacane.it';
+  return 'https://imagestudiofotografico.replit.app';
 }
 
 /**
@@ -94,8 +94,8 @@ export function createCollaboratorAssignmentEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -183,8 +183,8 @@ export async function getStudioContactInfo(): Promise<{
 
     if (studioDoc?.fields) {
       return {
-        name: studioDoc.fields.name?.stringValue || "Memorie Sospese",
-        email: studioDoc.fields.email?.stringValue || "memoriesospese@gennaromazzacane.it",
+        name: studioDoc.fields.name?.stringValue || "Image Studio Fotografico",
+        email: studioDoc.fields.email?.stringValue || "image.studio.fotografico@gmail.com",
         phone: studioDoc.fields.phone?.stringValue || "+39 334 7103142",
         address: studioDoc.fields.address?.stringValue || ""
       };
@@ -195,8 +195,8 @@ export async function getStudioContactInfo(): Promise<{
 
   // Fallback ai valori di default
   return {
-    name: "Memorie Sospese",
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico",
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -492,7 +492,7 @@ export async function sendGmailEmail(
   to: string | string[],
   subject: string,
   htmlContent: string,
-  from: string = "Memorie Sospese <memoriesospese@gennaromazzacane.it>",
+  from: string = "Image Studio Fotografico <image.studio.fotografico@gmail.com>",
   logOptions?: {
     type?: string;
     relatedDocId?: string;
@@ -622,7 +622,7 @@ export async function sendGmailEmailWithLog(
     relatedDocType?: string;
     clientName?: string;
   },
-  from: string = "Memorie Sospese <memoriesospese@gennaromazzacane.it>",
+  from: string = "Image Studio Fotografico <image.studio.fotografico@gmail.com>",
 ): Promise<void> {
   // Delega a sendGmailEmail che ora include logging automatico
   await sendGmailEmail(to, subject, htmlContent, from, {
@@ -724,8 +724,8 @@ function createNewPhotosEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -773,8 +773,8 @@ function createGalleryPasswordEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1161,8 +1161,8 @@ export function createBookingReceivedEmailHTML(
   calendarLink?: string
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1414,8 +1414,8 @@ export function createBookingConfirmedEmailHTML(
   calendarLink?: string
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1509,8 +1509,8 @@ export function createAdminNotificationEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1575,8 +1575,8 @@ export function createBookingCompletedEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1635,8 +1635,8 @@ export function createBookingCancelledEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1692,8 +1692,8 @@ export function createBookingRejectedEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1769,8 +1769,8 @@ export function createOrderAccontoRicevutoEmailHTML(
   transactions?: Array<{ tipo: 'acconto' | 'saldo'; importo: number; metodo: string; data: any; note?: string }>
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -1918,7 +1918,7 @@ export function createOrderAccontoRicevutoEmailHTML(
         `}
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Grazie per aver scelto Memorie Sospese! ❤️
+          Grazie per aver scelto Image Studio Fotografico! ❤️
         </p>
       </div>
 
@@ -2063,8 +2063,8 @@ function createOrderCreatedEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -2863,8 +2863,8 @@ function createShootingCompletedEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -2921,8 +2921,8 @@ function createOrderProcessingEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -2979,8 +2979,8 @@ function createOrderReadyEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -3395,8 +3395,8 @@ export function createCalendarEventEmailHTML(
   calendarLink?: string
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -3611,8 +3611,8 @@ export function createPaymentReminderEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -4057,8 +4057,8 @@ export function createQuoteSentEmailHTML(
   studioInfo?: { name: string; email: string; phone: string; address: string }
 ): string {
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -4794,8 +4794,8 @@ function createGalleryPhotosReadyEmailHTML(params: {
   const { clientName, galleryName, galleryUrl, photoCount, hasSelection, deadline, studioInfo } = params;
   
   const studio = studioInfo || { 
-    name: "Memorie Sospese", 
-    email: "memoriesospese@gennaromazzacane.it",
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: ""
   };
@@ -4940,8 +4940,8 @@ router.post("/selection-copy", async (req, res) => {
         </div>
 
         <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
-          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Memorie Sospese</p>
-          <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Image Studio Fotografico</p>
+          <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
         </div>
       </div>
     `;
@@ -5012,7 +5012,7 @@ router.post("/booking-cancelled", async (req, res) => {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
         <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
           <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Prenotazione Annullata</h1>
-          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Memorie Sospese</p>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Image Studio Fotografico</p>
         </div>
         
         <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
@@ -5049,8 +5049,8 @@ router.post("/booking-cancelled", async (req, res) => {
         </div>
 
         <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
-          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Memorie Sospese</p>
-          <p style="margin: 5px 0;">Email: memoriesospese@gennaromazzacane.it</p>
+          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Image Studio Fotografico</p>
+          <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
           <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
         </div>
       </div>

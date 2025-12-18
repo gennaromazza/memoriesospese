@@ -129,7 +129,7 @@ export default function Footer() {
         )}
         
         <p className="mt-8 text-center text-base text-off-white">
-          &copy; {currentYear} {studioSettings.name || "Memorie Sospese"}. Tutti i diritti riservati.
+          &copy; {currentYear} {studioSettings.name || "Image Studio Fotografico"}. Tutti i diritti riservati.
         </p>
       </div>
     </footer>
