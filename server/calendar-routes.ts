@@ -699,22 +699,25 @@ router.get('/status', authenticateFirebase, async (req, res) => {
       });
     }
 
-    // Usa OAuth2 userinfo per ottenere l'email corretta dell'account
+    // Verifica che il token funzioni ottenendo il calendario primario
     try {
       const { google } = await import('googleapis');
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
         access_token: connection.settings.access_token,
       });
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
       
-      // Ottieni info utente tramite OAuth2 userinfo (email corretta dell'account)
-      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-      const userInfo = await oauth2.userinfo.get();
+      // Ottieni il calendario primario (restituisce l'email del proprietario)
+      const primaryCalendar = await calendar.calendarList.get({ calendarId: 'primary' });
+      
+      // L'ID del calendario primario è l'email dell'account
+      const accountEmail = primaryCalendar.data.id || connection.settings.email || 'Account Google connesso';
       
       res.json({
         connected: true,
-        accountEmail: userInfo.data.email || connection.settings.email || 'Account Google connesso',
-        accountName: userInfo.data.name || undefined,
+        accountEmail: accountEmail,
+        accountName: primaryCalendar.data.summary || undefined,
         connectionId: connection.id,
         environment: hasReplIdentity ? 'development' : 'production',
         expiresAt: connection.settings.expires_at || undefined
