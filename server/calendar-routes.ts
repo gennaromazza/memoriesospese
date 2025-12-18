@@ -639,6 +639,21 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
   }
 });
 
+// Helper per ottenere token e hostname Replit
+function getReplitConnectorInfo() {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
+  const hasReplIdentity = !!process.env.REPL_IDENTITY;
+  const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
+  
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+      ? "depl " + process.env.WEB_REPL_RENEWAL
+      : null;
+      
+  return { hostname, xReplitToken, hasReplIdentity, hasWebRenewal };
+}
+
 /**
  * GET /api/calendar/status
  * Verifica stato connessione Google Calendar
@@ -646,16 +661,7 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
  */
 router.get('/status', authenticateFirebase, async (req, res) => {
   try {
-    // Prova a ottenere il token per verificare la connessione
-    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
-    const hasReplIdentity = !!process.env.REPL_IDENTITY;
-    const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
-
-    const xReplitToken = process.env.REPL_IDENTITY
-      ? "repl " + process.env.REPL_IDENTITY
-      : process.env.WEB_REPL_RENEWAL
-        ? "depl " + process.env.WEB_REPL_RENEWAL
-        : null;
+    const { hostname, xReplitToken, hasReplIdentity, hasWebRenewal } = getReplitConnectorInfo();
 
     if (!xReplitToken) {
       return res.json({
@@ -693,23 +699,23 @@ router.get('/status', authenticateFirebase, async (req, res) => {
       });
     }
 
-    // Prova a fare una chiamata test per verificare che le credenziali funzionino
+    // Usa OAuth2 userinfo per ottenere l'email corretta dell'account
     try {
       const { google } = await import('googleapis');
       const oauth2Client = new google.auth.OAuth2();
       oauth2Client.setCredentials({
         access_token: connection.settings.access_token,
       });
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
       
-      // Ottieni lista calendari per verificare connessione e ottenere email
-      const calendarList = await calendar.calendarList.list({ maxResults: 1 });
-      const primaryCalendar = calendarList.data.items?.find(c => c.primary) || calendarList.data.items?.[0];
+      // Ottieni info utente tramite OAuth2 userinfo (email corretta dell'account)
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
       
       res.json({
         connected: true,
-        accountEmail: primaryCalendar?.id || connection.settings.email || 'Account Google connesso',
-        accountName: primaryCalendar?.summary || undefined,
+        accountEmail: userInfo.data.email || connection.settings.email || 'Account Google connesso',
+        accountName: userInfo.data.name || undefined,
+        connectionId: connection.id,
         environment: hasReplIdentity ? 'development' : 'production',
         expiresAt: connection.settings.expires_at || undefined
       });
@@ -721,6 +727,7 @@ router.get('/status', authenticateFirebase, async (req, res) => {
           ? 'Credenziali scadute - riconnetti il calendario'
           : `Errore API: ${apiError.message}`,
         needsReconnect: true,
+        connectionId: connection.id,
         environment: hasReplIdentity ? 'development' : 'production'
       });
     }
@@ -730,6 +737,87 @@ router.get('/status', authenticateFirebase, async (req, res) => {
       connected: false,
       error: error.message || 'Errore verifica stato calendario'
     });
+  }
+});
+
+/**
+ * DELETE /api/calendar/connection
+ * Disconnette Google Calendar
+ */
+router.delete('/connection', authenticateFirebase, async (req, res) => {
+  try {
+    const { hostname, xReplitToken, hasReplIdentity } = getReplitConnectorInfo();
+
+    if (!xReplitToken) {
+      return res.status(400).json({ error: 'Token Replit non disponibile' });
+    }
+
+    // Prima ottieni l'ID della connessione
+    const listUrl = `https://${hostname}/api/v2/connection?connector_names=google-calendar`;
+    const listResponse = await fetch(listUrl, {
+      headers: {
+        Accept: "application/json",
+        X_REPLIT_TOKEN: xReplitToken,
+      },
+    });
+
+    if (!listResponse.ok) {
+      return res.status(400).json({ error: 'Impossibile trovare la connessione' });
+    }
+
+    const data = await listResponse.json();
+    const connection = data.items?.[0];
+
+    if (!connection?.id) {
+      return res.json({ success: true, message: 'Nessuna connessione da rimuovere' });
+    }
+
+    // Elimina la connessione
+    const deleteUrl = `https://${hostname}/api/v2/connections/${connection.id}`;
+    const deleteResponse = await fetch(deleteUrl, {
+      method: 'DELETE',
+      headers: {
+        Accept: "application/json",
+        X_REPLIT_TOKEN: xReplitToken,
+      },
+    });
+
+    if (!deleteResponse.ok) {
+      const errorText = await deleteResponse.text();
+      console.error('❌ Errore eliminazione connessione:', errorText);
+      return res.status(400).json({ 
+        error: 'Impossibile disconnettere',
+        details: errorText 
+      });
+    }
+
+    console.log('✅ Google Calendar disconnesso');
+    res.json({ success: true, message: 'Google Calendar disconnesso' });
+  } catch (error: any) {
+    console.error('❌ Error disconnecting calendar:', error);
+    res.status(500).json({ error: error.message || 'Errore disconnessione' });
+  }
+});
+
+/**
+ * GET /api/calendar/reconnect-info
+ * Restituisce informazioni per riconnettere Google Calendar
+ */
+router.get('/reconnect-info', authenticateFirebase, async (req, res) => {
+  try {
+    res.json({
+      instructions: [
+        'Per connettere o riconnettere Google Calendar con un altro account:',
+        '1. Vai su Replit nella sezione Deployments del progetto',
+        '2. Clicca su "Integrations"',
+        '3. Trova "Google Calendar" e clicca "Connect" o "Reconnect"',
+        '4. Se vuoi cambiare account, prima esegui logout da Google nel browser',
+        '5. Autorizza l\'accesso con il nuovo account desiderato'
+      ],
+      note: 'La disconnessione/riconnessione viene gestita tramite il pannello Replit Integrations'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 

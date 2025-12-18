@@ -63,33 +63,65 @@ import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 
 // Componente per visualizzare stato Google Calendar
 function GoogleCalendarStatus() {
+  const { toast } = useToast();
   const [status, setStatus] = useState<{
     connected: boolean;
     accountEmail?: string;
+    accountName?: string;
+    connectionId?: string;
     error?: string;
     needsReconnect?: boolean;
     loading: boolean;
   }>({ connected: false, loading: true });
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  const checkStatus = async () => {
+    setStatus(prev => ({ ...prev, loading: true }));
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        setStatus({ connected: false, loading: false, error: 'Non autenticato' });
+        return;
+      }
+      
+      const response = await fetch('/api/calendar/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setStatus({ ...data, loading: false });
+    } catch (error: any) {
+      setStatus({ connected: false, loading: false, error: error.message });
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm('Vuoi disconnettere Google Calendar? Le prenotazioni e i lavori non verranno più sincronizzati.')) {
+      return;
+    }
+    
+    setIsDisconnecting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/calendar/connection', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({ title: 'Google Calendar disconnesso', description: 'Puoi riconnettere un nuovo account dalle Integrazioni Replit' });
+        await checkStatus();
+      } else {
+        toast({ title: 'Errore', description: data.error || 'Impossibile disconnettere', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Errore', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
 
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) {
-          setStatus({ connected: false, loading: false, error: 'Non autenticato' });
-          return;
-        }
-        
-        const response = await fetch('/api/calendar/status', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        setStatus({ ...data, loading: false });
-      } catch (error: any) {
-        setStatus({ connected: false, loading: false, error: error.message });
-      }
-    };
-    
     checkStatus();
   }, []);
 
@@ -104,11 +136,54 @@ function GoogleCalendarStatus() {
 
   if (status.connected) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-        <CheckCircle className="h-5 w-5 text-green-600" />
-        <span className="text-sm text-green-800">
-          Calendario connesso: <strong>{status.accountEmail}</strong>
-        </span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <div>
+              <span className="text-sm text-green-800">
+                Account connesso: <strong>{status.accountEmail}</strong>
+              </span>
+              {status.accountName && (
+                <p className="text-xs text-green-600">{status.accountName}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={checkStatus}
+              className="text-green-700 hover:text-green-800"
+              data-testid="button-refresh-calendar"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+          <p className="text-sm text-amber-800 mb-2">
+            <strong>Vuoi cambiare account Google?</strong>
+          </p>
+          <p className="text-xs text-amber-700 mb-3">
+            Per connettere un account diverso, vai nel pannello Replit → Deployments → Integrations → Google Calendar → Reconnect
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDisconnect}
+            disabled={isDisconnecting}
+            className="text-amber-700 border-amber-300 hover:bg-amber-100"
+            data-testid="button-disconnect-calendar"
+          >
+            {isDisconnecting ? (
+              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Disconnessione...</>
+            ) : (
+              'Disconnetti Calendar'
+            )}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -125,16 +200,25 @@ function GoogleCalendarStatus() {
             <p className="text-xs text-red-600 mt-1">{status.error}</p>
           )}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={checkStatus}
+          className="text-red-700"
+          data-testid="button-retry-calendar"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
       
       <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
         <p className="text-sm text-blue-800 mb-2">
-          <strong>Per riconnettere Google Calendar:</strong>
+          <strong>Per connettere Google Calendar:</strong>
         </p>
         <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
           <li>Vai nella sezione "Deployments" del tuo progetto Replit</li>
           <li>Clicca su "Integrations"</li>
-          <li>Trova "Google Calendar" e clicca "Reconnect"</li>
+          <li>Trova "Google Calendar" e clicca "Connect"</li>
           <li>Autorizza l'accesso con l'account desiderato</li>
         </ol>
       </div>
