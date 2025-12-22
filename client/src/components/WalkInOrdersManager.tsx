@@ -131,7 +131,7 @@ export default function WalkInOrdersManager() {
   // Mutation per aggiornare stato ordine
   const updateOrderMutation = useMutation({
     mutationFn: async (data: { orderId: string; stato: string }) => {
-      return apiRequest('PATCH', `/api/orders/${data.orderId}`, { status: data.stato });
+      return apiRequest('PATCH', `/api/orders/${data.orderId}`, { stato: data.stato });
     },
     onSuccess: () => {
       toast({ title: 'Stato aggiornato', description: 'Lo stato dell\'ordine è stato aggiornato' });
