@@ -229,7 +229,7 @@ export default function CashRegister() {
               </Button>
             </DialogTrigger>
 
-          <DialogContent className="w-[95vw] max-w-md max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+            <DialogContent className="w-[95vw] max-w-md max-h-[95vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader className="space-y-1.5 sm:space-y-2">
               <DialogTitle className="text-base sm:text-lg md:text-xl">
                 {editingMovement ? "Modifica Movimento" : "Nuovo Movimento Cassa"}
@@ -377,6 +377,7 @@ export default function CashRegister() {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
       </div>
 
       {/* Tabella Movimenti - Responsive */}
