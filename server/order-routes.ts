@@ -3,8 +3,10 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { sendGmailEmail, createOrderPaymentReceivedEmailHTML } from './email-routes.js';
+import { sendGmailEmail, createOrderPaymentReceivedEmailHTML, authenticateFirebase } from './email-routes.js';
 import { db, FieldValue } from './firebase-admin.js';
+
+const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = Router();
 
@@ -399,6 +401,211 @@ router.post('/payment-received-notification', async (req: Request, res: Response
     console.error('❌ Errore invio email pagamento ricevuto:', error);
     res.status(500).json({
       error: 'Errore invio email',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/orders/create-walkin
+ * Crea un nuovo ordine walk-in con movimento cassa opzionale
+ * RICHIEDE AUTENTICAZIONE: Solo admin può creare ordini walk-in
+ */
+router.post('/create-walkin', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    // Verifica admin
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+    if (!isAdmin) {
+      console.log(`❌ Utente ${req.user?.email} non autorizzato per ordini walk-in`);
+      return res.status(403).json({
+        error: 'Solo gli admin possono creare ordini walk-in'
+      });
+    }
+
+    const {
+      nomeCliente,
+      emailCliente,
+      telefonoCliente,
+      prodotti,
+      totale,
+      acconto = 0,
+      metodoPagamento = 'contante',
+      note,
+      sendEmail = false,
+    } = req.body;
+
+    console.log('🛍️ Creazione ordine walk-in da:', req.user?.email, { nomeCliente, totale, acconto });
+
+    // Validazione
+    if (!nomeCliente || !prodotti || prodotti.length === 0 || totale <= 0) {
+      return res.status(400).json({
+        error: 'Campi obbligatori mancanti: nomeCliente, prodotti, totale'
+      });
+    }
+
+    // Stato ordine basato su pagamento
+    const isPaidInFull = acconto >= totale;
+    const stato = isPaidInFull ? 'completato' : (acconto > 0 ? 'in_lavorazione' : 'in_attesa');
+    const saldo = totale - acconto;
+
+    // Descrizione prodotti
+    const prodottiDescrizione = prodotti
+      .map((p: any) => `${p.prodottoNome} x${p.quantita}`)
+      .join(', ');
+
+    // Crea ordine
+    const orderData = {
+      nomeCliente,
+      emailCliente: emailCliente || null,
+      telefonoCliente: telefonoCliente || null,
+      nomeEvento: `Ordine Walk-in - ${prodottiDescrizione.substring(0, 50)}`,
+      dataEvento: null,
+      prodotti,
+      totale,
+      acconto,
+      saldo,
+      stato,
+      source: 'walk_in',
+      note: note || null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    const orderRef = await db.collection('orders').add(orderData);
+    const orderId = orderRef.id;
+    console.log('✅ Ordine walk-in creato:', orderId);
+
+    // Se c'è acconto, crea movimento cassa con schema allineato
+    if (acconto > 0) {
+      const now = new Date();
+      const cashData = {
+        tipo: 'entrata',
+        categoria: 'Vendita diretta',
+        importo: acconto,
+        descrizione: `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione.substring(0, 50)}`,
+        data: now, // Usa Date per allinearsi con schema client
+        metodoPagamento,
+        note: `Ordine ID: ${orderId}`,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      await db.collection('cashMovements').add(cashData);
+      console.log('✅ Movimento cassa registrato per ordine:', orderId);
+    }
+
+    // Invia email se richiesto
+    if (sendEmail && emailCliente) {
+      try {
+        // Genera HTML prodotti
+        const prodottiHtml = prodotti.map((p: any) => `
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #e8e4de;">
+              ${p.prodottoNome} ${p.isCustom ? '<span style="color: #f59e0b; font-size: 11px;">(Custom)</span>' : ''}
+            </td>
+            <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: center;">${p.quantita}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: right;">€${(p.prodottoPrezzo * p.quantita).toFixed(2)}</td>
+          </tr>
+        `).join('');
+
+        // Stato badge
+        const statoBadge = stato === 'completato' 
+          ? '<span style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">✓ Completato</span>'
+          : stato === 'in_lavorazione'
+            ? '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Lavorazione</span>'
+            : '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Attesa</span>';
+
+        const pagamentoHtml = acconto > 0 ? `
+          <div style="background: #f5f0e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <div style="margin-bottom: 8px;">
+              <span style="color: #666;">Acconto versato:</span>
+              <span style="color: #22c55e; font-weight: 600; float: right;">€${acconto.toFixed(2)}</span>
+            </div>
+            ${saldo > 0 ? `
+              <div>
+                <span style="color: #666;">Saldo da pagare:</span>
+                <span style="color: #f59e0b; font-weight: 600; float: right;">€${saldo.toFixed(2)}</span>
+              </div>
+            ` : '<p style="color: #22c55e; margin: 0; font-weight: 600;">✓ Pagamento completato</p>'}
+            <div style="clear: both;"></div>
+          </div>
+        ` : '';
+
+        const htmlContent = `
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+            <div style="background: linear-gradient(135deg, #8b9a7d 0%, #6b7d5a 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Conferma Ordine</h1>
+              <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Image Studio Fotografico</p>
+            </div>
+            
+            <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+              <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+                Gentile <strong>${nomeCliente}</strong>,
+              </p>
+              
+              <p style="font-size: 15px; color: #555; margin-bottom: 20px; line-height: 1.6;">
+                Grazie per il tuo ordine! Ecco il riepilogo:
+              </p>
+
+              <div style="margin: 20px 0;">
+                ${statoBadge}
+              </div>
+
+              <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <thead>
+                  <tr style="background: #f5f0e8;">
+                    <th style="padding: 10px; text-align: left; font-size: 13px; color: #666;">Prodotto</th>
+                    <th style="padding: 10px; text-align: center; font-size: 13px; color: #666;">Qtà</th>
+                    <th style="padding: 10px; text-align: right; font-size: 13px; color: #666;">Prezzo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${prodottiHtml}
+                </tbody>
+                <tfoot>
+                  <tr style="background: #8b9a7d;">
+                    <td colspan="2" style="padding: 12px; color: white; font-weight: 600;">Totale</td>
+                    <td style="padding: 12px; text-align: right; color: white; font-weight: 600; font-size: 18px;">€${totale.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              ${pagamentoHtml}
+
+              <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                <p style="margin: 0; font-size: 14px; color: #0056b3; line-height: 1.6;">
+                  📍 Ti contatteremo quando l'ordine sarà pronto per il ritiro.
+                </p>
+              </div>
+            </div>
+
+            <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
+              <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Image Studio Fotografico</p>
+              <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
+              <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
+            </div>
+          </div>
+        `;
+
+        await sendGmailEmail(emailCliente, 'Conferma Ordine - Image Studio Fotografico', htmlContent);
+        console.log('📧 Email conferma walk-in inviata a:', emailCliente);
+      } catch (emailError) {
+        console.error('⚠️ Errore invio email walk-in:', emailError);
+        // Non bloccare la creazione ordine se l'email fallisce
+      }
+    }
+
+    res.json({
+      success: true,
+      orderId,
+      stato,
+      message: `Ordine creato con successo`,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore creazione ordine walk-in:', error);
+    res.status(500).json({
+      error: 'Errore creazione ordine',
       details: error.message
     });
   }

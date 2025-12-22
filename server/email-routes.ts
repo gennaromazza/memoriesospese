@@ -5080,6 +5080,165 @@ router.post("/booking-cancelled", async (req, res) => {
 });
 
 /**
+ * POST /api/email/order-confirmation-walkin
+ * Invia email di conferma per ordini walk-in (vendita diretta in studio)
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
+ */
+router.post("/order-confirmation-walkin", authenticateFirebase, async (req: any, res) => {
+  try {
+    const { orderId, clientEmail, clientName, prodotti, totale, acconto, saldo, stato } = req.body;
+
+    console.log(`🛍️ Richiesta conferma ordine walk-in da utente: ${req.user?.email}`);
+
+    // Validazione campi obbligatori
+    if (!clientEmail || !clientName || !prodotti || prodotti.length === 0) {
+      return res.status(400).json({
+        error: {
+          code: "invalid-argument",
+          message: "Campi obbligatori mancanti: clientEmail, clientName, prodotti"
+        }
+      });
+    }
+
+    // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
+    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+
+    if (!isAdmin) {
+      console.log(`❌ Utente ${req.user?.email} non autorizzato per conferma ordine walk-in`);
+      return res.status(403).json({
+        error: { code: "permission-denied", message: "Solo gli admin possono inviare conferme ordini" }
+      });
+    }
+
+    // Genera HTML prodotti
+    const prodottiHtml = prodotti.map((p: any) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #e8e4de;">
+          ${p.prodottoNome} ${p.isCustom ? '<span style="color: #f59e0b; font-size: 11px;">(Custom)</span>' : ''}
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: center;">${p.quantita}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: right;">€${(p.prodottoPrezzo * p.quantita).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    // Stato badge
+    const statoBadge = stato === 'completato' 
+      ? '<span style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">✓ Completato</span>'
+      : stato === 'in_lavorazione'
+        ? '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Lavorazione</span>'
+        : '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Attesa</span>';
+
+    // Sezione pagamento
+    const pagamentoHtml = acconto > 0 ? `
+      <div style="background: #f5f0e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+          <span style="color: #666;">Acconto versato:</span>
+          <span style="color: #22c55e; font-weight: 600;">€${acconto.toFixed(2)}</span>
+        </div>
+        ${saldo > 0 ? `
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #666;">Saldo da pagare:</span>
+            <span style="color: #f59e0b; font-weight: 600;">€${saldo.toFixed(2)}</span>
+          </div>
+        ` : '<p style="color: #22c55e; margin: 0; font-weight: 600;">✓ Pagamento completato</p>'}
+      </div>
+    ` : '';
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+        <div style="background: linear-gradient(135deg, #8b9a7d 0%, #6b7d5a 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Conferma Ordine</h1>
+          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Image Studio Fotografico</p>
+        </div>
+        
+        <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.08);">
+          <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+            Gentile <strong>${clientName}</strong>,
+          </p>
+          
+          <p style="font-size: 15px; color: #555; margin-bottom: 20px; line-height: 1.6;">
+            Grazie per il tuo ordine! Ecco il riepilogo:
+          </p>
+
+          <div style="margin: 20px 0;">
+            ${statoBadge}
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead>
+              <tr style="background: #f5f0e8;">
+                <th style="padding: 10px; text-align: left; font-size: 13px; color: #666;">Prodotto</th>
+                <th style="padding: 10px; text-align: center; font-size: 13px; color: #666;">Qtà</th>
+                <th style="padding: 10px; text-align: right; font-size: 13px; color: #666;">Prezzo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prodottiHtml}
+            </tbody>
+            <tfoot>
+              <tr style="background: #8b9a7d;">
+                <td colspan="2" style="padding: 12px; color: white; font-weight: 600;">Totale</td>
+                <td style="padding: 12px; text-align: right; color: white; font-weight: 600; font-size: 18px;">€${totale.toFixed(2)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          ${pagamentoHtml}
+
+          <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; font-size: 14px; color: #0056b3; line-height: 1.6;">
+              📍 Ti contatteremo quando l'ordine sarà pronto per il ritiro.
+            </p>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 25px; padding-top: 20px;">
+          <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">Image Studio Fotografico</p>
+          <p style="margin: 5px 0;">Email: image.studio.fotografico@gmail.com</p>
+          <p style="margin: 5px 0;">Tel: +39 334 7103142</p>
+        </div>
+      </div>
+    `;
+
+    const subject = `Conferma Ordine - Image Studio Fotografico`;
+
+    await sendGmailEmail(clientEmail, subject, htmlContent);
+
+    // Log email
+    await logEmailSent({
+      to: clientEmail,
+      subject,
+      type: 'order_confirmation_walkin',
+      status: 'sent',
+      clientName,
+      relatedDocId: orderId,
+      relatedDocType: 'order',
+    });
+
+    console.log(`✅ Walk-in order confirmation email sent to ${clientEmail} for order ${orderId}`);
+    res.json({ success: true, message: "Email conferma ordine inviata con successo" });
+
+  } catch (error: any) {
+    console.error("❌ Error sending walk-in order confirmation email:", error);
+    
+    // Log email fallita
+    if (req.body.clientEmail) {
+      await logEmailSent({
+        to: req.body.clientEmail,
+        subject: `Conferma Ordine - Image Studio Fotografico`,
+        type: 'order_confirmation_walkin',
+        status: 'failed',
+        errorMessage: error.message,
+        relatedDocType: 'order',
+      });
+    }
+
+    res.status(500).json({ error: error.message || "Errore invio email" });
+  }
+});
+
+/**
  * POST /api/email/notify-youtube-video
  * Invia notifica email al cliente quando vengono aggiunti video YouTube alla galleria
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)

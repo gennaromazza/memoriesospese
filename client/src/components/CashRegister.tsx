@@ -32,12 +32,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar, FileText } from "lucide-react";
+import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar, FileText, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getAllCashMovements, createCashMovement, updateCashMovement, deleteCashMovement } from "@/lib/cash";
 import { CASH_CATEGORIES } from "@shared/cash-types";
 import type { CashMovement, InsertCashMovement } from "@shared/cash-types";
 import SendReceiptDialog from "./SendReceiptDialog";
+import QuickOrderModal from "./QuickOrderModal";
 
 export default function CashRegister() {
   const { toast } = useToast();
@@ -47,6 +48,7 @@ export default function CashRegister() {
   const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
+  const [quickOrderModalOpen, setQuickOrderModalOpen] = useState(false);
   const [formData, setFormData] = useState<InsertCashMovement>({
     tipo: "entrata",
     categoria: "",
@@ -209,13 +211,23 @@ export default function CashRegister() {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuovo Movimento
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setQuickOrderModalOpen(true)}
+            className="border-sage text-sage hover:bg-sage hover:text-white"
+          >
+            <ShoppingBag className="mr-2 h-4 w-4" />
+            Ordine Rapido
+          </Button>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuovo Movimento
+              </Button>
+            </DialogTrigger>
 
           <DialogContent className="w-[95vw] max-w-md max-h-[95vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader className="space-y-1.5 sm:space-y-2">
@@ -501,6 +513,17 @@ export default function CashRegister() {
           movement={selectedMovement}
         />
       )}
+
+      {/* Modal Ordine Rapido */}
+      <QuickOrderModal
+        isOpen={quickOrderModalOpen}
+        onClose={() => setQuickOrderModalOpen(false)}
+        onSuccess={() => {
+          setQuickOrderModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
+        }}
+      />
     </div>
   );
 }
