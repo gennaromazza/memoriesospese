@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock, ExternalLink } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock, ExternalLink, ShoppingBag, Mail, User, Phone } from "lucide-react";
 import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome, exportFinancialData } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
 import CashRegister from "./CashRegister";
@@ -139,6 +139,21 @@ export default function CashDashboard() {
     },
   });
 
+  // Query per ordini walk-in
+  const { data: walkInOrders = [], isLoading: walkInLoading } = useQuery({
+    queryKey: ["walk-in-orders"],
+    queryFn: async () => {
+      const allOrders = await getAllOrders();
+      return allOrders
+        .filter((order: any) => order.source === 'walk_in')
+        .sort((a: any, b: any) => {
+          const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+          const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+    },
+  });
+
   // Formatta valuta
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -159,11 +174,16 @@ export default function CashDashboard() {
   return (
     <Tabs defaultValue="register" className="w-full">
       {/* Sub-Tabs Navigation - Mobile Responsive */}
-      <TabsList className="mb-4 sm:mb-6 grid grid-cols-3 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
+      <TabsList className="mb-4 sm:mb-6 grid grid-cols-4 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
         <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-          <span className="hidden sm:inline">Registro Cassa</span>
+          <span className="hidden sm:inline">Registro</span>
           <span className="sm:hidden">📝</span>
+        </TabsTrigger>
+        <TabsTrigger value="walkin" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Walk-in</span>
+          <span className="sm:hidden">🛍️</span>
         </TabsTrigger>
         <TabsTrigger value="dashboard" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -180,6 +200,117 @@ export default function CashDashboard() {
       {/* Registro Cassa Tab */}
       <TabsContent value="register">
         <CashRegister />
+      </TabsContent>
+
+      {/* Ordini Walk-in Tab */}
+      <TabsContent value="walkin">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <ShoppingBag className="h-5 w-5 text-sage" />
+              Ordini Walk-in
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Ordini creati per clienti che si presentano in studio senza prenotazione
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {walkInLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Caricamento ordini...
+              </div>
+            ) : walkInOrders.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nessun ordine walk-in. Usa il pulsante "Ordine Rapido" nel Registro Cassa per crearne uno.
+              </div>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full min-w-[700px]">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs sm:text-sm font-semibold">Data</th>
+                      <th className="px-3 py-2 text-left text-xs sm:text-sm font-semibold">Cliente</th>
+                      <th className="px-3 py-2 text-left text-xs sm:text-sm font-semibold">Prodotti</th>
+                      <th className="px-3 py-2 text-right text-xs sm:text-sm font-semibold">Totale</th>
+                      <th className="px-3 py-2 text-right text-xs sm:text-sm font-semibold">Pagato</th>
+                      <th className="px-3 py-2 text-center text-xs sm:text-sm font-semibold">Stato</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {walkInOrders.map((order: any) => {
+                      const createdAt = order.createdAt instanceof Timestamp 
+                        ? order.createdAt.toDate() 
+                        : new Date(order.createdAt || Date.now());
+                      const prodottiStr = order.prodotti
+                        ?.map((p: any) => `${p.prodottoNome} x${p.quantita}`)
+                        .join(', ') || '-';
+                      
+                      return (
+                        <tr key={order.id} className="border-t hover:bg-gray-50">
+                          <td className="px-3 py-2 text-xs sm:text-sm">
+                            {createdAt.toLocaleDateString('it-IT', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs sm:text-sm font-medium flex items-center gap-1">
+                                <User className="h-3 w-3 text-gray-400" />
+                                {order.nomeCliente || 'N/D'}
+                              </span>
+                              {order.emailCliente && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {order.emailCliente}
+                                </span>
+                              )}
+                              {order.telefonoCliente && (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {order.telefonoCliente}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs sm:text-sm max-w-[200px] truncate" title={prodottiStr}>
+                            {prodottiStr}
+                          </td>
+                          <td className="px-3 py-2 text-xs sm:text-sm text-right font-medium">
+                            {formatCurrency(order.totale || 0)}
+                          </td>
+                          <td className="px-3 py-2 text-xs sm:text-sm text-right">
+                            <span className={order.acconto >= order.totale ? 'text-green-600' : 'text-amber-600'}>
+                              {formatCurrency(order.acconto || 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {order.stato === 'completato' ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                                Completato
+                              </span>
+                            ) : order.stato === 'in_lavorazione' ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                                In Lavorazione
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
+                                In Attesa
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </TabsContent>
 
       {/* Dashboard Tab */}
