@@ -50,7 +50,7 @@ export class ChapterService {
     galleryId: string,
     gallery: Gallery,
     chapterId: string,
-    updates: Partial<Pick<Chapter, 'titolo' | 'descrizione' | 'coverPhotoId'>>
+    updates: Partial<Pick<Chapter, 'titolo' | 'descrizione' | 'coverPhotoId' | 'coverPhotoUrl'>>
   ): Promise<void> {
     const galleryRef = doc(db, 'galleries', galleryId);
     

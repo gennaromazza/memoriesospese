@@ -214,6 +214,8 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCoverDialog, setShowCoverDialog] = useState(false);
+  const [coverChapter, setCoverChapter] = useState<Chapter | null>(null);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [newChapterDescription, setNewChapterDescription] = useState('');
@@ -482,6 +484,29 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
     setShowEditDialog(true);
   };
 
+  const handleSetCover = (chapter: Chapter) => {
+    setCoverChapter(chapter);
+    setShowCoverDialog(true);
+  };
+
+  const handleSelectCoverPhoto = (photo: Photo) => {
+    if (!coverChapter) return;
+    updateChapterMutation.mutate({
+      chapterId: coverChapter.id,
+      updates: {
+        coverPhotoId: photo.id,
+        coverPhotoUrl: photo.url
+      }
+    });
+    setShowCoverDialog(false);
+    setCoverChapter(null);
+  };
+
+  const coverPhotos = useMemo(() => {
+    if (!coverChapter) return [];
+    return allPhotos.filter(p => p.chapterId === coverChapter.id);
+  }, [allPhotos, coverChapter]);
+
   const handleDeleteChapter = (chapterId: string) => {
     const chapter = chapters.find(c => c.id === chapterId);
     const photoCount = photoCounts[chapterId] || 0;
@@ -577,7 +602,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                           onClick={() => setActiveChapter(chapter.id)}
                           onEdit={() => handleEditChapter(chapter)}
                           onDelete={() => handleDeleteChapter(chapter.id)}
-                          onSetCover={() => {}}
+                          onSetCover={() => handleSetCover(chapter)}
                         />
                       ))}
                     </div>
@@ -819,6 +844,72 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
             >
               {updateChapterMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Salva Modifiche
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={showCoverDialog} onOpenChange={(open) => {
+        setShowCoverDialog(open);
+        if (!open) setCoverChapter(null);
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Imposta Copertina Capitolo</DialogTitle>
+            <DialogDescription>
+              Seleziona una foto da usare come miniatura per "{coverChapter?.titolo}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {coverPhotos.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Nessuna foto in questo capitolo</p>
+                <p className="text-sm">Aggiungi foto al capitolo per poter selezionare una copertina</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto">
+                {coverPhotos.map(photo => (
+                  <div
+                    key={photo.id}
+                    onClick={() => handleSelectCoverPhoto(photo)}
+                    className={cn(
+                      "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group",
+                      coverChapter?.coverPhotoId === photo.id
+                        ? "border-sage ring-2 ring-sage/50"
+                        : "border-gray-200 hover:border-sage/50"
+                    )}
+                    data-testid={`cover-photo-${photo.id}`}
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    {coverChapter?.coverPhotoId === photo.id && (
+                      <div className="absolute top-2 right-2 bg-sage text-white rounded-full p-1">
+                        <Check className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
+                        Seleziona
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowCoverDialog(false);
+              setCoverChapter(null);
+            }}>
+              Annulla
             </Button>
           </DialogFooter>
         </DialogContent>

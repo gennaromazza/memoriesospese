@@ -97,6 +97,7 @@ export interface Chapter {
   descrizione?: string;
   ordine: number;
   coverPhotoId?: string;
+  coverPhotoUrl?: string; // URL miniatura capitolo per visualizzazione card
   createdAt?: any;
   updatedAt?: any;
 }
