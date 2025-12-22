@@ -48,9 +48,21 @@ import {
   Loader2,
   Package,
   Send,
-  Edit2
+  Edit2,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
-import { getAllOrders, addAccontoPayment, recordSaldoPayment, getOrderTotals } from '@/lib/orders';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { getAllOrders, addAccontoPayment, recordSaldoPayment, getOrderTotals, deleteOrder } from '@/lib/orders';
 
 // Stati ordine walk-in
 const ORDER_STATES = [
@@ -75,6 +87,16 @@ export default function WalkInOrdersManager() {
   
   // Stato per email prodotto pronto
   const [sendReadyEmailOrder, setSendReadyEmailOrder] = useState<any>(null);
+  
+  // Stato per modifica ed eliminazione
+  const [editOrder, setEditOrder] = useState<any>(null);
+  const [deleteOrderDialog, setDeleteOrderDialog] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    nomeCliente: '',
+    emailCliente: '',
+    telefonoCliente: '',
+    note: ''
+  });
 
   // Query ordini walk-in
   const { data: walkInOrders = [], isLoading } = useQuery({
@@ -161,6 +183,50 @@ export default function WalkInOrdersManager() {
       toast({ title: 'Errore', description: error.message || 'Errore invio email', variant: 'destructive' });
     },
   });
+
+  // Mutation per modificare ordine
+  const editOrderMutation = useMutation({
+    mutationFn: async (data: { orderId: string; updates: any }) => {
+      return apiRequest('PATCH', `/api/orders/${data.orderId}`, data.updates);
+    },
+    onSuccess: () => {
+      toast({ title: 'Ordine aggiornato', description: 'I dati dell\'ordine sono stati modificati' });
+      queryClient.invalidateQueries({ queryKey: ['walk-in-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setEditOrder(null);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Errore', description: error.message || 'Errore modifica ordine', variant: 'destructive' });
+    },
+  });
+
+  // Mutation per eliminare ordine
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return deleteOrder(orderId);
+    },
+    onSuccess: () => {
+      toast({ title: 'Ordine eliminato', description: 'L\'ordine è stato eliminato correttamente' });
+      queryClient.invalidateQueries({ queryKey: ['walk-in-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
+      setDeleteOrderDialog(null);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Errore', description: error.message || 'Errore eliminazione ordine', variant: 'destructive' });
+    },
+  });
+
+  // Apri dialog modifica
+  const openEditDialog = (order: any) => {
+    setEditFormData({
+      nomeCliente: order.nomeCliente || '',
+      emailCliente: order.emailCliente || '',
+      telefonoCliente: order.telefonoCliente || '',
+      note: order.note || ''
+    });
+    setEditOrder(order);
+  };
 
   // Formatta valuta
   const formatCurrency = (value: number) => {
@@ -330,6 +396,18 @@ export default function WalkInOrdersManager() {
                                   Email "Pronto Ritiro"
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openEditDialog(order)}>
+                                <Edit2 className="h-4 w-4 mr-2 text-gray-600" />
+                                Modifica Ordine
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => setDeleteOrderDialog(order)}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Elimina Ordine
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -570,6 +648,135 @@ export default function WalkInOrdersManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Modifica Ordine */}
+      <Dialog open={!!editOrder} onOpenChange={() => setEditOrder(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-gray-600" />
+              Modifica Ordine
+            </DialogTitle>
+            <DialogDescription>
+              Modifica i dati del cliente per questo ordine.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-nome">Nome Cliente *</Label>
+              <Input
+                id="edit-nome"
+                value={editFormData.nomeCliente}
+                onChange={(e) => setEditFormData({ ...editFormData, nomeCliente: e.target.value })}
+                placeholder="Nome e Cognome"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editFormData.emailCliente}
+                onChange={(e) => setEditFormData({ ...editFormData, emailCliente: e.target.value })}
+                placeholder="email@esempio.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-telefono">Telefono</Label>
+              <Input
+                id="edit-telefono"
+                value={editFormData.telefonoCliente}
+                onChange={(e) => setEditFormData({ ...editFormData, telefonoCliente: e.target.value })}
+                placeholder="+39..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-note">Note</Label>
+              <Input
+                id="edit-note"
+                value={editFormData.note}
+                onChange={(e) => setEditFormData({ ...editFormData, note: e.target.value })}
+                placeholder="Note opzionali..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOrder(null)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editOrder || !editFormData.nomeCliente.trim()) {
+                  toast({ title: 'Inserisci il nome cliente', variant: 'destructive' });
+                  return;
+                }
+                editOrderMutation.mutate({
+                  orderId: editOrder.id,
+                  updates: {
+                    nomeCliente: editFormData.nomeCliente.trim(),
+                    emailCliente: editFormData.emailCliente.trim() || null,
+                    telefonoCliente: editFormData.telefonoCliente.trim() || null,
+                    note: editFormData.note.trim() || null,
+                  }
+                });
+              }}
+              disabled={editOrderMutation.isPending || !editFormData.nomeCliente.trim()}
+              className="bg-sage hover:bg-sage/90"
+            >
+              {editOrderMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvataggio...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Salva Modifiche
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Conferma Eliminazione */}
+      <AlertDialog open={!!deleteOrderDialog} onOpenChange={() => setDeleteOrderDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Conferma Eliminazione
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare l'ordine di <strong>{deleteOrderDialog?.nomeCliente}</strong>.
+              <br /><br />
+              Questa azione è irreversibile e rimuoverà anche tutti i movimenti di cassa associati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteOrderMutation.mutate(deleteOrderDialog?.id)}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteOrderMutation.isPending}
+            >
+              {deleteOrderMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Elimina Ordine
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
