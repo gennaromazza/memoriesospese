@@ -79,9 +79,8 @@ const formSchema = z.object({
   nomeEvento: z.string().min(2, 'Nome evento troppo corto'),
   clientiIds: z.array(z.string()).min(1, 'Seleziona almeno un cliente'),
   jobType: z.string().min(1, 'Seleziona un tipo lavoro'),
-  eventDate: z.date({
-    required_error: 'Data evento obbligatoria'
-  }),
+  dataNonDefinita: z.boolean().default(false),
+  eventDate: z.date().optional(),
   allDay: z.boolean(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
@@ -91,9 +90,18 @@ const formSchema = z.object({
   provenance: z.string().min(1, 'Seleziona una provenienza'),
   noteInterne: z.string().optional()
 }).refine((data) => {
-  if (!data.allDay && (!data.startTime || !data.endTime)) {
-    return false;
-  }
+  // Se data non definita, salta validazione data e orari
+  if (data.dataNonDefinita) return true;
+  // Altrimenti data è obbligatoria
+  if (!data.eventDate) return false;
+  return true;
+}, {
+  message: 'Data evento obbligatoria (o seleziona "Data non definita")',
+  path: ['eventDate']
+}).refine((data) => {
+  // Se data non definita o tutto il giorno, salta validazione orari
+  if (data.dataNonDefinita || data.allDay) return true;
+  if (!data.startTime || !data.endTime) return false;
   return true;
 }, {
   message: 'Orari richiesti se non è tutto il giorno',
@@ -137,7 +145,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   
   // Converti eventDate da Timestamp a Date (gestisce Firestore Timestamp, Date, string)
   const getEventDate = () => {
-    if (!job.eventDate) return new Date();
+    if (!job.eventDate) return undefined;
     const ed = job.eventDate as any;
     if (typeof ed.toDate === 'function') return ed.toDate();
     if (ed instanceof Date) return ed;
@@ -150,6 +158,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
       nomeEvento: job.nomeEvento || '',
       clientiIds: job.clientiIds || [],
       jobType: job.jobType || '',
+      dataNonDefinita: job.dataNonDefinita || false,
       eventDate: getEventDate(),
       allDay: job.allDay || false,
       startTime: job.startTime || '',
@@ -162,6 +171,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     }
   });
 
+  const dataNonDefinita = form.watch('dataNonDefinita');
   const allDay = form.watch('allDay');
   const eventDate = form.watch('eventDate');
   const startTime = form.watch('startTime');
@@ -339,7 +349,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         nomeEvento: data.nomeEvento,
         clientiIds: data.clientiIds,
         jobType: data.jobType,
-        eventDate: data.eventDate,
+        dataNonDefinita: data.dataNonDefinita,
+        eventDate: data.dataNonDefinita ? undefined : data.eventDate,
         allDay: data.allDay,
         startTime: data.startTime,
         endTime: data.endTime,
@@ -561,83 +572,130 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                 />
               </div>
 
-              {/* Data Evento */}
+              {/* Opzione Data Non Definita */}
               <FormField
                 control={form.control}
-                name="eventDate"
+                name="dataNonDefinita"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Data Evento *</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input
-                          value={dateInputValue}
-                          onChange={handleDateInputChange}
-                          placeholder="gg/mm/aaaa"
-                          className="flex-1"
-                          data-testid="input-event-date-manual"
-                        />
-                      </FormControl>
-                      <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "justify-start text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            data-testid="button-calendar-picker"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => {
-                              field.onChange(date);
-                              setDatePickerOpen(false);
-                            }}
-                            initialFocus
-                            locale={it}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <FormDescription>
-                      Digita o usa il calendario
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* All Day Switch */}
-              <FormField
-                control={form.control}
-                name="allDay"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel>Evento Giornata Intera</FormLabel>
-                      <FormDescription>
-                        Disabilita se l'evento ha orari specifici
+                  <FormItem className="flex items-center justify-between p-4 border rounded-lg bg-amber-50 border-amber-200">
+                    <div>
+                      <FormLabel>Data non definita</FormLabel>
+                      <FormDescription className="text-xs">
+                        Il cliente è in fase di trattativa, la data sarà definita in seguito
                       </FormDescription>
                     </div>
                     <FormControl>
                       <Switch
                         checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="switch-all-day"
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          // Se attivo, resetta i campi data/orario
+                          if (checked) {
+                            form.setValue('eventDate', undefined);
+                            form.setValue('allDay', true);
+                            form.setValue('startTime', '');
+                            form.setValue('endTime', '');
+                            setDateInputValue('');
+                          }
+                        }}
+                        data-testid="switch-data-non-definita"
                       />
                     </FormControl>
                   </FormItem>
                 )}
               />
 
-              {/* Orari (condizionale) */}
-              {!allDay && (
+              {/* Messaggio informativo quando data non definita */}
+              {dataNonDefinita && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    <strong>Lavoro in trattativa:</strong> Questo lavoro è salvato senza una data definita. 
+                    Potrai aggiungere la data quando il cliente conferma.
+                  </p>
+                </div>
+              )}
+
+              {/* Data Evento - Solo se data è definita */}
+              {!dataNonDefinita && (
+                <FormField
+                  control={form.control}
+                  name="eventDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Data Evento *</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            value={dateInputValue}
+                            onChange={handleDateInputChange}
+                            placeholder="gg/mm/aaaa"
+                            className="flex-1"
+                            data-testid="input-event-date-manual"
+                          />
+                        </FormControl>
+                        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "justify-start text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                              data-testid="button-calendar-picker"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={(date) => {
+                                field.onChange(date);
+                                setDatePickerOpen(false);
+                              }}
+                              initialFocus
+                              locale={it}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <FormDescription>
+                        Digita o usa il calendario
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* All Day Switch - Solo se data è definita */}
+              {!dataNonDefinita && (
+                <FormField
+                  control={form.control}
+                  name="allDay"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel>Evento Giornata Intera</FormLabel>
+                        <FormDescription>
+                          Disabilita se l'evento ha orari specifici
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-all-day"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Orari (condizionale) - Solo se data è definita e non tutto il giorno */}
+              {!dataNonDefinita && !allDay && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <FormField
                     control={form.control}

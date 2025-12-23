@@ -1230,6 +1230,13 @@ export default function JobsManager() {
                             </div>
                           );
                         })()
+                      ) : job.dataNonDefinita ? (
+                        <div className="space-y-0.5">
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                            Da definire
+                          </Badge>
+                          <div className="text-xs text-muted-foreground">In trattativa</div>
+                        </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
                       )}

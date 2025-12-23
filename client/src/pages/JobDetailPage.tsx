@@ -607,13 +607,17 @@ export default function JobDetailPage() {
   }
 
   const eventDateObj = convertFirestoreTimestamp(job.eventDate);
-  const eventDateFormatted = eventDateObj ? 
-    format(eventDateObj, 'dd MMMM yyyy', { locale: it }) : 
-    'Data non disponibile';
+  const eventDateFormatted = job.dataNonDefinita 
+    ? 'Da definire' 
+    : eventDateObj 
+      ? format(eventDateObj, 'dd MMMM yyyy', { locale: it }) 
+      : 'Data non disponibile';
 
-  const timeInfo = !job.allDay && job.startTime ? 
-    `${job.startTime}${job.endTime ? ` - ${job.endTime}` : ''}` : 
-    'Tutto il giorno';
+  const timeInfo = job.dataNonDefinita 
+    ? 'In trattativa' 
+    : !job.allDay && job.startTime 
+      ? `${job.startTime}${job.endTime ? ` - ${job.endTime}` : ''}` 
+      : 'Tutto il giorno';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

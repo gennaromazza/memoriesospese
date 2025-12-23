@@ -31,7 +31,10 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     
     let job = jobDoc.data();
     
-    // 2. Validation: job deve avere eventDate
+    // 2. Validation: job deve avere eventDate e non essere in fase di trattativa
+    if (job.dataNonDefinita) {
+      return { success: false, error: 'Job in trattativa - data non definita, impossibile sincronizzare con Calendar' };
+    }
     if (!job.eventDate) {
       return { success: false, error: 'Job senza eventDate' };
     }

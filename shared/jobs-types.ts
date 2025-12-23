@@ -111,7 +111,8 @@ export interface Job {
   // Dati lavoro
   nomeEvento: string;           // Nome descrittivo lavoro (es. "Matrimonio Silva")
   jobType: string;              // Dynamic job type slug from Firestore jobTypes collection
-  eventDate: Timestamp;         // Data servizio fotografico
+  eventDate?: Timestamp;        // Data servizio fotografico (opzionale se dataNonDefinita = true)
+  dataNonDefinita?: boolean;    // Se true, il lavoro è in trattativa senza data confermata
   previousStatus?: JobStatus;   // Status precedente a 'consegnato' per ripristino toggle
   allDay: boolean;              // Evento tutto il giorno o orario specifico
   startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
@@ -161,7 +162,8 @@ export interface InsertJob {
   nomeEvento: string;
   clientiIds: string[];  // Array clienti - almeno 1 obbligatorio
   jobType: string;  // Dynamic job type slug from Firestore jobTypes collection
-  eventDate: Date;
+  eventDate?: Date;  // Opzionale se dataNonDefinita = true
+  dataNonDefinita?: boolean;  // Se true, il lavoro è senza data confermata
   allDay: boolean;
   startTime?: string;  // HH:mm format
   endTime?: string;    // HH:mm format
@@ -181,6 +183,7 @@ export interface UpdateJob {
   clientiIds?: string[];
   jobType?: string;  // Dynamic job type slug from Firestore jobTypes collection
   eventDate?: Date;
+  dataNonDefinita?: boolean;  // Se true, il lavoro è senza data confermata
   allDay?: boolean;
   startTime?: string;
   endTime?: string;

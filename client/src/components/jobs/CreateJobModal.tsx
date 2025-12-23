@@ -74,9 +74,8 @@ const formSchema = z.object({
   nomeEvento: z.string().min(2, 'Nome evento troppo corto'),
   clientiIds: z.array(z.string()).min(1, 'Seleziona almeno un cliente'),
   jobType: z.string().min(1, 'Seleziona un tipo lavoro'),
-  eventDate: z.date({
-    required_error: 'Data evento obbligatoria'
-  }),
+  dataNonDefinita: z.boolean().default(false),
+  eventDate: z.date().optional(),
   allDay: z.boolean(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
@@ -86,9 +85,18 @@ const formSchema = z.object({
   provenance: z.string().min(1, 'Seleziona una provenienza'),
   noteInterne: z.string().optional()
 }).refine((data) => {
-  if (!data.allDay && (!data.startTime || !data.endTime)) {
-    return false;
-  }
+  // Se data non definita, salta validazione data e orari
+  if (data.dataNonDefinita) return true;
+  // Altrimenti data è obbligatoria
+  if (!data.eventDate) return false;
+  return true;
+}, {
+  message: 'Data evento obbligatoria (o seleziona "Data non definita")',
+  path: ['eventDate']
+}).refine((data) => {
+  // Se data non definita o tutto il giorno, salta validazione orari
+  if (data.dataNonDefinita || data.allDay) return true;
+  if (!data.startTime || !data.endTime) return false;
   return true;
 }, {
   message: 'Orari richiesti se non è tutto il giorno',
@@ -137,6 +145,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
       nomeEvento: '',
       clientiIds: [],
       jobType: '',
+      dataNonDefinita: false,
       allDay: false,
       startTime: '',
       endTime: '',
@@ -148,6 +157,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
     }
   });
 
+  const dataNonDefinita = form.watch('dataNonDefinita');
   const allDay = form.watch('allDay');
   const eventDate = form.watch('eventDate');
   const startTime = form.watch('startTime');
@@ -487,88 +497,133 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
               />
             </div>
             
-            {/* Data evento - keyboard + calendar input */}
+            {/* Opzione Data Non Definita */}
             <FormField
               control={form.control}
-              name="eventDate"
+              name="dataNonDefinita"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Data Evento *</FormLabel>
+                <FormItem className="flex items-center justify-between p-4 border rounded-lg bg-amber-50 border-amber-200">
+                  <div>
+                    <FormLabel>Data non definita</FormLabel>
+                    <FormDescription className="text-xs">
+                      Il cliente è in fase di trattativa, la data sarà definita in seguito
+                    </FormDescription>
+                  </div>
                   <FormControl>
-                    <DateInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      data-testid="input-event-date"
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        // Se attivo, resetta i campi data/orario
+                        if (checked) {
+                          form.setValue('eventDate', undefined);
+                          form.setValue('allDay', true);
+                          form.setValue('startTime', '');
+                          form.setValue('endTime', '');
+                        }
+                      }}
+                      data-testid="switch-data-non-definita"
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* All day + orari */}
-            <div className="space-y-4">
+            {/* Data evento - keyboard + calendar input */}
+            {!dataNonDefinita && (
               <FormField
                 control={form.control}
-                name="allDay"
+                name="eventDate"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <FormLabel>Tutto il giorno</FormLabel>
-                      <FormDescription className="text-xs">
-                        L'evento dura tutta la giornata
-                      </FormDescription>
-                    </div>
+                  <FormItem>
+                    <FormLabel>Data Evento *</FormLabel>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="switch-all-day"
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        data-testid="input-event-date"
                       />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
+            )}
 
-              {!allDay && (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="startTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ora Inizio *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            {...field}
-                            data-testid="input-start-time"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+            {/* Messaggio informativo quando data non definita */}
+            {dataNonDefinita && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>Lavoro in trattativa:</strong> Questo lavoro verrà salvato senza una data definita. 
+                  Potrai aggiungere la data in seguito quando il cliente conferma.
+                </p>
+              </div>
+            )}
 
-                  <FormField
-                    control={form.control}
-                    name="endTime"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ora Fine *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="time"
-                            {...field}
-                            data-testid="input-end-time"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
+            {/* All day + orari */}
+            {!dataNonDefinita && (
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="allDay"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <FormLabel>Tutto il giorno</FormLabel>
+                        <FormDescription className="text-xs">
+                          L'evento dura tutta la giornata
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-all-day"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {!allDay && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="startTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ora Inizio *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="time"
+                              {...field}
+                              data-testid="input-start-time"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="endTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ora Fine *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="time"
+                              {...field}
+                              data-testid="input-end-time"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
 
               {/* Avviso conflitti inline */}
               {checkingConflicts && (
@@ -613,7 +668,8 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                   </p>
                 </div>
               )}
-            </div>
+              </div>
+            )}
 
             {/* Location */}
             <FormField

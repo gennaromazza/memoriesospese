@@ -19,7 +19,8 @@ import {
   limit as firestoreLimit,
   QueryConstraint,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  deleteField
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type {
@@ -54,7 +55,9 @@ export async function createJob(
       nomeEvento: data.nomeEvento,
       clientiIds: data.clientiIds,
       jobType: data.jobType,
-      eventDate: Timestamp.fromDate(data.eventDate),
+      // Se dataNonDefinita è true, non impostiamo eventDate
+      ...(data.dataNonDefinita ? {} : { eventDate: Timestamp.fromDate(data.eventDate!) }),
+      dataNonDefinita: data.dataNonDefinita || false,
       allDay: data.allDay,
       ...(data.startTime && { startTime: data.startTime }),
       ...(data.endTime && { endTime: data.endTime }),
@@ -292,8 +295,20 @@ export async function updateJob(
       updateData.oraCerimonia = data.oraCerimonia; // Mantieni anche il nuovo nome
     }
     
-    // Converti date
-    if (data.eventDate) {
+    // Gestione dataNonDefinita: quando attivo, rimuovi esplicitamente eventDate e campi correlati
+    if (data.dataNonDefinita === true) {
+      updateData.dataNonDefinita = true;
+      updateData.eventDate = deleteField();
+      updateData.startTime = deleteField();
+      updateData.endTime = deleteField();
+      updateData.googleCalendarEventId = deleteField();
+      updateData.allDay = true; // Reset a true per sicurezza
+    } else if (data.dataNonDefinita === false && data.eventDate) {
+      // Se dataNonDefinita viene disattivato e c'è una eventDate, converti
+      updateData.dataNonDefinita = false;
+      updateData.eventDate = Timestamp.fromDate(data.eventDate);
+    } else if (data.eventDate) {
+      // Converti date normalmente
       updateData.eventDate = Timestamp.fromDate(data.eventDate);
     }
     
