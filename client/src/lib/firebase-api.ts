@@ -31,7 +31,7 @@ export interface GalleryData {
   date: string;
   location: string;
   description?: string;
-  password?: string;
+  hasPassword?: boolean; // SICURO: boolean flag, mai esporre la password
   requiresSecurityQuestion?: boolean;
   securityQuestionType?: string;
   securityQuestionCustom?: string;
@@ -101,23 +101,27 @@ export async function verifyGalleryAccess(galleryId: string, password?: string, 
     const gallery = await getGalleryById(galleryId);
     if (!gallery) return false;
     
-    // Controlla password se richiesta
-    if (gallery.password && gallery.password !== password) {
-      return false;
-    }
+    // SICURO: Se la galleria ha password, verifica SERVER-SIDE
+    // MAI confrontare password client-side!
+    const hasPassword = gallery.hasPassword === true || !!(gallery as any).password;
     
-    // Controlla security question se richiesta
-    if (gallery.requiresSecurityQuestion && gallery.securityQuestionType) {
-      if (!securityAnswer) return false;
+    if (hasPassword && password) {
+      const response = await fetch('/api/email/verify-gallery-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ galleryId, password }),
+      });
       
-      // Implementa logica di verifica per le domande di sicurezza
-      // (semplificata per ora)
-      if (securityAnswer.toLowerCase().trim() === '') {
-        return false;
-      }
+      const data = await response.json();
+      return response.ok && data.result?.valid === true;
     }
     
-    return true;
+    // Se non richiede password, accesso concesso
+    if (!hasPassword) {
+      return true;
+    }
+    
+    return false;
   } catch (error) {
     logger.error('Errore nella verifica accesso galleria', { error: error instanceof Error ? error : new Error(String(error)), galleryId });
     return false;

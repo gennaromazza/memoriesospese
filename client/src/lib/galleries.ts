@@ -27,7 +27,7 @@ export interface Gallery {
   id: string;
   name: string;
   code: string;
-  password?: string;
+  hasPassword?: boolean; // SICURO: boolean flag invece di esporre la password
   date: string;
   location: string;
   description?: string;
@@ -46,11 +46,11 @@ export interface Gallery {
   requiresSecurityQuestion?: boolean;
   securityQuestionType?: 'bride_name' | 'groom_name' | 'wedding_location' | 'wedding_date' | 'custom';
   securityQuestionCustom?: string;
-  securityAnswer?: string;
+  // SICURO: securityAnswer MAI esposta al client
   
   // Special Theme fields (seasonal galleries)
   specialTheme?: string;
-  specialPin?: string;
+  hasSpecialPin?: boolean; // SICURO: solo boolean flag, mai esporre il PIN
   
   // Photo Selection Mode
   selectionEnabled?: boolean;
@@ -228,28 +228,37 @@ export class GalleryService {
 
   /**
    * Ottieni informazioni di accesso alla galleria
+   * SICURO: usa hasPassword flag, mai espone la password
    */
   static getGalleryAccessInfo(gallery: Gallery): GalleryAccessInfo {
     return {
-      requiresPassword: !!gallery.password,
+      requiresPassword: gallery.hasPassword === true,
       requiresSecurityQuestion: false, // Feature rimossa
       securityQuestion: undefined
     };
   }
 
   /**
-   * Verifica accesso alla galleria (solo password, security question rimossa)
+   * Verifica accesso alla galleria SERVER-SIDE
+   * SICURO: Non verifica MAI password client-side, usa endpoint server
    */
-  static verifyGalleryAccess(
-    gallery: Gallery, 
+  static async verifyGalleryAccessServerSide(
+    galleryId: string, 
     password?: string
-  ): boolean {
-    // Verifica password se richiesta
-    if (gallery.password && gallery.password !== password) {
+  ): Promise<boolean> {
+    try {
+      const response = await fetch('/api/email/verify-gallery-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ galleryId, password }),
+      });
+      
+      const data = await response.json();
+      return response.ok && data.result?.valid === true;
+    } catch (error) {
+      console.error('Errore verifica password server-side:', error);
       return false;
     }
-
-    return true;
   }
 
   /**
@@ -589,9 +598,9 @@ export class GalleryService {
         requiresSecurityQuestion: galleryData.requiresSecurityQuestion,
         securityQuestionType: galleryData.securityQuestionType,
         securityQuestionCustom: galleryData.securityQuestionCustom,
-        securityAnswer: galleryData.securityAnswer,
+        // SICURO: securityAnswer MAI esposta al client
         specialTheme: galleryData.specialTheme,
-        specialPin: galleryData.specialPin,
+        hasSpecialPin: !!galleryData.specialPin, // SICURO: solo boolean, mai esporre il PIN
         selectionEnabled: galleryData.selectionEnabled || false,
         unlimitedSelection: galleryData.unlimitedSelection === true,
         requiredPhotoCount: galleryData.requiredPhotoCount,
@@ -603,7 +612,7 @@ export class GalleryService {
         productRequirements: galleryData.productRequirements,
         photoAssignments: galleryData.photoAssignments,
         bookingId: galleryData.bookingId,
-        password: galleryData.password,
+        hasPassword: galleryData.hasPassword === true || !!galleryData.password, // SICURO: solo boolean, mai esporre la password
         // 📚 Capitoli
         chaptersEnabled: galleryData.chaptersEnabled || false,
         chapters: galleryData.chapters || [],

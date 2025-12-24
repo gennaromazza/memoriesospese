@@ -52,8 +52,9 @@ export function useGalleryAccess() {
       
       // Per l'accesso diretto alla galleria, richiediamo solo la password
       // La domanda di sicurezza viene usata solo nel flusso di richiesta password
+      // SICURO: usa hasPassword flag, non esponiamo mai la password al client
       const accessInfo = {
-        requiresPassword: !!galleryData.password,
+        requiresPassword: galleryData.hasPassword === true || !!galleryData.password,
         requiresSecurityQuestion: false, // Rimossa dal flusso di accesso diretto
         securityQuestion: undefined
       };
@@ -117,10 +118,31 @@ export function useGalleryAccess() {
         galleryData = querySnapshot.docs[0].data();
       }
       
-      // Per l'accesso diretto alla galleria, verifica solo la password
-      // La domanda di sicurezza è utilizzata solo nel flusso di richiesta password
-      if (galleryData.password && params.password !== galleryData.password) {
-        throw new Error('Password non corretta');
+      // SICURO: Verifica password SERVER-SIDE tramite endpoint dedicato
+      // MAI confrontare password client-side!
+      const hasPassword = galleryData.hasPassword === true || !!galleryData.password;
+      
+      if (hasPassword) {
+        // Ottieni l'ID reale della galleria per la verifica server-side
+        let realGalleryId = params.galleryId;
+        if (!querySnapshot.empty) {
+          realGalleryId = querySnapshot.docs[0].id;
+        }
+        
+        const response = await fetch('/api/email/verify-gallery-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            galleryId: realGalleryId,
+            password: params.password
+          }),
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.result?.valid) {
+          throw new Error('Password non corretta');
+        }
       }
       
       toast({

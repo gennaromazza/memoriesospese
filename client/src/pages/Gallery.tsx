@@ -270,7 +270,7 @@ export default function Gallery() {
     // Admin ha sempre accesso
     if (isAdmin) return true;
     // Se la galleria non richiede password, l'accesso è libero
-    if (galleryData && !galleryData.password) return true;
+    if (galleryData && !galleryData.hasPassword) return true;
     // Altrimenti verifica se c'è il token di autenticazione nel localStorage
     return !!localStorage.getItem(`gallery_auth_${id}`);
   }, [id, isAdmin, galleryData, accessValidatedTrigger]);
