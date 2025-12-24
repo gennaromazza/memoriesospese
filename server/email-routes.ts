@@ -2648,7 +2648,7 @@ router.post("/check-pin-unique", async (req, res) => {
 /**
  * POST /api/email/verify-gallery-password
  * Verifica password galleria SERVER-SIDE senza esporla al client
- * SICURO: legge password da collection protetta `gallerySecrets` (admin-only)
+ * SICURO: legge password da collection protetta `gallerySecrets` tramite Admin SDK
  */
 router.post("/verify-gallery-password", async (req, res) => {
   try {
@@ -2661,21 +2661,29 @@ router.post("/verify-gallery-password", async (req, res) => {
       });
     }
 
-    // VERIFICA ESISTENZA GALLERIA (documento pubblico)
-    const galleryDoc = await getFirestoreDocument(`galleries/${galleryId}`);
-    if (!galleryDoc) {
+    // VERIFICA ESISTENZA GALLERIA usando Admin SDK
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (!galleryDoc.exists) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
         error: { code: "not-found", message: "Gallery not found" }
       });
     }
 
-    // RECUPERA PASSWORD da collection protetta `gallerySecrets` (admin-only access)
-    const secretDoc = await getFirestoreDocument(`gallerySecrets/${galleryId}`);
+    // RECUPERA PASSWORD da collection protetta `gallerySecrets` tramite Admin SDK
+    const secretDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    const secretData = secretDoc.exists ? secretDoc.data() : null;
 
-    // Se non esiste documento secrets O non ha password, accesso libero
-    const correctPassword = secretDoc?.fields?.password?.stringValue;
-    if (!correctPassword) {
+    // Se non esiste documento secrets O non ha password, verifica anche vecchio campo password su galleria
+    const correctPassword = secretData?.password;
+    
+    // BACKWARD COMPATIBILITY: se non c'è in gallerySecrets, prova il vecchio campo password nella galleria
+    const galleryData = galleryDoc.data();
+    const legacyPassword = galleryData?.password;
+    
+    const passwordToCheck = correctPassword || legacyPassword;
+    
+    if (!passwordToCheck) {
       console.log(`✅ Galleria ${galleryId} senza password, accesso libero`);
       return res.status(200).json({
         result: { valid: true, message: "Gallery has no password, access granted" }
@@ -2683,7 +2691,7 @@ router.post("/verify-gallery-password", async (req, res) => {
     }
 
     // Verifica password (case-sensitive)
-    const isValid = password.trim() === correctPassword.trim();
+    const isValid = password.trim() === String(passwordToCheck).trim();
 
     if (isValid) {
       console.log(`✅ Password corretta per galleria ${galleryId}`);
