@@ -5,7 +5,7 @@
  */
 
 import express from 'express';
-import { getEvents, createEvent, updateEvent } from './google-calendar.js';
+import { getEvents, createEvent, updateEvent, getCalendarConnectionStatus, invalidateTokenCache } from './google-calendar.js';
 import { db, Timestamp } from './firebase-admin.js';
 import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
@@ -13,6 +13,45 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
 const router = express.Router();
+
+/**
+ * GET /api/calendar/status
+ * Verifica stato connessione Google Calendar
+ * Ritorna info su token, scadenza, e se serve riconnessione
+ */
+router.get('/status', authenticateFirebase, async (req, res) => {
+  try {
+    const status = await getCalendarConnectionStatus();
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({
+      connected: false,
+      needsReconnection: true,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/calendar/refresh-token
+ * Forza refresh del token invalidando la cache
+ */
+router.post('/refresh-token', authenticateFirebase, async (req, res) => {
+  try {
+    invalidateTokenCache();
+    const status = await getCalendarConnectionStatus();
+    res.json({
+      success: true,
+      message: 'Token cache invalidated, fresh token fetched',
+      status,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 /**
  * DTO per evento unificato calendario

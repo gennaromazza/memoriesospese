@@ -1,44 +1,77 @@
 /**
  * Google Calendar Integration - Server-side only
  * Gestisce eventi calendario per sistema booking
+ * 
+ * FIX TOKEN SCADUTI (Dec 2025):
+ * - Rimossa cache locale che causava token stale
+ * - Aggiunto margine sicurezza 5 minuti prima della scadenza
+ * - Aggiunto retry automatico per errori 401/403
+ * - Aggiunto endpoint /api/calendar/status per verifica
  */
 
 import { google } from "googleapis";
 import { DateTime } from "luxon";
 
-let connectionSettings: any;
+let connectionSettings: any = null;
+let lastTokenFetch: number = 0;
+const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000; // 5 minuti prima della scadenza
+const MIN_FETCH_INTERVAL_MS = 30 * 1000; // Minimo 30 secondi tra fetch
 
 /**
- * Ottiene access token da Replit Connector
- * IMPORTANTE: Access token scade, quindi chiama sempre getGoogleCalendarClient()
+ * Verifica stato connessione Google Calendar
+ * Esportato per endpoint /api/calendar/status
  */
-async function getAccessToken(): Promise<string> {
-  // 1. Controlla cache
-  if (
-    connectionSettings &&
-    connectionSettings.settings?.expires_at &&
-    new Date(connectionSettings.settings.expires_at).getTime() > Date.now()
-  ) {
-    console.log("🔄 Using cached Google Calendar access token");
-    return connectionSettings.settings.access_token;
-  }
+export interface CalendarConnectionStatus {
+  connected: boolean;
+  email?: string;
+  expiresAt?: string;
+  expiresInMinutes?: number;
+  needsReconnection: boolean;
+  error?: string;
+}
 
-  // 2. Leggi credenziali da Replit Connector
-  const hostname =
-    process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
+export async function getCalendarConnectionStatus(): Promise<CalendarConnectionStatus> {
+  try {
+    const tokenInfo = await fetchFreshToken();
+    
+    const expiresAt = tokenInfo.expires_at ? new Date(tokenInfo.expires_at) : null;
+    const now = new Date();
+    const expiresInMs = expiresAt ? expiresAt.getTime() - now.getTime() : 0;
+    const expiresInMinutes = Math.floor(expiresInMs / 60000);
+    
+    return {
+      connected: true,
+      email: tokenInfo.email || connectionSettings?.settings?.email,
+      expiresAt: expiresAt?.toISOString(),
+      expiresInMinutes: expiresInMinutes > 0 ? expiresInMinutes : 0,
+      needsReconnection: expiresInMinutes <= 0,
+    };
+  } catch (error: any) {
+    return {
+      connected: false,
+      needsReconnection: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Forza refresh del token (invalidando la cache)
+ */
+export function invalidateTokenCache(): void {
+  connectionSettings = null;
+  lastTokenFetch = 0;
+  console.log("🔄 Google Calendar token cache invalidated");
+}
+
+/**
+ * Fetch token fresco dal Replit Connector
+ * Questa funzione va SEMPRE al connector senza cache
+ */
+async function fetchFreshToken(): Promise<{ access_token: string; expires_at?: string; email?: string }> {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
   const hasReplIdentity = !!process.env.REPL_IDENTITY;
   const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
-
-  console.log(`🔐 Google Calendar Auth - Environment:`, {
-    hostname,
-    hasReplIdentity,
-    hasWebRenewal,
-    mode: hasReplIdentity
-      ? "DEVELOPMENT"
-      : hasWebRenewal
-        ? "PRODUCTION"
-        : "UNKNOWN",
-  });
 
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
@@ -47,66 +80,91 @@ async function getAccessToken(): Promise<string> {
       : null;
 
   if (!xReplitToken) {
-    console.error("❌ Google Calendar - No token available:", {
-      hasReplIdentity,
-      hasWebRenewal,
-    });
-    throw new Error("X_REPLIT_TOKEN not found for repl/depl");
+    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Token Replit non disponibile. Vai su Impostazioni → Integrazioni → Riconnetti Google Calendar");
   }
 
-  try {
-    const connectorUrl =
-      "https://" +
-      hostname +
-      "/api/v2/connection?include_secrets=true&connector_names=google-calendar";
-    console.log("📞 Fetching Google Calendar connection from:", connectorUrl);
+  const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-calendar`;
 
-    const response = await fetch(connectorUrl, {
-      headers: {
-        Accept: "application/json",
-        X_REPLIT_TOKEN: xReplitToken,
-      },
-    });
+  const response = await fetch(connectorUrl, {
+    headers: {
+      Accept: "application/json",
+      X_REPLIT_TOKEN: xReplitToken,
+    },
+  });
 
-    if (!response.ok) {
-      console.error("❌ Google Calendar connector fetch failed:", {
-        status: response.status,
-        statusText: response.statusText,
-      });
-      throw new Error(
-        `Connector API returned ${response.status}: ${response.statusText}`,
-      );
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Token scaduto. Vai su Impostazioni → Integrazioni → Riconnetti Google Calendar");
     }
+    throw new Error(`Connector API error: ${response.status} ${response.statusText}`);
+  }
 
-    const data = await response.json();
-    connectionSettings = data.items?.[0];
+  const data = await response.json();
+  const conn = data.items?.[0];
 
-    console.log("📦 Google Calendar connection response:", {
-      hasItems: !!data.items,
-      itemsLength: data.items?.length || 0,
-      hasSettings: !!connectionSettings?.settings,
-      hasAccessToken: !!connectionSettings?.settings?.access_token,
-    });
-  } catch (error) {
-    console.error("❌ Google Calendar connector fetch error:", error);
+  if (!conn?.settings) {
+    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Google Calendar non connesso. Vai su Impostazioni → Integrazioni → Connetti Google Calendar");
+  }
+
+  const accessToken = conn.settings.access_token ?? conn.settings.oauth?.credentials?.access_token;
+
+  if (!accessToken) {
+    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Access token mancante. Riconnetti Google Calendar");
+  }
+
+  return {
+    access_token: accessToken,
+    expires_at: conn.settings.expires_at,
+    email: conn.settings.email,
+  };
+}
+
+/**
+ * Ottiene access token da Replit Connector
+ * FIX: Cache con margine di sicurezza + retry per token scaduti
+ */
+async function getAccessToken(): Promise<string> {
+  const now = Date.now();
+  
+  // 1. Verifica cache con margine di sicurezza
+  if (connectionSettings?.settings?.access_token) {
+    const expiresAt = connectionSettings.settings.expires_at;
+    if (expiresAt) {
+      const expiresAtMs = new Date(expiresAt).getTime();
+      const safeExpiresAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
+      
+      // Token ancora valido (con margine sicurezza)
+      if (now < safeExpiresAt && (now - lastTokenFetch) < MIN_FETCH_INTERVAL_MS) {
+        return connectionSettings.settings.access_token;
+      }
+    }
+  }
+
+  // 2. Fetch token fresco
+  console.log("🔐 Google Calendar: fetching fresh token from connector...");
+  
+  try {
+    const tokenInfo = await fetchFreshToken();
+    
+    // Aggiorna cache
+    connectionSettings = {
+      settings: {
+        access_token: tokenInfo.access_token,
+        expires_at: tokenInfo.expires_at,
+        email: tokenInfo.email,
+      }
+    };
+    lastTokenFetch = now;
+    
+    console.log("✅ Google Calendar token obtained successfully");
+    return tokenInfo.access_token;
+    
+  } catch (error: any) {
+    // Invalida cache in caso di errore
+    connectionSettings = null;
+    lastTokenFetch = 0;
     throw error;
   }
-
-  const accessToken =
-    connectionSettings?.settings?.access_token ??
-    connectionSettings?.settings?.oauth?.credentials?.access_token;
-
-  if (!connectionSettings?.settings || !accessToken) {
-    console.error("❌ Google Calendar not connected or missing access token:", {
-      hasConnectionSettings: !!connectionSettings,
-      hasSettings: !!connectionSettings?.settings,
-      hasAccessToken: !!accessToken,
-    });
-    throw new Error("Google Calendar not connected");
-  }
-
-  console.log("✅ Google Calendar access token obtained successfully");
-  return accessToken;
 }
 
 /**

@@ -21,6 +21,7 @@ import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
 import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
 import reminderRoutes from './reminder-routes.js';
+import backupRoutes from './backup-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
@@ -127,6 +128,10 @@ async function startServer() {
     // Reminder routes
     app.use('/api/reminders', reminderRoutes);
     console.log('⏰ Reminder API routes mounted at /api/reminders');
+
+    // Backup routes
+    app.use('/api/backup', backupRoutes);
+    console.log('💾 Backup API routes mounted at /api/backup');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
