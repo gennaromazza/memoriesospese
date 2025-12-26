@@ -22,7 +22,6 @@ import {
   Clock,
   ArrowLeft,
   Cloud,
-  CloudUpload,
   Trash2,
   ExternalLink
 } from "lucide-react";
@@ -645,13 +644,13 @@ export default function BackupManager() {
                     </div>
                     <Button
                       onClick={uploadBackupToDrive}
-                      disabled={isUploadingToDrive || (driveStatus && !driveStatus.connected)}
+                      disabled={isUploadingToDrive || (driveStatus !== null && !driveStatus.connected)}
                       data-testid="button-upload-drive"
                     >
                       {isUploadingToDrive ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
-                        <CloudUpload className="h-4 w-4 mr-2" />
+                        <Cloud className="h-4 w-4 mr-2" />
                       )}
                       Carica su Drive
                     </Button>
