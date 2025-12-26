@@ -74,4 +74,4 @@ localPort = 33503
 externalPort = 3000
 
 [agent]
-integrations = ["google-mail:1.0.0"]
+integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]

@@ -14,6 +14,13 @@
 import express from 'express';
 import { db } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
+import { 
+  getDriveConnectionStatus, 
+  uploadBackupToDrive, 
+  listBackupsFromDrive,
+  downloadBackupFromDrive,
+  deleteBackupFromDrive
+} from './google-drive.js';
 
 const router = express.Router();
 
@@ -438,6 +445,142 @@ router.post('/validate', authenticateFirebase, async (req, res) => {
   } catch (error: any) {
     res.status(500).json({
       valid: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/backup/drive/status
+ * Verifica stato connessione Google Drive
+ */
+router.get('/drive/status', authenticateFirebase, async (req, res) => {
+  try {
+    const status = await getDriveConnectionStatus();
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({
+      connected: false,
+      needsReconnection: true,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/backup/drive/upload
+ * Esporta e carica backup su Google Drive
+ */
+router.post('/drive/upload', authenticateFirebase, async (req, res) => {
+  try {
+    const userEmail = (req as any).user?.email;
+    console.log(`☁️ Starting Google Drive backup upload requested by ${userEmail}`);
+    
+    const startTime = Date.now();
+    const backup: Record<string, any> = {};
+    let totalDocuments = 0;
+    const collectionCounts: Record<string, number> = {};
+    
+    for (const collectionName of COLLECTIONS_TO_BACKUP) {
+      const exported = await exportCollection(collectionName);
+      backup[collectionName] = exported;
+      totalDocuments += exported.count;
+      collectionCounts[collectionName] = exported.count;
+    }
+    
+    const metadata: BackupMetadata = {
+      version: '2.0.0',
+      createdAt: new Date().toISOString(),
+      createdBy: userEmail || 'unknown',
+      totalCollections: COLLECTIONS_TO_BACKUP.length,
+      totalDocuments,
+      collections: collectionCounts,
+    };
+    
+    const fullBackup = {
+      metadata,
+      ...backup,
+    };
+    
+    const date = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+    const time = new Date().toISOString().split('T')[1].slice(0, 5).replace(':', '');
+    const filename = `image-studio-backup-${date}-${time}.json`;
+    
+    const result = await uploadBackupToDrive(fullBackup, filename);
+    
+    const elapsedMs = Date.now() - startTime;
+    console.log(`✅ Backup uploaded to Google Drive in ${elapsedMs}ms: ${filename}`);
+    
+    res.json({
+      success: true,
+      filename,
+      fileId: result.fileId,
+      webViewLink: result.webViewLink,
+      totalDocuments,
+      elapsedMs,
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Google Drive backup upload failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/backup/drive/list
+ * Lista backup disponibili su Google Drive
+ */
+router.get('/drive/list', authenticateFirebase, async (req, res) => {
+  try {
+    const backups = await listBackupsFromDrive();
+    res.json({
+      success: true,
+      backups,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      backups: [],
+    });
+  }
+});
+
+/**
+ * GET /api/backup/drive/download/:fileId
+ * Scarica un backup da Google Drive
+ */
+router.get('/drive/download/:fileId', authenticateFirebase, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const backup = await downloadBackupFromDrive(fileId);
+    res.json(backup);
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to download backup',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * DELETE /api/backup/drive/:fileId
+ * Elimina un backup da Google Drive
+ */
+router.delete('/drive/:fileId', authenticateFirebase, async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    await deleteBackupFromDrive(fileId);
+    res.json({
+      success: true,
+      message: 'Backup deleted successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
       error: error.message,
     });
   }

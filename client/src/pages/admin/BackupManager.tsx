@@ -20,7 +20,11 @@ import {
   RefreshCw,
   FileJson,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  Cloud,
+  CloudUpload,
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +57,21 @@ interface ValidationResult {
   issues: Array<{ collection: string; docId: string; issue: string }>;
 }
 
+interface DriveBackup {
+  id: string;
+  name: string;
+  createdTime: string;
+  size: string;
+  webViewLink?: string;
+}
+
+interface DriveStatus {
+  connected: boolean;
+  email?: string;
+  needsReconnection: boolean;
+  error?: string;
+}
+
 export default function BackupManager() {
   const isAdmin = useIsAdmin();
   const [, navigate] = useLocation();
@@ -67,6 +86,9 @@ export default function BackupManager() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [driveStatus, setDriveStatus] = useState<DriveStatus | null>(null);
+  const [driveBackups, setDriveBackups] = useState<DriveBackup[]>([]);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
 
   if (!isAdmin) {
     return (
@@ -278,6 +300,139 @@ export default function BackupManager() {
 
   const formatNumber = (num: number) => num.toLocaleString('it-IT');
 
+  const checkDriveStatus = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/backup/drive/status', { headers });
+      const data = await response.json();
+      setDriveStatus(data);
+      return data;
+    } catch (error: any) {
+      setDriveStatus({ connected: false, needsReconnection: true, error: error.message });
+      return null;
+    }
+  };
+
+  const loadDriveBackups = async () => {
+    setIsLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/backup/drive/list', { headers });
+      const data = await response.json();
+      if (data.success) {
+        setDriveBackups(data.backups);
+      } else {
+        throw new Error(data.error || 'Errore nel caricamento backup');
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const uploadBackupToDrive = async () => {
+    setIsUploadingToDrive(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/backup/drive/upload', {
+        method: 'POST',
+        headers,
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: "Backup caricato su Google Drive",
+          description: `${data.filename} - ${data.totalDocuments.toLocaleString('it-IT')} documenti`,
+        });
+        loadDriveBackups();
+      } else {
+        throw new Error(data.error || 'Errore upload');
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore upload",
+        description: error.message,
+      });
+    } finally {
+      setIsUploadingToDrive(false);
+    }
+  };
+
+  const downloadFromDrive = async (backup: DriveBackup) => {
+    setIsLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/backup/drive/download/${backup.id}`, { headers });
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.message || data.error);
+      }
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = backup.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download completato",
+        description: backup.name,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore download",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteFromDrive = async (backup: DriveBackup) => {
+    if (!confirm(`Eliminare definitivamente "${backup.name}" da Google Drive?`)) return;
+    
+    setIsLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/backup/drive/${backup.id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: "Backup eliminato",
+          description: backup.name,
+        });
+        loadDriveBackups();
+      } else {
+        throw new Error(data.error || 'Errore eliminazione');
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -299,14 +454,18 @@ export default function BackupManager() {
         </div>
 
         <Tabs defaultValue="export" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="export" className="gap-2" data-testid="tab-export">
               <Download className="h-4 w-4" />
-              Esporta Backup
+              Esporta
+            </TabsTrigger>
+            <TabsTrigger value="cloud" className="gap-2" data-testid="tab-cloud" onClick={() => { checkDriveStatus(); loadDriveBackups(); }}>
+              <Cloud className="h-4 w-4" />
+              Google Drive
             </TabsTrigger>
             <TabsTrigger value="import" className="gap-2" data-testid="tab-import">
               <Upload className="h-4 w-4" />
-              Ripristina Backup
+              Ripristina
             </TabsTrigger>
           </TabsList>
 
@@ -440,6 +599,156 @@ export default function BackupManager() {
                     <Download className="h-5 w-5 mr-2" />
                   )}
                   Scarica Backup Completo
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="cloud" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Cloud className="h-5 w-5" />
+                  Backup su Google Drive
+                </CardTitle>
+                <CardDescription>
+                  Salva e gestisci i backup nel cloud per maggiore sicurezza
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {driveStatus && (
+                  <Alert variant={driveStatus.connected ? "default" : "destructive"}>
+                    {driveStatus.connected ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" />
+                    )}
+                    <AlertTitle>
+                      {driveStatus.connected ? "Connesso a Google Drive" : "Connessione non attiva"}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {driveStatus.connected 
+                        ? `Account: ${driveStatus.email || 'Google Drive'}`
+                        : driveStatus.error || "Riconnetti l'integrazione Google Drive nelle impostazioni"
+                      }
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Crea nuovo backup</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Esporta e carica automaticamente su Google Drive
+                      </p>
+                    </div>
+                    <Button
+                      onClick={uploadBackupToDrive}
+                      disabled={isUploadingToDrive || (driveStatus && !driveStatus.connected)}
+                      data-testid="button-upload-drive"
+                    >
+                      {isUploadingToDrive ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <CloudUpload className="h-4 w-4 mr-2" />
+                      )}
+                      Carica su Drive
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5" />
+                  Backup Salvati
+                </CardTitle>
+                <CardDescription>
+                  {driveBackups.length} backup trovati su Google Drive
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {driveBackups.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Cloud className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nessun backup trovato su Google Drive</p>
+                    <p className="text-sm">Clicca "Carica su Drive" per creare il primo backup</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-3">
+                      {driveBackups.map((backup) => (
+                        <div 
+                          key={backup.id}
+                          className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{backup.name}</p>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(backup.createdTime).toLocaleString('it-IT')}
+                              </span>
+                              <span>{backup.size}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {backup.webViewLink && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(backup.webViewLink, '_blank')}
+                                title="Apri in Google Drive"
+                                data-testid={`button-view-drive-${backup.id}`}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => downloadFromDrive(backup)}
+                              disabled={isLoading}
+                              title="Scarica backup"
+                              data-testid={`button-download-drive-${backup.id}`}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteFromDrive(backup)}
+                              disabled={isLoading}
+                              className="text-destructive hover:text-destructive"
+                              title="Elimina backup"
+                              data-testid={`button-delete-drive-${backup.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Button
+                  variant="outline"
+                  onClick={loadDriveBackups}
+                  disabled={isLoading}
+                  className="w-full"
+                  data-testid="button-refresh-drive"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Aggiorna Lista
                 </Button>
               </CardFooter>
             </Card>
