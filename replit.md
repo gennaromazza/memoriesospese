@@ -52,6 +52,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Booking System (Prenotazioni):** Public booking form and admin manual booking with campaign-based product selection, multi-product support, Google Calendar integration. Fully migrated to Calendar Engine V2, with day-based grouping in BookingsManager and inline order management.
 - **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing, Firebase Storage integration, and automatic job type creation.
 - **Cascade Delete System:** Quote/Order/Gallery deletions properly clean up job array references using `FieldValue.arrayRemove()`, with jobs using soft delete.
+- **System Audit Tools:** Automated admin-only audit system (`/api/audit/*`) for detecting data integrity issues (orphaned references, missing fields), workflow consistency problems (order/quote/booking state mismatches), and potential bugs. Accessible via Admin Dashboard → Impostazioni → "Audit Sistema" button.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting
