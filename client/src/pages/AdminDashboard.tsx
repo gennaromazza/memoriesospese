@@ -2681,14 +2681,25 @@ export default function AdminDashboard() {
                       <p className="text-sm text-muted-foreground mb-4">
                         Esporta un backup completo di tutti i dati (clienti, lavori, gallerie, impostazioni) per protezione da disastri.
                       </p>
-                      <Button 
-                        onClick={() => window.open('/admin/backup', '_blank')}
-                        className="flex items-center gap-2"
-                        data-testid="button-backup-manager"
-                      >
-                        <HardDrive className="h-4 w-4" />
-                        Gestione Backup
-                      </Button>
+                      <div className="flex flex-wrap gap-3">
+                        <Button 
+                          onClick={() => window.open('/admin/backup', '_blank')}
+                          className="flex items-center gap-2"
+                          data-testid="button-backup-manager"
+                        >
+                          <HardDrive className="h-4 w-4" />
+                          Gestione Backup
+                        </Button>
+                        <Button 
+                          onClick={() => window.open('/admin/audit', '_blank')}
+                          variant="outline"
+                          className="flex items-center gap-2"
+                          data-testid="button-audit-system"
+                        >
+                          <Search className="h-4 w-4" />
+                          Audit Sistema
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="bg-white shadow sm:rounded-lg p-5">
