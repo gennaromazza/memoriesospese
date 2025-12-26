@@ -105,6 +105,18 @@ router.get('/full', authenticateFirebase, requireAdmin, async (req: AuthRequest,
     // 10. Verifica duplicati email clienti
     const duplicateClients = await checkDuplicateClients();
     issues.push(...duplicateClients);
+    
+    // 11. Verifica booking consistency (calendar sync)
+    const bookingIssues = await checkBookingConsistency();
+    issues.push(...bookingIssues);
+    
+    // 12. Verifica jobs senza calendar event
+    const jobCalendarIssues = await checkJobCalendarSync();
+    issues.push(...jobCalendarIssues);
+    
+    // 13. Verifica consulenze senza calendar event
+    const consultationCalendarIssues = await checkConsultationCalendarSync();
+    issues.push(...consultationCalendarIssues);
 
     const durationMs = Date.now() - startTime;
     const criticalCount = issues.filter(i => i.severity === 'critical').length;
@@ -467,6 +479,291 @@ async function checkDuplicateClients(): Promise<AuditIssue[]> {
     }
   } catch (error) {
     console.error('Error checking duplicate clients:', error);
+  }
+  
+  return issues;
+}
+
+async function checkJobCalendarSync(): Promise<AuditIssue[]> {
+  const issues: AuditIssue[] = [];
+  
+  try {
+    const jobsSnap = await db.collection('jobs').get();
+    
+    for (const doc of jobsSnap.docs) {
+      const data = doc.data();
+      
+      // Job con data definita ma senza evento calendar
+      if (data.eventDate && !data.calendarEventId && !data.deleted) {
+        const eventDate = data.eventDate.toDate ? data.eventDate.toDate() : new Date(data.eventDate);
+        const now = new Date();
+        
+        // Solo per eventi futuri o recenti (ultimi 30 giorni)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        if (eventDate > thirtyDaysAgo) {
+          issues.push({
+            id: `job-no-calendar-${doc.id}`,
+            severity: 'warning',
+            category: 'consistency',
+            title: `Lavoro senza evento calendario`,
+            description: `Job "${data.title || doc.id}" (data: ${eventDate.toLocaleDateString('it-IT')}) non ha calendarEventId`,
+            affectedCollection: 'jobs',
+            affectedDocId: doc.id,
+            suggestedFix: `Sincronizzare il lavoro con Google Calendar dalla pagina dettaglio lavoro`,
+          });
+        }
+      }
+      
+      // Job confermato/in lavorazione senza data evento
+      if (['confirmed', 'in_progress', 'editing'].includes(data.workflowState) && !data.eventDate) {
+        issues.push({
+          id: `job-no-date-${doc.id}`,
+          severity: 'info',
+          category: 'consistency',
+          title: `Lavoro confermato senza data evento`,
+          description: `Job "${data.title || doc.id}" è in stato "${data.workflowState}" ma non ha data evento definita`,
+          affectedCollection: 'jobs',
+          affectedDocId: doc.id,
+          suggestedFix: `Definire la data dell'evento nel lavoro`,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error checking job calendar sync:', error);
+  }
+  
+  return issues;
+}
+
+/**
+ * GET /api/audit/orphaned-photos
+ * Analisi dettagliata foto orfane con verifica duplicati
+ */
+router.get('/orphaned-photos', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🔍 Analyzing orphaned photos...');
+    
+    // 1. Carica tutte le gallerie esistenti
+    const galleriesSnap = await db.collection('galleries').get();
+    const validGalleryIds = new Set(galleriesSnap.docs.map(doc => doc.id));
+    
+    // 2. Carica tutte le foto
+    const photosSnap = await db.collection('photos').get();
+    
+    // 3. Raggruppa foto orfane per galleryId
+    const orphanedByGallery = new Map<string, any[]>();
+    const validPhotos: any[] = [];
+    
+    for (const doc of photosSnap.docs) {
+      const data = doc.data();
+      const galleryId = data.galleryId;
+      
+      if (!galleryId || !validGalleryIds.has(galleryId)) {
+        const galleryKey = galleryId || 'no-gallery-id';
+        if (!orphanedByGallery.has(galleryKey)) {
+          orphanedByGallery.set(galleryKey, []);
+        }
+        orphanedByGallery.get(galleryKey)!.push({
+          id: doc.id,
+          filename: data.filename,
+          originalUrl: data.originalUrl,
+          photoUrl: data.photoUrl,
+          galleryId: galleryId,
+        });
+      } else {
+        validPhotos.push({
+          id: doc.id,
+          filename: data.filename,
+          originalUrl: data.originalUrl,
+        });
+      }
+    }
+    
+    // 4. Per ogni gruppo, verifica duplicati in foto valide
+    const orphanedGalleries = [];
+    let totalOrphaned = 0;
+    let totalDuplicates = 0;
+    let totalUnique = 0;
+    
+    for (const [galleryId, photos] of orphanedByGallery) {
+      const duplicates: any[] = [];
+      const unique: any[] = [];
+      
+      for (const photo of photos) {
+        // Cerca duplicato per filename o originalUrl
+        const isDuplicate = validPhotos.some(vp => 
+          (photo.filename && vp.filename && photo.filename === vp.filename) ||
+          (photo.originalUrl && vp.originalUrl && photo.originalUrl === vp.originalUrl)
+        );
+        
+        if (isDuplicate) {
+          duplicates.push(photo);
+        } else {
+          unique.push(photo);
+        }
+      }
+      
+      totalOrphaned += photos.length;
+      totalDuplicates += duplicates.length;
+      totalUnique += unique.length;
+      
+      orphanedGalleries.push({
+        galleryId,
+        totalPhotos: photos.length,
+        duplicateCount: duplicates.length,
+        uniqueCount: unique.length,
+        duplicates: duplicates.slice(0, 5), // Primi 5 per anteprima
+        unique: unique.slice(0, 5), // Primi 5 per anteprima
+        safeToDelete: unique.length === 0,
+      });
+    }
+    
+    // Ordina per numero di foto (più grandi prima)
+    orphanedGalleries.sort((a, b) => b.totalPhotos - a.totalPhotos);
+    
+    const durationMs = Date.now() - startTime;
+    
+    console.log(`✅ Orphaned photos analysis completed in ${durationMs}ms`);
+    console.log(`   Total orphaned: ${totalOrphaned}, Duplicates: ${totalDuplicates}, Unique: ${totalUnique}`);
+    
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      durationMs,
+      summary: {
+        totalOrphanedPhotos: totalOrphaned,
+        totalDuplicates,
+        totalUnique,
+        orphanedGalleriesCount: orphanedGalleries.length,
+        safeToDeleteCount: orphanedGalleries.filter(g => g.safeToDelete).length,
+      },
+      orphanedGalleries,
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Orphaned photos analysis failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * DELETE /api/audit/orphaned-photos/:galleryId
+ * Elimina le foto orfane (documenti Firestore) di una specifica galleria.
+ * 
+ * NOTA: Questo endpoint elimina solo i documenti Firestore dalla collezione 'photos'.
+ * I file in Firebase Storage associati alla galleria dovrebbero essere già stati eliminati
+ * quando la galleria originale è stata cancellata (AdminDashboard.tsx deleteGallery
+ * elimina sia Storage che Firestore). Questi documenti sono solo metadati rimasti orfani.
+ */
+router.delete('/orphaned-photos/:galleryId', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  const { galleryId } = req.params;
+  const { onlyDuplicates } = req.query; // Se true, elimina solo i duplicati
+  
+  try {
+    console.log(`🗑️ Deleting orphaned photo documents for gallery: ${galleryId}`);
+    
+    // Verifica che la galleria non esista (conferma che è orfana)
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (galleryDoc.exists) {
+      return res.status(400).json({
+        success: false,
+        error: 'La galleria esiste ancora. Non è possibile eliminare foto di gallerie esistenti.',
+      });
+    }
+    
+    // Trova tutte le foto orfane di questa galleria
+    const photosSnap = await db.collection('photos')
+      .where('galleryId', '==', galleryId)
+      .get();
+    
+    if (photosSnap.empty) {
+      return res.json({
+        success: true,
+        message: 'Nessuna foto orfana trovata per questa galleria',
+        deletedCount: 0,
+      });
+    }
+    
+    // Elimina in batch (max 500 per batch in Firestore)
+    let deletedCount = 0;
+    const batchSize = 400; // Uso 400 per sicurezza
+    
+    for (let i = 0; i < photosSnap.docs.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = photosSnap.docs.slice(i, i + batchSize);
+      
+      for (const doc of chunk) {
+        batch.delete(doc.ref);
+        deletedCount++;
+      }
+      
+      await batch.commit();
+    }
+    
+    console.log(`✅ Deleted ${deletedCount} orphaned photo documents for gallery ${galleryId}`);
+    
+    res.json({
+      success: true,
+      message: `Eliminate ${deletedCount} foto orfane`,
+      deletedCount,
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Failed to delete orphaned photos for gallery ${galleryId}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+async function checkConsultationCalendarSync(): Promise<AuditIssue[]> {
+  const issues: AuditIssue[] = [];
+  
+  try {
+    const consultationsSnap = await db.collection('consultations').get();
+    
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      
+      // Consulenza confermata senza evento calendar
+      if (data.status === 'confirmed' && !data.calendarEventId) {
+        issues.push({
+          id: `consultation-no-calendar-${doc.id}`,
+          severity: 'warning',
+          category: 'consistency',
+          title: `Consulenza confermata senza evento calendario`,
+          description: `Consulenza ${doc.id} per "${data.clientName || 'N/A'}" è confermata ma non ha calendarEventId`,
+          affectedCollection: 'consultations',
+          affectedDocId: doc.id,
+          suggestedFix: `Sincronizzare la consulenza con Google Calendar`,
+        });
+      }
+      
+      // Consulenza approvata senza data
+      if (data.status === 'approved' && !data.scheduledDate) {
+        issues.push({
+          id: `consultation-approved-no-date-${doc.id}`,
+          severity: 'info',
+          category: 'consistency',
+          title: `Consulenza approvata senza data`,
+          description: `Consulenza ${doc.id} per "${data.clientName || 'N/A'}" è approvata ma non ha data programmata`,
+          affectedCollection: 'consultations',
+          affectedDocId: doc.id,
+          suggestedFix: `Programmare una data per la consulenza`,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error checking consultation calendar sync:', error);
   }
   
   return issues;

@@ -651,7 +651,29 @@ export async function deleteGallery(galleryId: string): Promise<void> {
       console.log(`✅ Rimosso galleryId ${galleryId} da job ${jobDoc.id}`);
     }
     
-    // 3. Elimina la galleria
+    // 3. CASCADE DELETE: Elimina tutte le foto dalla collezione top-level 'photos'
+    const photosQuery = query(
+      collection(db, 'photos'),
+      where('galleryId', '==', galleryId)
+    );
+    const photosSnapshot = await getDocs(photosQuery);
+    
+    if (photosSnapshot.docs.length > 0) {
+      console.log(`🗑️ Eliminando ${photosSnapshot.docs.length} foto dalla collezione photos per galleria ${galleryId}`);
+      
+      // Elimina in batch per evitare limiti Firestore
+      const chunkSize = 20;
+      for (let i = 0; i < photosSnapshot.docs.length; i += chunkSize) {
+        const chunk = photosSnapshot.docs.slice(i, i + chunkSize);
+        const deletePromises = chunk.map(photoDoc => 
+          deleteDoc(doc(db, 'photos', photoDoc.id))
+        );
+        await Promise.all(deletePromises);
+      }
+      console.log(`✅ Eliminate ${photosSnapshot.docs.length} foto`);
+    }
+    
+    // 4. Elimina la galleria
     const galleryRef = doc(db, 'galleries', galleryId);
     await deleteDoc(galleryRef);
   } catch (error) {

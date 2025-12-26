@@ -1136,6 +1136,32 @@ export default function AdminDashboard() {
 
       }
 
+      // 3b. CASCADE DELETE: Elimina documenti dalla collezione top-level 'photos'
+      try {
+        const photosRef = collection(db, "photos");
+        const photosQuery = query(photosRef, where("galleryId", "==", gallery.id));
+        const photosSnapshot = await getDocs(photosQuery);
+
+        if (photosSnapshot.docs.length > 0) {
+          console.log(`🗑️ Eliminando ${photosSnapshot.docs.length} foto dalla collezione photos`);
+          const chunkSize = 20;
+          const chunks = [];
+
+          for (let i = 0; i < photosSnapshot.docs.length; i += chunkSize) {
+            chunks.push(photosSnapshot.docs.slice(i, i + chunkSize));
+          }
+
+          for (const chunk of chunks) {
+            const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+            await delay(500);
+          }
+          console.log(`✅ Eliminate ${photosSnapshot.docs.length} foto dalla collezione photos`);
+        }
+      } catch (error) {
+        console.error('Errore eliminazione foto dalla collezione photos:', error);
+      }
+
       // Piccolo ritardo prima di eliminare il documento principale
       await delay(500);
 
