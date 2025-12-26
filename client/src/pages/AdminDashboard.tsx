@@ -1542,6 +1542,14 @@ export default function AdminDashboard() {
                     <Mail className="h-4 w-4 mr-2" />
                     Storico Email
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('/admin/audit', '_blank')}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Audit Sistema
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('/admin/backup', '_blank')}>
+                    <HardDrive className="h-4 w-4 mr-2" />
+                    Gestione Backup
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
