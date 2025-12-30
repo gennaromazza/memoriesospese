@@ -48,7 +48,7 @@ import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useNotifications } from "@/hooks/useNotifications";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BarChart3, Clock, Globe } from "lucide-react";
+import { BarChart3, Clock, Globe, Phone } from "lucide-react";
 import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
 import PortfolioManager from '@/components/admin/PortfolioManager';
 import BlogManager from '@/components/admin/BlogManager';
@@ -1575,6 +1575,10 @@ export default function AdminDashboard() {
                   <DropdownMenuItem onClick={() => window.open('/admin/backup', '_blank')}>
                     <HardDrive className="h-4 w-4 mr-2" />
                     Gestione Backup
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => window.open('/admin/phone-migration', '_blank')} data-testid="menu-phone-migration">
+                    <Phone className="h-4 w-4 mr-2" />
+                    Migrazione Telefoni
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
