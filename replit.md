@@ -27,7 +27,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Data Management:** Unified client management system with automatic booking/consultation-to-client linkage.
 - **Image Handling:** Automatic compression, watermarking, duplicate detection, advanced cropping, multi-image uploads using Firebase Storage and signed URLs.
 - **Galleries:** Professional client-selection galleries with real-time updates, secure access, full preloading, and optional chapter-based organization. Includes a Gallery Recovery & Merge System for metadata rebuilding and inter-gallery photo migration.
-- **Email System:** Express.js server via Gmail API with dynamic templates and timezone-aware "Add to Calendar" links.
+- **Email System:** Express.js server via Gmail API with dynamic templates, timezone-aware "Add to Calendar" links, and automated gallery password notification (auto-send on create, manual resend via EditGalleryModal).
 - **Deployment:** Designed for subfolder deployment with dynamic base path detection.
 - **Error Handling & Logging:** Centralized error boundaries, structured logging, and informative toast notifications.
 - **Admin Dashboard:** Enhanced navigation, Notification Center, and single-level tab structure.
