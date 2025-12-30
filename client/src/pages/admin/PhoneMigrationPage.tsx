@@ -6,12 +6,25 @@ import { useToast } from "@/hooks/use-toast";
 import { Phone, RefreshCw, Play, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 
+interface SampleItem {
+  id: string;
+  field: string;
+  from: string;
+  to: string;
+}
+
+interface CollectionPreview {
+  total: number;
+  toUpdate: number;
+  samples?: SampleItem[];
+}
+
 interface MigrationPreview {
-  clienti: { total: number; toUpdate: number; samples: Array<{ id: string; field: string; original: string; formatted: string }> };
-  bookings: { total: number; toUpdate: number; samples: Array<{ id: string; field: string; original: string; formatted: string }> };
-  orders: { total: number; toUpdate: number; samples: Array<{ id: string; field: string; original: string; formatted: string }> };
-  jobs: { total: number; toUpdate: number; samples: Array<{ id: string; field: string; original: string; formatted: string }> };
-  consultations: { total: number; toUpdate: number; samples: Array<{ id: string; field: string; original: string; formatted: string }> };
+  clienti: CollectionPreview;
+  bookings: CollectionPreview;
+  orders: CollectionPreview;
+  jobs: CollectionPreview;
+  consultations: CollectionPreview;
 }
 
 interface MigrationResult {
@@ -210,14 +223,14 @@ export default function PhoneMigrationPage() {
                         </span>
                       </CardTitle>
                     </CardHeader>
-                    {data.samples.length > 0 && (
+                    {data.samples && data.samples.length > 0 && (
                       <CardContent className="py-2">
                         <div className="text-xs space-y-1">
-                          {data.samples.slice(0, 3).map((sample: { id: string; field: string; original: string; formatted: string }, i: number) => (
+                          {data.samples.slice(0, 3).map((sample: SampleItem, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-muted-foreground">
-                              <span className="font-mono">{sample.original}</span>
+                              <span className="font-mono">{sample.from}</span>
                               <span>→</span>
-                              <span className="font-mono text-sage-600">{sample.formatted}</span>
+                              <span className="font-mono text-sage-600">{sample.to}</span>
                               <span className="text-xs">({sample.field})</span>
                             </div>
                           ))}

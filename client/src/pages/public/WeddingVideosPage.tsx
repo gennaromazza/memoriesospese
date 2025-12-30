@@ -373,6 +373,30 @@ export default function WeddingVideosPage() {
               </div>
             ))}
 
+            {/* Tutti i Video - mostra TUTTI i video pubblicati */}
+            {videos.length > 0 && (
+              <div className="mb-12">
+                <div className="flex items-center gap-2 mb-6">
+                  <Play className="h-6 w-6 text-terracotta" />
+                  <h2 className="text-2xl font-semibold">Tutti i Video</h2>
+                  <Badge variant="outline">{videos.length}</Badge>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {videos.map(video => (
+                    <VideoCard 
+                      key={video.id} 
+                      video={video} 
+                      onClick={() => handlePlayVideo(video)}
+                      onLike={(e) => handleLike(video.id, e)}
+                      onShare={(e) => handleShare(video, e)}
+                      isLiked={likedVideos.has(video.id)}
+                      likeCount={likeCounts[video.id] || 0}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Fallback se non ci sono video */}
             {videos.length === 0 && (
               <div className="text-center py-24">
