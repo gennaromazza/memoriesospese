@@ -7,6 +7,7 @@ import express from 'express';
 import { db } from './firebase-admin.js';
 import { triggerManualRetry } from './workers/cancellation-retry.js';
 import { ensureJobCalendarEvent } from './job-routes.js';
+import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = express.Router();
 
@@ -261,6 +262,304 @@ router.post('/sync-calendar', async (req, res) => {
     console.error('❌ Errore durante sync calendar:', error);
     res.status(500).json({
       error: 'Errore durante la sincronizzazione calendar',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/admin/migrate-phone-numbers
+ * Migra e standardizza tutti i numeri di telefono nel database per WhatsApp
+ * Aggiorna clienti, bookings, orders, jobs con numeri formattati correttamente
+ */
+router.post('/migrate-phone-numbers', async (req, res) => {
+  try {
+    console.log('📱 Inizio migrazione numeri di telefono...');
+    
+    const results = {
+      clienti: { total: 0, updated: 0, errors: 0 },
+      bookings: { total: 0, updated: 0, errors: 0 },
+      orders: { total: 0, updated: 0, errors: 0 },
+      jobs: { total: 0, updated: 0, errors: 0 },
+      consultations: { total: 0, updated: 0, errors: 0 },
+    };
+    
+    // 1. Migra clienti
+    console.log('📱 Migrazione clienti...');
+    const clientiSnap = await db.collection('clienti').get();
+    results.clienti.total = clientiSnap.size;
+    
+    for (const doc of clientiSnap.docs) {
+      try {
+        const data = doc.data();
+        const updates: Record<string, any> = {};
+        let needsUpdate = false;
+        
+        // Campi telefono nei clienti
+        const phoneFields = ['whatsapp', 'cellulare1', 'cellulare2', 'telefono', 'cellulare'];
+        
+        for (const field of phoneFields) {
+          if (data[field]) {
+            const formatted = formatPhoneForWhatsApp(data[field]);
+            if (formatted && formatted !== data[field]) {
+              updates[field] = formatted;
+              needsUpdate = true;
+            }
+          }
+        }
+        
+        if (needsUpdate) {
+          await doc.ref.update(updates);
+          results.clienti.updated++;
+        }
+      } catch (error) {
+        console.error(`Errore migrazione cliente ${doc.id}:`, error);
+        results.clienti.errors++;
+      }
+    }
+    
+    // 2. Migra bookings (cliente.whatsapp nested)
+    console.log('📱 Migrazione bookings...');
+    const bookingsSnap = await db.collection('bookings').get();
+    results.bookings.total = bookingsSnap.size;
+    
+    for (const doc of bookingsSnap.docs) {
+      try {
+        const data = doc.data();
+        const updates: Record<string, any> = {};
+        let needsUpdate = false;
+        
+        // Campo nested cliente.whatsapp
+        if (data.cliente?.whatsapp) {
+          const formatted = formatPhoneForWhatsApp(data.cliente.whatsapp);
+          if (formatted && formatted !== data.cliente.whatsapp) {
+            updates['cliente.whatsapp'] = formatted;
+            needsUpdate = true;
+          }
+        }
+        
+        if (needsUpdate) {
+          await doc.ref.update(updates);
+          results.bookings.updated++;
+        }
+      } catch (error) {
+        console.error(`Errore migrazione booking ${doc.id}:`, error);
+        results.bookings.errors++;
+      }
+    }
+    
+    // 3. Migra orders (clienteWhatsapp)
+    console.log('📱 Migrazione orders...');
+    const ordersSnap = await db.collection('orders').get();
+    results.orders.total = ordersSnap.size;
+    
+    for (const doc of ordersSnap.docs) {
+      try {
+        const data = doc.data();
+        const updates: Record<string, any> = {};
+        let needsUpdate = false;
+        
+        if (data.clienteWhatsapp) {
+          const formatted = formatPhoneForWhatsApp(data.clienteWhatsapp);
+          if (formatted && formatted !== data.clienteWhatsapp) {
+            updates.clienteWhatsapp = formatted;
+            needsUpdate = true;
+          }
+        }
+        
+        if (needsUpdate) {
+          await doc.ref.update(updates);
+          results.orders.updated++;
+        }
+      } catch (error) {
+        console.error(`Errore migrazione order ${doc.id}:`, error);
+        results.orders.errors++;
+      }
+    }
+    
+    // 4. Migra jobs (clienteTelefono)
+    console.log('📱 Migrazione jobs...');
+    const jobsSnap = await db.collection('jobs').get();
+    results.jobs.total = jobsSnap.size;
+    
+    for (const doc of jobsSnap.docs) {
+      try {
+        const data = doc.data();
+        const updates: Record<string, any> = {};
+        let needsUpdate = false;
+        
+        if (data.clienteTelefono) {
+          const formatted = formatPhoneForWhatsApp(data.clienteTelefono);
+          if (formatted && formatted !== data.clienteTelefono) {
+            updates.clienteTelefono = formatted;
+            needsUpdate = true;
+          }
+        }
+        
+        if (needsUpdate) {
+          await doc.ref.update(updates);
+          results.jobs.updated++;
+        }
+      } catch (error) {
+        console.error(`Errore migrazione job ${doc.id}:`, error);
+        results.jobs.errors++;
+      }
+    }
+    
+    // 5. Migra consultations (clientPhone)
+    console.log('📱 Migrazione consultations...');
+    const consultationsSnap = await db.collection('consultations').get();
+    results.consultations.total = consultationsSnap.size;
+    
+    for (const doc of consultationsSnap.docs) {
+      try {
+        const data = doc.data();
+        const updates: Record<string, any> = {};
+        let needsUpdate = false;
+        
+        if (data.clientPhone) {
+          const formatted = formatPhoneForWhatsApp(data.clientPhone);
+          if (formatted && formatted !== data.clientPhone) {
+            updates.clientPhone = formatted;
+            needsUpdate = true;
+          }
+        }
+        
+        if (needsUpdate) {
+          await doc.ref.update(updates);
+          results.consultations.updated++;
+        }
+      } catch (error) {
+        console.error(`Errore migrazione consultation ${doc.id}:`, error);
+        results.consultations.errors++;
+      }
+    }
+    
+    const totalUpdated = results.clienti.updated + results.bookings.updated + 
+                        results.orders.updated + results.jobs.updated + results.consultations.updated;
+    
+    console.log(`✅ Migrazione completata: ${totalUpdated} documenti aggiornati`);
+    
+    res.json({
+      success: true,
+      message: `Migrazione completata: ${totalUpdated} numeri standardizzati`,
+      results
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Errore durante migrazione numeri telefono:', error);
+    res.status(500).json({
+      error: 'Errore durante la migrazione numeri telefono',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/admin/phone-migration-preview
+ * Anteprima della migrazione: mostra quanti numeri verrebbero aggiornati
+ */
+router.get('/phone-migration-preview', async (req, res) => {
+  try {
+    console.log('📱 Anteprima migrazione numeri...');
+    
+    const preview = {
+      clienti: { total: 0, toUpdate: 0, samples: [] as Array<{ id: string; field: string; from: string; to: string }> },
+      bookings: { total: 0, toUpdate: 0 },
+      orders: { total: 0, toUpdate: 0 },
+      jobs: { total: 0, toUpdate: 0 },
+      consultations: { total: 0, toUpdate: 0 },
+    };
+    
+    // Verifica clienti
+    const clientiSnap = await db.collection('clienti').get();
+    preview.clienti.total = clientiSnap.size;
+    
+    const phoneFields = ['whatsapp', 'cellulare1', 'cellulare2', 'telefono', 'cellulare'];
+    
+    for (const doc of clientiSnap.docs) {
+      const data = doc.data();
+      for (const field of phoneFields) {
+        if (data[field]) {
+          const formatted = formatPhoneForWhatsApp(data[field]);
+          if (formatted && formatted !== data[field]) {
+            preview.clienti.toUpdate++;
+            if (preview.clienti.samples.length < 5) {
+              preview.clienti.samples.push({
+                id: doc.id,
+                field,
+                from: data[field],
+                to: formatted
+              });
+            }
+            break; // Conta solo una volta per documento
+          }
+        }
+      }
+    }
+    
+    // Conteggio veloce per altre collection
+    const bookingsSnap = await db.collection('bookings').get();
+    preview.bookings.total = bookingsSnap.size;
+    for (const doc of bookingsSnap.docs) {
+      const data = doc.data();
+      if (data.cliente?.whatsapp) {
+        const formatted = formatPhoneForWhatsApp(data.cliente.whatsapp);
+        if (formatted && formatted !== data.cliente.whatsapp) {
+          preview.bookings.toUpdate++;
+        }
+      }
+    }
+    
+    const ordersSnap = await db.collection('orders').get();
+    preview.orders.total = ordersSnap.size;
+    for (const doc of ordersSnap.docs) {
+      const data = doc.data();
+      if (data.clienteWhatsapp) {
+        const formatted = formatPhoneForWhatsApp(data.clienteWhatsapp);
+        if (formatted && formatted !== data.clienteWhatsapp) {
+          preview.orders.toUpdate++;
+        }
+      }
+    }
+    
+    const jobsSnap = await db.collection('jobs').get();
+    preview.jobs.total = jobsSnap.size;
+    for (const doc of jobsSnap.docs) {
+      const data = doc.data();
+      if (data.clienteTelefono) {
+        const formatted = formatPhoneForWhatsApp(data.clienteTelefono);
+        if (formatted && formatted !== data.clienteTelefono) {
+          preview.jobs.toUpdate++;
+        }
+      }
+    }
+    
+    const consultationsSnap = await db.collection('consultations').get();
+    preview.consultations.total = consultationsSnap.size;
+    for (const doc of consultationsSnap.docs) {
+      const data = doc.data();
+      if (data.clientPhone) {
+        const formatted = formatPhoneForWhatsApp(data.clientPhone);
+        if (formatted && formatted !== data.clientPhone) {
+          preview.consultations.toUpdate++;
+        }
+      }
+    }
+    
+    const totalToUpdate = preview.clienti.toUpdate + preview.bookings.toUpdate + 
+                          preview.orders.toUpdate + preview.jobs.toUpdate + preview.consultations.toUpdate;
+    
+    res.json({
+      success: true,
+      totalToUpdate,
+      preview
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Errore anteprima migrazione:', error);
+    res.status(500).json({
+      error: 'Errore durante anteprima migrazione',
       details: error.message
     });
   }

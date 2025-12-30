@@ -2446,6 +2446,84 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 });
 
 /**
+ * POST /api/email/gallery-password-notification
+ * Invia email al cliente con password di accesso alla galleria
+ * Può essere chiamato automaticamente alla creazione o manualmente dall'admin
+ */
+router.post("/gallery-password-notification", async (req, res) => {
+  try {
+    const { galleryId, clientEmail, clientName } = req.body;
+
+    if (!galleryId || !clientEmail) {
+      return res.status(400).json({
+        error: "Missing required fields: galleryId, clientEmail"
+      });
+    }
+
+    console.log(`📧 Invio notifica password galleria a: ${clientEmail}`);
+
+    // Costruisci URL assoluto
+    const baseUrl = getSiteBaseUrl(req);
+
+    // Recupera dati galleria
+    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    if (!galleryDoc.exists) {
+      return res.status(404).json({ error: "Gallery not found" });
+    }
+
+    const galleryData = galleryDoc.data();
+    const galleryCode = galleryData?.code || galleryId;
+    const galleryName = galleryData?.name || "Galleria";
+    const galleryUrl = `${baseUrl}/gallery/${galleryCode}`;
+
+    console.log(`🔗 URL galleria: ${galleryUrl}`);
+
+    // Recupera password da collection protetta
+    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    if (!secretsDoc.exists || !secretsDoc.data()?.password) {
+      return res.status(400).json({ error: "Password not configured for this gallery" });
+    }
+
+    const password = secretsDoc.data()?.password;
+
+    // Recupera info studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Import template
+    const { generateGalleryPasswordEmail, generateGalleryPasswordSubject } = await import('./email-templates/gallery-password-notification');
+    
+    const htmlContent = generateGalleryPasswordEmail({
+      clientName,
+      galleryName,
+      galleryUrl,
+      password,
+      studioName: studioInfo.name,
+      studioPhone: studioInfo.phone,
+      studioEmail: studioInfo.email
+    });
+
+    const subject = generateGalleryPasswordSubject(galleryName);
+
+    // Invia email (senza emoji nel subject per compatibilità)
+    await sendGmailEmail(clientEmail, subject.replace(/[^\x00-\x7F]/g, ''), htmlContent);
+
+    console.log(`✅ Email password inviata con successo a: ${clientEmail}`);
+
+    res.status(200).json({
+      success: true,
+      message: "Password notification email sent successfully",
+      recipientEmail: clientEmail
+    });
+
+  } catch (error) {
+    console.error("❌ Errore invio email password:", error);
+    res.status(500).json({
+      error: "Errore invio email notifica password"
+    });
+  }
+});
+
+/**
  * GET /api/email/get-gallery-secrets/:galleryId
  * Recupera password e PIN per una galleria (ADMIN ONLY)
  * Usato da EditGalleryModal per caricare i secrets quando si apre il modal

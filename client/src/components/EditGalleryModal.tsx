@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash, Eye, EyeOff } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2 } from "lucide-react";
 import { PhotoUploadSuccessModal } from "./PhotoUploadSuccessModal";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
@@ -167,6 +167,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [clienteId, setClienteId] = useState<string>("");
   const [isSavingCliente, setIsSavingCliente] = useState(false);
   
+  // Stato per invio password via email
+  const [isSendingPassword, setIsSendingPassword] = useState(false);
+  
   const filesInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -189,6 +192,82 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           description: "Passato a galleria con password. Il tema speciale e il PIN sono stati rimossi.",
         });
       }
+    }
+  };
+
+  // Funzione per inviare password via email
+  const handleSendPassword = async () => {
+    if (!gallery || !password.trim()) {
+      toast({
+        title: "Errore",
+        description: "Nessuna password impostata per questa galleria",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Cerca email cliente (da stato o da cliente associato)
+    let recipientEmail = clientEmail.trim();
+    let recipientName = clientName.trim();
+    
+    // Se non c'è email nello stato, prova a recuperarla dal cliente associato
+    if (!recipientEmail && clienteId) {
+      try {
+        const clienteDoc = await getDoc(doc(db, "clienti", clienteId));
+        if (clienteDoc.exists()) {
+          const clienteData = clienteDoc.data();
+          recipientEmail = clienteData.email || '';
+          recipientName = recipientName || clienteData.nome || '';
+        }
+      } catch (error) {
+        console.error('Errore recupero dati cliente:', error);
+      }
+    }
+    
+    if (!recipientEmail) {
+      toast({
+        title: "Email non disponibile",
+        description: "Associa un cliente con email per inviare la password",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSendingPassword(true);
+    
+    try {
+      const response = await fetch("/api/email/gallery-password-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          galleryId: gallery.id,
+          clientEmail: recipientEmail,
+          clientName: recipientName,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Password inviata",
+          description: `Email inviata con successo a ${recipientEmail}`,
+        });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast({
+          title: "Errore",
+          description: errorData.error || "Impossibile inviare l'email",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Errore invio password:', error);
+      toast({
+        title: "Errore",
+        description: "Errore di connessione durante l'invio",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingPassword(false);
     }
   };
 
@@ -1509,27 +1588,50 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             {specialTheme === 'none' && (
               <div>
                 <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={handlePasswordChange}
-                    placeholder="Password di accesso"
-                    className="pr-10"
-                  />
-                  <button
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={handlePasswordChange}
+                      placeholder="Password di accesso"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                  {/* Pulsante Invia Password al Cliente */}
+                  <Button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleSendPassword}
+                    disabled={!password.trim() || isSendingPassword}
+                    title="Invia password al cliente via email"
+                    className="shrink-0"
                   >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                    {isSendingPassword ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Mail className="w-4 h-4" />
                     )}
-                  </button>
+                  </Button>
                 </div>
+                {password.trim() && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    📧 Clicca sull'icona email per inviare la password al cliente
+                  </p>
+                )}
               </div>
             )}
 

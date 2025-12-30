@@ -667,6 +667,36 @@ export default function NewGalleryModal({
           console.error("⚠️ Errore invio email galleria:", emailError);
           toast.success("Galleria creata, ma invio email non riuscito");
         }
+      } 
+      // INVIO AUTOMATICO PASSWORD: Galleria normale con password e cliente con email
+      else if (specialTheme === "none" && password.trim() && (clientEmail.trim() || prePopulate?.clienteEmail)) {
+        const recipientEmail = clientEmail.trim() || prePopulate?.clienteEmail;
+        const recipientName = clientName.trim() || prePopulate?.clienteNome;
+        
+        console.log("📧 Invio automatico password galleria a:", recipientEmail);
+        
+        try {
+          const emailResponse = await fetch("/api/email/gallery-password-notification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              galleryId: newGalleryId,
+              clientEmail: recipientEmail,
+              clientName: recipientName,
+            }),
+          });
+
+          if (emailResponse.ok) {
+            console.log("✅ Email password inviata con successo");
+            toast.success(`Galleria creata e password inviata a ${recipientEmail}`);
+          } else {
+            console.error("⚠️ Errore invio email password:", await emailResponse.text());
+            toast.success("Galleria creata, ma invio email password non riuscito");
+          }
+        } catch (emailError) {
+          console.error("⚠️ Eccezione invio email password:", emailError);
+          toast.success("Galleria creata, ma invio email password non riuscito");
+        }
       } else {
         toast.success("Galleria creata con successo!");
       }

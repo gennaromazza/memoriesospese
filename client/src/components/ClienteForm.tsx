@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Save, X } from 'lucide-react';
+import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 const clienteSchema = z.object({
   nome: z.string().min(1, 'Nome obbligatorio'),
@@ -75,7 +76,14 @@ export default function ClienteForm({
   });
 
   const handleSubmit = (data: ClienteFormData) => {
-    onSubmit(data);
+    // Formatta automaticamente i numeri di telefono per WhatsApp
+    const formattedData = {
+      ...data,
+      cellulare1: data.cellulare1 ? formatPhoneForWhatsApp(data.cellulare1) || data.cellulare1 : undefined,
+      cellulare2: data.cellulare2 ? formatPhoneForWhatsApp(data.cellulare2) || data.cellulare2 : undefined,
+      whatsapp: data.whatsapp ? formatPhoneForWhatsApp(data.whatsapp) || data.whatsapp : undefined,
+    };
+    onSubmit(formattedData);
   };
 
   return (
