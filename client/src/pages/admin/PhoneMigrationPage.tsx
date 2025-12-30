@@ -149,8 +149,8 @@ export default function PhoneMigrationPage() {
 
   const getTotalToUpdate = () => {
     if (!preview) return 0;
-    return preview.clienti.toUpdate + preview.bookings.toUpdate + 
-           preview.orders.toUpdate + preview.jobs.toUpdate + preview.consultations.toUpdate;
+    return (preview.clienti?.toUpdate || 0) + (preview.bookings?.toUpdate || 0) + 
+           (preview.orders?.toUpdate || 0) + (preview.jobs?.toUpdate || 0) + (preview.consultations?.toUpdate || 0);
   };
 
   return (
@@ -213,20 +213,23 @@ export default function PhoneMigrationPage() {
               <div className="space-y-4 mt-6">
                 <h3 className="font-medium text-lg">Anteprima Modifiche</h3>
                 
-                {Object.entries(preview).map(([collection, data]) => (
+                {Object.entries(preview).map(([collection, data]) => {
+                  if (!data || typeof data !== 'object') return null;
+                  const collectionData = data as CollectionPreview;
+                  return (
                   <Card key={collection} className="bg-muted/30">
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm font-medium capitalize flex items-center justify-between">
                         <span>{collection}</span>
                         <span className="text-xs bg-sage-100 text-sage-700 px-2 py-1 rounded">
-                          {data.toUpdate} / {data.total} da aggiornare
+                          {collectionData.toUpdate || 0} / {collectionData.total || 0} da aggiornare
                         </span>
                       </CardTitle>
                     </CardHeader>
-                    {data.samples && data.samples.length > 0 && (
+                    {collectionData.samples && collectionData.samples.length > 0 && (
                       <CardContent className="py-2">
                         <div className="text-xs space-y-1">
-                          {data.samples.slice(0, 3).map((sample: SampleItem, i: number) => (
+                          {collectionData.samples.slice(0, 3).map((sample: SampleItem, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-muted-foreground">
                               <span className="font-mono">{sample.from}</span>
                               <span>→</span>
@@ -238,7 +241,8 @@ export default function PhoneMigrationPage() {
                       </CardContent>
                     )}
                   </Card>
-                ))}
+                  );
+                })}
 
                 {getTotalToUpdate() === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
