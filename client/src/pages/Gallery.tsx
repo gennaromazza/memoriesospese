@@ -3969,15 +3969,15 @@ export default function Gallery() {
       {/* Instagram Call to Action e Footer */}
       <GalleryFooter studioSettings={studioSettings} />
 
-      {/* Photo Lightbox - usa flatChapterPhotos quando capitoli attivi, altrimenti displayPhotos in modalità selezione */}
+      {/* Photo Lightbox - usa flatChapterPhotos quando capitoli attivi per mantenere coerenza con gli indici */}
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={(activeTab === "photographer" &&
-        isSelectionMode &&
-        selectionStatus !== "completed"
-          ? (photosByChapter ? flatChapterPhotos : displayPhotos)
-          : allPhotos
+        photos={(activeTab === "photographer" && chaptersEnabled && photosByChapter
+          ? flatChapterPhotos
+          : (activeTab === "photographer" && isSelectionMode && selectionStatus !== "completed"
+            ? displayPhotos
+            : allPhotos)
         ).map((photo) => ({
           id: photo.id,
           name: photo.name,
