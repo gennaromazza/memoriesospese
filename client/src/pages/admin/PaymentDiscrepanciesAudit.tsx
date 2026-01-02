@@ -108,7 +108,10 @@ export default function PaymentDiscrepanciesAudit() {
 
   const getAuthHeaders = async () => {
     const auth = getAuth();
-    const token = await auth.currentUser?.getIdToken();
+    if (!auth.currentUser) {
+      throw new Error('Devi essere autenticato per eseguire questa operazione');
+    }
+    const token = await auth.currentUser.getIdToken();
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
