@@ -891,13 +891,22 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
       let discrepancyType: 'quote_vs_schedule' | 'schedule_vs_rates' | 'both' | 'none' = 'none';
       let discrepancy = 0;
       
-      // Discrepanza tra totale preventivo e totale schedule
-      if (scheduleId && quoteTotale > 0) {
-        const quoteVsSchedule = Math.abs(quoteTotale - scheduleTotale);
+      // Per job importati, usa anche i campi legacy del job se presenti
+      const jobTotalePreventivato = Number(job.totalePreventivato || 0);
+      const jobTotalePagato = Number(job.totalePagato || 0);
+      const jobSaldoResiduo = Number(job.saldoResiduo || 0);
+      
+      // Usa il totale dal preventivo se disponibile, altrimenti dal job
+      const totaleRiferimento = quoteTotale > 0 ? quoteTotale : jobTotalePreventivato;
+      
+      // Discrepanza tra totale preventivo/job e totale schedule
+      if (scheduleId && totaleRiferimento > 0) {
+        const quoteVsSchedule = Math.abs(totaleRiferimento - scheduleTotale);
         if (quoteVsSchedule > 0.01) { // Tolleranza 1 centesimo
           discrepancy = quoteVsSchedule;
           discrepancyType = 'quote_vs_schedule';
-          issues.push(`Totale preventivo (€${quoteTotale.toFixed(2)}) ≠ Totale piano (€${scheduleTotale.toFixed(2)}) - Diff: €${quoteVsSchedule.toFixed(2)}`);
+          const fonte = quoteTotale > 0 ? 'preventivo' : 'job.totalePreventivato';
+          issues.push(`Totale ${fonte} (€${totaleRiferimento.toFixed(2)}) ≠ Totale piano (€${scheduleTotale.toFixed(2)}) - Diff: €${quoteVsSchedule.toFixed(2)}`);
         }
       }
       
@@ -915,6 +924,20 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
         }
       }
       
+      // Per job importati: verifica che i campi legacy corrispondano al piano pagamenti
+      if (scheduleId && jobSource === 'import') {
+        // Verifica totale job vs schedule
+        if (jobTotalePreventivato > 0 && Math.abs(jobTotalePreventivato - scheduleTotale) > 0.01) {
+          if (!issues.some(i => i.includes('job.totalePreventivato'))) {
+            issues.push(`[Legacy] job.totalePreventivato (€${jobTotalePreventivato.toFixed(2)}) ≠ Piano (€${scheduleTotale.toFixed(2)})`);
+          }
+        }
+        // Verifica pagato job vs schedule
+        if (Math.abs(jobTotalePagato - scheduleTotalePagato) > 0.01) {
+          issues.push(`[Legacy] job.totalePagato (€${jobTotalePagato.toFixed(2)}) ≠ Piano pagato (€${scheduleTotalePagato.toFixed(2)})`);
+        }
+      }
+      
       // Verifica invariante: saldoResiduo = totale - totalePagato
       if (scheduleId) {
         const expectedSaldo = Math.max(0, scheduleTotale - scheduleTotalePagato);
@@ -922,6 +945,11 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
         if (saldoDiff > 0.01) {
           issues.push(`Saldo residuo errato: atteso €${expectedSaldo.toFixed(2)}, trovato €${scheduleSaldoResiduo.toFixed(2)}`);
         }
+      }
+      
+      // Schedule senza preventivo associato
+      if (scheduleId && quoteTotale === 0 && jobTotalePreventivato === 0) {
+        issues.push(`Piano pagamenti presente ma nessun preventivo trovato`);
       }
       
       // Aggiungi report solo se ci sono discrepanze o è il job specifico richiesto
