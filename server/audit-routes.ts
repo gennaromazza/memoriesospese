@@ -816,6 +816,9 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
       const jobId = jobDoc.id;
       const issues: string[] = [];
       
+      // Debug specifico per job problematico
+      const debugJob = jobId === 'kcqcp4ta5ael16tpg86xh';
+      
       // Determina source del job
       let jobSource: 'import' | 'new' | 'unknown' = 'unknown';
       if (job.source === 'import' || job.importedAt) {
@@ -854,7 +857,19 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
         // Usa il totale del preventivo firmato se esiste
         if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
           signedQuoteCount++;
-          quoteTotale += getQuoteTotal(quote);
+          const thisQuoteTotal = getQuoteTotal(quote);
+          quoteTotale += thisQuoteTotal;
+          
+          if (debugJob) {
+            console.log(`🔍 [DEBUG ${jobId}] Preventivo firmato trovato: ${quoteDoc.id}`);
+            console.log(`   - status: ${quote.status}`);
+            console.log(`   - totalAfterDiscount: ${quote.totalAfterDiscount}`);
+            console.log(`   - totaleBase: ${quote.totaleBase}`);
+            console.log(`   - totaleSelezionato: ${quote.totaleSelezionato}`);
+            console.log(`   - totale: ${quote.totale}`);
+            console.log(`   - total: ${quote.total}`);
+            console.log(`   - CALCOLATO: ${thisQuoteTotal}`);
+          }
         }
       }
       
@@ -899,6 +914,14 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
         scheduleTotalePagato = Number(schedule.totalePagato || 0);
         scheduleSaldoResiduo = Number(schedule.saldoResiduo || 0);
         
+        if (debugJob) {
+          console.log(`🔍 [DEBUG ${jobId}] Piano pagamenti trovato: ${scheduleId}`);
+          console.log(`   - schedule.totale: ${schedule.totale}`);
+          console.log(`   - schedule.totalePagato: ${schedule.totalePagato}`);
+          console.log(`   - schedule.saldoResiduo: ${schedule.saldoResiduo}`);
+          console.log(`   - payments array length: ${Array.isArray(schedule.payments) ? schedule.payments.length : 'non array'}`);
+        }
+        
         // Calcola somma delle rate e conta rate pagate
         if (Array.isArray(schedule.payments)) {
           scheduleRateCount = schedule.payments.length;
@@ -922,6 +945,16 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
       
       // Usa il totale dal preventivo se disponibile, altrimenti dal job
       const totaleRiferimento = quoteTotale > 0 ? quoteTotale : jobTotalePreventivato;
+      
+      if (debugJob) {
+        console.log(`🔍 [DEBUG ${jobId}] Calcolo discrepanza:`);
+        console.log(`   - quoteTotale: ${quoteTotale}`);
+        console.log(`   - jobTotalePreventivato: ${jobTotalePreventivato}`);
+        console.log(`   - totaleRiferimento: ${totaleRiferimento}`);
+        console.log(`   - scheduleTotale: ${scheduleTotale}`);
+        console.log(`   - scheduleId: ${scheduleId}`);
+        console.log(`   - Differenza: ${Math.abs(totaleRiferimento - scheduleTotale)}`);
+      }
       
       // Discrepanza tra totale preventivo/job e totale schedule
       if (scheduleId && totaleRiferimento > 0) {
