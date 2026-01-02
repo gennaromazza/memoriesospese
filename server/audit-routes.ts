@@ -1106,4 +1106,324 @@ router.get('/job-payment-details/:jobId', authenticateFirebase, requireAdmin, as
   }
 });
 
+/**
+ * POST /api/audit/fix-schedule-total/:jobId
+ * Corregge il totale del piano pagamenti sincronizzandolo con il preventivo
+ * e crea una rata di saldo per il residuo se necessario
+ */
+router.post('/fix-schedule-total/:jobId', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  const { jobId } = req.params;
+  const { createSaldoRata = true, nuovoTotale } = req.body;
+  
+  try {
+    console.log(`🔧 Fixing schedule total for job ${jobId}...`);
+    
+    // 1. Recupera il job
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    const job = jobDoc.data();
+    
+    // 2. Recupera preventivo firmato
+    const quotesSnap = await db.collection('quotes')
+      .where('jobId', '==', jobId)
+      .get();
+    
+    let quoteTotale = 0;
+    let signedQuote: any = null;
+    
+    for (const quoteDoc of quotesSnap.docs) {
+      const quote = quoteDoc.data();
+      if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
+        quoteTotale = Number(quote.totale || quote.total || 0);
+        signedQuote = { id: quoteDoc.id, ...quote };
+        break;
+      }
+    }
+    
+    // Se nessun preventivo firmato, usa il primo preventivo o i campi legacy
+    if (quoteTotale === 0 && quotesSnap.docs.length > 0) {
+      const firstQuote = quotesSnap.docs[0].data();
+      quoteTotale = Number(firstQuote.totale || firstQuote.total || 0);
+    }
+    
+    // Fallback ai campi legacy del job
+    if (quoteTotale === 0) {
+      quoteTotale = Number(job?.totalePreventivato || 0);
+    }
+    
+    // Se fornito nuovoTotale manualmente, usalo
+    const totaleFinale = nuovoTotale ? Number(nuovoTotale) : quoteTotale;
+    
+    if (totaleFinale === 0) {
+      return res.status(400).json({ 
+        error: 'Impossibile determinare il totale corretto',
+        message: 'Nessun preventivo trovato e nessun nuovoTotale fornito'
+      });
+    }
+    
+    // 3. Recupera il piano pagamenti
+    const schedulesSnap = await db.collection('paymentSchedules')
+      .where('jobId', '==', jobId)
+      .get();
+    
+    if (schedulesSnap.empty) {
+      return res.status(404).json({ error: 'Nessun piano pagamenti trovato per questo job' });
+    }
+    
+    const scheduleDoc = schedulesSnap.docs[0];
+    const schedule = scheduleDoc.data();
+    const scheduleId = scheduleDoc.id;
+    
+    const vecchioTotale = Number(schedule.totale || 0);
+    const totalePagato = Number(schedule.totalePagato || 0);
+    const nuovoSaldoResiduo = Math.max(0, totaleFinale - totalePagato);
+    
+    // 4. Prepara le modifiche
+    const updates: any = {
+      totale: totaleFinale,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: new Date(),
+    };
+    
+    let payments = [...(schedule.payments || [])];
+    let newRataCreated = false;
+    let ratesAdjusted = false;
+    
+    // 5. Calcola somma rate non pagate
+    const rateNonPagate = payments.filter((p: any) => p.stato === 'atteso' || p.stato === 'scaduto');
+    const sommaRateNonPagate = rateNonPagate.reduce((sum: number, p: any) => sum + Number(p.importo || 0), 0);
+    
+    // 6. Se il nuovo residuo è diverso dalla somma rate non pagate, ribilancia
+    if (Math.abs(nuovoSaldoResiduo - sommaRateNonPagate) > 0.01) {
+      if (nuovoSaldoResiduo <= 0) {
+        // Nessun residuo: rimuovi tutte le rate non pagate
+        payments = payments.filter((p: any) => p.stato === 'pagato' || p.stato === 'parziale');
+        ratesAdjusted = true;
+      } else if (rateNonPagate.length === 0 && createSaldoRata) {
+        // Nessuna rata non pagata ma c'è residuo: crea nuova rata
+        const { nanoid } = await import('nanoid');
+        const nuovaRata = {
+          id: nanoid(),
+          tipo: 'saldo' as const,
+          importo: nuovoSaldoResiduo,
+          dataScadenza: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          stato: 'atteso' as const,
+          note: 'Saldo residuo (creato da correzione audit)',
+        };
+        payments.push(nuovaRata);
+        newRataCreated = true;
+      } else if (rateNonPagate.length > 0) {
+        // Ribilancia le rate non pagate per corrispondere al nuovo residuo
+        // Strategia: distribuisci equamente con arrotondamento su ultima rata
+        const numRate = rateNonPagate.length;
+        const importoPerRata = Math.floor((nuovoSaldoResiduo / numRate) * 100) / 100;
+        let distribuito = 0;
+        let rateProcessate = 0;
+        
+        for (let i = 0; i < payments.length; i++) {
+          const p = payments[i];
+          if (p.stato === 'atteso' || p.stato === 'scaduto') {
+            rateProcessate++;
+            if (rateProcessate === numRate) {
+              // Ultima rata: assegna il residuo rimanente
+              p.importo = Math.max(0, Math.round((nuovoSaldoResiduo - distribuito) * 100) / 100);
+            } else {
+              p.importo = importoPerRata;
+            }
+            distribuito += p.importo;
+            p.note = `${p.note || ''} (ribilanciato)`.trim();
+          }
+        }
+        ratesAdjusted = true;
+      }
+      updates.payments = payments;
+    } else if (createSaldoRata && nuovoSaldoResiduo > 0 && rateNonPagate.length === 0) {
+      // Caso originale: residuo corretto ma manca rata
+      const { nanoid } = await import('nanoid');
+      const nuovaRata = {
+        id: nanoid(),
+        tipo: 'saldo' as const,
+        importo: nuovoSaldoResiduo,
+        dataScadenza: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        stato: 'atteso' as const,
+        note: 'Saldo residuo (creato da correzione audit)',
+      };
+      payments.push(nuovaRata);
+      updates.payments = payments;
+      newRataCreated = true;
+    }
+    
+    // 7. Aggiorna Firestore
+    await db.collection('paymentSchedules').doc(scheduleId).update(updates);
+    
+    console.log(`✅ Fixed schedule ${scheduleId}: totale ${vecchioTotale} -> ${totaleFinale}, residuo ${nuovoSaldoResiduo}`);
+    
+    res.json({
+      success: true,
+      message: 'Piano pagamenti corretto',
+      data: {
+        scheduleId,
+        vecchioTotale,
+        nuovoTotale: totaleFinale,
+        totalePagato,
+        nuovoSaldoResiduo,
+        quoteTotale,
+        newRataCreated,
+        ratesAdjusted,
+        rateCount: payments.length,
+      }
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Failed to fix schedule for job ${jobId}:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/audit/fix-all-discrepancies
+ * Corregge tutte le discrepanze trovate (con dry-run opzionale)
+ */
+router.post('/fix-all-discrepancies', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  const { dryRun = true } = req.body;
+  
+  try {
+    console.log(`🔧 ${dryRun ? '[DRY-RUN]' : ''} Fixing all payment discrepancies...`);
+    
+    const results: any[] = [];
+    
+    // Recupera tutti i job con payment schedules
+    const schedulesSnap = await db.collection('paymentSchedules').get();
+    
+    for (const scheduleDoc of schedulesSnap.docs) {
+      const schedule = scheduleDoc.data();
+      const jobId = schedule.jobId;
+      
+      if (!jobId) continue;
+      
+      // Recupera preventivo
+      const quotesSnap = await db.collection('quotes')
+        .where('jobId', '==', jobId)
+        .get();
+      
+      let quoteTotale = 0;
+      for (const quoteDoc of quotesSnap.docs) {
+        const quote = quoteDoc.data();
+        if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
+          quoteTotale = Number(quote.totale || quote.total || 0);
+          break;
+        }
+      }
+      
+      // Fallback a primo preventivo o job legacy
+      if (quoteTotale === 0) {
+        if (quotesSnap.docs.length > 0) {
+          quoteTotale = Number(quotesSnap.docs[0].data().totale || 0);
+        } else {
+          const jobDoc = await db.collection('jobs').doc(jobId).get();
+          if (jobDoc.exists) {
+            quoteTotale = Number(jobDoc.data()?.totalePreventivato || 0);
+          }
+        }
+      }
+      
+      const scheduleTotale = Number(schedule.totale || 0);
+      const discrepancy = Math.abs(quoteTotale - scheduleTotale);
+      
+      if (discrepancy > 0.01 && quoteTotale > 0) {
+        const totalePagato = Number(schedule.totalePagato || 0);
+        const nuovoSaldoResiduo = Math.max(0, quoteTotale - totalePagato);
+        
+        const result: any = {
+          jobId,
+          scheduleId: scheduleDoc.id,
+          vecchioTotale: scheduleTotale,
+          nuovoTotale: quoteTotale,
+          discrepancy,
+          nuovoSaldoResiduo,
+          fixed: false,
+        };
+        
+        if (!dryRun) {
+          // Applica correzione
+          const updates: any = {
+            totale: quoteTotale,
+            saldoResiduo: nuovoSaldoResiduo,
+            updatedAt: new Date(),
+          };
+          
+          let payments = [...(schedule.payments || [])];
+          const rateNonPagate = payments.filter((p: any) => p.stato === 'atteso' || p.stato === 'scaduto');
+          const sommaRateNonPagate = rateNonPagate.reduce((sum: number, p: any) => sum + Number(p.importo || 0), 0);
+          
+          // Ribilancia se necessario
+          if (Math.abs(nuovoSaldoResiduo - sommaRateNonPagate) > 0.01) {
+            if (nuovoSaldoResiduo <= 0) {
+              payments = payments.filter((p: any) => p.stato === 'pagato' || p.stato === 'parziale');
+              result.ratesRemoved = true;
+            } else if (rateNonPagate.length === 0) {
+              const { nanoid } = await import('nanoid');
+              payments.push({
+                id: nanoid(),
+                tipo: 'saldo',
+                importo: nuovoSaldoResiduo,
+                dataScadenza: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                stato: 'atteso',
+                note: 'Saldo residuo (creato da correzione batch)',
+              });
+              result.newRataCreated = true;
+            } else {
+              // Ribilancia rate esistenti
+              const numRate = rateNonPagate.length;
+              const importoPerRata = Math.floor((nuovoSaldoResiduo / numRate) * 100) / 100;
+              let distribuito = 0;
+              let rateProcessate = 0;
+              
+              for (let i = 0; i < payments.length; i++) {
+                const p = payments[i];
+                if (p.stato === 'atteso' || p.stato === 'scaduto') {
+                  rateProcessate++;
+                  if (rateProcessate === numRate) {
+                    p.importo = Math.max(0, Math.round((nuovoSaldoResiduo - distribuito) * 100) / 100);
+                  } else {
+                    p.importo = importoPerRata;
+                  }
+                  distribuito += p.importo;
+                  p.note = `${p.note || ''} (ribilanciato)`.trim();
+                }
+              }
+              result.ratesAdjusted = true;
+            }
+            updates.payments = payments;
+          }
+          
+          await db.collection('paymentSchedules').doc(scheduleDoc.id).update(updates);
+          result.fixed = true;
+        }
+        
+        results.push(result);
+      }
+    }
+    
+    console.log(`✅ ${dryRun ? '[DRY-RUN]' : ''} Found ${results.length} schedules to fix`);
+    
+    res.json({
+      success: true,
+      dryRun,
+      message: dryRun 
+        ? `Trovati ${results.length} piani da correggere. Esegui con dryRun=false per applicare.`
+        : `Corretti ${results.filter(r => r.fixed).length} piani pagamenti.`,
+      totalFound: results.length,
+      totalFixed: results.filter(r => r.fixed).length,
+      results,
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Failed to fix discrepancies:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

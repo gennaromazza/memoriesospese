@@ -18,7 +18,9 @@ import {
   ExternalLink,
   RefreshCw,
   Download,
-  Filter
+  Filter,
+  Wrench,
+  Play
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -84,6 +86,8 @@ export default function PaymentDiscrepanciesAudit() {
   const { toast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
+  const [fixingJobId, setFixingJobId] = useState<string | null>(null);
   const [result, setResult] = useState<AuditResult | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -179,6 +183,81 @@ export default function PaymentDiscrepanciesAudit() {
     a.href = url;
     a.download = `discrepanze-pagamenti-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+  };
+
+  const fixSingleJob = async (jobId: string) => {
+    setFixingJobId(jobId);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/audit/fix-schedule-total/${jobId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ createSaldoRata: true }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Errore durante la correzione');
+      }
+      
+      const data = await response.json();
+      toast({
+        title: "Job corretto",
+        description: `Totale aggiornato: €${data.data.vecchioTotale} → €${data.data.nuovoTotale}`,
+      });
+      
+      // Ricarica i dati
+      await runAudit();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: error.message,
+      });
+    } finally {
+      setFixingJobId(null);
+    }
+  };
+
+  const fixAllJobs = async (dryRun: boolean = true) => {
+    setIsFixing(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/audit/fix-all-discrepancies', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ dryRun }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Errore durante la correzione');
+      }
+      
+      const data = await response.json();
+      
+      if (dryRun) {
+        toast({
+          title: "Anteprima correzione",
+          description: `${data.totalFound} piani da correggere. Clicca "Applica Correzioni" per procedere.`,
+        });
+      } else {
+        toast({
+          title: "Correzione completata",
+          description: `Corretti ${data.totalFixed} piani pagamenti`,
+        });
+        // Ricarica i dati
+        await runAudit();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: error.message,
+      });
+    } finally {
+      setIsFixing(false);
+    }
   };
 
   return (
@@ -383,14 +462,33 @@ export default function PaymentDiscrepanciesAudit() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/admin/jobs/${report.jobId}`)}
-                              data-testid={`button-view-job-${report.jobId}`}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/admin/jobs/${report.jobId}`)}
+                                data-testid={`button-view-job-${report.jobId}`}
+                                title="Apri dettaglio job"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              {report.issues.length > 0 && report.quoteTotale > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => fixSingleJob(report.jobId)}
+                                  disabled={fixingJobId === report.jobId}
+                                  data-testid={`button-fix-job-${report.jobId}`}
+                                  title="Correggi piano pagamenti"
+                                >
+                                  {fixingJobId === report.jobId ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Wrench className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -410,18 +508,60 @@ export default function PaymentDiscrepanciesAudit() {
             </Card>
 
             {result.stats.jobsWithDiscrepancies > 0 && (
-              <Alert>
-                <FileText className="h-4 w-4" />
-                <AlertTitle>Riepilogo Discrepanze</AlertTitle>
-                <AlertDescription>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    <li>• <strong>{result.stats.byType.quote_vs_schedule}</strong> job con differenza tra preventivo e piano pagamenti</li>
-                    <li>• <strong>{result.stats.byType.schedule_vs_rates}</strong> job con differenza tra totale piano e somma rate</li>
-                    <li>• <strong>{result.stats.byType.both}</strong> job con entrambi i problemi</li>
-                    <li>• Totale discrepanze: <strong>€{result.stats.totalDiscrepancyAmount.toFixed(2)}</strong></li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wrench className="h-5 w-5" />
+                    Correzione Automatica
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Alert className="mb-4">
+                    <FileText className="h-4 w-4" />
+                    <AlertTitle>Riepilogo Discrepanze</AlertTitle>
+                    <AlertDescription>
+                      <ul className="mt-2 space-y-1 text-sm">
+                        <li>• <strong>{result.stats.byType.quote_vs_schedule}</strong> job con differenza tra preventivo e piano pagamenti</li>
+                        <li>• <strong>{result.stats.byType.schedule_vs_rates}</strong> job con differenza tra totale piano e somma rate</li>
+                        <li>• <strong>{result.stats.byType.both}</strong> job con entrambi i problemi</li>
+                        <li>• Totale discrepanze: <strong>€{result.stats.totalDiscrepancyAmount.toFixed(2)}</strong></li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => fixAllJobs(true)}
+                      disabled={isFixing}
+                      data-testid="button-preview-fix-all"
+                    >
+                      {isFixing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="mr-2 h-4 w-4" />
+                      )}
+                      Anteprima Correzioni
+                    </Button>
+                    <Button
+                      variant="default"
+                      onClick={() => fixAllJobs(false)}
+                      disabled={isFixing}
+                      data-testid="button-apply-fix-all"
+                    >
+                      {isFixing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wrench className="mr-2 h-4 w-4" />
+                      )}
+                      Applica Correzioni
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    La correzione sincronizza il totale del piano pagamenti con il preventivo firmato 
+                    e crea una rata di saldo per il residuo da incassare.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </>
         )}
