@@ -1,0 +1,139 @@
+Il codice attuale funziona ma contiene bug logici di dominio e incoerenze sul concetto di totale, saldo e stato dei pagamenti.
+
+Obiettivo
+Modifica il codice mantenendo API, struttura e naming il più possibile invariati, ma correggendo i bug logici sotto elencati.
+NON riscrivere tutto da zero.
+
+🔒 REGOLE DI DOMINIO (OBBLIGATORIE)
+
+totale è il valore contrattuale originale
+
+NON deve mai cambiare dopo la creazione dello schedule
+
+Anche se:
+
+si aggiungono/eliminano rate
+
+si rimodulano importi
+
+si registrano pagamenti parziali
+
+saldoResiduo = totale - totalePagato
+
+NON calcolare il saldo dalla somma delle rate
+
+Le rate servono solo a distribuire il residuo
+
+Pagamenti parziali
+
+importoPagato è cumulativo
+
+Registrare più pagamenti sullo stesso payment somma l’importo
+
+Stato:
+
+pagato → importoPagato >= importo
+
+parziale → importoPagato > 0 && < importo
+
+atteso/scaduto → importoPagato = 0
+
+parziale è considerato NON PAGATO COMPLETAMENTE
+
+Deve:
+
+partecipare alla rimodulazione
+
+ricevere reminder
+
+contribuire al saldo residuo
+
+🛠️ FIX DA APPLICARE (CONCRETI)
+1️⃣ Non modificare mai totale
+
+Correggi tutte le route che fanno:
+
+add rata
+
+edit rata
+
+delete rata
+
+👉 Rimuovi qualsiasi:
+
+totale = somma(rate)
+
+2️⃣ Fix pagamento parziale
+
+In /payments/:paymentId/register:
+
+NON sovrascrivere importoPagato
+
+SOMMA al valore esistente
+
+payment.importoPagato =
+  (Number(payment.importoPagato) || 0) + Number(importoPagato);
+
+3️⃣ Stato pagamento coerente
+
+Aggiorna lo stato così:
+
+if (payment.importoPagato >= payment.importo) stato = 'pagato'
+else if (payment.importoPagato > 0) stato = 'parziale'
+else stato = 'atteso'
+
+4️⃣ Rimodulazione
+
+Includi anche i pagamenti parziale tra quelli da rimodulare
+
+Rimodula solo le rate non completamente pagate
+
+NON cambiare totale
+
+Le rate rimanenti devono coprire esattamente il residuo
+
+5️⃣ Reminder email
+
+Invia reminder a:
+
+atteso
+
+scaduto
+
+parziale
+
+Escludi solo pagato
+
+Non bloccare reminder per sempre:
+
+se reminderSentAt esiste, consenti comunque nuovi reminder se il pagamento è ancora scaduto
+
+6️⃣ Uniforma i campi testo
+
+Usa un solo campo per descrizione pagamento
+
+Preferibilmente: note
+
+Elimina o migra descrizione
+
+7️⃣ Compatibilità runtime
+
+NON usare Array.findLastIndex
+
+Usa un loop backward compatibile Node 16+
+
+✅ OUTPUT ATTESO
+
+Codice compilabile
+
+Nessun breaking change sulle API
+
+Totali sempre coerenti
+
+Pagamenti parziali gestiti correttamente
+
+Rimodulazioni matematicamente corrette
+
+Reminder affidabili nel tempo
+
+Se una decisione non è ovvia, privilegia la correttezza contabile e contrattuale.

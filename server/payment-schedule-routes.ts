@@ -672,10 +672,23 @@ router.post('/:scheduleId/payments/:paymentId/register', async (req: Request, re
     const updatedPayments = [...schedule.payments];
     const payment = updatedPayments[paymentIndex];
 
-    payment.importoPagato = Number(importoPagato);
+    // FIX: Somma cumulativa - non sovrascrivere importoPagato
+    const importoGiaVersato = Number(payment.importoPagato) || 0;
+    const nuovoImportoPagato = importoGiaVersato + Number(importoPagato);
+    payment.importoPagato = Math.round(nuovoImportoPagato * 100) / 100;
+    
     payment.dataPagamento = Timestamp.fromDate(new Date(dataPagamento || Date.now()));
     payment.metodoPagamento = metodoPagamento || 'contante';
-    payment.stato = Number(importoPagato) >= Number(payment.importo) ? 'pagato' : 'parziale';
+    
+    // FIX: Stato pagamento coerente
+    if (payment.importoPagato >= Number(payment.importo)) {
+      payment.stato = 'pagato';
+    } else if (payment.importoPagato > 0) {
+      payment.stato = 'parziale';
+    } else {
+      payment.stato = 'atteso';
+    }
+    
     if (note) payment.note = note;
     if (cashMovementId) payment.cashMovementId = cashMovementId;
 
@@ -777,9 +790,9 @@ router.post('/:scheduleId/remodulate', async (req: Request, res: Response) => {
       });
     }
 
-    // Trova pagamenti non ancora pagati
+    // Trova pagamenti non completamente pagati (inclusi parziali)
     const pagamentiNonPagati = schedule.payments.filter((p: any) => 
-      p.stato === 'atteso' || p.stato === 'scaduto'
+      p.stato === 'atteso' || p.stato === 'scaduto' || p.stato === 'parziale'
     );
 
     if (pagamentiNonPagati.length === 0) {
@@ -811,76 +824,94 @@ router.post('/:scheduleId/remodulate', async (req: Request, res: Response) => {
       });
     }
 
-    // Rimodula i pagamenti non pagati
+    // Rimodula i pagamenti non completamente pagati
     const updatedPayments = schedule.payments.map((p: any) => {
-      if (p.stato !== 'atteso' && p.stato !== 'scaduto') {
-        return p; // Mantieni pagamenti già effettuati
+      if (p.stato === 'pagato') {
+        return p; // Mantieni pagamenti già completati
       }
-      return { ...p }; // Clone per modifica
+      return { ...p }; // Clone per modifica (atteso, scaduto, parziale)
     });
 
     if (strategy === 'equal') {
-      // Distribuisci equamente tra tutti i pagamenti non pagati
+      // FIX: Distribuisci equamente il RESIDUO da incassare tra tutte le rate non completamente pagate
+      // Per rate parziali: nuovo importo = importoPagato + quotaResiduo
       const numRateNonPagate = pagamentiNonPagati.length;
-      const importoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
+      const quotaResiduoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
       let distribuito = 0;
       let rateProcessate = 0;
       
       for (let i = 0; i < updatedPayments.length; i++) {
         const p = updatedPayments[i];
-        if (p.stato === 'atteso' || p.stato === 'scaduto') {
+        if (p.stato !== 'pagato') {
           rateProcessate++;
+          const importoGiaVersato = Number(p.importoPagato) || 0;
+          
           if (rateProcessate === numRateNonPagate) {
             // Ultima rata: assegna tutto il residuo rimanente
-            p.importo = Math.round((residuo - distribuito) * 100) / 100;
+            const quotaResiduoFinale = Math.round((residuo - distribuito) * 100) / 100;
+            p.importo = Math.round((importoGiaVersato + quotaResiduoFinale) * 100) / 100;
+            distribuito += quotaResiduoFinale;
           } else {
-            p.importo = importoPerRata;
+            p.importo = Math.round((importoGiaVersato + quotaResiduoPerRata) * 100) / 100;
+            distribuito += quotaResiduoPerRata;
           }
-          distribuito += p.importo;
           p.note = `${p.note || ''} (rimodulato)`.trim();
         }
       }
     } else {
       // 'last' strategy: modifica solo l'ultima rata non pagata
-      // Se il residuo è minore della somma delle altre rate, usa strategia equal come fallback
-      const lastNonPaidIndex = updatedPayments.findLastIndex((p: any) => 
-        p.stato === 'atteso' || p.stato === 'scaduto'
-      );
+      // FIX: Sostituito findLastIndex con loop backward (compatibile Node 16+)
+      let lastNonPaidIndex = -1;
+      for (let i = updatedPayments.length - 1; i >= 0; i--) {
+        if (updatedPayments[i].stato !== 'pagato') {
+          lastNonPaidIndex = i;
+          break;
+        }
+      }
       
       if (lastNonPaidIndex !== -1) {
-        // Calcola quanto è già previsto nelle altre rate non pagate
-        let altrePreviste = 0;
+        // FIX: Calcola la somma dei RESIDUI (importo - importoPagato) delle altre rate
+        let altriResidui = 0;
         for (let i = 0; i < updatedPayments.length; i++) {
-          if (i !== lastNonPaidIndex && (updatedPayments[i].stato === 'atteso' || updatedPayments[i].stato === 'scaduto')) {
-            altrePreviste += Number(updatedPayments[i].importo) || 0;
+          if (i !== lastNonPaidIndex && updatedPayments[i].stato !== 'pagato') {
+            const importoRata = Number(updatedPayments[i].importo) || 0;
+            const pagatoRata = Number(updatedPayments[i].importoPagato) || 0;
+            altriResidui += Math.max(0, importoRata - pagatoRata);
           }
         }
         
-        const nuovoImportoUltimaRata = Math.round((residuo - altrePreviste) * 100) / 100;
+        // Residuo da assegnare all'ultima rata
+        const residuoUltimaRata = Math.round((residuo - altriResidui) * 100) / 100;
+        const importoGiaVersatoUltima = Number(updatedPayments[lastNonPaidIndex].importoPagato) || 0;
+        const nuovoImportoUltimaRata = Math.round((importoGiaVersatoUltima + residuoUltimaRata) * 100) / 100;
         
-        if (nuovoImportoUltimaRata > 0) {
+        if (residuoUltimaRata > 0) {
           // Caso normale: ultima rata positiva
           updatedPayments[lastNonPaidIndex].importo = nuovoImportoUltimaRata;
           updatedPayments[lastNonPaidIndex].note = `${updatedPayments[lastNonPaidIndex].note || ''} (rimodulato)`.trim();
         } else {
-          // Caso edge: residuo < somma altre rate
+          // Caso edge: residuo < somma altri residui
           // Fallback a strategia equal per mantenere invarianti
           const numRateNonPagate = pagamentiNonPagati.length;
-          const importoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
+          const quotaResiduoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
           let distribuito = 0;
           let rateProcessate = 0;
           
           for (let i = 0; i < updatedPayments.length; i++) {
             const p = updatedPayments[i];
-            if (p.stato === 'atteso' || p.stato === 'scaduto') {
+            if (p.stato !== 'pagato') {
               rateProcessate++;
+              const importoGiaVersato = Number(p.importoPagato) || 0;
+              
               if (rateProcessate === numRateNonPagate) {
                 // Ultima rata: assegna tutto il residuo rimanente
-                p.importo = Math.max(0, Math.round((residuo - distribuito) * 100) / 100);
+                const quotaResiduoFinale = Math.max(0, Math.round((residuo - distribuito) * 100) / 100);
+                p.importo = Math.round((importoGiaVersato + quotaResiduoFinale) * 100) / 100;
+                distribuito += quotaResiduoFinale;
               } else {
-                p.importo = importoPerRata;
+                p.importo = Math.round((importoGiaVersato + quotaResiduoPerRata) * 100) / 100;
+                distribuito += quotaResiduoPerRata;
               }
-              distribuito += p.importo;
               p.note = `${p.note || ''} (rimodulato - fallback equal)`.trim();
             }
           }
@@ -931,7 +962,7 @@ router.post('/:scheduleId/remodulate', async (req: Request, res: Response) => {
         totale: totaleOriginale,
         totalePagato: nuovoTotalePagato,
         saldoResiduo: nuovoSaldoResiduo,
-        payments: updatedPayments.filter((p: any) => p.stato === 'atteso' || p.stato === 'scaduto'),
+        payments: updatedPayments.filter((p: any) => p.stato !== 'pagato'),
       }
     });
   } catch (error) {
@@ -988,21 +1019,21 @@ router.post('/:scheduleId/payments', async (req: Request, res: Response) => {
       importo: Number(importo),
       dataScadenza: Timestamp.fromDate(new Date(dataScadenza)),
       stato: 'atteso' as const,
-      descrizione: descrizione || `${tipo} aggiunto manualmente`
+      note: descrizione || `${tipo} aggiunto manualmente`
     };
 
     // Aggiungi pagamento
     const updatedPayments = [...schedule.payments, newPayment];
 
-    // Ricalcola totale
-    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    // FIX: NON ricalcolare totale - è immutabile (valore contratto)
+    // Solo saldoResiduo viene ricalcolato
+    const totaleOriginale = Number(schedule.totale) || 0;
     const totalePagato = schedule.totalePagato || 0;
-    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+    const nuovoSaldoResiduo = Math.max(0, totaleOriginale - totalePagato);
 
-    // Update Firestore
+    // Update Firestore - totale NON viene modificato
     await db.collection('paymentSchedules').doc(scheduleId).update({
       payments: updatedPayments,
-      totale: nuovoTotale,
       saldoResiduo: nuovoSaldoResiduo,
       updatedAt: Timestamp.now(),
     });
@@ -1029,7 +1060,7 @@ router.post('/:scheduleId/payments', async (req: Request, res: Response) => {
       data: {
         scheduleId,
         payment: newPayment,
-        totale: nuovoTotale,
+        totale: totaleOriginale,
         saldoResiduo: nuovoSaldoResiduo,
       }
     });
@@ -1091,18 +1122,17 @@ router.patch('/:scheduleId/payments/:paymentId', async (req: Request, res: Respo
       ...(tipo && { tipo }),
       ...(importo && { importo: Number(importo) }),
       ...(dataScadenza && { dataScadenza: Timestamp.fromDate(new Date(dataScadenza)) }),
-      ...(descrizione && { descrizione })
+      ...(descrizione && { note: descrizione })
     };
 
-    // Ricalcola totale
-    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    // FIX: NON ricalcolare totale - è immutabile (valore contratto)
+    const totaleOriginale = Number(schedule.totale) || 0;
     const totalePagato = schedule.totalePagato || 0;
-    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+    const nuovoSaldoResiduo = Math.max(0, totaleOriginale - totalePagato);
 
-    // Update Firestore
+    // Update Firestore - totale NON viene modificato
     await db.collection('paymentSchedules').doc(scheduleId).update({
       payments: updatedPayments,
-      totale: nuovoTotale,
       saldoResiduo: nuovoSaldoResiduo,
       updatedAt: Timestamp.now(),
     });
@@ -1129,7 +1159,7 @@ router.patch('/:scheduleId/payments/:paymentId', async (req: Request, res: Respo
       data: {
         scheduleId,
         payment: updatedPayments[paymentIndex],
-        totale: nuovoTotale,
+        totale: totaleOriginale,
         saldoResiduo: nuovoSaldoResiduo,
       }
     });
@@ -1173,8 +1203,8 @@ router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Resp
       });
     }
 
-    // Blocca eliminazione se già pagato
-    if (payment.stato === 'pagato' || payment.importoPagato > 0) {
+    // Blocca eliminazione se già pagato (anche parzialmente)
+    if (payment.stato === 'pagato' || payment.stato === 'parziale' || (payment.importoPagato && payment.importoPagato > 0)) {
       return res.status(400).json({
         error: 'Eliminazione non consentita',
         message: 'Impossibile eliminare un pagamento già registrato o parzialmente pagato'
@@ -1184,15 +1214,14 @@ router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Resp
     // Rimuovi pagamento
     const updatedPayments = schedule.payments.filter((p: any) => p.id !== paymentId);
 
-    // Ricalcola totale
-    const nuovoTotale = updatedPayments.reduce((sum: number, p: any) => sum + p.importo, 0);
+    // FIX: NON ricalcolare totale - è immutabile (valore contratto)
+    const totaleOriginale = Number(schedule.totale) || 0;
     const totalePagato = schedule.totalePagato || 0;
-    const nuovoSaldoResiduo = nuovoTotale - totalePagato;
+    const nuovoSaldoResiduo = Math.max(0, totaleOriginale - totalePagato);
 
-    // Update Firestore
+    // Update Firestore - totale NON viene modificato
     await db.collection('paymentSchedules').doc(scheduleId).update({
       payments: updatedPayments,
-      totale: nuovoTotale,
       saldoResiduo: nuovoSaldoResiduo,
       updatedAt: Timestamp.now(),
     });
@@ -1218,7 +1247,7 @@ router.delete('/:scheduleId/payments/:paymentId', async (req: Request, res: Resp
       message: 'Rata eliminata con successo',
       data: {
         scheduleId,
-        totale: nuovoTotale,
+        totale: totaleOriginale,
         saldoResiduo: nuovoSaldoResiduo,
       }
     });
@@ -1302,14 +1331,18 @@ router.post('/send-reminders', async (req: Request, res: Response) => {
       const nowRome = DateTime.now().setZone('Europe/Rome');
       
       for (const payment of schedule.payments) {
-        // Skip se già pagato
-        if (payment.stato === 'pagato' || payment.stato === 'parziale') {
+        // Skip SOLO se completamente pagato - parziale riceve reminder
+        if (payment.stato === 'pagato') {
           continue;
         }
         
-        // Skip se reminder già inviato
+        // Permetti re-send se sono passati 7+ giorni dall'ultimo reminder
         if (payment.reminderSentAt) {
-          continue;
+          const lastReminderDate = payment.reminderSentAt.toDate ? payment.reminderSentAt.toDate() : new Date(payment.reminderSentAt);
+          const daysSinceReminder = DateTime.now().setZone('Europe/Rome').diff(DateTime.fromJSDate(lastReminderDate).setZone('Europe/Rome'), 'days').days;
+          if (daysSinceReminder < 7) {
+            continue; // Skip se ultimo reminder inviato meno di 7 giorni fa
+          }
         }
         
         // Converti dataScadenza a Date
