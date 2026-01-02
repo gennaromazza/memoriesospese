@@ -432,9 +432,13 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
       metodoPagamento = 'contante',
       note,
       sendEmail = false,
+      clienteId = null,
+      createNewCliente = false,
+      clienteNome = '',
+      clienteCognome = '',
     } = req.body;
 
-    console.log('🛍️ Creazione ordine walk-in da:', req.user?.email, { nomeCliente, totale, acconto });
+    console.log('🛍️ Creazione ordine walk-in da:', req.user?.email, { nomeCliente, totale, acconto, clienteId, createNewCliente });
 
     // Validazione
     if (!nomeCliente || !prodotti || prodotti.length === 0 || totale <= 0) {
@@ -452,9 +456,45 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
     const prodottiDescrizione = prodotti
       .map((p: any) => `${p.prodottoNome} x${p.quantita}`)
       .join(', ');
+    
+    // Gestione cliente: crea nuovo o usa esistente
+    let finalClienteId = clienteId;
+    
+    if (createNewCliente && !clienteId) {
+      // Crea nuovo cliente nel database
+      const newClienteData = {
+        nome: clienteNome || nomeCliente.split(' ')[0] || 'N/D',
+        cognome: clienteCognome || nomeCliente.split(' ').slice(1).join(' ') || 'N/D',
+        email: emailCliente ? emailCliente.toLowerCase().trim() : null,
+        whatsapp: telefonoCliente || null,
+        cellulare1: telefonoCliente || null,
+        tags: ['walk-in'],
+        sourceRefs: {
+          bookingIds: [],
+          orderIds: [],
+          galleryIds: [],
+        },
+        lifecycle: {
+          firstContactAt: FieldValue.serverTimestamp(),
+          lastInteractionAt: FieldValue.serverTimestamp(),
+          status: 'cliente',
+        },
+        financials: {
+          totalRevenue: totale,
+          outstandingBalance: saldo,
+          totalOrders: 1,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      
+      const newClienteRef = await db.collection('clienti').add(newClienteData);
+      finalClienteId = newClienteRef.id;
+      console.log('✅ Nuovo cliente creato:', finalClienteId, clienteNome, clienteCognome);
+    }
 
     // Crea ordine
-    const orderData = {
+    const orderData: any = {
       nomeCliente,
       emailCliente: emailCliente || null,
       telefonoCliente: telefonoCliente || null,
@@ -470,9 +510,37 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    
+    // Aggiungi riferimento al cliente se disponibile
+    if (finalClienteId) {
+      orderData.clienteId = finalClienteId;
+    }
 
     const orderRef = await db.collection('orders').add(orderData);
     const orderId = orderRef.id;
+    
+    // Aggiorna cliente esistente con riferimento all'ordine e dati finanziari
+    if (finalClienteId) {
+      try {
+        const updateData: any = {
+          'sourceRefs.orderIds': FieldValue.arrayUnion(orderId),
+          'lifecycle.lastInteractionAt': FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        
+        // Se è un cliente esistente (non appena creato), aggiorna anche i dati finanziari
+        if (clienteId && !createNewCliente) {
+          updateData['financials.totalRevenue'] = FieldValue.increment(totale);
+          updateData['financials.outstandingBalance'] = FieldValue.increment(saldo);
+          updateData['financials.totalOrders'] = FieldValue.increment(1);
+        }
+        
+        await db.collection('clienti').doc(finalClienteId).update(updateData);
+        console.log('✅ Cliente aggiornato con riferimento ordine e finanziari:', finalClienteId);
+      } catch (updateError) {
+        console.log('⚠️ Errore aggiornamento cliente (non bloccante):', updateError);
+      }
+    }
     console.log('✅ Ordine walk-in creato:', orderId);
 
     // Se c'è acconto, crea movimento cassa con schema allineato

@@ -3,11 +3,13 @@
  * Per clienti che si presentano in studio senza prenotazione
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getActiveProducts } from '@/lib/products';
+import { getAllClienti } from '@/lib/clienti';
 import type { Product, OrderItem } from '@shared/booking-types';
+import type { Cliente } from '@shared/clienti-types';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +31,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, User, Plus, Trash2, Package, ShoppingBag, CreditCard, MessageCircle } from 'lucide-react';
+import { Loader2, User, Plus, Trash2, Package, ShoppingBag, CreditCard, MessageCircle, Search, UserPlus, X } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 interface QuickOrderModalProps {
@@ -77,12 +80,72 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
   // Note
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Ricerca clienti esistenti
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+  const [isNewCliente, setIsNewCliente] = useState(false);
+  const [showClientSearch, setShowClientSearch] = useState(true);
 
   // Query prodotti attivi
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products', 'active'],
     queryFn: getActiveProducts,
   });
+  
+  // Query clienti esistenti
+  const { data: clienti = [], isLoading: isLoadingClienti } = useQuery<Cliente[]>({
+    queryKey: ['clienti'],
+    queryFn: getAllClienti,
+    enabled: isOpen,
+  });
+  
+  // Filtra clienti in base alla ricerca
+  const filteredClienti = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase().trim();
+    return clienti.filter(c => {
+      const fullName = `${c.nome} ${c.cognome}`.toLowerCase();
+      const email = (c.email || '').toLowerCase();
+      const phone = c.cellulare1 || c.whatsapp || '';
+      return fullName.includes(query) || email.includes(query) || phone.includes(query);
+    }).slice(0, 8); // Limita a 8 risultati
+  }, [clienti, searchQuery]);
+  
+  // Seleziona cliente esistente
+  const selectCliente = (cliente: Cliente) => {
+    setSelectedClienteId(cliente.id);
+    setNome(cliente.nome);
+    setCognome(cliente.cognome);
+    setEmail(cliente.email || '');
+    setWhatsapp(cliente.whatsapp || cliente.cellulare1 || '');
+    setSearchQuery('');
+    setShowClientSearch(false);
+    setIsNewCliente(false);
+    toast({
+      title: 'Cliente selezionato',
+      description: `${cliente.nome} ${cliente.cognome}`,
+    });
+  };
+  
+  // Passa a nuovo cliente
+  const switchToNewCliente = () => {
+    setSelectedClienteId(null);
+    setIsNewCliente(true);
+    setShowClientSearch(false);
+  };
+  
+  // Reset e torna alla ricerca
+  const resetClienteSelection = () => {
+    setSelectedClienteId(null);
+    setIsNewCliente(false);
+    setShowClientSearch(true);
+    setNome('');
+    setCognome('');
+    setEmail('');
+    setWhatsapp('');
+    setSearchQuery('');
+  };
 
   // Helper: Aggiungi prodotto vuoto
   const addProduct = () => {
@@ -183,6 +246,11 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
       setIsPaidAndDelivered(false);
       setSendEmail(true);
       setNote('');
+      // Reset ricerca clienti
+      setSearchQuery('');
+      setSelectedClienteId(null);
+      setIsNewCliente(false);
+      setShowClientSearch(true);
     }
   }, [isOpen]);
 
@@ -195,6 +263,16 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validazione: deve selezionare un cliente esistente o crearne uno nuovo
+    if (!selectedClienteId && !isNewCliente) {
+      toast({
+        title: 'Cliente richiesto',
+        description: 'Cerca e seleziona un cliente esistente oppure clicca "Nuovo Cliente"',
+        variant: 'destructive',
+      });
+      return;
+    }
     
     if (!nome.trim() || !cognome.trim()) {
       toast({
@@ -293,6 +371,10 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
           metodoPagamento,
           note: note.trim() || null,
           sendEmail: sendEmail && !!email.trim(),
+          clienteId: selectedClienteId || null,
+          createNewCliente: isNewCliente,
+          clienteNome: nome.trim(),
+          clienteCognome: cognome.trim(),
         }),
       });
 
@@ -308,6 +390,9 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['cash-movements'] });
       queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      if (isNewCliente) {
+        queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      }
 
       toast({
         title: 'Ordine creato',
@@ -352,59 +437,161 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Dati Cliente */}
           <div className="space-y-4">
-            <Label className="text-base font-semibold flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Dati Cliente
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Dati Cliente
+              </Label>
+              {(selectedClienteId || isNewCliente) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetClienteSelection}
+                  className="text-gray-500 hover:text-gray-700"
+                  data-testid="button-reset-cliente"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Cambia
+                </Button>
+              )}
+            </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome *</Label>
-                <Input
-                  id="nome"
-                  data-testid="input-nome"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  placeholder="Mario"
-                  required
-                />
+            {/* Ricerca Cliente Esistente */}
+            {showClientSearch && (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cerca cliente per nome, email o telefono..."
+                    className="pl-10"
+                    data-testid="input-search-cliente"
+                  />
+                  {isLoadingClienti && (
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                  )}
+                </div>
+                
+                {/* Risultati ricerca */}
+                {filteredClienti.length > 0 && (
+                  <ScrollArea className="h-48 border rounded-lg">
+                    <div className="p-2 space-y-1">
+                      {filteredClienti.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() => selectCliente(cliente)}
+                          className="w-full text-left p-3 rounded-lg hover:bg-sage-50 transition-colors border border-transparent hover:border-sage-200"
+                          data-testid={`cliente-result-${cliente.id}`}
+                        >
+                          <div className="font-medium text-gray-900">
+                            {cliente.nome} {cliente.cognome}
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-3">
+                            {cliente.email && <span>{cliente.email}</span>}
+                            {(cliente.whatsapp || cliente.cellulare1) && (
+                              <span>{cliente.whatsapp || cliente.cellulare1}</span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+                
+                {/* Pulsante Nuovo Cliente */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={switchToNewCliente}
+                  className="w-full border-dashed border-sage-400 text-sage-700 hover:bg-sage-50"
+                  data-testid="button-new-cliente"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Nuovo Cliente
+                </Button>
+                
+                <p className="text-xs text-gray-500 text-center">
+                  Cerca un cliente esistente o creane uno nuovo
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cognome">Cognome *</Label>
-                <Input
-                  id="cognome"
-                  data-testid="input-cognome"
-                  value={cognome}
-                  onChange={(e) => setCognome(e.target.value)}
-                  placeholder="Rossi"
-                  required
-                />
-              </div>
-            </div>
+            )}
+            
+            {/* Form Dati Cliente (visibile quando cliente selezionato o nuovo) */}
+            {(selectedClienteId || isNewCliente) && (
+              <>
+                {selectedClienteId && (
+                  <div className="bg-sage-50 border border-sage-200 rounded-lg p-3 flex items-center gap-2">
+                    <User className="w-4 h-4 text-sage-600" />
+                    <span className="text-sm font-medium text-sage-700">
+                      Cliente esistente: {nome} {cognome}
+                    </span>
+                  </div>
+                )}
+                
+                {isNewCliente && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700">
+                      Nuovo cliente - verrà aggiunto al database
+                    </span>
+                  </div>
+                )}
+            
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="nome">Nome *</Label>
+                    <Input
+                      id="nome"
+                      data-testid="input-nome"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      placeholder="Mario"
+                      required
+                      disabled={!!selectedClienteId}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cognome">Cognome *</Label>
+                    <Input
+                      id="cognome"
+                      data-testid="input-cognome"
+                      value={cognome}
+                      onChange={(e) => setCognome(e.target.value)}
+                      placeholder="Rossi"
+                      required
+                      disabled={!!selectedClienteId}
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email (per conferma ordine)</Label>
-              <Input
-                id="email"
-                data-testid="input-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="mario.rossi@example.com"
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email (per conferma ordine)</Label>
+                  <Input
+                    id="email"
+                    data-testid="input-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="mario.rossi@example.com"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp">WhatsApp (per notifica)</Label>
-              <Input
-                id="whatsapp"
-                data-testid="input-whatsapp"
-                type="tel"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                placeholder="+39 333 123 4567"
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp">WhatsApp (per notifica)</Label>
+                  <Input
+                    id="whatsapp"
+                    data-testid="input-whatsapp"
+                    type="tel"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    placeholder="+39 333 123 4567"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Prodotti */}
