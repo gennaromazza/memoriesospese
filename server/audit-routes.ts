@@ -769,4 +769,313 @@ async function checkConsultationCalendarSync(): Promise<AuditIssue[]> {
   return issues;
 }
 
+/**
+ * GET /api/audit/payment-discrepancies
+ * Trova discrepanze tra totale preventivi e piano pagamenti
+ */
+router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    console.log('🔍 Analyzing payment discrepancies...');
+    
+    interface DiscrepancyReport {
+      jobId: string;
+      jobSource: 'import' | 'new' | 'unknown';
+      clientName: string;
+      clientEmail: string;
+      eventDate: string | null;
+      // Preventivi
+      quoteIds: string[];
+      quoteTotale: number;
+      quoteCount: number;
+      signedQuoteCount: number;
+      // Payment Schedule
+      scheduleId: string | null;
+      scheduleTotale: number;
+      scheduleTotalePagato: number;
+      scheduleSaldoResiduo: number;
+      scheduleRateCount: number;
+      scheduleRatePagate: number;
+      // Calcoli
+      sumOfRates: number;
+      discrepancy: number;
+      discrepancyType: 'quote_vs_schedule' | 'schedule_vs_rates' | 'both' | 'none';
+      issues: string[];
+    }
+    
+    const reports: DiscrepancyReport[] = [];
+    
+    // 1. Recupera tutti i job non deleted
+    const jobsSnap = await db.collection('jobs')
+      .where('deleted', '!=', true)
+      .get();
+    
+    console.log(`📊 Analyzing ${jobsSnap.docs.length} jobs...`);
+    
+    for (const jobDoc of jobsSnap.docs) {
+      const job = jobDoc.data();
+      const jobId = jobDoc.id;
+      const issues: string[] = [];
+      
+      // Determina source del job
+      let jobSource: 'import' | 'new' | 'unknown' = 'unknown';
+      if (job.source === 'import' || job.importedAt) {
+        jobSource = 'import';
+      } else if (job.createdAt) {
+        jobSource = 'new';
+      }
+      
+      // 2. Recupera preventivi del job
+      const quotesSnap = await db.collection('quotes')
+        .where('jobId', '==', jobId)
+        .get();
+      
+      let quoteTotale = 0;
+      let signedQuoteCount = 0;
+      const quoteIds: string[] = [];
+      
+      for (const quoteDoc of quotesSnap.docs) {
+        const quote = quoteDoc.data();
+        quoteIds.push(quoteDoc.id);
+        
+        // Usa il totale del preventivo firmato se esiste
+        if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
+          signedQuoteCount++;
+          quoteTotale += Number(quote.totale || quote.total || 0);
+        }
+      }
+      
+      // Se non ci sono preventivi firmati, usa il totale di tutti i preventivi
+      if (signedQuoteCount === 0 && quotesSnap.docs.length > 0) {
+        for (const quoteDoc of quotesSnap.docs) {
+          const quote = quoteDoc.data();
+          quoteTotale += Number(quote.totale || quote.total || 0);
+        }
+      }
+      
+      // 3. Recupera payment schedules del job
+      const schedulesSnap = await db.collection('paymentSchedules')
+        .where('jobId', '==', jobId)
+        .get();
+      
+      let scheduleId: string | null = null;
+      let scheduleTotale = 0;
+      let scheduleTotalePagato = 0;
+      let scheduleSaldoResiduo = 0;
+      let scheduleRateCount = 0;
+      let scheduleRatePagate = 0;
+      let sumOfRates = 0;
+      
+      if (!schedulesSnap.empty) {
+        // Prendi il primo schedule (dovrebbe essercene solo uno per job)
+        const scheduleDoc = schedulesSnap.docs[0];
+        const schedule = scheduleDoc.data();
+        scheduleId = scheduleDoc.id;
+        
+        scheduleTotale = Number(schedule.totale || 0);
+        scheduleTotalePagato = Number(schedule.totalePagato || 0);
+        scheduleSaldoResiduo = Number(schedule.saldoResiduo || 0);
+        
+        // Calcola somma delle rate e conta rate pagate
+        if (Array.isArray(schedule.payments)) {
+          scheduleRateCount = schedule.payments.length;
+          for (const payment of schedule.payments) {
+            sumOfRates += Number(payment.importo || 0);
+            if (payment.stato === 'pagato') {
+              scheduleRatePagate++;
+            }
+          }
+        }
+      }
+      
+      // 4. Analizza discrepanze
+      let discrepancyType: 'quote_vs_schedule' | 'schedule_vs_rates' | 'both' | 'none' = 'none';
+      let discrepancy = 0;
+      
+      // Discrepanza tra totale preventivo e totale schedule
+      if (scheduleId && quoteTotale > 0) {
+        const quoteVsSchedule = Math.abs(quoteTotale - scheduleTotale);
+        if (quoteVsSchedule > 0.01) { // Tolleranza 1 centesimo
+          discrepancy = quoteVsSchedule;
+          discrepancyType = 'quote_vs_schedule';
+          issues.push(`Totale preventivo (€${quoteTotale.toFixed(2)}) ≠ Totale piano (€${scheduleTotale.toFixed(2)}) - Diff: €${quoteVsSchedule.toFixed(2)}`);
+        }
+      }
+      
+      // Discrepanza tra totale schedule e somma rate
+      if (scheduleId && scheduleRateCount > 0) {
+        const scheduleVsRates = Math.abs(scheduleTotale - sumOfRates);
+        if (scheduleVsRates > 0.01) {
+          if (discrepancyType !== 'none') {
+            discrepancyType = 'both';
+          } else {
+            discrepancyType = 'schedule_vs_rates';
+            discrepancy = scheduleVsRates;
+          }
+          issues.push(`Totale piano (€${scheduleTotale.toFixed(2)}) ≠ Somma rate (€${sumOfRates.toFixed(2)}) - Diff: €${scheduleVsRates.toFixed(2)}`);
+        }
+      }
+      
+      // Verifica invariante: saldoResiduo = totale - totalePagato
+      if (scheduleId) {
+        const expectedSaldo = Math.max(0, scheduleTotale - scheduleTotalePagato);
+        const saldoDiff = Math.abs(expectedSaldo - scheduleSaldoResiduo);
+        if (saldoDiff > 0.01) {
+          issues.push(`Saldo residuo errato: atteso €${expectedSaldo.toFixed(2)}, trovato €${scheduleSaldoResiduo.toFixed(2)}`);
+        }
+      }
+      
+      // Aggiungi report solo se ci sono discrepanze o è il job specifico richiesto
+      if (issues.length > 0 || jobId === 'h2rc66suq2nam3p9ooeswg') {
+        // Recupera info cliente
+        let clientName = job.clientName || job.nomeSposoCognome || 'N/A';
+        let clientEmail = job.clientEmail || '';
+        
+        if (job.clienteId) {
+          try {
+            const clientDoc = await db.collection('clienti').doc(job.clienteId).get();
+            if (clientDoc.exists) {
+              const client = clientDoc.data();
+              clientName = client?.nome || client?.name || clientName;
+              clientEmail = client?.email || clientEmail;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        
+        // Formatta data evento
+        let eventDate: string | null = null;
+        if (job.dataEvento) {
+          try {
+            const d = job.dataEvento.toDate ? job.dataEvento.toDate() : new Date(job.dataEvento);
+            eventDate = d.toISOString().split('T')[0];
+          } catch (e) {
+            eventDate = String(job.dataEvento);
+          }
+        }
+        
+        reports.push({
+          jobId,
+          jobSource,
+          clientName,
+          clientEmail,
+          eventDate,
+          quoteIds,
+          quoteTotale,
+          quoteCount: quotesSnap.docs.length,
+          signedQuoteCount,
+          scheduleId,
+          scheduleTotale,
+          scheduleTotalePagato,
+          scheduleSaldoResiduo,
+          scheduleRateCount,
+          scheduleRatePagate,
+          sumOfRates,
+          discrepancy,
+          discrepancyType,
+          issues,
+        });
+      }
+    }
+    
+    // Ordina per discrepanza decrescente
+    reports.sort((a, b) => b.discrepancy - a.discrepancy);
+    
+    // Statistiche
+    const stats = {
+      totalJobs: jobsSnap.docs.length,
+      jobsWithDiscrepancies: reports.length,
+      importedJobsWithIssues: reports.filter(r => r.jobSource === 'import').length,
+      newJobsWithIssues: reports.filter(r => r.jobSource === 'new').length,
+      totalDiscrepancyAmount: reports.reduce((sum, r) => sum + r.discrepancy, 0),
+      byType: {
+        quote_vs_schedule: reports.filter(r => r.discrepancyType === 'quote_vs_schedule').length,
+        schedule_vs_rates: reports.filter(r => r.discrepancyType === 'schedule_vs_rates').length,
+        both: reports.filter(r => r.discrepancyType === 'both').length,
+      }
+    };
+    
+    console.log(`✅ Found ${reports.length} jobs with payment discrepancies`);
+    
+    res.json({
+      success: true,
+      stats,
+      reports,
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Payment discrepancy audit failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/audit/job-payment-details/:jobId
+ * Dettaglio completo di un singolo job per analisi pagamenti
+ */
+router.get('/job-payment-details/:jobId', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  const { jobId } = req.params;
+  
+  try {
+    // Job
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    const job = jobDoc.data();
+    
+    // Cliente
+    let client = null;
+    if (job?.clienteId) {
+      const clientDoc = await db.collection('clienti').doc(job.clienteId).get();
+      if (clientDoc.exists) {
+        client = { id: clientDoc.id, ...clientDoc.data() };
+      }
+    }
+    
+    // Preventivi
+    const quotesSnap = await db.collection('quotes').where('jobId', '==', jobId).get();
+    const quotes = quotesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Ordini
+    const ordersSnap = await db.collection('orders').where('jobId', '==', jobId).get();
+    const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Payment Schedules
+    const schedulesSnap = await db.collection('paymentSchedules').where('jobId', '==', jobId).get();
+    const schedules = schedulesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Cash Movements collegati
+    const cashSnap = await db.collection('cashMovements').where('jobId', '==', jobId).get();
+    const cashMovements = cashSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // Legacy financials dal job
+    const legacyFinancials = {
+      totalePreventivato: job?.totalePreventivato,
+      totalePagato: job?.totalePagato,
+      saldoResiduo: job?.saldoResiduo,
+      totaleOrdini: job?.totaleOrdini,
+      accontoVersato: job?.accontoVersato,
+    };
+    
+    res.json({
+      success: true,
+      job: { id: jobId, ...job },
+      client,
+      quotes,
+      orders,
+      schedules,
+      cashMovements,
+      legacyFinancials,
+    });
+    
+  } catch (error: any) {
+    console.error(`❌ Failed to get job payment details for ${jobId}:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
