@@ -837,10 +837,24 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
         const quote = quoteDoc.data();
         quoteIds.push(quoteDoc.id);
         
+        // Il totale può essere in diversi campi a seconda del tipo di preventivo
+        // L'UI usa: totalAfterDiscount ?? totaleBase per moduli fissi
+        // Oppure: totaleSelezionato ?? totalAfterDiscount ?? totaleBase per moduli personalizzati
+        const getQuoteTotal = (q: any): number => {
+          return Number(
+            q.totalAfterDiscount ?? 
+            q.totaleBase ?? 
+            q.totaleSelezionato ?? 
+            q.totale ?? 
+            q.total ?? 
+            0
+          );
+        };
+        
         // Usa il totale del preventivo firmato se esiste
         if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
           signedQuoteCount++;
-          quoteTotale += Number(quote.totale || quote.total || 0);
+          quoteTotale += getQuoteTotal(quote);
         }
       }
       
@@ -848,7 +862,17 @@ router.get('/payment-discrepancies', authenticateFirebase, requireAdmin, async (
       if (signedQuoteCount === 0 && quotesSnap.docs.length > 0) {
         for (const quoteDoc of quotesSnap.docs) {
           const quote = quoteDoc.data();
-          quoteTotale += Number(quote.totale || quote.total || 0);
+          const getQuoteTotal = (q: any): number => {
+            return Number(
+              q.totalAfterDiscount ?? 
+              q.totaleBase ?? 
+              q.totaleSelezionato ?? 
+              q.totale ?? 
+              q.total ?? 
+              0
+            );
+          };
+          quoteTotale += getQuoteTotal(quote);
         }
       }
       
@@ -1133,10 +1157,21 @@ router.post('/fix-schedule-total/:jobId', authenticateFirebase, requireAdmin, as
     let quoteTotale = 0;
     let signedQuote: any = null;
     
+    const getQuoteTotal = (q: any): number => {
+      return Number(
+        q.totalAfterDiscount ?? 
+        q.totaleBase ?? 
+        q.totaleSelezionato ?? 
+        q.totale ?? 
+        q.total ?? 
+        0
+      );
+    };
+    
     for (const quoteDoc of quotesSnap.docs) {
       const quote = quoteDoc.data();
       if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
-        quoteTotale = Number(quote.totale || quote.total || 0);
+        quoteTotale = getQuoteTotal(quote);
         signedQuote = { id: quoteDoc.id, ...quote };
         break;
       }
@@ -1145,7 +1180,7 @@ router.post('/fix-schedule-total/:jobId', authenticateFirebase, requireAdmin, as
     // Se nessun preventivo firmato, usa il primo preventivo o i campi legacy
     if (quoteTotale === 0 && quotesSnap.docs.length > 0) {
       const firstQuote = quotesSnap.docs[0].data();
-      quoteTotale = Number(firstQuote.totale || firstQuote.total || 0);
+      quoteTotale = getQuoteTotal(firstQuote);
     }
     
     // Fallback ai campi legacy del job
@@ -1308,11 +1343,22 @@ router.post('/fix-all-discrepancies', authenticateFirebase, requireAdmin, async 
         .where('jobId', '==', jobId)
         .get();
       
+      const getQuoteTotal = (q: any): number => {
+        return Number(
+          q.totalAfterDiscount ?? 
+          q.totaleBase ?? 
+          q.totaleSelezionato ?? 
+          q.totale ?? 
+          q.total ?? 
+          0
+        );
+      };
+      
       let quoteTotale = 0;
       for (const quoteDoc of quotesSnap.docs) {
         const quote = quoteDoc.data();
         if (quote.status === 'signed' || quote.signedAt || quote.signatureData) {
-          quoteTotale = Number(quote.totale || quote.total || 0);
+          quoteTotale = getQuoteTotal(quote);
           break;
         }
       }
@@ -1320,7 +1366,7 @@ router.post('/fix-all-discrepancies', authenticateFirebase, requireAdmin, async 
       // Fallback a primo preventivo o job legacy
       if (quoteTotale === 0) {
         if (quotesSnap.docs.length > 0) {
-          quoteTotale = Number(quotesSnap.docs[0].data().totale || 0);
+          quoteTotale = getQuoteTotal(quotesSnap.docs[0].data());
         } else {
           const jobDoc = await db.collection('jobs').doc(jobId).get();
           if (jobDoc.exists) {
