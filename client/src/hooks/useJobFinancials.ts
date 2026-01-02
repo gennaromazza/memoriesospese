@@ -1,12 +1,15 @@
 /**
  * useJobFinancials Hook
- * Calcola dati finanziari del job in real-time da payment schedules e costi
+ * Calcola dati finanziari del job in real-time da payment schedules, quote e costi
  * GESTISCE DUPLICATI: fetcha TUTTI gli schedules del job e aggrega i totali
+ * FIX: Calcola totalePreventivato direttamente dalle quote firmate per coerenza
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { getPaymentSchedulesForJob } from '@/lib/payment-schedules';
+import { getQuotesForJob, calculateQuoteTotalForPayments } from '@/lib/quotes';
 import type { Job } from '@shared/jobs-types';
+import type { Quote } from '@shared/quotes-types';
 
 interface JobFinancialsData {
   totalePreventivato: number;
@@ -20,6 +23,7 @@ interface JobFinancialsData {
 /**
  * Hook per calcolare i dati finanziari del job in tempo reale
  * Fetcha TUTTI i payment schedules e aggrega i totali per gestire duplicati
+ * FIX: Calcola totalePreventivato direttamente dalle quote per evitare discrepanze
  */
 export function useJobFinancials(job: Job | null | undefined): JobFinancialsData {
   // Fetch TUTTI i payment schedules del job (gestisce duplicati)
@@ -29,6 +33,14 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     queryFn: () => getPaymentSchedulesForJob(job!.id),
     enabled: !!job?.id,
     staleTime: 10000, // 10 secondi - refresh frequente per vedere pagamenti aggiornati
+  });
+
+  // FIX: Fetch quotes per calcolare totalePreventivato corretto (con sconti applicati)
+  const { data: quotes, isLoading: quotesLoading } = useQuery({
+    queryKey: ['quotes', 'financials', job?.id],
+    queryFn: () => getQuotesForJob(job!.id),
+    enabled: !!job?.id,
+    staleTime: 30000, // 30 secondi - quote cambiano meno frequentemente
   });
 
   if (!job) {
@@ -42,8 +54,8 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     };
   }
 
-  // Durante caricamento schedules, restituisci valori da job snapshot come fallback
-  if (scheduleLoading) {
+  // Durante caricamento, restituisci valori da job snapshot come fallback
+  if (scheduleLoading || quotesLoading) {
     return {
       totalePreventivato: job.financials?.totalePreventivato || 0,
       totalePagato: job.financials?.totalePagato || 0, // Fallback a snapshot
@@ -54,8 +66,22 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     };
   }
 
-  // 1. Totale preventivato (da job snapshot - aggiornato da backend quando viene creato preventivo)
-  const totalePreventivato = job.financials?.totalePreventivato || 0;
+  // 1. FIX: Calcola totale preventivato DIRETTAMENTE dalle quote firmate
+  // Questo assicura che gli sconti siano sempre considerati correttamente
+  // Usa calculateQuoteTotalForPayments che gestisce correttamente:
+  // - Quote fisse: totalAfterDiscount (prezzo netto con sconto)
+  // - Quote variabili firmate: totaleSelezionato (include scelte cliente)
+  // - Quote variabili non firmate: solo prodotti obbligatori
+  const signedQuotes = (quotes || []).filter((q: Quote) => q.status === 'firmato');
+  const quotesTotalPreventivato = signedQuotes.reduce(
+    (sum: number, q: Quote) => sum + calculateQuoteTotalForPayments(q), 
+    0
+  );
+  
+  // Usa il totale calcolato dalle quote se disponibile, altrimenti fallback a job.financials
+  const totalePreventivato = quotesTotalPreventivato > 0 
+    ? quotesTotalPreventivato 
+    : (job.financials?.totalePreventivato || 0);
 
   // 2. Total pagato - Prima calcola da payment schedules, poi fallback a job.financials
   // Somma tutti i pagamenti con importoPagato > 0 da tutti gli schedules

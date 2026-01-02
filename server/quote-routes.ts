@@ -1009,8 +1009,9 @@ router.delete("/:id", async (req: Request, res: Response) => {
         const jobData = jobDoc.data();
 
         // Calcola nuovo totale preventivato sottraendo il quote eliminato
+        // FIX: Usa totalAfterDiscount (netto con sconto) invece di totaleBase (lordo)
         const currentTotale = jobData.financials?.totalePreventivato || 0;
-        const quoteTotale = quote.totaleBase || 0;
+        const quoteTotale = quote.totaleSelezionato || quote.totalAfterDiscount || quote.totaleBase || 0;
         const newTotale = Math.max(0, currentTotale - quoteTotale);
 
         transaction.update(jobRef, {
