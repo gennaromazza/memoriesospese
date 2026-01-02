@@ -27,6 +27,8 @@ import BookingIndex from "./pages/BookingIndex";
 import BookingPage from "./pages/BookingPage";
 import QuotePortal from "./pages/QuotePortal";
 import Privacy from "./pages/Privacy";
+import CookiePolicy from "./pages/CookiePolicy";
+import GdprRequest from "./pages/GdprRequest";
 import Terms from "./pages/Terms";
 import ConsultationIndex from "./pages/ConsultationIndex";
 import ConsultationTemplates from "./pages/ConsultationTemplates";
@@ -38,6 +40,7 @@ import RequestPassword from "./pages/RequestPassword";
 import PasswordResult from "./pages/PasswordResult";
 import NotFound from "./pages/NotFound";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
+import CookieBanner from "./components/CookieBanner";
 
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
@@ -104,6 +107,8 @@ function AppRoutes() {
         <Route path="/accesso-galleria" component={GalleryAccessPage} />
 
         <Route path="/privacy" component={Privacy} />
+        <Route path="/cookie-policy" component={CookiePolicy} />
+        <Route path="/gdpr" component={GdprRequest} />
         <Route path="/terms" component={Terms} />
 
         {/* Booking pubblico */}
@@ -180,6 +185,7 @@ function App() {
                 <Toaster />
                 <AppRoutes />
                 <ProfileImageWelcomeProvider />
+                <CookieBanner />
                 {import.meta.env.MODE === "development" && (
                   <Suspense fallback={null}>
                     <PathDebugInfo />

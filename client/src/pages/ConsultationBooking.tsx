@@ -16,7 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { useTemplate, useAvailableSlots, useCreateConsultation } from '@/lib/consultations';
 import { useParams, Link, useLocation } from 'wouter';
-import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2, Shield } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { createUrl } from '@/lib/basePath';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -68,6 +70,7 @@ export default function ConsultationBooking() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
   const [isCheckingPending, setIsCheckingPending] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   // Debounce timer per evitare chiamate API troppo frequenti
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -136,6 +139,15 @@ export default function ConsultationBooking() {
 
   const submitConsultation = async () => {
     if (!selectedSlot || !template || !selectedDate) return;
+    
+    if (!privacyConsent) {
+      toast({
+        variant: 'destructive',
+        title: 'Consenso obbligatorio',
+        description: 'Devi accettare l\'informativa sulla privacy per procedere.',
+      });
+      return;
+    }
 
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -207,6 +219,7 @@ export default function ConsultationBooking() {
   const canProceedStep2 = clienteData.nome && clienteData.cognome && clienteData.email;
 
   const canProceedStep3 = () => {
+    if (!privacyConsent) return false;
     if (!template?.jobDataFields) return true;
 
     for (const field of template.jobDataFields) {
@@ -576,6 +589,44 @@ export default function ConsultationBooking() {
                     </div>
                   ))
                 )}
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border mt-4">
+                <Checkbox
+                  id="privacy-consent"
+                  checked={privacyConsent}
+                  onCheckedChange={(checked) => setPrivacyConsent(!!checked)}
+                  data-testid="checkbox-privacy-consent"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="privacy-consent"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-blue-gray"
+                  >
+                    Acconsento al trattamento dei dati personali *
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Ho letto e accetto la{" "}
+                    <Link 
+                      href={createUrl("/privacy")} 
+                      className="text-sage hover:underline"
+                      target="_blank"
+                    >
+                      Privacy Policy
+                    </Link>{" "}
+                    e la{" "}
+                    <Link 
+                      href={createUrl("/cookie-policy")} 
+                      className="text-sage hover:underline"
+                      target="_blank"
+                    >
+                      Cookie Policy
+                    </Link>
+                    . I miei dati saranno trattati secondo il GDPR.
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>

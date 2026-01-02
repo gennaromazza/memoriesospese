@@ -23,6 +23,7 @@ import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEm
 import reminderRoutes from './reminder-routes.js';
 import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
+import gdprRoutes from './gdpr-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
@@ -136,6 +137,9 @@ async function startServer() {
 
     // Audit routes
     app.use('/api/audit', auditRoutes);
+    console.log('✓ Audit routes');
+
+    app.use('/api/gdpr', gdprRoutes);
     console.log('🔍 Audit API routes mounted at /api/audit');
 
     // Sitemap dinamica

@@ -36,6 +36,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Link } from "wouter";
+import { createUrl } from "@/lib/basePath";
 import {
   Calendar,
   Clock,
@@ -70,6 +73,7 @@ export default function BookingPage() {
     note: "",
   });
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   // Stati lightbox immagini
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1263,11 +1267,47 @@ export default function BookingPage() {
                       </p>
                     </div>
 
+                    <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border">
+                      <Checkbox
+                        id="privacy-consent"
+                        checked={privacyConsent}
+                        onCheckedChange={(checked) => setPrivacyConsent(!!checked)}
+                        data-testid="checkbox-privacy-consent"
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <label
+                          htmlFor="privacy-consent"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          Acconsento al trattamento dei dati personali *
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                          Ho letto e accetto la{" "}
+                          <Link 
+                            href={createUrl("/privacy")} 
+                            className="text-primary hover:underline"
+                            target="_blank"
+                          >
+                            Privacy Policy
+                          </Link>{" "}
+                          e la{" "}
+                          <Link 
+                            href={createUrl("/cookie-policy")} 
+                            className="text-primary hover:underline"
+                            target="_blank"
+                          >
+                            Cookie Policy
+                          </Link>
+                          . I miei dati saranno trattati secondo il GDPR.
+                        </p>
+                      </div>
+                    </div>
+
                     <Button
                       type="submit"
                       className="w-full"
                       size="lg"
-                      disabled={createBookingMutation.isPending}
+                      disabled={createBookingMutation.isPending || !privacyConsent}
                       data-testid="button-submit-booking"
                     >
                       {createBookingMutation.isPending ? (
