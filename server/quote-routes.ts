@@ -19,6 +19,47 @@ import { nanoid } from "nanoid";
 const router = Router();
 
 /**
+ * Helper: Calcola il totale corretto per una quote considerando sconti
+ * Gestisce sia quote nuove (con totalAfterDiscount) che legacy (senza)
+ * 
+ * Logica prioritizzata:
+ * 1. totalAfterDiscount → valore corretto per quote nuove
+ * 2. totaleSelezionato → valore scelto dal cliente (quote variabili firmate)
+ * 3. Ricalcolo da sconto se ci sono metadati → per quote legacy con sconto
+ * 4. totaleBase → fallback per quote senza sconto
+ * 
+ * Questa funzione è progettata per quote GIÀ FIRMATE o in stato da visualizzare.
+ * Per quote fisse, lo sconto è già applicato in totalAfterDiscount/totaleSelezionato.
+ */
+function calculateCorrectQuoteTotal(quote: Quote): number {
+  // 1. Priorità a totalAfterDiscount se presente (valore corretto con sconto)
+  if (quote.totalAfterDiscount !== undefined && quote.totalAfterDiscount !== null && quote.totalAfterDiscount > 0) {
+    return quote.totalAfterDiscount;
+  }
+  
+  // 2. Per quote firmate, usa totaleSelezionato se presente
+  // Questo è il valore salvato al momento della firma (ora calcolato correttamente)
+  if (quote.totaleSelezionato !== undefined && quote.totaleSelezionato !== null && quote.totaleSelezionato > 0) {
+    return quote.totaleSelezionato;
+  }
+  
+  // 3. Ricalcola da totaleBase/totalBeforeDiscount se ci sono metadati sconto (quote legacy)
+  const baseTotal = quote.totalBeforeDiscount ?? quote.totaleBase;
+  if (quote.discountValue && quote.discountValue > 0 && baseTotal && baseTotal > 0) {
+    if (quote.discountType === 'percent') {
+      return Math.round(baseTotal * (1 - quote.discountValue / 100) * 100) / 100;
+    } else if (quote.discountType === 'amount') {
+      return Math.max(0, baseTotal - quote.discountValue);
+    }
+    // Se discountValue esiste ma discountType non è definito, assumiamo 'amount' (fisso)
+    return Math.max(0, baseTotal - quote.discountValue);
+  }
+  
+  // 4. Fallback a totaleBase (per quote senza sconto)
+  return quote.totaleBase ?? quote.totalBeforeDiscount ?? 0;
+}
+
+/**
  * Middleware: Verifica autenticazione Firebase e permessi admin
  * Protegge endpoint admin da accesso non autorizzato
  * SICUREZZA: Verifica solo il token Firebase, NON il header x-admin-email (spoofable)
@@ -1414,11 +1455,14 @@ router.post(
             }
           : undefined;
 
+      // FIX: Usa helper che gestisce correttamente sconti e quote legacy
+      const quoteTotaleEmail = calculateCorrectQuoteTotal(quote);
+
       const htmlContent = createQuoteSignedEmailHTML(
         clienteName,
         quote.type || "fisso",
         quote.jobInfo?.nomeEvento || "Evento",
-        quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+        quoteTotaleEmail,
         new Date(signedAt),
         portalUrl,
         nextPaymentData,
@@ -1505,12 +1549,15 @@ router.post(
       // Recupera dati studio
       const studioInfo = await getStudioContactInfo();
 
+      // FIX: Usa helper che gestisce correttamente sconti e quote legacy
+      const adminQuoteTotale = calculateCorrectQuoteTotal(quote);
+
       // Crea HTML email per admin (riusa template standard)
       const htmlContent = createQuoteSignedEmailHTML(
         clienteName,
         quote.type || "fisso",
         quote.jobInfo?.nomeEvento || "Nuovo Evento",
-        quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+        adminQuoteTotale,
         quote.signature.signedAt.toDate(),
         `${process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:5000"}/quote/${quote.publicToken}`,
         undefined,
@@ -2109,6 +2156,12 @@ router.post(
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
+      // FIX: Calcola totale corretto usando helper che gestisce sconti e quote legacy
+      // Se il client passa totaleSelezionato (calcolato correttamente), lo usa per quote variabili
+      const correctTotale = quote.type === 'variabile' && totaleSelezionato !== undefined
+        ? totaleSelezionato
+        : calculateCorrectQuoteTotal(quote);
+
       // 3. Verify publicToken matches
       if (quote.publicToken !== publicToken) {
         return res.status(403).json({
@@ -2153,7 +2206,7 @@ router.post(
         await jobRef.update({
           status: "confermato",
           updatedAt: new Date(),
-          "financials.totalePreventivato": totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+          "financials.totalePreventivato": correctTotale,
         });
         completedSteps.jobStatusUpdated = true;
         console.log(`✅ Job ${quote.jobId} aggiornato a stato "confermato"`);
@@ -2177,7 +2230,7 @@ router.post(
           data: new Date(),
           metadata: { 
             quoteId: id, 
-            totale: totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0 
+            totale: correctTotale 
           },
         });
         completedSteps.timelineEventAdded = true;
@@ -2215,7 +2268,7 @@ router.post(
             clientName || quote.signature?.clientName || "Cliente",
             quote.type || "fisso",
             job?.nomeEvento || "Il tuo evento",
-            totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0,
+            correctTotale,
             signedAtDate,
             portalUrl,
             undefined, // nextPayment
@@ -2254,7 +2307,7 @@ router.post(
             <p>Il cliente <strong>${clientName || quote.signature?.clientName || "Cliente"}</strong> ha firmato il preventivo per:</p>
             <ul>
               <li><strong>Evento:</strong> ${job?.nomeEvento || "N/A"}</li>
-              <li><strong>Totale:</strong> €${(totaleSelezionato || quote.totaleSelezionato || quote.totalAfterDiscount || 0).toLocaleString("it-IT")}</li>
+              <li><strong>Totale:</strong> €${correctTotale.toLocaleString("it-IT")}</li>
             </ul>
             <p>Accedi al pannello admin per visualizzare i dettagli.</p>
           </div>

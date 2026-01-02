@@ -416,7 +416,10 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     }));
     
     // Calcola totale selezionato E marca prodotti selezionati (per preventivo variabile)
-    let totaleSelezionato = quote.totaleBase || 0;
+    // FIX: Per quote fisse, usa totalAfterDiscount (netto con sconto) invece di totaleBase (lordo)
+    let totaleSelezionato = quote.type === 'fisso'
+      ? (quote.totalAfterDiscount ?? quote.totaleBase ?? 0)
+      : (quote.totaleBase ?? 0);
     let updatedProducts = quote.products;
     
     if (quote.type === 'variabile' && data.selectedProducts) {
