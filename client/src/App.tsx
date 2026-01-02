@@ -64,6 +64,7 @@ const BackupManager = lazy(() => import("./pages/admin/BackupManager"));
 const AuditSystem = lazy(() => import("./pages/admin/AuditSystem"));
 const OrphanedPhotosManager = lazy(() => import("./pages/admin/OrphanedPhotosManager"));
 const PhoneMigrationPage = lazy(() => import("./pages/admin/PhoneMigrationPage"));
+const PaymentDiscrepanciesAudit = lazy(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
 const BulkEmailSender = lazy(() => import("./pages/BulkEmailSender"));
 
 import './scripts/seed-job-types';
@@ -159,6 +160,7 @@ function AppRoutes() {
         <Route path="/admin/audit" component={AuditSystem} />
         <Route path="/admin/orphaned-photos" component={OrphanedPhotosManager} />
         <Route path="/admin/phone-migration" component={PhoneMigrationPage} />
+        <Route path="/admin/payment-audit" component={PaymentDiscrepanciesAudit} />
         <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
         {/* Public questionnaire route with noindex/nofollow */}
