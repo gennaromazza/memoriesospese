@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { getAuth } from "firebase/auth";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { 
   AlertTriangle,
   CheckCircle2,
@@ -82,6 +82,7 @@ interface AuditResult {
 
 export default function PaymentDiscrepanciesAudit() {
   const isAdmin = useIsAdmin();
+  const { user, loading: authLoading } = useFirebaseAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -91,6 +92,14 @@ export default function PaymentDiscrepanciesAudit() {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -111,11 +120,10 @@ export default function PaymentDiscrepanciesAudit() {
   }
 
   const getAuthHeaders = async () => {
-    const auth = getAuth();
-    if (!auth.currentUser) {
+    if (!user) {
       throw new Error('Devi essere autenticato per eseguire questa operazione');
     }
-    const token = await auth.currentUser.getIdToken();
+    const token = await user.getIdToken();
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
