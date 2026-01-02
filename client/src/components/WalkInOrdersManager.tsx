@@ -50,7 +50,12 @@ import {
   Send,
   Edit2,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  Calendar,
+  Receipt,
+  CreditCard,
+  FileText
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -97,6 +102,9 @@ export default function WalkInOrdersManager() {
     telefonoCliente: '',
     note: ''
   });
+  
+  // Stato per visualizzazione dettagli ordine
+  const [viewOrderDetail, setViewOrderDetail] = useState<any>(null);
 
   // Query ordini walk-in
   const { data: walkInOrders = [], isLoading } = useQuery({
@@ -372,6 +380,14 @@ export default function WalkInOrdersManager() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => setViewOrderDetail(order)}
+                                data-testid={`view-order-${order.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-2 text-sage" />
+                                Visualizza Dettagli
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               {!isPaid && (
                                 <>
                                   <DropdownMenuItem onClick={() => {
@@ -777,6 +793,204 @@ export default function WalkInOrdersManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog Dettagli Ordine */}
+      <Dialog open={!!viewOrderDetail} onOpenChange={() => setViewOrderDetail(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-sage" />
+              Dettagli Ordine
+            </DialogTitle>
+            <DialogDescription>
+              Riepilogo completo dell'ordine walk-in
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewOrderDetail && (() => {
+            const order = viewOrderDetail;
+            const createdAt = order.createdAt instanceof Timestamp 
+              ? order.createdAt.toDate() 
+              : new Date(order.createdAt || Date.now());
+            const totals = getOrderTotals(order);
+            const isPaid = totals.saldoResiduo <= 0;
+            const stateInfo = ORDER_STATES.find(s => s.value === order.stato) || ORDER_STATES[0];
+
+            return (
+              <div className="space-y-6 py-4" data-testid="order-detail-content">
+                {/* Info Cliente */}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Informazioni Cliente
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 min-w-[80px]">Nome:</span>
+                      <span className="font-medium" data-testid="order-detail-customer-name">{order.nomeCliente || 'N/D'}</span>
+                    </div>
+                    {order.emailCliente && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3 h-3 text-gray-400" />
+                        <span className="text-gray-600" data-testid="order-detail-customer-email">{order.emailCliente}</span>
+                      </div>
+                    )}
+                    {order.telefonoCliente && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3 h-3 text-gray-400" />
+                        <span className="text-gray-600" data-testid="order-detail-customer-phone">{order.telefonoCliente}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info Ordine */}
+                <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+                  <h4 className="font-medium text-sm text-blue-700 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Informazioni Ordine
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-500">Data:</span>
+                      <span className="ml-2 font-medium" data-testid="order-detail-date">
+                        {createdAt.toLocaleDateString('it-IT', { 
+                          day: '2-digit', 
+                          month: '2-digit', 
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Ora:</span>
+                      <span className="ml-2 font-medium" data-testid="order-detail-time">
+                        {createdAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2 mt-1">
+                      <span className="text-gray-500">Stato:</span>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${stateInfo.color}`} data-testid="order-detail-status">
+                        {stateInfo.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prodotti */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    Prodotti Ordinati
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Prodotto</th>
+                          <th className="px-3 py-2 text-center font-medium">Qta</th>
+                          <th className="px-3 py-2 text-right font-medium">Prezzo</th>
+                          <th className="px-3 py-2 text-right font-medium">Subtotale</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {order.prodotti?.map((p: any, idx: number) => (
+                          <tr key={idx} className="border-t" data-testid={`order-detail-product-${idx}`}>
+                            <td className="px-3 py-2">
+                              {p.prodottoNome}
+                              {p.isCustom && (
+                                <span className="ml-1 text-xs text-amber-600">(Custom)</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-center" data-testid={`order-detail-product-qty-${idx}`}>
+                              {p.quantita}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600" data-testid={`order-detail-product-price-${idx}`}>
+                              {formatCurrency(p.prodottoPrezzo)}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium" data-testid={`order-detail-product-subtotal-${idx}`}>
+                              {formatCurrency(p.prodottoPrezzo * p.quantita)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 font-medium">
+                        <tr className="border-t">
+                          <td colSpan={3} className="px-3 py-2 text-right">Totale Ordine:</td>
+                          <td className="px-3 py-2 text-right text-lg" data-testid="order-detail-total">
+                            {formatCurrency(totals.totale)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Stato Pagamento */}
+                <div className={`rounded-lg p-4 space-y-3 ${isPaid ? 'bg-green-50' : 'bg-amber-50'}`}>
+                  <h4 className={`font-medium text-sm flex items-center gap-2 ${isPaid ? 'text-green-700' : 'text-amber-700'}`}>
+                    <CreditCard className="w-4 h-4" />
+                    Stato Pagamento
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Totale ordine:</span>
+                      <span className="font-medium" data-testid="order-detail-payment-total">{formatCurrency(totals.totale)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Già pagato:</span>
+                      <span className="text-green-600 font-medium" data-testid="order-detail-payment-paid">{formatCurrency(totals.totalePagato)}</span>
+                    </div>
+                    <div className="col-span-2 flex justify-between border-t pt-2">
+                      <span className={`font-medium ${isPaid ? 'text-green-600' : 'text-amber-600'}`}>
+                        {isPaid ? '✓ Ordine Saldato' : 'Saldo Residuo:'}
+                      </span>
+                      {!isPaid && (
+                        <span className="font-bold text-amber-600" data-testid="order-detail-payment-remaining">
+                          {formatCurrency(totals.saldoResiduo)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Note */}
+                {order.note && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2 mb-2">
+                      <FileText className="w-4 h-4" />
+                      Note
+                    </h4>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap" data-testid="order-detail-notes">
+                      {order.note}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setViewOrderDetail(null)}
+              data-testid="order-detail-close"
+            >
+              Chiudi
+            </Button>
+            <Button
+              onClick={() => {
+                setViewOrderDetail(null);
+                openEditDialog(viewOrderDetail);
+              }}
+              className="bg-sage hover:bg-sage/90"
+              data-testid="order-detail-edit"
+            >
+              <Edit2 className="w-4 h-4 mr-2" />
+              Modifica
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
