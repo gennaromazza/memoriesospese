@@ -620,21 +620,71 @@ router.post('/:scheduleId/payments/:paymentId/register', async (req: Request, re
       });
     }
 
-    // Update pagamento
+    // Fetch job per descrizione CashMovement (prima di tutto)
+    let jobDescription = '';
+    let clienteNome = '';
+    try {
+      const jobDoc = await db.collection('jobs').doc(schedule.jobId).get();
+      if (jobDoc.exists) {
+        const jobData = jobDoc.data();
+        jobDescription = jobData?.nome || jobData?.tipo || 'Servizio';
+        clienteNome = jobData?.cliente?.nome 
+          ? `${jobData.cliente.nome} ${jobData.cliente.cognome || ''}`.trim()
+          : '';
+      }
+    } catch (jobError) {
+      console.error('⚠️ Errore fetch job per descrizione:', jobError);
+    }
+
+    // Crea CashMovement prima dell'update principale
+    let cashMovementId: string | null = null;
+    try {
+      const paymentDate = new Date(dataPagamento || Date.now());
+      const paymentTipo = schedule.payments[paymentIndex]?.tipo || 'rata';
+      const tipoLabel = paymentTipo === 'acconto' ? 'Acconto' : paymentTipo === 'saldo' ? 'Saldo' : 'Rata';
+      
+      const cashMovementData = {
+        tipo: 'entrata' as const,
+        categoria: 'Servizio fotografico',
+        importo: Number(importoPagato),
+        descrizione: clienteNome 
+          ? `${tipoLabel} - ${jobDescription} (${clienteNome})`
+          : `${tipoLabel} - ${jobDescription}`,
+        data: Timestamp.fromDate(paymentDate),
+        metodoPagamento: metodoPagamento || 'contante',
+        note: note || `Job ID: ${schedule.jobId}, Schedule ID: ${scheduleId}`,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        sourceType: 'payment-schedule',
+        sourceId: scheduleId,
+        paymentId: paymentId,
+        jobId: schedule.jobId,
+      };
+      
+      const cashMovementRef = await db.collection('cashMovements').add(cashMovementData);
+      cashMovementId = cashMovementRef.id;
+      console.log(`✅ CashMovement creato: ${cashMovementId}`);
+    } catch (cashError) {
+      console.error('❌ Errore creazione CashMovement:', cashError);
+    }
+
+    // Update pagamento con tutti i dati in un singolo update atomico
     const updatedPayments = [...schedule.payments];
     const payment = updatedPayments[paymentIndex];
 
-    payment.importoPagato = importoPagato;
+    payment.importoPagato = Number(importoPagato);
     payment.dataPagamento = Timestamp.fromDate(new Date(dataPagamento || Date.now()));
     payment.metodoPagamento = metodoPagamento || 'contante';
-    payment.stato = importoPagato >= payment.importo ? 'pagato' : 'parziale';
+    payment.stato = Number(importoPagato) >= Number(payment.importo) ? 'pagato' : 'parziale';
     if (note) payment.note = note;
+    if (cashMovementId) payment.cashMovementId = cashMovementId;
 
-    // Ricalcola totali
-    const nuovoTotalePagato = updatedPayments.reduce((sum: number, p: any) => sum + (p.importoPagato || 0), 0);
-    const nuovoSaldoResiduo = schedule.totale - nuovoTotalePagato;
+    // Ricalcola totali con numeri espliciti
+    const nuovoTotalePagato = updatedPayments.reduce((sum: number, p: any) => sum + (Number(p.importoPagato) || 0), 0);
+    const totaleSchedule = Number(schedule.totale) || 0;
+    const nuovoSaldoResiduo = Math.max(0, totaleSchedule - nuovoTotalePagato);
 
-    // Update Firestore
+    // Update Firestore atomico
     await db.collection('paymentSchedules').doc(scheduleId).update({
       payments: updatedPayments,
       totalePagato: nuovoTotalePagato,
@@ -666,10 +716,226 @@ router.post('/:scheduleId/payments/:paymentId/register', async (req: Request, re
         paymentId,
         totalePagato: nuovoTotalePagato,
         saldoResiduo: nuovoSaldoResiduo,
+        cashMovementId,
       }
     });
   } catch (error) {
     console.error('❌ Errore registrazione pagamento:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+/**
+ * POST /api/payment-schedules/:scheduleId/remodulate
+ * Rimodula le rate rimanenti dopo un pagamento con importo diverso
+ * Body: { 
+ *   paymentId: string,           // ID del pagamento appena registrato
+ *   strategy: 'equal' | 'last'   // 'equal' = distribuisci equamente, 'last' = modifica solo ultima rata
+ * }
+ */
+router.post('/:scheduleId/remodulate', async (req: Request, res: Response) => {
+  try {
+    const { scheduleId } = req.params;
+    const { paymentId, strategy = 'last' } = req.body;
+
+    // Fetch schedule
+    const scheduleDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+    if (!scheduleDoc.exists) {
+      return res.status(404).json({
+        error: 'Schedule non trovato',
+        message: `Payment schedule ${scheduleId} non esiste`
+      });
+    }
+
+    const schedule = scheduleDoc.data();
+    if (!schedule) {
+      return res.status(500).json({ error: 'Dati schedule non validi' });
+    }
+
+    // Calcola totale pagato con numeri espliciti
+    const totalePagato = schedule.payments.reduce((sum: number, p: any) => sum + (Number(p.importoPagato) || 0), 0);
+    
+    // Calcola residuo
+    const totaleOriginale = Number(schedule.totale) || 0;
+    const residuo = Math.max(0, totaleOriginale - totalePagato);
+    
+    if (residuo <= 0) {
+      // Aggiorna comunque i totali per consistenza
+      await db.collection('paymentSchedules').doc(scheduleId).update({
+        totalePagato: totalePagato,
+        saldoResiduo: 0,
+        updatedAt: Timestamp.now(),
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Nessuna rimodulazione necessaria - saldo completato',
+        data: { scheduleId, totalePagato, residuo: 0 }
+      });
+    }
+
+    // Trova pagamenti non ancora pagati
+    const pagamentiNonPagati = schedule.payments.filter((p: any) => 
+      p.stato === 'atteso' || p.stato === 'scaduto'
+    );
+
+    if (pagamentiNonPagati.length === 0) {
+      // Nessun pagamento da rimodulare, crea nuovo pagamento per il residuo
+      const newPayment = {
+        id: nanoid(),
+        tipo: 'saldo' as const,
+        importo: Math.round(residuo * 100) / 100,
+        dataScadenza: Timestamp.fromDate(DateTime.now().plus({ days: 30 }).toJSDate()),
+        stato: 'atteso' as const,
+        note: 'Saldo residuo (rimodulazione automatica)',
+      };
+      
+      const updatedPayments = [...schedule.payments, newPayment];
+      
+      // NON modifichiamo totale - manteniamo il valore contrattuale originale
+      await db.collection('paymentSchedules').doc(scheduleId).update({
+        payments: updatedPayments,
+        // totale: NON MODIFICHIAMO
+        totalePagato: totalePagato,
+        saldoResiduo: residuo,
+        updatedAt: Timestamp.now(),
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Creato nuovo pagamento per saldo residuo',
+        data: { scheduleId, newPayment, totale: totaleOriginale, totalePagato, saldoResiduo: residuo }
+      });
+    }
+
+    // Rimodula i pagamenti non pagati
+    const updatedPayments = schedule.payments.map((p: any) => {
+      if (p.stato !== 'atteso' && p.stato !== 'scaduto') {
+        return p; // Mantieni pagamenti già effettuati
+      }
+      return { ...p }; // Clone per modifica
+    });
+
+    if (strategy === 'equal') {
+      // Distribuisci equamente tra tutti i pagamenti non pagati
+      const numRateNonPagate = pagamentiNonPagati.length;
+      const importoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
+      let distribuito = 0;
+      let rateProcessate = 0;
+      
+      for (let i = 0; i < updatedPayments.length; i++) {
+        const p = updatedPayments[i];
+        if (p.stato === 'atteso' || p.stato === 'scaduto') {
+          rateProcessate++;
+          if (rateProcessate === numRateNonPagate) {
+            // Ultima rata: assegna tutto il residuo rimanente
+            p.importo = Math.round((residuo - distribuito) * 100) / 100;
+          } else {
+            p.importo = importoPerRata;
+          }
+          distribuito += p.importo;
+          p.note = `${p.note || ''} (rimodulato)`.trim();
+        }
+      }
+    } else {
+      // 'last' strategy: modifica solo l'ultima rata non pagata
+      // Se il residuo è minore della somma delle altre rate, usa strategia equal come fallback
+      const lastNonPaidIndex = updatedPayments.findLastIndex((p: any) => 
+        p.stato === 'atteso' || p.stato === 'scaduto'
+      );
+      
+      if (lastNonPaidIndex !== -1) {
+        // Calcola quanto è già previsto nelle altre rate non pagate
+        let altrePreviste = 0;
+        for (let i = 0; i < updatedPayments.length; i++) {
+          if (i !== lastNonPaidIndex && (updatedPayments[i].stato === 'atteso' || updatedPayments[i].stato === 'scaduto')) {
+            altrePreviste += Number(updatedPayments[i].importo) || 0;
+          }
+        }
+        
+        const nuovoImportoUltimaRata = Math.round((residuo - altrePreviste) * 100) / 100;
+        
+        if (nuovoImportoUltimaRata > 0) {
+          // Caso normale: ultima rata positiva
+          updatedPayments[lastNonPaidIndex].importo = nuovoImportoUltimaRata;
+          updatedPayments[lastNonPaidIndex].note = `${updatedPayments[lastNonPaidIndex].note || ''} (rimodulato)`.trim();
+        } else {
+          // Caso edge: residuo < somma altre rate
+          // Fallback a strategia equal per mantenere invarianti
+          const numRateNonPagate = pagamentiNonPagati.length;
+          const importoPerRata = Math.floor((residuo / numRateNonPagate) * 100) / 100;
+          let distribuito = 0;
+          let rateProcessate = 0;
+          
+          for (let i = 0; i < updatedPayments.length; i++) {
+            const p = updatedPayments[i];
+            if (p.stato === 'atteso' || p.stato === 'scaduto') {
+              rateProcessate++;
+              if (rateProcessate === numRateNonPagate) {
+                // Ultima rata: assegna tutto il residuo rimanente
+                p.importo = Math.max(0, Math.round((residuo - distribuito) * 100) / 100);
+              } else {
+                p.importo = importoPerRata;
+              }
+              distribuito += p.importo;
+              p.note = `${p.note || ''} (rimodulato - fallback equal)`.trim();
+            }
+          }
+        }
+      }
+    }
+
+    // Ricalcola i totali dopo la rimodulazione
+    // IMPORTANTE: Il totale originale (totaleOriginale) NON deve cambiare
+    // Solo le rate non pagate vengono ridistribuite per coprire il residuo
+    const nuovoTotalePagato = updatedPayments.reduce((sum: number, p: any) => sum + (Number(p.importoPagato) || 0), 0);
+    
+    // Il saldo residuo è sempre: totale originale - pagato
+    // Non ricalcoliamo totale perché rappresenta il contratto originale
+    const nuovoSaldoResiduo = Math.max(0, totaleOriginale - nuovoTotalePagato);
+
+    // Aggiorna Firestore mantenendo il totale originale
+    await db.collection('paymentSchedules').doc(scheduleId).update({
+      payments: updatedPayments,
+      // totale: NON MODIFICHIAMO - rappresenta il valore contrattuale originale
+      totalePagato: nuovoTotalePagato,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Timeline event
+    try {
+      const timelineEventId = nanoid();
+      await db.collection('jobTimeline').doc(timelineEventId).set({
+        id: timelineEventId,
+        jobId: schedule.jobId,
+        evento: 'Piano pagamenti rimodulato',
+        descrizione: `Rate rimodulate con strategia "${strategy}". Nuovo saldo residuo: €${nuovoSaldoResiduo.toFixed(2)}`,
+        categoria: 'pagamenti',
+        timestamp: Timestamp.now(),
+        userId: 'admin',
+      });
+    } catch (timelineError) {
+      console.error('❌ Errore creazione evento timeline:', timelineError);
+    }
+
+    return res.json({
+      success: true,
+      message: `Rate rimodulate con strategia "${strategy}"`,
+      data: {
+        scheduleId,
+        strategy,
+        totale: totaleOriginale,
+        totalePagato: nuovoTotalePagato,
+        saldoResiduo: nuovoSaldoResiduo,
+        payments: updatedPayments.filter((p: any) => p.stato === 'atteso' || p.stato === 'scaduto'),
+      }
+    });
+  } catch (error) {
+    console.error('❌ Errore rimodulazione rate:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'
