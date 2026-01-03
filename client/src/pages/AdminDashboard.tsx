@@ -56,6 +56,7 @@ import EmailLogsManager from '@/components/admin/EmailLogsManager';
 import WordPressImporter from "@/components/admin/WordPressImporter";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import ReminderManager from "@/components/admin/ReminderManager";
+import TodayJobsSummary from "@/components/admin/TodayJobsSummary";
 import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
@@ -1613,12 +1614,18 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-3">
-                  <CalendarioManager />
-                </div>
-                <div className="lg:col-span-1">
-                  <ReminderManager />
+              <div className="space-y-6">
+                {/* Riepilogo Lavori del Giorno */}
+                <TodayJobsSummary />
+                
+                {/* Calendario e Promemoria */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className="lg:col-span-3">
+                    <CalendarioManager />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <ReminderManager />
+                  </div>
                 </div>
               </div>
             </TabsContent>

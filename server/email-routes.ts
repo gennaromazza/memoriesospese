@@ -5412,4 +5412,319 @@ router.post("/notify-youtube-video", authenticateFirebase, async (req: any, res)
   }
 });
 
+/**
+ * POST /api/email/daily-job-reminder
+ * Invia email riepilogo lavori del giorno successivo a admin e collaboratori
+ * Chiamato da cron job giornaliero (es. alle 18:00 del giorno prima)
+ * PROTETTO: richiede autenticazione admin
+ */
+router.post("/daily-job-reminder", authenticateFirebase, async (req: any, res) => {
+  // Verifica che sia admin
+  const adminEmails = ['gennaro.mazzacane@gmail.com'];
+  if (!adminEmails.includes(req.user?.email)) {
+    return res.status(403).json({ 
+      error: { code: "permission-denied", message: "Solo gli admin possono inviare promemoria giornalieri" }
+    });
+  }
+  try {
+    console.log("🔔 Starting daily job reminder email process...");
+    
+    const { targetDate: targetDateParam } = req.body;
+    
+    // Se non specificato, usa domani
+    const targetDate = targetDateParam 
+      ? DateTime.fromISO(targetDateParam, { zone: 'Europe/Rome' })
+      : DateTime.now().setZone('Europe/Rome').plus({ days: 1 });
+    
+    const startOfDay = targetDate.startOf('day');
+    const endOfDay = targetDate.endOf('day');
+    
+    console.log(`📅 Looking for jobs on: ${targetDate.toFormat('dd/MM/yyyy')}`);
+    
+    // Trova tutti i job con eventDate = domani
+    const jobsSnapshot = await db.collection('jobs')
+      .where('eventDate', '>=', startOfDay.toJSDate())
+      .where('eventDate', '<=', endOfDay.toJSDate())
+      .get();
+    
+    if (jobsSnapshot.empty) {
+      console.log(`ℹ️ No jobs found for ${targetDate.toFormat('dd/MM/yyyy')}`);
+      return res.json({ 
+        success: true, 
+        message: `Nessun lavoro per ${targetDate.toFormat('dd/MM/yyyy')}`,
+        jobsProcessed: 0 
+      });
+    }
+    
+    const jobs = jobsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log(`📋 Found ${jobs.length} jobs for ${targetDate.toFormat('dd/MM/yyyy')}`);
+    
+    const studioInfo = await getStudioContactInfo();
+    const adminEmail = 'gennaro.mazzacane@gmail.com';
+    let totalEmailsSent = 0;
+    
+    for (const job of jobs) {
+      try {
+        // Raccolta destinatari email
+        const recipients: string[] = [adminEmail];
+        
+        // Aggiungi collaboratori accettati
+        const collaboratoriAssegnati = (job as any).collaboratoriAssegnati || [];
+        for (const collab of collaboratoriAssegnati) {
+          if (collab.status === 'accettato' && collab.collaboratoreId) {
+            try {
+              const collabDoc = await db.collection('collaboratori').doc(collab.collaboratoreId).get();
+              if (collabDoc.exists) {
+                const email = collabDoc.data()?.email;
+                if (email && !recipients.includes(email)) {
+                  recipients.push(email);
+                }
+              }
+            } catch (err) {
+              console.warn(`⚠️ Could not fetch collaborator ${collab.collaboratoreId}:`, err);
+            }
+          }
+        }
+        
+        // Fetch dettagli clienti
+        const clientiDetails: Array<{
+          nome: string;
+          cognome: string;
+          telefono?: string;
+          email?: string;
+          indirizzo?: string;
+          citta?: string;
+          cap?: string;
+        }> = [];
+        
+        const clientiIds = (job as any).clientiIds || [];
+        for (const clienteId of clientiIds) {
+          try {
+            const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+            if (clienteDoc.exists) {
+              const data = clienteDoc.data();
+              clientiDetails.push({
+                nome: data?.nome || '',
+                cognome: data?.cognome || '',
+                telefono: data?.cellulare1 || data?.cellulare2 || '',
+                email: data?.email || '',
+                indirizzo: data?.via || '',
+                citta: data?.citta || '',
+                cap: data?.cap || '',
+              });
+            }
+          } catch (err) {
+            console.warn(`⚠️ Could not fetch client ${clienteId}:`, err);
+          }
+        }
+        
+        // Fetch dettagli collaboratori per l'email
+        const collaboratoriDetails: Array<{ nome: string; telefono?: string }> = [];
+        for (const collab of collaboratoriAssegnati) {
+          if (collab.status === 'accettato' && collab.collaboratoreId) {
+            try {
+              const collabDoc = await db.collection('collaboratori').doc(collab.collaboratoreId).get();
+              if (collabDoc.exists) {
+                const data = collabDoc.data();
+                collaboratoriDetails.push({
+                  nome: data?.nome || data?.email || 'Collaboratore',
+                  telefono: data?.telefono,
+                });
+              }
+            } catch (err) { /* skip */ }
+          }
+        }
+        
+        // Genera HTML email
+        const eventDate = (job as any).eventDate?.toDate?.() || new Date((job as any).eventDate);
+        const htmlContent = generateDailyJobReminderHTML({
+          nomeEvento: (job as any).nomeEvento || 'Lavoro',
+          jobType: (job as any).jobType || '',
+          eventDate: DateTime.fromJSDate(eventDate).setZone('Europe/Rome'),
+          rituTime: (job as any).rituTime,
+          rituLocation: (job as any).rituLocation,
+          eventLocation: (job as any).eventLocation,
+          clienti: clientiDetails,
+          collaboratori: collaboratoriDetails,
+          noteInterne: (job as any).noteInterne,
+          studioInfo,
+          jobId: job.id,
+          baseUrl: getSiteBaseUrl(req),
+        });
+        
+        const subject = `📸 Promemoria: ${(job as any).nomeEvento} - ${targetDate.toFormat('dd MMMM yyyy', { locale: 'it' })}`;
+        
+        // Invia email a tutti i destinatari
+        await sendGmailEmail(recipients.join(','), subject, htmlContent);
+        totalEmailsSent++;
+        
+        // Log
+        await logEmailSent({
+          to: recipients,
+          subject,
+          type: 'daily_job_reminder',
+          status: 'sent',
+          relatedDocId: job.id,
+          relatedDocType: 'job',
+        });
+        
+        console.log(`✅ Daily reminder sent for job ${job.id} to ${recipients.join(', ')}`);
+        
+      } catch (jobError: any) {
+        console.error(`❌ Error processing job ${job.id}:`, jobError);
+      }
+    }
+    
+    console.log(`🎉 Daily job reminder completed: ${totalEmailsSent} emails sent for ${jobs.length} jobs`);
+    
+    res.json({
+      success: true,
+      message: `Inviate ${totalEmailsSent} email per ${jobs.length} lavori del ${targetDate.toFormat('dd/MM/yyyy')}`,
+      jobsProcessed: jobs.length,
+      emailsSent: totalEmailsSent,
+    });
+    
+  } catch (error: any) {
+    console.error("❌ Error in daily job reminder:", error);
+    res.status(500).json({ error: error.message || "Errore invio promemoria giornaliero" });
+  }
+});
+
+/**
+ * Helper: Genera HTML per email promemoria giornaliero
+ */
+function generateDailyJobReminderHTML(data: {
+  nomeEvento: string;
+  jobType: string;
+  eventDate: DateTime;
+  rituTime?: string;
+  rituLocation?: string;
+  eventLocation?: string;
+  clienti: Array<{
+    nome: string;
+    cognome: string;
+    telefono?: string;
+    email?: string;
+    indirizzo?: string;
+    citta?: string;
+    cap?: string;
+  }>;
+  collaboratori: Array<{ nome: string; telefono?: string }>;
+  noteInterne?: string;
+  studioInfo: any;
+  jobId: string;
+  baseUrl: string;
+}): string {
+  const { nomeEvento, jobType, eventDate, rituTime, rituLocation, eventLocation, clienti, collaboratori, noteInterne, studioInfo, jobId, baseUrl } = data;
+  
+  const generateMapsLink = (address: string) => 
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  
+  const clientiHtml = clienti.map(c => {
+    const fullAddress = [c.indirizzo, c.cap, c.citta].filter(Boolean).join(', ');
+    return `
+      <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <p style="margin: 0 0 8px 0; font-weight: 600; color: #1f2937;">
+          ${c.nome} ${c.cognome}
+        </p>
+        ${c.telefono ? `
+          <p style="margin: 4px 0;">
+            📞 <a href="tel:${c.telefono.replace(/\s/g, '')}" style="color: #059669;">${c.telefono}</a>
+          </p>
+        ` : ''}
+        ${c.email ? `
+          <p style="margin: 4px 0;">
+            ✉️ <a href="mailto:${c.email}" style="color: #2563eb;">${c.email}</a>
+          </p>
+        ` : ''}
+        ${fullAddress ? `
+          <p style="margin: 4px 0;">
+            🏠 <a href="${generateMapsLink(fullAddress)}" target="_blank" style="color: #7c3aed;">${fullAddress}</a>
+          </p>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+  
+  const collaboratoriHtml = collaboratori.length > 0 
+    ? collaboratori.map(c => `
+        <span style="display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 12px; border-radius: 16px; margin: 4px; font-size: 14px;">
+          ${c.nome}
+          ${c.telefono ? `<a href="tel:${c.telefono.replace(/\s/g, '')}" style="color: #4338ca; margin-left: 4px;">📞</a>` : ''}
+        </span>
+      `).join('')
+    : '<p style="color: #6b7280; font-style: italic;">Nessun collaboratore assegnato</p>';
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f3f4f6;">
+      <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
+        <h1 style="margin: 0 0 8px 0; color: #92400e; font-size: 24px;">📸 Promemoria Lavoro</h1>
+        <p style="margin: 0; color: #b45309; font-size: 16px;">
+          ${eventDate.toFormat('EEEE d MMMM yyyy', { locale: 'it' })}
+        </p>
+      </div>
+      
+      <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 20px; border-bottom: 2px solid #fbbf24; padding-bottom: 8px;">
+          ${nomeEvento}
+          ${jobType ? `<span style="font-size: 14px; color: #6b7280; font-weight: normal;"> (${jobType})</span>` : ''}
+        </h2>
+        
+        ${rituTime || rituLocation ? `
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 16px; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; font-weight: 600; color: #92400e;">⛪ Cerimonia</p>
+            ${rituTime ? `<p style="margin: 4px 0 0 0; color: #78350f;">🕐 Ore ${rituTime}</p>` : ''}
+            ${rituLocation ? `<p style="margin: 4px 0 0 0;"><a href="${generateMapsLink(rituLocation)}" target="_blank" style="color: #b45309;">📍 ${rituLocation}</a></p>` : ''}
+          </div>
+        ` : ''}
+        
+        ${eventLocation ? `
+          <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 12px; margin-bottom: 16px; border-radius: 0 8px 8px 0;">
+            <p style="margin: 0; font-weight: 600; color: #065f46;">🎉 Location Evento</p>
+            <p style="margin: 4px 0 0 0;"><a href="${generateMapsLink(eventLocation)}" target="_blank" style="color: #047857;">📍 ${eventLocation}</a></p>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px;">👥 Clienti</h3>
+        ${clientiHtml || '<p style="color: #6b7280;">Nessun cliente associato</p>'}
+      </div>
+      
+      <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px;">🤝 Team</h3>
+        ${collaboratoriHtml}
+      </div>
+      
+      ${noteInterne ? `
+        <div style="background: #fef9c3; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px 0; color: #854d0e; font-size: 14px;">📝 Note</h3>
+          <p style="margin: 0; color: #78350f; white-space: pre-wrap;">${noteInterne}</p>
+        </div>
+      ` : ''}
+      
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${baseUrl}/admin/jobs/${jobId}" 
+           style="display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          Vedi Dettagli Lavoro
+        </a>
+      </div>
+      
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
+        <p style="margin: 0;">
+          ${studioInfo?.name || 'Image Studio Fotografico'}<br>
+          ${studioInfo?.phone ? `📞 ${studioInfo.phone}` : ''}
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 export default router;
