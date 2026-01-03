@@ -437,17 +437,44 @@ router.get("/public/:token", async (req: Request, res: Response) => {
     }> = [];
 
     if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      // Usa dati salvati in quote (nomi campi allineati con frontend)
-      clientiInfo = quote.clientiInfo.map((c) => ({
-        id: c.id,
-        nome: c.nome,
-        cognome: c.cognome,
-        email: c.email,
-        telefono: c.telefono,
-        indirizzo: c.indirizzo,
-        citta: c.citta,
-        cap: c.cap,
-      }));
+      // Usa dati salvati in quote, ma arricchisci con dati freschi da Firestore se mancano campi
+      const enrichedClienti = await Promise.all(
+        quote.clientiInfo.map(async (c: any) => {
+          // Se indirizzo mancante, recupera dati freschi dal cliente
+          if (!c.indirizzo && !c.citta && c.id) {
+            try {
+              const clienteDoc = await db.collection("clienti").doc(c.id).get();
+              if (clienteDoc.exists) {
+                const freshData = clienteDoc.data();
+                return {
+                  id: c.id,
+                  nome: c.nome || freshData?.nome,
+                  cognome: c.cognome || freshData?.cognome,
+                  email: c.email || freshData?.email,
+                  telefono: c.telefono || freshData?.cellulare1 || freshData?.cellulare2 || "",
+                  indirizzo: freshData?.via || "",
+                  citta: freshData?.citta || "",
+                  cap: freshData?.cap || "",
+                };
+              }
+            } catch (err) {
+              console.warn("⚠️ Impossibile arricchire dati cliente:", c.id, err);
+            }
+          }
+          // Altrimenti usa dati dallo snapshot
+          return {
+            id: c.id,
+            nome: c.nome,
+            cognome: c.cognome,
+            email: c.email,
+            telefono: c.telefono,
+            indirizzo: c.indirizzo,
+            citta: c.citta,
+            cap: c.cap,
+          };
+        })
+      );
+      clientiInfo = enrichedClienti;
     } else {
       // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
       // Prima recupera clientiIds dal job
@@ -2260,7 +2287,7 @@ router.post(
         }
 
         if (clientEmails.length > 0) {
-          const signedAt = quote.signedAt || quote.signature?.signedAt || new Date();
+          const signedAt = (quote as any).signedAt || quote.signature?.signedAt || new Date();
           const signedAtDate = signedAt instanceof Date ? signedAt : 
             (signedAt as any).toDate ? (signedAt as any).toDate() : new Date(signedAt);
 
