@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
@@ -523,26 +523,44 @@ export default function QuotePublicViewPage() {
                             </div>
                           )}
 
-                          {/* Indirizzo */}
-                          {(cliente.indirizzo || cliente.citta) && (
-                            <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-mint/10 transition-colors">
-                              <div className="w-8 h-8 rounded-full bg-cream/50 flex items-center justify-center flex-shrink-0">
-                                <Home className="w-4 h-4 text-blue-gray" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-sage uppercase font-medium mb-1">Indirizzo</p>
-                                <div className="text-sm text-blue-gray">
-                                  {cliente.indirizzo && <p className="font-medium">{cliente.indirizzo}</p>}
-                                  {cliente.citta && (
-                                    <p className="text-dark-sage">
-                                      {cliente.cap && `${cliente.cap} `}
-                                      {cliente.citta}
-                                    </p>
-                                  )}
+                          {/* Indirizzo - cliccabile per Google Maps */}
+                          {(cliente.indirizzo || cliente.citta) && (() => {
+                            const addressParts = [
+                              cliente.indirizzo,
+                              cliente.cap,
+                              cliente.citta
+                            ].filter(Boolean).join(', ');
+                            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressParts)}`;
+                            
+                            return (
+                              <a 
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-3 p-2 rounded-lg hover:bg-mint/10 transition-colors group cursor-pointer"
+                                data-testid={`link-address-maps-${cliente.id}`}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-cream/50 flex items-center justify-center flex-shrink-0 group-hover:bg-sage/20 transition-colors">
+                                  <MapPin className="w-4 h-4 text-blue-gray group-hover:text-sage" />
                                 </div>
-                              </div>
-                            </div>
-                          )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-sage uppercase font-medium mb-1 flex items-center gap-1">
+                                    Indirizzo
+                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </p>
+                                  <div className="text-sm text-blue-gray group-hover:text-sage transition-colors">
+                                    {cliente.indirizzo && <p className="font-medium">{cliente.indirizzo}</p>}
+                                    {cliente.citta && (
+                                      <p className="text-dark-sage group-hover:text-sage/80">
+                                        {cliente.cap && `${cliente.cap} `}
+                                        {cliente.citta}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </a>
+                            );
+                          })()}
                         </div>
                       </div>
                       );
