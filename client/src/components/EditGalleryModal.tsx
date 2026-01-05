@@ -1084,30 +1084,54 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         console.log('🔍 Verifica unicità PIN...');
         setIsCheckingPin(true); // Attiva loading indicator
         
-        const checkResponse = await fetch('/api/email/check-pin-unique', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pin: specialPin.trim(),
-            currentGalleryId: gallery.id
-          })
-        });
-
-        const checkResult = await checkResponse.json();
-        setIsCheckingPin(false); // Disattiva loading indicator
-        
-        if (!checkResult.unique) {
-          toast({
-            title: "PIN già in uso",
-            description: `Questo PIN è già utilizzato dalla galleria "${checkResult.usedByGalleryName}". Scegli un PIN diverso.`,
-            variant: "destructive",
-            duration: 5000
+        try {
+          // Aggiungi timeout di 10 secondi per evitare blocchi
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          const checkResponse = await fetch('/api/email/check-pin-unique', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              pin: specialPin.trim(),
+              currentGalleryId: gallery.id
+            }),
+            signal: controller.signal
           });
-          setIsLoading(false);
-          return;
+          
+          clearTimeout(timeoutId);
+
+          const checkResult = await checkResponse.json();
+          setIsCheckingPin(false); // Disattiva loading indicator
+          
+          if (!checkResult.unique) {
+            toast({
+              title: "PIN già in uso",
+              description: `Questo PIN è già utilizzato dalla galleria "${checkResult.usedByGalleryName}". Scegli un PIN diverso.`,
+              variant: "destructive",
+              duration: 5000
+            });
+            setIsLoading(false);
+            return;
+          }
+          
+          console.log('✅ PIN unico, procedo con il salvataggio');
+        } catch (pinError: any) {
+          setIsCheckingPin(false);
+          if (pinError.name === 'AbortError') {
+            console.warn('⚠️ Timeout verifica PIN, procedo comunque');
+            // Procedi comunque in caso di timeout
+          } else {
+            console.error('❌ Errore verifica PIN:', pinError);
+            toast({
+              title: "Errore verifica PIN",
+              description: "Impossibile verificare unicità PIN. Riprova.",
+              variant: "destructive"
+            });
+            setIsLoading(false);
+            return;
+          }
         }
-        
-        console.log('✅ PIN unico, procedo con il salvataggio');
       }
 
       console.log('📝 Aggiornamento documento galleria...');
@@ -1181,7 +1205,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       }
       
       // Usa setDoc con merge per creare/aggiornare il documento secrets
-      await setDoc(secretsRef, secretsData, { merge: true });
+      // Aggiungi timeout di 15 secondi per evitare blocchi
+      try {
+        const secretsPromise = setDoc(secretsRef, secretsData, { merge: true });
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout salvataggio secrets')), 15000)
+        );
+        await Promise.race([secretsPromise, timeoutPromise]);
+        console.log('✅ Secrets salvati con successo');
+      } catch (secretsError: any) {
+        console.error('❌ Errore salvataggio secrets:', secretsError);
+        // Se è un timeout, mostra messaggio ma non bloccare
+        if (secretsError.message?.includes('Timeout')) {
+          toast({
+            title: "Attenzione",
+            description: "Il salvataggio del PIN potrebbe non essere completato. Verifica e riprova se necessario.",
+            variant: "destructive"
+          });
+        } else {
+          throw secretsError; // Rilancia altri errori
+        }
+      }
 
       console.log('✅ Galleria salvata con successo');
       
