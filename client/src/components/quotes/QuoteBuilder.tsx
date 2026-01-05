@@ -840,7 +840,11 @@ export default function QuoteBuilder({
     <Dialog open={open} onOpenChange={handleDialogChange}>
       {/* FIX: Rimuovere overflow dal DialogContent perché blocca i click sui Select/Popover
            e spostare lo scroll in un wrapper interno */}
-      <DialogContent className="w-[98vw] sm:max-w-4xl p-0">
+      <DialogContent 
+        className="w-[98vw] sm:max-w-4xl p-0"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         
         {/* Wrapper scrollabile */}
         <div className="max-h-[90vh] overflow-y-auto px-6 py-4">

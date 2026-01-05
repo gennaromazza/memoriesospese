@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { getQuotesForJob, deleteQuote, resetQuoteSignature, calculateQuoteTotalForPayments } from '@/lib/quotes';
+import { getQuotesForJob, deleteQuote, resetQuoteSignature } from '@/lib/quotes';
 import { Quote, QuoteStatus } from '@shared/quotes-types';
 import { getJob } from '@/lib/jobs';
 import { getClienteById } from '@/lib/clienti';
@@ -37,7 +37,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { queryClient } from '@/lib/queryClient';
-import GeneraPagamentiModal from './GeneraPagamentiModal';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 interface ModuliJobSectionProps {
@@ -81,7 +80,6 @@ const getQuoteUrl = (quote: Quote) => {
 
 export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, clienteId, isAdmin = false }: ModuliJobSectionProps) {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
-  const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
   const [deleteQuoteId, setDeleteQuoteId] = useState<string | null>(null);
   const [resetQuoteId, setResetQuoteId] = useState<string | null>(null);
   const [forceDeleteMode, setForceDeleteMode] = useState(false);
@@ -542,30 +540,6 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
           </Collapsible>
         ))}
       </div>
-
-      {/* Genera Pagamenti Modal */}
-      {generaPagamentiQuoteId && (() => {
-        const targetQuote = quotes.find(q => q.id === generaPagamentiQuoteId);
-        if (!targetQuote || !clienteId) return null;
-
-        // ✅ FIX: Calcola totale corretto per piano pagamenti
-        // - Fisso: usa totalAfterDiscount
-        // - Variabile non firmato: solo prodotti fissi (€600)
-        // - Variabile firmato: totaleSelezionato (con scelte cliente)
-        const totale = calculateQuoteTotalForPayments(targetQuote);
-
-        return (
-          <GeneraPagamentiModal
-            open={true}
-            onClose={() => setGeneraPagamentiQuoteId(null)}
-            quoteId={targetQuote.id}
-            quoteTotale={totale}
-            jobId={jobId}
-            clienteId={clienteId}
-            eventDate={job?.eventDate ? convertFirestoreTimestamp(job.eventDate) : null}
-          />
-        );
-      })()}
 
       {/* Delete Confirmation Dialog - 2-Step per Signed Quotes */}
       <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => {

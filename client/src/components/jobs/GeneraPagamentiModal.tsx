@@ -376,7 +376,11 @@ export default function GeneraPagamentiModal({
   return (
     <>
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="w-[95vw] max-w-2xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0">
+      <DialogContent 
+        className="w-[95vw] max-w-2xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b">
           <DialogTitle className="text-lg sm:text-xl">Genera Piano Pagamenti</DialogTitle>
           <DialogDescription className="text-sm">
@@ -779,32 +783,6 @@ export default function GeneraPagamentiModal({
         </Tabs>
         </Form>
         </div>
-        <DialogFooter className="px-4 sm:px-6 py-4 border-t bg-gray-50 dark:bg-gray-900 flex-row gap-2">
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={createMutation.isPending}
-            className="flex-1 sm:flex-initial"
-          >
-            Annulla
-          </Button>
-          {activeTab === 'automatico' ? (
-             <Button
-                onClick={() => onSubmit(form.getValues())}
-                disabled={isSubmitting || createMutation.isPending}
-                data-testid="button-genera-automatico"
-                className="flex-1 sm:flex-initial"
-             >
-                {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Genera Piano Pagamenti
-              </Button>
-          ) : (
-            <Button type="submit" disabled={!isValid || isSubmitting || createMutation.isPending} className="flex-1 sm:flex-initial">
-                {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Genera Piano Pagamenti
-            </Button>
-          )}
-        </DialogFooter>
       </DialogContent>
     </Dialog>
 

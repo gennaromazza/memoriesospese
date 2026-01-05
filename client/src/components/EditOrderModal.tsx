@@ -333,7 +333,11 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   
   return (
     <Dialog open={!!order} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-5 h-5" />
