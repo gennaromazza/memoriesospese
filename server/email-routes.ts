@@ -2603,48 +2603,42 @@ router.post("/verify-special-pin", async (req, res) => {
 
     console.log(`🔍 Verifica PIN speciale: ${pin.substring(0, 2)}***`);
 
-    // Inizializza Firebase Admin
+    // OTTIMIZZAZIONE: Cerca direttamente in gallerySecrets per PIN match
+    // Questo è più veloce che scansionare tutte le gallerie speciali
+    const secretsSnapshot = await db.collection('gallerySecrets').get();
+    
+    console.log(`📊 Trovati ${secretsSnapshot.size} documenti in gallerySecrets`);
 
+    for (const secretDoc of secretsSnapshot.docs) {
+      const secretData = secretDoc.data();
+      const correctPin = secretData?.specialPin;
 
-    // QUERY TUTTE LE GALLERIE CON TEMA SPECIALE (usando Firebase Admin SDK)
-    const galleriesSnapshot = await db.collection('galleries')
-      .where('specialTheme', '!=', null)
-      .get();
+      // Verifica PIN
+      if (correctPin && correctPin.trim() === pin.trim()) {
+        const galleryId = secretDoc.id;
+        
+        // Recupera dati galleria
+        const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+        
+        if (galleryDoc.exists) {
+          const galleryData = galleryDoc.data();
+          
+          // Verifica che sia una galleria speciale
+          if (galleryData?.specialTheme) {
+            const galleryCode = galleryData.code || galleryId;
+            const galleryName = galleryData.name || "Galleria Speciale";
 
-    if (galleriesSnapshot.empty) {
-      console.log("❌ Nessuna galleria speciale trovata");
-      return res.status(200).json({
-        result: { valid: false, message: "No special galleries found" }
-      });
-    }
-
-    // Cerca galleria con PIN corrispondente nella collection protetta
-    for (const galleryDoc of galleriesSnapshot.docs) {
-      const galleryId = galleryDoc.id;
-      const galleryData = galleryDoc.data();
-
-      // Recupera PIN da collection protetta
-      const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
-
-      if (secretsDoc.exists) {
-        const secretData = secretsDoc.data();
-        const correctPin = secretData?.specialPin;
-
-        // Verifica PIN
-        if (correctPin && correctPin.trim() === pin.trim()) {
-          const galleryCode = galleryData.code || galleryId;
-          const galleryName = galleryData.name || "Galleria Speciale";
-
-          console.log(`✅ PIN corretto per galleria ${galleryCode}`);
-          return res.status(200).json({
-            result: { 
-              valid: true, 
-              galleryId,
-              galleryCode,
-              galleryName,
-              message: "PIN correct" 
-            }
-          });
+            console.log(`✅ PIN corretto per galleria ${galleryCode}`);
+            return res.status(200).json({
+              result: { 
+                valid: true, 
+                galleryId,
+                galleryCode,
+                galleryName,
+                message: "PIN correct" 
+              }
+            });
+          }
         }
       }
     }
