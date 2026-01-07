@@ -361,6 +361,7 @@ export default function GestioneRataModal({
                             selected={field.value}
                             onSelect={field.onChange}
                             initialFocus
+                            locale={it}
                           />
                         </PopoverContent>
                       </Popover>

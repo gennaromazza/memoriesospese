@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { it } from 'date-fns/locale';
 
 interface DateInputProps {
   value?: Date;
@@ -154,6 +155,7 @@ export function DateInput({
             }}
             disabled={disabled}
             initialFocus
+            locale={it}
           />
         </PopoverContent>
       </Popover>

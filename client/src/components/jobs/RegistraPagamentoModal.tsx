@@ -217,6 +217,7 @@ export default function RegistraPagamentoModal({
                           setDatePickerOpen(false);
                         }}
                         initialFocus
+                        locale={it}
                       />
                     </PopoverContent>
                   </Popover>

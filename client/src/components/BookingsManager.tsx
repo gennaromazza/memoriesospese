@@ -1850,7 +1850,7 @@ export default function BookingsManager({
                                       if (!gallery) {
                                         setSelectedBookingForGallery(booking);
                                       } else {
-                                        window.location.href = `/admin/gallery/${gallery.id}/manage`;
+                                        window.open(`/admin/gallery/${gallery.id}/manage`, '_blank');
                                       }
                                     }}
                                     data-testid={`button-gallery-${booking.id}`}
