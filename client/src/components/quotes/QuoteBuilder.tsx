@@ -153,6 +153,20 @@ const quoteSchema = z.object({
 
 type FormData = z.infer<typeof quoteSchema>;
 
+// Template prodotti frequenti per quick-add
+const FREQUENT_PRODUCTS = [
+  { nome: 'Album Matrimonio 30x30', descrizione: '30 facciate, copertina in pelle', prezzo: 450 },
+  { nome: 'Album Matrimonio 35x35', descrizione: '40 facciate, copertina in pelle premium', prezzo: 650 },
+  { nome: 'Album Genitori 20x20', descrizione: '20 facciate, copertina rigida', prezzo: 180 },
+  { nome: 'Stampa Fine Art 30x40', descrizione: 'Stampa giclée su carta cotone', prezzo: 80 },
+  { nome: 'Stampa Fine Art 50x70', descrizione: 'Stampa giclée su carta cotone', prezzo: 150 },
+  { nome: 'Box USB Personalizzato', descrizione: 'Chiavetta USB in cofanetto legno', prezzo: 120 },
+  { nome: 'Ingrandimento con Cornice', descrizione: 'Stampa 40x60 con cornice', prezzo: 220 },
+  { nome: 'Secondo Fotografo', descrizione: '8 ore di servizio aggiuntivo', prezzo: 400 },
+  { nome: 'Servizio Video Highlights', descrizione: 'Video 3-5 minuti highlight', prezzo: 800 },
+  { nome: 'Servizio Droni', descrizione: 'Riprese aeree location', prezzo: 300 },
+];
+
 // Sortable Product Card component for drag and drop
 interface SortableProductCardProps {
   id: string;
@@ -1087,25 +1101,60 @@ export default function QuoteBuilder({
 
             {/* Sezione 2: Prodotti Custom */}
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold">2. Prodotti Custom (opzionale)</h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => append({
-                    nome: '',
-                    descrizione: '',
-                    prezzo: 0,
-                    selectable: form.watch('type') === 'variabile',
-                    numeroFoto: 0,
-                    categoria: '',
-                    immagini: []
-                  })}
-                  data-testid="button-add-custom-product"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Aggiungi Prodotto Custom
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Dropdown prodotti frequenti */}
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      const product = FREQUENT_PRODUCTS.find(p => p.nome === value);
+                      if (product) {
+                        append({
+                          nome: product.nome,
+                          descrizione: product.descrizione,
+                          prezzo: product.prezzo,
+                          selectable: form.watch('type') === 'variabile',
+                          numeroFoto: 0,
+                          categoria: '',
+                          immagini: []
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[200px]" data-testid="select-frequent-product">
+                      <SelectValue placeholder="Prodotti frequenti..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FREQUENT_PRODUCTS.map((product) => (
+                        <SelectItem key={product.nome} value={product.nome}>
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate">{product.nome}</span>
+                            <span className="text-muted-foreground text-xs">€{product.prezzo}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => append({
+                      nome: '',
+                      descrizione: '',
+                      prezzo: 0,
+                      selectable: form.watch('type') === 'variabile',
+                      numeroFoto: 0,
+                      categoria: '',
+                      immagini: []
+                    })}
+                    data-testid="button-add-custom-product"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Vuoto
+                  </Button>
+                </div>
               </div>
 
               <DndContext

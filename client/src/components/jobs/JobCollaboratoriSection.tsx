@@ -12,6 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -102,7 +112,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     assignmentId: '',
     compenso: 0,
     noteModifica: '',
-    sendEmail: true,
+    sendEmail: false,
   });
   const [isProductsTasksModalOpen, setIsProductsTasksModalOpen] = useState(false);
   const [productsTasksData, setProductsTasksData] = useState<{
@@ -116,6 +126,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
     mansioniAssegnate: [],
     nuovaMansione: '',
   });
+  const [removeAssignmentId, setRemoveAssignmentId] = useState<string | null>(null);
 
   const { data: collaboratori = [] } = useQuery({
     queryKey: ['collaboratori', 'attivi'],
@@ -300,8 +311,13 @@ export function JobCollaboratoriSection({ jobId }: Props) {
   };
 
   const handleRemoveAssignment = (assignmentId: string) => {
-    if (window.confirm('Sei sicuro di voler rimuovere questo collaboratore dal lavoro?')) {
-      removeAssignmentMutation.mutate(assignmentId);
+    setRemoveAssignmentId(assignmentId);
+  };
+
+  const confirmRemoveAssignment = () => {
+    if (removeAssignmentId) {
+      removeAssignmentMutation.mutate(removeAssignmentId);
+      setRemoveAssignmentId(null);
     }
   };
 
@@ -310,7 +326,7 @@ export function JobCollaboratoriSection({ jobId }: Props) {
       assignmentId: assignment.id,
       compenso: assignment.compenso,
       noteModifica: '',
-      sendEmail: true,
+      sendEmail: false,
     });
     setIsEditCompensoModalOpen(true);
   };
@@ -988,6 +1004,29 @@ export function JobCollaboratoriSection({ jobId }: Props) {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* AlertDialog per conferma rimozione collaboratore */}
+        <AlertDialog open={!!removeAssignmentId} onOpenChange={(open) => !open && setRemoveAssignmentId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rimuovi Collaboratore</AlertDialogTitle>
+              <AlertDialogDescription>
+                Sei sicuro di voler rimuovere questo collaboratore dal lavoro? 
+                Questa azione non può essere annullata.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={removeAssignmentMutation.isPending}>Annulla</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmRemoveAssignment}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={removeAssignmentMutation.isPending}
+              >
+                {removeAssignmentMutation.isPending ? 'Rimozione...' : 'Rimuovi'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
