@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "../context/StudioContext";
 import { useFirebaseAuth } from "../context/FirebaseAuthContext";
@@ -26,6 +26,18 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   const { handleLogout } = useLogout();
   const userInfo = useUserInfo();
   const isAdmin = useIsAdmin();
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMenuOpen]);
 
   // Admin navigation bar
   if (isAdminNav) {
@@ -261,7 +273,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
       </div>
 
       {/* Mobile menu */}
-      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-white/95 backdrop-blur-lg border-t border-sage/10 shadow-lg`}>
+      <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-white/95 backdrop-blur-lg border-t border-sage/10 shadow-lg fixed left-0 right-0 top-20 max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain`}>
         <div className="px-3 pt-3 pb-4 space-y-1">
           {getMobileItems().map((item) => (
             <Link 
