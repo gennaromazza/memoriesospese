@@ -18,6 +18,7 @@ import { getAllProducts } from '@/lib/products';
 import type { BookingCampaign, Product } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -790,9 +791,8 @@ export default function CampaignsManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="orarioApertura">Apertura</Label>
-                    <Input
+                    <TimeInput
                       id="orarioApertura"
-                      type="time"
                       value={formData.orarioApertura}
                       onChange={e => setFormData({ ...formData, orarioApertura: e.target.value })}
                       data-testid="input-opening-time"
@@ -800,9 +800,8 @@ export default function CampaignsManager() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="orarioChiusura">Chiusura</Label>
-                    <Input
+                    <TimeInput
                       id="orarioChiusura"
-                      type="time"
                       value={formData.orarioChiusura}
                       onChange={e => setFormData({ ...formData, orarioChiusura: e.target.value })}
                       data-testid="input-closing-time"
@@ -812,9 +811,8 @@ export default function CampaignsManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="pausaInizio">Pausa Inizio</Label>
-                    <Input
+                    <TimeInput
                       id="pausaInizio"
-                      type="time"
                       value={formData.orarioPausaInizio}
                       onChange={e => setFormData({ ...formData, orarioPausaInizio: e.target.value })}
                       data-testid="input-break-start"
@@ -822,9 +820,8 @@ export default function CampaignsManager() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="pausaFine">Pausa Fine</Label>
-                    <Input
+                    <TimeInput
                       id="pausaFine"
-                      type="time"
                       value={formData.orarioPausaFine}
                       onChange={e => setFormData({ ...formData, orarioPausaFine: e.target.value })}
                       data-testid="input-break-end"

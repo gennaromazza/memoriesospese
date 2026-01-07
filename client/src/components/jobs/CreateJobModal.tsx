@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -394,17 +395,13 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                       </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <Input
-                            type="time"
-                            placeholder="Orario appuntamento"
-                            value={appuntamentiClienti[cliente.id]?.orario || ''}
-                            onChange={(e) => handleAppuntamentoChange(cliente.id, 'orario', e.target.value)}
-                            className="h-8"
-                            data-testid={`input-orario-${cliente.id}`}
-                          />
-                        </div>
+                        <TimeInput
+                          placeholder="Orario appuntamento"
+                          value={appuntamentiClienti[cliente.id]?.orario || ''}
+                          onChange={(e) => handleAppuntamentoChange(cliente.id, 'orario', e.target.value)}
+                          className="h-8"
+                          data-testid={`input-orario-${cliente.id}`}
+                        />
                         <Input
                           type="text"
                           placeholder="Note (es. indirizzo, citofono...)"
@@ -594,8 +591,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                         <FormItem>
                           <FormLabel>Ora Inizio *</FormLabel>
                           <FormControl>
-                            <Input
-                              type="time"
+                            <TimeInput
                               {...field}
                               data-testid="input-start-time"
                             />
@@ -612,8 +608,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                         <FormItem>
                           <FormLabel>Ora Fine *</FormLabel>
                           <FormControl>
-                            <Input
-                              type="time"
+                            <TimeInput
                               {...field}
                               data-testid="input-end-time"
                             />
@@ -717,8 +712,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                   <FormItem>
                     <FormLabel>Orario Rito</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
+                      <TimeInput
                         {...field}
                         data-testid="input-ritu-time"
                       />

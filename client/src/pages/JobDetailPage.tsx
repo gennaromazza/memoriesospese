@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1145,9 +1146,8 @@ export default function JobDetailPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="start-time">Ora Inizio {!isAllDay && '*'}</Label>
-                <Input
+                <TimeInput
                   id="start-time"
-                  type="time"
                   value={newEventStartTime}
                   onChange={(e) => setNewEventStartTime(e.target.value)}
                   disabled={isAllDay}

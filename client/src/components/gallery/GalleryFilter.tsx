@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Label } from '@/components/ui/label';
 import { Calendar, Clock, Filter } from 'lucide-react';
 import {
@@ -153,9 +154,8 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
                   
                   <div className="space-y-2">
                     <Label htmlFor="startTime">Ora inizio</Label>
-                    <Input
+                    <TimeInput
                       id="startTime"
-                      type="time"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                     />
@@ -163,9 +163,8 @@ const GalleryFilter: React.FC<GalleryFilterProps> = ({
                   
                   <div className="space-y-2">
                     <Label htmlFor="endTime">Ora fine</Label>
-                    <Input
+                    <TimeInput
                       id="endTime"
-                      type="time"
                       value={endTime}
                       onChange={(e) => setEndTime(e.target.value)}
                     />

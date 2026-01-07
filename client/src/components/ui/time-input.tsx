@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Clock } from "lucide-react";
+import { Clock, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./select";
+import { Button } from "./button";
 import { cn } from "../../lib/utils";
 
 interface TimeInputProps {
@@ -22,7 +23,7 @@ interface TimeInputProps {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
-const MINUTES = ["00", "15", "30", "45"];
+const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0"));
 
 const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
   ({ value = "", onChange, onBlur, disabled, className, id, name, placeholder, "data-testid": dataTestId }, ref) => {
@@ -38,9 +39,15 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
     };
 
     const handleMinutesChange = (newMinutes: string) => {
-      const newValue = `${hours || "09"}:${newMinutes}`;
+      const newValue = `${hours || "00"}:${newMinutes}`;
       onChange?.({ target: { value: newValue } });
     };
+
+    const handleClear = () => {
+      onChange?.({ target: { value: "" } });
+    };
+
+    const hasValue = hours !== "" || minutes !== "";
 
     return (
       <div
@@ -85,7 +92,7 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
           >
             <SelectValue placeholder="--" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[200px]">
             {MINUTES.map((m) => (
               <SelectItem key={m} value={m}>
                 {m}
@@ -93,6 +100,18 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
             ))}
           </SelectContent>
         </Select>
+        {hasValue && !disabled && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+            onClick={handleClear}
+            tabIndex={-1}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
         {name && <input type="hidden" name={name} value={value} />}
       </div>
     );

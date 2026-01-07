@@ -28,6 +28,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -933,14 +934,12 @@ export default function CalendarioManager() {
 
               <div className="space-y-2">
                 <Label htmlFor="start-time" className="text-sm">Ora Inizio {!isAllDay && '*'}</Label>
-                <Input
+                <TimeInput
                   id="start-time"
-                  type="time"
                   value={newEventStartTime}
                   onChange={(e) => setNewEventStartTime(e.target.value)}
                   disabled={isAllDay}
                   data-testid="input-start-time"
-                  className="text-sm"
                 />
               </div>
             </div>
@@ -1309,24 +1308,20 @@ export default function CalendarioManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="edit-start-time">Ora Inizio *</Label>
-                  <Input
+                  <TimeInput
                     id="edit-start-time"
-                    type="time"
                     value={editEventData.startTime}
                     onChange={(e) => setEditEventData({ ...editEventData, startTime: e.target.value })}
-                    required
                     data-testid="input-edit-start-time"
                   />
                 </div>
                 
                 <div>
                   <Label htmlFor="edit-end-time">Ora Fine *</Label>
-                  <Input
+                  <TimeInput
                     id="edit-end-time"
-                    type="time"
                     value={editEventData.endTime}
                     onChange={(e) => setEditEventData({ ...editEventData, endTime: e.target.value })}
-                    required
                     data-testid="input-edit-end-time"
                   />
                 </div>

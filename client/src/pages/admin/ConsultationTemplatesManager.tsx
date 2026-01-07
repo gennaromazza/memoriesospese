@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -1208,8 +1209,7 @@ export default function ConsultationTemplatesManager() {
                                     {/* Apertura */}
                                     <div className="space-y-1">
                                       <Label className="text-xs font-medium">Apertura</Label>
-                                      <Input
-                                        type="time"
+                                      <TimeInput
                                         value={dayConfig.apertura}
                                         onChange={(e) =>
                                           setFormData(prev => ({
@@ -1221,15 +1221,13 @@ export default function ConsultationTemplatesManager() {
                                             ),
                                           }))
                                         }
-                                        className="h-10 text-sm"
                                       />
                                     </div>
 
                                     {/* Pausa Inizio */}
                                     <div className="space-y-1">
                                       <Label className="text-xs font-medium">Pausa Inizio</Label>
-                                      <Input
-                                        type="time"
+                                      <TimeInput
                                         value={dayConfig.pausaInizio || ""}
                                         onChange={(e) =>
                                           setFormData(prev => ({
@@ -1241,15 +1239,13 @@ export default function ConsultationTemplatesManager() {
                                             ),
                                           }))
                                         }
-                                        className="h-10 text-sm"
                                       />
                                     </div>
 
                                     {/* Pausa Fine */}
                                     <div className="space-y-1">
                                       <Label className="text-xs font-medium">Pausa Fine</Label>
-                                      <Input
-                                        type="time"
+                                      <TimeInput
                                         value={dayConfig.pausaFine || ""}
                                         onChange={(e) =>
                                           setFormData(prev => ({
@@ -1261,15 +1257,13 @@ export default function ConsultationTemplatesManager() {
                                             ),
                                           }))
                                         }
-                                        className="h-10 text-sm"
                                       />
                                     </div>
 
                                     {/* Chiusura */}
                                     <div className="space-y-1">
                                       <Label className="text-xs font-medium">Chiusura</Label>
-                                      <Input
-                                        type="time"
+                                      <TimeInput
                                         value={dayConfig.chiusura}
                                         onChange={(e) =>
                                           setFormData(prev => ({
@@ -1281,7 +1275,6 @@ export default function ConsultationTemplatesManager() {
                                             ),
                                           }))
                                         }
-                                        className="h-10 text-sm"
                                       />
                                     </div>
                                   </div>
