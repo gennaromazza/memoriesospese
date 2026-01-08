@@ -613,10 +613,11 @@ router.delete("/templates/:id", async (req: Request, res: Response) => {
 // GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
 router.get("/filters", async (req: Request, res: Response) => {
   try {
+    // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
     const jobsSnapshot = await db.collection("jobs").select("dataEvento", "eventDate", "jobType").get();
     const yearsSet = new Set<number>();
     const jobTypesSet = new Set<string>();
-    const currentYear = new Date().getFullYear();
+    const currentYear = DateTime.now().setZone('Europe/Rome').year;
 
     jobsSnapshot.forEach((doc) => {
       const data = doc.data();
@@ -626,9 +627,13 @@ router.get("/filters", async (req: Request, res: Response) => {
       if (dateField) {
         let year: number | null = null;
         if (typeof dateField === 'string') {
-          year = new Date(dateField).getFullYear();
+          // Parse string date in Europe/Rome timezone
+          const dt = DateTime.fromISO(dateField, { zone: 'Europe/Rome' });
+          year = dt.isValid ? dt.year : null;
         } else if (dateField?.toDate) {
-          year = dateField.toDate().getFullYear();
+          // Parse Firestore Timestamp in Europe/Rome timezone
+          const dt = DateTime.fromJSDate(dateField.toDate(), { zone: 'Europe/Rome' });
+          year = dt.isValid ? dt.year : null;
         }
         if (year && year >= 2020 && year <= currentYear + 2) {
           yearsSet.add(year);
@@ -807,10 +812,11 @@ router.get("/recipients", async (req: Request, res: Response) => {
     }
 
     // Filtri standard per anno
+    // CRITICAL: Use Luxon for correct timezone handling (uses top-level import)
     let query: any = db.collection("clienti");
 
     if (filter === "anno_corrente") {
-      const currentYear = new Date().getFullYear();
+      const currentYear = DateTime.now().setZone('Europe/Rome').year;
       query = query.where("anno", "==", currentYear);
     } else if (filter && filter.toString().startsWith("anno_")) {
       const year = parseInt(filter.toString().replace("anno_", ""));

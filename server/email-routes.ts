@@ -258,11 +258,10 @@ export function generateGoogleCalendarLink(params: {
 
     if (isAllDay) {
       // All-day: YYYYMMDD/YYYYMMDD (end date exclusive)
+      // CRITICAL: Use Luxon for correct Europe/Rome timezone extraction (server runs in UTC)
       const formatYYYYMMDD = (date: Date): string => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}${month}${day}`;
+        const romeDate = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
+        return romeDate.toFormat('yyyyMMdd');
       };
 
       const startFormatted = formatYYYYMMDD(start);
@@ -4536,8 +4535,9 @@ router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
     }
 
     // Statistiche ultime 24 ore
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    // CRITICAL: Use Luxon for correct timezone handling
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const yesterday = nowRome.minus({ days: 1 }).toJSDate();
 
     const last24hSnapshot = await db.collection('emailLogs')
       .where('sentAt', '>=', yesterday)
@@ -4545,8 +4545,7 @@ router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
       .get();
 
     // Statistiche ultimi 7 giorni
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
+    const lastWeek = nowRome.minus({ days: 7 }).toJSDate();
 
     const last7dSnapshot = await db.collection('emailLogs')
       .where('sentAt', '>=', lastWeek)

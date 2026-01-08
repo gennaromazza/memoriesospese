@@ -3,6 +3,7 @@ import express from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
+import { DateTime } from 'luxon';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
 import type {
   Collaboratore,
@@ -1801,17 +1802,15 @@ async function sendEventReminderEmail(
 router.post('/collaboratori/send-reminders', async (req, res) => {
   try {
     // Calcola intervallo per "domani" (Europe/Rome timezone)
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const tomorrowRome = nowRome.plus({ days: 1 });
     
-    // Inizio e fine di domani
-    const startOfTomorrow = new Date(tomorrow);
-    startOfTomorrow.setHours(0, 0, 0, 0);
-    const endOfTomorrow = new Date(tomorrow);
-    endOfTomorrow.setHours(23, 59, 59, 999);
+    // Inizio e fine di domani in Europe/Rome, convertiti a UTC per Firestore
+    const startOfTomorrow = tomorrowRome.startOf('day').toJSDate();
+    const endOfTomorrow = tomorrowRome.endOf('day').toJSDate();
     
-    console.log(`🔔 Cercando eventi tra ${startOfTomorrow.toISOString()} e ${endOfTomorrow.toISOString()}`);
+    console.log(`🔔 Cercando eventi tra ${startOfTomorrow.toISOString()} e ${endOfTomorrow.toISOString()} (domani Rome: ${tomorrowRome.toFormat('yyyy-MM-dd')})`);
     
     // Trova tutti i jobs con eventi domani
     const jobsSnapshot = await db.collection('jobs')
@@ -1927,9 +1926,10 @@ router.get('/collaboratori/upcoming-events', async (req, res) => {
     const { days = '7' } = req.query;
     const numDays = parseInt(days as string, 10) || 7;
     
-    const now = new Date();
-    const futureDate = new Date(now);
-    futureDate.setDate(futureDate.getDate() + numDays);
+    // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
+    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const now = nowRome.toJSDate();
+    const futureDate = nowRome.plus({ days: numDays }).toJSDate();
     
     // Jobs nei prossimi N giorni
     const jobsSnapshot = await db.collection('jobs')
