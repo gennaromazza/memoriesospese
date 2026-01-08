@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import { DateTime } from 'luxon';
 import { getEvents, createEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
@@ -67,10 +68,13 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     }
     
     // 4. Crea nuovo evento Calendar
-    const eventDate = job.eventDate.toDate();
-    const year = eventDate.getFullYear();
-    const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-    const day = String(eventDate.getDate()).padStart(2, '0');
+    // CRITICAL: Usa Luxon per estrarre la data nel fuso orario italiano
+    // Il server è in UTC, ma eventDate è memorizzato come timestamp Rome
+    const eventDateJs = job.eventDate.toDate();
+    const romeDate = DateTime.fromJSDate(eventDateJs, { zone: 'Europe/Rome' });
+    const year = romeDate.year;
+    const month = String(romeDate.month).padStart(2, '0');
+    const day = String(romeDate.day).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
     const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
@@ -306,10 +310,35 @@ router.get('/check-calendar', async (req, res) => {
  * Crea/aggiorna evento Google Calendar per Job (quando diventa confermato, etc.)
  * Blocca slot per prenotazioni/consultations
  * Verifica esistenza evento esistente, ricrea se stale
+ * Query params: force=true per forzare ricreazione (elimina evento esistente)
  */
 router.post('/:id/calendar-event', async (req, res) => {
   try {
     const { id } = req.params;
+    const force = req.query.force === 'true';
+    
+    // Se force=true, elimina prima l'evento esistente
+    if (force) {
+      const jobDoc = await db.collection('jobs').doc(id).get();
+      if (jobDoc.exists) {
+        const job = jobDoc.data();
+        if (job?.googleCalendarEventId) {
+          console.log(`🔄 Force recreation: eliminando evento ${job.googleCalendarEventId}...`);
+          try {
+            const { deleteEvent } = await import('./google-calendar.js');
+            await deleteEvent('primary', job.googleCalendarEventId);
+            console.log(`✅ Evento ${job.googleCalendarEventId} eliminato`);
+          } catch (deleteError) {
+            console.warn(`⚠️ Impossibile eliminare evento:`, deleteError);
+          }
+          // Rimuovi ID dal job
+          await db.collection('jobs').doc(id).update({
+            googleCalendarEventId: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+        }
+      }
+    }
     
     const result = await ensureJobCalendarEvent(id);
     
