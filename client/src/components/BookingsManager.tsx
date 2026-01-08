@@ -2,10 +2,10 @@
  * Bookings Manager - Gestione prenotazioni booking per admin
  */
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { nextMonday, isToday, isTomorrow, isYesterday, addDays, isSameDay, startOfDay } from "date-fns";
 import {
   getAllBookings,
@@ -186,17 +186,35 @@ export default function BookingsManager({
   const { toast } = useToast();
   const { user } = useFirebaseAuth();
   const [, navigate] = useLocation();
-  const [selectedStato, setSelectedStato] = useState<string>("all");
+  const searchParams = useSearch();
+  
+  // Helper per leggere i query params iniziali
+  const getInitialParams = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    const parsedPage = parseInt(params.get("page") || "1", 10);
+    return {
+      stato: params.get("stato") || "all",
+      search: params.get("search") || "",
+      time: (params.get("time") as "all" | "upcoming" | "past" | "today" | "tomorrow" | "next-week" | "next-month") || "upcoming",
+      workflow: params.get("workflow") || "all",
+      selection: (params.get("selection") as "all" | "approved") || "all",
+      page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
+    };
+  }, [searchParams]);
+  
+  const initialParams = getInitialParams();
+  
+  const [selectedStato, setSelectedStato] = useState<string>(initialParams.stato);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>(initialParams.search);
   const [selectedBookingForOrder, setSelectedBookingForOrder] =
     useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] =
     useState<Booking | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialParams.page);
   const ITEMS_PER_PAGE = 10;
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -206,16 +224,48 @@ export default function BookingsManager({
   // Ref per throttling auto-mark (evita chiamate ripetute)
   const autoMarkTriggeredRef = useRef(false);
   
+  // Ref per evitare reset pagina al primo mount (preserva URL)
+  const isFirstMountRef = useRef(true);
+  
   const [expandedProducts, setExpandedProducts] = useState<
     Record<string, boolean>
   >({});
   const [timeFilter, setTimeFilter] = useState<
     "all" | "upcoming" | "past" | "today" | "tomorrow" | "next-week" | "next-month"
-  >("upcoming");
+  >(initialParams.time);
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
-    "all",
+    initialParams.selection,
   );
-  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
+  const [workflowFilter, setWorkflowFilter] = useState<string>(initialParams.workflow);
+  
+  // Sincronizza filtri con URL (senza ricaricare la pagina)
+  const updateUrlParams = useCallback((updates: Record<string, string | number>) => {
+    const params = new URLSearchParams(window.location.search);
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      const strValue = String(value);
+      // Non salvare valori di default nell'URL per mantenerlo pulito
+      const isDefault = 
+        (key === "stato" && strValue === "all") ||
+        (key === "search" && strValue === "") ||
+        (key === "time" && strValue === "upcoming") ||
+        (key === "workflow" && strValue === "all") ||
+        (key === "selection" && strValue === "all") ||
+        (key === "page" && strValue === "1");
+        
+      if (isDefault) {
+        params.delete(key);
+      } else {
+        params.set(key, strValue);
+      }
+    });
+    
+    const newUrl = params.toString() 
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname;
+    
+    window.history.replaceState({}, "", newUrl);
+  }, []);
 
   // State per workflow state change con conferma
   const [workflowChangeBooking, setWorkflowChangeBooking] = useState<{
@@ -285,6 +335,18 @@ export default function BookingsManager({
     queryKey: ["galleries"],
     queryFn: GalleryService.getAllGalleries,
   });
+
+  // Sincronizza URL quando cambiano i filtri
+  useEffect(() => {
+    updateUrlParams({
+      stato: selectedStato,
+      search: searchQuery,
+      time: timeFilter,
+      workflow: workflowFilter,
+      selection: selectionFilter,
+      page: currentPage,
+    });
+  }, [selectedStato, searchQuery, timeFilter, workflowFilter, selectionFilter, currentPage, updateUrlParams]);
 
   // Helper: Ottieni nome campagna
   const getCampaignName = (campaignId: string) => {
@@ -528,8 +590,12 @@ export default function BookingsManager({
     return bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [bookings, currentPage]);
 
-  // Reset currentPage quando cambiano filtri
+  // Reset currentPage quando cambiano filtri (ma non al primo mount per preservare URL)
   useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [selectedStato, searchQuery, timeFilter, selectionFilter, workflowFilter]);
 
