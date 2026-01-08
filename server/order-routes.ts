@@ -679,4 +679,133 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
   }
 });
 
+/**
+ * POST /api/orders/:id/register-payment
+ * Registra un pagamento (acconto o saldo) con creazione atomica del movimento cassa
+ * RICHIEDE AUTENTICAZIONE: Solo admin può registrare pagamenti
+ */
+router.post('/:id/register-payment', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    if (!req.user || !ADMIN_EMAILS.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Solo gli admin possono registrare pagamenti' });
+    }
+
+    const { id: orderId } = req.params;
+    const { 
+      tipo, 
+      importo, 
+      metodoPagamento = 'contante', 
+      note,
+      data 
+    } = req.body;
+
+    if (!tipo || !['acconto', 'saldo'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo pagamento deve essere "acconto" o "saldo"' });
+    }
+
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Ordine non trovato' });
+    }
+
+    const orderData = orderDoc.data()!;
+    const totale = orderData.totale || 0;
+    const accontoAttuale = orderData.acconto || 0;
+    const saldoAttuale = orderData.saldo || totale - accontoAttuale;
+    const transactions = orderData.transactions || [];
+    const paymentDate = data ? new Date(data) : new Date();
+
+    let paymentAmount: number;
+    let nuovoAcconto: number;
+    let nuovoSaldo: number;
+
+    if (tipo === 'acconto') {
+      if (!importo || importo <= 0) {
+        return res.status(400).json({ error: 'Importo acconto deve essere maggiore di zero' });
+      }
+      paymentAmount = importo;
+      nuovoAcconto = accontoAttuale + importo;
+      nuovoSaldo = totale - nuovoAcconto;
+
+      if (nuovoAcconto > totale) {
+        return res.status(400).json({ 
+          error: `Acconto totale (€${nuovoAcconto.toFixed(2)}) supera il totale ordine (€${totale.toFixed(2)})` 
+        });
+      }
+    } else {
+      if (saldoAttuale <= 0) {
+        return res.status(400).json({ error: 'Non c\'è saldo da pagare per questo ordine' });
+      }
+      paymentAmount = saldoAttuale;
+      nuovoAcconto = accontoAttuale + saldoAttuale;
+      nuovoSaldo = 0;
+    }
+
+    const newTransaction = {
+      tipo,
+      importo: paymentAmount,
+      metodo: metodoPagamento,
+      data: paymentDate,
+      emailInviata: false,
+      ...(note?.trim() && { note: note.trim() }),
+    };
+
+    const updatedTransactions = [...transactions, newTransaction];
+
+    const batch = db.batch();
+
+    batch.update(orderRef, {
+      transactions: updatedTransactions,
+      acconto: nuovoAcconto,
+      saldo: nuovoSaldo,
+      [`metodoPagamento${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: metodoPagamento,
+      [`data${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`]: paymentDate,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const prodottiDescrizione = orderData.prodotti
+      ?.map((p: any) => p.prodottoNome)
+      .join(', ')
+      .substring(0, 50) || 'Prodotti';
+    const nomeCliente = orderData.nomeCliente || 'Cliente';
+
+    const cashMovementRef = db.collection('cashMovements').doc();
+    batch.set(cashMovementRef, {
+      tipo: 'entrata',
+      categoria: 'Vendita diretta',
+      importo: paymentAmount,
+      descrizione: `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione}`,
+      data: paymentDate,
+      metodoPagamento,
+      note: `Ordine ID: ${orderId} - ${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    console.log(`✅ Pagamento ${tipo} registrato per ordine ${orderId}: €${paymentAmount} (${metodoPagamento})`);
+    console.log(`✅ Movimento cassa creato: ${cashMovementRef.id}`);
+
+    res.json({
+      success: true,
+      orderId,
+      transactionIndex: updatedTransactions.length - 1,
+      cashMovementId: cashMovementRef.id,
+      paymentAmount,
+      nuovoSaldo,
+      message: `Pagamento ${tipo} di €${paymentAmount.toFixed(2)} registrato con successo`,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore registrazione pagamento:', error);
+    res.status(500).json({
+      error: 'Errore registrazione pagamento',
+      details: error.message
+    });
+  }
+});
+
 export default router;

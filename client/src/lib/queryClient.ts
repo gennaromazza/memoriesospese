@@ -89,7 +89,8 @@ export async function apiRequest(
     '/api/quotes/',
     '/api/booking/',
     '/api/calendar/',
-    '/api/consultations/v2/' // All V2 consultation endpoints except public ones
+    '/api/consultations/v2/', // All V2 consultation endpoints except public ones
+    '/api/orders/' // Order management endpoints requiring auth
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici

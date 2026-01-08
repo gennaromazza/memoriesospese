@@ -573,7 +573,7 @@ export async function recordAccontoPayment(
 
 /**
  * Registra pagamento saldo (admin only)
- * Crea transaction nel transactions array e aggiorna legacy fields
+ * Usa l'endpoint backend che crea atomicamente transaction + movimento cassa
  */
 export async function recordSaldoPayment(
   orderId: string,
@@ -581,72 +581,47 @@ export async function recordSaldoPayment(
   note?: string,
   data: Date = new Date(),
 ): Promise<{ transaction: Transaction; index: number }> {
-  const docRef = doc(db, COLLECTION, orderId);
+  const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
+    tipo: 'saldo',
+    metodoPagamento: metodo,
+    note,
+    data: data.toISOString(),
+  });
 
-  // 1. Fetch ordine corrente
-  const orderSnap = await getDoc(docRef);
-  if (!orderSnap.exists()) {
-    throw new Error("Ordine non trovato");
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Errore registrazione saldo');
   }
 
-  const orderData = ensureProdottiArray(orderSnap.data());
-  const saldo = orderData.saldo || 0;
-  const transactions: Transaction[] = orderData.transactions || [];
+  console.log(`✅ Saldo registrato: €${result.paymentAmount} - CashMovement: ${result.cashMovementId}`);
 
-  // 2. Validation: deve esserci un saldo da pagare
-  if (saldo <= 0) {
-    throw new Error("Non c'è saldo da pagare per questo ordine");
-  }
-
-  // 3. Crea nuova transaction per saldo (ometti 'note' se vuoto per evitare undefined in Firestore)
-  const newTransaction: Transaction = {
-    tipo: "saldo",
-    importo: saldo,
-    metodo,
-    data: Timestamp.fromDate(data),
-    emailInviata: false, // Sarà settato a true dopo invio email
-    ...(note?.trim() && { note: note.trim() }), // Ometti campo se vuoto
-  };
-
-  // 4. Append transaction all'array
-  const updatedTransactions = [...transactions, newTransaction];
-
-  // 5. Update Firestore con nuovi valori (sanitizza per rimuovere undefined)
-  await updateDoc(
-    docRef,
-    sanitizeData({
-      transactions: updatedTransactions,
-      saldo: 0, // Saldo azzerato dopo pagamento
-      // Legacy fields (backward compat)
-      metodoPagamentoSaldo: metodo,
-      dataSaldo: Timestamp.fromDate(data),
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  // 6. Invia email automatica al cliente (non-blocking)
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {
       orderId,
       paymentType: 'saldo',
-      paymentAmount: saldo,
+      paymentAmount: result.paymentAmount,
       paymentMethod: metodo,
       paymentDate: data.toISOString(),
       notes: note
     });
     console.log('✅ Email pagamento saldo inviata con successo');
     
-    // Marca transaction come email inviata
-    await markTransactionEmailSent(orderId, updatedTransactions.length - 1);
+    await markTransactionEmailSent(orderId, result.transactionIndex);
   } catch (emailError) {
     console.error('❌ Errore invio email pagamento saldo:', emailError);
-    // Non blocca il flusso - il pagamento è stato registrato comunque
   }
 
-  // 7. Return transaction creata e il suo index (per email notification e tracking)
   return {
-    transaction: newTransaction,
-    index: updatedTransactions.length - 1,
+    transaction: {
+      tipo: 'saldo',
+      importo: result.paymentAmount,
+      metodo,
+      data: Timestamp.fromDate(data),
+      emailInviata: false,
+      ...(note?.trim() && { note: note.trim() }),
+    },
+    index: result.transactionIndex,
   };
 }
 
@@ -708,68 +683,22 @@ export async function addAccontoPayment(
   note?: string,
   data: Date = new Date(),
 ): Promise<{ transaction: Transaction; index: number }> {
-  const docRef = doc(db, COLLECTION, orderId);
-
-  // 1. Fetch ordine corrente per validation
-  const orderSnap = await getDoc(docRef);
-  if (!orderSnap.exists()) {
-    throw new Error("Ordine non trovato");
-  }
-
-  const orderData = ensureProdottiArray(orderSnap.data());
-  const totale = orderData.totale || 0;
-  const accontoAttuale = orderData.acconto || 0;
-  const transactions: Transaction[] = orderData.transactions || [];
-
-  // 2. Validation: acconto totale non deve superare totale ordine
-  const nuovoAccontoTotale = accontoAttuale + importo;
-  if (nuovoAccontoTotale > totale) {
-    throw new Error(
-      `Acconto totale (€${nuovoAccontoTotale.toFixed(2)}) supera il totale ordine (€${totale.toFixed(2)}). ` +
-        `Puoi aggiungere massimo €${(totale - accontoAttuale).toFixed(2)}.`,
-    );
-  }
-
-  // 3. Validation: importo deve essere positivo
-  if (importo <= 0) {
-    throw new Error("L'importo dell'acconto deve essere maggiore di zero");
-  }
-
-  // 4. Crea nuova transaction (ometti 'note' se vuoto per evitare undefined in Firestore)
-  const newTransaction: Transaction = {
-    tipo: "acconto",
+  const response = await apiRequest('POST', `/api/orders/${orderId}/register-payment`, {
+    tipo: 'acconto',
     importo,
-    metodo,
-    data: Timestamp.fromDate(data),
-    emailInviata: false, // Sarà settato a true dopo invio email
-    ...(note?.trim() && { note: note.trim() }), // Ometti campo se vuoto
-  };
+    metodoPagamento: metodo,
+    note,
+    data: data.toISOString(),
+  });
 
-  // 5. Append transaction all'array
-  const updatedTransactions = [...transactions, newTransaction];
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Errore registrazione acconto');
+  }
 
-  // 6. Ricalcola acconto (somma di tutte le transactions tipo acconto)
-  const nuovoAcconto = updatedTransactions
-    .filter((t) => t.tipo === "acconto")
-    .reduce((sum, t) => sum + t.importo, 0);
+  console.log(`✅ Acconto registrato: €${importo} - CashMovement: ${result.cashMovementId}`);
 
-  const nuovoSaldo = totale - nuovoAcconto;
-
-  // 7. Update Firestore con nuovi valori (sanitizza per rimuovere undefined)
-  await updateDoc(
-    docRef,
-    sanitizeData({
-      transactions: updatedTransactions,
-      acconto: nuovoAcconto,
-      saldo: nuovoSaldo,
-      // Legacy fields (backward compat): update con ultimo pagamento
-      metodoPagamentoAcconto: metodo,
-      dataAcconto: Timestamp.fromDate(data),
-      updatedAt: serverTimestamp(),
-    }),
-  );
-
-  // 8. Invia email automatica al cliente (non-blocking)
   try {
     await apiRequest('POST', '/api/orders/payment-received-notification', {
       orderId,
@@ -781,17 +710,21 @@ export async function addAccontoPayment(
     });
     console.log('✅ Email pagamento acconto inviata con successo');
     
-    // Marca transaction come email inviata
-    await markTransactionEmailSent(orderId, updatedTransactions.length - 1);
+    await markTransactionEmailSent(orderId, result.transactionIndex);
   } catch (emailError) {
     console.error('❌ Errore invio email pagamento acconto:', emailError);
-    // Non blocca il flusso - il pagamento è stato registrato comunque
   }
 
-  // 9. Return transaction creata e il suo index (per email notification e tracking)
   return {
-    transaction: newTransaction,
-    index: updatedTransactions.length - 1,
+    transaction: {
+      tipo: 'acconto',
+      importo,
+      metodo,
+      data: Timestamp.fromDate(data),
+      emailInviata: false,
+      ...(note?.trim() && { note: note.trim() }),
+    },
+    index: result.transactionIndex,
   };
 }
 
