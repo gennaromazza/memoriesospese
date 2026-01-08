@@ -103,7 +103,8 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
           const quoteDoc = await db.collection('preventivi').doc(quoteId).get();
           if (quoteDoc.exists) {
             const quote = quoteDoc.data();
-            if (quote?.signatureUrl) {
+            // Il preventivo è firmato se stato === 'firmato' o ha signature.signedAt
+            if (quote?.stato === 'firmato' || quote?.signature?.signedAt) {
               // Costruisce link al preventivo nel portale clienti
               signedQuoteUrl = `${baseUrl}/preventivo/${quoteId}`;
               break;
