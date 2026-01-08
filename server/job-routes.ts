@@ -77,8 +77,85 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     const day = String(romeDate.day).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
+    // 4a. Recupera nomi clienti
+    let clientiNomi: string[] = [];
+    if (job.clientiIds && job.clientiIds.length > 0) {
+      const clientiPromises = job.clientiIds.map(async (clienteId: string) => {
+        try {
+          const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+          if (clienteDoc.exists) {
+            const c = clienteDoc.data();
+            return c?.nome && c?.cognome ? `${c.nome} ${c.cognome}` : (c?.nome || c?.cognome || clienteId);
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      });
+      const results = await Promise.all(clientiPromises);
+      clientiNomi = results.filter((n): n is string => n !== null);
+    }
+    
+    // 4b. Cerca preventivo firmato
+    let signedQuoteUrl: string | null = null;
+    if (job.quoteIds && job.quoteIds.length > 0) {
+      const baseUrl = getSiteBaseUrl();
+      for (const quoteId of job.quoteIds) {
+        try {
+          const quoteDoc = await db.collection('preventivi').doc(quoteId).get();
+          if (quoteDoc.exists) {
+            const quote = quoteDoc.data();
+            if (quote?.signatureUrl) {
+              // Costruisce link al preventivo nel portale clienti
+              signedQuoteUrl = `${baseUrl}/preventivo/${quoteId}`;
+              break;
+            }
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+    
+    // 4c. Costruisci descrizione arricchita
+    const descriptionParts: string[] = [];
+    
+    // Clienti
+    if (clientiNomi.length > 0) {
+      descriptionParts.push(`👥 Clienti: ${clientiNomi.join(', ')}`);
+    }
+    
+    // Orari
+    if (job.startTime && job.endTime) {
+      descriptionParts.push(`⏰ Orario: ${job.startTime} - ${job.endTime}`);
+    }
+    
+    // Location evento principale
+    if (job.eventLocation) {
+      descriptionParts.push(`📍 Location: ${job.eventLocation}`);
+    }
+    
+    // Rito (se diverso)
+    if (job.rituLocation) {
+      const rituInfo = job.rituTime ? `${job.rituLocation} (${job.rituTime})` : job.rituLocation;
+      descriptionParts.push(`⛪ Rito: ${rituInfo}`);
+    }
+    
+    // Appuntamenti clienti
+    if (job.appuntamentiClienti && job.appuntamentiClienti.length > 0) {
+      const appuntamentiStr = job.appuntamentiClienti.map((app: any) => {
+        const dataApp = app.data?.toDate ? DateTime.fromJSDate(app.data.toDate(), { zone: 'Europe/Rome' }).toFormat('dd/MM/yyyy') : '';
+        return `${app.titolo || 'Appuntamento'}: ${dataApp}${app.ora ? ` ${app.ora}` : ''}${app.luogo ? ` - ${app.luogo}` : ''}`;
+      }).join('\n  ');
+      descriptionParts.push(`📅 Appuntamenti:\n  ${appuntamentiStr}`);
+    }
+    
+    // Link preventivo firmato
+    if (signedQuoteUrl) {
+      descriptionParts.push(`📄 Preventivo firmato: ${signedQuoteUrl}`);
+    }
+    
+    // Metadata
+    descriptionParts.push(`\n---\nJob ID: ${jobId}\nStatus: ${job.status}\nProvenienza: ${job.provenance || 'N/A'}`);
+    
     const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
-    const description = `Job ID: ${jobId}\nStatus: ${job.status}\nProvenienza: ${job.provenance}${job.eventLocation ? `\nLocation: ${job.eventLocation}` : ''}`;
+    const description = descriptionParts.join('\n');
     
     let createdEvent;
     
