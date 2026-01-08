@@ -123,6 +123,27 @@ export async function createJob(
     await Promise.all(updatePromises);
 
     console.log('✅ Job creato:', docRef.id, `(${data.clientiIds.length} clienti collegati)`);
+    
+    // Sincronizza automaticamente con Google Calendar (se ha una data definita)
+    if (!data.dataNonDefinita && data.eventDate) {
+      try {
+        const calendarResponse = await fetch(`/api/jobs/${docRef.id}/calendar-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (calendarResponse.ok) {
+          const calendarResult = await calendarResponse.json();
+          console.log('📅 Evento Google Calendar creato:', calendarResult.eventId);
+        } else {
+          console.warn('⚠️ Impossibile creare evento Google Calendar:', await calendarResponse.text());
+        }
+      } catch (calendarError) {
+        console.warn('⚠️ Errore sincronizzazione Google Calendar:', calendarError);
+        // Non blocchiamo la creazione del job se Calendar fallisce
+      }
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('❌ Errore creazione job:', error);
