@@ -177,12 +177,10 @@ async function getConflictDetails(
         const jobData = doc.data();
         const jobEventDate = jobData.eventDate.toDate();
         
-        // Match by time
+        // Match by time - CRITICAL: Use Luxon for correct timezone handling
         if (jobData.startTime && jobData.endTime) {
-          const year = jobEventDate.getFullYear();
-          const month = String(jobEventDate.getMonth() + 1).padStart(2, '0');
-          const day = String(jobEventDate.getDate()).padStart(2, '0');
-          const dateStr = `${year}-${month}-${day}`;
+          const romeDate = DateTime.fromJSDate(jobEventDate, { zone: 'Europe/Rome' });
+          const dateStr = romeDate.toFormat('yyyy-MM-dd');
           const jobStart = createEuropeRomeDate(dateStr, jobData.startTime);
           
           if (Math.abs(jobStart.getTime() - eventStart) < 1000) {
@@ -620,11 +618,10 @@ router.patch(
       const config = consultationTemplateToAvailabilityConfig(template);
 
       // Step 3: Parse consultation date and time in Europe/Rome timezone
+      // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
-      const day = String(consultationDate.getDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
+      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
+      const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
       const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
       const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
@@ -813,18 +810,16 @@ router.get(
         return res.status(404).json({ error: "Consultation non trovata" });
       }
 
-      // Parse consultation date and time
+      // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
-      const day = String(consultationDate.getDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
+      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
+      const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
       const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
       const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
 
       // Get day boundaries
-      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dateObj = romeDate;
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
@@ -899,18 +894,16 @@ router.post(
         });
       }
 
-      // Parse consultation date and time
+      // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
-      const day = String(consultationDate.getDate()).padStart(2, "0");
-      const dateStr = `${year}-${month}-${day}`;
+      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
+      const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
       const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
       const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
 
       // Get day boundaries for conflict check
-      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dateObj = romeDate;
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
@@ -2246,11 +2239,9 @@ router.post("/send-reminders", async (req, res) => {
           timeZone: "Europe/Rome",
         });
 
-        // Converti consultationDate in formato YYYY-MM-DD
-        const year = consultationDate.getFullYear();
-        const month = String(consultationDate.getMonth() + 1).padStart(2, "0");
-        const day = String(consultationDate.getDate()).padStart(2, "0");
-        const dateStr = `${year}-${month}-${day}`;
+        // Converti consultationDate in formato YYYY-MM-DD - CRITICAL: Use Luxon for timezone
+        const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
+        const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
         const startDateTime = createEuropeRomeDate(
           dateStr,

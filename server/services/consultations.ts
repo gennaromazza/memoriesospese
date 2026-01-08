@@ -948,11 +948,10 @@ export async function isSlotAvailable(
   preloadedJobs?: QueryDocumentSnapshot[],
 ): Promise<boolean> {
   // 🔥 FIX TIMEZONE: Usa createEuropeRomeDate invece di new Date() + setHours()
-  // Questo assicura che stiamo usando Europe/Rome timezone come i timestamp Firestore
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const dateStr = `${year}-${month}-${day}`;
+  // CRITICAL: Use Luxon to extract date in Europe/Rome timezone (server runs in UTC)
+  const { DateTime } = await import('luxon');
+  const romeDate = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
+  const dateStr = romeDate.toFormat('yyyy-MM-dd');
 
   const slotStart = createEuropeRomeDate(dateStr, startTime);
   const slotEnd = createEuropeRomeDate(dateStr, endTime);
@@ -1043,11 +1042,9 @@ export async function isSlotAvailable(
   }
 
   if (isDebug && bookingDocs.length > 0) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    // Use the already-computed dateStr from romeDate for consistent logging
     console.log(
-      `[Consultations] 📅 Controllo ${bookingDocs.length} bookings per ${year}-${month}-${day}, slot ${startTime}-${endTime}`,
+      `[Consultations] 📅 Controllo ${bookingDocs.length} bookings per ${dateStr}, slot ${startTime}-${endTime}`,
     );
   }
 

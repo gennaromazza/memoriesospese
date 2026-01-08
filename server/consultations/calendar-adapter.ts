@@ -159,10 +159,10 @@ export async function getAllExistingEvents(
     for (const doc of consultationsSnap.docs) {
       const data = doc.data();
       const consultationDate = data.dataConsulenza.toDate();
-      const year = consultationDate.getFullYear();
-      const month = String(consultationDate.getMonth() + 1).padStart(2, '0');
-      const day = String(consultationDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+      // CRITICAL: Use Luxon for correct timezone extraction (server runs in UTC)
+      const { DateTime } = await import('luxon');
+      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
+      const dateStr = romeDate.toFormat('yyyy-MM-dd');
       
       const start = createEuropeRomeDate(dateStr, data.orarioInizio);
       const end = createEuropeRomeDate(dateStr, data.orarioFine);
@@ -243,10 +243,10 @@ export async function getAllExistingEvents(
           source: 'job'
         });
       } else if (data.startTime && data.endTime) {
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+        // CRITICAL: Use Luxon for correct timezone extraction (server runs in UTC)
+        const { DateTime } = await import('luxon');
+        const romeDate = DateTime.fromJSDate(eventDate, { zone: 'Europe/Rome' });
+        const dateStr = romeDate.toFormat('yyyy-MM-dd');
         
         const start = createEuropeRomeDate(dateStr, data.startTime);
         const end = createEuropeRomeDate(dateStr, data.endTime);
