@@ -611,8 +611,8 @@ export default function JobDetailPage() {
       });
       const data = await response.json();
 
-      if (channel === 'whatsapp' && data.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
+      if (channel === 'whatsapp' && data.whatsappLink) {
+        window.open(data.whatsappLink, '_blank');
       }
 
       toast({
