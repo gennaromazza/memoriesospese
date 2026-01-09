@@ -51,7 +51,9 @@ export default function ConsultationBooking() {
   const [location, navigate] = useLocation();
   
   // Estrai parametri dateFrom/dateTo dalla query string (per limitare date disponibili)
-  const urlParams = new URLSearchParams(location.split('?')[1] || '');
+  // Nota: useLocation() di wouter restituisce solo il path, non la query string
+  // Quindi usiamo window.location.search per i parametri
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const dateFromParam = urlParams.get('dateFrom');
   const dateToParam = urlParams.get('dateTo');
   
@@ -77,11 +79,9 @@ export default function ConsultationBooking() {
   const toTimestamp = dateRangeFilter.to ? getDateOnly(dateRangeFilter.to) : undefined;
   
   // DEBUG: log dei parametri URL
-  console.log('[ConsultationBooking] URL location:', location);
+  console.log('[ConsultationBooking] window.location.search:', typeof window !== 'undefined' ? window.location.search : 'SSR');
   console.log('[ConsultationBooking] dateFromParam:', dateFromParam, 'dateToParam:', dateToParam);
   console.log('[ConsultationBooking] fromTimestamp:', fromTimestamp, 'toTimestamp:', toTimestamp);
-  if (dateRangeFilter.from) console.log('[ConsultationBooking] from date:', dateRangeFilter.from.toISOString());
-  if (dateRangeFilter.to) console.log('[ConsultationBooking] to date:', dateRangeFilter.to.toISOString());
   
   const { toast } = useToast();
   const { studioSettings } = useStudio();
