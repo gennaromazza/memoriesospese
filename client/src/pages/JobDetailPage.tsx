@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange } from 'lucide-react';
@@ -90,16 +90,6 @@ export default function JobDetailPage() {
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
 
-  // Sync URL param to state for deep-linking support
-  useEffect(() => {
-    const urlParams = new URLSearchParams(location.split('?')[1]);
-    const editQuoteParam = urlParams.get('editQuote');
-    if (editQuoteParam) {
-      setEditingQuoteId(editQuoteParam);
-      setQuoteBuilderOpen(true);
-    }
-  }, [location]);
-
   // Calendar event modal state
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
@@ -125,6 +115,60 @@ export default function JobDetailPage() {
   
   // Add cliente state
   const [showAddClienteDialog, setShowAddClienteDialog] = useState(false);
+
+  // Helper: gestione esclusiva dei dialog (solo uno aperto alla volta)
+  // Invece di chiudere tutti e poi aprire, chiudiamo solo gli ALTRI per evitare race condition React batch
+  const openQuoteBuilder = useCallback((quoteId: string | null = null) => {
+    // Chiudi altri dialog ma non quote builder
+    setShowCalendarDialog(false);
+    setShowTemplateSelector(false);
+    setShowConsultationDialog(false);
+    setShowAddClienteDialog(false);
+    // Apri quote builder
+    setEditingQuoteId(quoteId);
+    setQuoteBuilderOpen(true);
+  }, []);
+
+  const openCalendarDialog = useCallback(() => {
+    setQuoteBuilderOpen(false);
+    setShowTemplateSelector(false);
+    setShowConsultationDialog(false);
+    setShowAddClienteDialog(false);
+    setShowCalendarDialog(true);
+  }, []);
+
+  const openTemplateSelector = useCallback(() => {
+    setQuoteBuilderOpen(false);
+    setShowCalendarDialog(false);
+    setShowConsultationDialog(false);
+    setShowAddClienteDialog(false);
+    setShowTemplateSelector(true);
+  }, []);
+
+  const openConsultationDialog = useCallback(() => {
+    setQuoteBuilderOpen(false);
+    setShowCalendarDialog(false);
+    setShowTemplateSelector(false);
+    setShowAddClienteDialog(false);
+    setShowConsultationDialog(true);
+  }, []);
+
+  const openAddClienteDialog = useCallback(() => {
+    setQuoteBuilderOpen(false);
+    setShowCalendarDialog(false);
+    setShowTemplateSelector(false);
+    setShowConsultationDialog(false);
+    setShowAddClienteDialog(true);
+  }, []);
+
+  // Sync URL param to state for deep-linking support
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.split('?')[1]);
+    const editQuoteParam = urlParams.get('editQuote');
+    if (editQuoteParam) {
+      openQuoteBuilder(editQuoteParam);
+    }
+  }, [location, openQuoteBuilder]);
 
   const { data: job, isLoading } = useQuery<Job | null>({
     queryKey: ['jobs', jobId],
@@ -388,7 +432,7 @@ export default function JobDetailPage() {
       setSelectedClienteForEvent(clienti[0]);
     }
     setNewEventTitle(`Appuntamento - ${job.nomeEvento}`);
-    setShowCalendarDialog(true);
+    openCalendarDialog();
   };
 
   const handleCloseCalendarDialog = () => {
@@ -531,7 +575,7 @@ export default function JobDetailPage() {
 
   // Consultation handlers
   const handleOpenTemplateSelector = () => {
-    setShowTemplateSelector(true);
+    openTemplateSelector();
     setSelectedTemplateId(null);
   };
 
@@ -544,8 +588,7 @@ export default function JobDetailPage() {
       });
       return;
     }
-    setShowTemplateSelector(false);
-    setShowConsultationDialog(true);
+    openConsultationDialog();
   };
 
   const handleSendConsultation = async (channel: 'email' | 'whatsapp') => {
@@ -660,7 +703,7 @@ export default function JobDetailPage() {
               {/* Primary Actions */}
               {(job.status === 'lead' || job.status === 'preventivo_inviato') && (
                 <Button 
-                  onClick={() => setQuoteBuilderOpen(true)}
+                  onClick={() => openQuoteBuilder(null)}
                   data-testid="action-generate-quote"
                   className="hidden sm:flex"
                 >
@@ -793,7 +836,7 @@ export default function JobDetailPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowAddClienteDialog(true)}
+                          onClick={() => openAddClienteDialog()}
                           className="w-full mt-3 border-dashed border-sage/50 hover:border-sage hover:bg-sage/5"
                           data-testid="button-add-second-cliente"
                         >
@@ -815,14 +858,8 @@ export default function JobDetailPage() {
                   <ModuliJobSection 
                     jobId={job.id}
                     clienteId={job.clientiIds?.[0] || ''}
-                    onCreateModulo={() => {
-                      setEditingQuoteId(null);
-                      setQuoteBuilderOpen(true);
-                    }}
-                    onEditQuote={(quoteId) => {
-                      setEditingQuoteId(quoteId);
-                      setQuoteBuilderOpen(true);
-                    }}
+                    onCreateModulo={() => openQuoteBuilder(null)}
+                    onEditQuote={(quoteId) => openQuoteBuilder(quoteId)}
                     isAdmin={true}
                   />
                 </CardContent>
@@ -985,9 +1022,10 @@ export default function JobDetailPage() {
                   <div className="space-y-3">
                     {timelineEvents.slice(0, 10).map((event) => {
                       const eventDate = event.data?.toDate ? event.data.toDate() : new Date(event.data as any);
-                      const Icon = event.tipo === 'consulenza_inviata' || event.tipo === 'quote_sent' 
+                      const tipoEvento = event.tipo as string;
+                      const Icon = tipoEvento === 'consulenza_inviata' || tipoEvento === 'quote_sent' || tipoEvento === 'preventivo_inviato'
                         ? Send 
-                        : event.tipo === 'appuntamento_creato' || event.tipo === 'calendar_event'
+                        : tipoEvento === 'appuntamento_creato' || tipoEvento === 'calendar_event'
                         ? CalendarIcon
                         : CheckCircle;
 
@@ -1090,7 +1128,11 @@ export default function JobDetailPage() {
 
       {/* Create Calendar Event Modal */}
       <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent 
+          className="max-w-2xl"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Nuovo Evento</DialogTitle>
             <DialogDescription>
@@ -1255,7 +1297,11 @@ export default function JobDetailPage() {
 
       {/* Dialog 1: Selezione template consulenza */}
       <Dialog open={showTemplateSelector} onOpenChange={setShowTemplateSelector}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent 
+          className="max-w-2xl"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Seleziona Tipo Consulenza</DialogTitle>
             <DialogDescription>
@@ -1331,7 +1377,11 @@ export default function JobDetailPage() {
           setConsultationDateRange({ from: undefined, to: undefined });
         }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent 
+          className="max-w-md"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Invia Richiesta Consulenza</DialogTitle>
             <DialogDescription>
@@ -1374,7 +1424,7 @@ export default function JobDetailPage() {
                   <Calendar
                     mode="range"
                     selected={consultationDateRange}
-                    onSelect={(range) => setConsultationDateRange(range || { from: undefined, to: undefined })}
+                    onSelect={(range) => setConsultationDateRange({ from: range?.from, to: range?.to })}
                     numberOfMonths={2}
                     locale={it}
                     disabled={(date) => date < new Date()}
@@ -1458,7 +1508,7 @@ export default function JobDetailPage() {
         {(job.status === 'lead' || job.status === 'preventivo_inviato') && (
           <Button 
             className="flex-1"
-            onClick={() => setQuoteBuilderOpen(true)}
+            onClick={() => openQuoteBuilder(null)}
             data-testid="mobile-action-quote"
           >
             <FileText className="h-4 w-4 mr-2" />
