@@ -78,11 +78,6 @@ export default function ConsultationBooking() {
   const fromTimestamp = dateRangeFilter.from ? getDateOnly(dateRangeFilter.from) : undefined;
   const toTimestamp = dateRangeFilter.to ? getDateOnly(dateRangeFilter.to) : undefined;
   
-  // DEBUG: log dei parametri URL
-  console.log('[ConsultationBooking] window.location.search:', typeof window !== 'undefined' ? window.location.search : 'SSR');
-  console.log('[ConsultationBooking] dateFromParam:', dateFromParam, 'dateToParam:', dateToParam);
-  console.log('[ConsultationBooking] fromTimestamp:', fromTimestamp, 'toTimestamp:', toTimestamp);
-  
   const { toast } = useToast();
   const { studioSettings } = useStudio();
 
