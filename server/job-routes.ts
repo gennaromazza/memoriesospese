@@ -452,7 +452,7 @@ router.post('/:id/calendar-event', async (req, res) => {
 router.post('/:id/send-consultation-request', async (req, res) => {
   try {
     const { id } = req.params;
-    const { channel, templateId } = req.body;
+    const { channel, templateId, dateFrom, dateTo } = req.body;
     
     if (!channel || !['email', 'whatsapp'].includes(channel)) {
       return res.status(400).json({ error: 'channel richiesto (email | whatsapp)' });
@@ -519,8 +519,16 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     // 4. Genera link consulenza con dominio corretto (sviluppo/produzione)
     const baseUrl = getSiteBaseUrl(req);
     
-    // Route corretto: /consulenze/:tipo/:id/prenota (senza parametri URL - il cliente li inserisce nel form)
-    const consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;
+    // Route corretto: /consulenze/:tipo/:id/prenota con parametri opzionali dateFrom/dateTo
+    let consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;
+    
+    // Aggiungi parametri date range se specificati
+    const queryParams: string[] = [];
+    if (dateFrom) queryParams.push(`dateFrom=${encodeURIComponent(dateFrom)}`);
+    if (dateTo) queryParams.push(`dateTo=${encodeURIComponent(dateTo)}`);
+    if (queryParams.length > 0) {
+      consultationLink += `?${queryParams.join('&')}`;
+    }
     
     // 5. Invia notifica
     let eventMetadata: any = {

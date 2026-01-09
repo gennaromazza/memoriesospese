@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +72,8 @@ import { useJobFinancials } from '@/hooks/useJobFinancials';
 import JobCompletedToggle from '@/components/jobs/JobCompletedToggle';
 import { ConsultationTemplate } from '@shared/consultation-types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 export default function JobDetailPage() {
@@ -116,6 +118,10 @@ export default function JobDetailPage() {
   const [showConsultationDialog, setShowConsultationDialog] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [sendingConsultation, setSendingConsultation] = useState(false);
+  const [consultationDateRange, setConsultationDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({ from: undefined, to: undefined });
   
   // Add cliente state
   const [showAddClienteDialog, setShowAddClienteDialog] = useState(false);
@@ -557,6 +563,8 @@ export default function JobDetailPage() {
       const response = await apiRequest('POST', `/api/jobs/${job!.id}/send-consultation-request`, {
         templateId: selectedTemplateId,
         channel,
+        dateFrom: consultationDateRange.from ? format(consultationDateRange.from, 'yyyy-MM-dd') : undefined,
+        dateTo: consultationDateRange.to ? format(consultationDateRange.to, 'yyyy-MM-dd') : undefined,
       });
       const data = await response.json();
 
@@ -1317,45 +1325,112 @@ export default function JobDetailPage() {
       </Dialog>
 
       {/* Dialog 2: Scelta canale invio consulenza */}
-      <Dialog open={showConsultationDialog} onOpenChange={setShowConsultationDialog}>
-        <DialogContent>
+      <Dialog open={showConsultationDialog} onOpenChange={(open) => {
+        setShowConsultationDialog(open);
+        if (!open) {
+          setConsultationDateRange({ from: undefined, to: undefined });
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Invia Richiesta Consulenza</DialogTitle>
             <DialogDescription>
               Scegli come inviare la richiesta di appuntamento al cliente
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-4">
-            <Button
-              variant="outline"
-              className="w-full justify-start h-auto py-4"
-              onClick={() => handleSendConsultation('email')}
-              disabled={sendingConsultation}
-              data-testid="button-send-email"
-            >
-              <Mail className="h-5 w-5 mr-3" />
-              <div className="text-left">
-                <p className="font-medium">Invia via Email</p>
-                <p className="text-xs text-muted-foreground">
-                  Il cliente riceverà un'email con il link per prenotare
-                </p>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start h-auto py-4"
-              onClick={() => handleSendConsultation('whatsapp')}
-              disabled={sendingConsultation}
-              data-testid="button-send-whatsapp"
-            >
-              <MessageCircle className="h-5 w-5 mr-3" />
-              <div className="text-left">
-                <p className="font-medium">Invia via WhatsApp</p>
-                <p className="text-xs text-muted-foreground">
-                  Apri WhatsApp con messaggio pre-compilato
-                </p>
-              </div>
-            </Button>
+          <div className="space-y-4 py-4">
+            {/* Date Range Picker */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Limita date disponibili (opzionale)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Il cliente potrà prenotare solo nelle date selezionate
+              </p>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !consultationDateRange.from && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarRange className="mr-2 h-4 w-4" />
+                    {consultationDateRange.from ? (
+                      consultationDateRange.to ? (
+                        <>
+                          {format(consultationDateRange.from, "dd MMM", { locale: it })} - {format(consultationDateRange.to, "dd MMM yyyy", { locale: it })}
+                        </>
+                      ) : (
+                        format(consultationDateRange.from, "dd MMMM yyyy", { locale: it })
+                      )
+                    ) : (
+                      "Tutte le date disponibili"
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={consultationDateRange}
+                    onSelect={(range) => setConsultationDateRange(range || { from: undefined, to: undefined })}
+                    numberOfMonths={2}
+                    locale={it}
+                    disabled={(date) => date < new Date()}
+                  />
+                  {consultationDateRange.from && (
+                    <div className="p-2 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setConsultationDateRange({ from: undefined, to: undefined })}
+                      >
+                        Rimuovi filtro date
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <Separator />
+
+            {/* Channel Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Canale di invio</Label>
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4"
+                onClick={() => handleSendConsultation('email')}
+                disabled={sendingConsultation}
+                data-testid="button-send-email"
+              >
+                <Mail className="h-5 w-5 mr-3" />
+                <div className="text-left">
+                  <p className="font-medium">Invia via Email</p>
+                  <p className="text-xs text-muted-foreground">
+                    Il cliente riceverà un'email con il link per prenotare
+                  </p>
+                </div>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4"
+                onClick={() => handleSendConsultation('whatsapp')}
+                disabled={sendingConsultation}
+                data-testid="button-send-whatsapp"
+              >
+                <MessageCircle className="h-5 w-5 mr-3" />
+                <div className="text-left">
+                  <p className="font-medium">Invia via WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">
+                    Apri WhatsApp con messaggio pre-compilato
+                  </p>
+                </div>
+              </Button>
+            </div>
           </div>
           <DialogFooter>
             <Button

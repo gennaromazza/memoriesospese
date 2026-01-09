@@ -48,7 +48,18 @@ export default function ConsultationBooking() {
   const jobType = params.tipo ? decodeURIComponent(params.tipo) : '';
   const templateId = params.id || '';
 
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  
+  // Estrai parametri dateFrom/dateTo dalla query string (per limitare date disponibili)
+  const urlParams = new URLSearchParams(location.split('?')[1] || '');
+  const dateFromParam = urlParams.get('dateFrom');
+  const dateToParam = urlParams.get('dateTo');
+  
+  // Parse date range se presenti
+  const dateRangeFilter = {
+    from: dateFromParam ? new Date(dateFromParam + 'T00:00:00') : undefined,
+    to: dateToParam ? new Date(dateToParam + 'T23:59:59') : undefined
+  };
   const { toast } = useToast();
   const { studioSettings } = useStudio();
 
@@ -391,6 +402,22 @@ export default function ConsultationBooking() {
             {/* Step 1: Date & Slot Selection */}
             {step === 1 && (
               <div className="space-y-6">
+                {/* Banner informativo date disponibili */}
+                {(dateRangeFilter.from || dateRangeFilter.to) && (
+                  <div className="bg-sage/10 border border-sage/30 rounded-lg p-3 flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-sage flex-shrink-0" />
+                    <p className="text-sm text-sage">
+                      {dateRangeFilter.from && dateRangeFilter.to ? (
+                        <>Date disponibili: <strong>{format(dateRangeFilter.from, "d MMMM", { locale: it })}</strong> - <strong>{format(dateRangeFilter.to, "d MMMM yyyy", { locale: it })}</strong></>
+                      ) : dateRangeFilter.from ? (
+                        <>Date disponibili dal: <strong>{format(dateRangeFilter.from, "d MMMM yyyy", { locale: it })}</strong></>
+                      ) : dateRangeFilter.to ? (
+                        <>Date disponibili fino al: <strong>{format(dateRangeFilter.to, "d MMMM yyyy", { locale: it })}</strong></>
+                      ) : null}
+                    </p>
+                  </div>
+                )}
+                
                 <div>
                   <Label className="text-base font-semibold mb-4 block text-blue-gray">Seleziona una Data</Label>
                   <div className="flex justify-center">
@@ -400,7 +427,13 @@ export default function ConsultationBooking() {
                       onSelect={handleDateSelect}
                       disabled={(date) => {
                         // Blocca date passate
-                        if (date < new Date()) return true;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        if (date < today) return true;
+
+                        // Blocca date fuori dal range specificato (se presente)
+                        if (dateRangeFilter.from && date < dateRangeFilter.from) return true;
+                        if (dateRangeFilter.to && date > dateRangeFilter.to) return true;
 
                         // Blocca giorni esclusi dal template (es. sabato/domenica)
                         const dayOfWeek = date.getDay(); // 0=domenica, 1=lunedì, ..., 6=sabato
