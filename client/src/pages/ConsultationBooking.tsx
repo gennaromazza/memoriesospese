@@ -55,6 +55,11 @@ export default function ConsultationBooking() {
   const dateFromParam = urlParams.get('dateFrom');
   const dateToParam = urlParams.get('dateTo');
   
+  // Helper per normalizzare date a solo giorno (ignora ora)
+  const getDateOnly = (d: Date): number => {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  
   // Parse date range se presenti - usa parsing esplicito per evitare problemi timezone
   const dateRangeFilter = {
     from: dateFromParam ? (() => {
@@ -63,9 +68,13 @@ export default function ConsultationBooking() {
     })() : undefined,
     to: dateToParam ? (() => {
       const [year, month, day] = dateToParam.split('-').map(Number);
-      return new Date(year, month - 1, day, 23, 59, 59);
+      return new Date(year, month - 1, day, 0, 0, 0);
     })() : undefined
   };
+  
+  // Valori normalizzati per confronti
+  const fromTimestamp = dateRangeFilter.from ? getDateOnly(dateRangeFilter.from) : undefined;
+  const toTimestamp = dateRangeFilter.to ? getDateOnly(dateRangeFilter.to) : undefined;
   const { toast } = useToast();
   const { studioSettings } = useStudio();
 
@@ -93,6 +102,13 @@ export default function ConsultationBooking() {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleDateSelect = useCallback((date: Date | undefined) => {
+    // Guard: blocca date fuori dal range specificato
+    if (date) {
+      const dateTs = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      if (fromTimestamp !== undefined && dateTs < fromTimestamp) return;
+      if (toTimestamp !== undefined && dateTs > toTimestamp) return;
+    }
+    
     setSelectedDate(date);
     setSelectedSlot(null);
 
@@ -120,7 +136,7 @@ export default function ConsultationBooking() {
         );
       }, 300);
     }
-  }, [templateId, availableSlotsMutation, toast]);
+  }, [templateId, availableSlotsMutation, toast, fromTimestamp, toTimestamp]);
 
   const checkPendingRequest = async (): Promise<boolean> => {
     if (!clienteData.email) return false;
@@ -432,14 +448,16 @@ export default function ConsultationBooking() {
                       selected={selectedDate}
                       onSelect={handleDateSelect}
                       disabled={(date) => {
+                        // Normalizza la data a solo giorno
+                        const dateTs = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+                        
                         // Blocca date passate
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        if (date < today) return true;
+                        const todayTs = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+                        if (dateTs < todayTs) return true;
 
                         // Blocca date fuori dal range specificato (se presente)
-                        if (dateRangeFilter.from && date < dateRangeFilter.from) return true;
-                        if (dateRangeFilter.to && date > dateRangeFilter.to) return true;
+                        if (fromTimestamp !== undefined && dateTs < fromTimestamp) return true;
+                        if (toTimestamp !== undefined && dateTs > toTimestamp) return true;
 
                         // Blocca giorni esclusi dal template (es. sabato/domenica)
                         const dayOfWeek = date.getDay(); // 0=domenica, 1=lunedì, ..., 6=sabato
