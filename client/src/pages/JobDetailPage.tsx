@@ -554,17 +554,14 @@ export default function JobDetailPage() {
 
     setSendingConsultation(true);
     try {
-      const response = await apiRequest(`/api/jobs/${job!.id}/send-consultation-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: selectedTemplateId,
-          channel,
-        }),
+      const response = await apiRequest('POST', `/api/jobs/${job!.id}/send-consultation-request`, {
+        templateId: selectedTemplateId,
+        channel,
       });
+      const data = await response.json();
 
-      if (channel === 'whatsapp') {
-        window.open(response.whatsappUrl, '_blank');
+      if (channel === 'whatsapp' && data.whatsappUrl) {
+        window.open(data.whatsappUrl, '_blank');
       }
 
       toast({
