@@ -590,12 +590,13 @@ router.post('/:id/send-consultation-request', async (req, res) => {
       
       eventMetadata.emailSent = true;
     } else {
-      // WhatsApp
+      // WhatsApp - usa whatsapp, cellulare1 o cellulare2 come fallback
       const message = `Ciao ${cliente.nome}! 📸\n\nÈ arrivato il momento di prenotare la tua ${template.data.nome} per ${job.nomeEvento}.\n\nClicca qui per scegliere l'appuntamento: ${consultationLink}`;
-      const whatsappNumber = formatPhoneForWhatsApp(cliente.whatsapp);
+      const phoneToUse = cliente.whatsapp || cliente.cellulare1 || cliente.cellulare2;
+      const whatsappNumber = formatPhoneForWhatsApp(phoneToUse);
       
       if (!whatsappNumber) {
-        return res.status(400).json({ error: 'Cliente senza numero WhatsApp' });
+        return res.status(400).json({ error: 'Cliente senza numero WhatsApp o cellulare' });
       }
       
       eventMetadata.whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
