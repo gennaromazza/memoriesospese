@@ -75,6 +75,14 @@ export default function ConsultationBooking() {
   // Valori normalizzati per confronti
   const fromTimestamp = dateRangeFilter.from ? getDateOnly(dateRangeFilter.from) : undefined;
   const toTimestamp = dateRangeFilter.to ? getDateOnly(dateRangeFilter.to) : undefined;
+  
+  // DEBUG: log dei parametri URL
+  console.log('[ConsultationBooking] URL location:', location);
+  console.log('[ConsultationBooking] dateFromParam:', dateFromParam, 'dateToParam:', dateToParam);
+  console.log('[ConsultationBooking] fromTimestamp:', fromTimestamp, 'toTimestamp:', toTimestamp);
+  if (dateRangeFilter.from) console.log('[ConsultationBooking] from date:', dateRangeFilter.from.toISOString());
+  if (dateRangeFilter.to) console.log('[ConsultationBooking] to date:', dateRangeFilter.to.toISOString());
+  
   const { toast } = useToast();
   const { studioSettings } = useStudio();
 
