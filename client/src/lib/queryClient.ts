@@ -71,15 +71,17 @@ export async function apiRequest(
   // Prepara headers
   const headers: Record<string, string> = enhancedData ? { "Content-Type": "application/json" } : {};
   
-  // Endpoint consultations pubblici (NON richiedono auth) - SOLO V2
+  // Endpoint consultations pubblici (NON richiedono auth) - SOLO GET
   const publicConsultationEndpoints = [
     '/api/consultations/v2/available-slots',
     '/api/consultations/v2/create',
-    '/api/consultations/templates/', // Public template endpoints
     '/api/consultations/job-types' // Public job types endpoint
   ];
   
-  const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
+  // Template endpoints sono pubblici SOLO per GET, PATCH/PUT/DELETE richiedono auth
+  const isTemplateEndpoint = url.includes('/api/consultations/templates/');
+  const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint)) ||
+                                        (isTemplateEndpoint && method === 'GET');
   
   // Aggiungi token Firebase per endpoint che lo richiedono
   const firebaseAuthEndpoints = [
