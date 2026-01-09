@@ -1087,7 +1087,8 @@ export default function JobsManager() {
                 
                 return paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
-                  const eventDate = job.eventDate ? (job.eventDate as any).toDate?.() || job.eventDate : null;
+                  const rawEventDate = convertFirestoreTimestamp(job.eventDate);
+                  const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
                   const isSelected = selectedJobs.has(job.id);
                   const jobDate = eventDate ? new Date(eventDate) : new Date(0);
                   const isJobPast = jobDate < startOfToday;
@@ -1632,17 +1633,23 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
         )}
         
         {/* Data evento */}
-        <div className="flex items-center gap-2 text-xs text-gray-600">
-          <Calendar className="w-3 h-3" />
-          <span>
-            {format(job.eventDate.toDate(), 'd MMM yyyy', { locale: it })}
-            {!job.allDay && job.startTime && (
-              <span className="ml-1 text-gray-500">
-                • {job.startTime}{job.endTime && `-${job.endTime}`}
+        {job.eventDate && (() => {
+          const eventDateObj = convertFirestoreTimestamp(job.eventDate);
+          if (!eventDateObj || isNaN(eventDateObj.getTime())) return null;
+          return (
+            <div className="flex items-center gap-2 text-xs text-gray-600">
+              <Calendar className="w-3 h-3" />
+              <span>
+                {format(eventDateObj, 'd MMM yyyy', { locale: it })}
+                {!job.allDay && job.startTime && (
+                  <span className="ml-1 text-gray-500">
+                    • {job.startTime}{job.endTime && `-${job.endTime}`}
+                  </span>
+                )}
               </span>
-            )}
-          </span>
-        </div>
+            </div>
+          );
+        })()}
         
         {/* Location */}
         {job.eventLocation && (
