@@ -55,10 +55,16 @@ export default function ConsultationBooking() {
   const dateFromParam = urlParams.get('dateFrom');
   const dateToParam = urlParams.get('dateTo');
   
-  // Parse date range se presenti
+  // Parse date range se presenti - usa parsing esplicito per evitare problemi timezone
   const dateRangeFilter = {
-    from: dateFromParam ? new Date(dateFromParam + 'T00:00:00') : undefined,
-    to: dateToParam ? new Date(dateToParam + 'T23:59:59') : undefined
+    from: dateFromParam ? (() => {
+      const [year, month, day] = dateFromParam.split('-').map(Number);
+      return new Date(year, month - 1, day, 0, 0, 0);
+    })() : undefined,
+    to: dateToParam ? (() => {
+      const [year, month, day] = dateToParam.split('-').map(Number);
+      return new Date(year, month - 1, day, 23, 59, 59);
+    })() : undefined
   };
   const { toast } = useToast();
   const { studioSettings } = useStudio();
