@@ -208,7 +208,7 @@ export default function RegistraPagamentoModal({
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -218,6 +218,9 @@ export default function RegistraPagamentoModal({
                         }}
                         initialFocus
                         locale={it}
+                        fromYear={2020}
+                        toYear={new Date().getFullYear() + 1}
+                        captionLayout="dropdown-buttons"
                       />
                     </PopoverContent>
                   </Popover>
