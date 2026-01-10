@@ -919,14 +919,29 @@ export async function deleteConsultation(id: string): Promise<void> {
     }
   }
 
-  // Rimuovi reference da cliente
+  // Rimuovi reference da cliente (con gestione errori per dati corrotti)
   if (data?.clienteId) {
-    await db
-      .collection("clienti")
-      .doc(data.clienteId)
-      .update({
-        consultationIds: FieldValue.arrayRemove(id),
-      });
+    try {
+      const clienteDoc = await db.collection("clienti").doc(data.clienteId).get();
+      if (clienteDoc.exists) {
+        await db
+          .collection("clienti")
+          .doc(data.clienteId)
+          .update({
+            consultationIds: FieldValue.arrayRemove(id),
+          });
+      } else {
+        console.log(
+          `[deleteConsultation] ⚠️  Cliente ${data.clienteId} non trovato, skip rimozione reference`,
+        );
+      }
+    } catch (error: any) {
+      console.error(
+        `[deleteConsultation] ⚠️  Errore rimozione reference da cliente ${data.clienteId}:`,
+        error.message,
+      );
+      // Continua comunque con cancellazione consultazione
+    }
   }
 
   await db.collection("consultations").doc(id).delete();
