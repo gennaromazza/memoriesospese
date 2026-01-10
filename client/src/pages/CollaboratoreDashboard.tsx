@@ -216,17 +216,19 @@ export default function CollaboratoreDashboard() {
     return normalized === 'accepted' || normalized === 'accettato';
   };
 
+  // Guadagni: solo lavori accettati
   const totalCompensoPending = assignments
     .filter((a: JobCollaboratoreAssignment) => isAccepted(a.status))
     .reduce((sum: number, a: JobCollaboratoreAssignment) => sum + (a.compenso || 0), 0);
 
+  // Pagamenti: da TUTTI i lavori (l'admin potrebbe pagare prima dell'accettazione)
   const totalPagato = assignments
-    .filter((a: JobCollaboratoreAssignment) => isAccepted(a.status))
     .reduce((sum: number, a: JobCollaboratoreAssignment) => {
       const pagatoAssignment = a.pagamenti?.reduce((s: number, p: CollaboratorPayment) => s + p.importo, 0) || 0;
       return sum + pagatoAssignment;
     }, 0);
 
+  // Da ricevere: guadagni accettati - pagamenti ricevuti
   const totalResiduo = totalCompensoPending - totalPagato;
 
   return (
