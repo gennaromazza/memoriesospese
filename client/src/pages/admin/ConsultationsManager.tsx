@@ -149,6 +149,7 @@ export default function ConsultationsManager({
   const [cancellationReason, setCancellationReason] = useState('');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [bulkDeleteRifiutateOpen, setBulkDeleteRifiutateOpen] = useState(false);
+  const [bulkDeleteInAttesaOpen, setBulkDeleteInAttesaOpen] = useState(false);
   const [conflictConsultationId, setConflictConsultationId] = useState<string | null>(null);
   
   // Refs per scroll deeplink
@@ -204,6 +205,48 @@ export default function ConsultationsManager({
         description: `${count} consultazione/i rifiutata/e o annullata/e eliminata/e con successo`,
       });
       setBulkDeleteRifiutateOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore eliminazione',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+  
+  // Mutation bulk delete consultazioni in_attesa (senza notifica cliente)
+  const bulkDeleteInAttesaMutation = useMutation({
+    mutationFn: async () => {
+      const daEliminare = consultations.filter(c => c.stato === 'in_attesa');
+      
+      if (daEliminare.length === 0) {
+        throw new Error('Nessuna consultazione in attesa da eliminare');
+      }
+      
+      // Elimina sequenzialmente per evitare race conditions
+      const errors: string[] = [];
+      for (const c of daEliminare) {
+        try {
+          await apiRequest('DELETE', `/api/consultations/${c.id}`);
+        } catch (error: any) {
+          errors.push(`${c.id}: ${error.message}`);
+        }
+      }
+      
+      if (errors.length > 0) {
+        throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
+      }
+      
+      return daEliminare.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+      toast({
+        title: 'Pulizia completata',
+        description: `${count} richiesta/e in attesa eliminata/e con successo`,
+      });
+      setBulkDeleteInAttesaOpen(false);
     },
     onError: (error: Error) => {
       toast({
@@ -560,18 +603,33 @@ export default function ConsultationsManager({
             </div>
           </div>
           
-          {consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length > 0 && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setBulkDeleteRifiutateOpen(true)}
-                className="text-red-600 hover:bg-red-50"
-                data-testid="button-cleanup-rifiutate"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Pulisci consultazioni rifiutate/annullate ({consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length})
-              </Button>
+          {(consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length > 0 || 
+            consultations.filter(c => c.stato === 'in_attesa').length > 0) && (
+            <div className="flex justify-end gap-2 flex-wrap">
+              {consultations.filter(c => c.stato === 'in_attesa').length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkDeleteInAttesaOpen(true)}
+                  className="text-amber-600 hover:bg-amber-50"
+                  data-testid="button-cleanup-in-attesa"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Pulisci richieste in attesa ({consultations.filter(c => c.stato === 'in_attesa').length})
+                </Button>
+              )}
+              {consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkDeleteRifiutateOpen(true)}
+                  className="text-red-600 hover:bg-red-50"
+                  data-testid="button-cleanup-rifiutate"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Pulisci consultazioni rifiutate/annullate ({consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata').length})
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
@@ -1027,6 +1085,38 @@ export default function ConsultationsManager({
               data-testid="button-confirm-bulk-delete"
             >
               {bulkDeleteRifiutateMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminazione...
+                </>
+              ) : (
+                'Elimina Tutto'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Bulk Delete In Attesa Confirmation */}
+      <AlertDialog open={bulkDeleteInAttesaOpen} onOpenChange={setBulkDeleteInAttesaOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pulizia Richieste in Attesa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare definitivamente tutte le richieste in attesa ({consultations.filter(c => c.stato === 'in_attesa').length} totali).
+              <strong className="block mt-2">Nessuna email verrà inviata ai clienti.</strong>
+              Questa operazione è irreversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk-delete-in-attesa">Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteInAttesaMutation.mutate()}
+              className="bg-amber-600 hover:bg-amber-700"
+              disabled={bulkDeleteInAttesaMutation.isPending}
+              data-testid="button-confirm-bulk-delete-in-attesa"
+            >
+              {bulkDeleteInAttesaMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Eliminazione...
