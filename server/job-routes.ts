@@ -522,13 +522,12 @@ router.post('/:id/send-consultation-request', async (req, res) => {
     // Route corretto: /consulenze/:tipo/:id/prenota con parametri opzionali dateFrom/dateTo
     let consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;
     
-    // Aggiungi parametri date range se specificati
+    // Aggiungi parametri: date range + jobId per pre-compilazione cliente
     const queryParams: string[] = [];
+    queryParams.push(`jobId=${encodeURIComponent(id)}`); // Sempre includi jobId per pre-popolare dati cliente
     if (dateFrom) queryParams.push(`dateFrom=${encodeURIComponent(dateFrom)}`);
     if (dateTo) queryParams.push(`dateTo=${encodeURIComponent(dateTo)}`);
-    if (queryParams.length > 0) {
-      consultationLink += `?${queryParams.join('&')}`;
-    }
+    consultationLink += `?${queryParams.join('&')}`;
     
     // 5. Invia notifica
     let eventMetadata: any = {

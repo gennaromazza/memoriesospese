@@ -324,6 +324,55 @@ router.get("/job-types", async (req, res) => {
 });
 
 /**
+ * GET /api/consultations/client-prefill/:jobId
+ * Recupera dati base cliente da un job per pre-compilare form consulenza (pubblico)
+ * Restituisce solo dati non sensibili: nome, cognome, email, whatsapp, nomeEvento, eventDate
+ */
+router.get("/client-prefill/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    // 1. Recupera job
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    const job: any = jobDoc.data();
+    
+    // 2. Recupera primo cliente associato
+    if (!job.clientiIds || job.clientiIds.length === 0) {
+      return res.status(404).json({ error: 'Nessun cliente associato al job' });
+    }
+    
+    const clienteDoc = await db.collection('clienti').doc(job.clientiIds[0]).get();
+    if (!clienteDoc.exists) {
+      return res.status(404).json({ error: 'Cliente non trovato' });
+    }
+    
+    const cliente: any = clienteDoc.data();
+    
+    // 3. Restituisci solo dati base (non sensibili) per pre-compilazione
+    res.json({
+      cliente: {
+        nome: cliente.nome || '',
+        cognome: cliente.cognome || '',
+        email: cliente.email || '',
+        whatsapp: cliente.whatsapp || cliente.cellulare || cliente.cellulare1 || ''
+      },
+      job: {
+        nomeEvento: job.nomeEvento || '',
+        eventDate: job.eventDate || null,
+        jobType: job.jobType || ''
+      }
+    });
+  } catch (error: any) {
+    console.error("[GET /client-prefill/:jobId] Errore:", error.message);
+    res.status(500).json({ error: "Errore recupero dati cliente" });
+  }
+});
+
+/**
  * POST /api/consultations/templates
  * Crea nuovo template (admin only)
  */
@@ -1461,6 +1510,7 @@ router.post("/v2/create", async (req, res) => {
       orarioFine,
       jobDataCollected,
       note,
+      jobId, // Opzionale: collega consulenza a job esistente
     } = req.body;
 
     // Step 1: Validate input
@@ -1525,8 +1575,14 @@ router.post("/v2/create", async (req, res) => {
     }
 
     // Step 8: Create consultation
+    // Aggiungi jobId se presente (collegamento a job esistente)
+    const consultationPayload = {
+      ...validatedData,
+      ...(jobId && { linkedJobId: jobId })
+    };
+    
     const consultationId = await consultationService.createConsultation(
-      validatedData as any,
+      consultationPayload as any,
       template
     );
 

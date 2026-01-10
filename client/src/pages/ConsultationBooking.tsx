@@ -56,6 +56,7 @@ export default function ConsultationBooking() {
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const dateFromParam = urlParams.get('dateFrom');
   const dateToParam = urlParams.get('dateTo');
+  const jobIdParam = urlParams.get('jobId'); // Per pre-compilazione dati cliente
   
   // Helper per normalizzare date a solo giorno (ignora ora)
   const getDateOnly = (d: Date): number => {
@@ -100,6 +101,38 @@ export default function ConsultationBooking() {
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
   const [isCheckingPending, setIsCheckingPending] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [isPrefilling, setIsPrefilling] = useState(false);
+  const [prefillJobId, setPrefillJobId] = useState<string | null>(jobIdParam);
+
+  // Pre-popola dati cliente se jobId presente nell'URL
+  useEffect(() => {
+    if (!jobIdParam) return;
+    
+    const fetchClientPrefill = async () => {
+      setIsPrefilling(true);
+      try {
+        const response = await fetch(`/api/consultations/client-prefill/${jobIdParam}`);
+        if (response.ok) {
+          const data = await response.json();
+          setClienteData({
+            nome: data.cliente.nome || '',
+            cognome: data.cliente.cognome || '',
+            email: data.cliente.email || '',
+            whatsapp: data.cliente.whatsapp || ''
+          });
+          console.log('✅ Dati cliente pre-compilati da job:', jobIdParam);
+        } else {
+          console.warn('⚠️ Impossibile recuperare dati cliente per pre-compilazione');
+        }
+      } catch (error) {
+        console.error('❌ Errore pre-compilazione dati cliente:', error);
+      } finally {
+        setIsPrefilling(false);
+      }
+    };
+    
+    fetchClientPrefill();
+  }, [jobIdParam]);
 
   // Debounce timer per evitare chiamate API troppo frequenti
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,7 +242,7 @@ export default function ConsultationBooking() {
         return;
       }
 
-      const consultationData = {
+      const consultationData: any = {
         templateId: template.id,
         cliente: {
           nome: clienteData.nome,
@@ -223,6 +256,11 @@ export default function ConsultationBooking() {
         jobDataCollected: jobData,
         note: ''
       };
+      
+      // Collega consulenza al job originale se presente
+      if (prefillJobId) {
+        consultationData.jobId = prefillJobId;
+      }
 
       await createConsultationMutation.mutateAsync(consultationData);
       setShowSuccess(true);

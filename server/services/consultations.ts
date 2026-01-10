@@ -784,7 +784,7 @@ export async function createConsultation(
   const now = Timestamp.now();
 
   // Crea consultation document
-  const docRef = await db.collection("consultations").add({
+  const consultationDoc: any = {
     // Template snapshot
     templateId: data.templateId,
     templateNome: template.nome,
@@ -819,7 +819,14 @@ export async function createConsultation(
     // Metadata
     createdAt: now,
     updatedAt: now,
-  });
+  };
+  
+  // Aggiungi collegamento a job esistente se presente (pre-compilazione cliente)
+  if ((data as any).linkedJobId) {
+    consultationDoc.linkedJobId = (data as any).linkedJobId;
+  }
+  
+  const docRef = await db.collection("consultations").add(consultationDoc);
 
   // Link a cliente con compensating transaction (rollback se fallisce)
   try {
