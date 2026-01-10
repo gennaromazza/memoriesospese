@@ -209,12 +209,19 @@ export default function CollaboratoreDashboard() {
 
   const filteredAssignments = sortedAndFilteredAssignments;
 
+  // Helper per verificare se un assignment è accettato (case-insensitive)
+  const isAccepted = (status: string | undefined) => {
+    if (!status) return false;
+    const normalized = status.toLowerCase();
+    return normalized === 'accepted' || normalized === 'accettato';
+  };
+
   const totalCompensoPending = assignments
-    .filter((a: JobCollaboratoreAssignment) => a.status === 'accepted')
-    .reduce((sum: number, a: JobCollaboratoreAssignment) => sum + a.compenso, 0);
+    .filter((a: JobCollaboratoreAssignment) => isAccepted(a.status))
+    .reduce((sum: number, a: JobCollaboratoreAssignment) => sum + (a.compenso || 0), 0);
 
   const totalPagato = assignments
-    .filter((a: JobCollaboratoreAssignment) => a.status === 'accepted')
+    .filter((a: JobCollaboratoreAssignment) => isAccepted(a.status))
     .reduce((sum: number, a: JobCollaboratoreAssignment) => {
       const pagatoAssignment = a.pagamenti?.reduce((s: number, p: CollaboratorPayment) => s + p.importo, 0) || 0;
       return sum + pagatoAssignment;
