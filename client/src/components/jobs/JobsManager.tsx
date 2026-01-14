@@ -131,6 +131,7 @@ export default function JobsManager() {
   const [filterMonth, setFilterMonth] = useState<string>('all'); // Nuovo: filtro mese
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('firmato'); // Nuovo: stato preventivo (default: firmato)
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
+  const [filterCollaboratore, setFilterCollaboratore] = useState<string>('all'); // Filtro collaboratore
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -264,6 +265,42 @@ export default function JobsManager() {
         }
       });
       return details;
+    }
+  });
+  
+  // Query tutti i collaboratori per il dropdown filtro
+  const { data: allCollaboratori = [] } = useQuery<{ id: string; nome: string }[]>({
+    queryKey: ['collaboratoriList'],
+    queryFn: async () => {
+      const collaboratoriSnapshot = await getDocs(collection(db, 'collaboratori'));
+      return collaboratoriSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          nome: `${data.nome || ''} ${data.cognome || ''}`.trim() || 'Senza nome'
+        };
+      }).sort((a, b) => a.nome.localeCompare(b.nome));
+    }
+  });
+  
+  // Mappa collaboratoreId -> array di jobIds per il filtraggio
+  const { data: jobsByCollaboratore = {} } = useQuery<Record<string, Set<string>>>({
+    queryKey: ['jobsByCollaboratore'],
+    queryFn: async () => {
+      const assignmentsSnapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
+      const result: Record<string, Set<string>> = {};
+      
+      assignmentsSnapshot.docs.forEach(doc => {
+        const data = doc.data() as JobCollaboratoreAssignment;
+        if (data.collaboratoreId && data.jobId) {
+          if (!result[data.collaboratoreId]) {
+            result[data.collaboratoreId] = new Set();
+          }
+          result[data.collaboratoreId].add(data.jobId);
+        }
+      });
+      
+      return result;
     }
   });
   
@@ -490,6 +527,19 @@ export default function JobsManager() {
         if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
       }
       
+      // Filtro collaboratore
+      if (filterCollaboratore !== 'all') {
+        if (filterCollaboratore === 'non_assegnato') {
+          // Mostra solo job SENZA collaboratori assegnati
+          const hasCollaboratori = collaboratoriByJob[job.id]?.count > 0;
+          if (hasCollaboratori) return false;
+        } else {
+          // Mostra solo job assegnati a questo collaboratore
+          const collaboratoreJobs = jobsByCollaboratore[filterCollaboratore];
+          if (!collaboratoreJobs || !collaboratoreJobs.has(job.id)) return false;
+        }
+      }
+      
       // Filtri date (precedenza: custom range > mese > anno+semestre > anno)
       if (job.eventDate) {
         const eventDate = convertFirestoreTimestamp(job.eventDate);
@@ -534,7 +584,7 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore]);
   
   // Funzione helper per convertire date Firestore
   const toDate = (val: any): Date => {
@@ -862,6 +912,22 @@ export default function JobsManager() {
               <SelectItem value="firmato">Firmato</SelectItem>
               <SelectItem value="non_firmato">Non firmato</SelectItem>
               <SelectItem value="non_inviato">Non inviato</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {/* Filtro Collaboratore */}
+          <Select value={filterCollaboratore} onValueChange={setFilterCollaboratore}>
+            <SelectTrigger className="w-44" data-testid="select-filter-collaboratore">
+              <SelectValue placeholder="Collaboratore" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="non_assegnato">Non assegnato</SelectItem>
+              {allCollaboratori.map(collab => (
+                <SelectItem key={collab.id} value={collab.id}>
+                  {collab.nome}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           
