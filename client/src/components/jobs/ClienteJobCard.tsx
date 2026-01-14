@@ -47,19 +47,36 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
               {cliente.email && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="truncate">{cliente.email}</span>
+                  <a 
+                    href={`mailto:${cliente.email}`}
+                    className="truncate hover:text-foreground hover:underline transition-colors"
+                  >
+                    {cliente.email}
+                  </a>
                 </div>
               )}
               {cliente.cellulare1 && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Phone className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>{cliente.cellulare1}</span>
+                  <a 
+                    href={`tel:${cliente.cellulare1}`}
+                    className="hover:text-foreground hover:underline transition-colors"
+                  >
+                    {cliente.cellulare1}
+                  </a>
                 </div>
               )}
               {(cliente.whatsapp || cliente.cellulare1) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MessageCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>{cliente.whatsapp || cliente.cellulare1}</span>
+                  <a 
+                    href={`https://wa.me/${formatPhoneForWhatsApp(cliente.whatsapp || cliente.cellulare1 || '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-green-600 hover:underline transition-colors"
+                  >
+                    {cliente.whatsapp || cliente.cellulare1}
+                  </a>
                 </div>
               )}
             </div>
