@@ -877,6 +877,25 @@ router.patch('/collaboratori/assignments/:id/products-tasks', async (req, res) =
 });
 
 /**
+ * GET /api/collaboratori/assignments
+ * Ottieni tutte le assegnazioni collaboratori-job (per filtri admin)
+ */
+router.get('/collaboratori/assignments', async (req, res) => {
+  try {
+    const snapshot = await db.collection('jobCollaboratoreAssignments').get();
+    const assignments = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    res.json(assignments);
+  } catch (error: any) {
+    console.error('❌ Error fetching all assignments:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/collaboratori/assignments/job/:jobId
  * Ottieni assegnazioni per job
  */
