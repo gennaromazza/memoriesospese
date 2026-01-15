@@ -190,6 +190,15 @@ export default function QuotePublicViewPage() {
       return { totalBeforeDiscount: 0, discountAmount: 0, totalAfterDiscount: 0 };
     }
     
+    // Per preventivi già FIRMATI, usa SEMPRE i totali salvati (non ricalcolare)
+    // Questo preserva l'integrità legale del contratto firmato
+    if (quote.status === 'firmato') {
+      const totalAfterDiscount = quote.totaleSelezionato ?? quote.totalAfterDiscount ?? quote.totaleBase ?? 0;
+      const totalBeforeDiscount = quote.totalBeforeDiscount ?? totalAfterDiscount;
+      const discountAmount = totalBeforeDiscount - totalAfterDiscount;
+      return { totalBeforeDiscount, discountAmount, totalAfterDiscount };
+    }
+    
     if (quote.type === 'fisso') {
       // Fixed quote: use server-calculated totals
       const totalAfterDiscount = quote.totalAfterDiscount ?? quote.totaleBase ?? 0;
@@ -198,8 +207,8 @@ export default function QuotePublicViewPage() {
       return { totalBeforeDiscount, discountAmount, totalAfterDiscount };
     }
     
-    // Variable quote: calculate subtotal based on selected products
-    // Per preventivi variabili, il totale dipende da cosa seleziona il cliente
+    // Variable quote (non firmato): calculate subtotal based on selected products
+    // Per preventivi variabili NON firmati, il totale dipende da cosa seleziona il cliente
     const subtotale = (quote.products ?? [])
       .filter(p => {
         // Se il prodotto è selezionabile, includi solo se il cliente l'ha selezionato
