@@ -174,21 +174,20 @@ export default function ConsultationsManager({
   const deleteMutation = useDeleteConsultation();
   
   // Mutation bulk delete consultazioni rifiutate/annullate
+  // 🔥 FIX: Passa esplicitamente la lista da eliminare per evitare problemi di closure
   const bulkDeleteRifiutateMutation = useMutation({
-    mutationFn: async () => {
-      const daEliminare = consultations.filter(c => c.stato === 'rifiutata' || c.stato === 'annullata');
-      
-      if (daEliminare.length === 0) {
+    mutationFn: async (idsToDelete: string[]) => {
+      if (idsToDelete.length === 0) {
         throw new Error('Nessuna consultazione rifiutata/annullata da eliminare');
       }
       
       // Elimina sequenzialmente per evitare race conditions
       const errors: string[] = [];
-      for (const c of daEliminare) {
+      for (const id of idsToDelete) {
         try {
-          await apiRequest('DELETE', `/api/consultations/${c.id}`);
+          await apiRequest('DELETE', `/api/consultations/${id}`);
         } catch (error: any) {
-          errors.push(`${c.id}: ${error.message}`);
+          errors.push(`${id}: ${error.message}`);
         }
       }
       
@@ -196,7 +195,7 @@ export default function ConsultationsManager({
         throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
       }
       
-      return daEliminare.length;
+      return idsToDelete.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
@@ -216,21 +215,20 @@ export default function ConsultationsManager({
   });
   
   // Mutation bulk delete consultazioni in_attesa (senza notifica cliente)
+  // 🔥 FIX: Passa esplicitamente la lista da eliminare per evitare problemi di closure
   const bulkDeleteInAttesaMutation = useMutation({
-    mutationFn: async () => {
-      const daEliminare = consultations.filter(c => c.stato === 'in_attesa');
-      
-      if (daEliminare.length === 0) {
+    mutationFn: async (idsToDelete: string[]) => {
+      if (idsToDelete.length === 0) {
         throw new Error('Nessuna consultazione in attesa da eliminare');
       }
       
       // Elimina sequenzialmente per evitare race conditions
       const errors: string[] = [];
-      for (const c of daEliminare) {
+      for (const id of idsToDelete) {
         try {
-          await apiRequest('DELETE', `/api/consultations/${c.id}`);
+          await apiRequest('DELETE', `/api/consultations/${id}`);
         } catch (error: any) {
-          errors.push(`${c.id}: ${error.message}`);
+          errors.push(`${id}: ${error.message}`);
         }
       }
       
@@ -238,7 +236,7 @@ export default function ConsultationsManager({
         throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
       }
       
-      return daEliminare.length;
+      return idsToDelete.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
@@ -1079,7 +1077,12 @@ export default function ConsultationsManager({
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-bulk-delete">Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => bulkDeleteRifiutateMutation.mutate()}
+              onClick={() => {
+                const idsToDelete = consultations
+                  .filter(c => c.stato === 'rifiutata' || c.stato === 'annullata')
+                  .map(c => c.id);
+                bulkDeleteRifiutateMutation.mutate(idsToDelete);
+              }}
               className="bg-red-600 hover:bg-red-700"
               disabled={bulkDeleteRifiutateMutation.isPending}
               data-testid="button-confirm-bulk-delete"
@@ -1111,7 +1114,12 @@ export default function ConsultationsManager({
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-bulk-delete-in-attesa">Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => bulkDeleteInAttesaMutation.mutate()}
+              onClick={() => {
+                const idsToDelete = consultations
+                  .filter(c => c.stato === 'in_attesa')
+                  .map(c => c.id);
+                bulkDeleteInAttesaMutation.mutate(idsToDelete);
+              }}
               className="bg-amber-600 hover:bg-amber-700"
               disabled={bulkDeleteInAttesaMutation.isPending}
               data-testid="button-confirm-bulk-delete-in-attesa"
