@@ -423,16 +423,33 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     let updatedProducts = quote.products;
     
     if (quote.type === 'variabile' && data.selectedProducts) {
-      // Marca i prodotti selezionati con selected: true
+      // Marca i prodotti selezionati con selected: true e correggi selectable flag
       updatedProducts = quote.products.map(p => ({
         ...p,
+        selectable: true, // FIX: Per quote variabili, tutti i prodotti sono selezionabili
         selected: data.selectedProducts?.includes(p.nome) || false
       }));
       
-      // Calcola totale selezionato: prodotti fissi (selectable=false) + prodotti variabili selezionati
-      totaleSelezionato = updatedProducts
-        .filter(p => !p.selectable || p.selected)  // Fissi sempre inclusi + variabili solo se selected
+      // Calcola subtotale dei prodotti selezionati
+      const subtotaleSelezionato = updatedProducts
+        .filter(p => p.selected)  // Solo prodotti effettivamente selezionati dal cliente
         .reduce((sum, p) => sum + p.prezzo, 0);
+      
+      // FIX: Applica lo sconto al subtotale selezionato
+      const { totalAfterDiscount } = calculateQuoteTotals(
+        subtotaleSelezionato, 
+        quote.discountType, 
+        quote.discountValue
+      );
+      totaleSelezionato = totalAfterDiscount;
+      
+      console.log('📊 Calcolo totale variabile:', {
+        prodottiSelezionati: updatedProducts.filter(p => p.selected).map(p => p.nome),
+        subtotaleSelezionato,
+        discountType: quote.discountType,
+        discountValue: quote.discountValue,
+        totaleConSconto: totaleSelezionato
+      });
     }
     
     // Prepara payload update (pulisci undefined nested)

@@ -118,6 +118,19 @@ export default function QuoteSignedPortalPage() {
     }).format(amount);
   };
 
+  // Helper: Calcola il totale corretto per visualizzazione
+  // Per preventivi variabili firmati, usa totaleSelezionato (salvato alla firma)
+  // Per preventivi fissi, usa totalAfterDiscount
+  const getDisplayTotal = () => {
+    if (!quote) return 0;
+    if (quote.type === 'variabile') {
+      return quote.totaleSelezionato ?? quote.totalAfterDiscount ?? quote.totaleBase ?? 0;
+    }
+    return quote.totalAfterDiscount ?? quote.totaleBase ?? 0;
+  };
+
+  const displayTotal = getDisplayTotal();
+
   const formatDate = (date: any) => {
     if (!date) return '-';
     try {
@@ -442,7 +455,7 @@ export default function QuoteSignedPortalPage() {
                   (p.selected === undefined && quote.status === 'firmato')
                 );
                 const allPricesZero = filteredProducts.every(p => !p.prezzo || p.prezzo === 0);
-                const shouldShowTotalAsPrice = allPricesZero && filteredProducts.length === 1 && quote.totalAfterDiscount > 0;
+                const shouldShowTotalAsPrice = allPricesZero && filteredProducts.length === 1 && displayTotal > 0;
                 
                 return filteredProducts.map((product, idx) => (
                   <div 
@@ -478,7 +491,7 @@ export default function QuoteSignedPortalPage() {
                     </div>
                     <div className="text-left sm:text-right sm:ml-4">
                       <p className="text-xl sm:text-2xl font-bold text-blue-gray">
-                        {formatCurrency(shouldShowTotalAsPrice ? quote.totalAfterDiscount : (product.prezzo || 0))}
+                        {formatCurrency(shouldShowTotalAsPrice ? displayTotal : (product.prezzo || 0))}
                       </p>
                     </div>
                   </div>
@@ -511,7 +524,7 @@ export default function QuoteSignedPortalPage() {
                 <Separator />
                 <div className="flex justify-between items-center text-xl sm:text-2xl font-bold pt-2">
                   <span className="text-gray-800 font-playfair">Totale Contratto</span>
-                  <span className="text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</span>
+                  <span className="text-blue-gray">{formatCurrency(displayTotal)}</span>
                 </div>
               </div>
             </div>
@@ -677,7 +690,7 @@ export default function QuoteSignedPortalPage() {
                       </div>
                     </div>
                     <p className="text-sm text-blue-gray uppercase tracking-wider font-semibold mb-2">Totale Contratto</p>
-                    <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(quote.totalAfterDiscount)}</p>
+                    <p className="text-3xl sm:text-4xl font-bold text-blue-gray">{formatCurrency(displayTotal)}</p>
                     <p className="text-sm text-dark-sage/70 mt-4">
                       Per i dettagli sulle modalità di pagamento, contattare lo studio.
                     </p>
