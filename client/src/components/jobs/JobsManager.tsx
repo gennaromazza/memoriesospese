@@ -648,7 +648,7 @@ export default function JobsManager() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, filterYear, filterSemester, timeFilter, customDateRange, searchQuery]);
+  }, [filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery]);
   
   // Clamp currentPage when totalPages decreases (e.g., after deletion or filtering)
   useEffect(() => {
@@ -892,7 +892,7 @@ export default function JobsManager() {
             <SelectContent>
               <SelectItem value="upcoming">Prossimi Impegni</SelectItem>
               <SelectItem value="past">Impegni Passati</SelectItem>
-              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="all">Tutti i periodi</SelectItem>
             </SelectContent>
           </Select>
           
@@ -912,10 +912,10 @@ export default function JobsManager() {
           {/* Filtro Collaboratore */}
           <Select value={filterCollaboratore} onValueChange={setFilterCollaboratore}>
             <SelectTrigger className="w-44" data-testid="select-filter-collaboratore">
-              <SelectValue placeholder="Collaboratore" />
+              <SelectValue placeholder="Collaboratori" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="all">Tutti i collaboratori</SelectItem>
               <SelectItem value="non_assegnato">Non assegnato</SelectItem>
               {allCollaboratori.map(collab => (
                 <SelectItem key={collab.id} value={collab.id}>
@@ -935,7 +935,7 @@ export default function JobsManager() {
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="all">Tutti gli anni</SelectItem>
               {availableYears.map(year => (
                 <SelectItem key={year} value={year.toString()}>
                   {year}
