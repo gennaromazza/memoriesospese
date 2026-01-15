@@ -869,11 +869,12 @@ export default function JobsManager() {
         </div>
       </div>
       
-      {/* Filters */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-4">
-          {/* Search */}
-          <div className="flex-1 min-w-[250px] relative">
+      {/* Filters - Responsive Grid Layout */}
+      <div className="space-y-3">
+        {/* Prima riga: Ricerca + Periodo + Stato Preventivo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search - occupa più spazio */}
+          <div className="sm:col-span-2 lg:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               placeholder="Cerca per evento, location, clienti, note..."
@@ -886,7 +887,7 @@ export default function JobsManager() {
           
           {/* Filtro Periodo (Prossimi/Passati) */}
           <Select value={timeFilter} onValueChange={(val: 'all' | 'upcoming' | 'past') => setTimeFilter(val)}>
-            <SelectTrigger className="w-44" data-testid="select-filter-time">
+            <SelectTrigger className="w-full" data-testid="select-filter-time">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
             <SelectContent>
@@ -898,7 +899,7 @@ export default function JobsManager() {
           
           {/* Filtro Stato Preventivo */}
           <Select value={filterQuoteStatus} onValueChange={setFilterQuoteStatus}>
-            <SelectTrigger className="w-44" data-testid="select-filter-quote">
+            <SelectTrigger className="w-full" data-testid="select-filter-quote">
               <SelectValue placeholder="Stato Preventivo" />
             </SelectTrigger>
             <SelectContent>
@@ -908,10 +909,13 @@ export default function JobsManager() {
               <SelectItem value="non_inviato">Non inviato</SelectItem>
             </SelectContent>
           </Select>
-          
+        </div>
+        
+        {/* Seconda riga: Collaboratore + Anno + Mese + Semestre */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* Filtro Collaboratore */}
           <Select value={filterCollaboratore} onValueChange={setFilterCollaboratore}>
-            <SelectTrigger className="w-44" data-testid="select-filter-collaboratore">
+            <SelectTrigger className="w-full" data-testid="select-filter-collaboratore">
               <SelectValue placeholder="Collaboratori" />
             </SelectTrigger>
             <SelectContent>
@@ -928,10 +932,10 @@ export default function JobsManager() {
           {/* Filtro Anno */}
           <Select value={filterYear} onValueChange={(val) => {
             setFilterYear(val);
-            setFilterMonth('all'); // Reset mese quando cambia anno
-            setFilterSemester('all'); // Reset semestre
+            setFilterMonth('all');
+            setFilterSemester('all');
           }}>
-            <SelectTrigger className="w-28" data-testid="select-filter-year">
+            <SelectTrigger className="w-full" data-testid="select-filter-year">
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
             <SelectContent>
@@ -949,11 +953,11 @@ export default function JobsManager() {
             value={filterMonth} 
             onValueChange={(val) => {
               setFilterMonth(val);
-              if (val !== 'all') setFilterSemester('all'); // Reset semestre se scelgo mese
+              if (val !== 'all') setFilterSemester('all');
             }}
             disabled={filterYear === 'all'}
           >
-            <SelectTrigger className="w-32" data-testid="select-filter-month">
+            <SelectTrigger className="w-full" data-testid="select-filter-month">
               <SelectValue placeholder="Mese" />
             </SelectTrigger>
             <SelectContent>
@@ -985,11 +989,11 @@ export default function JobsManager() {
             value={filterSemester} 
             onValueChange={(val) => {
               setFilterSemester(val);
-              if (val !== 'all') setFilterMonth('all'); // Reset mese se scelgo semestre
+              if (val !== 'all') setFilterMonth('all');
             }}
             disabled={filterYear === 'all' || filterMonth !== 'all'}
           >
-            <SelectTrigger className="w-32" data-testid="select-filter-semester">
+            <SelectTrigger className="w-full" data-testid="select-filter-semester">
               <SelectValue placeholder="Semestre" />
             </SelectTrigger>
             <SelectContent>
@@ -999,24 +1003,27 @@ export default function JobsManager() {
             </SelectContent>
           </Select>
           
+        </div>
+        
+        {/* Terza riga: Range personalizzato + Reset Filtri */}
+        <div className="flex flex-wrap items-center gap-3">
           {/* Custom Date Range */}
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "w-64 justify-start text-left font-normal",
+                  "w-full sm:w-auto sm:min-w-[220px] justify-start text-left font-normal",
                   !customDateRange.from && "text-muted-foreground"
                 )}
                 data-testid="button-custom-date-range"
               >
-                <Calendar className="mr-2 h-4 w-4" />
+                <Calendar className="mr-2 h-4 w-4 shrink-0" />
                 {customDateRange.from ? (
                   customDateRange.to ? (
-                    <>
-                      {format(customDateRange.from, "dd MMM yyyy", { locale: it })} -{" "}
-                      {format(customDateRange.to, "dd MMM yyyy", { locale: it })}
-                    </>
+                    <span className="truncate">
+                      {format(customDateRange.from, "dd MMM yyyy", { locale: it })} - {format(customDateRange.to, "dd MMM yyyy", { locale: it })}
+                    </span>
                   ) : (
                     format(customDateRange.from, "dd MMM yyyy", { locale: it })
                   )
@@ -1038,7 +1045,6 @@ export default function JobsManager() {
                     from: range?.from,
                     to: range?.to
                   });
-                  // Reset year/semester/month quando usi custom range
                   if (range?.from && range?.to) {
                     setFilterYear('all');
                     setFilterMonth('all');
@@ -1056,11 +1062,11 @@ export default function JobsManager() {
             <Button
               variant="ghost"
               onClick={() => {
-                setFilterType('matrimonio'); // Default: Matrimonio
+                setFilterType('matrimonio');
                 setFilterYear('all');
                 setFilterMonth('all');
                 setFilterSemester('all');
-                setFilterQuoteStatus('firmato'); // Default: firmato
+                setFilterQuoteStatus('firmato');
                 setCustomDateRange({ from: undefined, to: undefined });
                 setSearchQuery('');
               }}
