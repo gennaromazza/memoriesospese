@@ -505,6 +505,22 @@ export default function QuoteBuilder({
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
 
+  // Aggiorna selectable su tutti i prodotti quando cambia il tipo preventivo
+  useEffect(() => {
+    const products = form.getValues('products');
+    if (products && products.length > 0) {
+      const shouldBeSelectable = quoteType === 'variabile';
+      const needsUpdate = products.some(p => p.selectable !== shouldBeSelectable);
+      if (needsUpdate) {
+        const updatedProducts = products.map(p => ({
+          ...p,
+          selectable: shouldBeSelectable
+        }));
+        form.setValue('products', updatedProducts);
+      }
+    }
+  }, [quoteType, form]);
+
   // Watch payment schedule config for simulator
   const paymentConfig = form.watch('paymentScheduleConfig');
   const autoGenerate = paymentConfig?.autoGenerate || false;

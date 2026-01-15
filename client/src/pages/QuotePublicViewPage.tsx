@@ -198,9 +198,17 @@ export default function QuotePublicViewPage() {
       return { totalBeforeDiscount, discountAmount, totalAfterDiscount };
     }
     
-    // Variable quote: calculate subtotal of fixed products + selected variable products
+    // Variable quote: calculate subtotal based on selected products
+    // Per preventivi variabili, il totale dipende da cosa seleziona il cliente
     const subtotale = (quote.products ?? [])
-      .filter(p => !p.selectable || selectedProducts.includes(p.nome))  // Fissi sempre inclusi + variabili solo se selezionati
+      .filter(p => {
+        // Se il prodotto è selezionabile, includi solo se il cliente l'ha selezionato
+        if (p.selectable) {
+          return selectedProducts.includes(p.nome);
+        }
+        // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
+        return true;
+      })
       .reduce((sum, p) => sum + p.prezzo, 0);
     
     // Apply discount to selected subtotal
