@@ -125,16 +125,36 @@ async function verifyAdminAuth(req: Request, res: Response, next: Function) {
 
 /**
  * Helper: Converte Firestore Timestamp in ISO string per serializzazione JSON
+ * Gestisce: Firestore Timestamp, Date JavaScript nativo, stringhe ISO, oggetti con _seconds
  */
 function serializeTimestamp(timestamp: any): string | null {
   if (!timestamp) return null;
+  // Firebase Timestamp con metodo toDate()
   if (timestamp.toDate) {
     return timestamp.toDate().toISOString();
   }
+  // Oggetto con _seconds (Firestore Timestamp serializzato)
   if (timestamp._seconds !== undefined) {
     return new Date(timestamp._seconds * 1000).toISOString();
   }
-  return timestamp;
+  // Date JavaScript nativo
+  if (timestamp instanceof Date) {
+    return timestamp.toISOString();
+  }
+  // Stringa già formattata (ISO, etc.)
+  if (typeof timestamp === 'string') {
+    return timestamp;
+  }
+  // Fallback: tenta conversione
+  try {
+    const d = new Date(timestamp);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString();
+    }
+  } catch {
+    // Ignora errori di conversione
+  }
+  return null;
 }
 
 /**
@@ -923,6 +943,10 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
     if (quote.signature) {
       // Cast a any per gestire campi legacy non tipizzati
       const sig = quote.signature as any;
+      
+      // DEBUG: Log firma ricevuta per diagnostica
+      console.log(`🔍 DEBUG Firma quote ${quote.id}:`, JSON.stringify(sig, null, 2));
+      
       // Prova a estrarre clientName da formati alternativi
       const clientName =
         sig.clientName ||
@@ -934,13 +958,20 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
           ? `${clientiInfo[0].nome || ""} ${clientiInfo[0].cognome || ""}`.trim()
           : null);
 
+      console.log(`🔍 DEBUG clientName estratto: "${clientName}"`);
+
       if (clientName) {
         normalizedSignature = {
           clientName,
           signedAt: serializeTimestamp(sig.signedAt),
           imageUrl: sig.imageUrl || sig.firmaUrl || null,
         };
+        console.log(`✅ Firma normalizzata:`, JSON.stringify(normalizedSignature, null, 2));
+      } else {
+        console.warn(`⚠️ clientName non trovato per quote ${quote.id}, firma non mostrata`);
       }
+    } else {
+      console.log(`ℹ️ Quote ${quote.id} non ha firma`);
     }
 
     const safeQuote = {
