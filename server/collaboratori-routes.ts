@@ -707,6 +707,26 @@ router.get('/collaboratori', async (req, res) => {
 });
 
 /**
+ * GET /api/collaboratori/assignments
+ * Ottieni tutte le assegnazioni collaboratori-job (per filtri admin)
+ * NOTA: Questa route deve essere PRIMA di /collaboratori/:id per evitare conflitti
+ */
+router.get('/collaboratori/assignments', async (req, res) => {
+  try {
+    const snapshot = await db.collection('jobCollaboratoreAssignments').get();
+    const assignments = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    res.json(assignments);
+  } catch (error: any) {
+    console.error('❌ Error fetching all assignments:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/collaboratori/:id
  * Ottieni un singolo collaboratore
  */
@@ -872,25 +892,6 @@ router.patch('/collaboratori/assignments/:id/products-tasks', async (req, res) =
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error updating assignment products/tasks:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/collaboratori/assignments
- * Ottieni tutte le assegnazioni collaboratori-job (per filtri admin)
- */
-router.get('/collaboratori/assignments', async (req, res) => {
-  try {
-    const snapshot = await db.collection('jobCollaboratoreAssignments').get();
-    const assignments = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    res.json(assignments);
-  } catch (error: any) {
-    console.error('❌ Error fetching all assignments:', error);
     res.status(500).json({ error: error.message });
   }
 });
