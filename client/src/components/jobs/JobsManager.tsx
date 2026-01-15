@@ -235,74 +235,68 @@ export default function JobsManager() {
     queryFn: getAllClienti
   });
   
-  // Query collaboratori assegnati ai job (con nomi e conteggi)
-  const { data: collaboratoriByJob = {} } = useQuery<Record<string, { count: number; nomi: string[] }>>({
-    queryKey: ['jobCollaboratoriDetails'],
-    queryFn: async () => {
-      // Carica tutti gli assignment
-      const assignmentsSnapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
-      
-      // Carica tutti i collaboratori per avere i nomi
-      const collaboratoriSnapshot = await getDocs(collection(db, 'collaboratori'));
-      const collaboratoriMap: Record<string, string> = {};
-      collaboratoriSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        collaboratoriMap[doc.id] = `${data.nome || ''} ${data.cognome || ''}`.trim();
-      });
-      
-      const details: Record<string, { count: number; nomi: string[] }> = {};
-      assignmentsSnapshot.docs.forEach(doc => {
-        const data = doc.data() as JobCollaboratoreAssignment;
-        if (data.jobId) {
-          if (!details[data.jobId]) {
-            details[data.jobId] = { count: 0, nomi: [] };
-          }
-          details[data.jobId].count += 1;
-          const nome = collaboratoriMap[data.collaboratoreId];
-          if (nome) {
-            details[data.jobId].nomi.push(nome);
-          }
-        }
-      });
-      return details;
-    }
-  });
-  
-  // Query tutti i collaboratori per il dropdown filtro
+  // Query tutti i collaboratori per il dropdown filtro (via API backend)
   const { data: allCollaboratori = [] } = useQuery<{ id: string; nome: string }[]>({
     queryKey: ['collaboratoriList'],
     queryFn: async () => {
-      const collaboratoriSnapshot = await getDocs(collection(db, 'collaboratori'));
-      return collaboratoriSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          nome: `${data.nome || ''} ${data.cognome || ''}`.trim() || 'Senza nome'
-        };
-      }).sort((a, b) => a.nome.localeCompare(b.nome));
+      const response = await fetch('/api/collaboratori');
+      if (!response.ok) throw new Error('Failed to fetch collaboratori');
+      const data = await response.json();
+      return data.map((c: any) => ({
+        id: c.id,
+        nome: `${c.nome || ''} ${c.cognome || ''}`.trim() || 'Senza nome'
+      })).sort((a: any, b: any) => a.nome.localeCompare(b.nome));
     }
   });
   
-  // Mappa collaboratoreId -> array di jobIds per il filtraggio
-  const { data: jobsByCollaboratore = {} } = useQuery<Record<string, Set<string>>>({
-    queryKey: ['jobsByCollaboratore'],
+  // Query tutti gli assignment collaboratori-job (via API backend)
+  const { data: allAssignments = [] } = useQuery<JobCollaboratoreAssignment[]>({
+    queryKey: ['collaboratoriAssignments'],
     queryFn: async () => {
-      const assignmentsSnapshot = await getDocs(collection(db, 'jobCollaboratoreAssignments'));
-      const result: Record<string, Set<string>> = {};
-      
-      assignmentsSnapshot.docs.forEach(doc => {
-        const data = doc.data() as JobCollaboratoreAssignment;
-        if (data.collaboratoreId && data.jobId) {
-          if (!result[data.collaboratoreId]) {
-            result[data.collaboratoreId] = new Set();
-          }
-          result[data.collaboratoreId].add(data.jobId);
-        }
-      });
-      
-      return result;
+      const response = await fetch('/api/collaboratori/assignments');
+      if (!response.ok) throw new Error('Failed to fetch assignments');
+      return response.json();
     }
   });
+  
+  // Calcola collaboratoriByJob dai dati caricati
+  const collaboratoriByJob = useMemo(() => {
+    const collaboratoriMap: Record<string, string> = {};
+    allCollaboratori.forEach(c => {
+      collaboratoriMap[c.id] = c.nome;
+    });
+    
+    const details: Record<string, { count: number; nomi: string[] }> = {};
+    allAssignments.forEach((assignment: JobCollaboratoreAssignment) => {
+      if (assignment.jobId) {
+        if (!details[assignment.jobId]) {
+          details[assignment.jobId] = { count: 0, nomi: [] };
+        }
+        details[assignment.jobId].count += 1;
+        const nome = collaboratoriMap[assignment.collaboratoreId];
+        if (nome) {
+          details[assignment.jobId].nomi.push(nome);
+        }
+      }
+    });
+    return details;
+  }, [allCollaboratori, allAssignments]);
+  
+  // Calcola jobsByCollaboratore dai dati caricati
+  const jobsByCollaboratore = useMemo(() => {
+    const result: Record<string, Set<string>> = {};
+    
+    allAssignments.forEach((assignment: JobCollaboratoreAssignment) => {
+      if (assignment.collaboratoreId && assignment.jobId) {
+        if (!result[assignment.collaboratoreId]) {
+          result[assignment.collaboratoreId] = new Set();
+        }
+        result[assignment.collaboratoreId].add(assignment.jobId);
+      }
+    });
+    
+    return result;
+  }, [allAssignments]);
   
   // Query pagamenti per job - carica tutti gli ordini in un'unica query
   const { data: pagamentiByJob = {} } = useQuery<Record<string, number>>({
