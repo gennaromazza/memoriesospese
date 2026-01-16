@@ -115,6 +115,10 @@ export interface ConsultationTemplate {
   // Immagini template (Firebase Storage URLs)
   imageUrls?: string[];                   // Array URLs immagini per preview cliente
   
+  // Studio Assistant - Configurazione intelligente
+  giorniPreparazione?: number;            // Giorni lavorativi necessari per preparare (default 0)
+  weight?: 1 | 2 | 3;                     // Peso carico lavoro: 1=leggero, 2=medio, 3=pesante (default 1)
+  
   attiva: boolean;                        // Template disponibile per prenotazione
   ordine: number;                         // Ordinamento display (default 0)
   
@@ -134,6 +138,8 @@ export interface InsertConsultationTemplate {
   excludedDays?: number[];
   customWorkingHours?: ConsultationWorkingHours[];
   imageUrls?: string[];
+  giorniPreparazione?: number;
+  weight?: 1 | 2 | 3;
   attiva: boolean;
   ordine: number;
 }
@@ -149,6 +155,8 @@ export interface UpdateConsultationTemplate {
   excludedDays?: number[];
   customWorkingHours?: ConsultationWorkingHours[];
   imageUrls?: string[];
+  giorniPreparazione?: number;
+  weight?: 1 | 2 | 3;
   attiva?: boolean;
   ordine?: number;
 }

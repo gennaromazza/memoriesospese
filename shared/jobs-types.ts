@@ -125,6 +125,11 @@ export interface Job {
   // Pipeline stato
   status: JobStatus;
   
+  // Studio Assistant - Stato lavorazione
+  pendingReason?: 'editing' | 'client_waiting' | 'printing' | 'other';  // Motivo se non consegnato
+  needsWork?: boolean;                    // Flaggato come "da lavorare"
+  needsWorkSince?: Timestamp;             // Data quando è stato flaggato
+  
   // Snapshot economico (calcolato da orders e payment schedules)
   financials: JobFinancials;
   

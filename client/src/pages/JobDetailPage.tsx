@@ -75,6 +75,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { StudioAssistant } from '@/components/studio-assistant';
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -899,6 +900,12 @@ export default function JobDetailPage() {
 
             {/* Right Column - Secondary Info */}
             <div className="lg:col-span-5 space-y-6">
+              {/* Studio Assistant - Suggerimenti specifici per questo lavoro */}
+              <StudioAssistant 
+                mode="job-specific" 
+                jobId={job.id}
+                showHeader={true}
+              />
 
             {/* Stato Preventivi */}
               <Card className="shadow-sm hover:shadow-md transition-shadow">

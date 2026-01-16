@@ -61,6 +61,7 @@ import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
+import { StudioAssistant } from "@/components/studio-assistant";
 
 // Componente per visualizzare stato Google Calendar
 function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
@@ -1615,8 +1616,11 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
               <div className="space-y-6">
-                {/* Riepilogo Lavori del Giorno */}
-                <TodayJobsSummary />
+                {/* Riepilogo Lavori del Giorno + Assistente Studio (compatto) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <TodayJobsSummary />
+                  <StudioAssistant mode="compact" showHeader={true} />
+                </div>
                 
                 {/* Calendario e Promemoria */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

@@ -24,6 +24,7 @@ import reminderRoutes from './reminder-routes.js';
 import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
+import studioAssistantRoutes from './studio-assistant-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
@@ -141,6 +142,10 @@ async function startServer() {
 
     app.use('/api/gdpr', gdprRoutes);
     console.log('🔍 Audit API routes mounted at /api/audit');
+
+    // Studio Assistant routes
+    app.use('/api/studio-assistant', studioAssistantRoutes);
+    console.log('✨ Studio Assistant API routes mounted at /api/studio-assistant');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
