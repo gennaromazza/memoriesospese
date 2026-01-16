@@ -1623,11 +1623,8 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
               <div className="space-y-6">
-                {/* Riepilogo Lavori del Giorno + Assistente Studio (compatto) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <TodayJobsSummary />
-                  <StudioAssistant mode="compact" showHeader={true} />
-                </div>
+                {/* Riepilogo Lavori del Giorno */}
+                <TodayJobsSummary />
                 
                 {/* Calendario e Promemoria */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
