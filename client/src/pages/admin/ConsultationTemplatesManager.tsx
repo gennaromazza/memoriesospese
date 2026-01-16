@@ -172,6 +172,7 @@ export default function ConsultationTemplatesManager() {
       imageUrls: [],
       attiva: true,
       ordine: 0,
+      giorniPreparazione: 0,
     });
     setDialogOpen(true);
   };
@@ -188,6 +189,7 @@ export default function ConsultationTemplatesManager() {
       imageUrls: template.imageUrls || [],
       attiva: template.attiva,
       ordine: template.ordine || 0,
+      giorniPreparazione: template.giorniPreparazione || 0,
     });
     setDialogOpen(true);
   };
@@ -298,6 +300,7 @@ export default function ConsultationTemplatesManager() {
         imageUrls: [...(template.imageUrls || [])], // Shallow ok per strings
         attiva: false,
         ordine: (template.ordine || 0) + 1,
+        giorniPreparazione: template.giorniPreparazione || 0,
       };
 
       await createMutation.mutateAsync(duplicatedTemplate);
@@ -1058,7 +1061,7 @@ export default function ConsultationTemplatesManager() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="durata">Durata (minuti) *</Label>
                   <Input
@@ -1076,6 +1079,27 @@ export default function ConsultationTemplatesManager() {
                     }
                     data-testid="input-durata"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="giorniPreparazione">Giorni Preparazione</Label>
+                  <Input
+                    id="giorniPreparazione"
+                    type="number"
+                    min="0"
+                    max="30"
+                    value={formData.giorniPreparazione || 0}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        giorniPreparazione: parseInt(e.target.value) || 0,
+                      }))
+                    }
+                    data-testid="input-giorni-preparazione"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Giorni lavorativi necessari prima dell'appuntamento
+                  </p>
                 </div>
 
                 <div className="space-y-2">

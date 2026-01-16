@@ -216,6 +216,13 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     const now = new Date();
     console.log('📊 Studio Assistant: jobId =', jobId || 'tutti');
     
+    // Carica suggerimenti ignorati (non scaduti)
+    const dismissedSnapshot = await db.collection('dismissedSuggestions')
+      .where('expiresAt', '>', now)
+      .get();
+    const dismissedIds = new Set(dismissedSnapshot.docs.map(d => d.id));
+    console.log('📊 Studio Assistant: suggerimenti ignorati =', dismissedIds.size);
+    
     const unsignedQuotes: StudioSuggestion[] = [];
     const pendingDeliveries: StudioSuggestion[] = [];
     const consultations: StudioSuggestion[] = [];
@@ -279,8 +286,12 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         jobName || 'il tuo evento'
       );
       
+      // Salta se ignorato
+      const suggestionId = `quote_${quoteDoc.id}`;
+      if (dismissedIds.has(suggestionId)) continue;
+      
       unsignedQuotes.push({
-        id: `quote_${quoteDoc.id}`,
+        id: suggestionId,
         type: 'unsigned_quote',
         quoteId: quoteDoc.id,
         jobId: quote.jobId,
@@ -346,8 +357,11 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       // Se già flaggato come needsWork, aggiungi a quella lista
       if (job.needsWork) {
+        const suggestionId = `needswork_${jobDoc.id}`;
+        if (dismissedIds.has(suggestionId)) continue;
+        
         needsWorkJobs.push({
-          id: `needswork_${jobDoc.id}`,
+          id: suggestionId,
           type: 'pending_delivery',
           jobId: jobDoc.id,
           jobName: job.nomeEvento,
@@ -367,8 +381,11 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
           })()
         });
       } else {
+        const deliveryId = `delivery_${jobDoc.id}`;
+        if (dismissedIds.has(deliveryId)) continue;
+        
         pendingDeliveries.push({
-          id: `delivery_${jobDoc.id}`,
+          id: deliveryId,
           type: 'pending_delivery',
           jobId: jobDoc.id,
           jobName: job.nomeEvento,
@@ -457,6 +474,20 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
         pendingReason: FieldValue.delete(),
         needsWorkSince: FieldValue.delete(),
         updatedAt: new Date()
+      });
+    }
+    
+    // Gestione azione "archived" (ignora suggerimento)
+    if (action === 'archived') {
+      // Salva suggerimento ignorato per non mostrarlo di nuovo
+      await db.collection('dismissedSuggestions').doc(id).set({
+        suggestionId: id,
+        type,
+        docId,
+        dismissedAt: new Date(),
+        dismissedBy: adminEmail,
+        // Scade automaticamente dopo 30 giorni
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       });
     }
     
