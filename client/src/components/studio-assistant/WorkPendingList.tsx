@@ -2,6 +2,7 @@
  * WorkPendingList - Lista lavori flaggati come "da fare"
  */
 
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,8 @@ import {
   Paintbrush,
   Users,
   Printer,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
 import type { StudioSuggestion, PendingReason } from '@shared/studio-assistant-types';
 
@@ -43,6 +45,102 @@ const reasonColors: Record<PendingReason, string> = {
   printing: 'bg-orange-100 text-orange-800',
   other: 'bg-gray-100 text-gray-800'
 };
+
+function AnimatedWorkCard({ 
+  job, 
+  onMarkAsDelivered, 
+  onBookConsultation 
+}: { 
+  job: StudioSuggestion; 
+  onMarkAsDelivered: (jobId: string) => Promise<void>;
+  onBookConsultation?: (templateId: string, jobId: string, dates?: { from: string; to: string }) => void;
+}) {
+  const [isExiting, setIsExiting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleDelivered = async () => {
+    setIsLoading(true);
+    setIsExiting(true);
+    try {
+      await onMarkAsDelivered(job.jobId!);
+    } catch {
+      setIsExiting(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card 
+      className={`border-l-4 border-l-amber-400 transition-all duration-300 ${
+        isExiting 
+          ? 'opacity-0 scale-95 -translate-x-4' 
+          : 'opacity-100 scale-100 translate-x-0'
+      }`}
+    >
+      <CardContent className="p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 truncate">
+              {job.jobName}
+            </p>
+            {job.clientName && (
+              <p className="text-sm text-gray-600 truncate">
+                {job.clientName}
+              </p>
+            )}
+            
+            {job.reason && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {job.reason}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex gap-2 flex-shrink-0">
+            <Button 
+              size="sm"
+              onClick={handleDelivered}
+              disabled={isLoading}
+              className="bg-sage hover:bg-sage/90"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+              )}
+              Consegnato
+            </Button>
+            
+            {job.consultationTemplateId && onBookConsultation && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => onBookConsultation(
+                  job.consultationTemplateId!,
+                  job.jobId!,
+                  job.suggestedDates
+                )}
+              >
+                <Calendar className="h-4 w-4 mr-1" />
+                Consulenza
+              </Button>
+            )}
+            
+            <Button 
+              size="sm" 
+              variant="ghost"
+              onClick={() => window.open(`/admin/jobs/${job.jobId}`, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function WorkPendingList({ 
   jobs, 
@@ -85,64 +183,12 @@ export default function WorkPendingList({
           
           <div className="space-y-2">
             {reasonJobs.map(job => (
-              <Card key={job.id} className="border-l-4 border-l-amber-400">
-                <CardContent className="p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">
-                        {job.jobName}
-                      </p>
-                      {job.clientName && (
-                        <p className="text-sm text-gray-600 truncate">
-                          {job.clientName}
-                        </p>
-                      )}
-                      
-                      {/* Motivazione visualizzazione */}
-                      {job.reason && (
-                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {job.reason}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div className="flex gap-2 flex-shrink-0">
-                      <Button 
-                        size="sm"
-                        onClick={() => onMarkAsDelivered(job.jobId!)}
-                        className="bg-sage hover:bg-sage/90"
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        Consegnato
-                      </Button>
-                      
-                      {job.consultationTemplateId && onBookConsultation && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => onBookConsultation(
-                            job.consultationTemplateId!,
-                            job.jobId!,
-                            job.suggestedDates
-                          )}
-                        >
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Consulenza
-                        </Button>
-                      )}
-                      
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => window.open(`/admin/jobs/${job.jobId}`, '_blank')}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <AnimatedWorkCard
+                key={job.id}
+                job={job}
+                onMarkAsDelivered={onMarkAsDelivered}
+                onBookConsultation={onBookConsultation}
+              />
             ))}
           </div>
         </div>

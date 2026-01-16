@@ -67,12 +67,16 @@ export default function SuggestionCard({
   onBookConsultation
 }: SuggestionCardProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const [showReasonDialog, setShowReasonDialog] = useState(false);
   
   const handleAction = async (action: () => Promise<void>) => {
     setIsLoading(true);
+    setIsExiting(true);
     try {
       await action();
+    } catch {
+      setIsExiting(false);
     } finally {
       setIsLoading(false);
     }
@@ -125,10 +129,16 @@ export default function SuggestionCard({
 
   return (
     <>
-      <Card className="border-l-4 hover:shadow-md transition-shadow" style={{
-        borderLeftColor: suggestion.priority === 'high' ? '#ef4444' : 
-                         suggestion.priority === 'medium' ? '#f59e0b' : '#22c55e'
-      }}>
+      <Card 
+        className={`border-l-4 hover:shadow-md transition-all duration-300 ${
+          isExiting 
+            ? 'opacity-0 scale-95 -translate-x-4' 
+            : 'opacity-100 scale-100 translate-x-0'
+        }`} 
+        style={{
+          borderLeftColor: suggestion.priority === 'high' ? '#ef4444' : 
+                           suggestion.priority === 'medium' ? '#f59e0b' : '#22c55e'
+        }}>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-start gap-3">
             {/* Icon e Info */}
