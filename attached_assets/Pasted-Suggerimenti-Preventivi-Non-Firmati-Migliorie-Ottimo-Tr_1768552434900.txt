@@ -1,0 +1,186 @@
+Suggerimenti Preventivi Non Firmati – Migliorie
+✅ Ottimo
+
+Trigger temporale ✔
+
+WhatsApp precompilato ✔
+
+Tone of voice corretto ✔
+
+🔧 Migliorie consigliate
+A. Stato “cliente già contattato”
+
+Aggiungi uno stato intermedio:
+
+quoteFollowUpStatus:
+- never_contacted
+- contacted_once
+- contacted_twice
+- abandoned
+
+
+👉 Regola:
+
+Dopo 2 follow-up → priorità ↓ o suggerimento soft (“Valuta se archiviare”)
+
+B. Varianti messaggio automatiche
+
+Evita effetto “spam”:
+
+messageVariant: "gentle" | "direct" | "final"
+
+
+Esempio finale:
+
+“Capisco se nel frattempo avete fatto altre valutazioni, resto comunque a disposizione.”
+
+2️⃣ Lavori da Consegnare – UX molto forte (ma migliorabile)
+
+Questa è una killer feature reale 🔥
+
+Miglioria chiave: conferma rapida + motivazione
+
+Quando l’utente clicca “No” → chiedi perché (1 tap):
+
+⏳ In lavorazione
+
+📸 In attesa selezione cliente
+
+🖨️ In stampa
+
+❓ Altro
+
+👉 Serve per:
+
+ordinare meglio la lista
+
+suggerimenti futuri più intelligenti
+
+Salva come:
+
+pendingReason?: "editing" | "client_waiting" | "printing" | "other"
+
+3️⃣ Suggerimenti Consulenze – Ottima logica, qui puoi eccellere
+
+La parte date intelligenti è il tuo vero differenziale.
+
+🔧 Migliorie consigliate
+A. Peso consulenze (non solo “pesanti”)
+
+Formalizza:
+
+consultationWeight: 1 | 2 | 3
+
+
+Esempio:
+
+Prima Chiacchierata → 1
+
+Visione → 2
+
+Consegna → 1
+
+Visione + scelta album → 3
+
+👉 Il carico settimanale diventa:
+
+weeklyLoad = sum(weights)
+
+
+Molto più realistico di “numero consulenze”.
+
+B. Giorni di preparazione = blocco invisibile
+
+UX idea 🔥
+
+I giorni di preparazione non vanno mostrati
+
+Ma bloccano silenziosamente il calendario
+
+Cliente vede solo:
+
+“Disponibilità consigliata: dal 12 al 18”
+
+4️⃣ Lista “Lavori da Svolgere” – Aggiungi micro-motivazione
+
+Per ogni job mostra perché è lì:
+
+“⏰ Evento di 4 mesi fa – non ancora consegnato”
+“📌 Marcato come ‘da lavorare’ 12 giorni fa”
+
+Questo:
+
+riduce ansia
+
+aumenta fiducia nel sistema
+
+5️⃣ Backend – Suggerimento Architetturale Importante
+⚠️ Evita suggerimenti “stateless”
+
+La collection consultationSuggestions è giusta, ma io la farei così:
+
+suggestion {
+  id
+  jobId
+  type
+  createdAt
+  lastShownAt
+  dismissedAt?
+  actionTaken?: "contacted" | "booked" | "completed"
+}
+
+
+👉 Regole:
+
+Non mostrare lo stesso suggerimento ogni mattina identico
+
+Aumenta priorità se ignorato X giorni
+
+Sparisce solo se azione reale fatta
+
+6️⃣ Hook useStudioSuggestions – Firma consigliata
+const {
+  suggestions,
+  loading,
+  markAsDone,
+  dismiss,
+  performAction
+} = useStudioSuggestions({ mode, jobId })
+
+
+Questo ti permette:
+
+stesso hook ovunque
+
+UI coerente
+
+test facile
+
+7️⃣ UX Daily Flow (molto importante)
+Modalità “Rituale del Mattino”
+
+Suggerimento extra 🔥:
+
+“Hai 3 azioni consigliate oggi (⏱ ~6 min)”
+
+E poi:
+
+1 tap → esegui
+
+animazione → “✔ Fatto”
+
+micro reward psicologico
+
+👉 Questo trasforma il sistema in assistente, non in lista problemi.
+
+8️⃣ Cose che NON cambierei (sono già perfette)
+
+✔ Divisione per tipo suggerimento
+
+✔ Integrazione contestuale (JobDetailPage)
+
+✔ Badge priorità
+
+✔ Uso WhatsApp invece di email
+
+✔ Architettura modulare frontend
