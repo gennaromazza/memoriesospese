@@ -93,7 +93,7 @@ async function updateJobWorkStatus(
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error('Non autenticato');
   
-  const response = await fetch(`/api/jobs/${jobId}/work-status`, {
+  const response = await fetch(`/api/studio-assistant/jobs/${jobId}/work-status`, {
     method: 'PATCH',
     headers: { 
       'Authorization': `Bearer ${token}`,
