@@ -233,6 +233,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       .where('status', 'in', ['inviato', 'visionato'])
       .get();
     
+    console.log('📊 Studio Assistant: preventivi trovati con status inviato/visionato =', quotesSnapshot.docs.length);
+    
     for (const quoteDoc of quotesSnapshot.docs) {
       const quote = quoteDoc.data();
       
@@ -410,6 +412,13 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     
     // Stima tempo: 2 min per azione
     const estimatedMinutes = allSuggestions.length * 2;
+    
+    console.log('📊 Studio Assistant: Risultati finali:', {
+      unsignedQuotes: unsignedQuotes.length,
+      pendingDeliveries: pendingDeliveries.length,
+      consultations: consultations.length,
+      needsWorkJobs: needsWorkJobs.length
+    });
     
     const response: StudioSuggestionsResponse = {
       success: true,
