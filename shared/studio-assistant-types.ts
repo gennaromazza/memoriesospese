@@ -11,7 +11,9 @@ import { Timestamp } from 'firebase/firestore';
 export type SuggestionType = 
   | 'unsigned_quote'      // Preventivo non firmato
   | 'pending_delivery'    // Lavoro da consegnare
-  | 'consultation';       // Consulenza da prenotare
+  | 'consultation'        // Consulenza da prenotare
+  | 'pending_order'       // Ordine non completato
+  | 'pending_booking';    // Prenotazione non completata
 
 /**
  * Stato follow-up preventivo
@@ -94,6 +96,19 @@ export interface StudioSuggestion {
     from: string;  // YYYY-MM-DD
     to: string;    // YYYY-MM-DD
   };
+  
+  // Per pending_order
+  orderId?: string;
+  orderTotal?: number;
+  orderStatus?: string;
+  isWalkIn?: boolean;
+  daysSinceOrderCreated?: number;
+  
+  // Per pending_booking
+  bookingId?: string;
+  bookingStatus?: string;
+  bookingDate?: string;
+  daysSinceBooking?: number;
   
   // Motivo visualizzazione (per UI)
   reason?: string;
