@@ -77,6 +77,36 @@ function formatDateIT(date: Date): string {
 }
 
 /**
+ * Helper: Converte un valore Firestore in Date (gestisce Timestamp, stringa, Date)
+ */
+function toDate(value: any): Date | null {
+  if (!value) return null;
+  
+  // Firestore Timestamp
+  if (typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+  
+  // Già una Date
+  if (value instanceof Date) {
+    return value;
+  }
+  
+  // Stringa ISO o altro formato
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  
+  // Numero (timestamp Unix)
+  if (typeof value === 'number') {
+    return new Date(value);
+  }
+  
+  return null;
+}
+
+/**
  * Helper: Calcola carico settimanale consulenze
  */
 async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[]> {
@@ -180,9 +210,11 @@ async function findOptimalDateRange(
  * Calcola e restituisce tutti i suggerimenti
  */
 router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
+  console.log('📊 Studio Assistant: Inizio calcolo suggerimenti');
   try {
     const { jobId } = req.query;
     const now = new Date();
+    console.log('📊 Studio Assistant: jobId =', jobId || 'tutti');
     
     const unsignedQuotes: StudioSuggestion[] = [];
     const pendingDeliveries: StudioSuggestion[] = [];
@@ -200,7 +232,7 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Filtra per jobId se specificato
       if (jobId && quote.jobId !== jobId) continue;
       
-      const sentAt = quote.sentAt?.toDate() || quote.createdAt?.toDate();
+      const sentAt = toDate(quote.sentAt) || toDate(quote.createdAt);
       if (!sentAt) continue;
       
       const daysSinceSent = Math.floor((now.getTime() - sentAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -218,14 +250,16 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
           const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
           if (jobDoc.exists) {
             const jobData = jobDoc.data();
-            jobName = jobData?.nomeEvento || '';
-            
-            if (jobData?.clientiIds?.length > 0) {
-              const clienteDoc = await db.collection('clienti').doc(jobData.clientiIds[0]).get();
-              if (clienteDoc.exists) {
-                const cliente = clienteDoc.data();
-                clientName = `${cliente?.nome || ''} ${cliente?.cognome || ''}`.trim();
-                clientPhone = cliente?.cellulare1 || cliente?.cellulare2 || '';
+            if (jobData) {
+              jobName = jobData.nomeEvento || '';
+              
+              if (jobData.clientiIds?.length > 0) {
+                const clienteDoc = await db.collection('clienti').doc(jobData.clientiIds[0]).get();
+                if (clienteDoc.exists) {
+                  const cliente = clienteDoc.data();
+                  clientName = `${cliente?.nome || ''} ${cliente?.cognome || ''}`.trim();
+                  clientPhone = cliente?.cellulare1 || cliente?.cellulare2 || '';
+                }
               }
             }
           }
@@ -280,7 +314,7 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Filtra per jobId se specificato
       if (jobId && jobDoc.id !== jobId) continue;
       
-      const eventDate = job.eventDate?.toDate();
+      const eventDate = toDate(job.eventDate);
       if (!eventDate) continue;
       
       // Solo eventi passati
@@ -325,9 +359,12 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
           createdAt: job.createdAt,
           monthsSinceEvent,
           pendingReason: job.pendingReason,
-          reason: job.needsWorkSince 
-            ? `📌 Marcato come 'da lavorare' ${Math.floor((now.getTime() - job.needsWorkSince.toDate().getTime()) / (1000 * 60 * 60 * 24))} giorni fa`
-            : `⏰ Evento di ${monthsSinceEvent} mesi fa`
+          reason: (() => {
+            const workSince = toDate(job.needsWorkSince);
+            return workSince 
+              ? `📌 Marcato come 'da lavorare' ${Math.floor((now.getTime() - workSince.getTime()) / (1000 * 60 * 60 * 24))} giorni fa`
+              : `⏰ Evento di ${monthsSinceEvent} mesi fa`;
+          })()
         });
       } else {
         pendingDeliveries.push({

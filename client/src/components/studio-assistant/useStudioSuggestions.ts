@@ -46,13 +46,17 @@ async function fetchSuggestions(jobId?: string): Promise<StudioSuggestionsRespon
   const url = jobId 
     ? `/api/studio-assistant/suggestions?jobId=${jobId}`
     : '/api/studio-assistant/suggestions';
+  
+  console.log('🔍 Studio Assistant: Fetching suggestions from', url);
     
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
   if (!response.ok) {
-    throw new Error('Errore caricamento suggerimenti');
+    const errorData = await response.json().catch(() => ({}));
+    console.error('❌ Studio Assistant API error:', response.status, errorData);
+    throw new Error(errorData.message || errorData.error || `Errore ${response.status}`);
   }
   
   return response.json();
