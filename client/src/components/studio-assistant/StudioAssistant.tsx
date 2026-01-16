@@ -158,7 +158,7 @@ export default function StudioAssistant({
             <Button 
               variant="ghost" 
               className="w-full text-amber-700"
-              onClick={() => navigate('/admin?tab=assistente')}
+              onClick={() => navigate('/admin/dashboard?tab=assistente')}
             >
               Vedi tutti ({totalSuggestions})
               <ChevronRight className="h-4 w-4 ml-1" />
