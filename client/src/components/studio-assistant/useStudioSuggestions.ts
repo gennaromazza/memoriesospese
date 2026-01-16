@@ -131,8 +131,41 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
       action: SuggestionAction; 
       data?: any 
     }) => performSuggestionAction(suggestionId, action, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['studio-suggestions'] });
+    onMutate: async ({ suggestionId }) => {
+      // Annulla query in corso per evitare sovrascritture
+      await queryClient.cancelQueries({ queryKey });
+      
+      // Salva stato precedente per rollback
+      const previousData = queryClient.getQueryData<StudioSuggestionsResponse>(queryKey);
+      
+      // Aggiornamento ottimistico: rimuovi il suggerimento dalla cache
+      if (previousData) {
+        queryClient.setQueryData<StudioSuggestionsResponse>(queryKey, {
+          ...previousData,
+          data: {
+            unsignedQuotes: previousData.data?.unsignedQuotes?.filter(s => s.id !== suggestionId) ?? [],
+            pendingDeliveries: previousData.data?.pendingDeliveries?.filter(s => s.id !== suggestionId) ?? [],
+            consultations: previousData.data?.consultations?.filter(s => s.id !== suggestionId) ?? [],
+            needsWorkJobs: previousData.data?.needsWorkJobs?.filter(s => s.id !== suggestionId) ?? []
+          },
+          stats: {
+            ...previousData.stats,
+            totalActions: Math.max(0, (previousData.stats?.totalActions ?? 0) - 1)
+          }
+        });
+      }
+      
+      return { previousData };
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback in caso di errore
+      if (context?.previousData) {
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Invalida per sincronizzare con il server
+      queryClient.invalidateQueries({ queryKey });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
     }
   });
