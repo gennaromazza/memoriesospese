@@ -246,9 +246,6 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       const daysSinceSent = Math.floor((now.getTime() - sentAt.getTime()) / (1000 * 60 * 60 * 24));
       
-      // Suggerisci solo se passati almeno 7 giorni
-      if (daysSinceSent < 7) continue;
-      
       // Recupera dati cliente
       let clientName = '';
       let clientPhone = '';
