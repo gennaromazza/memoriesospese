@@ -25,7 +25,8 @@ import {
   FileText,
   Truck,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import type { StudioSuggestion, PendingReason } from '@shared/studio-assistant-types';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';

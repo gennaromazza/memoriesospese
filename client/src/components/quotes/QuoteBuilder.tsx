@@ -516,7 +516,8 @@ export default function QuoteBuilder({
           ...p,
           selectable: shouldBeSelectable
         }));
-        form.setValue('products', updatedProducts);
+        // Use a functional update or ensure we don't trigger unnecessary re-renders
+        form.setValue('products', updatedProducts, { shouldDirty: false, shouldTouch: false, shouldValidate: false });
       }
     }
   }, [quoteType, form]);
@@ -861,9 +862,22 @@ export default function QuoteBuilder({
   // Stabilizza il callback per evitare loop infiniti
   const handleDialogChange = useCallback(
     (isOpen: boolean) => {
-      if (!isOpen) onClose();
+      if (!isOpen) {
+        const currentCatalogIds = form.getValues('catalogProductIds');
+        const currentProducts = form.getValues('products');
+        const hasData = (currentCatalogIds && currentCatalogIds.length > 0) || 
+                      (currentProducts && currentProducts.some(p => p.nome.trim()));
+        
+        if (hasData) {
+          if (window.confirm('Hai delle modifiche non salvate. Sei sicuro di voler chiudere?')) {
+            onClose();
+          }
+        } else {
+          onClose();
+        }
+      }
     },
-    [onClose]
+    [onClose, form]
   );
 
   return (
@@ -1103,6 +1117,7 @@ export default function QuoteBuilder({
                             selectedProductIds={field.value}
                             onSelectionChange={field.onChange}
                             products={catalogProducts}
+                            defaultCategory={jobTypeSlug}
                           />
                         </FormControl>
                         <FormMessage />

@@ -25,15 +25,17 @@ interface CatalogProductSelectorProps {
   selectedProductIds: string[];
   onSelectionChange: (productIds: string[]) => void;
   products: Product[];
+  defaultCategory?: string;
 }
 
 export default function CatalogProductSelector({
   selectedProductIds,
   onSelectionChange,
-  products
+  products,
+  defaultCategory = 'all'
 }: CatalogProductSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>(defaultCategory);
 
   // Query categorie configurate
   const { data: configuredCategories = [] } = useQuery({
@@ -197,14 +199,20 @@ export default function CatalogProductSelector({
                       </div>
                     )}
 
-                    {/* Checkbox overlay */}
+            {/* Checkbox overlay */}
                     <div className="absolute top-2 right-2">
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleProduct(product.id)}
                         className="bg-white border-2"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
                         data-testid={`checkbox-product-${product.id}`}
                       />
                     </div>
