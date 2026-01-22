@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateInput } from '@/components/ui/date-input';
 import { useToast } from '@/hooks/use-toast';
 import { CalendarIcon, DollarSign } from 'lucide-react';
 
@@ -191,39 +192,45 @@ export default function RegistraPagamentoModal({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Data Pagamento</FormLabel>
-                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
+                  <div className="flex gap-2">
+                    <FormControl className="flex-1">
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="gg/mm/aaaa"
+                        data-testid="input-data-pagamento-manual"
+                      />
+                    </FormControl>
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                          data-testid="button-data-pagamento"
+                          size="icon"
+                          className="px-3"
+                          data-testid="button-data-pagamento-picker"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value ? (
-                            format(field.value, 'dd/MM/yyyy', { locale: it })
-                          ) : (
-                            <span>Seleziona data</span>
-                          )}
+                          <CalendarIcon className="h-4 w-4" />
                         </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-[100]" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          field.onChange(date);
-                          setDatePickerOpen(false);
-                        }}
-                        initialFocus
-                        locale={it}
-                        fromYear={2020}
-                        toYear={new Date().getFullYear() + 1}
-                        captionLayout="dropdown-buttons"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[100]" align="end">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => {
+                            if (date) {
+                              field.onChange(date);
+                              setDatePickerOpen(false);
+                            }
+                          }}
+                          initialFocus
+                          locale={it}
+                          fromYear={2020}
+                          toYear={new Date().getFullYear() + 1}
+                          captionLayout="dropdown-buttons"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

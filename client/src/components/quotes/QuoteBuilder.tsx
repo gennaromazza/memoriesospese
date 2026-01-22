@@ -1084,11 +1084,11 @@ export default function QuoteBuilder({
                   <FormItem>
                     <FormLabel>Data Scadenza</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ? field.value.toISOString().split('T')[0] : ''}
-                        onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                        data-testid="input-expires-at"
+                      <DateInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="gg/mm/aaaa"
+                        data-testid="input-expires-at-manual"
                       />
                     </FormControl>
                     <FormDescription>
