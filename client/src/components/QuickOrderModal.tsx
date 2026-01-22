@@ -695,7 +695,7 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
                   data-testid="button-add-custom-product"
                 >
                   <Plus className="w-4 h-4 mr-1" />
-                  Personalizzato
+                  Aggiungi Personalizzato
                 </Button>
               </div>
 
@@ -770,34 +770,76 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
                   {customProducts.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-3 p-3 border border-amber-200 rounded-lg bg-amber-50"
+                      className="p-3 border border-amber-200 rounded-lg bg-amber-50 space-y-2"
                     >
-                      <div className="flex-1">
-                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded mr-2">
-                          Custom
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded">
+                          Personalizzato
                         </span>
-                        <span className="font-medium">{item.nome}</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeCustomProduct(item.id)}
+                          data-testid={`button-remove-custom-${item.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
                       </div>
-                      <div className="w-20">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantita}
-                          onChange={(e) => updateCustomProduct(item.id, 'quantita', parseInt(e.target.value) || 1)}
-                          className="text-center"
-                        />
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="col-span-2">
+                          <Label className="text-xs mb-1 block">Nome</Label>
+                          <Input
+                            value={item.nome}
+                            onChange={(e) => updateCustomProduct(item.id, 'nome', e.target.value)}
+                            placeholder="Nome prodotto"
+                            data-testid={`input-custom-name-${item.id}`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">Prezzo (€)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.prezzo || ''}
+                            onChange={(e) =>
+                              updateCustomProduct(item.id, 'prezzo', parseFloat(e.target.value) || 0)
+                            }
+                            data-testid={`input-custom-price-${item.id}`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs mb-1 block">N. Foto</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.numeroFoto || ''}
+                            onChange={(e) =>
+                              updateCustomProduct(item.id, 'numeroFoto', parseInt(e.target.value) || 0)
+                            }
+                            data-testid={`input-custom-photos-${item.id}`}
+                          />
+                        </div>
                       </div>
-                      <div className="w-24 text-right font-medium">
-                        €{(item.prezzo * item.quantita).toFixed(2)}
+                      <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Quantità:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantita}
+                            onChange={(e) =>
+                              updateCustomProduct(item.id, 'quantita', parseInt(e.target.value) || 1)
+                            }
+                            className="w-16 text-center"
+                            data-testid={`input-custom-qty-${item.id}`}
+                          />
+                        </div>
+                        <div className="text-right font-medium">
+                          Subtotale: €{(item.prezzo * item.quantita).toFixed(2)}
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => removeCustomProduct(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
                     </div>
                   ))}
                 </div>
