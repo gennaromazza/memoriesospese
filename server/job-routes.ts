@@ -229,6 +229,22 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
 }
 
 /**
+ * Endpoint per sincronizzare il calendario di un lavoro
+ */
+router.post('/:id/sync-calendar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await ensureJobCalendarEvent(id);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/consultation-templates?jobType=Matrimonio
  * Recupera tutti i template di consulenza attivi per un jobType specifico
  */

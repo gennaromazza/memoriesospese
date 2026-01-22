@@ -362,6 +362,15 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         noteInterne: data.noteInterne,
         appuntamentiClienti: appuntamenti.length > 0 ? appuntamenti : undefined
       }, user.uid);
+
+      // Sincronizza con Google Calendar dopo l'aggiornamento se la data è definita
+      if (!data.dataNonDefinita && data.eventDate) {
+        try {
+          await fetch(`/api/jobs/${job.id}/sync-calendar`, { method: 'POST' });
+        } catch (syncError) {
+          console.error('Errore sincronizzazione calendario:', syncError);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
@@ -390,7 +399,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="w-[95vw] max-w-3xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] max-w-3xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0 z-[10000]">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b">
             <DialogTitle className="text-lg sm:text-xl">Modifica Lavoro</DialogTitle>
             <DialogDescription className="text-sm">
@@ -639,11 +648,12 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                                 !field.value && "text-muted-foreground"
                               )}
                               data-testid="button-calendar-picker"
+                              onClick={() => setDatePickerOpen(true)}
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
+                          <PopoverContent className="w-auto p-0 z-[11000]" align="start">
                             <Calendar
                               mode="single"
                               selected={field.value}
