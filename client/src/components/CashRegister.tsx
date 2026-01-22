@@ -404,6 +404,7 @@ export default function CashRegister() {
                   <tr>
                     <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Data</th>
                     <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Tipo</th>
+                    <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Riferimento</th>
                     <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Categoria</th>
                     <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Descrizione</th>
                     <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold whitespace-nowrap">Importo</th>
@@ -427,6 +428,19 @@ export default function CashRegister() {
                         >
                           {mov.tipo === "entrata" ? "⬆️ Entrata" : "⬇️ Uscita"}
                         </span>
+                      </td>
+                      <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm whitespace-nowrap">
+                        {mov.jobId ? (
+                          <span className="text-blue-600 font-medium" title={`Job ID: ${mov.jobId}`}>
+                            💼 Lavoro
+                          </span>
+                        ) : mov.orderId ? (
+                          <span className="text-orange-600 font-medium" title={`Order ID: ${mov.orderId}`}>
+                            🛒 Ordine
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground italic">Libero</span>
+                        )}
                       </td>
                       <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                         {mov.categoria}

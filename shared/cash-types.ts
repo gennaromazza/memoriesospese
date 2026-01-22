@@ -13,6 +13,8 @@ export interface CashMovement {
   data: Timestamp | Date;
   metodoPagamento: "contante" | "carta" | "bonifico" | "paypal" | "altro";
   note?: string;
+  jobId?: string; // Riferimento opzionale al lavoro
+  orderId?: string; // Riferimento opzionale all'ordine
   allegati?: string[]; // URLs di eventuali ricevute/documenti
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
