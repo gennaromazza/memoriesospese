@@ -516,22 +516,16 @@ export default function QuoteBuilder({
           ...p,
           selectable: shouldBeSelectable
         }));
-        // Use a flag to avoid infinite loops if multiple updates happen
-        // We only set the value if it's different to prevent redundant re-renders
-        form.setValue('products', updatedProducts, { 
-          shouldValidate: false,
-          shouldDirty: false,
-          shouldTouch: false 
-        });
+        form.setValue('products', updatedProducts);
       }
     }
-  }, [quoteType]); // Removed form from dependencies to avoid loop
+  }, [quoteType, form]);
 
   // Watch payment schedule config for simulator
   const paymentConfig = form.watch('paymentScheduleConfig');
   const autoGenerate = paymentConfig?.autoGenerate || false;
 
-  // Calcola totale unificato (catalog + custom)
+  // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
   const totaleCatalogo = useMemo(() => {
     return catalogProductIds.reduce((sum, id) => {
       const product = catalogProducts.find(p => p.id === id);
@@ -548,11 +542,9 @@ export default function QuoteBuilder({
   const subtotale = totaleCatalogo + totaleCustom;
 
   // Calcola totali con sconto usando utility condivisa
-  const quoteTotals = useMemo(() => {
+  const { totalBeforeDiscount, discountAmount, totalAfterDiscount } = useMemo(() => {
     return calculateQuoteTotals(subtotale, discountType, discountValue);
   }, [subtotale, discountType, discountValue]);
-
-  const totalAfterDiscount = quoteTotals.totalAfterDiscount;
 
   // Validazione + simulazione piano pagamenti real-time
   const paymentSchedulePreview = useMemo(() => {
@@ -561,6 +553,7 @@ export default function QuoteBuilder({
     // Valida config prima di calcolare
     const validation = validatePaymentScheduleConfig(paymentConfig, totalAfterDiscount);
     if (!validation.valid) {
+      console.warn('Configurazione pagamenti non valida:', validation.error);
       return null;
     }
 
@@ -879,14 +872,8 @@ export default function QuoteBuilder({
            e spostare lo scroll in un wrapper interno */}
       <DialogContent 
         className="w-[98vw] sm:max-w-4xl p-0"
-        onInteractOutside={(e) => {
-          // Impedisce la chiusura se il click avviene fuori
-          e.preventDefault();
-        }}
-        onPointerDownOutside={(e) => {
-          // Impedisce la chiusura se il click avviene fuori
-          e.preventDefault();
-        }}
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
       >
         
         {/* Wrapper scrollabile */}

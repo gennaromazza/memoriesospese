@@ -184,14 +184,13 @@ export default function CatalogProductSelector({
                   {/* Image preview */}
                   <div className="relative mb-3 aspect-video bg-muted rounded-md overflow-hidden">
                     {product.immagini && product.immagini.length > 0 ? (
-                      <div className="w-full h-full pointer-events-none">
-                        <img
-                          src={product.immagini[0]}
-                          alt={product.nome}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
+                      <img
+                        src={product.immagini[0]}
+                        alt={product.nome}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
