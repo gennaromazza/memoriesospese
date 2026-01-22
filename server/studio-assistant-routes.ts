@@ -242,6 +242,21 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       // Filtra per jobId se specificato
       if (jobId && quote.jobId !== jobId) continue;
+
+      // Salta se il preventivo è legato a un lavoro già consegnato o archiviato
+      if (quote.jobId) {
+        try {
+          const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
+          if (jobDoc.exists) {
+            const jobStatus = jobDoc.data()?.status;
+            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+              continue;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Errore controllo status job per quote:', quoteDoc.id);
+        }
+      }
       
       const sentAt = toDate(quote.sentAt) || toDate(quote.createdAt);
       if (!sentAt) continue;
@@ -323,6 +338,44 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Filtra per jobId se specificato
       if (jobId && order.jobId !== jobId) continue;
 
+      // Salta se l'ordine è completato o consegnato (già filtrato da query, ma per sicurezza se cambiano gli stati)
+      if (order.stato === 'completato' || order.stato === 'consegnato') continue;
+
+      // Salta se l'ordine è legato a un lavoro già consegnato o archiviato
+      if (order.jobId) {
+        try {
+          const jobDoc = await db.collection('jobs').doc(order.jobId).get();
+          if (jobDoc.exists) {
+            const jobStatus = jobDoc.data()?.status;
+            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+              continue;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Errore controllo status job per ordine:', orderDoc.id);
+        }
+      }
+
+      // Controllo WorkflowState per ordini/gallerie
+      if (order.statoWorkflow === 'consegnato' || order.statoWorkflow === 'completato') {
+        continue;
+      }
+
+      // Controllo galleria associata (se presente)
+      if (order.galleryId) {
+        try {
+          const galleryDoc = await db.collection('galleries').doc(order.galleryId).get();
+          if (galleryDoc.exists) {
+            const galleryData = galleryDoc.data();
+            if (galleryData?.workflowState === 'consegnato' || galleryData?.workflowState === 'completato') {
+              continue;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Errore controllo gallery status per ordine:', orderDoc.id);
+        }
+      }
+
       const createdAt = toDate(order.createdAt) || now;
       const daysSinceCreated = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
       
@@ -355,6 +408,41 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       // Filtra per jobId se specificato
       if (jobId && booking.jobId !== jobId) continue;
+
+      // Salta se la prenotazione è legata a un lavoro già consegnato o archiviato
+      if (booking.jobId) {
+        try {
+          const jobDoc = await db.collection('jobs').doc(booking.jobId).get();
+          if (jobDoc.exists) {
+            const jobStatus = jobDoc.data()?.status;
+            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+              continue;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Errore controllo status job per booking:', bookingDoc.id);
+        }
+      }
+
+      // Controllo WorkflowState e Stato Prenotazione
+      if (booking.stato === 'completata' || booking.statoWorkflow === 'consegnato' || booking.statoWorkflow === 'completato') {
+        continue;
+      }
+
+      // Controllo galleria speciale allegata
+      if (booking.specialGalleryId) {
+        try {
+          const galleryDoc = await db.collection('galleries').doc(booking.specialGalleryId).get();
+          if (galleryDoc.exists) {
+            const galleryData = galleryDoc.data();
+            if (galleryData?.workflowState === 'consegnato' || galleryData?.workflowState === 'completato') {
+              continue;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Errore controllo special gallery per booking:', bookingDoc.id);
+        }
+      }
 
       const shootingDate = toDate(booking.dataShootingInizio);
       if (!shootingDate || shootingDate > now) continue; // Solo se data passata
