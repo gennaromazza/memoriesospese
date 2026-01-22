@@ -468,20 +468,18 @@ export default function JobsManager() {
              clientiNames.includes(query);
     };
     
-    // Se c'è una ricerca attiva, cerca in TUTTI i lavori (ignora filtri)
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return jobs.filter(job => {
-        // Escludi sempre archiviati
-        if (job.status === 'archiviato') return false;
-        return matchesSearch(job, query);
-      });
-    }
-    
     // Senza ricerca, applica normalmente i filtri
     return jobs.filter(job => {
-      // Escludi archiviati dalla vista principale
-      if (job.status === 'archiviato') return false;
+      // Escludi archiviati dalla vista principale (a meno che non siano cercati)
+      if (job.status === 'archiviato' && !searchQuery) return false;
+      
+      // Se c'è una ricerca attiva, controlla solo quella
+      if (searchQuery) {
+        return matchesSearch(job, searchQuery.toLowerCase());
+      }
+      
+      // Filtro tipo
+      if (filterType !== 'all' && job.jobType !== filterType) return false;
       
       // Filtro tempo (Prossimi Impegni / Impegni Passati)
       if (timeFilter !== 'all' && job.eventDate) {
@@ -495,40 +493,28 @@ export default function JobsManager() {
         }
       }
       
-      // Filtro tipo
-      if (filterType !== 'all' && job.jobType !== filterType) return false;
-      
       // Filtro stato preventivo - usa dati reali dai preventivi + status job come fallback
       if (filterQuoteStatus !== 'all') {
-        // Usa la mappa quotesByJob che legge direttamente dalla collezione quotes
         const quoteStatus = quotesByJob[job.id];
         const hasQuote = quoteStatus?.hasQuote || false;
         
-        // IMPORTANTE: Un job è considerato "firmato" se:
-        // 1. Il preventivo ha signature o status 'firmato' OPPURE
-        // 2. Il job è in stato confermato o successivo (fallback per job legacy)
         const confirmedJobStatuses = ['confermato', 'shooting_fatto', 'selezione_pending', 'produzione', 'consegnato'];
         const jobIsConfirmed = confirmedJobStatuses.includes(job.status);
         const isSigned = quoteStatus?.isSigned || jobIsConfirmed;
         
         const isEmailSent = quoteStatus?.isEmailSent || false;
         
-        // Firmato: preventivo firmato OPPURE job confermato
         if (filterQuoteStatus === 'firmato' && !isSigned) return false;
-        // Non firmato: ha preventivo inviato, NON firmato, e job NON confermato
         if (filterQuoteStatus === 'non_firmato' && (!hasQuote || isSigned || !isEmailSent)) return false;
-        // Non inviato: non ha preventivo o ha preventivo non ancora inviato
         if (filterQuoteStatus === 'non_inviato' && (hasQuote && isEmailSent)) return false;
       }
       
       // Filtro collaboratore
       if (filterCollaboratore !== 'all') {
         if (filterCollaboratore === 'non_assegnato') {
-          // Mostra solo job SENZA collaboratori assegnati
           const hasCollaboratori = collaboratoriByJob[job.id]?.count > 0;
           if (hasCollaboratori) return false;
         } else {
-          // Mostra solo job assegnati a questo collaboratore
           const collaboratoreJobs = jobsByCollaboratore[filterCollaboratore];
           if (!collaboratoreJobs || !collaboratoreJobs.has(job.id)) return false;
         }
@@ -552,7 +538,7 @@ export default function JobsManager() {
             const year = parseInt(filterYear);
             const month = parseInt(filterMonth);
             const eventYear = eventDate.getFullYear();
-            const eventMonth = eventDate.getMonth() + 1; // 1-12
+            const eventMonth = eventDate.getMonth() + 1;
             
             if (eventYear !== year || eventMonth !== month) return false;
           }
@@ -560,7 +546,7 @@ export default function JobsManager() {
           else if (filterYear !== 'all' && filterSemester !== 'all') {
             const year = parseInt(filterYear);
             const eventYear = eventDate.getFullYear();
-            const eventMonth = eventDate.getMonth() + 1; // 1-12
+            const eventMonth = eventDate.getMonth() + 1;
             
             if (eventYear !== year) return false;
             
@@ -573,7 +559,13 @@ export default function JobsManager() {
             const eventYear = eventDate.getFullYear();
             if (eventYear !== year) return false;
           }
+        } else if (filterYear !== 'all' || filterMonth !== 'all' || filterSemester !== 'all' || customDateRange.from) {
+          // Se c'è un filtro temporale attivo ma il job non ha data, escludilo
+          return false;
         }
+      } else if (filterYear !== 'all' || filterMonth !== 'all' || filterSemester !== 'all' || customDateRange.from) {
+        // Se c'è un filtro temporale attivo ma il job non ha data, escludilo
+        return false;
       }
       
       return true;
