@@ -157,26 +157,32 @@ export default function SuggestionCard({
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="font-medium text-gray-900 text-sm">
-                    {getTitle()}
-                  </span>
                   <Badge variant="outline" className={priorityColors[suggestion.priority]}>
                     {priorityLabels[suggestion.priority]}
                   </Badge>
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {getTitle()}
+                  </span>
                 </div>
                 
-                <p className="font-semibold text-gray-800 truncate">
-                  {suggestion.clientName || suggestion.jobName}
-                </p>
+                <h4 className="text-base font-bold text-gray-900 leading-tight truncate">
+                  {suggestion.clientName || suggestion.jobName || 'Suggerimento'}
+                </h4>
                 
                 {suggestion.jobName && suggestion.clientName && (
                   <p className="text-sm text-gray-600 truncate">
                     {suggestion.jobName}
                   </p>
                 )}
+
+                {suggestion.orderTotal !== undefined && (
+                  <p className="text-sm font-semibold text-green-700 mt-1">
+                    Totale: €{suggestion.orderTotal.toFixed(2)}
+                  </p>
+                )}
                 
                 {suggestion.reason && (
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">
                     {suggestion.reason}
                   </p>
                 )}
