@@ -227,6 +227,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     const pendingDeliveries: StudioSuggestion[] = [];
     const consultations: StudioSuggestion[] = [];
     const needsWorkJobs: StudioSuggestion[] = [];
+    const pendingOrders: StudioSuggestion[] = [];
+    const pendingBookings: StudioSuggestion[] = [];
     
     // 1. Preventivi non firmati (inviati o visionati da più di 7 giorni)
     const quotesSnapshot = await db.collection('quotes')
@@ -309,7 +311,73 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         reason: `📝 Preventivo inviato ${daysSinceSent} giorni fa`
       });
     }
+
+    // 4. Ordini non completati (walk-in e normali)
+    const ordersSnapshot = await db.collection('orders')
+      .where('stato', 'in', ['bozza', 'in_lavorazione'])
+      .get();
     
+    for (const orderDoc of ordersSnapshot.docs) {
+      const order = orderDoc.data();
+      
+      // Filtra per jobId se specificato
+      if (jobId && order.jobId !== jobId) continue;
+
+      const createdAt = toDate(order.createdAt) || now;
+      const daysSinceCreated = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+      
+      const suggestionId = `order_${orderDoc.id}`;
+      if (dismissedIds.has(suggestionId)) continue;
+
+      pendingOrders.push({
+        id: suggestionId,
+        type: 'pending_order',
+        orderId: orderDoc.id,
+        jobId: order.jobId,
+        clientName: order.nomeCliente || 'Cliente',
+        orderTotal: order.totale || 0,
+        orderStatus: order.stato,
+        isWalkIn: !order.bookingId,
+        priority: daysSinceCreated > 7 ? 'high' : 'medium',
+        createdAt: order.createdAt,
+        daysSinceOrderCreated: daysSinceCreated,
+        reason: `📦 Ordine ${order.stato === 'bozza' ? 'in bozza' : 'in lavorazione'} da ${daysSinceCreated} giorni`
+      });
+    }
+
+    // 5. Prenotazioni non completate
+    const bookingsSnapshot = await db.collection('bookings')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+
+    for (const bookingDoc of bookingsSnapshot.docs) {
+      const booking = bookingDoc.data();
+      
+      // Filtra per jobId se specificato
+      if (jobId && booking.jobId !== jobId) continue;
+
+      const shootingDate = toDate(booking.dataShootingInizio);
+      if (!shootingDate || shootingDate > now) continue; // Solo se data passata
+
+      const daysSinceBooking = Math.floor((now.getTime() - shootingDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      const suggestionId = `booking_${bookingDoc.id}`;
+      if (dismissedIds.has(suggestionId)) continue;
+
+      pendingBookings.push({
+        id: suggestionId,
+        type: 'pending_booking',
+        bookingId: bookingDoc.id,
+        clientName: `${booking.cliente?.nome || ''} ${booking.cliente?.cognome || ''}`.trim(),
+        bookingStatus: booking.stato,
+        bookingDate: shootingDate.toISOString(),
+        priority: daysSinceBooking > 2 ? 'high' : 'medium',
+        createdAt: booking.createdAt,
+        daysSinceBooking: daysSinceBooking,
+        reason: `📅 Prenotazione ${booking.stato === 'in_attesa' ? 'da confermare' : 'da completare'} (data passata: ${formatDateIT(shootingDate)})`
+      });
+    }
+
     // 2. Lavori da consegnare (evento passato da più di 3 mesi, non consegnati)
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -404,7 +472,13 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // TODO: Implementare logica consulenze basata su template e stato job
     
     // Calcola statistiche
-    const allSuggestions = [...unsignedQuotes, ...pendingDeliveries, ...consultations];
+    const allSuggestions = [
+      ...unsignedQuotes, 
+      ...pendingDeliveries, 
+      ...consultations, 
+      ...pendingOrders, 
+      ...pendingBookings
+    ];
     const highPriority = allSuggestions.filter(s => s.priority === 'high').length;
     
     // Stima tempo: 2 min per azione
@@ -414,7 +488,9 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       unsignedQuotes: unsignedQuotes.length,
       pendingDeliveries: pendingDeliveries.length,
       consultations: consultations.length,
-      needsWorkJobs: needsWorkJobs.length
+      needsWorkJobs: needsWorkJobs.length,
+      pendingOrders: pendingOrders.length,
+      pendingBookings: pendingBookings.length
     });
     
     const response: StudioSuggestionsResponse = {
@@ -423,7 +499,9 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         unsignedQuotes,
         pendingDeliveries,
         consultations,
-        needsWorkJobs
+        needsWorkJobs,
+        pendingOrders,
+        pendingBookings
       },
       stats: {
         totalActions: allSuggestions.length,

@@ -47,6 +47,8 @@ export default function StudioAssistant({
     pendingDeliveries,
     consultations,
     needsWorkJobs,
+    pendingOrders = [],
+    pendingBookings = [],
     loading,
     error,
     stats,
@@ -69,7 +71,7 @@ export default function StudioAssistant({
     navigate(url);
   };
   
-  const totalSuggestions = unsignedQuotes.length + pendingDeliveries.length + consultations.length;
+  const totalSuggestions = unsignedQuotes.length + pendingDeliveries.length + consultations.length + pendingOrders.length + pendingBookings.length;
   
   if (loading) {
     return (
@@ -107,7 +109,9 @@ export default function StudioAssistant({
     const urgentSuggestions = [
       ...unsignedQuotes.filter(s => s.priority === 'high'),
       ...pendingDeliveries.filter(s => s.priority === 'high'),
-      ...consultations.filter(s => s.priority === 'high')
+      ...consultations.filter(s => s.priority === 'high'),
+      ...pendingOrders.filter(s => s.priority === 'high'),
+      ...pendingBookings.filter(s => s.priority === 'high')
     ].slice(0, 3);
     
     if (totalSuggestions === 0) {
@@ -207,8 +211,8 @@ export default function StudioAssistant({
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-4 mb-4">
-              <TabsTrigger value="all" className="text-xs sm:text-sm">
+            <TabsList className="grid grid-cols-6 mb-4">
+              <TabsTrigger value="all" className="text-xs">
                 Tutti
                 {totalSuggestions > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5">
@@ -216,7 +220,7 @@ export default function StudioAssistant({
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="quotes" className="text-xs sm:text-sm">
+              <TabsTrigger value="quotes" className="text-xs">
                 <FileText className="h-4 w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Preventivi</span>
                 {unsignedQuotes.length > 0 && (
@@ -225,7 +229,25 @@ export default function StudioAssistant({
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="delivery" className="text-xs sm:text-sm">
+              <TabsTrigger value="orders" className="text-xs">
+                <AlertCircle className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Ordini</span>
+                {pendingOrders.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {pendingOrders.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="bookings" className="text-xs">
+                <Calendar className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Booking</span>
+                {pendingBookings.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {pendingBookings.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="delivery" className="text-xs">
                 <Truck className="h-4 w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Consegne</span>
                 {pendingDeliveries.length > 0 && (
@@ -234,7 +256,7 @@ export default function StudioAssistant({
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="work" className="text-xs sm:text-sm">
+              <TabsTrigger value="work" className="text-xs">
                 <Clock className="h-4 w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Da fare</span>
                 {needsWorkJobs.length > 0 && (
@@ -246,7 +268,7 @@ export default function StudioAssistant({
             </TabsList>
             
             <TabsContent value="all" className="space-y-3 mt-0">
-              {[...unsignedQuotes, ...pendingDeliveries, ...consultations]
+              {[...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
                 .sort((a, b) => {
                   const priorityOrder = { high: 0, medium: 1, low: 2 };
                   return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -262,6 +284,46 @@ export default function StudioAssistant({
                     onBookConsultation={handleBookConsultation}
                   />
                 ))}
+            </TabsContent>
+
+            <TabsContent value="orders" className="space-y-3 mt-0">
+              {pendingOrders.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  Nessun ordine in sospeso
+                </p>
+              ) : (
+                pendingOrders.map(suggestion => (
+                  <SuggestionCard
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onMarkAsDone={markAsDone}
+                    onDismiss={dismiss}
+                    onMarkAsNeedsWork={markAsNeedsWork}
+                    onMarkAsDelivered={markAsDelivered}
+                    onBookConsultation={handleBookConsultation}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="bookings" className="space-y-3 mt-0">
+              {pendingBookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  Nessun booking da completare
+                </p>
+              ) : (
+                pendingBookings.map(suggestion => (
+                  <SuggestionCard
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onMarkAsDone={markAsDone}
+                    onDismiss={dismiss}
+                    onMarkAsNeedsWork={markAsNeedsWork}
+                    onMarkAsDelivered={markAsDelivered}
+                    onBookConsultation={handleBookConsultation}
+                  />
+                ))
+              )}
             </TabsContent>
             
             <TabsContent value="quotes" className="space-y-3 mt-0">
@@ -284,6 +346,46 @@ export default function StudioAssistant({
               )}
             </TabsContent>
             
+            <TabsContent value="bookings" className="space-y-3 mt-0">
+              {pendingBookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  Nessun booking da completare
+                </p>
+              ) : (
+                pendingBookings.map(suggestion => (
+                  <SuggestionCard
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onMarkAsDone={markAsDone}
+                    onDismiss={dismiss}
+                    onMarkAsNeedsWork={markAsNeedsWork}
+                    onMarkAsDelivered={markAsDelivered}
+                    onBookConsultation={handleBookConsultation}
+                  />
+                ))
+              )}
+            </TabsContent>
+            
+            <TabsContent value="bookings" className="space-y-3 mt-0">
+              {pendingBookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  Nessun booking da completare
+                </p>
+              ) : (
+                pendingBookings.map(suggestion => (
+                  <SuggestionCard
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onMarkAsDone={markAsDone}
+                    onDismiss={dismiss}
+                    onMarkAsNeedsWork={markAsNeedsWork}
+                    onMarkAsDelivered={markAsDelivered}
+                    onBookConsultation={handleBookConsultation}
+                  />
+                ))
+              )}
+            </TabsContent>
+
             <TabsContent value="delivery" className="space-y-3 mt-0">
               {pendingDeliveries.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">

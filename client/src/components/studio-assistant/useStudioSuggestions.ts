@@ -146,7 +146,9 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
             unsignedQuotes: previousData.data?.unsignedQuotes?.filter(s => s.id !== suggestionId) ?? [],
             pendingDeliveries: previousData.data?.pendingDeliveries?.filter(s => s.id !== suggestionId) ?? [],
             consultations: previousData.data?.consultations?.filter(s => s.id !== suggestionId) ?? [],
-            needsWorkJobs: previousData.data?.needsWorkJobs?.filter(s => s.id !== suggestionId) ?? []
+            needsWorkJobs: previousData.data?.needsWorkJobs?.filter(s => s.id !== suggestionId) ?? [],
+            pendingOrders: previousData.data?.pendingOrders?.filter(s => s.id !== suggestionId) ?? [],
+            pendingBookings: previousData.data?.pendingBookings?.filter(s => s.id !== suggestionId) ?? []
           },
           stats: {
             ...previousData.stats,
@@ -186,11 +188,15 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
   const pendingDeliveries = data?.data?.pendingDeliveries ?? [];
   const consultations = data?.data?.consultations ?? [];
   const needsWorkJobs = data?.data?.needsWorkJobs ?? [];
+  const pendingOrders = data?.data?.pendingOrders ?? [];
+  const pendingBookings = data?.data?.pendingBookings ?? [];
   
   const allSuggestions = [
     ...unsignedQuotes,
     ...pendingDeliveries,
-    ...consultations
+    ...consultations,
+    ...pendingOrders,
+    ...pendingBookings
   ];
   
   // Filtra per modalità
@@ -204,6 +210,8 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
     pendingDeliveries,
     consultations,
     needsWorkJobs,
+    pendingOrders,
+    pendingBookings,
     loading: isLoading,
     error: error as Error | null,
     stats: data?.stats ?? { totalActions: 0, estimatedMinutes: 0, highPriority: 0 },

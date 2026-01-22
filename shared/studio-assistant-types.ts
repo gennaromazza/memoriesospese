@@ -124,6 +124,8 @@ export interface StudioSuggestionsResponse {
     pendingDeliveries: StudioSuggestion[];
     consultations: StudioSuggestion[];
     needsWorkJobs: StudioSuggestion[];
+    pendingOrders?: StudioSuggestion[];
+    pendingBookings?: StudioSuggestion[];
   };
   stats: {
     totalActions: number;

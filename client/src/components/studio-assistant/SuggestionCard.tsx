@@ -109,6 +109,10 @@ export default function SuggestionCard({
         return <Truck className="h-5 w-5 text-blue-600" />;
       case 'consultation':
         return <Calendar className="h-5 w-5 text-sage" />;
+      case 'pending_order':
+        return <AlertCircle className="h-5 w-5 text-orange-600" />;
+      case 'pending_booking':
+        return <Calendar className="h-5 w-5 text-purple-600" />;
       default:
         return <Clock className="h-5 w-5 text-gray-600" />;
     }
@@ -122,6 +126,10 @@ export default function SuggestionCard({
         return 'Lavoro da consegnare';
       case 'consultation':
         return 'Consulenza suggerita';
+      case 'pending_order':
+        return suggestion.isWalkIn ? 'Ordine Walk-in' : 'Ordine da completare';
+      case 'pending_booking':
+        return 'Booking da completare';
       default:
         return 'Suggerimento';
     }
@@ -184,6 +192,52 @@ export default function SuggestionCard({
             
             {/* Azioni */}
             <div className="flex flex-wrap gap-2 sm:flex-shrink-0">
+              {/* Azioni per ordini non completati */}
+              {suggestion.type === 'pending_order' && (
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => window.open(`/admin/ordini/${suggestion.orderId}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Apri Ordine
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleAction(() => onDismiss(suggestion.id))}
+                    disabled={isLoading}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Ignora
+                  </Button>
+                </>
+              )}
+
+              {/* Azioni per booking da completare */}
+              {suggestion.type === 'pending_booking' && (
+                <>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => window.open(`/admin/calendario`, '_blank')}
+                  >
+                    <Calendar className="h-4 w-4 mr-1" />
+                    Vai a Calendario
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleAction(() => onDismiss(suggestion.id))}
+                    disabled={isLoading}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" />
+                    Ignora
+                  </Button>
+                </>
+              )}
+
               {/* Azioni per preventivo non firmato */}
               {suggestion.type === 'unsigned_quote' && (
                 <>
