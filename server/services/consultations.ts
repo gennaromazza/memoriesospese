@@ -870,16 +870,22 @@ export async function updateConsultation(
 
   const updates: any = {
     ...data,
-    updatedAt: Timestamp.now(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
-  // Converti Date a Timestamp combinando data + orario
+  // Converti Date a Timestamp combinando data + orario se entrambi presenti
   if (data.dataConsulenza && data.orarioInizio) {
-    // Costruisci ISO string completa per evitare ambiguità timezone
-    const combinedDate = new Date(
-      `${data.dataConsulenza}T${data.orarioInizio}:00`,
-    );
-    updates.dataConsulenza = Timestamp.fromDate(combinedDate);
+    try {
+      // Costruisci ISO string completa per evitare ambiguità timezone
+      const combinedDate = new Date(
+        `${data.dataConsulenza}T${data.orarioInizio}:00`,
+      );
+      if (!isNaN(combinedDate.getTime())) {
+        updates.dataConsulenza = Timestamp.fromDate(combinedDate);
+      }
+    } catch (e) {
+      console.warn(`[updateConsultation] Errore parsing data combinata: ${e.message}`);
+    }
   }
 
   await docRef.update(updates);

@@ -725,12 +725,16 @@ router.patch(
       try {
         const consultationUpdates: any = {
           stato: "confermata",
+          updatedAt: FieldValue.serverTimestamp(),
         };
         if (eventId) {
           consultationUpdates.googleCalendarEventId = eventId;
         }
 
-        await consultationService.updateConsultation(id, consultationUpdates);
+        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
+        // FIX: Usiamo direttamente db.collection per evitare logica aggiuntiva di service.updateConsultation
+        // che potrebbe resettare lo stato se chiamata con dati parziali o in momenti sbagliati
+        await db.collection("consultations").doc(id).update(consultationUpdates);
 
         await db.collection("consultations").doc(id).update({
           confermataDa: req.body.userId || "admin",
