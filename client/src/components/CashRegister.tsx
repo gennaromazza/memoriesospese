@@ -49,6 +49,8 @@ export default function CashRegister() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
   const [quickOrderModalOpen, setQuickOrderModalOpen] = useState(false);
+  const [filterTypeState, setFilterTypeState] = useState<"all" | "entrata" | "uscita">("all");
+  const [filterCategoryState, setFilterCategoryState] = useState<string>("all");
   const [formData, setFormData] = useState<InsertCashMovement>({
     tipo: "entrata",
     categoria: "",
