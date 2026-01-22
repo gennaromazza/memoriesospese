@@ -20,7 +20,8 @@ import {
   useConvertToJob,
   useMarkConsultationViewed,
   useDeleteConsultation,
-  useTemplates
+  useTemplates,
+  CONSULTATION_KEYS
 } from '@/lib/consultations';
 import type { Consultation, ConsultationStatus, ConsultationTemplate } from '@shared/consultation-types';
 import { Button } from '@/components/ui/button';
@@ -181,11 +182,34 @@ export default function ConsultationsManager({
         throw new Error('Nessuna consultazione rifiutata/annullata da eliminare');
       }
       
+      // 🔐 Safety check: verifica che tutti gli ID appartengano a consulenze rifiutate/annullate
+      const currentConsultations = queryClient.getQueryData<Consultation[]>(CONSULTATION_KEYS.consultations()) || [];
+      const validIds = idsToDelete.filter(id => {
+        const consultation = currentConsultations.find(c => c.id === id);
+        if (!consultation) {
+          console.warn(`[BulkDeleteRifiutate] ID ${id} non trovato nel cache`);
+          return false;
+        }
+        if (consultation.stato !== 'rifiutata' && consultation.stato !== 'annullata') {
+          console.error(`[BulkDeleteRifiutate] ⚠️ BLOCCO: Tentativo di eliminare consultazione ${id} con stato "${consultation.stato}" invece di "rifiutata" o "annullata"`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validIds.length !== idsToDelete.length) {
+        console.error(`[BulkDeleteRifiutate] Bloccata eliminazione: ${idsToDelete.length - validIds.length} consultazioni non sono rifiutate/annullate`);
+        throw new Error(`Operazione bloccata: alcune consultazioni non sono in stato "rifiutata" o "annullata". Ricarica la pagina e riprova.`);
+      }
+      
+      console.log(`[BulkDeleteRifiutate] Eliminazione ${validIds.length} consultazioni rifiutate/annullate:`, validIds);
+      
       // Elimina sequenzialmente per evitare race conditions
+      // 🔐 Passa expectedStatus per validazione server-side
       const errors: string[] = [];
-      for (const id of idsToDelete) {
+      for (const id of validIds) {
         try {
-          await apiRequest('DELETE', `/api/consultations/${id}`);
+          await apiRequest('DELETE', `/api/consultations/${id}?expectedStatus=rifiutata,annullata`);
         } catch (error: any) {
           errors.push(`${id}: ${error.message}`);
         }
@@ -195,10 +219,10 @@ export default function ConsultationsManager({
         throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
       }
       
-      return idsToDelete.length;
+      return validIds.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
       toast({
         title: 'Pulizia completata',
         description: `${count} consultazione/i rifiutata/e o annullata/e eliminata/e con successo`,
@@ -222,11 +246,34 @@ export default function ConsultationsManager({
         throw new Error('Nessuna consultazione in attesa da eliminare');
       }
       
+      // 🔐 Safety check: verifica che tutti gli ID appartengano a consulenze in_attesa
+      const currentConsultations = queryClient.getQueryData<Consultation[]>(CONSULTATION_KEYS.consultations()) || [];
+      const validIds = idsToDelete.filter(id => {
+        const consultation = currentConsultations.find(c => c.id === id);
+        if (!consultation) {
+          console.warn(`[BulkDelete] ID ${id} non trovato nel cache`);
+          return false;
+        }
+        if (consultation.stato !== 'in_attesa') {
+          console.error(`[BulkDelete] ⚠️ BLOCCO: Tentativo di eliminare consultazione ${id} con stato "${consultation.stato}" invece di "in_attesa"`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (validIds.length !== idsToDelete.length) {
+        console.error(`[BulkDelete] Bloccata eliminazione: ${idsToDelete.length - validIds.length} consultazioni non sono in_attesa`);
+        throw new Error(`Operazione bloccata: alcune consultazioni non sono in stato "in attesa". Ricarica la pagina e riprova.`);
+      }
+      
+      console.log(`[BulkDelete] Eliminazione ${validIds.length} consultazioni in_attesa:`, validIds);
+      
       // Elimina sequenzialmente per evitare race conditions
+      // 🔐 Passa expectedStatus per validazione server-side
       const errors: string[] = [];
-      for (const id of idsToDelete) {
+      for (const id of validIds) {
         try {
-          await apiRequest('DELETE', `/api/consultations/${id}`);
+          await apiRequest('DELETE', `/api/consultations/${id}?expectedStatus=in_attesa`);
         } catch (error: any) {
           errors.push(`${id}: ${error.message}`);
         }
@@ -236,10 +283,10 @@ export default function ConsultationsManager({
         throw new Error(`Errori durante eliminazione: ${errors.join(', ')}`);
       }
       
-      return idsToDelete.length;
+      return validIds.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/consultations'] });
+      queryClient.invalidateQueries({ queryKey: CONSULTATION_KEYS.consultations() });
       toast({
         title: 'Pulizia completata',
         description: `${count} richiesta/e in attesa eliminata/e con successo`,

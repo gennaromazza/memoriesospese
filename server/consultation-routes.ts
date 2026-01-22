@@ -1684,6 +1684,8 @@ router.post("/v2/create", async (req, res) => {
  *
  * Query params opzionali:
  * - cancellationReason: motivo della cancellazione (mostrato in email)
+ * - expectedStatus: stato atteso per la consultation (sicurezza bulk delete)
+ *   Se specificato, la cancellazione fallirà se lo stato non corrisponde
  */
 router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
   try {
@@ -1697,12 +1699,27 @@ router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
     }
 
     const { id } = req.params;
-    const { cancellationReason } = req.query;
+    const { cancellationReason, expectedStatus } = req.query;
 
     const consultation = await consultationService.getConsultationById(id);
 
     if (!consultation) {
       return res.status(404).json({ error: "Consultation non trovata" });
+    }
+
+    // 🔐 Safety check: se expectedStatus è specificato, verifica che lo stato corrisponda
+    if (expectedStatus) {
+      const expectedStates = (expectedStatus as string).split(',');
+      if (!expectedStates.includes(consultation.stato)) {
+        console.error(
+          `[DELETE /:id] ⚠️ BLOCCO: Tentativo di eliminare consultation ${id} con stato "${consultation.stato}" ma expectedStatus era "${expectedStatus}"`
+        );
+        return res.status(409).json({
+          error: `Stato non corrispondente: la consultation ha stato "${consultation.stato}" ma era atteso "${expectedStatus}"`,
+          actualStatus: consultation.stato,
+          expectedStatus: expectedStatus,
+        });
+      }
     }
 
     // Se consultation confermata, invia email di cancellazione al cliente
