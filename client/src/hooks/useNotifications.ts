@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export interface Notification {
@@ -19,73 +19,18 @@ export function useNotifications() {
     queryFn: async () => {
       const notifications: Notification[] = [];
       
-      // 🚀 Batching parallelo con gestione errori robusta
-      const fetchBookings = async () => {
+      // 🚀 Fetch bookings e consultations via API server-side
+      const fetchBookingsAndConsultations = async () => {
         try {
-          const bookingsRef = collection(db, 'bookings');
-          // 🔧 Fix: Firestore non trova campi undefined con == null
-          // Carica booking in_attesa o confermata, poi filtra lato client
-          const bookingsQuery = query(
-            bookingsRef,
-            where('stato', 'in', ['in_attesa', 'confermata'])
-          );
-          const bookingsSnap = await getDocs(bookingsQuery);
-          
-          // Filtra solo quelli non visualizzati
-          return bookingsSnap.docs
-            .filter(doc => !doc.data().dataVisualizzazione)
-            .map(doc => {
-              const data = doc.data();
-              const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
-              const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
-              
-              return {
-                id: `booking-${doc.id}`,
-                type: 'booking' as const,
-                title: 'Nuova Prenotazione',
-                description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
-                createdAt: data.createdAt || null,
-                isRead: false,
-                resourceId: doc.id,
-                deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
-              };
-            });
+          const response = await fetch('/api/jobs/notifications');
+          if (!response.ok) {
+            console.error('[Notifications] API error:', response.status);
+            return [];
+          }
+          const data = await response.json();
+          return data.notifications || [];
         } catch (error) {
-          console.error('[Notifications] Errore fetch bookings:', error);
-          return [];
-        }
-      };
-      
-      const fetchConsultations = async () => {
-        try {
-          const consultationsRef = collection(db, 'consultations');
-          // 🔧 Fix: Include sia in_attesa che confermata (finché non visualizzate)
-          const consultationsQuery = query(
-            consultationsRef,
-            where('stato', 'in', ['in_attesa', 'confermata'])
-          );
-          const consultationsSnap = await getDocs(consultationsQuery);
-          
-          // Filtra solo quelle non visualizzate
-          return consultationsSnap.docs
-            .filter(doc => !doc.data().dataVisualizzazione)
-            .map(doc => {
-              const data = doc.data();
-              const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
-              
-              return {
-                id: `consultation-${doc.id}`,
-                type: 'consultation' as const,
-                title: `Nuova Consulenza${statoLabel}`,
-                description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
-                createdAt: data.createdAt || null,
-                isRead: false,
-                resourceId: doc.id,
-                deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
-              };
-            });
-        } catch (error) {
-          console.error('[Notifications] Errore fetch consultations:', error);
+          console.error('[Notifications] Errore fetch notifications:', error);
           return [];
         }
       };
@@ -180,15 +125,14 @@ export function useNotifications() {
       };
       
       // 🚀 Esegui tutte le fetch in parallelo per massima performance
-      const [bookings, consultations, comments, selections] = await Promise.all([
-        fetchBookings(),
-        fetchConsultations(),
+      const [bookingsAndConsultations, comments, selections] = await Promise.all([
+        fetchBookingsAndConsultations(),
         fetchComments(),
         fetchSelections()
       ]);
       
       // Combina e ordina tutte le notifiche
-      const allNotifications = [...bookings, ...consultations, ...comments, ...selections];
+      const allNotifications = [...bookingsAndConsultations, ...comments, ...selections];
       
       return allNotifications.sort((a, b) => {
         if (!a || !b) return 0;

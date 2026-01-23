@@ -211,61 +211,63 @@ export default function StudioAssistant({
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-6 mb-4">
-              <TabsTrigger value="all" className="text-xs">
-                Tutti
-                {totalSuggestions > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {totalSuggestions}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="quotes" className="text-xs">
-                <FileText className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Preventivi</span>
-                {unsignedQuotes.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {unsignedQuotes.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="text-xs">
-                <AlertCircle className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Ordini</span>
-                {pendingOrders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {pendingOrders.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="bookings" className="text-xs">
-                <Calendar className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Booking</span>
-                {pendingBookings.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {pendingBookings.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="delivery" className="text-xs">
-                <Truck className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Consegne</span>
-                {pendingDeliveries.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {pendingDeliveries.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="work" className="text-xs">
-                <Clock className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Da fare</span>
-                {needsWorkJobs.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {needsWorkJobs.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto -mx-2 px-2 mb-4">
+              <TabsList className="inline-flex w-auto min-w-full gap-1 p-1">
+                <TabsTrigger value="all" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  Tutti
+                  {totalSuggestions > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {totalSuggestions}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="quotes" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <FileText className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Preventivi</span>
+                  {unsignedQuotes.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {unsignedQuotes.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="orders" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <AlertCircle className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Ordini</span>
+                  {pendingOrders.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {pendingOrders.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="bookings" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <Calendar className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Booking</span>
+                  {pendingBookings.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {pendingBookings.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="delivery" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <Truck className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Consegne</span>
+                  {pendingDeliveries.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {pendingDeliveries.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="work" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <Clock className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Da fare</span>
+                  {needsWorkJobs.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                      {needsWorkJobs.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </div>
             
             <TabsContent value="all" className="space-y-3 mt-0">
               {[...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]

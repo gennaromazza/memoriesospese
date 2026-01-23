@@ -179,75 +179,41 @@ export async function getJob(jobId: string): Promise<Job | null> {
 }
 
 /**
- * Get all jobs con filtri
+ * Get all jobs con filtri (via API per evitare problemi di permessi Firebase)
  */
 export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
   try {
-    const constraints: QueryConstraint[] = [];
+    const params = new URLSearchParams();
     
-    // Detect incompatible filters for array-contains (status/jobType arrays)
-    const hasIncompatibleFilters = 
-      (filters?.status && filters.status.length > 0) ||
-      (filters?.jobType && filters.jobType.length > 0);
-    
-    // Filtri status
     if (filters?.status && filters.status.length > 0) {
-      constraints.push(where('status', 'in', filters.status));
+      filters.status.forEach(s => params.append('status', s));
     }
-    
-    // Filtro cliente: hybrid approach
-    // - Se no incompatible filters → use array-contains (server-side)
-    // - Se incompatible filters → fetch all + client-side filtering
-    const clientIdFilter = filters?.clienteId;
-    if (clientIdFilter && !hasIncompatibleFilters) {
-      // Server-side filtering con array-contains
-      constraints.push(where('clientiIds', 'array-contains', clientIdFilter));
-    }
-    
-    // Filtro tipo job
     if (filters?.jobType && filters.jobType.length > 0) {
-      constraints.push(where('jobType', 'in', filters.jobType));
+      filters.jobType.forEach(t => params.append('jobType', t));
     }
-    
-    // Ordina per data evento decrescente
-    constraints.push(orderBy('eventDate', 'desc'));
-    
-    const q = query(collection(db, JOBS_COLLECTION), ...constraints);
-    const snapshot = await getDocs(q);
-    
-    let jobs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Job[];
-    
-    // Client-side filtering per clienteId se incompatible filters
-    if (clientIdFilter && hasIncompatibleFilters) {
-      jobs = jobs.filter(job => 
-        job.clientiIds && job.clientiIds.includes(clientIdFilter)
-      );
+    if (filters?.clienteId) {
+      params.set('clienteId', filters.clienteId);
     }
-    
-    // Filtro date (client-side perché Firestore non supporta range su campi timestamp facilmente)
+    if (filters?.searchQuery) {
+      params.set('searchQuery', filters.searchQuery);
+    }
     if (filters?.dateFrom) {
-      const fromTimestamp = Timestamp.fromDate(filters.dateFrom);
-      jobs = jobs.filter(job => job.eventDate >= fromTimestamp);
+      params.set('dateFrom', filters.dateFrom.toISOString());
     }
     if (filters?.dateTo) {
-      const toTimestamp = Timestamp.fromDate(filters.dateTo);
-      jobs = jobs.filter(job => job.eventDate <= toTimestamp);
+      params.set('dateTo', filters.dateTo.toISOString());
     }
     
-    // Ricerca testuale (client-side)
-    if (filters?.searchQuery) {
-      const query = filters.searchQuery.toLowerCase();
-      jobs = jobs.filter(job => 
-        job.nomeEvento?.toLowerCase().includes(query) ||
-        job.eventLocation?.toLowerCase().includes(query) ||
-        job.noteInterne?.toLowerCase().includes(query)
-      );
+    const queryString = params.toString();
+    const url = queryString ? `/api/jobs?${queryString}` : '/api/jobs';
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    return jobs;
+    const data = await response.json();
+    return data.jobs as Job[];
   } catch (error) {
     console.error('❌ Errore get all jobs:', error);
     throw error;

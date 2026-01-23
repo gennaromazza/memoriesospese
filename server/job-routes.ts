@@ -777,4 +777,148 @@ router.post('/:id/timeline-events', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/jobs
+ * Recupera tutti i lavori con filtri opzionali
+ */
+router.get('/', async (req, res) => {
+  try {
+    const { status, jobType, clienteId, searchQuery, dateFrom, dateTo } = req.query;
+    
+    // Fetch all jobs and filter server-side to avoid complex index requirements
+    const snapshot = await db.collection('jobs').get();
+    
+    let jobs = snapshot.docs
+      .filter(doc => doc.data().deleted !== true) // Escludi eliminati
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    
+    // Filtri server-side
+    const statusArray = status ? (Array.isArray(status) ? status : [status]) : null;
+    if (statusArray && statusArray.length > 0) {
+      jobs = jobs.filter((job: any) => statusArray.includes(job.status));
+    }
+    
+    const jobTypeArray = jobType ? (Array.isArray(jobType) ? jobType : [jobType]) : null;
+    if (jobTypeArray && jobTypeArray.length > 0) {
+      jobs = jobs.filter((job: any) => jobTypeArray.includes(job.jobType));
+    }
+    
+    if (clienteId) {
+      jobs = jobs.filter((job: any) => 
+        job.clientiIds && job.clientiIds.includes(clienteId)
+      );
+    }
+    
+    // Filtro date
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom as string);
+      jobs = jobs.filter((job: any) => {
+        const eventDate = job.eventDate?.toDate ? job.eventDate.toDate() : new Date(job.eventDate);
+        return eventDate >= fromDate;
+      });
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo as string);
+      jobs = jobs.filter((job: any) => {
+        const eventDate = job.eventDate?.toDate ? job.eventDate.toDate() : new Date(job.eventDate);
+        return eventDate <= toDate;
+      });
+    }
+    
+    // Ricerca testuale
+    if (searchQuery) {
+      const query = (searchQuery as string).toLowerCase();
+      jobs = jobs.filter((job: any) => 
+        job.nomeEvento?.toLowerCase().includes(query) ||
+        job.eventLocation?.toLowerCase().includes(query) ||
+        job.noteInterne?.toLowerCase().includes(query)
+      );
+    }
+    
+    // Ordina per data evento decrescente
+    jobs.sort((a: any, b: any) => {
+      const dateA = a.eventDate?.toDate ? a.eventDate.toDate() : new Date(a.eventDate || 0);
+      const dateB = b.eventDate?.toDate ? b.eventDate.toDate() : new Date(b.eventDate || 0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    res.json({ success: true, jobs });
+  } catch (error: any) {
+    console.error('❌ Errore get all jobs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/notifications
+ * Recupera notifiche (booking e consulenze non visualizzate)
+ */
+router.get('/notifications', async (req, res) => {
+  try {
+    const notifications: any[] = [];
+    
+    // Fetch bookings non visualizzati
+    const bookingsSnap = await db.collection('bookings')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+    
+    bookingsSnap.docs
+      .filter(doc => !doc.data().dataVisualizzazione)
+      .forEach(doc => {
+        const data = doc.data();
+        const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
+        const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
+        
+        notifications.push({
+          id: `booking-${doc.id}`,
+          type: 'booking',
+          title: 'Nuova Prenotazione',
+          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
+          createdAt: data.createdAt || null,
+          isRead: false,
+          resourceId: doc.id,
+          deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
+        });
+      });
+    
+    // Fetch consulenze non visualizzate
+    const consultationsSnap = await db.collection('consultations')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+    
+    consultationsSnap.docs
+      .filter(doc => !doc.data().dataVisualizzazione)
+      .forEach(doc => {
+        const data = doc.data();
+        const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
+        
+        notifications.push({
+          id: `consultation-${doc.id}`,
+          type: 'consultation',
+          title: `Nuova Consulenza${statoLabel}`,
+          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
+          createdAt: data.createdAt || null,
+          isRead: false,
+          resourceId: doc.id,
+          deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
+        });
+      });
+    
+    // Ordina per data creazione (più recenti prima)
+    notifications.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    res.json({ success: true, notifications });
+  } catch (error: any) {
+    console.error('❌ Errore get notifications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
