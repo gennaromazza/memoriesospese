@@ -147,6 +147,24 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
       });
     }
 
+    // 🔐 IDEMPOTENCY CHECK: Verifica se esiste già uno schedule per questo quoteId
+    const existingScheduleSnap = await db.collection('paymentSchedules')
+      .where('quoteId', '==', quoteId)
+      .limit(1)
+      .get();
+    
+    if (!existingScheduleSnap.empty) {
+      const existingSchedule = { id: existingScheduleSnap.docs[0].id, ...existingScheduleSnap.docs[0].data() };
+      console.log(`⏭️ PaymentSchedule già esistente per quote ${quoteId}, skip creazione duplicato`);
+      return res.status(200).json({
+        success: true,
+        scheduleId: existingSchedule.id,
+        message: 'Piano pagamenti già esistente (idempotency)',
+        data: existingSchedule,
+        skipped: true,
+      });
+    }
+
     // Fetch quote
     const quoteDoc = await db.collection('quotes').doc(quoteId).get();
     if (!quoteDoc.exists) {
@@ -231,7 +249,9 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
     const totalePagamenti = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
 
     // Crea PaymentSchedule documento
-    const scheduleId = nanoid();
+    // 🔐 Usa ID deterministico basato su quoteId per garantire atomicità 
+    // Se esiste già un documento con questo ID, .set() sovrascriverà (safe perché stesso quote)
+    const scheduleId = `ps-${quoteId}`;
     const now = Timestamp.now();
 
     const paymentSchedule = {
@@ -249,8 +269,24 @@ router.post('/generate-auto', async (req: Request, res: Response) => {
       createdBy: 'admin',
     };
 
-    // Salva in Firestore
-    await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+    // Salva in Firestore con create() per fallire se già esiste (race condition protection)
+    try {
+      await db.collection('paymentSchedules').doc(scheduleId).create(paymentSchedule);
+    } catch (createError: any) {
+      // Se il documento esiste già (race condition), ritorna l'esistente
+      if (createError.code === 6 || createError.message?.includes('ALREADY_EXISTS')) {
+        console.log(`⏭️ PaymentSchedule ${scheduleId} già creato (race condition detected), recupero esistente`);
+        const existingDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+        return res.status(200).json({
+          success: true,
+          scheduleId,
+          message: 'Piano pagamenti già esistente (race condition)',
+          data: { id: existingDoc.id, ...existingDoc.data() },
+          skipped: true,
+        });
+      }
+      throw createError;
+    }
 
     // Timeline event
     try {
@@ -297,6 +333,24 @@ router.post('/generate', async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'Parametri mancanti',
         message: 'quoteId, jobId, clienteId richiesti'
+      });
+    }
+
+    // 🔐 IDEMPOTENCY CHECK: Verifica se esiste già uno schedule per questo quoteId
+    const existingScheduleSnap = await db.collection('paymentSchedules')
+      .where('quoteId', '==', quoteId)
+      .limit(1)
+      .get();
+    
+    if (!existingScheduleSnap.empty) {
+      const existingSchedule = { id: existingScheduleSnap.docs[0].id, ...existingScheduleSnap.docs[0].data() };
+      console.log(`⏭️ PaymentSchedule già esistente per quote ${quoteId}, skip creazione duplicato (generate endpoint)`);
+      return res.status(200).json({
+        success: true,
+        scheduleId: existingSchedule.id,
+        message: 'Piano pagamenti già esistente (idempotency)',
+        data: existingSchedule,
+        skipped: true,
       });
     }
 
@@ -386,7 +440,8 @@ router.post('/generate', async (req: Request, res: Response) => {
       const totalePagamenti = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
 
       // Salva schedule
-      const scheduleId = nanoid();
+      // 🔐 Usa ID deterministico basato su quoteId per garantire atomicità
+      const scheduleId = `ps-${quoteId}`;
       const now = Timestamp.now();
 
       const paymentSchedule = {
@@ -404,7 +459,23 @@ router.post('/generate', async (req: Request, res: Response) => {
         createdBy: 'admin',
       };
 
-      await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+      // Salva con create() per fallire se già esiste (race condition protection)
+      try {
+        await db.collection('paymentSchedules').doc(scheduleId).create(paymentSchedule);
+      } catch (createError: any) {
+        if (createError.code === 6 || createError.message?.includes('ALREADY_EXISTS')) {
+          console.log(`⏭️ PaymentSchedule ${scheduleId} già creato (race condition), recupero esistente`);
+          const existingDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+          return res.status(200).json({
+            success: true,
+            scheduleId,
+            message: 'Piano pagamenti già esistente (race condition)',
+            data: { id: existingDoc.id, ...existingDoc.data() },
+            skipped: true,
+          });
+        }
+        throw createError;
+      }
 
       // Link schedule ID to quote atomically
       try {
@@ -488,7 +559,8 @@ router.post('/generate', async (req: Request, res: Response) => {
     }));
 
     // Crea PaymentSchedule documento
-    const scheduleId = nanoid();
+    // 🔐 Usa ID deterministico basato su quoteId per garantire atomicità
+    const scheduleId = `ps-${quoteId}`;
     const now = Timestamp.now();
 
     const paymentSchedule = {
@@ -506,8 +578,23 @@ router.post('/generate', async (req: Request, res: Response) => {
       createdBy: 'admin', // Admin-only endpoint
     };
 
-    // Salva in Firestore
-    await db.collection('paymentSchedules').doc(scheduleId).set(paymentSchedule);
+    // Salva con create() per fallire se già esiste (race condition protection)
+    try {
+      await db.collection('paymentSchedules').doc(scheduleId).create(paymentSchedule);
+    } catch (createError: any) {
+      if (createError.code === 6 || createError.message?.includes('ALREADY_EXISTS')) {
+        console.log(`⏭️ PaymentSchedule ${scheduleId} già creato (race condition), recupero esistente`);
+        const existingDoc = await db.collection('paymentSchedules').doc(scheduleId).get();
+        return res.status(200).json({
+          success: true,
+          scheduleId,
+          message: 'Piano pagamenti già esistente (race condition)',
+          data: { id: existingDoc.id, ...existingDoc.data() },
+          skipped: true,
+        });
+      }
+      throw createError;
+    }
 
     // Link schedule ID to quote atomically
     try {
