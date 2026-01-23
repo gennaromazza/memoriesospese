@@ -229,6 +229,76 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
 }
 
 /**
+ * GET /api/jobs/notifications
+ * Recupera notifiche (booking e consulenze non visualizzate)
+ * NOTA: Questa route DEVE essere definita PRIMA di /:id per evitare conflitti
+ */
+router.get('/notifications', async (req, res) => {
+  try {
+    const notifications: any[] = [];
+    
+    // Fetch bookings non visualizzati
+    const bookingsSnap = await db.collection('bookings')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+    
+    bookingsSnap.docs
+      .filter(doc => !doc.data().dataVisualizzazione)
+      .forEach(doc => {
+        const data = doc.data();
+        const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
+        const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
+        
+        notifications.push({
+          id: `booking-${doc.id}`,
+          type: 'booking',
+          title: 'Nuova Prenotazione',
+          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
+          createdAt: data.createdAt || null,
+          isRead: false,
+          resourceId: doc.id,
+          deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
+        });
+      });
+    
+    // Fetch consulenze non visualizzate
+    const consultationsSnap = await db.collection('consultations')
+      .where('stato', 'in', ['in_attesa', 'confermata'])
+      .get();
+    
+    consultationsSnap.docs
+      .filter(doc => !doc.data().dataVisualizzazione)
+      .forEach(doc => {
+        const data = doc.data();
+        const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
+        
+        notifications.push({
+          id: `consultation-${doc.id}`,
+          type: 'consultation',
+          title: `Nuova Consulenza${statoLabel}`,
+          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
+          createdAt: data.createdAt || null,
+          isRead: false,
+          resourceId: doc.id,
+          deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
+        });
+      });
+    
+    // Ordina per data creazione (più recenti prima)
+    notifications.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    res.json({ success: true, notifications });
+  } catch (error: any) {
+    console.error('❌ Errore get notifications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/jobs/:id
  * Recupera un singolo lavoro per ID (con verifica admin)
  */
@@ -848,75 +918,6 @@ router.get('/', async (req, res) => {
     res.json({ success: true, jobs });
   } catch (error: any) {
     console.error('❌ Errore get all jobs:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/notifications
- * Recupera notifiche (booking e consulenze non visualizzate)
- */
-router.get('/notifications', async (req, res) => {
-  try {
-    const notifications: any[] = [];
-    
-    // Fetch bookings non visualizzati
-    const bookingsSnap = await db.collection('bookings')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .get();
-    
-    bookingsSnap.docs
-      .filter(doc => !doc.data().dataVisualizzazione)
-      .forEach(doc => {
-        const data = doc.data();
-        const dataInizio = data.dataShootingInizio?.toDate ? data.dataShootingInizio.toDate() : null;
-        const dataStr = dataInizio ? new Date(dataInizio).toLocaleDateString('it-IT') : 'Data non disponibile';
-        
-        notifications.push({
-          id: `booking-${doc.id}`,
-          type: 'booking',
-          title: 'Nuova Prenotazione',
-          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${dataStr}`,
-          createdAt: data.createdAt || null,
-          isRead: false,
-          resourceId: doc.id,
-          deepLink: `/admin/dashboard?tab=prenotazioni&booking=${doc.id}`
-        });
-      });
-    
-    // Fetch consulenze non visualizzate
-    const consultationsSnap = await db.collection('consultations')
-      .where('stato', 'in', ['in_attesa', 'confermata'])
-      .get();
-    
-    consultationsSnap.docs
-      .filter(doc => !doc.data().dataVisualizzazione)
-      .forEach(doc => {
-        const data = doc.data();
-        const statoLabel = data.stato === 'confermata' ? ' ✅' : '';
-        
-        notifications.push({
-          id: `consultation-${doc.id}`,
-          type: 'consultation',
-          title: `Nuova Consulenza${statoLabel}`,
-          description: `${data.cliente?.cognome || ''} ${data.cliente?.nome || ''} - ${data.jobType || 'Servizio non specificato'}`,
-          createdAt: data.createdAt || null,
-          isRead: false,
-          resourceId: doc.id,
-          deepLink: `/admin/dashboard?tab=consulenze&consultation=${doc.id}`
-        });
-      });
-    
-    // Ordina per data creazione (più recenti prima)
-    notifications.sort((a, b) => {
-      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    });
-    
-    res.json({ success: true, notifications });
-  } catch (error: any) {
-    console.error('❌ Errore get notifications:', error);
     res.status(500).json({ error: error.message });
   }
 });
