@@ -182,16 +182,16 @@ export default function StudioAssistant({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-sage" />
-                Assistente Studio
+                {mode === 'job-specific' ? 'Promemoria Lavoro' : 'Assistente Studio'}
               </CardTitle>
               <CardDescription>
                 {totalSuggestions > 0 ? (
                   <>
-                    {stats.totalActions} azioni consigliate 
+                    {stats.totalActions} {mode === 'job-specific' ? 'azioni per questo lavoro' : 'azioni consigliate'}
                     {stats.estimatedMinutes > 0 && ` (~${stats.estimatedMinutes} min)`}
                   </>
                 ) : (
-                  'Tutto in ordine!'
+                  mode === 'job-specific' ? 'Nessun promemoria attivo' : 'Tutto in ordine!'
                 )}
               </CardDescription>
             </div>
@@ -204,10 +204,16 @@ export default function StudioAssistant({
       
       <CardContent>
         {totalSuggestions === 0 && needsWorkJobs.length === 0 ? (
-          <div className="py-12 text-center">
-            <CheckCircle2 className="h-16 w-16 text-sage mx-auto mb-4" />
-            <p className="text-xl font-medium text-sage mb-2">Ottimo lavoro!</p>
-            <p className="text-gray-500">Nessuna azione richiesta al momento</p>
+          <div className="py-8 text-center">
+            <CheckCircle2 className="h-12 w-12 text-sage mx-auto mb-3" />
+            <p className="text-lg font-medium text-sage mb-2">Tutto a posto!</p>
+            {mode === 'job-specific' ? (
+              <p className="text-gray-500 text-sm max-w-xs mx-auto">
+                Nessun promemoria per questo lavoro. Qui apparirebbero: preventivi da firmare, ordini in sospeso, consegne in ritardo.
+              </p>
+            ) : (
+              <p className="text-gray-500">Nessuna azione richiesta al momento</p>
+            )}
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
