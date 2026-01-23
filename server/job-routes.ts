@@ -262,6 +262,31 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
+ * GET /api/jobs/:id/timeline
+ * Recupera la timeline di un lavoro
+ */
+router.get('/:id/timeline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const timelineSnapshot = await db.collection('jobTimeline')
+      .where('jobId', '==', id)
+      .orderBy('data', 'desc')
+      .get();
+    
+    const events = timelineSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    res.json({ success: true, events });
+  } catch (error: any) {
+    console.error('❌ Errore recupero timeline:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Endpoint per sincronizzare il calendario di un lavoro
  */
 router.post('/:id/sync-calendar', async (req, res) => {

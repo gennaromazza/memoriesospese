@@ -530,21 +530,18 @@ export async function updateJobFinancials(
 }
 
 /**
- * Get job timeline
+ * Get job timeline (via API per evitare problemi di permessi Firebase)
  */
 export async function getJobTimeline(jobId: string): Promise<JobTimelineEvent[]> {
   try {
-    const q = query(
-      collection(db, TIMELINE_COLLECTION),
-      where('jobId', '==', jobId),
-      orderBy('data', 'desc')
-    );
+    const response = await fetch(`/api/jobs/${jobId}/timeline`);
     
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as JobTimelineEvent[];
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.events as JobTimelineEvent[];
   } catch (error) {
     console.error('❌ Errore get timeline:', error);
     throw error;
