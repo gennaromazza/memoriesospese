@@ -152,22 +152,26 @@ export async function createJob(
 }
 
 /**
- * Get job by ID
+ * Get job by ID (via API per evitare problemi di permessi Firebase)
  */
 export async function getJob(jobId: string): Promise<Job | null> {
   try {
-    console.log('🔍 Fetching job with ID:', jobId);
-    const jobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
-    console.log('🔍 Job exists:', jobDoc.exists(), 'for ID:', jobId);
-    if (!jobDoc.exists()) {
-      console.warn('⚠️ Job not found in Firestore:', jobId);
+    console.log('🔍 Fetching job via API with ID:', jobId);
+    const response = await fetch(`/api/jobs/${jobId}`);
+    
+    if (response.status === 404) {
+      console.warn('⚠️ Job not found:', jobId);
       return null;
     }
     
-    return {
-      id: jobDoc.id,
-      ...jobDoc.data()
-    } as Job;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Job fetched via API:', jobId);
+    
+    return data.job as Job;
   } catch (error) {
     console.error('❌ Errore get job:', error, 'for ID:', jobId);
     throw error;

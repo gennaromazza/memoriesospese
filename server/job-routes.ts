@@ -229,6 +229,39 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
 }
 
 /**
+ * GET /api/jobs/:id
+ * Recupera un singolo lavoro per ID (con verifica admin)
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const jobDoc = await db.collection('jobs').doc(id).get();
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Lavoro non trovato' });
+    }
+    
+    const jobData = jobDoc.data();
+    
+    // Salta jobs eliminati
+    if (jobData?.deleted === true) {
+      return res.status(404).json({ error: 'Lavoro non trovato' });
+    }
+    
+    res.json({
+      success: true,
+      job: {
+        id: jobDoc.id,
+        ...jobData
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Errore recupero job:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Endpoint per sincronizzare il calendario di un lavoro
  */
 router.post('/:id/sync-calendar', async (req, res) => {
