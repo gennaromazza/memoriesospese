@@ -23,6 +23,40 @@ const router = Router();
 // Lista admin autorizzati
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
+// 🚀 CACHE: Cache in-memory per suggerimenti (TTL 60 secondi)
+interface CacheEntry {
+  data: StudioSuggestionsResponse;
+  timestamp: number;
+}
+const suggestionsCache: Map<string, CacheEntry> = new Map();
+const CACHE_TTL_MS = 60 * 1000; // 60 secondi
+
+function getCachedSuggestions(cacheKey: string): StudioSuggestionsResponse | null {
+  const entry = suggestionsCache.get(cacheKey);
+  if (!entry) return null;
+  
+  const isExpired = Date.now() - entry.timestamp > CACHE_TTL_MS;
+  if (isExpired) {
+    suggestionsCache.delete(cacheKey);
+    return null;
+  }
+  
+  return entry.data;
+}
+
+function setCachedSuggestions(cacheKey: string, data: StudioSuggestionsResponse): void {
+  suggestionsCache.set(cacheKey, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
+// Invalidate cache when actions are performed
+export function invalidateSuggestionsCache(): void {
+  suggestionsCache.clear();
+  console.log('🗑️ Studio Assistant cache invalidata');
+}
+
 /**
  * Middleware verifica admin
  */
@@ -210,11 +244,22 @@ async function findOptimalDateRange(
  * Calcola e restituisce tutti i suggerimenti
  */
 router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
-  console.log('📊 Studio Assistant: Inizio calcolo suggerimenti');
+  const startTime = Date.now();
   try {
-    const { jobId } = req.query;
+    const { jobId, skipCache } = req.query;
+    const cacheKey = `suggestions-${jobId || 'all'}`;
+    
+    // 🚀 CHECK CACHE FIRST (skip if explicitly requested)
+    if (!skipCache) {
+      const cached = getCachedSuggestions(cacheKey);
+      if (cached) {
+        console.log(`⚡ Studio Assistant: Cache HIT (${Date.now() - startTime}ms)`);
+        return res.json(cached);
+      }
+    }
+    
+    console.log('📊 Studio Assistant: Cache MISS, calcolo suggerimenti...');
     const now = new Date();
-    console.log('📊 Studio Assistant: jobId =', jobId || 'tutti');
     
     // Carica suggerimenti ignorati (non scaduti)
     const dismissedSnapshot = await db.collection('dismissedSuggestions')
@@ -598,6 +643,10 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       }
     };
     
+    // 🚀 SAVE TO CACHE
+    setCachedSuggestions(cacheKey, response);
+    console.log(`📊 Studio Assistant: Calcolo completato in ${Date.now() - startTime}ms, salvato in cache`);
+    
     return res.json(response);
     
   } catch (error) {
@@ -663,6 +712,9 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
       });
     }
     
+    // 🚀 Invalida cache dopo azione
+    invalidateSuggestionsCache();
+    
     return res.json({ success: true });
     
   } catch (error) {
@@ -699,6 +751,9 @@ router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Res
     }
     
     await db.collection('jobs').doc(id).update(updateData);
+    
+    // 🚀 Invalida cache dopo modifica
+    invalidateSuggestionsCache();
     
     return res.json({ success: true });
     
