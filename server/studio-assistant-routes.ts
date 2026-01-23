@@ -288,15 +288,20 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Filtra per jobId se specificato
       if (jobId && quote.jobId !== jobId) continue;
 
-      // Salta se il preventivo è legato a un lavoro già consegnato o archiviato
+      // Salta se il preventivo è legato a un lavoro eliminato, consegnato o archiviato
       if (quote.jobId) {
         try {
           const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
           if (jobDoc.exists) {
-            const jobStatus = jobDoc.data()?.status;
-            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+            const jobData = jobDoc.data();
+            const jobStatus = jobData?.status;
+            // Salta lavori eliminati o completati
+            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
               continue;
             }
+          } else {
+            // Job non esiste più, salta questo preventivo
+            continue;
           }
         } catch (e) {
           console.warn('⚠️ Errore controllo status job per quote:', quoteDoc.id);
@@ -386,15 +391,18 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Salta se l'ordine è completato o consegnato (già filtrato da query, ma per sicurezza se cambiano gli stati)
       if (order.stato === 'completato' || order.stato === 'consegnato') continue;
 
-      // Salta se l'ordine è legato a un lavoro già consegnato o archiviato
+      // Salta se l'ordine è legato a un lavoro eliminato, consegnato o archiviato
       if (order.jobId) {
         try {
           const jobDoc = await db.collection('jobs').doc(order.jobId).get();
           if (jobDoc.exists) {
-            const jobStatus = jobDoc.data()?.status;
-            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+            const jobData = jobDoc.data();
+            const jobStatus = jobData?.status;
+            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
               continue;
             }
+          } else {
+            continue; // Job non esiste più
           }
         } catch (e) {
           console.warn('⚠️ Errore controllo status job per ordine:', orderDoc.id);
@@ -454,15 +462,18 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       // Filtra per jobId se specificato
       if (jobId && booking.jobId !== jobId) continue;
 
-      // Salta se la prenotazione è legata a un lavoro già consegnato o archiviato
+      // Salta se la prenotazione è legata a un lavoro eliminato, consegnato o archiviato
       if (booking.jobId) {
         try {
           const jobDoc = await db.collection('jobs').doc(booking.jobId).get();
           if (jobDoc.exists) {
-            const jobStatus = jobDoc.data()?.status;
-            if (jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+            const jobData = jobDoc.data();
+            const jobStatus = jobData?.status;
+            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
               continue;
             }
+          } else {
+            continue; // Job non esiste più
           }
         } catch (e) {
           console.warn('⚠️ Errore controllo status job per booking:', bookingDoc.id);
@@ -521,6 +532,9 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     
     for (const jobDoc of jobsSnapshot.docs) {
       const job = jobDoc.data();
+      
+      // Salta i lavori eliminati (soft delete)
+      if (job.deleted === true) continue;
       
       // Filtra per jobId se specificato
       if (jobId && jobDoc.id !== jobId) continue;

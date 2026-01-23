@@ -156,15 +156,20 @@ export async function createJob(
  */
 export async function getJob(jobId: string): Promise<Job | null> {
   try {
+    console.log('🔍 Fetching job with ID:', jobId);
     const jobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
-    if (!jobDoc.exists()) return null;
+    console.log('🔍 Job exists:', jobDoc.exists(), 'for ID:', jobId);
+    if (!jobDoc.exists()) {
+      console.warn('⚠️ Job not found in Firestore:', jobId);
+      return null;
+    }
     
     return {
       id: jobDoc.id,
       ...jobDoc.data()
     } as Job;
   } catch (error) {
-    console.error('❌ Errore get job:', error);
+    console.error('❌ Errore get job:', error, 'for ID:', jobId);
     throw error;
   }
 }

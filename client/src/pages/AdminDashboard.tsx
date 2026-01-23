@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, collectionGroup, setDoc, getDoc, where } from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
@@ -61,7 +61,8 @@ import BulkEmailSender from "./BulkEmailSender";
 import QuoteManagementDemo from './admin/QuoteManagementDemo';
 import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
-import { StudioAssistant } from "@/components/studio-assistant";
+// Lazy load StudioAssistant per migliorare il caricamento iniziale
+const StudioAssistant = lazy(() => import('@/components/studio-assistant/StudioAssistant'));
 
 // Componente per visualizzare stato Google Calendar
 function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
@@ -1638,9 +1639,23 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Assistente Studio - Vista Completa */}
+            {/* Contenuto Tab Assistente Studio - Vista Completa (Lazy loaded) */}
             <TabsContent value="assistente">
-              <StudioAssistant mode="full" showHeader={true} />
+              <Suspense fallback={
+                <Card>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-64 mt-2" />
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                  </CardContent>
+                </Card>
+              }>
+                <StudioAssistant mode="full" showHeader={true} />
+              </Suspense>
             </TabsContent>
 
             {/* Gallerie Tab */}

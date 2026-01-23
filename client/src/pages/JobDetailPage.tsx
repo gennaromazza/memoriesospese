@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange } from 'lucide-react';
@@ -75,7 +75,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { StudioAssistant } from '@/components/studio-assistant';
+// Lazy load StudioAssistant per migliorare il caricamento della pagina
+const StudioAssistant = lazy(() => import('@/components/studio-assistant/StudioAssistant'));
 
 export default function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -900,12 +901,23 @@ export default function JobDetailPage() {
 
             {/* Right Column - Secondary Info */}
             <div className="lg:col-span-5 space-y-6">
-              {/* Studio Assistant - Suggerimenti specifici per questo lavoro */}
-              <StudioAssistant 
-                mode="job-specific" 
-                jobId={job.id}
-                showHeader={true}
-              />
+              {/* Studio Assistant - Suggerimenti specifici per questo lavoro (Lazy loaded) */}
+              <Suspense fallback={
+                <Card className="shadow-sm">
+                  <CardHeader>
+                    <div className="h-5 w-40 bg-muted animate-pulse rounded" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-20 bg-muted animate-pulse rounded" />
+                  </CardContent>
+                </Card>
+              }>
+                <StudioAssistant 
+                  mode="job-specific" 
+                  jobId={job.id}
+                  showHeader={true}
+                />
+              </Suspense>
 
             {/* Stato Preventivi */}
               <Card className="shadow-sm hover:shadow-md transition-shadow">

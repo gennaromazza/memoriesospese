@@ -24,6 +24,8 @@ export interface UseStudioSuggestionsReturn {
   pendingDeliveries: StudioSuggestion[];
   consultations: StudioSuggestion[];
   needsWorkJobs: StudioSuggestion[];
+  pendingOrders: StudioSuggestion[];
+  pendingBookings: StudioSuggestion[];
   loading: boolean;
   error: Error | null;
   stats: {
