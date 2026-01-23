@@ -273,6 +273,14 @@ export default function SuggestionCard({
               {suggestion.type === 'pending_delivery' && (
                 <>
                   <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => window.open(`/admin/jobs/${suggestion.jobId}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Dettagli
+                  </Button>
+                  <Button 
                     size="sm"
                     onClick={() => handleAction(() => onMarkAsDelivered(suggestion.jobId!))}
                     disabled={isLoading}
