@@ -140,6 +140,7 @@ export default function NewGalleryModal({
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
   const [clienteId, setClienteId] = useState("");
+  const [clienteIdInitialized, setClienteIdInitialized] = useState<string | null>(null); // Track which booking initialized clienteId
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
@@ -307,9 +308,15 @@ export default function NewGalleryModal({
       setSpecialPin(prePopulate.specialPin || "");
       setClientEmail(prePopulate.clienteEmail || "");
       setClientName(prePopulate.clienteNome || "");
-      setClienteId(prePopulate.clienteId || "");
+      // Only initialize clienteId if this is a NEW booking (avoid resetting user selections)
+      const currentBookingId = prePopulate.bookingId || null;
+      if (clienteIdInitialized !== currentBookingId) {
+        setClienteId(prePopulate.clienteId || "");
+        setClienteIdInitialized(currentBookingId);
+        console.log("🔄 ClienteId inizializzato per booking:", currentBookingId, "valore:", prePopulate.clienteId || "(vuoto)");
+      }
     }
-  }, [prePopulate]);
+  }, [prePopulate, clienteIdInitialized]);
 
   // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
