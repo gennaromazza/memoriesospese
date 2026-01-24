@@ -37,6 +37,7 @@ import type { Product } from "@shared/booking-types";
 import { Info, Eye, EyeOff, Trash, RefreshCw, Copy, Check } from "lucide-react";
 import { ClienteSelector } from "./ClienteSelector";
 import { createAbsoluteUrl } from "@/lib/basePath";
+import { getClienteByEmail } from "@/lib/clienti";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -806,13 +807,41 @@ export default function NewGalleryModal({
             </div>
 
             {/* Cliente Selector - permette di associare un cliente alla galleria */}
-            <ClienteSelector
-              value={clienteId}
-              onChange={setClienteId}
-              label="Cliente Associato"
-              placeholder="Cerca e seleziona cliente..."
-              showCurrentClient={true}
-            />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Cliente Associato</Label>
+                {prePopulate?.clienteEmail && !clienteId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={async () => {
+                      try {
+                        const cliente = await getClienteByEmail(prePopulate.clienteEmail!);
+                        if (cliente) {
+                          setClienteId(cliente.id);
+                          toast.success(`Cliente ${cliente.nome} ${cliente.cognome} associato`);
+                        } else {
+                          toast.error("Cliente non trovato nel database");
+                        }
+                      } catch (error) {
+                        toast.error("Errore nella ricerca del cliente");
+                      }
+                    }}
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Importa da Prenotazione
+                  </Button>
+                )}
+              </div>
+              <ClienteSelector
+                value={clienteId}
+                onChange={setClienteId}
+                placeholder="Cerca e seleziona cliente..."
+                showCurrentClient={true}
+              />
+            </div>
 
             {/* Password Field - Hidden if special theme is selected */}
             {specialTheme === "none" && (
