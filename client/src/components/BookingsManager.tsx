@@ -215,6 +215,7 @@ export default function BookingsManager({
   const [selectedBookingForGallery, setSelectedBookingForGallery] =
     useState<Booking | null>(null);
   const [resolvedClienteId, setResolvedClienteId] = useState<string | undefined>(undefined);
+  const [isResolvingCliente, setIsResolvingCliente] = useState(false);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   
   // Risolvi clienteId quando booking selezionato per gallery (lookup per email se mancante)
@@ -222,12 +223,16 @@ export default function BookingsManager({
     const resolveClienteId = async () => {
       if (!selectedBookingForGallery) {
         setResolvedClienteId(undefined);
+        setIsResolvingCliente(false);
         return;
       }
+      
+      setIsResolvingCliente(true);
       
       // Se il booking ha già un clienteId, usalo
       if (selectedBookingForGallery.clienteId) {
         setResolvedClienteId(selectedBookingForGallery.clienteId);
+        setIsResolvingCliente(false);
         return;
       }
       
@@ -239,6 +244,7 @@ export default function BookingsManager({
           if (cliente) {
             console.log(`🔍 Cliente trovato per email ${email}: ${cliente.id}`);
             setResolvedClienteId(cliente.id);
+            setIsResolvingCliente(false);
             return;
           }
         } catch (error) {
@@ -248,6 +254,7 @@ export default function BookingsManager({
       
       // Nessun cliente trovato
       setResolvedClienteId(undefined);
+      setIsResolvingCliente(false);
     };
     
     resolveClienteId();
@@ -2846,7 +2853,7 @@ export default function BookingsManager({
           )}
 
           {/* Dialog creazione galleria da booking */}
-          {selectedBookingForGallery &&
+          {selectedBookingForGallery && !isResolvingCliente &&
             (() => {
               const campaign = campaigns.find(
                 (c) => c.id === selectedBookingForGallery.campaignId,
