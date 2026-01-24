@@ -3505,12 +3505,18 @@ function CreateOrderDialog({
     // Costruisci array OrderItem con snapshot (prodotti catalogo)
     const catalogoOrderItems: OrderItem[] = selectedProducts.map((item) => {
       const product = availableProducts.find((p) => p.id === item.prodottoId)!;
+      // Per bundle: calcola totale foto da bundleItems
+      const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
+        ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+        : product.numeroFoto;
       return {
         prodottoId: product.id,
         prodottoNome: product.nome,
         prodottoPrezzo: product.prezzoFinale,
-        prodottoNumeroFoto: product.numeroFoto,
+        prodottoNumeroFoto: totalPhotos,
         quantita: item.quantita,
+        // Salva bundleItems se è un bundle per espansione in gallery
+        ...(product.isBundle && product.bundleItems ? { isBundle: true, bundleItems: product.bundleItems } : {}),
       };
     });
 

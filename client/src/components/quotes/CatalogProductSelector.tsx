@@ -244,11 +244,19 @@ export default function CatalogProductSelector({
                     )}
 
                     <div className="flex items-center justify-between pt-2">
-                      {product.numeroFoto > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {product.numeroFoto} foto
-                        </span>
-                      )}
+                      {(() => {
+                        // Per bundle: calcola totale foto da bundleItems
+                        const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
+                          ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                          : product.numeroFoto;
+                        return totalPhotos > 0 ? (
+                          <span className="text-xs text-muted-foreground">
+                            {totalPhotos} foto{product.isBundle && ' 📦'}
+                          </span>
+                        ) : product.isBundle ? (
+                          <span className="text-xs text-muted-foreground">∞ foto 📦</span>
+                        ) : null;
+                      })()}
 
                       <div className="flex items-center gap-1">
                         {product.sconto > 0 && (

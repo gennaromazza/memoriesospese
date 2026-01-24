@@ -212,12 +212,19 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       return;
     }
     
+    // Per bundle: calcola totale foto da bundleItems
+    const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
+      ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+      : product.numeroFoto;
+    
     const newItem: OrderItem = {
       prodottoId: product.id,
       prodottoNome: product.nome,
       prodottoPrezzo: product.prezzoFinale,
-      prodottoNumeroFoto: product.numeroFoto,
+      prodottoNumeroFoto: totalPhotos,
       quantita: 1,
+      // Salva bundleItems se è un bundle per espansione in gallery
+      ...(product.isBundle && product.bundleItems ? { isBundle: true, bundleItems: product.bundleItems } : {}),
     };
     
     setSelectedProdotti([...selectedProdotti, newItem]);
@@ -422,11 +429,18 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                   <SelectValue placeholder="Seleziona prodotto dal catalogo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {products.map(product => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.nome} - €{product.prezzoFinale} ({product.numeroFoto} foto)
-                    </SelectItem>
-                  ))}
+                  {products.map(product => {
+                    // Per bundle: calcola totale foto da bundleItems
+                    const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
+                      ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                      : product.numeroFoto;
+                    const photoText = totalPhotos > 0 ? `${totalPhotos} foto` : '∞';
+                    return (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.nome} - €{product.prezzoFinale} ({photoText}){product.isBundle && ' 📦'}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
