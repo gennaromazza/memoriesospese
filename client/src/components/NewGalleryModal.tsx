@@ -817,15 +817,20 @@ export default function NewGalleryModal({
                     size="sm"
                     className="h-7 text-xs gap-1"
                     onClick={async () => {
+                      console.log("🔄 Importa da Prenotazione clicked, email:", prePopulate.clienteEmail);
                       try {
                         const cliente = await getClienteByEmail(prePopulate.clienteEmail!);
+                        console.log("🔍 Risultato ricerca:", cliente);
                         if (cliente) {
                           setClienteId(cliente.id);
+                          console.log("✅ ClienteId settato:", cliente.id);
                           toast.success(`Cliente ${cliente.nome} ${cliente.cognome} associato`);
                         } else {
+                          console.log("❌ Cliente non trovato");
                           toast.error("Cliente non trovato nel database");
                         }
                       } catch (error) {
+                        console.error("❌ Errore ricerca:", error);
                         toast.error("Errore nella ricerca del cliente");
                       }
                     }}
