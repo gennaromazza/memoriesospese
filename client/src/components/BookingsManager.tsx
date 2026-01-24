@@ -30,6 +30,7 @@ import type {
   Order,
   Product,
   OrderItem,
+  BundleItem,
 } from "@shared/booking-types";
 import { WorkflowState } from "@shared/schema";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
@@ -2838,14 +2839,72 @@ export default function BookingsManager({
                 associatedOrder.prodotti.length > 0
               ) {
                 // Ordine con multipli prodotti - usa availableProducts
-                prePopulateData.availableProducts =
-                  associatedOrder.prodotti.map((p) => ({
-                    prodottoId: p.prodottoId || undefined,
-                    prodottoNome: p.prodottoNome,
-                    prodottoNumeroFoto: p.prodottoNumeroFoto || undefined,
-                  }));
+                // BUNDLE SUPPORT: Espandi bundle nei loro componenti
+                const expandedProducts: Array<{
+                  prodottoId?: string;
+                  prodottoNome: string;
+                  prodottoNumeroFoto?: number;
+                  isFromBundle?: boolean;
+                  bundleParentName?: string;
+                }> = [];
+                
+                // Guard: check if products are loaded
+                if (products.length === 0) {
+                  console.warn('⚠️ Products not loaded yet, cannot expand bundles properly');
+                }
+                
+                for (const orderItem of associatedOrder.prodotti) {
+                  // Get order item quantity (default to 1)
+                  const orderItemQuantity = orderItem.quantita || 1;
+                  
+                  // Check if this product is a bundle by looking up in products list
+                  const fullProduct = products.find(p => p.id === orderItem.prodottoId);
+                  
+                  if (fullProduct?.isBundle && fullProduct.bundleItems && fullProduct.bundleItems.length > 0) {
+                    // Expand bundle items (multiplied by order item quantity)
+                    for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
+                      for (const bundleItem of fullProduct.bundleItems) {
+                        // Validate bundleItem - allow numeroFoto = 0 (unlimited selection)
+                        if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
+                        if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
+                        
+                        for (let i = 0; i < bundleItem.quantita; i++) {
+                          const bundlePrefix = orderItemQuantity > 1 
+                            ? `[${orderQty + 1}/${orderItemQuantity}] ` 
+                            : '';
+                          expandedProducts.push({
+                            prodottoId: bundleItem.prodottoId,
+                            prodottoNome: bundleItem.quantita > 1 
+                              ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${fullProduct.nome}`
+                              : `${bundlePrefix}${bundleItem.prodottoNome} - ${fullProduct.nome}`,
+                            prodottoNumeroFoto: bundleItem.numeroFoto,
+                            isFromBundle: true,
+                            bundleParentName: fullProduct.nome,
+                          });
+                        }
+                      }
+                    }
+                    const totalExpandedCount = fullProduct.bundleItems.reduce(
+                      (sum, item) => sum + (item.quantita || 1), 0
+                    ) * orderItemQuantity;
+                    console.log(`📦 Bundle "${fullProduct.nome}" x${orderItemQuantity} espanso in ${totalExpandedCount} prodotti`);
+                  } else {
+                    // Regular product - add as-is (respecting order item quantity)
+                    for (let i = 0; i < orderItemQuantity; i++) {
+                      expandedProducts.push({
+                        prodottoId: orderItem.prodottoId || undefined,
+                        prodottoNome: orderItemQuantity > 1 
+                          ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
+                          : orderItem.prodottoNome,
+                        prodottoNumeroFoto: orderItem.prodottoNumeroFoto || undefined,
+                      });
+                    }
+                  }
+                }
+                
+                prePopulateData.availableProducts = expandedProducts;
                 console.log(
-                  `📦 Ordine trovato con ${associatedOrder.prodotti.length} prodotti per booking ${selectedBookingForGallery.id}`,
+                  `📦 Ordine trovato con ${associatedOrder.prodotti.length} prodotti (espansi a ${expandedProducts.length}) per booking ${selectedBookingForGallery.id}`,
                 );
               } else {
                 // Nessun ordine o ordine senza prodotti - fallback al prodotto del booking

@@ -579,13 +579,35 @@ export default function ProductsManager() {
     }
 
     // Bundle validation
-    if (formData.isBundle && (!formData.bundleItems || formData.bundleItems.length === 0)) {
-      toast({
-        title: 'Errore',
-        description: 'Un bundle deve contenere almeno un prodotto',
-        variant: 'destructive',
-      });
-      return;
+    if (formData.isBundle) {
+      if (!formData.bundleItems || formData.bundleItems.length === 0) {
+        toast({
+          title: 'Errore',
+          description: 'Un bundle deve contenere almeno un prodotto',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Validate each bundle item
+      for (const item of formData.bundleItems) {
+        if (!item.quantita || item.quantita <= 0) {
+          toast({
+            title: 'Errore',
+            description: `Quantità non valida per "${item.prodottoNome}". Deve essere maggiore di 0.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (item.numeroFoto !== undefined && item.numeroFoto < 0) {
+          toast({
+            title: 'Errore',
+            description: `Numero foto non valido per "${item.prodottoNome}". Non può essere negativo.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
     }
 
     try {
