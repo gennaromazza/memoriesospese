@@ -313,6 +313,7 @@ export default function NewGalleryModal({
       const currentBookingId = prePopulate.bookingId || null;
       if (clienteIdInitialized !== currentBookingId) {
         setClienteId(prePopulate.clienteId || "");
+        setImportedClienteInfo(null); // Clear imported info when booking changes
         setClienteIdInitialized(currentBookingId);
         console.log("🔄 ClienteId inizializzato per booking:", currentBookingId, "valore:", prePopulate.clienteId || "(vuoto)");
       }
@@ -852,9 +853,9 @@ export default function NewGalleryModal({
               
               {/* Mostra cliente importato se presente */}
               {clienteId && importedClienteInfo && (
-                <div className="p-3 bg-green-50 rounded-lg border border-green-200 flex items-center justify-between">
+                <div className="p-3 bg-white rounded-lg border border-sage/20 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm">
+                    <div className="w-10 h-10 rounded-full bg-sage text-white flex items-center justify-center font-semibold text-sm">
                       {`${importedClienteInfo.nome[0] || ''}${importedClienteInfo.cognome[0] || ''}`.toUpperCase()}
                     </div>
                     <div>
@@ -867,20 +868,20 @@ export default function NewGalleryModal({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Importato
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sage/10 text-sage-dark">
+                      Selezionato
                     </span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs text-red-600 hover:text-red-700"
+                      className="h-7 text-xs text-gray-500 hover:text-gray-700"
                       onClick={() => {
                         setClienteId("");
                         setImportedClienteInfo(null);
                       }}
                     >
-                      Rimuovi
+                      Cambia
                     </Button>
                   </div>
                 </div>
