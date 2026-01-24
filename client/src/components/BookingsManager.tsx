@@ -217,48 +217,6 @@ export default function BookingsManager({
   const [resolvedClienteId, setResolvedClienteId] = useState<string | undefined>(undefined);
   const [isResolvingCliente, setIsResolvingCliente] = useState(false);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
-  
-  // Risolvi clienteId quando booking selezionato per gallery (lookup per email se mancante)
-  useEffect(() => {
-    const resolveClienteId = async () => {
-      if (!selectedBookingForGallery) {
-        setResolvedClienteId(undefined);
-        setIsResolvingCliente(false);
-        return;
-      }
-      
-      setIsResolvingCliente(true);
-      
-      // Se il booking ha già un clienteId, usalo
-      if (selectedBookingForGallery.clienteId) {
-        setResolvedClienteId(selectedBookingForGallery.clienteId);
-        setIsResolvingCliente(false);
-        return;
-      }
-      
-      // Altrimenti cerca il cliente per email
-      const email = selectedBookingForGallery.cliente?.email;
-      if (email) {
-        try {
-          const cliente = await getClienteByEmail(email);
-          if (cliente) {
-            console.log(`🔍 Cliente trovato per email ${email}: ${cliente.id}`);
-            setResolvedClienteId(cliente.id);
-            setIsResolvingCliente(false);
-            return;
-          }
-        } catch (error) {
-          console.error('Errore ricerca cliente per email:', error);
-        }
-      }
-      
-      // Nessun cliente trovato
-      setResolvedClienteId(undefined);
-      setIsResolvingCliente(false);
-    };
-    
-    resolveClienteId();
-  }, [selectedBookingForGallery]);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialParams.page);
   const ITEMS_PER_PAGE = 10;
@@ -1955,12 +1913,35 @@ export default function BookingsManager({
                                     variant="outline"
                                     size="icon"
                                     disabled={!isApproved}
-                                    onClick={() => {
+                                    onClick={async () => {
                                       const gallery = getGalleryByBookingId(
                                         booking.id,
                                       );
                                       if (!gallery) {
+                                        // Risolvi clienteId PRIMA di aprire il modal
+                                        setIsResolvingCliente(true);
+                                        let resolvedId: string | undefined = undefined;
+                                        
+                                        if (booking.clienteId) {
+                                          resolvedId = booking.clienteId;
+                                        } else {
+                                          const email = booking.cliente?.email;
+                                          if (email) {
+                                            try {
+                                              const cliente = await getClienteByEmail(email);
+                                              if (cliente) {
+                                                console.log(`🔍 Cliente trovato per email ${email}: ${cliente.id}`);
+                                                resolvedId = cliente.id;
+                                              }
+                                            } catch (error) {
+                                              console.error('Errore ricerca cliente per email:', error);
+                                            }
+                                          }
+                                        }
+                                        
+                                        setResolvedClienteId(resolvedId);
                                         setSelectedBookingForGallery(booking);
+                                        setIsResolvingCliente(false);
                                       } else {
                                         window.open(`/admin/gallery/${gallery.id}/manage`, '_blank');
                                       }
