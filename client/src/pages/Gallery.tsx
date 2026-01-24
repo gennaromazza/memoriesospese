@@ -720,7 +720,8 @@ export default function Gallery() {
       if (isUnlimitedSelection) {
         isComplete = false; // Non mostrare mai automaticamente per selezione libera
       } else {
-        isComplete = selectedPhotoIds.length === requiredPhotoCount && requiredPhotoCount > 0;
+        // FIX: Usa >= per coerenza con validazione
+        isComplete = selectedPhotoIds.length >= requiredPhotoCount && requiredPhotoCount > 0;
       }
     }
     
@@ -2876,7 +2877,7 @@ export default function Gallery() {
                             <AlertDialogDescription className="text-gray-600">
                               {isUnlimitedSelection
                                 ? `Hai selezionato ${selectedPhotoIds.length} foto. Rivedi le foto scelte prima di confermare.`
-                                : (selectedPhotoIds.length === requiredPhotoCount 
+                                : (selectedPhotoIds.length >= requiredPhotoCount 
                                   ? "Hai completato la selezione! Rivedi le foto scelte prima di confermare."
                                   : `Hai selezionato ${selectedPhotoIds.length} foto su ${requiredPhotoCount} richieste.`)}
                             </AlertDialogDescription>
@@ -2988,14 +2989,14 @@ export default function Gallery() {
                                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${
                                     isUnlimitedSelection
                                       ? 'bg-terracotta text-white'
-                                      : (selectedPhotoIds.length === requiredPhotoCount 
+                                      : (selectedPhotoIds.length >= requiredPhotoCount 
                                         ? 'bg-sage text-white' 
                                         : 'bg-terracotta/20 text-terracotta')
                                   }`}>
                                     {isUnlimitedSelection 
                                       ? `${selectedPhotoIds.length} foto`
                                       : `${selectedPhotoIds.length}/${requiredPhotoCount}`}
-                                    {!isUnlimitedSelection && selectedPhotoIds.length === requiredPhotoCount && ' ✓'}
+                                    {!isUnlimitedSelection && selectedPhotoIds.length >= requiredPhotoCount && ' ✓'}
                                   </span>
                                 </div>
                                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -3700,7 +3701,7 @@ export default function Gallery() {
                                       {selectedPhotoIds.length} / {requiredPhotoCount}
                                     </div>
                                     <p className="text-sm text-gray-600">
-                                      {selectedPhotoIds.length === requiredPhotoCount
+                                      {selectedPhotoIds.length >= requiredPhotoCount
                                         ? "Perfetto! Puoi confermare la tua selezione."
                                         : `Seleziona ancora ${requiredPhotoCount - selectedPhotoIds.length} foto.`}
                                     </p>
