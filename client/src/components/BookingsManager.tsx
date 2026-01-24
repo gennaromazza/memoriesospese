@@ -20,6 +20,7 @@ import {
   updateWorkflowState,
 } from "@/lib/bookings";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
+import { getClienteByEmail } from "@/lib/clienti";
 import { getAllOrders, createOrder, addAccontoPayment, recordSaldoPayment, getOrderTotals } from "@/lib/orders";
 import EditOrderModal from "@/components/EditOrderModal";
 import { getActiveProducts } from "@/lib/products";
@@ -213,7 +214,44 @@ export default function BookingsManager({
     useState<Booking | null>(null);
   const [selectedBookingForGallery, setSelectedBookingForGallery] =
     useState<Booking | null>(null);
+  const [resolvedClienteId, setResolvedClienteId] = useState<string | undefined>(undefined);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
+  
+  // Risolvi clienteId quando booking selezionato per gallery (lookup per email se mancante)
+  useEffect(() => {
+    const resolveClienteId = async () => {
+      if (!selectedBookingForGallery) {
+        setResolvedClienteId(undefined);
+        return;
+      }
+      
+      // Se il booking ha già un clienteId, usalo
+      if (selectedBookingForGallery.clienteId) {
+        setResolvedClienteId(selectedBookingForGallery.clienteId);
+        return;
+      }
+      
+      // Altrimenti cerca il cliente per email
+      const email = selectedBookingForGallery.cliente?.email;
+      if (email) {
+        try {
+          const cliente = await getClienteByEmail(email);
+          if (cliente) {
+            console.log(`🔍 Cliente trovato per email ${email}: ${cliente.id}`);
+            setResolvedClienteId(cliente.id);
+            return;
+          }
+        } catch (error) {
+          console.error('Errore ricerca cliente per email:', error);
+        }
+      }
+      
+      // Nessun cliente trovato
+      setResolvedClienteId(undefined);
+    };
+    
+    resolveClienteId();
+  }, [selectedBookingForGallery]);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialParams.page);
   const ITEMS_PER_PAGE = 10;
@@ -2828,7 +2866,7 @@ export default function BookingsManager({
                 ),
                 specialTheme: campaign?.temaStagionale || undefined,
                 bookingId: selectedBookingForGallery.id,
-                clienteId: selectedBookingForGallery.clienteId, // Client association for notifications
+                clienteId: resolvedClienteId, // Client association resolved from booking.clienteId or email lookup
                 clienteEmail: selectedBookingForGallery.cliente.email,
                 clienteNome: `${selectedBookingForGallery.cliente.nome} ${selectedBookingForGallery.cliente.cognome}`,
               };
