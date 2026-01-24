@@ -1034,33 +1034,25 @@ export default function Gallery() {
         const assignedCount = Object.values(photoAssignments).filter(
           assignments => assignments.includes(String(idx))
         ).length;
+        const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+        const isUnlimited = requiredCount <= 0;
 
         return {
           prodottoNome: prod.prodottoNome,
           assignedCount,
-          requiredCount: prod.prodottoNumeroFoto,
-          isMissing: assignedCount < prod.prodottoNumeroFoto,
-          isExceeded: assignedCount > prod.prodottoNumeroFoto
+          requiredCount,
+          isUnlimited,
+          // FIX BUG 1-2: Prodotti illimitati (requiredCount <= 0) non hanno vincoli
+          isMissing: !isUnlimited && assignedCount < requiredCount,
+          isExceeded: !isUnlimited && assignedCount > requiredCount
         };
       });
 
-      // Trova prodotti con troppe foto
-      const exceededProducts = productProgress.filter(p => p.isExceeded);
+      // FIX BUG 3: NON bloccare se ci sono più foto del necessario
+      // Nel multi-product/bundle, avere più foto è permesso (la stessa foto può andare a più prodotti)
+      // Rimuoviamo il check isExceeded - il cliente può assegnare quante foto vuole
 
-      if (exceededProducts.length > 0) {
-        const errorMessage = exceededProducts.map(p =>
-          `• ${p.prodottoNome}: ${p.assignedCount}/${p.requiredCount} foto (${p.assignedCount - p.requiredCount} in eccesso)`
-        ).join('\n');
-
-        toast({
-          title: "⚠️ Troppe foto assegnate",
-          description: `Alcuni prodotti hanno più foto del necessario:\n\n${errorMessage}\n\nRimuovi le foto in eccesso prima di confermare.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Trova prodotti mancanti
+      // Trova solo prodotti mancanti (con limite che non sono soddisfatti)
       const missingProducts = productProgress.filter(p => p.isMissing);
 
       if (missingProducts.length > 0) {
@@ -1080,10 +1072,11 @@ export default function Gallery() {
     }
     // Legacy Single-Product Validation
     else if (requiredPhotoCount > 0) {
-      if (selectedPhotoIds.length !== requiredPhotoCount) {
+      // FIX BUG 4: Permettere >= invece di ==
+      if (selectedPhotoIds.length < requiredPhotoCount) {
         toast({
           title: "⚠️ Selezione incompleta",
-          description: `Devi selezionare esattamente ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
+          description: `Devi selezionare almeno ${requiredPhotoCount} foto (${selectedPhotoIds.length}/${requiredPhotoCount} selezionate).`,
           variant: "destructive",
         });
         return;
@@ -1609,15 +1602,19 @@ export default function Gallery() {
       const assignedCount = Object.values(photoAssignments).filter(
         assignments => assignments.includes(String(idx))
       ).length;
+      const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+      const isUnlimited = requiredCount <= 0;
 
       return {
         prodottoNome: prod.prodottoNome,
         assignedCount,
-        requiredCount: prod.prodottoNumeroFoto,
-        isComplete: assignedCount >= prod.prodottoNumeroFoto,
-        percentage: prod.prodottoNumeroFoto > 0
-          ? Math.round((assignedCount / prod.prodottoNumeroFoto) * 100)
-          : 100
+        requiredCount,
+        isUnlimited,
+        // FIX: Prodotti illimitati sono sempre completi
+        isComplete: isUnlimited || assignedCount >= requiredCount,
+        percentage: isUnlimited 
+          ? 100 
+          : (requiredCount > 0 ? Math.round((assignedCount / requiredCount) * 100) : 100)
       };
     });
   }, [galleryData?.productRequirements, photoAssignments]);
@@ -2595,7 +2592,7 @@ export default function Gallery() {
                                       )}
                                     </div>
                                     <p className="text-lg font-bold text-blue-gray mb-1">
-                                      {progress.assignedCount}/{progress.requiredCount}
+                                      {progress.assignedCount}/{progress.isUnlimited ? '∞' : progress.requiredCount}
                                     </p>
                                     <div className="w-full bg-beige/50 rounded-full h-1.5 overflow-hidden">
                                       <div
@@ -3745,18 +3742,20 @@ export default function Gallery() {
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
                                       (isMultiProductMode && productRequirements
-                                        ? // Multi-product: check all products have required photos
+                                        ? // Multi-product: check all products with limits have required photos
                                           !productRequirements.every((prod, idx) => {
                                             const assignedCount = Object.values(photoAssignments).filter(
                                               assignments => assignments.includes(String(idx))
                                             ).length;
                                             const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
-                                            return assignedCount >= requiredCount;
+                                            // FIX: Prodotti illimitati (<=0) sono sempre OK
+                                            return requiredCount <= 0 || assignedCount >= requiredCount;
                                           })
                                         : // Single-product o unlimited: per unlimited serve almeno 1 foto
                                           isUnlimitedSelection 
                                             ? selectedPhotoIds.length === 0
-                                            : selectedPhotoIds.length !== requiredPhotoCount
+                                            // FIX BUG 4: Coerente con validazione - serve almeno N foto, non esattamente N
+                                            : selectedPhotoIds.length < requiredPhotoCount
                                       )
                                     }
                                     className={`${isUnlimitedSelection ? 'bg-terracotta hover:bg-terracotta/90' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -3782,10 +3781,11 @@ export default function Gallery() {
                                           assignments => assignments.includes(String(idx))
                                         ).length;
                                         const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
-                                        const isComplete = assignedCount >= requiredCount;
+                                        const isUnlimited = requiredCount <= 0;
+                                        const isComplete = isUnlimited || assignedCount >= requiredCount;
                                         return (
                                           <div key={idx} className={isComplete ? 'text-green-600' : 'text-red-600'}>
-                                            {isComplete ? '✓' : '✗'} {prod.prodottoNome}: {assignedCount}/{requiredCount}
+                                            {isComplete ? '✓' : '✗'} {prod.prodottoNome}: {assignedCount}/{isUnlimited ? '∞' : requiredCount}
                                           </div>
                                         );
                                       })}
