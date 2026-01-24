@@ -29,7 +29,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Calendar, Clock, User, Plus, Trash2, Package, ShoppingCart } from 'lucide-react';
+import { Loader2, Calendar, Clock, User, Plus, Trash2, Package, ShoppingCart, Search } from 'lucide-react';
+import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
+import type { Cliente } from '@shared/clienti-types';
 import { format, addMinutes, parseISO, setHours, setMinutes, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -53,10 +55,28 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   
   // Form fields
   const [campaignId, setCampaignId] = useState<string>('');
+  const [selectedClienteId, setSelectedClienteId] = useState<string | undefined>(undefined);
   const [nome, setNome] = useState('');
   const [cognome, setCognome] = useState('');
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  
+  // Handler per selezione cliente esistente
+  const handleClienteSelect = (cliente: Cliente | null) => {
+    if (cliente) {
+      setSelectedClienteId(cliente.id);
+      setNome(cliente.nome || '');
+      setCognome(cliente.cognome || '');
+      setEmail(cliente.email || '');
+      setWhatsapp(cliente.cellulare1 || cliente.cellulare2 || '');
+    } else {
+      setSelectedClienteId(undefined);
+      setNome('');
+      setCognome('');
+      setEmail('');
+      setWhatsapp('');
+    }
+  };
   const [dataShootingDate, setDataShootingDate] = useState<string>('');
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<Array<{
@@ -189,6 +209,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   useEffect(() => {
     if (isOpen) {
       setCampaignId('');
+      setSelectedClienteId(undefined);
       setNome('');
       setCognome('');
       setEmail('');
@@ -442,6 +463,23 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Cerca Cliente Esistente */}
+          <div className="space-y-2">
+            <Label>
+              <Search className="w-4 h-4 inline mr-1" />
+              Cerca Cliente Esistente
+            </Label>
+            <ClientAutocomplete
+              value={selectedClienteId}
+              onSelect={handleClienteSelect}
+              placeholder="Cerca per nome, email o telefono..."
+              enableQuickAdd={false}
+            />
+            <p className="text-xs text-muted-foreground">
+              Cerca un cliente esistente per compilare automaticamente i dati, oppure inserisci manualmente
+            </p>
           </div>
 
           {/* Dati Cliente */}
