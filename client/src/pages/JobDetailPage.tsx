@@ -947,11 +947,24 @@ export default function JobDetailPage() {
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground">
-                                {quote.createdAt && format(
-                                  quote.createdAt instanceof Date ? quote.createdAt : new Date(quote.createdAt as any), 
-                                  'PPP', 
-                                  { locale: it }
-                                )}
+                                {quote.createdAt && (() => {
+                                  try {
+                                    let dateToFormat: Date;
+                                    if (quote.createdAt instanceof Date) {
+                                      dateToFormat = quote.createdAt;
+                                    } else if ((quote.createdAt as any)?.toDate) {
+                                      dateToFormat = (quote.createdAt as any).toDate();
+                                    } else if ((quote.createdAt as any)?._seconds) {
+                                      dateToFormat = new Date((quote.createdAt as any)._seconds * 1000);
+                                    } else {
+                                      dateToFormat = new Date(quote.createdAt as any);
+                                    }
+                                    if (isNaN(dateToFormat.getTime())) return '';
+                                    return format(dateToFormat, 'PPP', { locale: it });
+                                  } catch {
+                                    return '';
+                                  }
+                                })()}
                               </p>
                             </div>
                             <div className="text-right">
@@ -1020,7 +1033,30 @@ export default function JobDetailPage() {
                   <CardContent className="pt-6">
                   <div className="space-y-3">
                     {timelineEvents.slice(0, 10).map((event) => {
-                      const eventDate = event.data?.toDate ? event.data.toDate() : new Date(event.data as any);
+                      // Handle various date formats: Firestore Timestamp, Date, ISO string
+                      let eventDate: Date;
+                      try {
+                        if (event.data?.toDate) {
+                          eventDate = event.data.toDate();
+                        } else if (event.data instanceof Date) {
+                          eventDate = event.data;
+                        } else if (typeof event.data === 'string') {
+                          eventDate = new Date(event.data);
+                        } else if ((event.data as any)?.seconds !== undefined) {
+                          // Firestore Timestamp serialized format (seconds or _seconds)
+                          eventDate = new Date((event.data as any).seconds * 1000);
+                        } else if ((event.data as any)?._seconds !== undefined) {
+                          eventDate = new Date((event.data as any)._seconds * 1000);
+                        } else {
+                          eventDate = new Date();
+                        }
+                        // Validate date
+                        if (isNaN(eventDate.getTime())) {
+                          eventDate = new Date();
+                        }
+                      } catch {
+                        eventDate = new Date();
+                      }
                       const tipoEvento = event.tipo as string;
                       const Icon = tipoEvento === 'consulenza_inviata' || tipoEvento === 'quote_sent' || tipoEvento === 'preventivo_inviato'
                         ? Send 
