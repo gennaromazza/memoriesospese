@@ -3627,12 +3627,19 @@ function CreateOrderDialog({
                             <SelectValue placeholder="Seleziona prodotto" />
                           </SelectTrigger>
                           <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                            {availableProducts.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.nome} - €{p.prezzoFinale.toFixed(2)} (
-                                {p.numeroFoto} foto)
-                              </SelectItem>
-                            ))}
+                            {availableProducts.map((p) => {
+                              // Per bundle: calcola totale foto da bundleItems
+                              const totalPhotos = p.isBundle && p.bundleItems && p.bundleItems.length > 0
+                                ? p.bundleItems.reduce((sum, item) => sum + (item.numeroFoto || 0) * (item.quantita || 1), 0)
+                                : p.numeroFoto;
+                              const photoText = totalPhotos > 0 ? `${totalPhotos} foto` : '∞';
+                              return (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.nome} - €{p.prezzoFinale.toFixed(2)} ({photoText})
+                                  {p.isBundle && ' 📦'}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>

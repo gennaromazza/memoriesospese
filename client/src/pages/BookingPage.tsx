@@ -1214,12 +1214,46 @@ export default function BookingPage() {
                                     )}
                                   </div>
 
-                                  {/* Info aggiuntive */}
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Package className="h-4 w-4" />
-                                    <span>
-                                      {product.numeroFoto} foto incluse
-                                    </span>
+                                  {/* Info aggiuntive - Foto e Bundle Items */}
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <Package className="h-4 w-4" />
+                                      <span>
+                                        {/* Per bundle: calcola totale foto da bundleItems, altrimenti usa numeroFoto */}
+                                        {product.isBundle && product.bundleItems && product.bundleItems.length > 0
+                                          ? (() => {
+                                              const totalPhotos = product.bundleItems.reduce(
+                                                (sum, item) => sum + (item.numeroFoto || 0) * (item.quantita || 1),
+                                                0
+                                              );
+                                              return totalPhotos > 0 ? `${totalPhotos} foto incluse` : '∞ Selezione libera';
+                                            })()
+                                          : product.numeroFoto > 0 
+                                            ? `${product.numeroFoto} foto incluse`
+                                            : '∞ Selezione libera'
+                                        }
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Mostra prodotti inclusi nel bundle */}
+                                    {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
+                                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                          📦 Include:
+                                        </p>
+                                        <ul className="text-xs text-muted-foreground space-y-0.5">
+                                          {product.bundleItems.map((item, idx) => (
+                                            <li key={idx} className="flex items-center gap-1">
+                                              <span>•</span>
+                                              <span>
+                                                {item.quantita > 1 ? `${item.quantita}x ` : ''}{item.prodottoNome}
+                                                {item.numeroFoto > 0 ? ` (${item.numeroFoto} foto)` : ' (∞)'}
+                                              </span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </CardContent>
