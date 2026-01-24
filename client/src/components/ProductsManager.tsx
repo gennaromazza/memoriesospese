@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,7 +55,7 @@ import {
   useProductCategories,
   useReorderProducts,
 } from '@/lib/products';
-import type { Product, InsertProduct, ProductCategory } from '@shared/booking-types';
+import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 
 interface SortableProductCardProps {
   product: Product;
@@ -97,8 +97,14 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
             <GripVertical className="h-5 w-5 text-muted-foreground" />
           </div>
           <div className="flex-1">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               {product.nome}
+              {product.isBundle && (
+                <Badge variant="default" className="text-xs bg-blue-600">
+                  <Layers className="h-3 w-3 mr-1" />
+                  Bundle
+                </Badge>
+              )}
               {!product.attivo && (
                 <Badge variant="secondary" className="text-xs">
                   Disattivo
@@ -107,6 +113,11 @@ function SortableProductCard({ product, categories, onEdit, onDelete }: Sortable
             </CardTitle>
             <CardDescription className="mt-1">
               {categories.find((c) => c.value === product.categoria)?.nome || product.categoria}
+              {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
+                <span className="text-xs ml-2">
+                  ({product.bundleItems.length} prodotti inclusi)
+                </span>
+              )}
             </CardDescription>
           </div>
         </div>
@@ -210,7 +221,13 @@ export default function ProductsManager() {
     categoria: 'album',
     attivo: true,
     immagini: [],
+    isBundle: false,
+    bundleItems: [],
   });
+  
+  // Bundle product search state
+  const [bundleSearchTerm, setBundleSearchTerm] = useState('');
+  const [bundleCategoryFilter, setBundleCategoryFilter] = useState<string | null>(null);
 
   // Upload immagini
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -325,11 +342,15 @@ export default function ProductsManager() {
       prezzo: 0,
       sconto: 0,
       numeroFoto: 0,
-      categoria: activeCategories[0]?.value || '', // Prima categoria attiva disponibile o stringa vuota
+      categoria: activeCategories[0]?.value || '',
       attivo: true,
       immagini: [],
+      isBundle: false,
+      bundleItems: [],
     });
     setProductImages([]);
+    setBundleSearchTerm('');
+    setBundleCategoryFilter(null);
     setIsDialogOpen(true);
   }
 
@@ -344,8 +365,12 @@ export default function ProductsManager() {
       categoria: product.categoria,
       attivo: product.attivo,
       immagini: product.immagini || [],
+      isBundle: product.isBundle || false,
+      bundleItems: product.bundleItems || [],
     });
     setProductImages(product.immagini || []);
+    setBundleSearchTerm('');
+    setBundleCategoryFilter(null);
     setIsDialogOpen(true);
   }
 
@@ -434,6 +459,87 @@ export default function ProductsManager() {
     setFormData({ ...formData, immagini: newImages });
   }
 
+  // Bundle management functions
+  function addProductToBundle(product: Product) {
+    // Prevent adding the same product or current editing product
+    if (editingProduct && product.id === editingProduct.id) {
+      toast({
+        title: 'Non consentito',
+        description: 'Non puoi aggiungere un bundle a se stesso',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Prevent adding bundles to bundles (no nesting)
+    if (product.isBundle) {
+      toast({
+        title: 'Non consentito',
+        description: 'Non puoi aggiungere un bundle dentro un altro bundle',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Check if already in bundle
+    if (formData.bundleItems?.some(item => item.prodottoId === product.id)) {
+      toast({
+        title: 'Prodotto già presente',
+        description: 'Questo prodotto è già nel bundle',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const newBundleItem: BundleItem = {
+      prodottoId: product.id,
+      prodottoNome: product.nome,
+      prodottoCategoria: product.categoria,
+      quantita: 1,
+      numeroFoto: product.numeroFoto,
+    };
+    
+    setFormData({
+      ...formData,
+      bundleItems: [...(formData.bundleItems || []), newBundleItem],
+    });
+    setBundleSearchTerm('');
+  }
+  
+  function removeProductFromBundle(prodottoId: string) {
+    setFormData({
+      ...formData,
+      bundleItems: formData.bundleItems?.filter(item => item.prodottoId !== prodottoId) || [],
+    });
+  }
+  
+  function updateBundleItem(prodottoId: string, updates: Partial<BundleItem>) {
+    setFormData({
+      ...formData,
+      bundleItems: formData.bundleItems?.map(item => 
+        item.prodottoId === prodottoId ? { ...item, ...updates } : item
+      ) || [],
+    });
+  }
+  
+  // Filter products for bundle selection (exclude bundles and current product)
+  const availableProductsForBundle = products.filter(p => {
+    // Exclude bundles
+    if (p.isBundle) return false;
+    // Exclude current editing product
+    if (editingProduct && p.id === editingProduct.id) return false;
+    // Exclude already added products
+    if (formData.bundleItems?.some(item => item.prodottoId === p.id)) return false;
+    // Apply search filter
+    if (bundleSearchTerm && !p.nome.toLowerCase().includes(bundleSearchTerm.toLowerCase())) return false;
+    // Apply category filter
+    if (bundleCategoryFilter && p.categoria !== bundleCategoryFilter) return false;
+    return true;
+  });
+  
+  // Calculate total photos in bundle
+  const totalBundlePhotos = formData.bundleItems?.reduce((sum, item) => sum + (item.numeroFoto * item.quantita), 0) || 0;
+
   async function handleSave() {
     // Validazione
     if (!formData.nome.trim()) {
@@ -467,6 +573,16 @@ export default function ProductsManager() {
       toast({
         title: 'Errore',
         description: 'Il numero di foto non può essere negativo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Bundle validation
+    if (formData.isBundle && (!formData.bundleItems || formData.bundleItems.length === 0)) {
+      toast({
+        title: 'Errore',
+        description: 'Un bundle deve contenere almeno un prodotto',
         variant: 'destructive',
       });
       return;
@@ -886,6 +1002,165 @@ export default function ProductsManager() {
                 data-testid="switch-product-active"
               />
             </div>
+
+            {/* Bundle Toggle */}
+            <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div>
+                <Label htmlFor="isBundle" className="text-sm font-medium flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-600" />
+                  È un Bundle
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Attiva per creare un pacchetto che contiene più prodotti
+                </p>
+              </div>
+              <Switch
+                id="isBundle"
+                checked={formData.isBundle || false}
+                onCheckedChange={checked => {
+                  setFormData({ 
+                    ...formData, 
+                    isBundle: checked,
+                    bundleItems: checked ? formData.bundleItems : [],
+                  });
+                }}
+                data-testid="switch-is-bundle"
+              />
+            </div>
+
+            {/* Bundle Products Section */}
+            {formData.isBundle && (
+              <div className="space-y-4 pt-4 border-t border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Prodotti nel Bundle
+                  </Label>
+                  <Badge variant="secondary">
+                    {formData.bundleItems?.length || 0} prodotti - {totalBundlePhotos} foto totali
+                  </Badge>
+                </div>
+
+                {/* Current bundle items */}
+                {formData.bundleItems && formData.bundleItems.length > 0 && (
+                  <div className="space-y-2">
+                    {formData.bundleItems.map((item) => (
+                      <div 
+                        key={item.prodottoId} 
+                        className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{item.prodottoNome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {allCategories.find(c => c.value === item.prodottoCategoria)?.nome || item.prodottoCategoria}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Qtà:</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantita}
+                              onChange={(e) => updateBundleItem(item.prodottoId, { 
+                                quantita: parseInt(e.target.value) || 1 
+                              })}
+                              className="w-16 h-8 text-center"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">Foto:</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={item.numeroFoto}
+                              onChange={(e) => updateBundleItem(item.prodottoId, { 
+                                numeroFoto: parseInt(e.target.value) || 0 
+                              })}
+                              className="w-16 h-8 text-center"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeProductFromBundle(item.prodottoId)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Search and add products */}
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cerca prodotto..."
+                        value={bundleSearchTerm}
+                        onChange={(e) => setBundleSearchTerm(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select
+                      value={bundleCategoryFilter || 'all'}
+                      onValueChange={(value) => setBundleCategoryFilter(value === 'all' ? null : value)}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tutte</SelectItem>
+                        {activeCategories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.value}>
+                            {cat.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Available products list */}
+                  {(bundleSearchTerm || bundleCategoryFilter) && availableProductsForBundle.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto border rounded-lg">
+                      {availableProductsForBundle.slice(0, 10).map((product) => (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() => addProductToBundle(product)}
+                          className="w-full flex items-center justify-between p-2 hover:bg-muted text-left border-b last:border-b-0"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{product.nome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {allCategories.find(c => c.value === product.categoria)?.nome} - {product.numeroFoto} foto
+                            </p>
+                          </div>
+                          <Plus className="h-4 w-4 text-primary" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {(bundleSearchTerm || bundleCategoryFilter) && availableProductsForBundle.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nessun prodotto trovato
+                    </p>
+                  )}
+
+                  {!bundleSearchTerm && !bundleCategoryFilter && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Usa la ricerca o seleziona una categoria per trovare i prodotti da aggiungere
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

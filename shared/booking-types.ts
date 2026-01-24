@@ -9,6 +9,18 @@ import { WorkflowState } from './schema';
 /**
  * PRODUCTS - Catalogo prodotti fotografici
  */
+
+/**
+ * BUNDLE ITEM - Singolo prodotto contenuto in un bundle
+ */
+export interface BundleItem {
+  prodottoId: string;        // ID prodotto figlio
+  prodottoNome: string;      // Nome prodotto (snapshot per visualizzazione)
+  prodottoCategoria?: string; // Categoria prodotto (snapshot)
+  quantita: number;          // Quantità (es. 2x Stampe)
+  numeroFoto: number;        // Numero foto assegnabili a questo prodotto nel bundle
+}
+
 export interface Product {
   id: string;
   nome: string;
@@ -21,6 +33,9 @@ export interface Product {
   attivo: boolean;
   immagini: string[]; // Array URLs immagini prodotto da Firebase Storage
   displayOrder?: number; // Ordine di visualizzazione (opzionale per backward compatibility)
+  // Bundle fields
+  isBundle?: boolean; // true = questo prodotto è un bundle contenente altri prodotti
+  bundleItems?: BundleItem[]; // Prodotti contenuti nel bundle (solo se isBundle = true)
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -34,6 +49,9 @@ export interface InsertProduct {
   categoria: string; // Riferimento a ProductCategory.value
   attivo: boolean;
   immagini?: string[]; // Opzionale in fase di creazione
+  // Bundle fields
+  isBundle?: boolean;
+  bundleItems?: BundleItem[];
 }
 
 /**
@@ -301,6 +319,10 @@ export interface PhotoSelection {
   galleryId: string; // Galleria di appartenenza
   orderId?: string; // Opzionale - collegamento a ordine specifico
   
+  // Bundle product assignment (per distribuzione foto nei bundle)
+  bundleProductId?: string; // ID del prodotto nel bundle a cui è assegnata la foto
+  bundleProductName?: string; // Nome prodotto bundle (per display)
+  
   // Foto selezionata
   photoId: string; // ID documento in collection photos
   photoName: string; // Nome file per export Lightroom
@@ -316,6 +338,8 @@ export interface PhotoSelection {
 export interface InsertPhotoSelection {
   galleryId: string;
   orderId?: string;
+  bundleProductId?: string; // Per assegnazione a prodotto bundle
+  bundleProductName?: string;
   photoId: string;
   photoName: string;
   photoUrl: string;
