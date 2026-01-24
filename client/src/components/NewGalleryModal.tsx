@@ -116,6 +116,8 @@ interface NewGalleryModalProps {
       prodottoId?: string;
       prodottoNome: string;
       prodottoNumeroFoto?: number;
+      isFromBundle?: boolean; // Flag to indicate product came from bundle expansion
+      bundleParentName?: string; // Original bundle name for reference
     }>;
   };
 }
@@ -170,14 +172,28 @@ export default function NewGalleryModal({
   // CRITICAL: Reset selectedProductIndices AND selection state when booking changes
   // NOTE: youtubeUrls is NOT reset here as it's independent of booking context
   useEffect(() => {
-    setSelectedProductIndices([]);
+    // Check if any products come from a bundle
+    const hasProductsFromBundle = prePopulate?.availableProducts?.some(p => p.isFromBundle) || false;
+    
+    if (hasProductsFromBundle && prePopulate?.availableProducts && prePopulate.availableProducts.length > 0) {
+      // AUTO-SELECT all products when they come from a bundle
+      const allIndices = prePopulate.availableProducts.map((_, idx) => idx);
+      setSelectedProductIndices(allIndices);
+      // AUTO-ENABLE selection mode for bundles
+      setSelectionEnabled(true);
+      setUnlimitedSelection(false);
+      console.log("📦 Bundle rilevato: auto-selezionati tutti i", allIndices.length, "prodotti e abilitata selezione");
+    } else {
+      setSelectedProductIndices([]);
+      setSelectionEnabled(false);
+    }
+    
     setIsCustomProduct(false);
-    setSelectionEnabled(false);
     setUnlimitedSelection(false);
     setRequiredPhotoCount(0);
     setProduct(null);
     console.log("🔄 Reset completo stato per nuovo booking");
-  }, [prePopulate?.bookingId]);
+  }, [prePopulate?.bookingId, prePopulate?.availableProducts]);
 
   // Calculate total required photos from selected products
   const calculateTotalPhotos = () => {
@@ -189,6 +205,21 @@ export default function NewGalleryModal({
       return total + (product.prodottoNumeroFoto || 0);
     }, 0);
   };
+  
+  // 🔥 FIX: Update requiredPhotoCount and selectionEnabled when selectedProductIndices changes
+  // This ensures proper photo count is set for both bundle and non-bundle multi-product flows
+  useEffect(() => {
+    if (prePopulate?.availableProducts && selectedProductIndices.length > 0) {
+      const totalPhotos = calculateTotalPhotos();
+      setRequiredPhotoCount(totalPhotos);
+      
+      // Auto-enable selection if products are selected
+      if (!selectionEnabled && totalPhotos > 0) {
+        setSelectionEnabled(true);
+        console.log("📊 Auto-abilitata selezione con", totalPhotos, "foto richieste da", selectedProductIndices.length, "prodotti");
+      }
+    }
+  }, [selectedProductIndices, prePopulate?.availableProducts]);
 
   // Fetch product data when prodottoId is provided OR use custom product data (LEGACY - single product)
   useEffect(() => {
