@@ -140,6 +140,7 @@ export default function NewGalleryModal({
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
   const [clienteId, setClienteId] = useState("");
+  const [importedClienteInfo, setImportedClienteInfo] = useState<{nome: string, cognome: string} | null>(null); // Info cliente importato
   const [clienteIdInitialized, setClienteIdInitialized] = useState<string | null>(null); // Track which booking initialized clienteId
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
@@ -830,6 +831,7 @@ export default function NewGalleryModal({
                         console.log("🔍 Risultato ricerca:", cliente);
                         if (cliente) {
                           setClienteId(cliente.id);
+                          setImportedClienteInfo({ nome: cliente.nome, cognome: cliente.cognome });
                           console.log("✅ ClienteId settato:", cliente.id);
                           toast.success(`Cliente ${cliente.nome} ${cliente.cognome} associato`);
                         } else {
@@ -847,12 +849,55 @@ export default function NewGalleryModal({
                   </Button>
                 )}
               </div>
-              <ClienteSelector
-                value={clienteId}
-                onChange={setClienteId}
-                placeholder="Cerca e seleziona cliente..."
-                showCurrentClient={true}
-              />
+              
+              {/* Mostra cliente importato se presente */}
+              {clienteId && importedClienteInfo && (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm">
+                      {`${importedClienteInfo.nome[0] || ''}${importedClienteInfo.cognome[0] || ''}`.toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {importedClienteInfo.nome} {importedClienteInfo.cognome}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {prePopulate?.clienteEmail || 'Email non disponibile'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Importato
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-red-600 hover:text-red-700"
+                      onClick={() => {
+                        setClienteId("");
+                        setImportedClienteInfo(null);
+                      }}
+                    >
+                      Rimuovi
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Mostra ClienteSelector solo se non c'è un cliente importato */}
+              {!importedClienteInfo && (
+                <ClienteSelector
+                  value={clienteId}
+                  onChange={(id) => {
+                    setClienteId(id);
+                    setImportedClienteInfo(null); // Clear imported info when manually selecting
+                  }}
+                  placeholder="Cerca e seleziona cliente..."
+                  showCurrentClient={true}
+                />
+              )}
             </div>
 
             {/* Password Field - Hidden if special theme is selected */}
