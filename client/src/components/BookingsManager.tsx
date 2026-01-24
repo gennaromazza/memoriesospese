@@ -2896,7 +2896,8 @@ export default function BookingsManager({
                         prodottoNome: orderItemQuantity > 1 
                           ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
                           : orderItem.prodottoNome,
-                        prodottoNumeroFoto: orderItem.prodottoNumeroFoto || undefined,
+                        // FIX: Usa 0 invece di undefined per coerenza (0 = selezione libera)
+                        prodottoNumeroFoto: orderItem.prodottoNumeroFoto ?? 0,
                       });
                     }
                   }

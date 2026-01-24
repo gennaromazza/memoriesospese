@@ -250,14 +250,10 @@ export default function NewGalleryModal({
           numeroFoto,
         } as Product);
 
-        // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
-        if (numeroFoto > 0) {
-          setSelectionEnabled(true);
-          setRequiredPhotoCount(numeroFoto);
-        } else {
-          setSelectionEnabled(false);
-          setRequiredPhotoCount(0);
-        }
+        // CRITICAL: numeroFoto = 0 significa "selezione libera/illimitata" - abilitiamo comunque
+        // Solo se non c'è proprio prodotto disabilitiamo la selezione
+        setSelectionEnabled(true); // Sempre abilitata se c'è un prodotto
+        setRequiredPhotoCount(numeroFoto); // 0 = illimitato, >0 = numero specifico
         return;
       }
 
@@ -269,14 +265,9 @@ export default function NewGalleryModal({
           const productData = await getProductById(prePopulate.prodottoId);
           if (productData) {
             setProduct(productData);
-            // CRITICAL: Gestisci esplicitamente sia numeroFoto > 0 che numeroFoto = 0
-            if (productData.numeroFoto > 0) {
-              setSelectionEnabled(true);
-              setRequiredPhotoCount(productData.numeroFoto);
-            } else {
-              setSelectionEnabled(false);
-              setRequiredPhotoCount(0);
-            }
+            // CRITICAL: numeroFoto = 0 significa "selezione libera/illimitata"
+            setSelectionEnabled(true); // Sempre abilitata se c'è un prodotto
+            setRequiredPhotoCount(productData.numeroFoto); // 0 = illimitato
           } else {
             // CRITICAL: Product lookup returned undefined - pulisci stato selection
             setProduct(null);
@@ -1049,7 +1040,7 @@ export default function NewGalleryModal({
                               {prod.prodottoNumeroFoto &&
                               prod.prodottoNumeroFoto > 0
                                 ? `🎯 ${prod.prodottoNumeroFoto} foto richieste`
-                                : "📎 Nessuna foto richiesta"}
+                                : "∞ Selezione libera"}
                             </p>
                           </div>
                         </div>
@@ -1102,8 +1093,10 @@ export default function NewGalleryModal({
                         <strong>{product.nome}</strong>
                       </p>
                       <p className="text-sm text-gray-600">
-                        🎯 <strong>{product.numeroFoto} foto</strong> richieste
-                        per questo prodotto
+                        {product.numeroFoto > 0 
+                          ? <>🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto</>
+                          : <>∞ <strong>Selezione libera</strong> per questo prodotto</>
+                        }
                       </p>
                       {prePopulate?.specialTheme && (
                         <p className="text-sm text-gray-600">

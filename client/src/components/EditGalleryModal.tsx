@@ -1764,7 +1764,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                                     )}
                                   </div>
                                   <p className="text-xs text-gray-600">
-                                    🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto
+                                    {product.numeroFoto > 0 
+                                      ? <>🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto</>
+                                      : <>∞ <strong>Selezione libera</strong> per questo prodotto</>
+                                    }
                                   </p>
                                   {product.isCustom && (
                                     <p className="text-xs text-gray-500 mt-1 italic">
