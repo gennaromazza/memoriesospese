@@ -834,4 +834,134 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
   }
 });
 
+/**
+ * POST /api/orders/sync-bundle-data
+ * Sincronizza i dati bundle negli ordini esistenti con i prodotti attuali del catalogo
+ * RICHIEDE AUTENTICAZIONE: Solo admin
+ */
+router.post('/sync-bundle-data', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    const userEmail = req.user?.email;
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail)) {
+      return res.status(403).json({
+        error: 'Solo gli admin possono sincronizzare i dati bundle'
+      });
+    }
+
+    console.log('🔄 Inizio sincronizzazione dati bundle negli ordini...');
+
+    // 1. Recupera tutti i prodotti bundle dal catalogo
+    const productsSnapshot = await db.collection('products').where('isBundle', '==', true).get();
+    const bundleProducts = new Map<string, any>();
+    
+    productsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      bundleProducts.set(doc.id, {
+        id: doc.id,
+        nome: data.nome,
+        isBundle: true,
+        bundleItems: data.bundleItems || []
+      });
+    });
+
+    console.log(`📦 Trovati ${bundleProducts.size} prodotti bundle nel catalogo`);
+
+    if (bundleProducts.size === 0) {
+      return res.json({
+        success: true,
+        message: 'Nessun prodotto bundle trovato nel catalogo',
+        ordersUpdated: 0,
+        productsUpdated: 0
+      });
+    }
+
+    // 2. Recupera tutti gli ordini e aggiorna in batch
+    const ordersSnapshot = await db.collection('orders').get();
+    let ordersUpdated = 0;
+    let productsUpdated = 0;
+    
+    // Processa in batch di 400 per evitare timeout
+    const BATCH_SIZE = 400;
+    let batch = db.batch();
+    let batchCount = 0;
+
+    for (const orderDoc of ordersSnapshot.docs) {
+      const orderData = orderDoc.data();
+      const prodotti = orderData.prodotti || [];
+      let orderNeedsUpdate = false;
+      const updatedProdotti = [...prodotti];
+
+      for (let i = 0; i < updatedProdotti.length; i++) {
+        const prodotto = updatedProdotti[i];
+        const prodottoId = prodotto.prodottoId;
+
+        if (prodottoId && bundleProducts.has(prodottoId)) {
+          const bundleData = bundleProducts.get(prodottoId);
+          const newBundleItems = bundleData.bundleItems.map((item: any) => ({
+            prodottoId: item.prodottoId,
+            prodottoNome: item.prodottoNome,
+            quantita: item.quantita || 1,
+            numeroFoto: item.numeroFoto || 0
+          }));
+          
+          // Aggiorna sempre con i dati attuali del catalogo (sincronizza anche dati stale)
+          const currentBundleItems = JSON.stringify(prodotto.bundleItems || []);
+          const catalogBundleItems = JSON.stringify(newBundleItems);
+          
+          if (!prodotto.isBundle || currentBundleItems !== catalogBundleItems) {
+            updatedProdotti[i] = {
+              ...prodotto,
+              isBundle: true,
+              bundleItems: newBundleItems
+            };
+            orderNeedsUpdate = true;
+            productsUpdated++;
+            console.log(`  ✓ Ordine ${orderDoc.id}: sincronizzato prodotto "${prodotto.prodottoNome}" con dati bundle attuali`);
+          }
+        }
+      }
+
+      if (orderNeedsUpdate) {
+        batch.update(db.collection('orders').doc(orderDoc.id), {
+          prodotti: updatedProdotti,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        batchCount++;
+        ordersUpdated++;
+        
+        // Commit batch quando raggiunge il limite
+        if (batchCount >= BATCH_SIZE) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+          console.log(`  📦 Committato batch di ${BATCH_SIZE} ordini`);
+        }
+      }
+    }
+    
+    // Commit ultimo batch se ci sono operazioni pendenti
+    if (batchCount > 0) {
+      await batch.commit();
+      console.log(`  📦 Committato batch finale di ${batchCount} ordini`);
+    }
+
+    console.log(`✅ Sincronizzazione completata: ${ordersUpdated} ordini aggiornati, ${productsUpdated} prodotti sincronizzati`);
+
+    res.json({
+      success: true,
+      message: `Sincronizzazione completata`,
+      ordersUpdated,
+      productsUpdated,
+      bundleProductsInCatalog: bundleProducts.size
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore sincronizzazione dati bundle:', error);
+    res.status(500).json({
+      error: 'Errore sincronizzazione dati bundle',
+      details: error.message
+    });
+  }
+});
+
 export default router;

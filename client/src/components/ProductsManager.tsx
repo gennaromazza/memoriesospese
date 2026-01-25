@@ -3,13 +3,13 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import imageCompression from 'browser-image-compression';
-import { storage } from '@/lib/firebase';
+import { storage, auth } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   DndContext,
@@ -210,6 +210,7 @@ export default function ProductsManager() {
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [isSyncingBundles, setIsSyncingBundles] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState<InsertProduct>({
@@ -664,6 +665,51 @@ export default function ProductsManager() {
 
   const prezzoFinale = formData.prezzo - (formData.prezzo * formData.sconto / 100);
 
+  // Sincronizza dati bundle negli ordini esistenti
+  async function handleSyncBundles() {
+    // Verifica che l'utente sia loggato
+    if (!auth.currentUser) {
+      toast({
+        title: 'Errore',
+        description: 'Devi essere autenticato per sincronizzare i dati',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSyncingBundles(true);
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/orders/sync-bundle-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Errore sincronizzazione');
+      }
+      
+      toast({
+        title: 'Sincronizzazione completata',
+        description: `${data.ordersUpdated} ordini aggiornati, ${data.productsUpdated} prodotti sincronizzati`,
+      });
+    } catch (error: any) {
+      console.error('Errore sincronizzazione bundle:', error);
+      toast({
+        title: 'Errore',
+        description: error.message || 'Impossibile sincronizzare i dati bundle',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncingBundles(false);
+    }
+  }
+
   // Filtra prodotti per categoria
   const filteredProducts = products.filter(p => 
     categoryFilter === null || p.categoria === categoryFilter
@@ -697,10 +743,21 @@ export default function ProductsManager() {
             Gestisci i prodotti fotografici disponibili per le prenotazioni
           </p>
         </div>
-        <Button onClick={openCreateDialog} data-testid="button-create-product">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Prodotto
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleSyncBundles} 
+            disabled={isSyncingBundles}
+            title="Sincronizza i dati bundle negli ordini esistenti"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncingBundles ? 'animate-spin' : ''}`} />
+            {isSyncingBundles ? 'Sincronizzando...' : 'Sincronizza Bundle'}
+          </Button>
+          <Button onClick={openCreateDialog} data-testid="button-create-product">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Prodotto
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
