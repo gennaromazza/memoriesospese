@@ -1,0 +1,87 @@
+CONTESTO
+Sto sviluppando una webapp gestionale per uno studio fotografico.
+Esistono già:
+- Jobs (lavori)
+- Prenotazioni / Booking
+- Workflow e stati per Job e Booking (non è garantito che siano centralizzati in un solo punto)
+- Sistema di cassa / contabilità con tipologie di spesa
+
+OBIETTIVO
+Progettare e implementare un sistema di “Invio a Fornitore / Laboratorio” integrato nella piattaforma, che permetta:
+- caricare file (.jpg, .pdf, ecc.)
+- associare l’invio a un Job o a una Prenotazione
+- inviare una email al fornitore con link ai file
+- tracciare stato, fornitore e costi
+
+REQUISITI FUNZIONALI
+
+1) FORNITORI
+Creare un pannello impostazioni “Fornitori” (suppliers) con:
+- nome fornitore
+- email
+- attivo / disattivo
+- note
+I fornitori devono essere selezionabili sia nei Job che nelle Prenotazioni.
+
+2) INVIO A FORNITORE
+Implementare un modulo riutilizzabile (NON duplicato) che:
+- possa essere usato sia in Job Details che in Booking Details
+- permetta di:
+  - selezionare un fornitore
+  - caricare file su storage
+  - scrivere note
+  - generare un link di download
+  - inviare una email al fornitore con il link
+- supporti più invii per lo stesso Job / Booking (es. ristampa, secondo fornitore)
+
+3) MODELLAZIONE DATI
+Valutare se introdurre una nuova entità dedicata (es. PrintOrder / SupplierOrder) invece di salvare tutto dentro Job o Booking.
+Questa entità deve poter riferirsi a:
+- Job oppure Booking (targetType + targetId)
+
+4) GESTIONE STATI (PUNTO CRITICO)
+Il sistema di stati di Job e Booking potrebbe NON essere centralizzato.
+Analizzare l’architettura esistente e:
+- evitare di rompere gli stati attuali
+- valutare se lo stato “Stampa inviata a {fornitore}” debba:
+  a) essere uno stato nativo
+  b) essere derivato da un modulo esterno (consigliato)
+L’obiettivo è mostrare chiaramente nello UI:
+“Stampa inviata a {Nome Fornitore} – link disponibile”
+
+5) STORAGE
+Definire una struttura ordinata per i file caricati (per invio a fornitore).
+I file non devono essere sparsi o duplicati inutilmente.
+
+6) EMAIL
+L’email serve solo come notifica.
+I file NON devono essere allegati, ma scaricabili tramite link.
+
+7) INTEGRAZIONE CON CASSA / CONTABILITÀ
+Esiste già un sistema di cassa.
+Aggiungere (o usare se già esiste) una tipologia di spesa:
+- “Fornitori”
+Ogni invio a fornitore deve poter:
+- registrare un costo
+- essere associato al fornitore
+- permettere report annuali:
+  - spesa totale per fornitore
+  - spesa totale per anno
+
+OBIETTIVI DI PROGETTAZIONE
+- Nessuna duplicazione tra Job e Booking
+- Modulo riutilizzabile
+- Scalabile (più fornitori, più invii)
+- Manutenibile
+- Pronto per future estensioni (accesso fornitori, download tracking, versioni file)
+
+OUTPUT ATTESO
+- proposta architetturale
+- schema dati (Firestore / DB)
+- struttura storage
+- suggerimenti per integrazione stati
+- indicazioni su componenti UI
+- punti di attenzione / rischi architetturali
+
+NON IMPLEMENTARE SOLUZIONI HARD-CODED.
+VALUTARE PRIMA L’ARCHITETTURA ESISTENTE.
