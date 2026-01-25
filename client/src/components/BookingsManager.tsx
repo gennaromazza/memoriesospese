@@ -1693,7 +1693,7 @@ export default function BookingsManager({
                                       {associatedOrder.prodotti.map(
                                         (prodotto, idx) => {
                                           const isBundle = prodotto.isBundle && prodotto.bundleItems && prodotto.bundleItems.length > 0;
-                                          const totalPhotos = isBundle
+                                          const totalPhotos = isBundle && prodotto.bundleItems
                                             ? prodotto.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
                                             : prodotto.prodottoNumeroFoto || 0;
                                           
@@ -1739,7 +1739,7 @@ export default function BookingsManager({
                                               </span>
                                             </div>
                                           </div>
-                                          {isBundle && (
+                                          {isBundle && prodotto.bundleItems && (
                                             <div className="ml-4 mt-1 pl-2 border-l-2 border-amber-200 space-y-1">
                                               {prodotto.bundleItems.map((item: any, itemIdx: number) => (
                                                 <div key={itemIdx} className="text-xs text-gray-600 flex items-center justify-between">
@@ -2563,44 +2563,73 @@ export default function BookingsManager({
                               {isExpanded && (
                                 <div className="px-3 pb-3 space-y-2">
                                   {associatedOrder.prodotti.map(
-                                    (prodotto, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="bg-white border border-blue-100 p-3 rounded-lg"
-                                      >
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                          <div className="flex items-center gap-2">
-                                            <Package className="w-4 h-4 text-sage" />
-                                            <span className="font-medium text-gray-800">
-                                              {prodotto.prodottoNome}
-                                            </span>
-                                            {!prodotto.prodottoId && (
-                                              <Badge
-                                                variant="outline"
-                                                className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
-                                              >
-                                                Custom
-                                              </Badge>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center gap-3 text-xs text-gray-600">
-                                            {prodotto.prodottoNumeroFoto && (
-                                              <span className="flex items-center gap-1">
-                                                <ImageIcon className="w-3 h-3" />
-                                                {prodotto.prodottoNumeroFoto}{" "}
-                                                foto
+                                    (prodotto, idx) => {
+                                      const isBundle = prodotto.isBundle && prodotto.bundleItems && prodotto.bundleItems.length > 0;
+                                      const totalPhotos = isBundle && prodotto.bundleItems
+                                        ? prodotto.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                                        : prodotto.prodottoNumeroFoto || 0;
+                                      
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="bg-white border border-blue-100 p-3 rounded-lg"
+                                        >
+                                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <Package className="w-4 h-4 text-sage" />
+                                              <span className="font-medium text-gray-800">
+                                                {prodotto.prodottoNome}
                                               </span>
-                                            )}
-                                            <span className="font-semibold text-sage">
-                                              €
-                                              {prodotto.prodottoPrezzo.toFixed(
-                                                2,
+                                              {isBundle && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-amber-50 text-amber-700 border-amber-200 text-xs"
+                                                >
+                                                  📦 Bundle
+                                                </Badge>
                                               )}
-                                            </span>
+                                              {!prodotto.prodottoId && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
+                                                >
+                                                  Custom
+                                                </Badge>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs text-gray-600">
+                                              {totalPhotos > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                  <ImageIcon className="w-3 h-3" />
+                                                  {totalPhotos} foto
+                                                </span>
+                                              )}
+                                              <span className="font-semibold text-sage">
+                                                €{prodotto.prodottoPrezzo.toFixed(2)}
+                                              </span>
+                                            </div>
                                           </div>
+                                          {isBundle && prodotto.bundleItems && (
+                                            <div className="mt-2 pl-6 space-y-1 border-l-2 border-amber-200">
+                                              {prodotto.bundleItems.map((item, itemIdx) => (
+                                                <div key={itemIdx} className="flex items-center justify-between text-xs text-gray-600">
+                                                  <span className="flex items-center gap-1">
+                                                    <span className="text-amber-500">└</span>
+                                                    {item.prodottoNome}
+                                                    {item.quantita > 1 && <span className="text-gray-400 ml-1">x{item.quantita}</span>}
+                                                  </span>
+                                                  {item.numeroFoto > 0 && (
+                                                    <span className="text-gray-500">
+                                                      {item.numeroFoto * item.quantita} foto
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
-                                      </div>
-                                    ),
+                                      );
+                                    },
                                   )}
                                 </div>
                               )}
