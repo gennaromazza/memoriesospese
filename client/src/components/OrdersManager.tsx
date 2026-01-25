@@ -603,9 +603,26 @@ export function OrdersManager({
     message += `*PRODOTTI*\n`;
     order.prodotti.forEach((p, i) => {
       const subtotale = p.prodottoPrezzo * p.quantita;
-      const customLabel = (p.isCustom || p.prodottoId?.startsWith('custom_')) ? ' (Personalizzato)' : '';
-      message += `${i + 1}. ${p.prodottoNome}${customLabel}\n`;
+      const isBundle = p.isBundle && p.bundleItems && p.bundleItems.length > 0;
+      const customLabel = (p.isCustom || p.prodottoId?.startsWith('custom_')) && !isBundle ? ' (Personalizzato)' : '';
+      const bundleLabel = isBundle ? ' 📦' : '';
+      
+      // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
+      const totalPhotos = isBundle && p.bundleItems
+        ? p.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+        : p.prodottoNumeroFoto || 0;
+      const photoLabel = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
+      
+      message += `${i + 1}. ${p.prodottoNome}${bundleLabel}${customLabel}${photoLabel}\n`;
       message += `   ${p.quantita}x ${formatCurrency(p.prodottoPrezzo)} = ${formatCurrency(subtotale)}\n`;
+      
+      // Se è un bundle, elenca i prodotti inclusi
+      if (isBundle && p.bundleItems) {
+        p.bundleItems.forEach((item: any) => {
+          const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
+          message += `   └ ${item.prodottoNome}${item.quantita > 1 ? ` x${item.quantita}` : ''}${itemPhotos}\n`;
+        });
+      }
     });
     
     message += `\n*RIEPILOGO PAGAMENTI*\n`;
@@ -926,25 +943,48 @@ export function OrdersManager({
               <div>
                 <h3 className="font-semibold mb-2">Prodotti ({selectedOrder.prodotti.length})</h3>
                 <div className="space-y-2">
-                  {selectedOrder.prodotti.map((prodotto, index) => (
+                  {selectedOrder.prodotti.map((prodotto, index) => {
+                    const isBundle = prodotto.isBundle && prodotto.bundleItems && prodotto.bundleItems.length > 0;
+                    const totalPhotos = isBundle && prodotto.bundleItems
+                      ? prodotto.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                      : prodotto.prodottoNumeroFoto || 0;
+                    
+                    return (
                     <Card key={index} className="p-3">
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <p><strong>{prodotto.prodottoNome}</strong></p>
-                          {(prodotto.isCustom || prodotto.prodottoId?.startsWith('custom_')) && (
+                          {isBundle && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                              📦 Bundle
+                            </span>
+                          )}
+                          {(prodotto.isCustom || prodotto.prodottoId?.startsWith('custom_')) && !isBundle && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                               Personalizzato
                             </span>
                           )}
                         </div>
                         <p>Prezzo: {formatCurrency(prodotto.prodottoPrezzo)} × {prodotto.quantita}</p>
-                        <p>Numero Foto: {prodotto.prodottoNumeroFoto}</p>
+                        <p>Numero Foto: {totalPhotos}</p>
                         <p className="font-semibold">
                           Subtotale: {formatCurrency(prodotto.prodottoPrezzo * prodotto.quantita)}
                         </p>
+                        {isBundle && prodotto.bundleItems && (
+                          <div className="mt-2 pl-3 border-l-2 border-amber-200 space-y-1">
+                            <p className="text-xs text-gray-500 italic">Prodotti inclusi nel bundle:</p>
+                            {prodotto.bundleItems.map((item: any, itemIdx: number) => (
+                              <p key={itemIdx} className="text-xs text-gray-600">
+                                └ {item.prodottoNome}{item.quantita > 1 ? ` x${item.quantita}` : ''} 
+                                {item.numeroFoto > 0 && <span className="text-gray-400 ml-1">({item.numeroFoto * item.quantita} foto)</span>}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </Card>
-                  ))}
+                  )})}
+                  
                   {selectedOrder.galleryId && (
                     <p className="text-sm text-muted-foreground mt-2">
                       <strong>Galleria:</strong> {selectedOrder.galleryId}

@@ -78,16 +78,42 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Ordine</h3>
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
-            ${prodotti.map((p: any) => `
+            ${prodotti.map((p: any) => {
+              // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
+              let totalPhotos = 0;
+              if (p.isBundle && p.bundleItems && p.bundleItems.length > 0) {
+                totalPhotos = p.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0);
+              } else {
+                totalPhotos = p.prodottoNumeroFoto || 0;
+              }
+              
+              const bundleIcon = p.isBundle ? ' 📦' : '';
+              const photoText = totalPhotos > 0 ? `<br/><span style="color: #999; font-size: 12px;">${totalPhotos} foto</span>` : '';
+              
+              // Se è un bundle, mostra i prodotti inclusi
+              let bundleItemsHtml = '';
+              if (p.isBundle && p.bundleItems && p.bundleItems.length > 0) {
+                bundleItemsHtml = '<div style="margin-top: 8px; padding: 8px; background: #f8f5f0; border-radius: 4px;">' +
+                  '<span style="font-size: 11px; color: #666; font-style: italic;">Prodotti inclusi:</span>' +
+                  p.bundleItems.map((item: any) => {
+                    const itemQty = item.quantita > 1 ? ` x${item.quantita}` : '';
+                    const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
+                    return `<br/><span style="font-size: 12px; color: #555;">└ ${item.prodottoNome}${itemQty}${itemPhotos}</span>`;
+                  }).join('') +
+                  '</div>';
+              }
+              
+              return `
               <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 8px 0;">
-                  ${p.prodottoNome} (x${p.quantita})
+                  ${p.prodottoNome} (x${p.quantita})${bundleIcon}
                   ${!p.prodottoId ? '<span style="background: #dbeafe; color: #1e40af; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-left: 5px;">Custom</span>' : ''}
-                  ${p.prodottoNumeroFoto > 0 ? `<br/><span style="color: #999; font-size: 12px;">${p.prodottoNumeroFoto} foto</span>` : ''}
+                  ${photoText}
+                  ${bundleItemsHtml}
                 </td>
-                <td style="padding: 8px 0; text-align: right;">${formatCurrency(p.prodottoPrezzo * p.quantita)}</td>
+                <td style="padding: 8px 0; text-align: right; vertical-align: top;">${formatCurrency(p.prodottoPrezzo * p.quantita)}</td>
               </tr>
-            `).join('')}
+            `}).join('')}
             <tr style="border-top: 2px solid #8b5a3c; font-weight: bold;">
               <td style="padding: 12px 0;">Totale:</td>
               <td style="padding: 12px 0; text-align: right; color: #8b5a3c; font-size: 18px;">${formatCurrency(totale)}</td>

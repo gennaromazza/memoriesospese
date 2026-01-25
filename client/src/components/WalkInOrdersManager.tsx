@@ -3,7 +3,7 @@
  * Basato sulla logica di BookingsManager per gestione pagamenti
  */
 
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Timestamp } from 'firebase/firestore';
@@ -893,12 +893,27 @@ export default function WalkInOrdersManager() {
                         </tr>
                       </thead>
                       <tbody>
-                        {order.prodotti?.map((p: any, idx: number) => (
-                          <tr key={idx} className="border-t" data-testid={`order-detail-product-${idx}`}>
+                        {order.prodotti?.map((p: any, idx: number) => {
+                          const isBundle = p.isBundle && p.bundleItems && p.bundleItems.length > 0;
+                          const totalPhotos = isBundle && p.bundleItems
+                            ? p.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                            : p.prodottoNumeroFoto || 0;
+                          
+                          return (
+                          <Fragment key={idx}>
+                          <tr className="border-t" data-testid={`order-detail-product-${idx}`}>
                             <td className="px-3 py-2">
-                              {p.prodottoNome}
-                              {p.isCustom && (
-                                <span className="ml-1 text-xs text-amber-600">(Custom)</span>
+                              <div className="flex items-center gap-2">
+                                {p.prodottoNome}
+                                {isBundle && (
+                                  <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">📦 Bundle</span>
+                                )}
+                                {p.isCustom && !isBundle && (
+                                  <span className="ml-1 text-xs text-amber-600">(Custom)</span>
+                                )}
+                              </div>
+                              {totalPhotos > 0 && (
+                                <div className="text-xs text-gray-400 mt-0.5">{totalPhotos} foto</div>
                               )}
                             </td>
                             <td className="px-3 py-2 text-center" data-testid={`order-detail-product-qty-${idx}`}>
@@ -911,7 +926,20 @@ export default function WalkInOrdersManager() {
                               {formatCurrency(p.prodottoPrezzo * p.quantita)}
                             </td>
                           </tr>
-                        ))}
+                          {isBundle && p.bundleItems && p.bundleItems.map((item: any, itemIdx: number) => (
+                            <tr key={`${idx}-bundle-${itemIdx}`} className="bg-amber-50/50">
+                              <td colSpan={4} className="px-3 py-1.5 pl-8 text-xs text-gray-600">
+                                <span className="flex items-center justify-between">
+                                  <span>└ {item.prodottoNome}{item.quantita > 1 ? ` x${item.quantita}` : ''}</span>
+                                  {item.numeroFoto > 0 && (
+                                    <span className="text-gray-400">({item.numeroFoto * item.quantita} foto)</span>
+                                  )}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          </Fragment>
+                        )})}
                       </tbody>
                       <tfoot className="bg-gray-50 font-medium">
                         <tr className="border-t">

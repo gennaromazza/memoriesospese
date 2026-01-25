@@ -918,7 +918,7 @@ router.post(
       const subscriptionsResponse = await fetch(subscriptionsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.JSON.stringify(subscriptionsQuery),
+        body: JSON.stringify(subscriptionsQuery),
       });
 
       if (!subscriptionsResponse.ok) {
@@ -1147,6 +1147,87 @@ router.post("/send-gallery-password", async (req, res) => {
 });
 
 /**
+ * Interface per prodotti con bundle
+ */
+interface ProductWithBundle {
+  prodottoNome: string;
+  prodottoPrezzo?: number;
+  prodottoNumeroFoto?: number;
+  quantita?: number;
+  isBundle?: boolean;
+  bundleItems?: Array<{
+    prodottoNome: string;
+    quantita: number;
+    numeroFoto: number;
+  }>;
+}
+
+/**
+ * Helper: Formatta prodotti per email HTML (supporta bundle)
+ * Mostra ogni prodotto con numero foto e, se bundle, elenca i prodotti inclusi
+ */
+function formatProductsForEmail(products: ProductWithBundle[]): string {
+  if (!products || products.length === 0) return '';
+  
+  let html = '<div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">';
+  html += '<h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📦 Prodotti Selezionati</h3>';
+  
+  for (const product of products) {
+    const qty = product.quantita || 1;
+    const qtyStr = qty > 1 ? ` x${qty}` : '';
+    
+    // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
+    let totalPhotos = 0;
+    if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
+      totalPhotos = product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0);
+    } else {
+      totalPhotos = product.prodottoNumeroFoto || 0;
+    }
+    
+    const photoStr = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
+    const bundleIcon = product.isBundle ? ' 📦' : '';
+    
+    html += `<p style="margin: 8px 0; font-weight: 500;">• ${product.prodottoNome}${qtyStr}${photoStr}${bundleIcon}</p>`;
+    
+    // Se è un bundle, elenca i prodotti inclusi
+    if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
+      html += '<div style="margin-left: 20px; padding: 10px; background: #f8f5f0; border-radius: 5px; margin-bottom: 10px;">';
+      html += '<p style="margin: 0 0 8px 0; font-size: 13px; color: #666; font-style: italic;">Prodotti inclusi nel bundle:</p>';
+      for (const item of product.bundleItems) {
+        const itemQty = item.quantita > 1 ? ` x${item.quantita}` : '';
+        const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
+        html += `<p style="margin: 4px 0; font-size: 13px; color: #555;">  └ ${item.prodottoNome}${itemQty}${itemPhotos}</p>`;
+      }
+      html += '</div>';
+    }
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+/**
+ * Helper: Formatta prodotto singolo per email (legacy + bundle support)
+ * Usato quando si passa un singolo prodotto invece di un array
+ */
+function formatSingleProductForEmail(
+  productName?: string, 
+  products?: ProductWithBundle[]
+): string {
+  // Se abbiamo prodotti multipli, usa il formatter avanzato
+  if (products && products.length > 0) {
+    return formatProductsForEmail(products);
+  }
+  
+  // Fallback: prodotto singolo legacy
+  if (productName) {
+    return `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>`;
+  }
+  
+  return '';
+}
+
+/**
  * Template HTML per email prenotazione ricevuta (in_attesa)
  */
 export function createBookingReceivedEmailHTML(
@@ -1157,7 +1238,8 @@ export function createBookingReceivedEmailHTML(
   duration: number,
   productName?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  calendarLink?: string,
+  products?: ProductWithBundle[]
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio Fotografico", 
@@ -1165,6 +1247,9 @@ export function createBookingReceivedEmailHTML(
     phone: "+39 334 7103142",
     address: ""
   };
+
+  // Usa la nuova funzione per formattare i prodotti (supporta bundle)
+  const productsHtml = formatSingleProductForEmail(productName, products);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1182,8 +1267,9 @@ export function createBookingReceivedEmailHTML(
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
           <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
           <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${duration} minuti</p>
-          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>` : ''}
         </div>
+
+        ${productsHtml}
 
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #856404;">
@@ -1410,7 +1496,8 @@ export function createBookingConfirmedEmailHTML(
   productName?: string,
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  calendarLink?: string,
+  products?: ProductWithBundle[]
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio Fotografico", 
@@ -1418,6 +1505,9 @@ export function createBookingConfirmedEmailHTML(
     phone: "+39 334 7103142",
     address: ""
   };
+
+  // Usa la nuova funzione per formattare i prodotti (supporta bundle)
+  const productsHtml = formatSingleProductForEmail(productName, products);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1436,9 +1526,10 @@ export function createBookingConfirmedEmailHTML(
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
           <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
           <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${duration} minuti</p>
-          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>` : ''}
           ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
         </div>
+
+        ${productsHtml}
 
         <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #155724;">
@@ -1505,7 +1596,8 @@ export function createAdminNotificationEmailHTML(
   bookingTime: string,
   productName?: string,
   notes?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  products?: ProductWithBundle[]
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio Fotografico", 
@@ -1513,6 +1605,9 @@ export function createAdminNotificationEmailHTML(
     phone: "+39 334 7103142",
     address: ""
   };
+
+  // Usa la nuova funzione per formattare i prodotti (supporta bundle)
+  const productsHtml = formatSingleProductForEmail(productName, products);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1536,9 +1631,10 @@ export function createAdminNotificationEmailHTML(
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Prenotazione</h3>
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
           <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
-          ${productName ? `<p style="margin: 8px 0;"><strong>📦 Prodotto:</strong> ${productName}</p>` : ''}
           ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
         </div>
+
+        ${productsHtml}
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">

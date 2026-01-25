@@ -223,6 +223,15 @@ export interface InsertBooking {
 }
 
 /**
+ * Bundle Item - Prodotto incluso in un bundle
+ */
+export interface BundleItemSnapshot {
+  prodottoNome: string;
+  quantita: number;
+  numeroFoto: number;
+}
+
+/**
  * ORDER ITEM - Singolo prodotto in un ordine
  */
 export interface OrderItem {
@@ -232,6 +241,8 @@ export interface OrderItem {
   prodottoNumeroFoto: number; // Snapshot numero foto
   quantita: number; // Default 1
   isCustom?: boolean; // true se prodotto personalizzato (non da catalogo)
+  isBundle?: boolean; // true se è un bundle (pacchetto di più prodotti)
+  bundleItems?: BundleItemSnapshot[]; // Prodotti inclusi nel bundle con snapshot
 }
 
 /**

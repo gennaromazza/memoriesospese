@@ -1204,14 +1204,38 @@ export default function BookingsManager({
     }
     
     const totals = getOrderTotals(order);
-    const prodottoNome = order.prodotti && order.prodotti.length > 0
-      ? order.prodotti.map(p => p.prodottoNome).join(', ')
-      : 'Ordine';
+    
+    // Costruisce lista prodotti con supporto bundle e numero foto
+    let prodottiMsg = '';
+    if (order.prodotti && order.prodotti.length > 0) {
+      order.prodotti.forEach((p, i) => {
+        const isBundle = p.isBundle && p.bundleItems && p.bundleItems.length > 0;
+        const bundleIcon = isBundle ? ' 📦' : '';
+        
+        // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
+        const totalPhotos = isBundle && p.bundleItems
+          ? p.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+          : p.prodottoNumeroFoto || 0;
+        const photoLabel = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
+        
+        prodottiMsg += `${i + 1}. ${p.prodottoNome}${bundleIcon}${photoLabel}\n`;
+        
+        // Se è un bundle, elenca i prodotti inclusi
+        if (isBundle && p.bundleItems) {
+          p.bundleItems.forEach((item) => {
+            const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
+            prodottiMsg += `   └ ${item.prodottoNome}${item.quantita > 1 ? ` x${item.quantita}` : ''}${itemPhotos}\n`;
+          });
+        }
+      });
+    } else {
+      prodottiMsg = 'Ordine\n';
+    }
     
     const message = encodeURIComponent(
       `Ciao ${booking.cliente.nome}! 👋\n\n` +
-      `Ecco il riepilogo del tuo ordine:\n` +
-      `📦 Prodotto: ${prodottoNome}\n` +
+      `Ecco il riepilogo del tuo ordine:\n\n` +
+      `*PRODOTTI*\n${prodottiMsg}\n` +
       `💰 Totale: €${totals.totale.toFixed(2)}\n` +
       `✅ Pagato: €${totals.totalePagato.toFixed(2)}\n` +
       `📝 Saldo: €${totals.saldoResiduo.toFixed(2)}\n\n` +
@@ -1667,16 +1691,30 @@ export default function BookingsManager({
                                   {isExpanded && (
                                     <div className="px-3 pb-3 space-y-1.5">
                                       {associatedOrder.prodotti.map(
-                                        (prodotto, idx) => (
+                                        (prodotto, idx) => {
+                                          const isBundle = prodotto.isBundle && prodotto.bundleItems && prodotto.bundleItems.length > 0;
+                                          const totalPhotos = isBundle
+                                            ? prodotto.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                                            : prodotto.prodottoNumeroFoto || 0;
+                                          
+                                          return (
+                                          <div key={idx}>
                                           <div
-                                            key={idx}
                                             className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white p-2 rounded border border-blue-100 text-sm"
                                           >
                                             <div className="flex items-center gap-2">
                                               <span className="font-medium text-gray-800">
                                                 {prodotto.prodottoNome}
                                               </span>
-                                              {!prodotto.prodottoId && (
+                                              {isBundle && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="bg-amber-50 text-amber-700 border-amber-200 text-xs"
+                                                >
+                                                  📦 Bundle
+                                                </Badge>
+                                              )}
+                                              {!prodotto.prodottoId && !isBundle && (
                                                 <Badge
                                                   variant="outline"
                                                   className="bg-purple-50 text-purple-700 border-purple-200 text-xs"
@@ -1686,10 +1724,10 @@ export default function BookingsManager({
                                               )}
                                             </div>
                                             <div className="flex items-center gap-3 text-xs text-gray-600">
-                                              {prodotto.prodottoNumeroFoto && (
+                                              {totalPhotos > 0 && (
                                                 <span className="flex items-center gap-1">
                                                   <ImageIcon className="w-3 h-3" />
-                                                  {prodotto.prodottoNumeroFoto}{" "}
+                                                  {totalPhotos}{" "}
                                                   foto
                                                 </span>
                                               )}
@@ -1701,7 +1739,20 @@ export default function BookingsManager({
                                               </span>
                                             </div>
                                           </div>
-                                        ),
+                                          {isBundle && (
+                                            <div className="ml-4 mt-1 pl-2 border-l-2 border-amber-200 space-y-1">
+                                              {prodotto.bundleItems.map((item: any, itemIdx: number) => (
+                                                <div key={itemIdx} className="text-xs text-gray-600 flex items-center justify-between">
+                                                  <span>└ {item.prodottoNome}{item.quantita > 1 ? ` x${item.quantita}` : ''}</span>
+                                                  {item.numeroFoto > 0 && (
+                                                    <span className="text-gray-400">({item.numeroFoto * item.quantita} foto)</span>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                          </div>
+                                        )},
                                       )}
                                     </div>
                                   )}
