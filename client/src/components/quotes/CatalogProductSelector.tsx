@@ -205,14 +205,7 @@ export default function CatalogProductSelector({
                         checked={isSelected}
                         onCheckedChange={() => toggleProduct(product.id)}
                         className="bg-white border-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
+                        onClick={(e) => e.stopPropagation()}
                         data-testid={`checkbox-product-${product.id}`}
                       />
                     </div>
