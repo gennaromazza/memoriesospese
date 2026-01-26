@@ -1,0 +1,46 @@
+ReferenceError: DateInput is not defined
+    at Controller (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-R73Q4FUV.js?v=00e3f28a:374:35)
+    at FormField (https://imagestudiofotografico.com/src/components/ui/form.tsx:33:6)
+    at div
+    at form
+    at FormProvider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-R73Q4FUV.js?v=00e3f28a:393:11)
+    at div
+    at div
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:140:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-JTKODZHH.js?v=00e3f28a:63:7
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:50:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:27:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:140:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-7AYWJHF3.js?v=00e3f28a:43:5
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-RIUMIL5G.js?v=00e3f28a:333:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-RIUMIL5G.js?v=00e3f28a:256:58
+    at Presence (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-TUYK5Y4P.js?v=00e3f28a:24:11)
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-RIUMIL5G.js?v=00e3f28a:247:64
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:50:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:27:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-IMRI6KR4.js?v=00e3f28a:140:13
+    at https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-JTKODZHH.js?v=00e3f28a:262:22
+    at Presence (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-TUYK5Y4P.js?v=00e3f28a:24:11)
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=00e3f28a:38:15)
+    at DialogPortal (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-RIUMIL5G.js?v=00e3f28a:209:11)
+    at _c3 (https://imagestudiofotografico.com/src/components/ui/dialog.tsx:50:12)
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=00e3f28a:38:15)
+    at Dialog (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-RIUMIL5G.js?v=00e3f28a:149:5)
+    at QuoteBuilder (https://imagestudiofotografico.com/src/components/quotes/QuoteBuilder.tsx:307:3)
+    at div
+    at div
+    at JobDetailPage (https://imagestudiofotografico.com/src/pages/JobDetailPage.tsx:91:21)
+    at Route (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=00e3f28a:226:16)
+    at Switch (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=00e3f28a:283:17)
+    at Suspense
+    at AppRoutes (https://imagestudiofotografico.com/src/App.tsx:146:3)
+    at StudioProvider (https://imagestudiofotografico.com/src/context/StudioContext.tsx:57:34)
+    at FirebaseAuthProvider (https://imagestudiofotografico.com/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://imagestudiofotografico.com/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=00e3f28a:38:15)
+    at TooltipProvider (https://imagestudiofotografico.com/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=00e3f28a:160:5)
+    at V (https://imagestudiofotografico.com/node_modules/.vite/deps/next-themes.js?v=00e3f28a:44:25)
+    at J (https://imagestudiofotografico.com/node_modules/.vite/deps/next-themes.js?v=00e3f28a:42:18)
+    at QueryClientProvider (https://imagestudiofotografico.com/node_modules/.vite/deps/@tanstack_react-query.js?v=00e3f28a:2764:3)
+    at ErrorBoundary (https://imagestudiofotografico.com/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://imagestudiofotografico.com/node_modules/.vite/deps/wouter.js?v=00e3f28a:180:17)
