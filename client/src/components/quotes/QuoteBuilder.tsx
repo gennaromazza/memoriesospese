@@ -374,12 +374,14 @@ export default function QuoteBuilder({
       setSelectedClauseTemplateId('');
       form.setValue('clauseTemplateId', '');
     }
-  }, [open, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     setSelectedClauseTemplateId('');
     form.setValue('clauseTemplateId', '');
-  }, [jobTypeSlug, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobTypeSlug]);
 
   // Auto-select template predefinito per le clausole (dopo form init)
   useEffect(() => {
@@ -390,7 +392,8 @@ export default function QuoteBuilder({
         form.setValue('clauseTemplateId', defaultTemplate.id);
       }
     }
-  }, [clauseTemplates, selectedClauseTemplateId, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clauseTemplates, selectedClauseTemplateId]);
 
   // Carica dati preventivo esistente nel form quando disponibile
   useEffect(() => {
@@ -460,7 +463,8 @@ export default function QuoteBuilder({
       title: 'Preventivo caricato',
       description: 'Modifica i campi e salva per aggiornare'
     });
-  }, [existingQuote, editQuoteId, form, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingQuote, editQuoteId]);
 
   // Handler cambio template clausole
   const handleClauseTemplateChange = (templateId: string) => {
@@ -521,7 +525,8 @@ export default function QuoteBuilder({
         form.setValue('products', updatedProducts, { shouldDirty: false, shouldTouch: false, shouldValidate: false });
       }
     }
-  }, [quoteType, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteType]);
 
   // Watch payment schedule config for simulator
   const paymentConfig = form.watch('paymentScheduleConfig');
@@ -878,7 +883,8 @@ export default function QuoteBuilder({
         }
       }
     },
-    [onClose, form]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onClose]
   );
 
   return (
