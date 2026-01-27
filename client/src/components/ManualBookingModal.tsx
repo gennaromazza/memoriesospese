@@ -115,26 +115,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   // Campagna selezionata
   const selectedCampaign = campaigns.find(c => c.id === campaignId);
 
-  // Prodotti disponibili: unione di prodotti assegnati alla campagna + prodotti della categoria tema
-  // Questo permette di vedere tutti i prodotti della categoria (es. "carnevale") anche se non assegnati
-  const availableProducts = useMemo(() => {
-    if (!selectedCampaign) return [];
-    
-    const assignedProducts = products.filter(p => 
-      selectedCampaign.prodottiDisponibili.includes(p.id)
-    );
-    
-    // Se la campagna ha un tema stagionale, includi anche tutti i prodotti di quella categoria
-    if (selectedCampaign.temaStagionale) {
-      const themeProducts = products.filter(p => 
-        p.categoria === selectedCampaign.temaStagionale && 
-        !selectedCampaign.prodottiDisponibili.includes(p.id) // Evita duplicati
-      );
-      return [...assignedProducts, ...themeProducts];
-    }
-    
-    return assignedProducts;
-  }, [products, selectedCampaign]);
+  // Categoria default basata sul tema della campagna
+  const defaultCategory = selectedCampaign?.temaStagionale || 'all';
 
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
@@ -326,12 +308,12 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         return;
       }
 
-      const availableProductIds = availableProducts.map(p => p.id);
-      const invalidProducts = selectedProducts.filter(p => !availableProductIds.includes(p.prodottoId));
+      const productIds = products.map((p: Product) => p.id);
+      const invalidProducts = selectedProducts.filter(p => !productIds.includes(p.prodottoId));
       if (invalidProducts.length > 0) {
         toast({
           title: 'Prodotti non validi',
-          description: 'Alcuni prodotti selezionati non sono disponibili per questa campagna. Rimuovili prima di continuare.',
+          description: 'Alcuni prodotti selezionati non esistono più nel catalogo. Rimuovili prima di continuare.',
           variant: 'destructive',
         });
         return;
@@ -651,12 +633,13 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
               Prodotti (opzionale)
             </Label>
             
-            {/* ProductSelector con filtri integrati */}
+            {/* ProductSelector con filtri integrati - mostra tutti i prodotti */}
             <ProductSelector
-              products={availableProducts}
+              products={products}
               categories={categories}
               onSelectProduct={handleAddProduct}
               placeholder="Seleziona prodotto dal catalogo..."
+              defaultCategory={defaultCategory}
             />
 
             {selectedProducts.length === 0 ? (

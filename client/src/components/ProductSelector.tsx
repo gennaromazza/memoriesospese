@@ -21,6 +21,7 @@ interface ProductSelectorProps {
   onSelectProduct: (productId: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  defaultCategory?: string; // Categoria preselezionata di default
 }
 
 export default function ProductSelector({
@@ -29,9 +30,15 @@ export default function ProductSelector({
   onSelectProduct,
   placeholder = "Seleziona prodotto...",
   disabled = false,
+  defaultCategory = 'all',
 }: ProductSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory);
+  
+  // Aggiorna categoria quando cambia defaultCategory (es. cambio campagna)
+  useEffect(() => {
+    setSelectedCategory(defaultCategory);
+  }, [defaultCategory]);
 
   // Filtra prodotti per categoria e ricerca
   const filteredProducts = useMemo(() => {
