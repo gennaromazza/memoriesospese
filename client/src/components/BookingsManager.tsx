@@ -245,6 +245,9 @@ export default function BookingsManager({
   
   // Sincronizza filtri con URL (senza ricaricare la pagina)
   const updateUrlParams = useCallback((updates: Record<string, string | number>) => {
+    // SSR safety: evita crash in contesti server-side
+    if (typeof window === 'undefined') return;
+    
     const params = new URLSearchParams(window.location.search);
     
     Object.entries(updates).forEach(([key, value]) => {
@@ -690,9 +693,12 @@ export default function BookingsManager({
 
     const targetPage = Math.floor(bookingIndex / ITEMS_PER_PAGE) + 1;
 
-    // Reset filtri e paginazione in modo sincrono
+    // Reset TUTTI i filtri e paginazione in modo sincrono
     setSelectedStato("all");
     setSearchQuery("");
+    setTimeFilter("all");
+    setWorkflowFilter("all");
+    setSelectionFilter("all");
     setCurrentPage(targetPage);
 
     // Timeout per assicurarsi che il DOM sia renderizzato dopo cambio pagina
@@ -2964,13 +2970,22 @@ export default function BookingsManager({
                   // Get order item quantity (default to 1)
                   const orderItemQuantity = orderItem.quantita || 1;
                   
-                  // Check if this product is a bundle by looking up in products list
+                  // PRIORITY: Usa orderItem.isBundle e orderItem.bundleItems come sorgente principale
+                  // Fallback al catalogo products solo se orderItem non ha bundleItems
+                  const hasOrderItemBundle = orderItem.isBundle && orderItem.bundleItems && orderItem.bundleItems.length > 0;
                   const fullProduct = products.find(p => p.id === orderItem.prodottoId);
+                  const hasCatalogBundle = fullProduct?.isBundle && fullProduct.bundleItems && fullProduct.bundleItems.length > 0;
                   
-                  if (fullProduct?.isBundle && fullProduct.bundleItems && fullProduct.bundleItems.length > 0) {
+                  // Usa bundleItems dall'orderItem se presenti, altrimenti dal catalogo
+                  const bundleItems = hasOrderItemBundle 
+                    ? orderItem.bundleItems 
+                    : (hasCatalogBundle ? fullProduct!.bundleItems : null);
+                  const bundleParentName = orderItem.prodottoNome || fullProduct?.nome || 'Bundle';
+                  
+                  if (bundleItems && bundleItems.length > 0) {
                     // Expand bundle items (multiplied by order item quantity)
                     for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
-                      for (const bundleItem of fullProduct.bundleItems) {
+                      for (const bundleItem of bundleItems) {
                         // Validate bundleItem - allow numeroFoto = 0 (unlimited selection)
                         if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
                         if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
@@ -2979,22 +2994,24 @@ export default function BookingsManager({
                           const bundlePrefix = orderItemQuantity > 1 
                             ? `[${orderQty + 1}/${orderItemQuantity}] ` 
                             : '';
+                          // prodottoId esiste solo in BundleItem (catalogo), non in BundleItemSnapshot (ordine)
+                          const bundleItemId = 'prodottoId' in bundleItem ? (bundleItem as { prodottoId: string }).prodottoId : undefined;
                           expandedProducts.push({
-                            prodottoId: bundleItem.prodottoId,
+                            prodottoId: bundleItemId,
                             prodottoNome: bundleItem.quantita > 1 
-                              ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${fullProduct.nome}`
-                              : `${bundlePrefix}${bundleItem.prodottoNome} - ${fullProduct.nome}`,
+                              ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
+                              : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
                             prodottoNumeroFoto: bundleItem.numeroFoto,
                             isFromBundle: true,
-                            bundleParentName: fullProduct.nome,
+                            bundleParentName: bundleParentName,
                           });
                         }
                       }
                     }
-                    const totalExpandedCount = fullProduct.bundleItems.reduce(
+                    const totalExpandedCount = bundleItems.reduce(
                       (sum, item) => sum + (item.quantita || 1), 0
                     ) * orderItemQuantity;
-                    console.log(`📦 Bundle "${fullProduct.nome}" x${orderItemQuantity} espanso in ${totalExpandedCount} prodotti`);
+                    console.log(`📦 Bundle "${bundleParentName}" x${orderItemQuantity} espanso in ${totalExpandedCount} prodotti`);
                   } else {
                     // Regular product - add as-is (respecting order item quantity)
                     for (let i = 0; i < orderItemQuantity; i++) {
@@ -3171,13 +3188,6 @@ export default function BookingsManager({
                   />
                 </div>
 
-                {/* Email notification checkbox */}
-                <div className="flex items-center gap-2">
-                  <Checkbox id="send-email" defaultChecked />
-                  <Label htmlFor="send-email" className="text-sm text-gray-600">
-                    Invia email di conferma al cliente
-                  </Label>
-                </div>
               </div>
             );
           })()}
@@ -3488,15 +3498,15 @@ function CreateOrderDialog({
   // Applica filtri ai prodotti della campagna
   const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
 
-  // Pre-popola prodotto da booking se disponibile (solo al mount)
+  // Pre-popola prodotto da booking se disponibile (quando cambiano i prodotti della campagna)
   useEffect(() => {
-    if (booking.prodottoId) {
-      const isAvailable = availableProducts.some((p) => p.id === booking.prodottoId);
+    if (booking.prodottoId && campaignProducts.length > 0) {
+      const isAvailable = campaignProducts.some((p) => p.id === booking.prodottoId);
       if (isAvailable) {
         setSelectedProducts([{ prodottoId: booking.prodottoId, quantita: 1 }]);
       }
     }
-  }, []);
+  }, [campaignProducts, booking.prodottoId]);
 
   // Helper: Aggiungi prodotto vuoto
   const addProduct = () => {
