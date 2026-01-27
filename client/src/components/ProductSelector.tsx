@@ -99,8 +99,14 @@ export default function ProductSelector({
       ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
       : product.numeroFoto;
     const photoText = totalPhotos > 0 ? `${totalPhotos} foto` : '∞';
-    const bundleIcon = product.isBundle ? ' 📦' : '';
-    return `${product.nome} - €${product.prezzoFinale} (${photoText})${bundleIcon}`;
+    
+    if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
+      // Per bundle: mostra nome + prodotti inclusi
+      const bundleItemNames = product.bundleItems.map(bi => bi.prodottoNome).join(', ');
+      return `📦 ${product.nome} - €${product.prezzoFinale} (${photoText}) → ${bundleItemNames}`;
+    }
+    
+    return `${product.nome} - €${product.prezzoFinale} (${photoText})`;
   };
 
   return (
