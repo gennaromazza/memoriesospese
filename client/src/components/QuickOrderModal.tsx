@@ -10,6 +10,7 @@ import { getActiveProducts } from '@/lib/products';
 import { getAllClienti } from '@/lib/clienti';
 import type { Product, OrderItem } from '@shared/booking-types';
 import type { Cliente } from '@shared/clienti-types';
+import { ProductFilters, useProductFilter } from '@/components/ProductFilters';
 import {
   Dialog,
   DialogContent,
@@ -88,10 +89,17 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
   const [showClientSearch, setShowClientSearch] = useState(true);
 
   // Query prodotti attivi
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: allProducts = [] } = useQuery<Product[]>({
     queryKey: ['products', 'active'],
     queryFn: getActiveProducts,
   });
+  
+  // Filtri prodotti
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
+  
+  // Applica filtri ai prodotti
+  const products = useProductFilter(allProducts, productSearchQuery, productCategoryFilter);
   
   // Query clienti esistenti
   const { data: clienti = [], isLoading: isLoadingClienti } = useQuery<Cliente[]>({
@@ -166,7 +174,7 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
 
   // Helper: Calcola subtotale per prodotto
   const getProductSubtotal = (prodottoId: string, quantita: number): number => {
-    const product = products.find(p => p.id === prodottoId);
+    const product = allProducts.find(p => p.id === prodottoId);
     if (!product) return 0;
     return product.prezzoFinale * quantita;
   };
@@ -322,7 +330,7 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
 
       // Costruisci array prodotti
       const catalogoOrderItems: OrderItem[] = selectedProducts.map(item => {
-        const product = products.find(p => p.id === item.prodottoId)!;
+        const product = allProducts.find(p => p.id === item.prodottoId)!;
         // Per bundle: calcola totale foto da bundleItems
         const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
           ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
@@ -623,6 +631,18 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
                 Da Catalogo
               </Button>
             </div>
+            
+            {/* Filtri prodotti */}
+            {allProducts.length > 0 && (
+              <ProductFilters
+                products={allProducts}
+                searchQuery={productSearchQuery}
+                onSearchChange={setProductSearchQuery}
+                categoryFilter={productCategoryFilter}
+                onCategoryChange={setProductCategoryFilter}
+                compact
+              />
+            )}
 
             {selectedProducts.length === 0 && customProducts.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
@@ -634,7 +654,7 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
               <>
                 <div className="space-y-3">
                   {selectedProducts.map((item, index) => {
-                    const product = products.find(p => p.id === item.prodottoId);
+                    const product = allProducts.find(p => p.id === item.prodottoId);
                     const subtotale = getProductSubtotal(item.prodottoId, item.quantita);
 
                     return (

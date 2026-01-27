@@ -3,10 +3,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { createProduct } from '@/lib/products';
-import type { Order, Product, OrderItem } from '@shared/booking-types';
+import { getActiveProductCategories } from '@/lib/product-categories';
+import type { Order, Product, OrderItem, ProductCategory } from '@shared/booking-types';
+import ProductSelector from '@/components/ProductSelector';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -48,6 +50,12 @@ interface EditOrderModalProps {
 
 export default function EditOrderModal({ order, products, onClose }: EditOrderModalProps) {
   const { toast } = useToast();
+  
+  // Query categorie prodotti per filtro
+  const { data: categories = [] } = useQuery<ProductCategory[]>({
+    queryKey: ['product-categories', 'active'],
+    queryFn: getActiveProductCategories,
+  });
   
   // Prodotti selezionati nell'ordine
   const [selectedProdotti, setSelectedProdotti] = useState<OrderItem[]>([]);
@@ -422,28 +430,13 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
               </Button>
             </div>
             
-            {/* Aggiungi dal catalogo */}
-            <div className="flex gap-2">
-              <Select onValueChange={handleAddProduct}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Seleziona prodotto dal catalogo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map(product => {
-                    // Per bundle: calcola totale foto da bundleItems
-                    const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
-                      ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
-                      : product.numeroFoto;
-                    const photoText = totalPhotos > 0 ? `${totalPhotos} foto` : '∞';
-                    return (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.nome} - €{product.prezzoFinale} ({photoText}){product.isBundle && ' 📦'}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Aggiungi dal catalogo con filtro categoria e ricerca */}
+            <ProductSelector
+              products={products}
+              categories={categories}
+              onSelectProduct={handleAddProduct}
+              placeholder="Seleziona prodotto dal catalogo..."
+            />
             
             {/* Form prodotto custom */}
             {showCustomProduct && (

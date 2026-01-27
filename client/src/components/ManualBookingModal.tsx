@@ -8,7 +8,9 @@ import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getActiveProducts } from '@/lib/products';
 import { getAvailableSlots } from '@/lib/bookings';
-import type { BookingCampaign, Product, OrderItem } from '@shared/booking-types';
+import type { Product, OrderItem } from '@shared/booking-types';
+import type { BookingCampaignFE } from '@shared/booking-types';
+import { ProductFilters, useProductFilter } from '@/components/ProductFilters';
 import {
   Dialog,
   DialogContent,
@@ -92,7 +94,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Query campagne attive
-  const { data: campaigns = [] } = useQuery<BookingCampaign[]>({
+  const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
     queryKey: ['campaigns'],
     queryFn: getAllCampaigns,
   });
@@ -106,10 +108,17 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   // Campagna selezionata
   const selectedCampaign = campaigns.find(c => c.id === campaignId);
 
+  // Filtri prodotti
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
+
   // Prodotti disponibili per la campagna selezionata
-  const availableProducts = selectedCampaign
+  const campaignProducts = selectedCampaign
     ? products.filter(p => selectedCampaign.prodottiDisponibili.includes(p.id))
     : [];
+  
+  // Applica filtri ai prodotti della campagna
+  const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
 
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
@@ -628,6 +637,18 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                 Aggiungi Prodotto
               </Button>
             </div>
+            
+            {/* Filtri prodotti */}
+            {campaignProducts.length > 0 && (
+              <ProductFilters
+                products={campaignProducts}
+                searchQuery={productSearchQuery}
+                onSearchChange={setProductSearchQuery}
+                categoryFilter={productCategoryFilter}
+                onCategoryChange={setProductCategoryFilter}
+                compact
+              />
+            )}
 
             {selectedProducts.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
@@ -639,7 +660,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
               <>
                 <div className="space-y-3">
                   {selectedProducts.map((item, index) => {
-                    const product = availableProducts.find(p => p.id === item.prodottoId);
+                    const product = products.find(p => p.id === item.prodottoId);
                     const subtotale = getProductSubtotal(item.prodottoId, item.quantita);
 
                     return (

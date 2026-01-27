@@ -27,17 +27,18 @@ import { getActiveProducts } from "@/lib/products";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import type {
   Booking,
-  BookingCampaign,
   Order,
   Product,
   OrderItem,
   BundleItem,
 } from "@shared/booking-types";
+import type { BookingCampaignFE } from "@shared/booking-types";
 import { WorkflowState } from "@shared/schema";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import ShareGalleryButton from "@/components/ShareGalleryButton";
 import ManualBookingModal from "@/components/ManualBookingModal";
+import { ProductFilters, useProductFilter } from "@/components/ProductFilters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -317,7 +318,7 @@ export default function BookingsManager({
   });
 
   // Query campagne per nomi
-  const { data: campaigns = [] } = useQuery<BookingCampaign[]>({
+  const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
     queryKey: ["campaigns"],
     queryFn: getAllCampaigns,
   });
@@ -3436,7 +3437,7 @@ export default function BookingsManager({
 interface CreateOrderDialogProps {
   booking: Booking;
   products: Product[];
-  campaigns: BookingCampaign[];
+  campaigns: BookingCampaignFE[];
   onClose: () => void;
   onSubmit: (orderData: any) => void;
   isPending: boolean;
@@ -3471,14 +3472,21 @@ function CreateOrderDialog({
   const [customNome, setCustomNome] = useState("");
   const [customPrezzo, setCustomPrezzo] = useState<number>(0);
   const [customNumeroFoto, setCustomNumeroFoto] = useState<number>(0);
+  
+  // Filtri prodotti
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
 
   const campaign = campaigns.find((c) => c.id === booking.campaignId);
-  const availableProducts = useMemo(() => {
+  const campaignProducts = useMemo(() => {
     if (!campaign?.prodottiDisponibili?.length) {
       return products;
     }
     return products.filter((p) => campaign.prodottiDisponibili.includes(p.id));
   }, [products, campaign]);
+  
+  // Applica filtri ai prodotti della campagna
+  const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
 
   // Pre-popola prodotto da booking se disponibile (solo al mount)
   useEffect(() => {
@@ -3694,14 +3702,26 @@ function CreateOrderDialog({
                 onClick={addProduct}
                 className="border-sage text-sage hover:bg-sage hover:text-white"
                 data-testid="button-add-product"
-                disabled={availableProducts.length === 0}
+                disabled={campaignProducts.length === 0}
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Aggiungi Prodotto
               </Button>
             </div>
+            
+            {/* Filtri prodotti */}
+            {campaignProducts.length > 0 && (
+              <ProductFilters
+                products={campaignProducts}
+                searchQuery={productSearchQuery}
+                onSearchChange={setProductSearchQuery}
+                categoryFilter={productCategoryFilter}
+                onCategoryChange={setProductCategoryFilter}
+                compact
+              />
+            )}
 
-            {availableProducts.length === 0 ? (
+            {campaignProducts.length === 0 ? (
               <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg">
                 <p className="text-sm">Nessun prodotto disponibile per questa campagna</p>
               </div>
