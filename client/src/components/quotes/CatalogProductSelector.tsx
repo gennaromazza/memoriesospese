@@ -203,7 +203,9 @@ export default function CatalogProductSelector({
                     <div className="absolute top-2 right-2">
                       <Checkbox
                         checked={isSelected}
-                        className="bg-white border-2 pointer-events-none"
+                        onCheckedChange={() => toggleProduct(product.id)}
+                        className="bg-white border-2"
+                        onClick={(e) => e.stopPropagation()}
                         data-testid={`checkbox-product-${product.id}`}
                       />
                     </div>
