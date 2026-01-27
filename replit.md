@@ -34,6 +34,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Workflow State Management:** Unified `WorkflowState` enum for booking/order tracking, with email notifications and interactive timeline.
 - **Collaborator Management:** Token-based dashboard access, comprehensive payment tracking integrated with `CashMovement`.
 - **Phone Number Standardization:** Centralized utility for consistent WhatsApp link generation, handling various Italian phone formats.
+- **Date/Timestamp Type Convention:** Strict separation between Firestore types and Frontend types. Firestore interfaces use `Timestamp` (e.g., `BookingCampaign`, `CashMovement`, `JobType`), while Frontend interfaces use `Date` with `FE` suffix (e.g., `BookingCampaignFE`, `CashMovementFE`, `JobTypeFE`). Conversions happen via `.toDate()` when reading from Firestore and `Timestamp.fromDate()` when writing. Client lib adapters (e.g., `booking-campaigns.ts`) include helper functions like `toBookingCampaignFE()` for consistent conversion.
 
 ### Feature Specifications
 - **Public Website:** SEO-optimized marketing site with portfolio, blog, biography, e-book download, and booking CTAs.
