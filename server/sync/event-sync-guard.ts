@@ -114,25 +114,29 @@ async function getBookingsWithGoogleEvents(): Promise<Booking[]> {
 
 /**
  * Ripara una consultation che ha perso il suo evento Google Calendar
+ * 
+ * IMPORTANTE: NON resettare lo stato a 'in_attesa' per consultation già confermate!
+ * Le consultation confermate hanno già passato il controllo e l'evento Calendar potrebbe
+ * essere stato cancellato manualmente dall'admin. Mantenere lo stato confermato.
+ * Solo rimuovere il riferimento all'evento Calendar.
  */
 async function repairConsultation(consultation: Consultation): Promise<RepairAction> {
   console.log(`[EVENT SYNC GUARD] 🔧 Repairing Consultation ${consultation.id}...`);
   
+  // NON resettare lo stato - mantenere quello esistente
+  // L'evento Calendar potrebbe essere stato cancellato manualmente
   const updateData: any = {
     googleCalendarEventId: null,
   };
   
-  // Se era confermata, torna in attesa
+  // Log warning se era confermata (senza cambiare stato)
   if (consultation.stato === 'confermata') {
-    updateData.stato = 'in_attesa';
-    console.log(`[EVENT SYNC GUARD]    ↳ Status: confermata → in_attesa`);
+    console.log(`[EVENT SYNC GUARD]    ⚠️ Consultation was 'confermata' - keeping status, only removing GCAL ref`);
   }
   
   await db.collection('consultations').doc(consultation.id).update(updateData);
   
-  const action = `Removed missing GCAL event ${consultation.googleCalendarEventId}${
-    updateData.stato ? `, reset status to ${updateData.stato}` : ''
-  }`;
+  const action = `Removed missing GCAL event ${consultation.googleCalendarEventId} (status kept: ${consultation.stato})`;
   
   console.log(`[EVENT SYNC GUARD] ✅ Consultation ${consultation.id} repaired — ${action}`);
   
