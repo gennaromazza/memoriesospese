@@ -1,0 +1,148 @@
+2026-01-27 06:16:58.37
+90e00243
+User
+port: 443,
+2026-01-27 06:16:58.37
+90e00243
+User
+}
+2026-01-27 06:16:58.37
+90e00243
+User
+[EVENT SYNC GUARD] ❌ Sync failed: TypeError: fetch failed
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Ia (file:///home/runner/workspace/dist/index.js:1922:6702)
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Vi (file:///home/runner/workspace/dist/index.js:1922:7767)
+2026-01-27 06:16:58.37
+90e00243
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Zr (file:///home/runner/workspace/dist/index.js:1933:7660)
+2026-01-27 06:16:58.37
+90e00243
+User
+}
+2026-01-27 06:16:58.37
+90e00243
+User
+at async ke (file:///home/runner/workspace/dist/index.js:1922:8010)
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Ia (file:///home/runner/workspace/dist/index.js:1922:6702)
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Zr (file:///home/runner/workspace/dist/index.js:1933:7660)
+2026-01-27 06:16:58.37
+90e00243
+User
+host: 'connectors.replit.com',
+2026-01-27 06:16:58.37
+90e00243
+User
+code: 'ECONNRESET',
+2026-01-27 06:16:58.37
+90e00243
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Vi (file:///home/runner/workspace/dist/index.js:1922:7767)
+2026-01-27 06:16:58.37
+90e00243
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+2026-01-27 06:16:58.37
+90e00243
+User
+path: undefined,
+2026-01-27 06:16:58.37
+90e00243
+User
+[cause]: Error: Client network socket disconnected before secure TLS connection was established
+2026-01-27 06:16:58.37
+90e00243
+User
+at async ke (file:///home/runner/workspace/dist/index.js:1922:8010)
+2026-01-27 06:16:58.37
+90e00243
+User
+[cause]: Error: Client network socket disconnected before secure TLS connection was established
+2026-01-27 06:16:58.37
+90e00243
+User
+at async nt (file:///home/runner/workspace/dist/index.js:1922:9859)
+2026-01-27 06:16:58.37
+90e00243
+User
+at endReadableNT (node:internal/streams/readable:1698:12)
+2026-01-27 06:16:58.37
+90e00243
+User
+host: 'connectors.replit.com',
+2026-01-27 06:16:58.37
+90e00243
+User
+[EVENT SYNC GUARD] Worker error: TypeError: fetch failed
+2026-01-27 06:16:58.37
+90e00243
+User
+at TLSSocket.onConnectEnd (node:_tls_wrap:1748:19)
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Yo (file:///home/runner/workspace/dist/index.js:1935:14) {
+2026-01-27 06:16:58.37
+90e00243
+User
+at node:internal/deps/undici/undici:14902:13
+2026-01-27 06:16:58.37
+90e00243
+User
+port: 443,
+2026-01-27 06:16:58.37
+90e00243
+User
+at async Yo (file:///home/runner/workspace/dist/index.js:1935:14) {
+2026-01-27 06:16:58.37
+90e00243
+User
+at node:internal/deps/undici/undici:14902:13
+2026-01-27 06:25:32.57
+90e00243
+User
+[Google Calendar V2] ❌ Errore recupero eventi calendario "studiowedcrm": Invalid Credentials
+2026-01-27 06:25:34.47
+90e00243
+User
+[Google Calendar V2] ❌ Errore recupero eventi calendario "Appuntamento su Facebook per Gennaro Mazzacane Photography": Invalid Credentials
+2026-01-27 06:25:35.17
+90e00243
+User
+[Google Calendar V2] ❌ Errore recupero eventi calendario "gennaro.mazzacane@gmail.com": Invalid Credentials
+2026-01-27 09:12:41.73
+90e00243
+User
+The request url "/home/runner/workspace/shared/contract-clause-types.ts" is outside of Vite serving allow list.
+2026-01-27 09:12:41.73
+90e00243
+User
+- /home/runner/workspace/client
+2026-01-27 09:12:41.73
+90e00243
+User
+Refer to docs https://vite.dev/config/server-options.html#server-fs-allow for configurations and more details.
+2026-01-27 09:12:41.73
+90e00243
+User
+- /home/runner/workspace/node_modules/vite/dist/client
