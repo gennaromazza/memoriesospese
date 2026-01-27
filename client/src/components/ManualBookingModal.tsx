@@ -2,7 +2,7 @@
  * Manual Booking Modal - Crea prenotazione manuale per clienti walk-in
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
@@ -112,10 +112,26 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
 
-  // Prodotti disponibili per la campagna selezionata
-  const campaignProducts = selectedCampaign
-    ? products.filter(p => selectedCampaign.prodottiDisponibili.includes(p.id))
-    : [];
+  // Prodotti disponibili: unione di prodotti assegnati alla campagna + prodotti della categoria tema
+  // Questo permette di vedere tutti i prodotti della categoria (es. "carnevale") anche se non assegnati
+  const campaignProducts = useMemo(() => {
+    if (!selectedCampaign) return [];
+    
+    const assignedProducts = products.filter(p => 
+      selectedCampaign.prodottiDisponibili.includes(p.id)
+    );
+    
+    // Se la campagna ha un tema stagionale, includi anche tutti i prodotti di quella categoria
+    if (selectedCampaign.temaStagionale) {
+      const themeProducts = products.filter(p => 
+        p.categoria === selectedCampaign.temaStagionale && 
+        !selectedCampaign.prodottiDisponibili.includes(p.id) // Evita duplicati
+      );
+      return [...assignedProducts, ...themeProducts];
+    }
+    
+    return assignedProducts;
+  }, [products, selectedCampaign]);
   
   // Applica filtri ai prodotti della campagna
   const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
