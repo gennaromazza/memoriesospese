@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Timestamp } from 'firebase/firestore';
 
 // Security Question Types
 export enum SecurityQuestionType {
@@ -64,7 +65,7 @@ export interface Gallery {
   requiredPhotoCount?: number; // LEGACY: Numero di foto che il cliente deve selezionare (es. 50 per album) - usato solo per gallerie mono-prodotto
   selectionStatus?: 'pending' | 'completed'; // Stato selezione cliente
   selectedPhotoIds?: string[]; // LEGACY: Array IDs foto selezionate dal cliente (mono-prodotto) - per multi-prodotto usa photoAssignments
-  selectionDeadline?: any; // Firebase Timestamp - Scadenza per completare selezione (opzionale)
+  selectionDeadline?: Timestamp; // Scadenza per completare selezione (opzionale)
   selectionDeadlineEnforced?: boolean; // Se true, blocca selezione dopo deadline (admin può sbloccare)
   
   // Multi-Product Selection Mode (NEW)
@@ -80,8 +81,8 @@ export interface Gallery {
   
   userId: string; // UID admin/utente che ha creato la galleria
   
-  createdAt: any; // Firebase Timestamp
-  updatedAt?: any; // Firebase Timestamp
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 // Photo schema
@@ -91,7 +92,7 @@ export interface Photo {
   url: string;
   size: number;
   contentType: string;
-  createdAt: any;
+  createdAt: Timestamp;
 }
 
 // Password Request validation schema for Firebase
@@ -115,7 +116,7 @@ export interface PasswordRequest {
   email: string;
   relation: string;
   status: string;
-  createdAt: any; // Firebase Timestamp
+  createdAt: Timestamp;
 }
 
 export const insertVoiceMemoSchema = z.object({
@@ -144,7 +145,7 @@ export interface VoiceMemo {
   fileSize: number;
   duration?: number; // in seconds
   isUnlocked: boolean;
-  createdAt: any; // Firebase Timestamp
+  createdAt: Timestamp;
 }
 
 // Like validation schema
@@ -166,7 +167,7 @@ export interface Like {
   galleryId: string;
   userEmail: string;
   userName: string;
-  createdAt: any; // Firebase Timestamp
+  createdAt: Timestamp;
 }
 
 // Comment validation schema
@@ -192,7 +193,7 @@ export interface Comment {
   userProfileImageUrl?: string;
   content: string;
   text: string; // Alias for content for backward compatibility
-  createdAt: any; // Firebase Timestamp
+  createdAt: Timestamp;
 }
 
 // Interaction stats interface
@@ -480,8 +481,8 @@ export interface CoupleStory {
     tema?: string;
     colore_principale?: string;
   };
-  createdAt: any; // Firebase Timestamp
-  updatedAt: any; // Firebase Timestamp
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
   createdBy?: string; // admin email
   updatedBy?: string; // admin email
 }
@@ -775,8 +776,8 @@ export interface SpecialTheme {
     buttonStyle?: string; // Classe Tailwind per pulsanti
     textColor?: string; // Classe Tailwind per testo
   };
-  createdAt: any; // Firebase Timestamp
-  updatedAt?: any; // Firebase Timestamp
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
   createdBy?: string; // Admin email
 }
 
@@ -813,8 +814,8 @@ export interface PortfolioSelection {
   sortOrder: number; // Manual ordering within category
   caption?: string; // Optional caption for photo
   clientName?: string; // Optional: "Matrimonio di Maria e Luca"
-  eventDate?: any; // Firebase Timestamp - Date of the event
-  createdAt: any; // Firebase Timestamp
+  eventDate?: Timestamp; // Date of the event
+  createdAt: Timestamp;
   createdBy: string; // Admin email
 }
 
@@ -850,8 +851,8 @@ export interface WeddingVideo {
   sortOrder: number; // Ordinamento manuale
   views?: number; // Contatore visualizzazioni
   active: boolean;
-  createdAt: any; // Firebase Timestamp
-  updatedAt?: any; // Firebase Timestamp
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
   createdBy?: string; // Admin email
 }
 
@@ -892,15 +893,15 @@ export interface BlogPost {
   category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)
   tags?: string[]; // SEO tags
   author: string; // Admin name (default: "Gennaro Mazzacane")
-  publishedAt?: any; // Firebase Timestamp
-  createdAt: any; // Firebase Timestamp
-  updatedAt?: any; // Firebase Timestamp
+  publishedAt?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
   // SEO fields
   metaTitle?: string; // Custom SEO title (default: title)
   metaDescription?: string; // Custom SEO description (default: excerpt)
   // WordPress import metadata
   wpPostId?: number; // Original WordPress post ID (for import tracking)
-  wpImportedAt?: any; // Firebase Timestamp when imported
+  wpImportedAt?: Timestamp;
 }
 
 // Validation schema for Blog Post
@@ -946,7 +947,7 @@ export interface SiteContent {
   metadata?: Record<string, any>; // Flexible JSON for type-specific data
   active: boolean;
   sortOrder: number; // For ordering multiple items of same type
-  updatedAt: any; // Firebase Timestamp
+  updatedAt: Timestamp;
   updatedBy: string; // Admin email
 }
 

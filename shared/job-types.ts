@@ -1,3 +1,6 @@
+import { Timestamp } from 'firebase/firestore';
+
+// Firestore document structure for JobType configuration
 export interface JobType {
   id: string;
   nome: string;
@@ -9,6 +12,12 @@ export interface JobType {
   descrizione?: string;
   imageUrl?: string;
   createdBy?: 'import' | 'manual';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Frontend representation - Date oggetti convertiti da Timestamp
+export interface JobTypeFE extends Omit<JobType, 'createdAt' | 'updatedAt'> {
   createdAt: Date;
   updatedAt: Date;
 }

@@ -4,20 +4,28 @@
 
 import { Timestamp } from "firebase/firestore";
 
+// Firestore document structure
 export interface CashMovement {
   id: string;
   tipo: "entrata" | "uscita";
   categoria: string;
   importo: number;
   descrizione: string;
-  data: Timestamp | Date;
+  data: Timestamp;
   metodoPagamento: "contante" | "carta" | "bonifico" | "paypal" | "altro";
   note?: string;
   jobId?: string; // Riferimento opzionale al lavoro
   orderId?: string; // Riferimento opzionale all'ordine
   allegati?: string[]; // URLs di eventuali ricevute/documenti
-  createdAt: Timestamp | Date;
-  updatedAt: Timestamp | Date;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Frontend representation - Date oggetti convertiti da Timestamp
+export interface CashMovementFE extends Omit<CashMovement, 'data' | 'createdAt' | 'updatedAt'> {
+  data: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface InsertCashMovement {

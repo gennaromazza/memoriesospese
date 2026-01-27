@@ -17,14 +17,25 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { BookingCampaign } from '@shared/booking-types';
+import type { BookingCampaign, BookingCampaignFE } from '@shared/booking-types';
 
 const COLLECTION = 'booking_campaigns';
+
+// Helper per convertire Firestore doc in BookingCampaignFE
+function toBookingCampaignFE(id: string, data: any): BookingCampaignFE {
+  return {
+    id,
+    ...data,
+    dataInizio: data.dataInizio?.toDate?.() || new Date(data.dataInizio),
+    dataFine: data.dataFine?.toDate?.() || new Date(data.dataFine),
+    createdAt: data.createdAt?.toDate?.() || new Date(),
+  };
+}
 
 /**
  * Ottiene tutte le campagne booking
  */
-export async function getAllCampaigns(): Promise<BookingCampaign[]> {
+export async function getAllCampaigns(): Promise<BookingCampaignFE[]> {
   const q = query(
     collection(db, COLLECTION),
     orderBy('dataInizio', 'desc')
@@ -32,19 +43,13 @@ export async function getAllCampaigns(): Promise<BookingCampaign[]> {
   
   const snapshot = await getDocs(q);
   
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    dataInizio: doc.data().dataInizio?.toDate?.() || new Date(doc.data().dataInizio),
-    dataFine: doc.data().dataFine?.toDate?.() || new Date(doc.data().dataFine),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-  })) as BookingCampaign[];
+  return snapshot.docs.map(doc => toBookingCampaignFE(doc.id, doc.data()));
 }
 
 /**
  * Ottiene campagna singola per ID
  */
-export async function getCampaignById(id: string): Promise<BookingCampaign | null> {
+export async function getCampaignById(id: string): Promise<BookingCampaignFE | null> {
   const docRef = doc(db, COLLECTION, id);
   const docSnap = await getDoc(docRef);
   
@@ -52,20 +57,13 @@ export async function getCampaignById(id: string): Promise<BookingCampaign | nul
     return null;
   }
   
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    ...data,
-    dataInizio: data.dataInizio?.toDate?.() || new Date(data.dataInizio),
-    dataFine: data.dataFine?.toDate?.() || new Date(data.dataFine),
-    createdAt: data.createdAt?.toDate?.() || new Date(),
-  } as BookingCampaign;
+  return toBookingCampaignFE(docSnap.id, docSnap.data());
 }
 
 /**
  * Ottiene campagna per code (URL pubblico)
  */
-export async function getCampaignByCode(code: string): Promise<BookingCampaign | null> {
+export async function getCampaignByCode(code: string): Promise<BookingCampaignFE | null> {
   const q = query(
     collection(db, COLLECTION),
     where('code', '==', code)
@@ -78,22 +76,14 @@ export async function getCampaignByCode(code: string): Promise<BookingCampaign |
   }
   
   const docSnap = snapshot.docs[0];
-  const data = docSnap.data();
-  
-  return {
-    id: docSnap.id,
-    ...data,
-    dataInizio: data.dataInizio?.toDate?.() || new Date(data.dataInizio),
-    dataFine: data.dataFine?.toDate?.() || new Date(data.dataFine),
-    createdAt: data.createdAt?.toDate?.() || new Date(),
-  } as BookingCampaign;
+  return toBookingCampaignFE(docSnap.id, docSnap.data());
 }
 
 /**
  * Ottiene campagne attive (dataInizio <= oggi <= dataFine)
  * Considera giorniAnticipoSlider per mostrare lo slider in homepage prima dell'apertura prenotazioni
  */
-export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
+export async function getActiveCampaigns(): Promise<BookingCampaignFE[]> {
   const now = new Date();
   
   // Rimuovo orderBy per evitare "failed-precondition" (manca indice composito)
@@ -105,13 +95,7 @@ export async function getActiveCampaigns(): Promise<BookingCampaign[]> {
   
   const snapshot = await getDocs(q);
   
-  const campaigns = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    dataInizio: doc.data().dataInizio?.toDate?.() || new Date(doc.data().dataInizio),
-    dataFine: doc.data().dataFine?.toDate?.() || new Date(doc.data().dataFine),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-  })) as BookingCampaign[];
+  const campaigns = snapshot.docs.map(doc => toBookingCampaignFE(doc.id, doc.data()));
   
   // Filtra campagne considerando anticipo slider e ordina per dataInizio (desc)
   return campaigns
@@ -142,9 +126,10 @@ function removeUndefinedFields<T extends Record<string, any>>(obj: T): Partial<T
 
 /**
  * Crea nuova campagna
+ * @param data - Dati campagna con Date (non Timestamp)
  */
 export async function createCampaign(
-  data: Omit<BookingCampaign, 'id' | 'createdAt'>
+  data: Omit<BookingCampaignFE, 'id' | 'createdAt'>
 ): Promise<string> {
   const cleanData = removeUndefinedFields({
     ...data,
@@ -160,10 +145,11 @@ export async function createCampaign(
 
 /**
  * Aggiorna campagna esistente
+ * @param data - Dati campagna con Date (non Timestamp)
  */
 export async function updateCampaign(
   id: string,
-  data: Partial<Omit<BookingCampaign, 'id' | 'createdAt'>>
+  data: Partial<Omit<BookingCampaignFE, 'id' | 'createdAt'>>
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, id);
   

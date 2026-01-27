@@ -116,9 +116,9 @@ export interface BookingCampaign {
   code: string; // es. "ABC123XY" - 8 char alphanumeric per URL /prenota/[code]
   descrizione: string;
   
-  // Date validità (Date per compatibilità client-side)
-  dataInizio: Date;
-  dataFine: Date;
+  // Date validità - Firestore Timestamp, convertite in Date nel frontend
+  dataInizio: Timestamp;
+  dataFine: Timestamp;
   
   // Anticipo slider homepage (opzionale)
   giorniAnticipoSlider?: number; // Giorni prima di dataInizio in cui lo slider appare in homepage (default: 0)
@@ -147,6 +147,13 @@ export interface BookingCampaign {
   immaginePaginaBooking?: string; // URL immagine hero pagina booking pubblica (per preview WhatsApp/social)
   
   attiva: boolean; // Femminile: "campagna attiva"
+  createdAt: Timestamp;
+}
+
+// Frontend representation - Date oggetti convertiti da Timestamp
+export interface BookingCampaignFE extends Omit<BookingCampaign, 'dataInizio' | 'dataFine' | 'createdAt'> {
+  dataInizio: Date;
+  dataFine: Date;
   createdAt: Date;
 }
 
