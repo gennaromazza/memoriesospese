@@ -1,0 +1,222 @@
+Ok, leggendo i log il quadro è abbastanza chiaro. Ti riassumo cosa sta succedendo e perché ti va in timeout la pubblicazione.
+
+1. Cosa dicono i log (tradotto in “umano”)
+a) Problema con Replit connectors
+[EVENT SYNC GUARD] Worker error: TypeError: fetch failed
+host: 'connectors.replit.com',
+code: 'ECONNRESET',
+[cause]: Error: Client network socket disconnected before secure TLS connection was established
+
+
+Questo significa:
+
+Il tuo codice (o un worker) sta facendo una fetch verso https://connectors.replit.com.
+
+La connessione TLS non riesce / viene chiusa → ECONNRESET.
+
+Quindi il worker che gestisce questo (Event Sync Guard) lancia un errore.
+
+Se questa fetch avviene all’avvio dell’app (startup) o in un worker che viene await-ato, può far considerare all’infrastruttura di deploy che la tua app non è mai “sana”, e alla fine Replit manda in timeout la pubblicazione.
+
+b) Problema Google Calendar
+[Google Calendar V2] ❌ Errore recupero eventi calendario "studiowedcrm": Invalid Credentials
+[Google Calendar V2] ❌ Errore recupero eventi calendario "...": Invalid Credentials
+...
+[Google Calendar V2] ❌ Errore ... "Famiglia": ... failed, reason: socket hang up
+
+
+Qui hai due cose:
+
+Invalid Credentials
+→ le credenziali (client id/secret, service account o token) che usi nella versione deployata non sono valide o non sono impostate nei secrets del deploy (magari solo nella workspace).
+
+socket hang up verso www.googleapis.com
+→ la richiesta verso l’API Calendar viene chiusa lato server, oppure dal tuo lato per timeout / problemi di rete.
+
+Di nuovo: se queste chiamate partono durante lo startup del server (tipo nel file principale, fuori dalle route) e non sono ben gestite, possono:
+
+buttare giù il processo,
+
+farlo restare appeso,
+
+far vedere a Replit un’app che non risponde in tempo → timeout.
+
+c) Errore Vite (secondario, ma da sistemare)
+The request url "/home/runner/workspace/shared/contract-clause-types.ts" is outside of Vite serving allow list.
+- /home/runner/workspace/client
+- /home/runner/workspace/node_modules/vite/dist/client
+
+
+Questo è un errore di Vite dev server:
+
+Stai importando un file TypeScript (shared/contract-clause-types.ts) fuori dalla cartella consentita (/client).
+
+Va sistemato spostando il file o configurando server.fs.allow, ma questo di solito non è la causa diretta del timeout di deploy (è più un problema in dev).
+
+2. Perché la pubblicazione va in timeout
+
+Su Replit, quando fai publish:
+
+Viene eseguito il build (tipo npm run build).
+
+Poi viene avviato il server (npm start o simile) e Replit fa un health check (richiesta HTTP) per vedere se risponde.
+
+Se, appena parte il server:
+
+avvii un worker che fa fetch a connectors.replit.com o a Google,
+
+oppure fai chiamate await fetch(...) a Google Calendar / connectors prima ancora di rispondere a qualsiasi request,
+
+e queste chiamate:
+
+falliscono con errori di rete,
+
+si mettono a ritentare,
+
+lanciano eccezioni non gestite,
+
+il processo non arriva mai a uno stato “stabile” → Replit continua a vedere l’app non pronta e dopo un po’ dichiara timeout sulla pubblicazione.
+
+In pratica: la tua app, in produzione, sta morendo o bloccandosi all’avvio a causa delle integrazioni esterne (connectors + Google Calendar).
+
+3. Cosa fare, concretamente
+3.1. Non bloccare lo startup sull’Event Sync / Google Calendar
+
+Controlla dove fai queste cose:
+
+chiamate a connectors.replit.com
+
+chiamate a Google Calendar (www.googleapis.com/calendar/v3/...)
+
+e assicurati che:
+
+NON siano eseguite a livello top-level nel file principale del server (tipo direttamente in index.ts / index.js fuori da qualsiasi funzione/route),
+
+ma vengano avviate:
+
+dopo che il server è partito,
+
+e soprattutto non bloccano la risposta.
+
+Esempio di pattern sano:
+
+// server startup
+app.listen(PORT, () => {
+  console.log(`Server in ascolto su ${PORT}`);
+
+  // avvia sync in background, senza bloccare
+  if (process.env.ENABLE_EVENT_SYNC === 'true') {
+    startEventSync().catch(err => {
+      console.error('[Event Sync] errore all\'avvio:', err);
+    });
+  }
+});
+
+
+Non fare await startEventSync() dentro la parte di startup.
+
+3.2. Sistemare le credenziali di Google Calendar nel deploy
+
+Dato che vedi Invalid Credentials:
+
+Verifica quali env variables usi per Calendar (esempio):
+
+GOOGLE_CLIENT_ID
+
+GOOGLE_CLIENT_SECRET
+
+GOOGLE_REFRESH_TOKEN
+oppure le variabili di Service Account (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, ecc.).
+
+Controlla su Replit:
+
+nella workspace hai i secrets giusti,
+
+ma anche nella sezione Deploy (se Replit separa ENV build/run) siano impostati gli stessi secrets.
+
+Spesso in locale / workspace funziona perché lì ci sono le variabili, ma in deploy no → Invalid Credentials.
+
+Importante: se hai rigenerato le credenziali su Google Cloud Console, aggiorna i secrets anche su Replit.
+
+3.3. Gestire bene gli errori sulle fetch
+
+Avvolgi le chiamate a Calendar in try/catch e non farle esplodere lo startup.
+
+Esempio di funzione robusta:
+
+import { setTimeout as delay } from "timers/promises";
+
+async function fetchCalendarEventsSafe(calendarId: string) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5s
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?...`,
+      {
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${accessToken}`, // o come lo gestisci tu
+        },
+      }
+    );
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.error(`[Google Calendar] ${calendarId} status ${res.status}`);
+      return [];
+    }
+
+    const data = await res.json();
+    return data.items ?? [];
+  } catch (err: any) {
+    console.error(`[Google Calendar] errore su ${calendarId}:`, err?.message || err);
+    // NON rilanciare se non strettamente necessario
+    return [];
+  }
+}
+
+
+Così, anche se la rete fa schifo / le credenziali non vanno, il server continua a vivere.
+
+3.4. Fix Vite “fs allow list”
+
+Per evitare quell’errore:
+
+opzione 1: sposta shared/contract-clause-types.ts dentro /client e importa da lì;
+
+opzione 2: in vite.config.ts aggiungi:
+
+import { defineConfig } from 'vite';
+import path from 'path';
+
+export default defineConfig({
+  server: {
+    fs: {
+      allow: [
+        path.resolve(__dirname, 'client'),
+        path.resolve(__dirname, 'shared'),
+      ],
+    },
+  },
+});
+
+
+Non è il motivo diretto del timeout, ma meglio sistemarlo.
+
+3.5. Debug mirato del timeout
+
+Se vuoi isolare il problema:
+
+Disabilita temporaneamente tutte le integrazioni esterne via env:
+
+ENABLE_CALENDAR_SYNC = false
+
+ENABLE_CONNECTORS = false
+
+Ripubblica:
+
+se così la pubblicazione va a buon fine, è confermato che sono quelle chiamate a far saltare tutto.
+
+Poi riabiliti una cosa alla volta.

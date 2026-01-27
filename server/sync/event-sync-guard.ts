@@ -53,7 +53,9 @@ interface RepairAction {
  * Recupera TUTTI gli eventi da Google Calendar
  * Usa events.list() invece di freebusy per accedere ai dettagli completi
  * Range OTTIMIZZATO: ultimi 30 giorni + prossimi 90 giorni (4 mesi totali)
- * Riduzione da 13+ secondi a <3 secondi
+ * 
+ * IMPORTANTE: Un worker NON deve MAI propagare errori fatali.
+ * In caso di errore, restituisce un Set vuoto e continua a vivere.
  */
 async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
   console.log('[EVENT SYNC GUARD] 🔍 Fetching all events from Google Calendar (optimized range)...');
@@ -81,9 +83,10 @@ async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
     console.log(`[EVENT SYNC GUARD] ✅ Found ${eventIds.size} valid events in Google Calendar`);
     return eventIds;
     
-  } catch (error) {
-    console.error('[EVENT SYNC GUARD] ❌ Error fetching Google Calendar events:', error);
-    throw error;
+  } catch (error: any) {
+    // ✅ MAI throw da un worker! Assorbi l'errore e restituisci fallback safe
+    console.error('[EVENT SYNC GUARD] ❌ Error fetching Google Calendar events (absorbed):', error?.message || error);
+    return new Set(); // Fallback safe - la sync skipperà il confronto con GCAL
   }
 }
 
@@ -219,20 +222,38 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
       bookings: [],
     };
     
-    // Ripara consultations con eventi mancanti
-    for (const consultation of consultations) {
-      if (consultation.googleCalendarEventId && !googleEventIds.has(consultation.googleCalendarEventId)) {
-        const repair = await repairConsultation(consultation);
-        repairs.consultations.push(repair);
-      }
+    // Ripara consultations con eventi mancanti - PARALLELO per velocità
+    const consultationsToRepair = consultations.filter(
+      c => c.googleCalendarEventId && !googleEventIds.has(c.googleCalendarEventId)
+    );
+    if (consultationsToRepair.length > 0) {
+      const consultationResults = await Promise.allSettled(
+        consultationsToRepair.map(c => repairConsultation(c))
+      );
+      consultationResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          repairs.consultations.push(result.value);
+        } else {
+          console.error(`[EVENT SYNC GUARD] ⚠️ Failed to repair consultation ${consultationsToRepair[idx].id}:`, result.reason);
+        }
+      });
     }
     
-    // Ripara bookings con eventi mancanti
-    for (const booking of bookings) {
-      if (booking.googleCalendarEventId && !googleEventIds.has(booking.googleCalendarEventId)) {
-        const repair = await repairBooking(booking);
-        repairs.bookings.push(repair);
-      }
+    // Ripara bookings con eventi mancanti - PARALLELO per velocità
+    const bookingsToRepair = bookings.filter(
+      b => b.googleCalendarEventId && !googleEventIds.has(b.googleCalendarEventId)
+    );
+    if (bookingsToRepair.length > 0) {
+      const bookingResults = await Promise.allSettled(
+        bookingsToRepair.map(b => repairBooking(b))
+      );
+      bookingResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          repairs.bookings.push(result.value);
+        } else {
+          console.error(`[EVENT SYNC GUARD] ⚠️ Failed to repair booking ${bookingsToRepair[idx].id}:`, result.reason);
+        }
+      });
     }
     
     // 5. Identifica eventi orfani in Google Calendar
@@ -306,9 +327,17 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     
     return report;
     
-  } catch (error) {
-    console.error('[EVENT SYNC GUARD] ❌ Sync failed:', error);
-    throw error;
+  } catch (error: any) {
+    // ✅ MAI throw da un worker! Assorbi l'errore e restituisci report vuoto
+    console.error('[EVENT SYNC GUARD] ❌ Sync failed (absorbed):', error?.message || error);
+    return {
+      timestamp: new Date(),
+      duration: Date.now() - startTime,
+      googleCalendarEvents: 0,
+      firestoreRecords: { consultations: 0, bookings: 0 },
+      repairs: { consultations: [], bookings: [] },
+      orphanedGoogleEvents: [],
+    };
   }
 }
 
@@ -321,6 +350,11 @@ let syncInterval: NodeJS.Timeout | null = null;
 /**
  * Avvia il worker schedulato
  * @param intervalMinutes Intervallo in minuti (default: 10)
+ * 
+ * IMPORTANTE: NON eseguire la sincronizzazione immediatamente all'avvio!
+ * Questo può bloccare il deploy se le API esterne (Google Calendar) non rispondono.
+ * La prima sincronizzazione viene ritardata di 60 secondi per permettere al server
+ * di avviarsi correttamente e passare l'health check di Replit.
  */
 export function startEventSyncWorker(intervalMinutes: number = 10): void {
   if (syncInterval) {
@@ -329,22 +363,26 @@ export function startEventSyncWorker(intervalMinutes: number = 10): void {
   }
   
   const intervalMs = intervalMinutes * 60 * 1000;
+  const startupDelayMs = 60 * 1000; // 60 secondi di ritardo iniziale
   
-  console.log(`[EVENT SYNC GUARD] ⏰ Starting worker (interval: ${intervalMinutes} minutes)`);
+  console.log(`[EVENT SYNC GUARD] ⏰ Starting worker (interval: ${intervalMinutes} minutes, first run in 60s)`);
   
-  // Esegui subito la prima sincronizzazione
-  runEventSyncGuard().catch(err => {
-    console.error('[EVENT SYNC GUARD] Worker error:', err);
-  });
-  
-  // Poi schedulala periodicamente
-  syncInterval = setInterval(() => {
+  // RITARDA la prima sincronizzazione per non bloccare lo startup
+  setTimeout(() => {
+    console.log('[EVENT SYNC GUARD] 🔄 Running first sync after startup delay...');
     runEventSyncGuard().catch(err => {
       console.error('[EVENT SYNC GUARD] Worker error:', err);
     });
-  }, intervalMs);
+    
+    // Poi schedulala periodicamente
+    syncInterval = setInterval(() => {
+      runEventSyncGuard().catch(err => {
+        console.error('[EVENT SYNC GUARD] Worker error:', err);
+      });
+    }, intervalMs);
+  }, startupDelayMs);
   
-  console.log('[EVENT SYNC GUARD] ✅ Worker started successfully');
+  console.log('[EVENT SYNC GUARD] ✅ Worker scheduled (non-blocking)');
 }
 
 /**

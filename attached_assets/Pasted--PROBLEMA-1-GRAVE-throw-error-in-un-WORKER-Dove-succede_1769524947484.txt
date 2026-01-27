@@ -1,0 +1,179 @@
+🔴 PROBLEMA 1 (GRAVE): throw error in un WORKER
+Dove succede
+
+Hai due punti pericolosi:
+
+1️⃣ In getAllGoogleCalendarEvents()
+catch (error) {
+  console.error('[EVENT SYNC GUARD] ❌ Error fetching Google Calendar events:', error);
+  throw error; // ❌
+}
+
+2️⃣ In runEventSyncGuard()
+catch (error) {
+  console.error('[EVENT SYNC GUARD] ❌ Sync failed:', error);
+  throw error; // ❌
+}
+
+❌ Perché è sbagliato (in produzione)
+
+Questo NON è un job one-shot
+
+È un worker schedulato
+
+Se throw:
+
+la Promise viene rigettata
+
+il setInterval continua a vivere
+
+Node può loggare un unhandled rejection
+
+Replit può killare il processo
+
+deploy = instabile
+
+👉 Un worker NON deve MAI propagare errori fatali
+Deve assorbirli, loggarli e continuare a vivere
+
+✅ FIX OBBLIGATORIO
+🔧 getAllGoogleCalendarEvents() – versione corretta
+catch (error) {
+  console.error('[EVENT SYNC GUARD] ❌ Error fetching Google Calendar events:', error);
+  return new Set(); // ✅ fallback safe
+}
+
+🔧 runEventSyncGuard() – versione corretta
+catch (error) {
+  console.error('[EVENT SYNC GUARD] ❌ Sync failed (absorbed):', error);
+  return {
+    timestamp: new Date(),
+    duration: Date.now() - startTime,
+    googleCalendarEvents: 0,
+    firestoreRecords: { consultations: 0, bookings: 0 },
+    repairs: { consultations: [], bookings: [] },
+    orphanedGoogleEvents: [],
+  };
+}
+
+
+💡 Mai throw da un worker
+Mai. Nemmeno se Google cade.
+
+🔴 PROBLEMA 2 (REPLIT-SPECIFICO): fetch lunga senza timeout
+Dove
+
+Qui:
+
+const events = await getEventsWithDetailsAllCalendars(timeMin, timeMax);
+
+
+Dai log precedenti:
+
+ECONNRESET
+Client network socket disconnected before secure TLS connection was established
+socket hang up
+
+
+👉 Questo significa:
+
+la fetch verso Google può restare appesa
+
+Node aspetta
+
+il worker resta “bloccato”
+
+Replit pensa che l’app sia instabile
+
+✅ FIX CONSIGLIATO (molto importante)
+
+Se dentro getEventsWithDetailsAllCalendars non hai un timeout, aggiungilo.
+
+Pattern minimo (Node 18 / undici):
+
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 8000);
+
+try {
+  const res = await fetch(url, {
+    signal: controller.signal,
+    headers,
+  });
+  ...
+} catch (err) {
+  if (err.name === 'AbortError') {
+    console.error('[GCAL] ⏱️ Request timed out');
+  }
+  throw err;
+} finally {
+  clearTimeout(timeout);
+}
+
+
+👉 8 secondi max.
+Un worker non deve mai bloccare più di qualche secondo.
+
+🔴 PROBLEMA 3 (LOGICO): loop sequenziale = rischio runtime lungo
+Dove
+
+Qui:
+
+for (const consultation of consultations) {
+  if (...) {
+    const repair = await repairConsultation(consultation);
+    repairs.consultations.push(repair);
+  }
+}
+
+
+e idem per bookings.
+
+Se hai:
+
+50–100 record
+
+Firestore lento
+
+rete ballerina
+
+👉 la sync può durare decine di secondi
+
+✅ FIX MIGLIORE (safe + veloce)
+
+Batch controllato:
+
+await Promise.allSettled(
+  consultations
+    .filter(c => c.googleCalendarEventId && !googleEventIds.has(c.googleCalendarEventId))
+    .map(c => repairConsultation(c).then(r => repairs.consultations.push(r)))
+);
+
+
+Stesso per bookings.
+
+👉 Non blocchi il worker
+👉 Nessun crash se uno fallisce
+
+✅ QUELLO CHE È GIUSTO (te lo dico chiaramente)
+
+✔️ Architettura: ottima
+✔️ Logica di riparazione: corretta
+✔️ Delay startup: adesso è fatto bene
+✔️ Decisione su booking confermati: perfetta
+✔️ Range temporale Google Calendar: intelligente
+
+Non è codice da junior. È roba da sistema serio.
+
+🧠 TL;DR – PERCHÉ ORA IL DEPLOY FALLIVA
+
+Worker partiva (anche se dopo delay)
+
+Google Calendar → ECONNRESET / Invalid Credentials
+
+throw error
+
+Promise rigettata
+
+Processo instabile
+
+Replit → timeout / restart
