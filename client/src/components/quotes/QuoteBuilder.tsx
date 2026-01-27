@@ -3,7 +3,7 @@
  * Interfaccia admin per creare preventivi personalizzati
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -327,6 +327,7 @@ export default function QuoteBuilder({
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const prevFieldsCountRef = useRef<number>(0);
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -514,6 +515,17 @@ export default function QuoteBuilder({
     control: form.control,
     name: 'products'
   });
+
+  // Auto-expand newly added custom products
+  useEffect(() => {
+    if (fields.length > prevFieldsCountRef.current && prevFieldsCountRef.current > 0) {
+      const newField = fields[fields.length - 1];
+      if (newField) {
+        setExpandedProducts(prev => new Set([...prev, newField.id]));
+      }
+    }
+    prevFieldsCountRef.current = fields.length;
+  }, [fields]);
 
   // Drag and drop sensors
   const sensors = useSensors(
