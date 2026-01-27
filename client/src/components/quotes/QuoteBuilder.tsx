@@ -178,6 +178,10 @@ interface SortableProductCardProps {
   fieldsLength: number;
   onRemove: () => void;
   children: React.ReactNode;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  productName: string;
+  productPrice: number;
 }
 
 function SortableProductCard({
@@ -188,7 +192,11 @@ function SortableProductCard({
   hasName,
   fieldsLength,
   onRemove,
-  children
+  children,
+  isExpanded,
+  onToggleExpand,
+  productName,
+  productPrice
 }: SortableProductCardProps) {
   const {
     attributes,
@@ -218,7 +226,10 @@ function SortableProductCard({
       )}
     >
       <CardContent className="pt-6">
-        <div className="flex justify-between items-start mb-4">
+        <div 
+          className="flex justify-between items-start cursor-pointer"
+          onClick={onToggleExpand}
+        >
           <div className="flex items-center gap-2">
             {/* Drag Handle - accessible button */}
             <button
@@ -228,12 +239,18 @@ function SortableProductCard({
               className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
               aria-label={`Trascina per riordinare prodotto ${index + 1}`}
               data-testid={`drag-handle-product-${index}`}
+              onClick={(e) => e.stopPropagation()}
             >
               <GripVertical className="w-4 h-4 text-muted-foreground" />
             </button>
             <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
               Prodotto {index + 1}
             </Badge>
+            {!isExpanded && productName && (
+              <span className="text-sm text-muted-foreground truncate max-w-[200px]">
+                {productName} - €{productPrice.toFixed(2)}
+              </span>
+            )}
             {isIncomplete && (
               <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                 ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
@@ -243,19 +260,43 @@ function SortableProductCard({
               <span className="text-xs text-green-600 dark:text-green-400">✓</span>
             )}
           </div>
-          {fieldsLength > 1 && (
+          <div className="flex items-center gap-1">
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              onClick={onRemove}
-              data-testid={`button-remove-product-${index}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand();
+              }}
+              className="h-8 w-8 p-0"
             >
-              <Trash2 className="w-4 h-4" />
+              <svg
+                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </Button>
-          )}
+            {fieldsLength > 1 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                data-testid={`button-remove-product-${index}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
-        {children}
+        {isExpanded && <div className="mt-4">{children}</div>}
       </CardContent>
     </Card>
   );
@@ -285,6 +326,7 @@ export default function QuoteBuilder({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -1217,6 +1259,20 @@ export default function QuoteBuilder({
                           hasName={hasName}
                           fieldsLength={fields.length}
                           onRemove={() => remove(index)}
+                          isExpanded={expandedProducts.has(field.id)}
+                          onToggleExpand={() => {
+                            setExpandedProducts(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(field.id)) {
+                                newSet.delete(field.id);
+                              } else {
+                                newSet.add(field.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          productName={productName}
+                          productPrice={productPrice}
                         >
                           <div className="space-y-4">
 
