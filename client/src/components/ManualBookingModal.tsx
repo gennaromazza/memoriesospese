@@ -654,40 +654,65 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                   {selectedProducts.map((item, index) => {
                     const product = products.find(p => p.id === item.prodottoId);
                     const subtotale = getProductSubtotal(item.prodottoId, item.quantita);
+                    const isBundle = product?.isBundle && product.bundleItems && product.bundleItems.length > 0;
 
                     return (
-                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
-                        <div className="flex-1">
-                          <span className="font-medium">{product?.nome || 'Prodotto sconosciuto'}</span>
-                          <span className="text-sm text-gray-500 ml-2">
-                            €{product?.prezzoFinale.toFixed(2) || '0.00'}
-                          </span>
-                        </div>
+                      <div key={index} className="p-3 border rounded-lg bg-white">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{product?.nome || 'Prodotto sconosciuto'}</span>
+                              {isBundle && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">📦 Bundle</span>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              €{product?.prezzoFinale.toFixed(2) || '0.00'}
+                            </span>
+                          </div>
 
-                        <div className="w-20">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantita}
-                            onChange={(e) => updateProduct(index, 'quantita', parseInt(e.target.value) || 1)}
-                            placeholder="Qtà"
-                            data-testid={`input-quantity-${index}`}
-                          />
-                        </div>
+                          <div className="w-20">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantita}
+                              onChange={(e) => updateProduct(index, 'quantita', parseInt(e.target.value) || 1)}
+                              placeholder="Qtà"
+                              data-testid={`input-quantity-${index}`}
+                            />
+                          </div>
 
-                        <div className="w-24 text-right font-medium">
-                          €{subtotale.toFixed(2)}
-                        </div>
+                          <div className="w-24 text-right font-medium">
+                            €{subtotale.toFixed(2)}
+                          </div>
 
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeProduct(index)}
-                          data-testid={`button-remove-product-${index}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeProduct(index)}
+                            data-testid={`button-remove-product-${index}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </div>
+                        
+                        {/* Mostra prodotti inclusi nel bundle */}
+                        {isBundle && product.bundleItems && (
+                          <div className="mt-2 pl-3 border-l-2 border-amber-200 text-sm text-gray-600">
+                            <span className="text-xs text-gray-500 uppercase tracking-wide">Inclusi:</span>
+                            <ul className="mt-1 space-y-0.5">
+                              {product.bundleItems.map((bi, biIndex) => (
+                                <li key={biIndex} className="flex items-center gap-2">
+                                  <span className="text-gray-400">└</span>
+                                  <span>{bi.prodottoNome}</span>
+                                  {bi.quantita > 1 && <span className="text-gray-400">x{bi.quantita}</span>}
+                                  {bi.numeroFoto > 0 && <span className="text-gray-400">({bi.numeroFoto} foto)</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
