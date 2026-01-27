@@ -19,7 +19,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
-import type { CashMovement, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
+import type { CashMovement, CashMovementFE, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
 import type { Order, Transaction } from "@shared/booking-types";
 import { getAllJobs } from "./jobs";
@@ -38,16 +38,53 @@ function sanitizeData<T extends Record<string, any>>(obj: T): Partial<T> {
 }
 
 /**
+ * Helper: Converte Timestamp/serialized Timestamp/Date in Date
+ * Restituisce fallback se conversione fallisce
+ */
+function toSafeDate(value: any, fallback: Date = new Date()): Date {
+  if (!value) return fallback;
+  
+  // Firestore Timestamp (ha metodo toDate)
+  if (typeof value?.toDate === 'function') {
+    return value.toDate();
+  }
+  
+  // Timestamp serializzato da Firestore REST API
+  if (value && typeof value === 'object' && 'seconds' in value) {
+    return new Date(value.seconds * 1000);
+  }
+  
+  // Già un Date
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? fallback : value;
+  }
+  
+  // String ISO o altro
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
+/**
+ * Helper: Converte documento Firestore in CashMovementFE
+ */
+function toCashMovementFE(id: string, data: any): CashMovementFE {
+  return {
+    id,
+    ...data,
+    data: toSafeDate(data.data),
+    createdAt: toSafeDate(data.createdAt),
+    updatedAt: toSafeDate(data.updatedAt, data.createdAt?.toDate?.() || new Date()),
+  };
+}
+
+/**
  * Ottiene tutti i movimenti cassa
  */
-export async function getAllCashMovements(): Promise<CashMovement[]> {
+export async function getAllCashMovements(): Promise<CashMovementFE[]> {
   const q = query(collection(db, COLLECTION), orderBy("data", "desc"));
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as CashMovement[];
+  return snapshot.docs.map((doc) => toCashMovementFE(doc.id, doc.data()));
 }
 
 /**

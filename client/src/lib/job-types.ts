@@ -13,23 +13,30 @@ import {
   writeBatch,
   Timestamp
 } from 'firebase/firestore';
-import type { JobType } from '@shared/job-types';
+import type { JobType, JobTypeFE } from '@shared/job-types';
 
 const COLLECTION = 'jobTypes';
 
-export async function getJobTypes(): Promise<JobType[]> {
+/**
+ * Helper: Converte documento Firestore in JobTypeFE
+ */
+function toJobTypeFE(id: string, data: any): JobTypeFE {
+  return {
+    id,
+    ...data,
+    createdAt: data.createdAt?.toDate?.() || new Date(),
+    updatedAt: data.updatedAt?.toDate?.() || new Date(),
+  };
+}
+
+export async function getJobTypes(): Promise<JobTypeFE[]> {
   const q = query(collection(db, COLLECTION), orderBy('ordine', 'asc'));
   const snapshot = await getDocs(q);
   
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate() || new Date()
-  })) as JobType[];
+  return snapshot.docs.map(doc => toJobTypeFE(doc.id, doc.data()));
 }
 
-export async function getActiveJobTypes(): Promise<JobType[]> {
+export async function getActiveJobTypes(): Promise<JobTypeFE[]> {
   const q = query(
     collection(db, COLLECTION),
     where('attivo', '==', true),
@@ -37,31 +44,21 @@ export async function getActiveJobTypes(): Promise<JobType[]> {
   );
   const snapshot = await getDocs(q);
   
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate() || new Date()
-  })) as JobType[];
+  return snapshot.docs.map(doc => toJobTypeFE(doc.id, doc.data()));
 }
 
-export async function getJobTypeBySlug(slug: string): Promise<JobType | null> {
+export async function getJobTypeBySlug(slug: string): Promise<JobTypeFE | null> {
   const q = query(collection(db, COLLECTION), where('slug', '==', slug));
   const snapshot = await getDocs(q);
   
   if (snapshot.empty) return null;
   
-  const doc = snapshot.docs[0];
-  return {
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate() || new Date()
-  } as JobType;
+  const docSnap = snapshot.docs[0];
+  return toJobTypeFE(docSnap.id, docSnap.data());
 }
 
 export async function createJobType(
-  data: Omit<JobType, 'id' | 'createdAt' | 'updatedAt'>
+  data: Omit<JobTypeFE, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
   // Verifica slug unique
   const existing = await getJobTypeBySlug(data.slug);
@@ -83,7 +80,7 @@ export async function createJobType(
 
 export async function updateJobType(
   id: string,
-  data: Partial<Omit<JobType, 'id' | 'createdAt' | 'updatedAt'>>
+  data: Partial<Omit<JobTypeFE, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   // Se cambia slug, verifica che non esista già
   if (data.slug) {
