@@ -116,6 +116,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { QuoteProduct, QuoteTemplate } from '@shared/quotes-types';
+import { catalogProductToQuoteProduct } from '@/lib/quote-mappers';
 
 const templateSchema = z.object({
   nome: z.string().min(1, 'Nome richiesto'),
@@ -453,8 +454,8 @@ export default function QuoteTemplatesManager() {
                   categoria: '',
                 },
               ],
-        discountType: (editingTemplate as any).discountType,
-        discountValue: (editingTemplate as any).discountValue,
+        discountType: editingTemplate.discountType,
+        discountValue: editingTemplate.discountValue,
         theme: editingTemplate.theme,
         attivo: editingTemplate.attivo,
       });
@@ -493,16 +494,7 @@ export default function QuoteTemplatesManager() {
       const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(id => {
         const product = catalogProducts.find(p => p.id === id);
         if (!product) throw new Error(`Prodotto ${id} non trovato`);
-        return {
-          productId: product.id,
-          nome: product.nome,
-          descrizione: product.descrizione,
-          prezzo: product.prezzoFinale || product.prezzo,
-          selectable: data.type === 'variabile',
-          numeroFoto: product.numeroFoto,
-          categoria: product.categoria,
-          immagini: product.immagini || []
-        };
+        return catalogProductToQuoteProduct(product, data.type);
       });
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
@@ -518,18 +510,17 @@ export default function QuoteTemplatesManager() {
 
       const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
 
-      // Clausole di default (vuote per ora, possono essere personalizzate dopo)
+      // Clausole di default
       const defaultClauses = [
         {
           text: 'Il cliente accetta i termini e condizioni del servizio',
-          required: true,
-          ordine: 1
+          required: true
         }
       ];
 
       const templateData: any = {
         nome: data.nome,
-        jobType: data.jobType as any,
+        jobType: data.jobType,
         type: data.type,
         theme: data.theme,
         defaultProducts: allProducts,
@@ -569,16 +560,7 @@ export default function QuoteTemplatesManager() {
       const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(prodId => {
         const product = catalogProducts.find(p => p.id === prodId);
         if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
-        return {
-          productId: product.id,
-          nome: product.nome,
-          descrizione: product.descrizione,
-          prezzo: product.prezzoFinale || product.prezzo,
-          selectable: data.type === 'variabile',
-          numeroFoto: product.numeroFoto,
-          categoria: product.categoria,
-          immagini: product.immagini || []
-        };
+        return catalogProductToQuoteProduct(product, data.type);
       });
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
@@ -596,15 +578,14 @@ export default function QuoteTemplatesManager() {
 
       const updateData: any = {
         nome: data.nome,
-        jobType: data.jobType as any,
+        jobType: data.jobType,
         type: data.type,
         theme: data.theme,
         defaultProducts: allProducts,
         defaultClauses: editingTemplate?.defaultClauses || [
           {
             text: 'Il cliente accetta i termini e condizioni del servizio',
-            required: true,
-            ordine: 1
+            required: true
           }
         ],
         attivo: data.attivo
@@ -1036,7 +1017,14 @@ export default function QuoteTemplatesManager() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Tipo Sconto</FormLabel>
-                        <Select value={field.value || 'none'} onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}>
+                        <Select value={field.value || 'none'} onValueChange={(val) => {
+                          if (val === 'none') {
+                            field.onChange(undefined);
+                            form.setValue('discountValue', undefined);
+                          } else {
+                            field.onChange(val);
+                          }
+                        }}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />

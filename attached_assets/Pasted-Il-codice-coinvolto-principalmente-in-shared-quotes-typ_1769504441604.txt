@@ -1,0 +1,355 @@
+Il codice coinvolto è principalmente in:
+
+@shared/quotes-types
+
+@/components/quotes/QuoteTemplatesManager
+
+@/lib/quote-mappers
+
+@/components/payment-schedules/GeneraPagamentiModal
+
+eventuali helper API/Firestore che gestiscono Quote, QuoteTemplate e PaymentSchedule.
+
+Lavora in questo ordine: dal problema più critico al meno critico.
+
+1️⃣ BUG CRITICO – Sconto nei Template Preventivi (Zod refine + UI)
+
+Problema:
+
+Nel QuoteTemplatesManager:
+
+lo schema Zod prevede discountType e discountValue con una refine:
+
+.refine((data) => {
+  const hasType = data.discountType !== undefined;
+  const hasValue = data.discountValue !== undefined;
+  return hasType === hasValue;
+}, {
+  message: 'Tipo e valore sconto devono essere entrambi specificati o entrambi vuoti',
+  path: ['discountType']
+});
+
+
+nella UI:
+
+<FormField
+  name="discountType"
+  ...
+  <Select
+    value={field.value || 'none'}
+    onValueChange={(val) => field.onChange(val === 'none' ? undefined : val)}
+  >
+    ...
+  </Select>
+/>
+
+
+quando passo “Tipo sconto” da “Sconto Fisso” / “Percentuale” a “Nessuno sconto”, discountType diventa undefined ma discountValue resta valorizzato (es: 50).
+Il refine fallisce (hasType=false, hasValue=true) e non posso più salvare il template, anche se il campo discountValue non è più visibile.
+
+Obiettivo:
+
+Quando l’utente seleziona “Nessuno sconto”:
+
+discountType deve diventare undefined
+
+e anche discountValue deve diventare undefined (o null, ma coerente con lo schema).
+
+Il refine deve accettare due casi validi:
+
+entrambi discountType e discountValue definiti
+
+entrambi undefined (nessuno sconto)
+
+Dal punto di vista UX: l’utente deve poter:
+
+aggiungere uno sconto,
+
+modificarlo,
+
+rimuoverlo completamente,
+senza rimanere bloccato da errori Zod invisibili.
+
+Cosa fare:
+
+Aggiorna il onValueChange del Select di discountType in QuoteTemplatesManager in modo che, quando l’utente seleziona “Nessuno sconto”, venga resettato anche discountValue via form.setValue('discountValue', undefined).
+
+Controlla lo schema Zod per discountValue (tipo, .optional(), ecc.) e assicurati che sia compatibile con l’uso di undefined.
+
+Verifica che il refine passi correttamente in tutti i casi:
+
+nessuno sconto,
+
+sconto fisso in €,
+
+sconto percentuale in %.
+
+2️⃣ BUG CRITICO – Perdita informazioni bundle nei Template (QuoteProduct)
+
+Esistono utility in @/lib/quote-mappers:
+
+export function catalogProductToQuoteProduct(product: Product, quoteType: 'fisso' | 'variabile'): QuoteProduct { ... }
+
+
+Questo mapper:
+
+imposta productId, nome, descrizione, prezzo, selectable,
+
+gestisce correttamente i bundle:
+
+if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
+  quoteProduct.isBundle = true;
+  quoteProduct.bundleItems = product.bundleItems.map(...);
+}
+
+
+Nel QuoteTemplatesManager, invece, per creare/aggiornare un template:
+
+ricrei i QuoteProduct a mano, qualcosa del tipo:
+
+const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(id => {
+  const product = catalogProducts.find(p => p.id === id);
+  return {
+    productId: product.id,
+    nome: product.nome,
+    descrizione: product.descrizione,
+    prezzo: product.prezzoFinale || product.prezzo,
+    selectable: data.type === 'variabile',
+    numeroFoto: product.numeroFoto,
+    categoria: product.categoria,
+    immagini: product.immagini || []
+  };
+});
+
+
+Problema:
+
+Qui non imposti isBundle e bundleItems.
+
+Se un prodotto di catalogo è un bundle, quando lo includi in un template:
+
+perdi le info di bundle in defaultProducts.
+
+Se un template già salvato conteneva isBundle/bundleItems, al primo update li sovrascrivi con versioni “piatte”.
+
+Obiettivo:
+
+QuoteTemplatesManager deve usare sempre i mappers centralizzati (catalogProductToQuoteProduct) per costruire QuoteProduct quando parte dai Product di catalogo.
+
+Così garantisci che isBundle e bundleItems siano preservati e coerenti.
+
+Cosa fare:
+
+In QuoteTemplatesManager, sia nella mutation di create che in quella di update, sostituisci la logica manuale di costruzione di QuoteProduct per i prodotti di catalogo con una chiamata a catalogProductToQuoteProduct(product, data.type).
+
+Mantieni invariata la costruzione dei prodotti custom (che sono già QuoteProduct senza productId).
+
+Verifica che un template creato con bundle:
+
+mostri correttamente isBundle e bundleItems nel documento Firestore,
+
+e che un update successivo non li perda.
+
+3️⃣ PROBLEMA STRUTTURALE – Tipi QuoteTemplate / QuoteClause / jobType non allineati al DB
+
+Nel file @shared/quotes-types:
+
+QuoteTemplate non contiene esplicitamente:
+
+discountType?: 'amount' | 'percent'
+
+discountValue?: number
+
+ordine?: number (usato per l’ordinamento drag&drop dei template)
+
+QuoteClause non prevede ordine, ma tu lo usi comunque nei default:
+
+const defaultClauses = [
+  {
+    text: '...',
+    required: true,
+    ordine: 1
+  }
+];
+
+
+QuoteTemplate.jobType è typed come JobType (importato da ./jobs-types), ma:
+
+nel QuoteTemplatesManager usi jobType come slug string (jt.slug),
+
+e fai cast as any in create/update.
+
+Effetto:
+
+Ti costringe ad usare any e cast in vari punti.
+
+Il tipo TypeScript non riflette la realtà di Firestore.
+
+Apre la porta a bug futuri e refactor pericolosi.
+
+Obiettivo:
+
+Allineare le interfacce TypeScript esattamente a ciò che salvi su Firestore.
+
+Cosa fare:
+
+In @shared/quotes-types:
+
+Aggiungi alla definizione di QuoteTemplate:
+
+discountType?: 'amount' | 'percent';
+discountValue?: number;
+ordine?: number;
+
+
+Aggiungi a QuoteClause:
+
+ordine?: number;
+
+
+Gestisci jobType in modo coerente:
+
+Se nel DB stai salvando uno slug string, definisci:
+
+export type QuoteTemplateJobType = string;
+
+export interface QuoteTemplate {
+  ...
+  jobType: QuoteTemplateJobType;
+  ...
+}
+
+export interface InsertQuoteTemplate {
+  jobType: QuoteTemplateJobType;
+  ...
+}
+
+
+E rimuovi i cast inutili as any in QuoteTemplatesManager (usa direttamente il tipo string/slug).
+
+Assicurati che getAllQuoteTemplates, createQuoteTemplate, updateQuoteTemplate, toggleTemplateActive, updateTemplatesOrder usino questi tipi aggiornati senza any.
+
+4️⃣ COERENZA DATE / eventDate tra Job, Quote e Payment Schedules
+
+Attualmente:
+
+Quote.jobInfo.eventDate è tipizzato come Timestamp.
+
+InsertQuote.jobInfo.eventDate è tipizzato come any.
+
+GeneraPagamentiModal riceve eventDate?: Date | null.
+
+Altri componenti e API probabilmente lavorano in mezzo tra Date, Timestamp, stringhe ISO.
+
+Obiettivo:
+
+Avere una pipeline chiara:
+
+FE React lavora con Date.
+
+Firestore salva Timestamp.
+
+API / layer backend convertono in un unico punto.
+
+Cosa fare:
+
+Definisci chiaramente in InsertQuote/InsertJob quali campi accettano Date lato FE.
+
+Nei controller/API server-side che creano/aggiornano quotes e jobs:
+
+se ricevono Date o stringa ISO, la convertono sempre in Timestamp con una utility centralizzata (es. normalizeToTimestamp).
+
+Nei fetch che tornano jobs/quotes al FE (/api/jobs/:id, /api/quotes/:id):
+
+o:
+
+converti i Timestamp in stringhe ISO,
+
+e nel FE li riconverti in Date subito dopo il fetch;
+
+oppure:
+
+li passi come oggetti con seconds/nanoseconds e nel FE hai un helper per trasformarli in Date nell’entrypoint (PRIMA di passarli a componenti come GeneraPagamentiModal).
+
+Verifica che GeneraPagamentiModal riceva sempre e solo Date come eventDate, mai Timestamp o stringa.
+
+5️⃣ MIGLIORIA UX – Reset di dateModes / relativeDaysArray nel modal pagamenti
+
+Nel GeneraPagamentiModal:
+
+usi dateModes: Array<'absolute' | 'relative'> e relativeDaysArray: number[] per gestire:
+
+modalità assoluta vs relativa all’evento,
+
+offset in giorni.
+
+Quando:
+
+passi al tab Automatico,
+
+applichi un preset che fa replace(newPayments) su fields (useFieldArray),
+
+poi torni al tab Manuale,
+
+gli array dateModes/relativeDaysArray non vengono resettati, ma solo estesi se la lunghezza aumenta.
+
+Effetto:
+
+Alcune rate in manuale possono ritrovarsi con modalità/offset “sporchi” ereditati da uno stato precedente, cosa poco intuitiva per l’utente (anche se il server riceve comunque date valide).
+
+Obiettivo:
+
+Quando l’utente:
+
+passa dal tab automatico a manuale, oppure
+
+applichi un preset che sostituisce le rate con replace(newPayments),
+
+i dateModes e relativeDaysArray devono essere riallineati alla nuova lista di rate con valori di default (es. tutte 'absolute' e 0).
+
+Cosa fare:
+
+Aggiungi un effetto che osserva:
+
+il cambio di activeTab verso 'manuale', e/o
+
+la chiamata a applyPreset.
+
+In questi casi, resetta:
+
+setDateModes(new Array(fields.length).fill('absolute'));
+setRelativeDaysArray(new Array(fields.length).fill(0));
+
+
+Verifica che:
+
+dopo aver usato un preset in automatico,
+
+passando a manuale,
+la UX sia pulita e prevedibile.
+
+REGOLE GENERALI
+
+Non rompere la compatibilità con i dati già salvati in Firestore.
+
+Dove aggiungi nuovi campi opzionali ai tipi (ordine, discountType, ecc.), considera che possano essere undefined nei documenti legacy.
+
+Mantieni il più possibile la logica esistente, limitandoti a:
+
+allineare i tipi,
+
+sistemare i bug descritti,
+
+centralizzare le conversioni (ad es. bundle, date).
+
+Al termine:
+
+assicurati che:
+
+creare/aggiornare un template preventivo funzioni in tutti i casi di sconto,
+
+i prodotti bundle mantengano isBundle e bundleItems,
+
+la drag&drop dei template continui a funzionare con ordine,
+
+il modal “Genera Piano Pagamenti” non blocchi l’utente e abbia un comportamento coerente tra Automatico e Manuale.

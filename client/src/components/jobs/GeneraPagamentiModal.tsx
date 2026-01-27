@@ -180,6 +180,15 @@ export default function GeneraPagamentiModal({
     }
   }, [fields.length, dateModes.length]);
 
+  // Reset dateModes/relativeDaysArray quando si passa al tab manuale
+  // per evitare valori "sporchi" ereditati da preset precedenti
+  useEffect(() => {
+    if (activeTab === 'manuale') {
+      setDateModes(new Array(fields.length).fill('absolute'));
+      setRelativeDaysArray(new Array(fields.length).fill(0));
+    }
+  }, [activeTab, fields.length]);
+
   // Aggiorna data quando modalità relativa è attiva
   useEffect(() => {
     if (eventDate) {

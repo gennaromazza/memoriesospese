@@ -61,6 +61,7 @@ export interface QuoteClause {
   required: boolean;            // Obbligatoria per firma
   accepted?: boolean;           // Accettata dal cliente
   acceptedAt?: Timestamp;       // Quando accettata
+  ordine?: number;              // Ordine di visualizzazione
 }
 
 /**
@@ -236,7 +237,7 @@ export interface InsertQuote {
   paymentScheduleConfig?: PaymentScheduleConfig;
   jobInfo?: {
     nomeEvento: string;
-    eventDate: any;
+    eventDate: Date;             // FE lavora con Date, backend converte in Timestamp
     rito: string;
     location: string;
   };
@@ -258,7 +259,7 @@ export interface InsertQuote {
 export interface QuoteTemplate {
   id: string;
   nome: string;                 // Es. "Matrimonio Premium"
-  jobType: JobType;             // Tipo lavoro associato
+  jobType: string;              // Slug del tipo lavoro (es. "matrimonio")
   type: QuoteType;              // Fisso o variabile
   
   // Tema grafico
@@ -269,6 +270,13 @@ export interface QuoteTemplate {
   
   // Clausole pre-impostate
   defaultClauses: Omit<QuoteClause, 'id' | 'accepted' | 'acceptedAt'>[];
+  
+  // Sconto opzionale
+  discountType?: 'amount' | 'percent';
+  discountValue?: number;
+  
+  // Ordinamento drag&drop
+  ordine?: number;
   
   // Stato
   attivo: boolean;
@@ -284,11 +292,14 @@ export interface QuoteTemplate {
  */
 export interface InsertQuoteTemplate {
   nome: string;
-  jobType: JobType;
+  jobType: string;              // Slug del tipo lavoro (es. "matrimonio")
   type: QuoteType;
   theme: QuoteTheme;
   defaultProducts: QuoteProduct[];
   defaultClauses: Omit<QuoteClause, 'id' | 'accepted' | 'acceptedAt'>[];
+  discountType?: 'amount' | 'percent';
+  discountValue?: number;
+  ordine?: number;
   attivo?: boolean;
 }
 
