@@ -565,8 +565,36 @@ export default function QuoteBuilder({
     }
   }, [quoteType, form]);
 
-  // Watch payment schedule config for simulator
-  const paymentConfig = form.watch('paymentScheduleConfig');
+  // Watch payment schedule config for simulator - watch individual fields to ensure updates
+  const paymentConfigAutoGenerate = form.watch('paymentScheduleConfig.autoGenerate');
+  const paymentConfigNumberOfPayments = form.watch('paymentScheduleConfig.numberOfPayments');
+  const paymentConfigAccontoType = form.watch('paymentScheduleConfig.accontoType');
+  const paymentConfigAccontoPercentage = form.watch('paymentScheduleConfig.accontoPercentage');
+  const paymentConfigAccontoAmount = form.watch('paymentScheduleConfig.accontoAmount');
+  const paymentConfigAccontoRelativeDays = form.watch('paymentScheduleConfig.accontoRelativeDays');
+  const paymentConfigRateIntervalDays = form.watch('paymentScheduleConfig.rateIntervalDays');
+  const paymentConfigUseEventDateReference = form.watch('paymentScheduleConfig.useEventDateReference');
+  
+  // Rebuild paymentConfig object for calculations
+  const paymentConfig = useMemo(() => ({
+    autoGenerate: paymentConfigAutoGenerate || false,
+    numberOfPayments: paymentConfigNumberOfPayments || 2,
+    accontoType: paymentConfigAccontoType || 'percentage',
+    accontoPercentage: paymentConfigAccontoPercentage || 30,
+    accontoAmount: paymentConfigAccontoAmount || 0,
+    accontoRelativeDays: paymentConfigAccontoRelativeDays || 0,
+    rateIntervalDays: paymentConfigRateIntervalDays || 30,
+    useEventDateReference: paymentConfigUseEventDateReference || false,
+  }), [
+    paymentConfigAutoGenerate,
+    paymentConfigNumberOfPayments,
+    paymentConfigAccontoType,
+    paymentConfigAccontoPercentage,
+    paymentConfigAccontoAmount,
+    paymentConfigAccontoRelativeDays,
+    paymentConfigRateIntervalDays,
+    paymentConfigUseEventDateReference,
+  ]);
   const autoGenerate = paymentConfig?.autoGenerate || false;
 
   // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
