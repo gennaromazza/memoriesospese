@@ -1767,12 +1767,52 @@ export default function BookingsManager({
                               );
                             }
 
-                            // Fallback: prodotto singolo legacy
+                            // Fallback: prodotto singolo legacy (senza ordine)
                             if (booking.prodottoNome) {
+                              // Cerca il prodotto dalla lista per mostrare bundleItems se è un bundle
+                              const bookingProduct = booking.prodottoId 
+                                ? products.find(p => p.id === booking.prodottoId) 
+                                : null;
+                              const isBundle = bookingProduct?.isBundle && bookingProduct?.bundleItems && bookingProduct.bundleItems.length > 0;
+                              const totalPhotos = isBundle && bookingProduct?.bundleItems
+                                ? bookingProduct.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+                                : bookingProduct?.numeroFoto || 0;
+                              
                               return (
-                                <div className="flex items-center gap-2 text-gray-700 text-sm">
-                                  <Package className="w-4 h-4 text-sage" />
-                                  <span>{booking.prodottoNome}</span>
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-2 text-gray-700 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-4 h-4 text-sage" />
+                                      <span className="font-medium">{booking.prodottoNome}</span>
+                                      {isBundle && (
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-amber-50 text-amber-700 border-amber-200 text-xs"
+                                        >
+                                          📦 Bundle
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {totalPhotos > 0 && (
+                                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                                        <ImageIcon className="w-3 h-3" />
+                                        {totalPhotos} foto
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* Mostra prodotti inclusi nel bundle */}
+                                  {isBundle && bookingProduct?.bundleItems && (
+                                    <div className="ml-6 pl-2 border-l-2 border-amber-200 space-y-1">
+                                      {bookingProduct.bundleItems.map((item, itemIdx) => (
+                                        <div key={itemIdx} className="text-xs text-gray-600 flex items-center justify-between">
+                                          <span>└ {item.prodottoNome}{item.quantita > 1 ? ` x${item.quantita}` : ''}</span>
+                                          {item.numeroFoto > 0 && (
+                                            <span className="text-gray-400">({item.numeroFoto * item.quantita} foto)</span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             }
