@@ -7,10 +7,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getActiveProducts } from '@/lib/products';
+import { getActiveProductCategories } from '@/lib/product-categories';
 import { getAvailableSlots } from '@/lib/bookings';
-import type { Product, OrderItem } from '@shared/booking-types';
+import type { Product, OrderItem, ProductCategory } from '@shared/booking-types';
 import type { BookingCampaignFE } from '@shared/booking-types';
-import { ProductFilters, useProductFilter } from '@/components/ProductFilters';
+import ProductSelector from '@/components/ProductSelector';
 import {
   Dialog,
   DialogContent,
@@ -104,17 +105,19 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     queryKey: ['products', 'active'],
     queryFn: getActiveProducts,
   });
+  
+  // Query categorie prodotti
+  const { data: categories = [] } = useQuery<ProductCategory[]>({
+    queryKey: ['product-categories', 'active'],
+    queryFn: getActiveProductCategories,
+  });
 
   // Campagna selezionata
   const selectedCampaign = campaigns.find(c => c.id === campaignId);
 
-  // Filtri prodotti
-  const [productSearchQuery, setProductSearchQuery] = useState('');
-  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
-
   // Prodotti disponibili: unione di prodotti assegnati alla campagna + prodotti della categoria tema
   // Questo permette di vedere tutti i prodotti della categoria (es. "carnevale") anche se non assegnati
-  const campaignProducts = useMemo(() => {
+  const availableProducts = useMemo(() => {
     if (!selectedCampaign) return [];
     
     const assignedProducts = products.filter(p => 
@@ -132,9 +135,6 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     
     return assignedProducts;
   }, [products, selectedCampaign]);
-  
-  // Applica filtri ai prodotti della campagna
-  const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
 
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
@@ -148,9 +148,19 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     enabled: !!dataShootingDate && !!selectedCampaign,
   });
 
-  // Helper: Aggiungi prodotto vuoto
-  const addProduct = () => {
-    setSelectedProducts([...selectedProducts, { prodottoId: '', quantita: 1 }]);
+  // Helper: Aggiungi prodotto dal catalogo (usato da ProductSelector)
+  const handleAddProduct = (productId: string) => {
+    // Controlla se il prodotto è già nella lista
+    const existingIndex = selectedProducts.findIndex(p => p.prodottoId === productId);
+    if (existingIndex >= 0) {
+      // Se già presente, incrementa la quantità
+      const updated = [...selectedProducts];
+      updated[existingIndex].quantita += 1;
+      setSelectedProducts(updated);
+    } else {
+      // Altrimenti aggiungi nuovo prodotto
+      setSelectedProducts([...selectedProducts, { prodottoId: productId, quantita: 1 }]);
+    }
   };
 
   // Helper: Rimuovi prodotto
@@ -636,41 +646,24 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
 
           {/* Prodotti Multi-Prodotto */}
           <div className="space-y-4 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4" />
-                Prodotti (opzionale)
-              </Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={addProduct}
-                className="border-sage text-sage hover:bg-sage hover:text-white"
-                data-testid="button-add-product"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Aggiungi Prodotto
-              </Button>
-            </div>
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4" />
+              Prodotti (opzionale)
+            </Label>
             
-            {/* Filtri prodotti */}
-            {campaignProducts.length > 0 && (
-              <ProductFilters
-                products={campaignProducts}
-                searchQuery={productSearchQuery}
-                onSearchChange={setProductSearchQuery}
-                categoryFilter={productCategoryFilter}
-                onCategoryChange={setProductCategoryFilter}
-                compact
-              />
-            )}
+            {/* ProductSelector con filtri integrati */}
+            <ProductSelector
+              products={availableProducts}
+              categories={categories}
+              onSelectProduct={handleAddProduct}
+              placeholder="Seleziona prodotto dal catalogo..."
+            />
 
             {selectedProducts.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg border border-dashed">
                 <Package className="w-10 h-10 mx-auto mb-2 text-gray-400" />
                 <p className="text-sm">Nessun prodotto aggiunto</p>
-                <p className="text-xs mt-1">I prodotti possono essere aggiunti ora o in sede</p>
+                <p className="text-xs mt-1">Seleziona prodotti dal catalogo sopra</p>
               </div>
             ) : (
               <>
@@ -682,21 +675,10 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                     return (
                       <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
                         <div className="flex-1">
-                          <Select
-                            value={item.prodottoId}
-                            onValueChange={(value) => updateProduct(index, 'prodottoId', value)}
-                          >
-                            <SelectTrigger data-testid={`select-product-${index}`}>
-                              <SelectValue placeholder="Seleziona prodotto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableProducts.map(p => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.nome} - €{p.prezzoFinale.toFixed(2)} ({p.numeroFoto} foto)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <span className="font-medium">{product?.nome || 'Prodotto sconosciuto'}</span>
+                          <span className="text-sm text-gray-500 ml-2">
+                            €{product?.prezzoFinale.toFixed(2) || '0.00'}
+                          </span>
                         </div>
 
                         <div className="w-20">
