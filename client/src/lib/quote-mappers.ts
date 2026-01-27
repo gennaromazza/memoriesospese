@@ -27,6 +27,16 @@ export function catalogProductToQuoteProduct(
   if (quoteType === 'fisso') {
     quoteProduct.selected = true;
   }
+  // Include bundle information if product is a bundle
+  if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
+    quoteProduct.isBundle = true;
+    quoteProduct.bundleItems = product.bundleItems.map(item => ({
+      prodottoId: item.prodottoId,
+      prodottoNome: item.prodottoNome,
+      quantita: item.quantita,
+      numeroFoto: item.numeroFoto
+    }));
+  }
   return quoteProduct;
 }
 

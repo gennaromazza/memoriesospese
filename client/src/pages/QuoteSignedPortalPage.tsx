@@ -487,6 +487,28 @@ export default function QuoteSignedPortalPage() {
                             <span className="font-medium">{product.numeroFoto} foto incluse</span>
                           </div>
                         )}
+                        {/* Bundle indicator and items */}
+                        {product.isBundle && (
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-amber-700 bg-amber-50 px-2 sm:px-3 py-1 rounded-full w-fit mt-2">
+                            <span>📦</span>
+                            <span className="font-medium">Pacchetto</span>
+                          </div>
+                        )}
+                        {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
+                          <div className="mt-2 pl-3 border-l-2 border-amber-200 space-y-1">
+                            <p className="text-xs font-medium text-amber-700">Include:</p>
+                            {product.bundleItems.map((item, itemIdx) => (
+                              <div key={itemIdx} className="flex items-center gap-2 text-xs text-dark-sage">
+                                <span>└</span>
+                                <span>{item.prodottoNome}</span>
+                                {item.quantita > 1 && <span className="text-gray-500">x{item.quantita}</span>}
+                                {item.numeroFoto && item.numeroFoto > 0 && (
+                                  <span className="text-blue-600">({item.numeroFoto} foto)</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-left sm:text-right sm:ml-4">

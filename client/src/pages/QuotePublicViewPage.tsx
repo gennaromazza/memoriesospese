@@ -663,7 +663,27 @@ export default function QuotePublicViewPage() {
                               {product.categoria}
                             </Badge>
                           )}
+                          {product.isBundle && (
+                            <Badge variant="outline" className="text-xs bg-amber-100 border-amber-300 text-amber-700">
+                              📦 Pacchetto
+                            </Badge>
+                          )}
                         </div>
+                        {/* Bundle Items - Mobile */}
+                        {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
+                          <div className="mt-2 pl-2 border-l-2 border-amber-200 space-y-0.5">
+                            <p className="text-xs font-medium text-amber-700">Include:</p>
+                            {product.bundleItems.map((item, itemIdx) => (
+                              <div key={itemIdx} className="flex items-center gap-1.5 text-xs text-dark-sage">
+                                <span>└</span>
+                                <span>{item.prodottoNome}</span>
+                                {item.numeroFoto && item.numeroFoto > 0 && (
+                                  <span className="text-blue-600">({item.numeroFoto} foto)</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -684,7 +704,28 @@ export default function QuotePublicViewPage() {
                             {product.categoria}
                           </Badge>
                         )}
+                        {product.isBundle && (
+                          <Badge variant="outline" className="text-xs bg-amber-100 border-amber-300 text-amber-700">
+                            📦 Pacchetto
+                          </Badge>
+                        )}
                       </div>
+                      {/* Bundle Items - Desktop */}
+                      {product.isBundle && product.bundleItems && product.bundleItems.length > 0 && (
+                        <div className="mt-3 pl-3 border-l-2 border-amber-200 space-y-1">
+                          <p className="text-xs font-medium text-amber-700 mb-1">Include:</p>
+                          {product.bundleItems.map((item, itemIdx) => (
+                            <div key={itemIdx} className="flex items-center gap-2 text-xs text-dark-sage">
+                              <span>└</span>
+                              <span>{item.prodottoNome}</span>
+                              {item.quantita > 1 && <span className="text-gray-500">x{item.quantita}</span>}
+                              {item.numeroFoto && item.numeroFoto > 0 && (
+                                <span className="text-blue-600">({item.numeroFoto} foto)</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     {/* Desktop: prezzo a destra */}

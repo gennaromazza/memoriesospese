@@ -28,6 +28,16 @@ export type QuoteStatus =
 /**
  * Prodotto nel preventivo
  */
+/**
+ * Bundle item nel preventivo (snapshot dal catalogo)
+ */
+export interface QuoteBundleItem {
+  prodottoId?: string;
+  prodottoNome: string;
+  quantita: number;
+  numeroFoto?: number;
+}
+
 export interface QuoteProduct {
   productId?: string;           // Link opzionale a products collection
   nome: string;
@@ -38,6 +48,8 @@ export interface QuoteProduct {
   numeroFoto?: number;          // Numero foto incluse (es. 60 per album)
   categoria?: string;           // Es. "Album", "Video", "Stampe"
   immagini?: string[];          // URLs immagini prodotto (custom products)
+  isBundle?: boolean;           // true = questo prodotto è un bundle
+  bundleItems?: QuoteBundleItem[]; // Prodotti inclusi nel bundle
 }
 
 /**
