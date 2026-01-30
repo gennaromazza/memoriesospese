@@ -2631,6 +2631,18 @@ router.post("/v2/available-slots", async (req, res) => {
     }
 
     const campaign = campaignDoc.data();
+    
+    console.log("[POST /v2/available-slots] 📦 Campaign raw data:", {
+      id: campaignId,
+      nome: campaign?.nome,
+      orarioApertura: campaign?.orarioApertura,
+      orarioPausaInizio: campaign?.orarioPausaInizio,
+      orarioPausaFine: campaign?.orarioPausaFine,
+      orarioChiusura: campaign?.orarioChiusura,
+      durataShootingMinuti: campaign?.durataShootingMinuti,
+      excludedDays: campaign?.excludedDays,
+      attiva: campaign?.attiva
+    });
 
     if (!campaign?.attiva) {
       return res.status(400).json({ error: "Campagna non attiva" });
