@@ -95,11 +95,6 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Form fields - Pagamento (come QuickOrderModal)
-  const [acconto, setAcconto] = useState<number>(0);
-  // Allineato a BookingsManager: solo 4 metodi di pagamento supportati
-  const [metodoPagamento, setMetodoPagamento] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
-  const [isPaidAndDelivered, setIsPaidAndDelivered] = useState(false);
 
   // Query campagne attive
   const { data: campaigns = [] } = useQuery<BookingCampaignFE[]>({
@@ -203,9 +198,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     return catalogoTotale + customTotale;
   };
 
-  // Calcola saldo (come QuickOrderModal)
+  // Calcola totale prodotti
   const totale = calculateTotale();
-  const saldo = totale - acconto;
 
   // Helper: Aggiungi prodotto personalizzato con validazione
   const addCustomProduct = () => {
@@ -272,18 +266,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       setCustomPrezzo(0);
       setCustomNumeroFoto(0);
       setNote('');
-      setAcconto(0);
-      setMetodoPagamento('contante');
-      setIsPaidAndDelivered(false);
     }
   }, [isOpen]);
-
-  // Quando isPaidAndDelivered è true, imposta acconto = totale
-  useEffect(() => {
-    if (isPaidAndDelivered) {
-      setAcconto(totale);
-    }
-  }, [isPaidAndDelivered, totale]);
 
   // Reset slot quando cambia data
   useEffect(() => {
@@ -453,13 +437,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         firstProductName = customProducts[0].nome;
       }
 
-      // Calcola totale per payload (validazione: acconto non può superare totale)
-      const payloadTotale = calculateTotale();
-      // Se isPaidAndDelivered, l'acconto è già stato impostato a totale dall'effect
-      const validAcconto = Math.min(Math.max(0, acconto), payloadTotale);
-      // Saldo calcolato server-side per evitare inconsistenze
-
-      // Payload prenotazione V2 (allineato a BookingsManager)
+      // Payload prenotazione V2 (solo dati prenotazione, pagamenti gestiti separatamente)
       const bookingPayload: Record<string, any> = {
         campaignId,
         cliente: {
@@ -476,10 +454,6 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         note: note.trim(),
         isManual: true,
         createdByAdmin: user?.email || 'admin',
-        // Dati pagamento (allineati a BookingsManager - saldo calcolato server-side)
-        totale: payloadTotale,
-        acconto: validAcconto,
-        metodoPagamento: metodoPagamento,
       };
 
       // Includi clienteId se selezionato un cliente esistente
@@ -989,71 +963,6 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
               </div>
             )}
 
-            {/* Sezione Pagamento */}
-            {(selectedProducts.length > 0 || customProducts.length > 0) && (
-              <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-                <h4 className="font-semibold text-sm flex items-center gap-2">
-                  💳 Pagamento
-                </h4>
-
-                {/* Checkbox Saldato */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isPaidAndDelivered"
-                    checked={isPaidAndDelivered}
-                    onChange={(e) => setIsPaidAndDelivered(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-sage focus:ring-sage"
-                  />
-                  <Label htmlFor="isPaidAndDelivered" className="text-sm cursor-pointer">
-                    Pagato e consegnato (salta il saldo)
-                  </Label>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="acconto">
-                      {isPaidAndDelivered ? 'Importo pagato (€)' : 'Acconto (€)'}
-                    </Label>
-                    <Input
-                      id="acconto"
-                      type="number"
-                      min="0"
-                      max={totale}
-                      step="0.01"
-                      value={acconto || ''}
-                      onChange={(e) => setAcconto(parseFloat(e.target.value) || 0)}
-                      disabled={isPaidAndDelivered}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="metodoPagamento">Metodo pagamento</Label>
-                    <Select
-                      value={metodoPagamento}
-                      onValueChange={(value) => setMetodoPagamento(value as typeof metodoPagamento)}
-                    >
-                      <SelectTrigger id="metodoPagamento">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="contante">Contante</SelectItem>
-                        <SelectItem value="carta">Carta</SelectItem>
-                        <SelectItem value="bonifico">Bonifico</SelectItem>
-                        <SelectItem value="paypal">PayPal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {!isPaidAndDelivered && acconto > 0 && saldo > 0 && (
-                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-                    <p className="text-sm text-amber-800">
-                      <strong>Saldo rimanente:</strong> €{saldo.toFixed(2)}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Note */}
