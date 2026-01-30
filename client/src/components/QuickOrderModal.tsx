@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { QuantityInput } from '@/components/ui/quantity-input';
 import { Loader2, User, Plus, Trash2, Package, ShoppingBag, CreditCard, MessageCircle, Search, UserPlus, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
@@ -677,16 +678,14 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
                           </Select>
                         </div>
 
-                        <div className="w-20">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantita}
-                            onChange={(e) => updateProduct(index, 'quantita', parseInt(e.target.value) || 1)}
-                            placeholder="Qtà"
-                            data-testid={`input-quantity-${index}`}
-                          />
-                        </div>
+                        <QuantityInput
+                          value={item.quantita}
+                          onChange={(val) => updateProduct(index, 'quantita', val)}
+                          min={1}
+                          max={99}
+                          size="sm"
+                          data-testid={`input-quantity-${index}`}
+                        />
 
                         <div className="w-24 text-right font-medium">
                           €{subtotale.toFixed(2)}
@@ -851,14 +850,12 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
                       <div className="flex items-center justify-between pt-2 border-t border-amber-200">
                         <div className="flex items-center gap-2">
                           <Label className="text-xs">Quantità:</Label>
-                          <Input
-                            type="number"
-                            min="1"
+                          <QuantityInput
                             value={item.quantita}
-                            onChange={(e) =>
-                              updateCustomProduct(item.id, 'quantita', parseInt(e.target.value) || 1)
-                            }
-                            className="w-16 text-center"
+                            onChange={(val) => updateCustomProduct(item.id, 'quantita', val)}
+                            min={1}
+                            max={99}
+                            size="sm"
                             data-testid={`input-custom-qty-${item.id}`}
                           />
                         </div>

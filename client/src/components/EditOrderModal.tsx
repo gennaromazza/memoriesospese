@@ -38,6 +38,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { QuantityInput } from '@/components/ui/quantity-input';
 import { Trash2, Plus, Save, ShoppingCart, Package, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -477,13 +478,12 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                   </div>
                   <div>
                     <Label htmlFor="customQuantita">Quantità</Label>
-                    <Input
-                      id="customQuantita"
-                      type="number"
-                      min="1"
+                    <QuantityInput
                       value={customQuantita}
-                      onChange={(e) => setCustomQuantita(parseInt(e.target.value) || 1)}
-                      placeholder="1"
+                      onChange={setCustomQuantita}
+                      min={1}
+                      max={99}
+                      size="md"
                     />
                   </div>
                   <div className="flex items-center gap-2 pt-6">
@@ -546,12 +546,12 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                     </div>
                     <div className="flex items-center gap-2">
                       <Label className="text-xs">Qtà:</Label>
-                      <Input
-                        type="number"
-                        min="1"
+                      <QuantityInput
                         value={item.quantita}
-                        onChange={(e) => handleUpdateQuantity(index, parseInt(e.target.value) || 1)}
-                        className="w-16 h-8 text-center"
+                        onChange={(val) => handleUpdateQuantity(index, val)}
+                        min={1}
+                        max={99}
+                        size="sm"
                       />
                     </div>
                     <div className="text-right min-w-[80px]">
