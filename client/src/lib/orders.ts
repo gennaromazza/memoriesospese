@@ -333,9 +333,13 @@ export async function createOrder(data: InsertOrder): Promise<string> {
 
   console.log("📦 Prodotti normalizzati:", normalizedProdotti);
 
-  // Calcola totale dalla somma prodotti
-  const totale = calculateTotale(normalizedProdotti);
-  console.log("💰 Totale calcolato:", totale);
+  // Calcola totale dalla somma prodotti e applica sconto
+  const subtotaleProdotti = calculateTotale(normalizedProdotti);
+  const sconto = typeof data.sconto === "number" && !isNaN(data.sconto) && data.sconto > 0 
+    ? Math.min(data.sconto, subtotaleProdotti) 
+    : 0;
+  const totale = Math.max(0, subtotaleProdotti - sconto);
+  console.log("💰 Subtotale prodotti:", subtotaleProdotti, "Sconto:", sconto, "Totale:", totale);
 
   // Valida e normalizza acconto (evita NaN)
   const acconto =
@@ -387,6 +391,7 @@ export async function createOrder(data: InsertOrder): Promise<string> {
 
   const finalData = {
     ...normalizedData,
+    sconto: sconto > 0 ? sconto : null, // Sconto in euro (null se non applicato)
     acconto, // Usa valore validato
     totale,
     saldo,

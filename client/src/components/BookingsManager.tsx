@@ -934,11 +934,13 @@ export default function BookingsManager({
               ? orderData.prodotti[0].prodottoNome
               : `Ordine Multi-prodotto (${orderData.prodotti.length} prodotti)`;
 
-          // Calcola totale dalla somma prodotti
-          const totale = orderData.prodotti.reduce(
+          // Calcola totale dalla somma prodotti (con sconto se presente)
+          const subtotale = orderData.prodotti.reduce(
             (sum: number, p: any) => sum + p.prodottoPrezzo * p.quantita,
             0,
           );
+          const sconto = orderData.sconto || 0;
+          const totale = Math.max(0, subtotale - sconto);
           const acconto = orderData.acconto || 0;
           const saldo = totale - acconto;
 
@@ -961,6 +963,7 @@ export default function BookingsManager({
               acconto,
               saldo,
               prodotti: prodottiEmail,
+              sconto: sconto > 0 ? sconto : undefined,
             }),
           });
 
@@ -1220,12 +1223,13 @@ export default function BookingsManager({
     
     const totals = getOrderTotals(order);
     
-    // Costruisce lista prodotti con supporto bundle e numero foto
+    // Costruisce lista prodotti con supporto bundle, quantità e numero foto
     let prodottiMsg = '';
     if (order.prodotti && order.prodotti.length > 0) {
       order.prodotti.forEach((p, i) => {
         const isBundle = p.isBundle && p.bundleItems && p.bundleItems.length > 0;
         const bundleIcon = isBundle ? ' 📦' : '';
+        const quantitaLabel = p.quantita > 1 ? ` x${p.quantita}` : '';
         
         // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
         const totalPhotos = isBundle && p.bundleItems
@@ -1233,7 +1237,7 @@ export default function BookingsManager({
           : p.prodottoNumeroFoto || 0;
         const photoLabel = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
         
-        prodottiMsg += `${i + 1}. ${p.prodottoNome}${bundleIcon}${photoLabel}\n`;
+        prodottiMsg += `${i + 1}. ${p.prodottoNome}${quantitaLabel}${bundleIcon}${photoLabel}\n`;
         
         // Se è un bundle, elenca i prodotti inclusi
         if (isBundle && p.bundleItems) {
@@ -1247,11 +1251,23 @@ export default function BookingsManager({
       prodottiMsg = 'Ordine\n';
     }
     
+    // Costruisce riepilogo prezzi con sconto se presente
+    let prezziMsg = '';
+    if (order.sconto && order.sconto > 0) {
+      const subtotale = totals.totale + order.sconto;
+      prezziMsg = 
+        `💵 Subtotale: €${subtotale.toFixed(2)}\n` +
+        `🎁 Sconto: -€${order.sconto.toFixed(2)}\n` +
+        `💰 *Totale: €${totals.totale.toFixed(2)}*\n`;
+    } else {
+      prezziMsg = `💰 *Totale: €${totals.totale.toFixed(2)}*\n`;
+    }
+    
     const message = encodeURIComponent(
       `Ciao ${booking.cliente.nome}! 👋\n\n` +
       `Ecco il riepilogo del tuo ordine:\n\n` +
       `*PRODOTTI*\n${prodottiMsg}\n` +
-      `💰 Totale: €${totals.totale.toFixed(2)}\n` +
+      `${prezziMsg}` +
       `✅ Pagato: €${totals.totalePagato.toFixed(2)}\n` +
       `📝 Saldo: €${totals.saldoResiduo.toFixed(2)}\n\n` +
       `Per qualsiasi domanda sono a disposizione!`
@@ -2283,7 +2299,7 @@ export default function BookingsManager({
                                 <p className="text-xs text-gray-500 mb-1">Prodotti:</p>
                                 {order.prodotti.map((p, idx) => (
                                   <span key={idx} className="inline-block bg-sage/10 text-sage px-2 py-0.5 rounded text-xs mr-1 mb-1">
-                                    {p.prodottoNome}
+                                    {p.prodottoNome}{p.quantita > 1 ? ` x${p.quantita}` : ''}
                                   </span>
                                 ))}
                               </div>
@@ -3528,6 +3544,7 @@ function CreateOrderDialog({
   >([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [acconto, setAcconto] = useState<number>(0);
+  const [sconto, setSconto] = useState<number>(0);
   const [note, setNote] = useState<string>("");
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customNome, setCustomNome] = useState("");
@@ -3606,8 +3623,8 @@ function CreateOrderDialog({
     }
   };
 
-  // Helper: Calcola totale ordine (catalogo + custom)
-  const calculateTotale = (): number => {
+  // Helper: Calcola subtotale prodotti (senza sconto)
+  const calculateSubtotale = (): number => {
     const catalogoTotale = selectedProducts.reduce((sum, item) => {
       return sum + getProductSubtotal(item.prodottoId, item.quantita);
     }, 0);
@@ -3615,6 +3632,12 @@ function CreateOrderDialog({
       return sum + item.prezzo * item.quantita;
     }, 0);
     return catalogoTotale + customTotale;
+  };
+
+  // Helper: Calcola totale ordine (subtotale - sconto)
+  const calculateTotale = (): number => {
+    const subtotale = calculateSubtotale();
+    return Math.max(0, subtotale - sconto);
   };
 
   // Helper: Aggiungi prodotto personalizzato con validazione robusta
@@ -3733,6 +3756,7 @@ function CreateOrderDialog({
       emailCliente: booking.cliente.email,
       whatsappCliente: booking.cliente.whatsapp,
       prodotti: prodottiOrderItems,
+      sconto: sconto > 0 ? sconto : undefined,
       acconto,
       note,
       stato: "bozza" as const,
@@ -3992,8 +4016,38 @@ function CreateOrderDialog({
             )}
           </div>
 
+          {/* Sconto */}
+          <div>
+            <Label htmlFor="sconto" className="mb-2 block">
+              Sconto (€) - opzionale
+            </Label>
+            <Input
+              id="sconto"
+              type="number"
+              min="0"
+              max={calculateSubtotale()}
+              step="0.01"
+              value={sconto || ''}
+              onChange={(e) => setSconto(parseFloat(e.target.value) || 0)}
+              placeholder="Inserisci sconto in euro"
+              data-testid="input-sconto"
+            />
+          </div>
+
           {/* Riepilogo totale */}
-          <div className="bg-sage/10 p-4 rounded-lg">
+          <div className="bg-sage/10 p-4 rounded-lg space-y-2">
+            {sconto > 0 && (
+              <>
+                <div className="flex justify-between items-center text-sm text-gray-600">
+                  <span>Subtotale:</span>
+                  <span>€{calculateSubtotale().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm text-green-600">
+                  <span>Sconto:</span>
+                  <span>-€{sconto.toFixed(2)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between items-center text-lg font-bold">
               <span>Totale Ordine:</span>
               <span className="text-sage">€{totale.toFixed(2)}</span>

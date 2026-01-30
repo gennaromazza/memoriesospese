@@ -2155,7 +2155,8 @@ function createOrderCreatedEmailHTML(
   acconto: number,
   saldo: number,
   prodotti: Array<{ nome: string; prezzo: number; quantita: number }>,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  sconto?: number
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio Fotografico", 
@@ -2188,10 +2189,20 @@ function createOrderCreatedEmailHTML(
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
             ${prodotti.map(p => `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px 0;">${p.nome} (x${p.quantita})</td>
+                <td style="padding: 8px 0;">${p.nome}${p.quantita > 1 ? ` (x${p.quantita})` : ''}</td>
                 <td style="padding: 8px 0; text-align: right;">${formatCurrency(p.prezzo * p.quantita)}</td>
               </tr>
             `).join('')}
+            ${sconto && sconto > 0 ? `
+            <tr style="border-top: 1px solid #ddd;">
+              <td style="padding: 8px 0;">Subtotale:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(totale + sconto)}</td>
+            </tr>
+            <tr style="color: #28a745;">
+              <td style="padding: 8px 0;">Sconto applicato:</td>
+              <td style="padding: 8px 0; text-align: right;">-${formatCurrency(sconto)}</td>
+            </tr>
+            ` : ''}
             <tr style="border-top: 2px solid #8b5a3c; font-weight: bold;">
               <td style="padding: 12px 0;">Totale:</td>
               <td style="padding: 12px 0; text-align: right; color: #8b5a3c; font-size: 18px;">${formatCurrency(totale)}</td>
@@ -2252,7 +2263,8 @@ router.post("/order-created", async (req, res) => {
       totale,
       acconto,
       saldo,
-      prodotti
+      prodotti,
+      sconto
     } = req.body;
 
     // Validazioni
@@ -2272,7 +2284,8 @@ router.post("/order-created", async (req, res) => {
       acconto,
       saldo,
       prodotti,
-      studioInfo
+      studioInfo,
+      sconto
     );
 
     const subject = `Nuovo Ordine Creato - ${prodottoNome}`;

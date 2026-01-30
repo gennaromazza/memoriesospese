@@ -302,7 +302,8 @@ export interface Order {
   prodotti: OrderItem[];
   
   // Prezzi
-  totale: number; // Somma (prodotto.prezzo * quantita) per tutti prodotti
+  totale: number; // Somma (prodotto.prezzo * quantita) per tutti prodotti - sconto
+  sconto?: number; // Sconto in euro applicato all'ordine (opzionale)
   acconto: number; // Somma totale acconti (kept in sync con sum(transactions.filter(t => t.tipo === 'acconto')))
   saldo: number; // Auto-calcolato: totale - acconto
   
@@ -336,6 +337,7 @@ export interface InsertOrder {
   emailCliente: string;
   whatsappCliente?: string;
   prodotti: OrderItem[]; // Array di prodotti (almeno 1)
+  sconto?: number; // Sconto in euro applicato all'ordine (opzionale)
   acconto: number; // Totale calcolato automaticamente dalla somma prodotti
   note?: string;
   stato?: 'bozza' | 'in_lavorazione' | 'completato' | 'annullato';
