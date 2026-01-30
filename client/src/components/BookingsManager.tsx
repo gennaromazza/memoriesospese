@@ -102,6 +102,7 @@ import {
   Timer,
   PartyPopper,
   PackageCheck,
+  CreditCard,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -3528,6 +3529,8 @@ function CreateOrderDialog({
   >([]);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [acconto, setAcconto] = useState<number>(0);
+  const [metodoPagamento, setMetodoPagamento] = useState<'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'>('contante');
+  const [isPaidAndDelivered, setIsPaidAndDelivered] = useState(false);
   const [note, setNote] = useState<string>("");
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customNome, setCustomNome] = useState("");
@@ -3616,6 +3619,14 @@ function CreateOrderDialog({
     }, 0);
     return catalogoTotale + customTotale;
   };
+
+  // Quando isPaidAndDelivered è true, imposta acconto = totale (anche quando cambiano prodotti)
+  const totaleCalcolato = calculateTotale();
+  useEffect(() => {
+    if (isPaidAndDelivered) {
+      setAcconto(totaleCalcolato);
+    }
+  }, [isPaidAndDelivered, totaleCalcolato]);
 
   // Helper: Aggiungi prodotto personalizzato con validazione robusta
   const addCustomProduct = () => {
@@ -3734,6 +3745,7 @@ function CreateOrderDialog({
       whatsappCliente: booking.cliente.whatsapp,
       prodotti: prodottiOrderItems,
       acconto,
+      metodoPagamento,
       note,
       stato: "bozza" as const,
     };
@@ -4000,25 +4012,65 @@ function CreateOrderDialog({
             </div>
           </div>
 
-          {/* Acconto */}
-          <div>
-            <Label htmlFor="acconto" className="mb-2 block">
-              Acconto (opzionale)
+          {/* Pagamento */}
+          <div className="space-y-4 border-t pt-4">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <CreditCard className="w-4 h-4" />
+              Pagamento
             </Label>
-            <Input
-              id="acconto"
-              type="number"
-              min="0"
-              max={totale}
-              step="0.01"
-              value={acconto}
-              onChange={(e) => setAcconto(parseFloat(e.target.value) || 0)}
-              placeholder="Inserisci acconto in euro"
-              data-testid="input-acconto"
-            />
-            {acconto > 0 && (
-              <p className="text-sm text-gray-600 mt-1">
-                Saldo da versare: €{(totale - acconto).toFixed(2)}
+            
+            {/* Checkbox Pagato e consegnato */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isPaidAndDelivered"
+                checked={isPaidAndDelivered}
+                onCheckedChange={(checked) => setIsPaidAndDelivered(checked === true)}
+              />
+              <Label htmlFor="isPaidAndDelivered" className="text-sm cursor-pointer">
+                Pagato e consegnato (salta il saldo)
+              </Label>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="acconto" className="mb-2 block">
+                  Importo pagato (€)
+                </Label>
+                <Input
+                  id="acconto"
+                  type="number"
+                  min="0"
+                  max={totale}
+                  step="0.01"
+                  value={acconto || ''}
+                  onChange={(e) => setAcconto(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  disabled={isPaidAndDelivered}
+                  data-testid="input-acconto"
+                />
+              </div>
+              <div>
+                <Label htmlFor="metodoPagamento" className="mb-2 block">
+                  Metodo pagamento
+                </Label>
+                <Select value={metodoPagamento} onValueChange={(v: any) => setMetodoPagamento(v)}>
+                  <SelectTrigger id="metodoPagamento">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contante">Contante</SelectItem>
+                    <SelectItem value="carta">Carta</SelectItem>
+                    <SelectItem value="bonifico">Bonifico</SelectItem>
+                    <SelectItem value="paypal">PayPal</SelectItem>
+                    <SelectItem value="altro">Altro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {!isPaidAndDelivered && acconto > 0 && (totale - acconto) > 0 && (
+              <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
+                <strong>Saldo rimanente:</strong> €{(totale - acconto).toFixed(2)}
               </p>
             )}
           </div>
