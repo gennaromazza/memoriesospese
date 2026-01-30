@@ -2420,11 +2420,11 @@ router.post("/v2/create", async (req, res) => {
       prodottoNome: prodottoNome || null,
       prodotti: prodotti || null,
       note: note || "",
-      stato: "in_attesa",
+      stato: isManual ? "confermata" : "in_attesa", // Auto-approve manual bookings
       ...workflowUpdate,
       emailRicevutaInviata: false,
       emailConfermataInviata: false,
-      googleCalendarEventId: null, // Created on approval
+      googleCalendarEventId: null, // Will be set for manual bookings below
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -2432,10 +2432,37 @@ router.post("/v2/create", async (req, res) => {
     if (isManual) {
       bookingData.isManual = true;
       bookingData.createdByAdmin = createdByAdmin || "admin";
+      bookingData.confermataDa = createdByAdmin || "admin";
+      bookingData.confermatail = FieldValue.serverTimestamp();
     }
 
     const bookingRef = await db.collection("bookings").add(bookingData);
     console.log(`[POST /v2/create] ✅ Booking created: ${bookingRef.id}`);
+
+    // Step 6b: For manual bookings, create Google Calendar event immediately
+    if (isManual) {
+      try {
+        const { createEvent } = await import("./google-calendar.js");
+        
+        const calendarEvent = await createEvent("primary", {
+          summary: `Shooting: ${cliente.nome} ${cliente.cognome}`,
+          description: `Prenotazione shooting CONFERMATA (Manuale)\n\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp || ""}\n${prodottoNome ? `Prodotto: ${prodottoNome}\n` : ""}${note ? `Note: ${note}` : ""}`,
+          start: slotStart,
+          end: slotEnd,
+          location: "Studio fotografico",
+          attendees: [cliente.email],
+        });
+
+        await bookingRef.update({ 
+          googleCalendarEventId: calendarEvent.id,
+          emailConfermataInviata: true, // Skip confirmation email for manual
+        });
+        console.log(`[POST /v2/create] ✅ Google Calendar event created for manual booking: ${calendarEvent.id}`);
+      } catch (calendarError) {
+        console.error("[POST /v2/create] ⚠️ Google Calendar event creation failed:", calendarError);
+        // Non-blocking: booking is still created, just without calendar event
+      }
+    }
 
     // Step 7: Send emails (same as legacy)
     try {
@@ -2532,7 +2559,9 @@ router.post("/v2/create", async (req, res) => {
     return res.status(201).json({
       success: true,
       bookingId: bookingRef.id,
-      message: "Prenotazione creata con successo - in attesa di approvazione admin",
+      message: isManual 
+        ? "Prenotazione manuale creata e confermata automaticamente" 
+        : "Prenotazione creata con successo - in attesa di approvazione admin",
     });
   } catch (error: any) {
     console.error("[POST /v2/create] ❌ Error:", error);
