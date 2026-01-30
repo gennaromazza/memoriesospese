@@ -2398,21 +2398,9 @@ router.post("/v2/create", async (req, res) => {
     const existingEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
 
     if (isManual) {
-      // For manual bookings: only check direct overlap with existing events (bypass slot generation)
-      const hasDirectOverlap = existingEvents.some((event) => {
-        const eventStart = new Date(event.start);
-        const eventEnd = new Date(event.end);
-        return slotStart < eventEnd && slotEnd > eventStart;
-      });
-
-      if (hasDirectOverlap) {
-        console.warn(`[POST /v2/create] ❌ Manual booking conflict: direct overlap with existing event`);
-        return res.status(409).json({
-          error: "Slot non più disponibile",
-          message: "Lo slot selezionato si sovrappone con un evento esistente. Scegli un altro orario.",
-        });
-      }
-      console.log(`[POST /v2/create] ✅ Manual booking: no direct conflicts found, bypassing slot generation`);
+      // For manual admin bookings: bypass all conflict checks
+      // Admin has full control and can create overlapping bookings if needed
+      console.log(`[POST /v2/create] ✅ Manual booking: bypassing all conflict checks (admin override)`);
     } else {
       // For public bookings: use full slot availability check
       const config = campaignToAvailabilityConfig(campaign);
