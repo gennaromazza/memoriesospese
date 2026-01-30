@@ -2345,30 +2345,32 @@ router.post("/v2/create", async (req, res) => {
       }
     }
 
-    // Step 4: Validate products belong to campaign
-    const prodottiDisponibili = campaign?.prodottiDisponibili || [];
-    const prodottiDisponibiliIds = prodottiDisponibili.map((p: any) =>
-      typeof p === "string" ? p : p.id,
-    );
-
-    if (prodotti && Array.isArray(prodotti) && prodotti.length > 0) {
-      const invalidProducts = prodotti.filter(
-        (item: any) => !prodottiDisponibiliIds.includes(item.prodottoId),
+    // Step 4: Validate products belong to campaign (skip for manual bookings - admin can use any product)
+    if (!isManual) {
+      const prodottiDisponibili = campaign?.prodottiDisponibili || [];
+      const prodottiDisponibiliIds = prodottiDisponibili.map((p: any) =>
+        typeof p === "string" ? p : p.id,
       );
 
-      if (invalidProducts.length > 0) {
+      if (prodotti && Array.isArray(prodotti) && prodotti.length > 0) {
+        const invalidProducts = prodotti.filter(
+          (item: any) => !prodottiDisponibiliIds.includes(item.prodottoId),
+        );
+
+        if (invalidProducts.length > 0) {
+          return res.status(400).json({
+            error: "Prodotti non validi",
+            message: "Alcuni prodotti selezionati non sono disponibili per questa campagna.",
+          });
+        }
+      }
+
+      if (prodottoId && !prodottiDisponibiliIds.includes(prodottoId)) {
         return res.status(400).json({
-          error: "Prodotti non validi",
-          message: "Alcuni prodotti selezionati non sono disponibili per questa campagna.",
+          error: "Prodotto non valido",
+          message: "Il prodotto selezionato non è disponibile per questa campagna.",
         });
       }
-    }
-
-    if (prodottoId && !prodottiDisponibiliIds.includes(prodottoId)) {
-      return res.status(400).json({
-        error: "Prodotto non valido",
-        message: "Il prodotto selezionato non è disponibile per questa campagna.",
-      });
     }
 
     // Step 5: Calendar Engine V2 conflict detection
