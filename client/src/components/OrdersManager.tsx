@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import {
   getAllOrders,
   deleteOrder,
@@ -12,20 +12,25 @@ import {
   markTransactionEmailSent,
   getOrderPaymentStatus,
   getOrderTotals,
-} from '@/lib/orders';
-import { getAllBookings } from '@/lib/bookings';
-import { getActiveProducts } from '@/lib/products';
-import type { Order, Booking, InsertOrder, Product } from '@shared/booking-types';
-import EditOrderModal from '@/components/EditOrderModal';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+} from "@/lib/orders";
+import { getAllBookings } from "@/lib/bookings";
+import { getActiveProducts } from "@/lib/products";
+import type {
+  Order,
+  Booking,
+  InsertOrder,
+  Product,
+} from "@shared/booking-types";
+import EditOrderModal from "@/components/EditOrderModal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,11 +48,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import {
   Eye,
   Trash2,
@@ -60,10 +65,10 @@ import {
   FileText,
   Edit,
   MessageCircle,
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
-import { formatPhoneForWhatsApp } from '@shared/phone-utils';
+} from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 
 type OrderWithBooking = Order & {
   booking?: Booking;
@@ -75,26 +80,30 @@ interface OrdersManagerProps {
   onHighlightComplete?: () => void;
 }
 
-export function OrdersManager({ 
+export function OrdersManager({
   filterBookingId,
   highlightOrderId,
-  onHighlightComplete
+  onHighlightComplete,
 }: OrdersManagerProps = {}) {
   const { toast } = useToast();
-  
+
   // State: Filtri e ricerca
-  const [statoFilter, setStatoFilter] = useState<string>('tutti');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<OrderWithBooking | null>(null);
+  const [statoFilter, setStatoFilter] = useState<string>("tutti");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<OrderWithBooking | null>(
+    null,
+  );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{
     orderId: string;
-    tipo: 'acconto' | 'saldo';
+    tipo: "acconto" | "saldo";
   } | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
-  const [paymentAmount, setPaymentAmount] = useState<string>(''); // String per input controlled
-  const [paymentNote, setPaymentNote] = useState<string>(''); // Note opzionali
+  const [paymentMethod, setPaymentMethod] = useState<
+    "contante" | "carta" | "bonifico" | "paypal"
+  >("contante");
+  const [paymentAmount, setPaymentAmount] = useState<string>(""); // String per input controlled
+  const [paymentNote, setPaymentNote] = useState<string>(""); // Note opzionali
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const orderRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,29 +111,29 @@ export function OrdersManager({
 
   // Query: Carica ordini
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['orders'],
+    queryKey: ["orders"],
     queryFn: getAllOrders,
   });
 
   // Query: Carica bookings
   const { data: bookings = [] } = useQuery({
-    queryKey: ['bookings'],
+    queryKey: ["bookings"],
     queryFn: getAllBookings,
   });
 
   // Query: Carica prodotti per EditOrderModal
   const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: ["products"],
     queryFn: getActiveProducts,
   });
 
   // Arricchisci ordini con dati booking
   const ordersWithBookings: OrderWithBooking[] = useMemo(() => {
-    return orders.map(order => {
-      const booking = order.bookingId 
-        ? bookings.find(b => b.id === order.bookingId)
+    return orders.map((order) => {
+      const booking = order.bookingId
+        ? bookings.find((b) => b.id === order.bookingId)
         : undefined;
-      
+
       return { ...order, booking };
     });
   }, [orders, bookings]);
@@ -133,62 +142,67 @@ export function OrdersManager({
   const deleteMutation = useMutation({
     mutationFn: deleteOrder,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
-        title: 'Ordine eliminato',
-        description: 'L\'ordine è stato rimosso dal sistema',
+        title: "Ordine eliminato",
+        description: "L'ordine è stato rimosso dal sistema",
       });
       setDeleteConfirmId(null);
     },
     onError: (error: Error) => {
       toast({
-        title: 'Errore eliminazione',
+        title: "Errore eliminazione",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     },
   });
 
   // Mutation: Registra pagamento acconto (supporta acconti multipli)
   const accontoMutation = useMutation({
-    mutationFn: ({ 
-      orderId, 
-      importo, 
-      metodo, 
-      note 
-    }: { 
-      orderId: string; 
-      importo: number; 
-      metodo: 'contante' | 'carta' | 'bonifico' | 'paypal';
+    mutationFn: ({
+      orderId,
+      importo,
+      metodo,
+      note,
+    }: {
+      orderId: string;
+      importo: number;
+      metodo: "contante" | "carta" | "bonifico" | "paypal";
       note?: string;
     }) => addAccontoPayment(orderId, importo, metodo, note),
     onSuccess: async (result, variables) => {
       // Estrai transaction e index dal risultato
       const { transaction, index: transactionIndex } = result;
-      
+
       // Recupera ordine per email (prima dell'aggiornamento, calcola i nuovi valori)
-      const order = orders.find(o => o.id === variables.orderId);
+      const order = orders.find((o) => o.id === variables.orderId);
       // Guard: skip email se emailCliente è vuota/blank
       if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
           // Calcola valori aggiornati per email usando helper unificato
           const orderTotals = getOrderTotals(order);
-          const nuovoAccontoTotale = orderTotals.totalePagato + variables.importo;
+          const nuovoAccontoTotale =
+            orderTotals.totalePagato + variables.importo;
           const nuovoSaldo = orderTotals.totale - nuovoAccontoTotale;
-          
+
           // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
-          const prodottoNome = order.prodotti && order.prodotti.length > 0
-            ? order.prodotti.length === 1 
-              ? order.prodotti[0].prodottoNome
-              : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
-            : "Ordine";
+          const prodottoNome =
+            order.prodotti && order.prodotti.length > 0
+              ? order.prodotti.length === 1
+                ? order.prodotti[0].prodottoNome
+                : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
+              : "Ordine";
 
           // Invia email notifica acconto al cliente con cronologia completa (include transaction appena creata)
-          const updatedTransactions = [...(order.transactions || []), transaction];
-          
-          await fetch('/api/email/acconto-received', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const updatedTransactions = [
+            ...(order.transactions || []),
+            transaction,
+          ];
+
+          await fetch("/api/email/acconto-received", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               recipientEmail: order.emailCliente,
               clienteName: order.nomeCliente,
@@ -199,134 +213,150 @@ export function OrdersManager({
               metodo: variables.metodo,
               note: variables.note,
               totaleOrdine: orderTotals.totale, // Usa totale da helper unificato
-              transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
-            })
+              transactions: updatedTransactions, // Cronologia completa pagamenti inclusa ultima transaction
+            }),
           });
-          
-          console.log('✅ Email acconto inviata a', order.emailCliente);
-          
+
+          console.log("✅ Email acconto inviata a", order.emailCliente);
+
           // Marca transaction come email inviata
           try {
             await markTransactionEmailSent(variables.orderId, transactionIndex);
-            console.log('✅ Transaction marcata come email inviata');
+            console.log("✅ Transaction marcata come email inviata");
           } catch (markError) {
-            console.error('❌ Errore marking email sent:', markError);
+            console.error("❌ Errore marking email sent:", markError);
           }
         } catch (emailError) {
-          console.error('❌ Errore invio email acconto:', emailError);
+          console.error("❌ Errore invio email acconto:", emailError);
           // Non bloccare il successo se email fallisce
         }
       }
-      
+
       // Invalida cache DOPO email send e mark (evita race condition con stale data)
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+
       toast({
-        title: 'Acconto registrato',
-        description: 'Il pagamento dell\'acconto è stato salvato con successo',
+        title: "Acconto registrato",
+        description: "Il pagamento dell'acconto è stato salvato con successo",
       });
       setPaymentDialog(null);
-      setPaymentAmount('');
-      setPaymentNote('');
+      setPaymentAmount("");
+      setPaymentNote("");
     },
     onError: (error: Error) => {
       toast({
-        title: 'Errore registrazione',
+        title: "Errore registrazione",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     },
   });
 
   // Mutation: Registra pagamento saldo
   const saldoMutation = useMutation({
-    mutationFn: ({ orderId, metodo, note }: { orderId: string; metodo: 'contante' | 'carta' | 'bonifico' | 'paypal'; note?: string }) =>
-      recordSaldoPayment(orderId, metodo, note),
+    mutationFn: ({
+      orderId,
+      metodo,
+      note,
+    }: {
+      orderId: string;
+      metodo: "contante" | "carta" | "bonifico" | "paypal";
+      note?: string;
+    }) => recordSaldoPayment(orderId, metodo, note),
     onSuccess: async (result, variables) => {
       // Estrai transaction e index dal risultato
       const { transaction, index: transactionIndex } = result;
-      
+
       // Recupera ordine per email PRIMA dell'invalidazione (usa valori dal result)
-      const order = orders.find(o => o.id === variables.orderId);
+      const order = orders.find((o) => o.id === variables.orderId);
       // Guard: skip email se emailCliente è vuota/blank
       if (order && order.emailCliente?.trim() && order.nomeCliente?.trim()) {
         try {
           // Usa helper unificato per totali e importo dalla transaction appena creata
           const orderTotals = getOrderTotals(order);
           const saldoAmount = transaction.importo;
-          
+
           // Calcola il nome prodotto per l'email (primo prodotto o "Ordine Multi-Prodotto")
-          const prodottoNome = order.prodotti && order.prodotti.length > 0
-            ? order.prodotti.length === 1 
-              ? order.prodotti[0].prodottoNome
-              : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
-            : "Ordine";
+          const prodottoNome =
+            order.prodotti && order.prodotti.length > 0
+              ? order.prodotti.length === 1
+                ? order.prodotti[0].prodottoNome
+                : `Ordine Multi-Prodotto (${order.prodotti.length} prodotti)`
+              : "Ordine";
 
           // Invia email notifica saldo al cliente con cronologia completa (include transaction appena creata)
-          const updatedTransactions = [...(order.transactions || []), transaction];
-          
-          await fetch('/api/email/saldo-received', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const updatedTransactions = [
+            ...(order.transactions || []),
+            transaction,
+          ];
+
+          await fetch("/api/email/saldo-received", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               recipientEmail: order.emailCliente,
               clienteName: order.nomeCliente,
               prodottoNome,
               saldoAmount,
               totaleOrdine: orderTotals.totale, // Usa totale da helper unificato
-              transactions: updatedTransactions // Cronologia completa pagamenti inclusa ultima transaction
-            })
+              transactions: updatedTransactions, // Cronologia completa pagamenti inclusa ultima transaction
+            }),
           });
-          
-          console.log('✅ Email saldo inviata a', order.emailCliente);
-          
+
+          console.log("✅ Email saldo inviata a", order.emailCliente);
+
           // Marca transaction come email inviata
           try {
             await markTransactionEmailSent(variables.orderId, transactionIndex);
-            console.log('✅ Transaction marcata come email inviata');
+            console.log("✅ Transaction marcata come email inviata");
           } catch (markError) {
-            console.error('❌ Errore marking email sent:', markError);
+            console.error("❌ Errore marking email sent:", markError);
           }
         } catch (emailError) {
-          console.error('❌ Errore invio email saldo:', emailError);
+          console.error("❌ Errore invio email saldo:", emailError);
           // Non bloccare il successo se email fallisce
         }
       }
-      
+
       // Invalida cache DOPO email send e mark (evita race condition con stale data)
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+
       toast({
-        title: 'Saldo registrato',
-        description: 'Il pagamento del saldo è stato completato',
+        title: "Saldo registrato",
+        description: "Il pagamento del saldo è stato completato",
       });
       setPaymentDialog(null);
     },
     onError: (error: Error) => {
       toast({
-        title: 'Errore registrazione',
+        title: "Errore registrazione",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     },
   });
 
   // Mutation: Cambia stato ordine
   const updateStatoMutation = useMutation({
-    mutationFn: ({ orderId, stato }: { orderId: string; stato: 'bozza' | 'in_lavorazione' | 'completato' | 'annullato' }) =>
-      updateOrder(orderId, { stato }),
+    mutationFn: ({
+      orderId,
+      stato,
+    }: {
+      orderId: string;
+      stato: "bozza" | "in_lavorazione" | "completato" | "annullato";
+    }) => updateOrder(orderId, { stato }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
-        title: 'Stato aggiornato',
-        description: 'Lo stato dell\'ordine è stato modificato',
+        title: "Stato aggiornato",
+        description: "Lo stato dell'ordine è stato modificato",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: 'Errore aggiornamento',
+        title: "Errore aggiornamento",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     },
   });
@@ -334,18 +364,22 @@ export function OrdersManager({
   // Helper: Ottieni ordine corrente dal paymentDialog
   const currentPaymentOrder = useMemo(() => {
     if (!paymentDialog) return null;
-    return orders.find(o => o.id === paymentDialog.orderId);
+    return orders.find((o) => o.id === paymentDialog.orderId);
   }, [paymentDialog, orders]);
 
   // Helper: Calcola riepilogo acconto usando helper unificati
   const accontoSummary = useMemo(() => {
-    if (!currentPaymentOrder || !paymentDialog || paymentDialog.tipo !== 'acconto') {
+    if (
+      !currentPaymentOrder ||
+      !paymentDialog ||
+      paymentDialog.tipo !== "acconto"
+    ) {
       return null;
     }
 
     // Usa helper unificato per ottenere totali basati su transactions
     const totals = getOrderTotals(currentPaymentOrder);
-    
+
     const importo = parseFloat(paymentAmount) || 0;
     const nuovoAccontoTotale = totals.totalePagato + importo;
     const nuovoSaldo = totals.totale - nuovoAccontoTotale;
@@ -366,14 +400,14 @@ export function OrdersManager({
   const handlePayment = () => {
     if (!paymentDialog) return;
 
-    if (paymentDialog.tipo === 'acconto') {
+    if (paymentDialog.tipo === "acconto") {
       // Validation importo
       const importo = parseFloat(paymentAmount);
       if (isNaN(importo) || importo <= 0) {
         toast({
-          title: 'Importo non valido',
-          description: 'Inserisci un importo maggiore di zero',
-          variant: 'destructive',
+          title: "Importo non valido",
+          description: "Inserisci un importo maggiore di zero",
+          variant: "destructive",
         });
         return;
       }
@@ -381,9 +415,9 @@ export function OrdersManager({
       // Validation acconto totale <= totale ordine (già validato server-side, ma meglio client-side)
       if (!accontoSummary || !accontoSummary.isValid) {
         toast({
-          title: 'Importo non valido',
+          title: "Importo non valido",
           description: `L'acconto totale non può superare il totale ordine. Massimo aggiungibile: €${accontoSummary?.saldoMassimo.toFixed(2)}`,
-          variant: 'destructive',
+          variant: "destructive",
         });
         return;
       }
@@ -394,13 +428,13 @@ export function OrdersManager({
         importo,
         metodo: paymentMethod,
       };
-      
+
       // Aggiungi note solo se non vuota (evita undefined)
       const trimmedNote = paymentNote.trim();
       if (trimmedNote) {
         mutationData.note = trimmedNote;
       }
-      
+
       accontoMutation.mutate(mutationData);
     } else {
       // Mutation saldo con metodo e note
@@ -408,13 +442,13 @@ export function OrdersManager({
         orderId: paymentDialog.orderId,
         metodo: paymentMethod,
       };
-      
+
       // Aggiungi note solo se non vuota (evita undefined)
       const trimmedNote = paymentNote.trim();
       if (trimmedNote) {
         saldoData.note = trimmedNote;
       }
-      
+
       saldoMutation.mutate(saldoData);
     }
   };
@@ -425,24 +459,26 @@ export function OrdersManager({
 
     // Filtro per bookingId (se passato come prop)
     if (filterBookingId) {
-      result = result.filter(o => o.bookingId === filterBookingId);
+      result = result.filter((o) => o.bookingId === filterBookingId);
     }
 
     // Filtro per stato
-    if (statoFilter !== 'tutti') {
-      result = result.filter(o => o.stato === statoFilter);
+    if (statoFilter !== "tutti") {
+      result = result.filter((o) => o.stato === statoFilter);
     }
 
     // Ricerca per nome cliente (dalla booking), prodotto, galleria
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        o =>
+        (o) =>
           o.booking?.cliente?.nome?.toLowerCase().includes(query) ||
           o.booking?.cliente?.cognome?.toLowerCase().includes(query) ||
           o.booking?.cliente?.email?.toLowerCase().includes(query) ||
-          o.prodotti?.some(p => p.prodottoNome.toLowerCase().includes(query)) ||
-          o.galleryId?.toLowerCase().includes(query)
+          o.prodotti?.some((p) =>
+            p.prodottoNome.toLowerCase().includes(query),
+          ) ||
+          o.galleryId?.toLowerCase().includes(query),
       );
     }
 
@@ -474,8 +510,8 @@ export function OrdersManager({
     }
 
     // Cerca l'ordine nel dataset completo
-    const targetOrder = orders.find(o => o.id === highlightOrderId);
-    
+    const targetOrder = orders.find((o) => o.id === highlightOrderId);
+
     if (!targetOrder) {
       console.warn(`Ordine ${highlightOrderId} non trovato nel dataset`);
       onHighlightComplete?.();
@@ -489,31 +525,35 @@ export function OrdersManager({
       const dateB = b.createdAt?.toDate?.() || new Date(0);
       return dateB.getTime() - dateA.getTime();
     });
-    
-    const orderIndex = sortedAllOrders.findIndex(o => o.id === highlightOrderId);
+
+    const orderIndex = sortedAllOrders.findIndex(
+      (o) => o.id === highlightOrderId,
+    );
     if (orderIndex === -1) {
-      console.warn(`Ordine ${highlightOrderId} non trovato nella lista ordinata`);
+      console.warn(
+        `Ordine ${highlightOrderId} non trovato nella lista ordinata`,
+      );
       onHighlightComplete?.();
       return;
     }
-    
+
     // Reset filtri (ordini non ha paginazione, quindi non serve calcolare la pagina)
-    setStatoFilter('tutti');
-    setSearchQuery('');
-    
+    setStatoFilter("tutti");
+    setSearchQuery("");
+
     // Timeout per assicurarsi che il DOM sia renderizzato dopo reset filtri
     highlightTimeoutRef.current = setTimeout(() => {
       const element = orderRefs.current[highlightOrderId];
       if (element) {
         // Scroll smooth alla card
-        element.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
+        element.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
         });
-        
+
         // Aggiungi highlight temporaneo
         setHighlightedId(highlightOrderId);
-        
+
         // Rimuovi highlight dopo 3 secondi
         clearHighlightTimeoutRef.current = setTimeout(() => {
           setHighlightedId(null);
@@ -538,15 +578,33 @@ export function OrdersManager({
         clearHighlightTimeoutRef.current = null;
       }
     };
-  }, [highlightOrderId, orders, ordersWithBookings, isLoading, onHighlightComplete]);
+  }, [
+    highlightOrderId,
+    orders,
+    ordersWithBookings,
+    isLoading,
+    onHighlightComplete,
+  ]);
 
   // Helper: Badge stato
-  const getStatoBadge = (stato: Order['stato']) => {
+  const getStatoBadge = (stato: Order["stato"]) => {
     const config = {
-      bozza: { label: 'Bozza', variant: 'secondary' as const, icon: FileText },
-      in_lavorazione: { label: 'In Lavorazione', variant: 'default' as const, icon: Clock },
-      completato: { label: 'Completato', variant: 'default' as const, icon: CheckCircle },
-      annullato: { label: 'Annullato', variant: 'destructive' as const, icon: XCircle },
+      bozza: { label: "Bozza", variant: "secondary" as const, icon: FileText },
+      in_lavorazione: {
+        label: "In Lavorazione",
+        variant: "default" as const,
+        icon: Clock,
+      },
+      completato: {
+        label: "Completato",
+        variant: "default" as const,
+        icon: CheckCircle,
+      },
+      annullato: {
+        label: "Annullato",
+        variant: "destructive" as const,
+        icon: XCircle,
+      },
     };
     const { label, variant, icon: Icon } = config[stato];
     return (
@@ -559,16 +617,16 @@ export function OrdersManager({
 
   // Helper: Formatta data
   const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'N/A';
+    if (!timestamp) return "N/A";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return format(date, 'dd MMM yyyy', { locale: it });
+    return format(date, "dd MMM yyyy", { locale: it });
   };
 
   // Helper: Formatta valuta
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
@@ -577,12 +635,14 @@ export function OrdersManager({
     if (order.booking) {
       return `${order.booking.cliente.nome} ${order.booking.cliente.cognome}`;
     }
-    return order.galleryId ? `Galleria ${order.galleryId.substring(0, 8)}` : 'Ordine Standalone';
+    return order.galleryId
+      ? `Galleria ${order.galleryId.substring(0, 8)}`
+      : "Ordine Standalone";
   };
 
   // Helper: Email cliente (con fallback)
   const getClienteEmail = (order: OrderWithBooking) => {
-    return order.booking?.cliente.email || 'N/A';
+    return order.booking?.cliente.email || "N/A";
   };
 
   // Helper: Numero WhatsApp cliente (senza +, spazi, trattini)
@@ -595,49 +655,64 @@ export function OrdersManager({
   // Helper: Genera messaggio WhatsApp riepilogo ordine
   const buildWhatsAppMessage = (order: OrderWithBooking) => {
     const totals = getOrderTotals(order);
-    const clienteName = order.nomeCliente || (order.booking ? `${order.booking.cliente.nome} ${order.booking.cliente.cognome}` : 'Cliente');
-    
-    let message = `Ciao ${clienteName.split(' ')[0]}!\n\n`;
+    const clienteName =
+      order.nomeCliente ||
+      (order.booking
+        ? `${order.booking.cliente.nome} ${order.booking.cliente.cognome}`
+        : "Cliente");
+
+    let message = `Ciao ${clienteName.split(" ")[0]}!\n\n`;
     message += `Ecco il riepilogo del tuo ordine presso *Gennaro Mazzacane Photography*:\n\n`;
-    
+
     message += `*PRODOTTI*\n`;
     order.prodotti.forEach((p, i) => {
       const subtotale = p.prodottoPrezzo * p.quantita;
       const isBundle = p.isBundle && p.bundleItems && p.bundleItems.length > 0;
-      const customLabel = (p.isCustom || p.prodottoId?.startsWith('custom_')) && !isBundle ? ' (Personalizzato)' : '';
-      const bundleLabel = isBundle ? ' 📦' : '';
-      
+      const customLabel =
+        (p.isCustom || p.prodottoId?.startsWith("custom_")) && !isBundle
+          ? " (Personalizzato)"
+          : "";
+      const bundleLabel = isBundle ? " 📦" : "";
+
       // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
-      const totalPhotos = isBundle && p.bundleItems
-        ? p.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
-        : p.prodottoNumeroFoto || 0;
-      const photoLabel = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
-      
+      const totalPhotos =
+        isBundle && p.bundleItems
+          ? p.bundleItems.reduce(
+              (sum: number, bi: any) =>
+                sum + (bi.numeroFoto || 0) * (bi.quantita || 1),
+              0,
+            )
+          : p.prodottoNumeroFoto || 0;
+      const photoLabel = totalPhotos > 0 ? ` (${totalPhotos} foto)` : "";
+
       message += `${i + 1}. ${p.prodottoNome}${bundleLabel}${customLabel}${photoLabel}\n`;
       message += `   ${p.quantita}x ${formatCurrency(p.prodottoPrezzo)} = ${formatCurrency(subtotale)}\n`;
-      
+
       // Se è un bundle, elenca i prodotti inclusi
       if (isBundle && p.bundleItems) {
         p.bundleItems.forEach((item: any) => {
-          const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
-          message += `   └ ${item.prodottoNome}${item.quantita > 1 ? ` x${item.quantita}` : ''}${itemPhotos}\n`;
+          const itemPhotos =
+            item.numeroFoto > 0
+              ? ` (${item.numeroFoto * item.quantita} foto)`
+              : "";
+          message += `   └ ${item.prodottoNome}${item.quantita > 1 ? ` x${item.quantita}` : ""}${itemPhotos}\n`;
         });
       }
     });
-    
+
     message += `\n*RIEPILOGO PAGAMENTI*\n`;
     message += `Totale ordine: ${formatCurrency(totals.totale)}\n`;
     message += `Già pagato: ${formatCurrency(totals.totalePagato)}\n`;
     message += `Saldo residuo: ${formatCurrency(totals.saldoResiduo)}\n`;
-    
+
     if (totals.saldoResiduo === 0) {
       message += `\n*ORDINE SALDATO* - Grazie!`;
     } else if (totals.saldoResiduo > 0) {
       message += `\nResta da saldare: ${formatCurrency(totals.saldoResiduo)}`;
     }
-    
-    message += `\n\nPer qualsiasi domanda sono a disposizione!`;
-    
+
+    message += `\n\nGrazie per averci scelto `;
+
     return encodeURIComponent(message);
   };
 
@@ -646,15 +721,15 @@ export function OrdersManager({
     const phone = getClienteWhatsApp(order);
     if (!phone) {
       toast({
-        title: 'Numero non disponibile',
-        description: 'Il cliente non ha un numero WhatsApp registrato',
-        variant: 'destructive',
+        title: "Numero non disponibile",
+        description: "Il cliente non ha un numero WhatsApp registrato",
+        variant: "destructive",
       });
       return;
     }
     const message = buildWhatsAppMessage(order);
     const url = `https://wa.me/${phone}?text=${message}`;
-    window.open(url, '_blank');
+    window.open(url, "_blank");
   };
 
   if (isLoading) {
@@ -718,9 +793,9 @@ export function OrdersManager({
             <FileText className="w-12 h-12 text-muted-foreground" />
             <p className="text-lg font-medium">Nessun ordine trovato</p>
             <p className="text-sm text-muted-foreground">
-              {statoFilter !== 'tutti'
-                ? 'Prova a cambiare i filtri'
-                : 'Gli ordini vengono creati automaticamente dalle prenotazioni'}
+              {statoFilter !== "tutti"
+                ? "Prova a cambiare i filtri"
+                : "Gli ordini vengono creati automaticamente dalle prenotazioni"}
             </p>
           </div>
         </Card>
@@ -733,10 +808,12 @@ export function OrdersManager({
             const isHighlighted = highlightedId === order.id;
 
             return (
-              <Card 
-                key={order.id} 
-                ref={(el) => { orderRefs.current[order.id] = el; }}
-                className={`p-4 transition-all ${isHighlighted ? 'ring-4 ring-blue-500 ring-offset-2 shadow-2xl' : ''}`}
+              <Card
+                key={order.id}
+                ref={(el) => {
+                  orderRefs.current[order.id] = el;
+                }}
+                className={`p-4 transition-all ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
                 data-testid={`card-order-${order.id}`}
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -755,10 +832,15 @@ export function OrdersManager({
                         </p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm text-muted-foreground">
-                            {order.prodotti.length} prodott{order.prodotti.length === 1 ? 'o' : 'i'}
-                            {order.galleryId && ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
+                            {order.prodotti.length} prodott
+                            {order.prodotti.length === 1 ? "o" : "i"}
+                            {order.galleryId &&
+                              ` • Galleria: ${order.galleryId.substring(0, 12)}...`}
                           </p>
-                          {order.prodotti.some(p => p.isCustom || p.prodottoId?.startsWith('custom_')) && (
+                          {order.prodotti.some(
+                            (p) =>
+                              p.isCustom || p.prodottoId?.startsWith("custom_"),
+                          ) && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                               Personalizzato
                             </span>
@@ -771,31 +853,42 @@ export function OrdersManager({
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <div>
                         <p className="text-xs text-muted-foreground">Totale</p>
-                        <p className="font-semibold">{formatCurrency(totals.totale)}</p>
+                        <p className="font-semibold">
+                          {formatCurrency(totals.totale)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Pagato</p>
-                        <p className="font-semibold text-green-600">{formatCurrency(totals.totalePagato)}</p>
-                        {paymentStatus.percentualePagata > 0 && paymentStatus.percentualePagata < 100 && (
-                          <p className="text-xs text-muted-foreground">
-                            {paymentStatus.percentualePagata}% del totale
-                          </p>
-                        )}
+                        <p className="font-semibold text-green-600">
+                          {formatCurrency(totals.totalePagato)}
+                        </p>
+                        {paymentStatus.percentualePagata > 0 &&
+                          paymentStatus.percentualePagata < 100 && (
+                            <p className="text-xs text-muted-foreground">
+                              {paymentStatus.percentualePagata}% del totale
+                            </p>
+                          )}
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Da Saldare</p>
-                        <p className={`font-semibold ${totals.saldoResiduo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                        <p className="text-xs text-muted-foreground">
+                          Da Saldare
+                        </p>
+                        <p
+                          className={`font-semibold ${totals.saldoResiduo > 0 ? "text-orange-600" : "text-green-600"}`}
+                        >
                           {formatCurrency(totals.saldoResiduo)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Stato Pagamento</p>
-                        {paymentStatus.stato === 'saldato' ? (
+                        <p className="text-xs text-muted-foreground">
+                          Stato Pagamento
+                        </p>
+                        {paymentStatus.stato === "saldato" ? (
                           <Badge className="bg-green-500 text-white">
                             <CheckCircle className="w-3 h-3 mr-1" />
                             {paymentStatus.label}
                           </Badge>
-                        ) : paymentStatus.stato === 'acconto_pagato' ? (
+                        ) : paymentStatus.stato === "acconto_pagato" ? (
                           <Badge className="bg-yellow-500 text-white">
                             <Clock className="w-3 h-3 mr-1" />
                             {paymentStatus.label}
@@ -848,23 +941,35 @@ export function OrdersManager({
 
                     {/* Pulsanti pagamento - usa helper unificati */}
                     {/* Mostra pulsanti solo se c'è ancora saldo da pagare */}
-                    {paymentStatus.stato !== 'saldato' && (
+                    {paymentStatus.stato !== "saldato" && (
                       <>
                         <Button
                           size="sm"
-                          onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'acconto' })}
+                          onClick={() =>
+                            setPaymentDialog({
+                              orderId: order.id,
+                              tipo: "acconto",
+                            })
+                          }
                           data-testid={`button-record-acconto-${order.id}`}
                           className="bg-blue-600 hover:bg-blue-700"
                         >
                           <Euro className="w-4 h-4 mr-1" />
-                          {totals.totalePagato > 0 ? 'Aggiungi Pagamento' : 'Registra Acconto'}
+                          {totals.totalePagato > 0
+                            ? "Aggiungi Pagamento"
+                            : "Registra Acconto"}
                         </Button>
 
                         {/* Mostra "Registra Saldo" solo se c'è già almeno un pagamento */}
                         {totals.totalePagato > 0 && (
                           <Button
                             size="sm"
-                            onClick={() => setPaymentDialog({ orderId: order.id, tipo: 'saldo' })}
+                            onClick={() =>
+                              setPaymentDialog({
+                                orderId: order.id,
+                                tipo: "saldo",
+                              })
+                            }
                             data-testid={`button-record-saldo-${order.id}`}
                             className="bg-green-600 hover:bg-green-700"
                           >
@@ -876,22 +981,32 @@ export function OrdersManager({
                     )}
 
                     {/* Cambio stato */}
-                    {order.stato === 'bozza' && (
+                    {order.stato === "bozza" && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => updateStatoMutation.mutate({ orderId: order.id, stato: 'in_lavorazione' })}
+                        onClick={() =>
+                          updateStatoMutation.mutate({
+                            orderId: order.id,
+                            stato: "in_lavorazione",
+                          })
+                        }
                         data-testid={`button-start-order-${order.id}`}
                       >
                         Inizia Lavorazione
                       </Button>
                     )}
 
-                    {order.stato === 'in_lavorazione' && (
+                    {order.stato === "in_lavorazione" && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => updateStatoMutation.mutate({ orderId: order.id, stato: 'completato' })}
+                        onClick={() =>
+                          updateStatoMutation.mutate({
+                            orderId: order.id,
+                            stato: "completato",
+                          })
+                        }
                         data-testid={`button-complete-order-${order.id}`}
                       >
                         Completa Ordine
@@ -916,7 +1031,10 @@ export function OrdersManager({
       )}
 
       {/* Dialog: Dettagli ordine */}
-      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+      <Dialog
+        open={!!selectedOrder}
+        onOpenChange={() => setSelectedOrder(null)}
+      >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Dettagli Ordine</DialogTitle>
@@ -932,59 +1050,104 @@ export function OrdersManager({
                 <div>
                   <h3 className="font-semibold mb-2">Cliente</h3>
                   <div className="space-y-1 text-sm">
-                    <p><strong>Nome:</strong> {selectedOrder.booking.cliente.nome} {selectedOrder.booking.cliente.cognome}</p>
-                    <p><strong>Email:</strong> {selectedOrder.booking.cliente.email}</p>
-                    <p><strong>WhatsApp:</strong> {selectedOrder.booking.cliente.whatsapp}</p>
+                    <p>
+                      <strong>Nome:</strong>{" "}
+                      {selectedOrder.booking.cliente.nome}{" "}
+                      {selectedOrder.booking.cliente.cognome}
+                    </p>
+                    <p>
+                      <strong>Email:</strong>{" "}
+                      {selectedOrder.booking.cliente.email}
+                    </p>
+                    <p>
+                      <strong>WhatsApp:</strong>{" "}
+                      {selectedOrder.booking.cliente.whatsapp}
+                    </p>
                   </div>
                 </div>
               )}
 
               {/* Prodotti */}
               <div>
-                <h3 className="font-semibold mb-2">Prodotti ({selectedOrder.prodotti.length})</h3>
+                <h3 className="font-semibold mb-2">
+                  Prodotti ({selectedOrder.prodotti.length})
+                </h3>
                 <div className="space-y-2">
                   {selectedOrder.prodotti.map((prodotto, index) => {
-                    const isBundle = prodotto.isBundle && prodotto.bundleItems && prodotto.bundleItems.length > 0;
-                    const totalPhotos = isBundle && prodotto.bundleItems
-                      ? prodotto.bundleItems.reduce((sum: number, bi: any) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
-                      : prodotto.prodottoNumeroFoto || 0;
-                    
+                    const isBundle =
+                      prodotto.isBundle &&
+                      prodotto.bundleItems &&
+                      prodotto.bundleItems.length > 0;
+                    const totalPhotos =
+                      isBundle && prodotto.bundleItems
+                        ? prodotto.bundleItems.reduce(
+                            (sum: number, bi: any) =>
+                              sum + (bi.numeroFoto || 0) * (bi.quantita || 1),
+                            0,
+                          )
+                        : prodotto.prodottoNumeroFoto || 0;
+
                     return (
-                    <Card key={index} className="p-3">
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-center gap-2">
-                          <p><strong>{prodotto.prodottoNome}</strong></p>
-                          {isBundle && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                              📦 Bundle
-                            </span>
-                          )}
-                          {(prodotto.isCustom || prodotto.prodottoId?.startsWith('custom_')) && !isBundle && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                              Personalizzato
-                            </span>
+                      <Card key={index} className="p-3">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2">
+                            <p>
+                              <strong>{prodotto.prodottoNome}</strong>
+                            </p>
+                            {isBundle && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                📦 Bundle
+                              </span>
+                            )}
+                            {(prodotto.isCustom ||
+                              prodotto.prodottoId?.startsWith("custom_")) &&
+                              !isBundle && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                  Personalizzato
+                                </span>
+                              )}
+                          </div>
+                          <p>
+                            Prezzo: {formatCurrency(prodotto.prodottoPrezzo)} ×{" "}
+                            {prodotto.quantita}
+                          </p>
+                          <p>Numero Foto: {totalPhotos}</p>
+                          <p className="font-semibold">
+                            Subtotale:{" "}
+                            {formatCurrency(
+                              prodotto.prodottoPrezzo * prodotto.quantita,
+                            )}
+                          </p>
+                          {isBundle && prodotto.bundleItems && (
+                            <div className="mt-2 pl-3 border-l-2 border-amber-200 space-y-1">
+                              <p className="text-xs text-gray-500 italic">
+                                Prodotti inclusi nel bundle:
+                              </p>
+                              {prodotto.bundleItems.map(
+                                (item: any, itemIdx: number) => (
+                                  <p
+                                    key={itemIdx}
+                                    className="text-xs text-gray-600"
+                                  >
+                                    └ {item.prodottoNome}
+                                    {item.quantita > 1
+                                      ? ` x${item.quantita}`
+                                      : ""}
+                                    {item.numeroFoto > 0 && (
+                                      <span className="text-gray-400 ml-1">
+                                        ({item.numeroFoto * item.quantita} foto)
+                                      </span>
+                                    )}
+                                  </p>
+                                ),
+                              )}
+                            </div>
                           )}
                         </div>
-                        <p>Prezzo: {formatCurrency(prodotto.prodottoPrezzo)} × {prodotto.quantita}</p>
-                        <p>Numero Foto: {totalPhotos}</p>
-                        <p className="font-semibold">
-                          Subtotale: {formatCurrency(prodotto.prodottoPrezzo * prodotto.quantita)}
-                        </p>
-                        {isBundle && prodotto.bundleItems && (
-                          <div className="mt-2 pl-3 border-l-2 border-amber-200 space-y-1">
-                            <p className="text-xs text-gray-500 italic">Prodotti inclusi nel bundle:</p>
-                            {prodotto.bundleItems.map((item: any, itemIdx: number) => (
-                              <p key={itemIdx} className="text-xs text-gray-600">
-                                └ {item.prodottoNome}{item.quantita > 1 ? ` x${item.quantita}` : ''} 
-                                {item.numeroFoto > 0 && <span className="text-gray-400 ml-1">({item.numeroFoto * item.quantita} foto)</span>}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  )})}
-                  
+                      </Card>
+                    );
+                  })}
+
                   {selectedOrder.galleryId && (
                     <p className="text-sm text-muted-foreground mt-2">
                       <strong>Galleria:</strong> {selectedOrder.galleryId}
@@ -1008,12 +1171,20 @@ export function OrdersManager({
                     <h3 className="font-semibold mb-2">Dettagli Finanziari</h3>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Card className="p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Totale Ordine</p>
-                        <p className="text-xl font-bold">{formatCurrency(detailTotals.totale)}</p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Totale Ordine
+                        </p>
+                        <p className="text-xl font-bold">
+                          {formatCurrency(detailTotals.totale)}
+                        </p>
                       </Card>
                       <Card className="p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Totale Pagato</p>
-                        <p className="text-xl font-bold text-green-600">{formatCurrency(detailTotals.totalePagato)}</p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Totale Pagato
+                        </p>
+                        <p className="text-xl font-bold text-green-600">
+                          {formatCurrency(detailTotals.totalePagato)}
+                        </p>
                         {detailStatus.percentualePagata > 0 && (
                           <p className="text-xs text-muted-foreground mt-1">
                             {detailStatus.percentualePagata}% del totale
@@ -1021,19 +1192,25 @@ export function OrdersManager({
                         )}
                       </Card>
                       <Card className="p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Da Saldare</p>
-                        <p className={`text-xl font-bold ${detailTotals.saldoResiduo > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Da Saldare
+                        </p>
+                        <p
+                          className={`text-xl font-bold ${detailTotals.saldoResiduo > 0 ? "text-orange-600" : "text-green-600"}`}
+                        >
                           {formatCurrency(detailTotals.saldoResiduo)}
                         </p>
                       </Card>
                       <Card className="p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Stato</p>
-                        {detailStatus.stato === 'saldato' ? (
+                        <p className="text-xs text-muted-foreground mb-1">
+                          Stato
+                        </p>
+                        {detailStatus.stato === "saldato" ? (
                           <Badge className="bg-green-500 text-white">
                             <CheckCircle className="w-3 h-3 mr-1" />
                             {detailStatus.label}
                           </Badge>
-                        ) : detailStatus.stato === 'acconto_pagato' ? (
+                        ) : detailStatus.stato === "acconto_pagato" ? (
                           <Badge className="bg-yellow-500 text-white">
                             <Clock className="w-3 h-3 mr-1" />
                             {detailStatus.label}
@@ -1043,22 +1220,36 @@ export function OrdersManager({
                         )}
                       </Card>
                     </div>
-                    
+
                     {/* Lista transazioni se presenti */}
                     {(selectedOrder.transactions?.length || 0) > 0 && (
                       <div className="mt-4">
-                        <h4 className="font-medium mb-2 text-sm">Storico Pagamenti</h4>
+                        <h4 className="font-medium mb-2 text-sm">
+                          Storico Pagamenti
+                        </h4>
                         <div className="space-y-2">
                           {selectedOrder.transactions?.map((t, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+                            <div
+                              key={idx}
+                              className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded"
+                            >
                               <div>
-                                <span className="font-medium">{formatCurrency(t.importo)}</span>
-                                <span className="text-muted-foreground ml-2">({t.metodo})</span>
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {t.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                                <span className="font-medium">
+                                  {formatCurrency(t.importo)}
+                                </span>
+                                <span className="text-muted-foreground ml-2">
+                                  ({t.metodo})
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="ml-2 text-xs"
+                                >
+                                  {t.tipo === "acconto" ? "Acconto" : "Saldo"}
                                 </Badge>
                               </div>
-                              <span className="text-muted-foreground">{formatDate(t.data)}</span>
+                              <span className="text-muted-foreground">
+                                {formatDate(t.data)}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -1072,8 +1263,14 @@ export function OrdersManager({
               <div>
                 <h3 className="font-semibold mb-2">Date</h3>
                 <div className="text-sm space-y-1">
-                  <p><strong>Creato:</strong> {formatDate(selectedOrder.createdAt)}</p>
-                  <p><strong>Aggiornato:</strong> {formatDate(selectedOrder.updatedAt)}</p>
+                  <p>
+                    <strong>Creato:</strong>{" "}
+                    {formatDate(selectedOrder.createdAt)}
+                  </p>
+                  <p>
+                    <strong>Aggiornato:</strong>{" "}
+                    {formatDate(selectedOrder.updatedAt)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1082,29 +1279,33 @@ export function OrdersManager({
       </Dialog>
 
       {/* Dialog: Registra pagamento */}
-      <Dialog open={!!paymentDialog} onOpenChange={() => {
-        setPaymentDialog(null);
-        setPaymentAmount('');
-        setPaymentNote('');
-      }}>
+      <Dialog
+        open={!!paymentDialog}
+        onOpenChange={() => {
+          setPaymentDialog(null);
+          setPaymentAmount("");
+          setPaymentNote("");
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              Registra {paymentDialog?.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+              Registra {paymentDialog?.tipo === "acconto" ? "Acconto" : "Saldo"}
             </DialogTitle>
             <DialogDescription>
-              {paymentDialog?.tipo === 'acconto' 
-                ? 'Inserisci importo e metodo di pagamento per il nuovo acconto'
-                : 'Seleziona il metodo di pagamento per il saldo finale'
-              }
+              {paymentDialog?.tipo === "acconto"
+                ? "Inserisci importo e metodo di pagamento per il nuovo acconto"
+                : "Seleziona il metodo di pagamento per il saldo finale"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Input Importo (solo per acconto) */}
-            {paymentDialog?.tipo === 'acconto' && (
+            {paymentDialog?.tipo === "acconto" && (
               <div>
-                <Label htmlFor="payment-amount">Importo Acconto (€) <span className="text-red-500">*</span></Label>
+                <Label htmlFor="payment-amount">
+                  Importo Acconto (€) <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="payment-amount"
                   type="number"
@@ -1117,7 +1318,8 @@ export function OrdersManager({
                 />
                 {accontoSummary && accontoSummary.saldoMassimo > 0 && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Massimo aggiungibile: €{accontoSummary.saldoMassimo.toFixed(2)}
+                    Massimo aggiungibile: €
+                    {accontoSummary.saldoMassimo.toFixed(2)}
                   </p>
                 )}
               </div>
@@ -1126,8 +1328,14 @@ export function OrdersManager({
             {/* Metodo Pagamento */}
             <div>
               <Label htmlFor="payment-method">Metodo Pagamento</Label>
-              <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
-                <SelectTrigger id="payment-method" data-testid="select-payment-method">
+              <Select
+                value={paymentMethod}
+                onValueChange={(v: any) => setPaymentMethod(v)}
+              >
+                <SelectTrigger
+                  id="payment-method"
+                  data-testid="select-payment-method"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1152,73 +1360,105 @@ export function OrdersManager({
             </div>
 
             {/* Riepilogo Acconto (solo per acconto con importo valido) */}
-            {paymentDialog?.tipo === 'acconto' && accontoSummary && accontoSummary.nuovoImporto > 0 && (
-              <div className={`p-3 rounded-md border ${accontoSummary.isValid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                  {accontoSummary.isValid ? (
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-600" />
-                  )}
-                  Riepilogo Acconto
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Totale Ordine:</span>
-                    <span className="font-medium">€{accontoSummary.totale.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Acconto Attuale:</span>
-                    <span className="font-medium">€{accontoSummary.accontoAttuale.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-1">
-                    <span className="text-gray-600 font-semibold">Nuovo Acconto Totale:</span>
-                    <span className="font-bold text-blue-600">€{accontoSummary.nuovoAccontoTotale.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 font-semibold">Saldo Rimanente:</span>
-                    <span className={`font-bold ${accontoSummary.isValid ? 'text-green-600' : 'text-red-600'}`}>
-                      €{accontoSummary.nuovoSaldo.toFixed(2)}
-                    </span>
+            {paymentDialog?.tipo === "acconto" &&
+              accontoSummary &&
+              accontoSummary.nuovoImporto > 0 && (
+                <div
+                  className={`p-3 rounded-md border ${accontoSummary.isValid ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
+                >
+                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    {accontoSummary.isValid ? (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-600" />
+                    )}
+                    Riepilogo Acconto
+                  </h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Totale Ordine:</span>
+                      <span className="font-medium">
+                        €{accontoSummary.totale.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Acconto Attuale:</span>
+                      <span className="font-medium">
+                        €{accontoSummary.accontoAttuale.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span className="text-gray-600 font-semibold">
+                        Nuovo Acconto Totale:
+                      </span>
+                      <span className="font-bold text-blue-600">
+                        €{accontoSummary.nuovoAccontoTotale.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 font-semibold">
+                        Saldo Rimanente:
+                      </span>
+                      <span
+                        className={`font-bold ${accontoSummary.isValid ? "text-green-600" : "text-red-600"}`}
+                      >
+                        €{accontoSummary.nuovoSaldo.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setPaymentDialog(null);
-              setPaymentAmount('');
-              setPaymentNote('');
-            }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPaymentDialog(null);
+                setPaymentAmount("");
+                setPaymentNote("");
+              }}
+            >
               Annulla
             </Button>
             <Button
               onClick={handlePayment}
-              disabled={accontoMutation.isPending || saldoMutation.isPending || (paymentDialog?.tipo === 'acconto' && (!accontoSummary || !accontoSummary.isValid))}
+              disabled={
+                accontoMutation.isPending ||
+                saldoMutation.isPending ||
+                (paymentDialog?.tipo === "acconto" &&
+                  (!accontoSummary || !accontoSummary.isValid))
+              }
               data-testid="button-confirm-payment"
             >
-              {accontoMutation.isPending || saldoMutation.isPending ? 'Registrazione...' : 'Conferma Pagamento'}
+              {accontoMutation.isPending || saldoMutation.isPending
+                ? "Registrazione..."
+                : "Conferma Pagamento"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* AlertDialog: Conferma eliminazione */}
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>
+      <AlertDialog
+        open={!!deleteConfirmId}
+        onOpenChange={() => setDeleteConfirmId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
             <AlertDialogDescription>
-              Sei sicuro di voler eliminare questo ordine? Questa azione è irreversibile.
-              Le foto selezionate associate non verranno eliminate.
+              Sei sicuro di voler eliminare questo ordine? Questa azione è
+              irreversibile. Le foto selezionate associate non verranno
+              eliminate.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteConfirmId && deleteMutation.mutate(deleteConfirmId)}
+              onClick={() =>
+                deleteConfirmId && deleteMutation.mutate(deleteConfirmId)
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
