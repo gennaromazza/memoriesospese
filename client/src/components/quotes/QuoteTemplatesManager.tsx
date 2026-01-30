@@ -117,6 +117,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { QuoteProduct, QuoteTemplate } from '@shared/quotes-types';
 import { catalogProductToQuoteProduct } from '@/lib/quote-mappers';
+import { calculateQuoteTotals } from '@shared/quote-utils';
 
 const templateSchema = z.object({
   nome: z.string().min(1, 'Nome richiesto'),
@@ -145,6 +146,13 @@ const templateSchema = z.object({
 }, {
   message: 'Tipo e valore sconto devono essere entrambi specificati o entrambi vuoti',
   path: ['discountType']
+}).refine((data) => {
+  // Validazione: almeno un prodotto (catalogo o custom)
+  const hasValidCustomProducts = data.customProducts.some(p => p.nome.trim() && p.prezzo > 0);
+  return data.catalogProductIds.length > 0 || hasValidCustomProducts;
+}, {
+  message: 'Inserisci almeno un prodotto (catalogo o custom)',
+  path: ['customProducts']
 });
 
 type FormData = z.infer<typeof templateSchema>;
@@ -389,7 +397,8 @@ export default function QuoteTemplatesManager() {
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: 'customProducts'
+    name: 'customProducts',
+    shouldUnregister: false
   });
 
   // Reset form to defaults when opening create modal
@@ -481,11 +490,8 @@ export default function QuoteTemplatesManager() {
 
   const subtotale = totaleCatalogo + totaleCustom;
 
-  const totalAfterDiscount = discountType === 'amount'
-    ? Math.max(0, subtotale - discountValue)
-    : discountType === 'percent'
-    ? subtotale * (1 - discountValue / 100)
-    : subtotale;
+  // Usa utility condivisa per coerenza con QuoteBuilder
+  const { totalAfterDiscount, discountAmount } = calculateQuoteTotals(subtotale, discountType, discountValue);
 
   // Create mutation
   const createMutation = useMutation({

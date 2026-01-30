@@ -1,0 +1,190 @@
+🔴 CONTRASTI STRUTTURALI (i più pericolosi)
+1. Nome campo prodotti: products vs defaultProducts
+
+QuoteBuilder usa:
+
+products: QuoteProduct[]
+
+
+QuoteTemplatesManager salva:
+
+defaultProducts: QuoteProduct[]
+
+
+❌ Problema:
+
+Il template non è compatibile nativamente con il QuoteBuilder
+
+Stai facendo mapping “a mano” (template.defaultProducts.map(...))
+
+Se domani aggiungi un campo a products, il template resta indietro
+
+✅ Soluzione consigliata:
+👉 unifica il concetto
+
+QuoteTemplate {
+  products: QuoteProduct[]
+}
+
+
+e basta.
+defaultProducts è solo una fonte di bug futuri.
+
+2. selectable incoerente
+
+QuoteBuilder
+
+forza selectable in base a quote.type
+
+QuoteTemplatesManager
+
+salva selectable al momento della creazione del template
+
+❌ Problema:
+
+Un template “variabile” applicato a un preventivo “fisso” ha prodotti selectable: true
+
+Poi QuoteBuilder li ributta a false → doppia logica, fragile
+
+✅ Soluzione:
+
+NON salvare selectable nel template
+
+Calcolalo sempre nel QuoteBuilder:
+
+selectable: quote.type === 'variabile'
+
+3. Discount calcolato in due modi diversi
+
+QuoteBuilder
+
+calculateQuoteTotals(...)
+
+
+TemplatesManager
+
+subtotale - discountValue
+
+
+❌ Problema:
+
+Rounding diverso
+
+Percentuali calcolate in modo diverso
+
+Bug invisibili quando copi un template
+
+✅ Soluzione:
+➡️ usa la stessa utility
+
+calculateQuoteTotals(subtotale, discountType, discountValue)
+
+
+anche nel manager.
+
+🟠 CONTRASTI DI VALIDAZIONE
+4. Validazione “almeno un prodotto”
+
+QuoteBuilder → ✔️
+
+Aggiungi almeno un prodotto (catalogo o custom)
+
+
+TemplatesManager → ❌ NESSUNA validazione
+
+❌ Puoi creare template vuoti
+❌ Il QuoteBuilder li carica e poi esplode lato UX
+
+✅ Fix schema template:
+
+.refine(
+  data => data.catalogProductIds.length > 0 || data.customProducts.some(p => p.nome.trim()),
+  { message: 'Inserisci almeno un prodotto' }
+)
+
+5. Discount value NON limitato al subtotale
+
+Template → puoi mettere:
+
+discountValue = 10_000
+
+
+Preventivo → limite implicito
+
+❌ Template può generare preventivi a €0 o negativi
+
+✅ Fix (schema template):
+
+.refine(
+  data =>
+    data.discountType !== 'amount' ||
+    data.discountValue <= (totaleCatalogo + totaleCustom),
+  { message: 'Sconto superiore al totale' }
+)
+
+🟡 CONTRASTI DI COMPORTAMENTO
+6. Categorie prodotto
+
+Template:
+
+categoria?: string
+
+
+QuoteBuilder:
+
+categoria?: string // usata anche per grouping UI
+
+
+❌ Nessun enforcement → stringhe diverse → UI incoerente
+
+✅ Soluzione:
+
+Enum condivisa (Album, Video, Stampe, ecc.)
+
+O fallback automatico in QuoteBuilder
+
+7. Numero foto (numeroFoto)
+
+Template: opzionale
+
+QuoteBuilder: usato anche per UI / logica
+
+❌ Template può ometterlo → QuoteBuilder assume 0
+
+⚠️ Non bug grave, ma contrasto semantico
+
+🟢 CONTRASTI MINORI / FUTURI BUG
+8. Clausole
+
+Template Manager:
+
+defaultClauses
+
+
+QuoteBuilder:
+
+contractClauses / clauseTemplateId
+
+
+❌ I template NON gestiscono davvero le clausole
+❌ Quando un template viene usato, le clausole non sono coerenti
+
+👉 Questo oggi non esplode solo perché:
+
+QuoteBuilder ignora defaultClauses
+
+Usa template clausole separato
+
+⚠️ Ma il naming è fuorviante.
+
+9. Form reset
+
+Template Manager fa:
+
+form.reset();
+
+
+QuoteBuilder resetta diversamente
+
+❌ Stato iniziale non coerente tra moduli
+❌ UX incoerente
