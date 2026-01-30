@@ -25,6 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 
 export default function CashDashboard() {
@@ -381,35 +387,17 @@ export default function CashDashboard() {
                 ))}
               </div>
 
-              {/* Filtro Origine */}
-              <Select value={origineFilter} onValueChange={(v) => setOrigineFilter(v as CashMovementOrigine | "all")}>
-                <SelectTrigger className="w-[130px] text-xs sm:text-sm">
-                  <SelectValue placeholder="Origine" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte origini</SelectItem>
-                  <SelectItem value="walk-in">Walk-in</SelectItem>
-                  <SelectItem value="booking">Prenotazioni</SelectItem>
-                  <SelectItem value="job">Lavori</SelectItem>
-                  <SelectItem value="manuale">Manuali</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {/* Filtro Tema - solo se ci sono temi */}
-              {uniqueTemi.length > 0 && (
-                <Select value={temaFilter} onValueChange={setTemaFilter}>
-                  <SelectTrigger className="w-[130px] text-xs sm:text-sm">
-                    <SelectValue placeholder="Campagna" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tutte campagne</SelectItem>
-                    {uniqueTemi.map((tema) => (
-                      <SelectItem key={tema} value={tema}>
-                        {tema}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Filtro attivo - mostra solo se c'è un filtro attivo */}
+              {(origineFilter !== "all" || temaFilter !== "all") && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setOrigineFilter("all"); setTemaFilter("all"); }}
+                  className="text-xs h-8 text-muted-foreground"
+                >
+                  Rimuovi filtri
+                </Button>
               )}
 
               {/* Export - Icona sola su mobile */}
@@ -471,18 +459,71 @@ export default function CashDashboard() {
         </Card>
       )}
 
-      {/* Riepilogo per Origine - Compatto */}
+      {/* Riepilogo per Origine - Con sottomenu campagne per Prenotazioni */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {(["walk-in", "booking", "job", "manuale"] as const).map((origine) => {
           const stats = statsByOrigine[origine] || { entrate: 0, uscite: 0, count: 0 };
-          const isActive = origineFilter === origine;
+          const isActive = origineFilter === origine || (origine === "booking" && temaFilter !== "all");
+          
+          // Per "booking" mostriamo un popover con le campagne
+          if (origine === "booking") {
+            return (
+              <Popover key={origine}>
+                <PopoverTrigger asChild>
+                  <div 
+                    className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer ${
+                      isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {CASH_ORIGINE_LABELS[origine]}
+                        {temaFilter !== "all" && <span className="ml-1 text-blue-600">({temaFilter})</span>}
+                      </div>
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-green-600">
+                      {formatCurrency(stats.entrate)}
+                    </div>
+                    {stats.uscite > 0 && (
+                      <div className="text-[10px] sm:text-xs text-red-500">-{formatCurrency(stats.uscite)}</div>
+                    )}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="start">
+                  <div className="space-y-1">
+                    <button
+                      className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 ${
+                        origineFilter === "booking" && temaFilter === "all" ? 'bg-blue-50 text-blue-700' : ''
+                      }`}
+                      onClick={() => { setOrigineFilter("booking"); setTemaFilter("all"); }}
+                    >
+                      Tutte le prenotazioni
+                    </button>
+                    {uniqueTemi.map((tema) => (
+                      <button
+                        key={tema}
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 ${
+                          temaFilter === tema ? 'bg-blue-50 text-blue-700' : ''
+                        }`}
+                        onClick={() => { setOrigineFilter("booking"); setTemaFilter(tema); }}
+                      >
+                        {tema}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            );
+          }
+          
           return (
             <div 
               key={origine}
               className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer ${
                 isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
               }`}
-              onClick={() => setOrigineFilter(isActive ? "all" : origine)}
+              onClick={() => { setOrigineFilter(isActive ? "all" : origine); setTemaFilter("all"); }}
             >
               <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
                 {CASH_ORIGINE_LABELS[origine]}
