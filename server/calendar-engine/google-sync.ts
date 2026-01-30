@@ -2,7 +2,7 @@
 // Wraps existing Google Calendar functions without modifying them
 
 import { DateTime } from "luxon";
-import { CalendarEvent } from "@/shared/calendar-types";
+import { CalendarEvent } from "../../shared/calendar-types.js";
 import {
   checkFreeBusyAllCalendars as originalCheckFreeBusy,
   getEventsWithDetailsAllCalendars,
