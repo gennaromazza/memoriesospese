@@ -898,7 +898,7 @@ export async function migrateMovementsComplete(): Promise<{ updated: number; ski
   // Precarica jobs
   const jobs = await getAllJobs();
   for (const j of jobs) {
-    jobCache[j.id] = j.jobType || j.tipo || '';
+    jobCache[j.id] = j.jobType || '';
   }
   
   // Precarica orders

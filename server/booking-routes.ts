@@ -10,7 +10,8 @@ import { db, FieldValue } from "./firebase-admin.js";
 import { Timestamp } from "firebase-admin/firestore";
 import { syncBookingWorkflowState } from "../shared/workflow-helpers.js";
 import { WorkflowState } from "../shared/schema.js";
-import type { SlotsResponse } from "../shared/calendar-types.js";
+import type { SlotsResponse, TimeSlot } from "../shared/calendar-types.js";
+import type { BookingCampaign } from "../shared/booking-types.js";
 
 const router = express.Router();
 
@@ -900,7 +901,7 @@ router.patch("/v2/:id/approve", async (req, res) => {
       return res.status(404).json({ error: "Campagna non trovata" });
     }
 
-    const campaign = campaignDoc.data();
+    const campaign = campaignDoc.data() as BookingCampaign | undefined;
 
     if (!campaign?.attiva) {
       return res.status(400).json({ error: "Campagna non attiva" });
@@ -2316,7 +2317,7 @@ router.post("/v2/create", async (req, res) => {
       return res.status(404).json({ error: "Campagna non trovata" });
     }
 
-    const campaign = campaignDoc.data();
+    const campaign = campaignDoc.data() as BookingCampaign | undefined;
 
     if (!campaign?.attiva) {
       return res.status(400).json({ error: "Campagna non attiva" });
@@ -2688,19 +2689,19 @@ router.post("/v2/available-slots", async (req, res) => {
     console.log(`[POST /v2/available-slots] ✅ ${slots.length} slot disponibili generati`);
 
     // Step 8.5: Format slots with startTime/endTime strings (for UI display)
-    const formattedSlots = slots.map((slot) => ({
-      start: slot.start.toISOString(),
-      end: slot.end.toISOString(),
-      startTime: slot.start.toLocaleTimeString("it-IT", {
+    const formattedSlots: TimeSlot[] = slots.map((slot) => ({
+      start: slot.start,
+      end: slot.end,
+      label: `${slot.start.toLocaleTimeString("it-IT", {
         hour: "2-digit",
         minute: "2-digit",
         timeZone: "Europe/Rome",
-      }),
-      endTime: slot.end.toLocaleTimeString("it-IT", {
+      })} - ${slot.end.toLocaleTimeString("it-IT", {
         hour: "2-digit",
         minute: "2-digit",
         timeZone: "Europe/Rome",
-      }),
+      })}`,
+      available: true,
     }));
 
     // Step 9: Prepare response with user-friendly message if no slots
@@ -2714,7 +2715,7 @@ router.post("/v2/available-slots", async (req, res) => {
 
       if (unavailabilityInfo.reason) {
         response.unavailableReason = unavailabilityInfo.reason;
-        response.message = unavailabilityInfo.message;
+        response.message = unavailabilityInfo.message ?? undefined;
       } else {
         // All slots are booked
         response.unavailableReason = 'all-booked';
