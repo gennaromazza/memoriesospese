@@ -862,7 +862,141 @@ export async function migrateMovementsOrigin(): Promise<{ updated: number; skipp
   return { updated, skipped };
 }
 
-// Esponi funzione per migrazione manuale da console
+/**
+ * Migrazione completa: assegna origine E origineTema a tutti i movimenti
+ * Risolve bookingId → campagna, jobId → jobType, orderId → booking → campagna
+ */
+export async function migrateMovementsComplete(): Promise<{ updated: number; skipped: number; details: string[] }> {
+  const movements = await getAllCashMovements();
+  const details: string[] = [];
+  let updated = 0;
+  let skipped = 0;
+  
+  // Cache per evitare query ripetute
+  const bookingCache: Record<string, any> = {};
+  const campaignCache: Record<string, string> = {};
+  const jobCache: Record<string, string> = {};
+  const orderCache: Record<string, any> = {};
+  
+  // Precarica bookings
+  const bookings = await getAllBookings();
+  for (const b of bookings) {
+    bookingCache[b.id] = b;
+  }
+  
+  // Precarica jobs
+  const jobs = await getAllJobs();
+  for (const j of jobs) {
+    jobCache[j.id] = j.jobType || j.tipo || '';
+  }
+  
+  // Precarica orders
+  const orders = await getAllOrders();
+  for (const o of orders) {
+    orderCache[o.id] = o;
+  }
+  
+  for (const movement of movements) {
+    let needsUpdate = false;
+    const updates: Partial<CashMovementFE> = {};
+    
+    // 1. Determina origine se mancante
+    if (!movement.origine) {
+      if (movement.jobId) {
+        updates.origine = 'job';
+        updates.origineRef = movement.jobId;
+      } else if (movement.bookingId) {
+        updates.origine = 'booking';
+        updates.origineRef = movement.bookingId;
+      } else if (movement.orderId) {
+        const order = orderCache[movement.orderId];
+        if (order?.bookingId) {
+          updates.origine = 'booking';
+          updates.origineRef = order.bookingId;
+        } else {
+          updates.origine = 'walk-in';
+          updates.origineRef = movement.orderId;
+        }
+      } else {
+        // Analizza descrizione
+        const desc = (movement.descrizione || '').toLowerCase();
+        if (desc.includes('walk-in')) {
+          updates.origine = 'walk-in';
+        } else if (desc.includes('prenotazione') || desc.includes('booking')) {
+          updates.origine = 'booking';
+        } else if (desc.includes('job') || desc.includes('matrimonio')) {
+          updates.origine = 'job';
+        } else {
+          updates.origine = 'manuale';
+        }
+      }
+      needsUpdate = true;
+    }
+    
+    // 2. Determina origineTema se mancante
+    if (!movement.origineTema) {
+      let tema: string | undefined;
+      
+      // Prova da bookingId diretto
+      if (movement.bookingId && bookingCache[movement.bookingId]) {
+        const booking = bookingCache[movement.bookingId];
+        if (booking.campaignId) {
+          if (!campaignCache[booking.campaignId]) {
+            try {
+              const campaign = await getCampaignById(booking.campaignId);
+              if (campaign) campaignCache[booking.campaignId] = campaign.nome;
+            } catch (e) {}
+          }
+          tema = campaignCache[booking.campaignId];
+        }
+      }
+      
+      // Prova da orderId → bookingId → campagna
+      if (!tema && movement.orderId && orderCache[movement.orderId]) {
+        const order = orderCache[movement.orderId];
+        if (order.bookingId && bookingCache[order.bookingId]) {
+          const booking = bookingCache[order.bookingId];
+          if (booking.campaignId) {
+            if (!campaignCache[booking.campaignId]) {
+              try {
+                const campaign = await getCampaignById(booking.campaignId);
+                if (campaign) campaignCache[booking.campaignId] = campaign.nome;
+              } catch (e) {}
+            }
+            tema = campaignCache[booking.campaignId];
+          }
+        }
+      }
+      
+      // Prova da jobId → jobType
+      if (!tema && movement.jobId && jobCache[movement.jobId]) {
+        tema = jobCache[movement.jobId];
+      }
+      
+      if (tema) {
+        updates.origineTema = tema;
+        needsUpdate = true;
+      }
+    }
+    
+    // 3. Aggiorna se necessario
+    if (needsUpdate && Object.keys(updates).length > 0) {
+      await updateCashMovement(movement.id, updates);
+      const detail = `${movement.id}: origine=${updates.origine || movement.origine}, tema=${updates.origineTema || '-'}`;
+      details.push(detail);
+      console.log(`✅ ${detail}`);
+      updated++;
+    } else {
+      skipped++;
+    }
+  }
+  
+  console.log(`🔄 Migrazione completa: ${updated} aggiornati, ${skipped} già ok`);
+  return { updated, skipped, details };
+}
+
+// Esponi funzioni per migrazione manuale da console
 if (typeof window !== 'undefined') {
   (window as any).migrateMovementsOrigin = migrateMovementsOrigin;
+  (window as any).migrateMovementsComplete = migrateMovementsComplete;
 }
