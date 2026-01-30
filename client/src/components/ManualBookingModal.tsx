@@ -117,7 +117,18 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   const selectedCampaign = campaigns.find(c => c.id === campaignId);
 
   // Categoria default basata sul tema della campagna
-  const defaultCategory = selectedCampaign?.temaStagionale || 'all';
+  // Matching flessibile: cerca categoria il cui value contiene il tema (es. 'carnevale' -> 'carnevale_2026')
+  const defaultCategory = useMemo(() => {
+    if (!selectedCampaign?.temaStagionale) return 'all';
+    const tema = selectedCampaign.temaStagionale.toLowerCase();
+    // Prima cerca match esatto
+    const exactMatch = categories.find(c => c.value === tema);
+    if (exactMatch) return exactMatch.value;
+    // Poi cerca categoria che inizia con il tema
+    const partialMatch = categories.find(c => c.value.toLowerCase().startsWith(tema));
+    if (partialMatch) return partialMatch.value;
+    return 'all';
+  }, [selectedCampaign?.temaStagionale, categories]);
 
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
