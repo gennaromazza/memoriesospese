@@ -348,24 +348,32 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
     })
     .filter((order) => order.importoResiduo > 0 && order.dataServizio);
 
-  // 2. Filtra jobs con eventDate e payment schedules con saldo > 0
+  // 2. Filtra jobs con eventDate e saldo > 0 (da payment schedules o saldoResiduo diretto)
   const jobsWithBalance: Array<Job & { importoResiduo: number; clienteNome: string }> = [];
   
   for (const job of jobs) {
     if (!job.eventDate) continue; // Skip jobs senza eventDate
     
-    // Fetcha payment schedules per questo job
-    const schedules = await getPaymentSchedulesForJob(job.id);
-    if (schedules.length === 0) continue; // Skip se non ha payment schedules
+    let saldoResiduoTotale = 0;
     
-    // Aggrega saldoResiduo da tutti gli schedules (gestisce duplicati)
-    const saldoResiduoTotale = schedules.reduce((sum, s) => sum + s.saldoResiduo, 0);
+    // Prima prova payment schedules
+    const schedules = await getPaymentSchedulesForJob(job.id);
+    if (schedules.length > 0) {
+      // Aggrega saldoResiduo da tutti gli schedules
+      saldoResiduoTotale = schedules.reduce((sum, s) => sum + s.saldoResiduo, 0);
+    } else {
+      // Fallback: usa saldoResiduo diretto sul job (accesso type-safe)
+      const jobAny = job as any;
+      if (jobAny.saldoResiduo && typeof jobAny.saldoResiduo === 'number' && jobAny.saldoResiduo > 0) {
+        saldoResiduoTotale = jobAny.saldoResiduo;
+      }
+    }
     
     if (saldoResiduoTotale <= 0) continue; // Skip se già pagato
     
     // Fetcha cliente per nome (usa primo cliente del job)
     let clienteNome = "Cliente sconosciuto";
-    if (job.clientiIds.length > 0) {
+    if (job.clientiIds && job.clientiIds.length > 0) {
       try {
         const clienteDoc = await getDoc(doc(db, 'clienti', job.clientiIds[0]));
         if (clienteDoc.exists()) {
@@ -459,15 +467,34 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
   // 3b. Filtra bookings con saldo residuo > 0 e data shooting futura
   const bookingsWithBalance: Array<Booking & { importoResiduo: number; campaignNome: string }> = [];
   
+  // Fetch prodotti per calcolare totale se non presente
+  const { getActiveProducts } = await import('./products');
+  const allProducts = await getActiveProducts();
+  
   for (const booking of bookings) {
-    // Solo prenotazioni confermate con dati di pagamento
+    // Solo prenotazioni confermate
     if (booking.stato !== 'confermata') continue;
-    if (!booking.totale || booking.totale <= 0) continue;
     if (!booking.dataShootingInizio) continue;
+    
+    // Calcola totale: usa booking.totale se presente, altrimenti calcola dai prodotti
+    let totaleBooking = booking.totale || 0;
+    
+    if (totaleBooking <= 0 && booking.prodotti && booking.prodotti.length > 0) {
+      // Calcola totale dai prodotti selezionati
+      totaleBooking = booking.prodotti.reduce((sum, item) => {
+        const product = allProducts.find(p => p.id === item.prodottoId);
+        if (product) {
+          return sum + product.prezzoFinale * (item.quantita || 1);
+        }
+        return sum;
+      }, 0);
+    }
+    
+    if (totaleBooking <= 0) continue; // Nessun valore economico
     
     // Calcola saldo residuo
     const totalePagato = (booking.transactions || []).reduce((sum, t) => sum + t.importo, 0);
-    const importoResiduo = booking.totale - totalePagato;
+    const importoResiduo = totaleBooking - totalePagato;
     
     if (importoResiduo <= 0) continue; // Già pagato
     
