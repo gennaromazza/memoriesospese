@@ -544,20 +544,24 @@ router.post("/create", async (req, res) => {
     }
 
     const campaign = campaignDoc.data();
-    const excludedDays = campaign?.excludedDays || [];
+    
+    // SECURITY: Verifica giorni esclusi (skip for manual bookings - admin can book any day)
+    if (!isManual) {
+      const excludedDays = campaign?.excludedDays || [];
 
-    if (excludedDays.length > 0) {
-      // FIX: Usa Calendar Engine V2 per weekday detection corretto
-      const { toRome, getWeekday } = await import('./calendar-engine/timezone.js');
-      const romeDateSlot = toRome(slotStart);
-      const dayOfWeek = getWeekday(romeDateSlot); // 0=Sunday, 1=Monday, etc.
+      if (excludedDays.length > 0) {
+        // FIX: Usa Calendar Engine V2 per weekday detection corretto
+        const { toRome, getWeekday } = await import('./calendar-engine/timezone.js');
+        const romeDateSlot = toRome(slotStart);
+        const dayOfWeek = getWeekday(romeDateSlot); // 0=Sunday, 1=Monday, etc.
 
-      if (excludedDays.includes(dayOfWeek)) {
-        return res.status(400).json({
-          error: "Giorno non disponibile",
-          message:
-            "Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.",
-        });
+        if (excludedDays.includes(dayOfWeek)) {
+          return res.status(400).json({
+            error: "Giorno non disponibile",
+            message:
+              "Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.",
+          });
+        }
       }
     }
 
@@ -2335,18 +2339,20 @@ router.post("/v2/create", async (req, res) => {
       });
     }
 
-    // Step 3: Verify excluded days
+    // Step 3: Verify excluded days (skip for manual bookings - admin can book any day)
     // FIX: Usa Calendar Engine V2 per weekday detection corretto
-    const excludedDays = campaign?.excludedDays || [];
-    if (excludedDays.length > 0) {
-      const { toRome: toRomeWeekday, getWeekday: getWeekdayV2 } = await import('./calendar-engine/timezone.js');
-      const romeDateSlot2 = toRomeWeekday(slotStart);
-      const dayOfWeek = getWeekdayV2(romeDateSlot2);
-      if (excludedDays.includes(dayOfWeek)) {
-        return res.status(400).json({
-          error: "Giorno non disponibile",
-          message: "Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.",
-        });
+    if (!isManual) {
+      const excludedDays = campaign?.excludedDays || [];
+      if (excludedDays.length > 0) {
+        const { toRome: toRomeWeekday, getWeekday: getWeekdayV2 } = await import('./calendar-engine/timezone.js');
+        const romeDateSlot2 = toRomeWeekday(slotStart);
+        const dayOfWeek = getWeekdayV2(romeDateSlot2);
+        if (excludedDays.includes(dayOfWeek)) {
+          return res.status(400).json({
+            error: "Giorno non disponibile",
+            message: "Il giorno selezionato non è disponibile per le prenotazioni in questa campagna.",
+          });
+        }
       }
     }
 
