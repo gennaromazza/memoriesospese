@@ -24,11 +24,14 @@ import { getClienteByEmail } from "@/lib/clienti";
 import { getAllOrders, createOrder, addAccontoPayment, recordSaldoPayment, getOrderTotals } from "@/lib/orders";
 import EditOrderModal from "@/components/EditOrderModal";
 import { getActiveProducts } from "@/lib/products";
+import { getActiveProductCategories } from "@/lib/product-categories";
+import ProductSelector from "@/components/ProductSelector";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import type {
   Booking,
   Order,
   Product,
+  ProductCategory,
   OrderItem,
   BundleItem,
 } from "@shared/booking-types";
@@ -38,7 +41,6 @@ import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import ShareGalleryButton from "@/components/ShareGalleryButton";
 import ManualBookingModal from "@/components/ManualBookingModal";
-import { ProductFilters, useProductFilter } from "@/components/ProductFilters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -336,6 +338,12 @@ export default function BookingsManager({
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["products", "active"],
     queryFn: getActiveProducts,
+  });
+  
+  // Query categorie prodotti per ProductSelector
+  const { data: productCategories = [] } = useQuery<ProductCategory[]>({
+    queryKey: ["product-categories", "active"],
+    queryFn: getActiveProductCategories,
   });
 
   // Query galleries per trovare gallerie create da bookings
@@ -2953,6 +2961,7 @@ export default function BookingsManager({
             <CreateOrderDialog
               booking={selectedBookingForOrder}
               products={products}
+              categories={productCategories}
               campaigns={campaigns}
               onClose={() => setSelectedBookingForOrder(null)}
               onSubmit={(orderData) => createOrderMutation.mutate(orderData)}
@@ -3487,6 +3496,7 @@ export default function BookingsManager({
 interface CreateOrderDialogProps {
   booking: Booking;
   products: Product[];
+  categories: ProductCategory[];
   campaigns: BookingCampaignFE[];
   onClose: () => void;
   onSubmit: (orderData: any) => void;
@@ -3504,6 +3514,7 @@ interface CustomProduct {
 function CreateOrderDialog({
   booking,
   products,
+  categories,
   campaigns,
   onClose,
   onSubmit,
@@ -3523,30 +3534,36 @@ function CreateOrderDialog({
   const [customPrezzo, setCustomPrezzo] = useState<number>(0);
   const [customNumeroFoto, setCustomNumeroFoto] = useState<number>(0);
   
-  // Filtri prodotti
-  const [productSearchQuery, setProductSearchQuery] = useState("");
-  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
-
   const campaign = campaigns.find((c) => c.id === booking.campaignId);
-  const campaignProducts = useMemo(() => {
-    if (!campaign?.prodottiDisponibili?.length) {
-      return products;
-    }
-    return products.filter((p) => campaign.prodottiDisponibili.includes(p.id));
-  }, [products, campaign]);
   
-  // Applica filtri ai prodotti della campagna
-  const availableProducts = useProductFilter(campaignProducts, productSearchQuery, productCategoryFilter);
+  // Categoria default basata sul tema della campagna (come ManualBookingModal)
+  const defaultCategory = useMemo(() => {
+    if (!campaign?.temaStagionale) return 'all';
+    const tema = campaign.temaStagionale.toLowerCase();
+    const exactMatch = categories.find(c => c.value === tema);
+    if (exactMatch) return exactMatch.value;
+    const partialMatch = categories.find(c => c.value.toLowerCase().startsWith(tema));
+    if (partialMatch) return partialMatch.value;
+    return 'all';
+  }, [campaign?.temaStagionale, categories]);
 
-  // Pre-popola prodotto da booking se disponibile (quando cambiano i prodotti della campagna)
+  // Pre-popola prodotti da booking (multi-prodotto o singolo prodottoId)
   useEffect(() => {
-    if (booking.prodottoId && campaignProducts.length > 0) {
-      const isAvailable = campaignProducts.some((p) => p.id === booking.prodottoId);
+    // Priorità: booking.prodotti (multi-prodotto) > booking.prodottoId (legacy)
+    if (booking.prodotti && booking.prodotti.length > 0) {
+      const preselected = booking.prodotti
+        .filter(p => products.some(prod => prod.id === p.prodottoId))
+        .map(p => ({ prodottoId: p.prodottoId, quantita: p.quantita || 1 }));
+      if (preselected.length > 0) {
+        setSelectedProducts(preselected);
+      }
+    } else if (booking.prodottoId) {
+      const isAvailable = products.some((p) => p.id === booking.prodottoId);
       if (isAvailable) {
         setSelectedProducts([{ prodottoId: booking.prodottoId, quantita: 1 }]);
       }
     }
-  }, [campaignProducts, booking.prodottoId]);
+  }, [products, booking.prodotti, booking.prodottoId]);
 
   // Helper: Aggiungi prodotto vuoto
   const addProduct = () => {
@@ -3571,9 +3588,22 @@ function CreateOrderDialog({
 
   // Helper: Calcola subtotale per prodotto catalogo
   const getProductSubtotal = (prodottoId: string, quantita: number): number => {
-    const product = availableProducts.find((p) => p.id === prodottoId);
+    const product = products.find((p) => p.id === prodottoId);
     if (!product) return 0;
     return product.prezzoFinale * quantita;
+  };
+  
+  // Helper: Aggiungi prodotto da ProductSelector
+  const handleAddProductFromSelector = (productId: string) => {
+    if (!productId) return;
+    const existingIndex = selectedProducts.findIndex(p => p.prodottoId === productId);
+    if (existingIndex >= 0) {
+      const updated = [...selectedProducts];
+      updated[existingIndex].quantita += 1;
+      setSelectedProducts(updated);
+    } else {
+      setSelectedProducts([...selectedProducts, { prodottoId: productId, quantita: 1 }]);
+    }
   };
 
   // Helper: Calcola totale ordine (catalogo + custom)
@@ -3668,10 +3698,10 @@ function CreateOrderDialog({
 
     // Costruisci array OrderItem con snapshot (prodotti catalogo)
     const catalogoOrderItems: OrderItem[] = selectedProducts.map((item) => {
-      const product = availableProducts.find((p) => p.id === item.prodottoId)!;
+      const product = products.find((p: Product) => p.id === item.prodottoId)!;
       // Per bundle: calcola totale foto da bundleItems
       const totalPhotos = product.isBundle && product.bundleItems && product.bundleItems.length > 0
-        ? product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
+        ? product.bundleItems.reduce((sum: number, bi: BundleItem) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0)
         : product.numeroFoto;
       return {
         prodottoId: product.id,
@@ -3734,48 +3764,28 @@ function CreateOrderDialog({
                 <span className="font-medium">Campagna:</span> {campaign.nome}
                 {campaign.prodottiDisponibili?.length > 0 && (
                   <span className="ml-2 text-blue-600">
-                    ({availableProducts.length} prodotti disponibili)
+                    ({campaign.prodottiDisponibili.length} prodotti campagna)
                   </span>
                 )}
               </p>
             </div>
           )}
 
-          {/* Prodotti da catalogo */}
+          {/* Prodotti da catalogo con ProductSelector */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Prodotti da Catalogo</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={addProduct}
-                className="border-sage text-sage hover:bg-sage hover:text-white"
-                data-testid="button-add-product"
-                disabled={campaignProducts.length === 0}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Aggiungi Prodotto
-              </Button>
-            </div>
+            <Label className="text-base font-semibold">Prodotti da Catalogo</Label>
             
-            {/* Filtri prodotti */}
-            {campaignProducts.length > 0 && (
-              <ProductFilters
-                products={campaignProducts}
-                searchQuery={productSearchQuery}
-                onSearchChange={setProductSearchQuery}
-                categoryFilter={productCategoryFilter}
-                onCategoryChange={setProductCategoryFilter}
-                compact
-              />
-            )}
+            {/* ProductSelector con filtri integrati - mostra tutti i prodotti */}
+            <ProductSelector
+              products={products}
+              categories={categories}
+              onSelectProduct={handleAddProductFromSelector}
+              placeholder="Cerca e aggiungi prodotto..."
+              defaultCategory={defaultCategory}
+            />
 
-            {campaignProducts.length === 0 ? (
-              <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-lg">
-                <p className="text-sm">Nessun prodotto disponibile per questa campagna</p>
-              </div>
-            ) : selectedProducts.length === 0 ? (
+            {/* Lista prodotti selezionati */}
+            {selectedProducts.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
                 <Package className="w-10 h-10 mx-auto mb-2 text-gray-400" />
                 <p className="text-sm">Nessun prodotto catalogo aggiunto</p>
@@ -3783,7 +3793,7 @@ function CreateOrderDialog({
             ) : (
               <div className="space-y-3">
                 {selectedProducts.map((item, index) => {
-                  const product = availableProducts.find(
+                  const product = products.find(
                     (p) => p.id === item.prodottoId,
                   );
                   const subtotale = getProductSubtotal(
@@ -3797,33 +3807,17 @@ function CreateOrderDialog({
                       className="flex items-center gap-3 p-4 border rounded-lg bg-white"
                     >
                       <div className="flex-1">
-                        <Select
-                          value={item.prodottoId}
-                          onValueChange={(value) =>
-                            updateProduct(index, "prodottoId", value)
-                          }
-                        >
-                          <SelectTrigger
-                            data-testid={`select-product-${index}`}
-                          >
-                            <SelectValue placeholder="Seleziona prodotto" />
-                          </SelectTrigger>
-                          <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                            {availableProducts.map((p) => {
-                              // Per bundle: calcola totale foto da bundleItems
-                              const totalPhotos = p.isBundle && p.bundleItems && p.bundleItems.length > 0
-                                ? p.bundleItems.reduce((sum, item) => sum + (item.numeroFoto || 0) * (item.quantita || 1), 0)
-                                : p.numeroFoto;
-                              const photoText = totalPhotos > 0 ? `${totalPhotos} foto` : '∞';
-                              return (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.nome} - €{p.prezzoFinale.toFixed(2)} ({photoText})
-                                  {p.isBundle && ' 📦'}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        {product ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{product.nome}</span>
+                            <span className="text-sm text-muted-foreground">
+                              €{product.prezzoFinale.toFixed(2)}
+                            </span>
+                            {product.isBundle && <span>📦</span>}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Prodotto non trovato</span>
+                        )}
                       </div>
 
                       <div className="w-24">
