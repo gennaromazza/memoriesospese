@@ -33,8 +33,13 @@ export default function CashDashboard() {
     return d instanceof Timestamp ? d.toDate() : d;
   };
   const [dateRange, setDateRange] = useState<"all" | "month" | "quarter" | "year">("month");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
   const [temaFilter, setTemaFilter] = useState<string>("all");
+  
+  // Anni disponibili per selezione (ultimi 3 anni + anno corrente)
+  const currentYear = new Date().getFullYear();
+  const availableYears = [currentYear, currentYear - 1, currentYear - 2];
 
   // Query per campagne
   const { data: campaigns } = useQuery({
@@ -44,75 +49,96 @@ export default function CashDashboard() {
 
   // Query per riepilogo finanziario
   const { data: summary, isLoading: summaryLoading } = useQuery<FinancialSummary>({
-    queryKey: ["financial-summary", dateRange],
+    queryKey: ["financial-summary", dateRange, selectedYear],
     queryFn: async () => {
       const now = new Date();
+      
+      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
+      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
+      const currentQuarter = Math.floor(currentMonth / 3) * 3;
+      
       let startDate: Date | undefined;
+      let endDate: Date | undefined;
 
       if (dateRange === "month") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate = new Date(selectedYear, currentMonth, 1);
+        endDate = new Date(selectedYear, currentMonth + 1, 0);
       } else if (dateRange === "quarter") {
-        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+        startDate = new Date(selectedYear, currentQuarter, 1);
+        endDate = new Date(selectedYear, currentQuarter + 3, 0);
       } else if (dateRange === "year") {
-        startDate = new Date(now.getFullYear(), 0, 1);
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31);
       }
 
-      return getFinancialSummary(startDate);
+      return getFinancialSummary(startDate, endDate);
     },
   });
 
-  // Query per dati mensili (sempre ultimi 12 mesi)
+  // Query per dati mensili (anno selezionato)
   const { data: monthlyData, isLoading: monthlyLoading } = useQuery<MonthlyData[]>({
-    queryKey: ["monthly-data"],
-    queryFn: getMonthlyData,
+    queryKey: ["monthly-data", selectedYear],
+    queryFn: () => getMonthlyData(selectedYear),
   });
 
-  // Query per ultimi movimenti (filtra per dateRange)
+  // Query per ultimi movimenti (filtra per dateRange e anno)
   const { data: movements } = useQuery({
-    queryKey: ["cash-movements", dateRange],
+    queryKey: ["cash-movements", dateRange, selectedYear],
     queryFn: async () => {
       const allMovements = await getAllCashMovements();
       const now = new Date();
       let startDate: Date | undefined;
+      let endDate: Date | undefined;
+
+      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
+      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
+      const currentQuarter = Math.floor(currentMonth / 3) * 3;
 
       if (dateRange === "month") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate = new Date(selectedYear, currentMonth, 1);
+        endDate = new Date(selectedYear, currentMonth + 1, 0);
       } else if (dateRange === "quarter") {
-        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+        startDate = new Date(selectedYear, currentQuarter, 1);
+        endDate = new Date(selectedYear, currentQuarter + 3, 0);
       } else if (dateRange === "year") {
-        startDate = new Date(now.getFullYear(), 0, 1);
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31);
       }
 
       if (!startDate) return allMovements;
 
       return allMovements.filter((m) => {
         const movDate = m.data instanceof Timestamp ? m.data.toDate() : new Date(m.data);
+        if (endDate) {
+          return movDate >= startDate! && movDate <= endDate;
+        }
         return movDate >= startDate!;
       });
     },
   });
 
-  // Query per previsioni incasso (filtra per dateRange)
+  // Query per previsioni incasso (filtra per dateRange e anno)
   const { data: forecasts } = useQuery<ForecastedIncome[]>({
-    queryKey: ["forecasted-income", dateRange],
+    queryKey: ["forecasted-income", dateRange, selectedYear],
     queryFn: async () => {
       const allForecasts = await getForecastedIncome();
       const now = new Date();
       let startDate: Date | undefined;
       let endDate: Date | undefined;
 
+      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
+      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
+      const currentQuarter = Math.floor(currentMonth / 3) * 3;
+
       if (dateRange === "month") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        startDate = new Date(selectedYear, currentMonth, 1);
+        endDate = new Date(selectedYear, currentMonth + 1, 0);
       } else if (dateRange === "quarter") {
-        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-        endDate = new Date(now.getFullYear(), quarterStartMonth + 3, 0);
+        startDate = new Date(selectedYear, currentQuarter, 1);
+        endDate = new Date(selectedYear, currentQuarter + 3, 0);
       } else if (dateRange === "year") {
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = new Date(now.getFullYear(), 11, 31);
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31);
       }
 
       if (!startDate) return allForecasts;
@@ -125,21 +151,29 @@ export default function CashDashboard() {
     },
   });
 
-  // Query per ultimi pagamenti ordini (filtra transazioni per dateRange)
+  // Query per ultimi pagamenti ordini (filtra transazioni per dateRange e anno)
   const { data: orders } = useQuery({
-    queryKey: ["orders-payments", dateRange],
+    queryKey: ["orders-payments", dateRange, selectedYear],
     queryFn: async () => {
       const allOrders = await getAllOrders();
       const now = new Date();
+      
+      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
+      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
+      const currentQuarter = Math.floor(currentMonth / 3) * 3;
+      
       let startDate: Date | undefined;
+      let endDate: Date | undefined;
 
       if (dateRange === "month") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate = new Date(selectedYear, currentMonth, 1);
+        endDate = new Date(selectedYear, currentMonth + 1, 0);
       } else if (dateRange === "quarter") {
-        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-        startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
+        startDate = new Date(selectedYear, currentQuarter, 1);
+        endDate = new Date(selectedYear, currentQuarter + 3, 0);
       } else if (dateRange === "year") {
-        startDate = new Date(now.getFullYear(), 0, 1);
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31);
       }
 
       if (!startDate) return allOrders;
@@ -150,7 +184,7 @@ export default function CashDashboard() {
           ...order,
           transactions: (order.transactions || []).filter((t) => {
             const tDate = t.data instanceof Timestamp ? t.data.toDate() : new Date(t.data);
-            return tDate >= startDate!;
+            return tDate >= startDate! && (!endDate || tDate <= endDate);
           }),
         }))
         .filter((order) => order.transactions && order.transactions.length > 0);
@@ -158,9 +192,25 @@ export default function CashDashboard() {
   });
 
   
+  // Helper per determinare origine se mancante (fallback in-memory)
+  const inferOrigine = (m: CashMovementFE): CashMovementOrigine => {
+    if (m.origine) return m.origine;
+    // Fallback: determina origine dalla descrizione o riferimenti
+    if (m.jobId) return 'job';
+    if (m.bookingId) return 'booking';
+    if (m.orderId) {
+      const desc = (m.descrizione || '').toLowerCase();
+      if (desc.includes('walk-in')) return 'walk-in';
+      if (desc.includes('prenotazione') || desc.includes('booking')) return 'booking';
+      return 'walk-in'; // Default per ordini senza booking
+    }
+    return 'manuale';
+  };
+  
   // Movimenti filtrati per origine e tema
   const filteredMovements = (movements || []).filter((m: CashMovementFE) => {
-    if (origineFilter !== "all" && m.origine !== origineFilter) return false;
+    const effectiveOrigine = inferOrigine(m);
+    if (origineFilter !== "all" && effectiveOrigine !== origineFilter) return false;
     if (temaFilter !== "all" && m.origineTema !== temaFilter) return false;
     return true;
   });
@@ -172,7 +222,7 @@ export default function CashDashboard() {
   
   // Statistiche aggregate per origine (usa tutti i movimenti per panoramica globale)
   const statsByOrigine = (movements || []).reduce((acc, m: CashMovementFE) => {
-    const origine = m.origine || "manuale";
+    const origine = inferOrigine(m);
     if (!acc[origine]) {
       acc[origine] = { entrate: 0, uscite: 0, count: 0 };
     }
@@ -187,7 +237,7 @@ export default function CashDashboard() {
   
   // Statistiche aggregate filtrate (rispetta i filtri attivi)
   const filteredStatsByOrigine = filteredMovements.reduce((acc, m: CashMovementFE) => {
-    const origine = m.origine || "manuale";
+    const origine = inferOrigine(m);
     if (!acc[origine]) {
       acc[origine] = { entrate: 0, uscite: 0, count: 0 };
     }
@@ -293,181 +343,160 @@ export default function CashDashboard() {
               </p>
             </div>
 
-            {/* Controlli azioni - Mobile First */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              {/* Filtri periodo - Mobile Grid */}
-              <div className="grid grid-cols-2 sm:flex gap-2 flex-1">
-                <Button
-                  variant={dateRange === "month" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDateRange("month")}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <span className="hidden sm:inline">Questo Mese</span>
-                  <span className="sm:hidden">Mese</span>
-                </Button>
-                <Button
-                  variant={dateRange === "quarter" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDateRange("quarter")}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <span className="hidden sm:inline">Trimestre</span>
-                  <span className="sm:hidden">Trim.</span>
-                </Button>
-                <Button
-                  variant={dateRange === "year" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDateRange("year")}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  Anno
-                </Button>
-                <Button
-                  variant={dateRange === "all" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDateRange("all")}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  Tutto
-                </Button>
+            {/* Controlli azioni - Semplificati */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Selezione Anno */}
+              <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                <SelectTrigger className="w-[100px] text-xs sm:text-sm">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Filtri periodo - Compatti */}
+              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+                {[
+                  { value: "month", label: "Mese" },
+                  { value: "quarter", label: "Trim." },
+                  { value: "year", label: "Anno" },
+                  { value: "all", label: "Tutto" },
+                ].map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={dateRange === option.value ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setDateRange(option.value as any)}
+                    className="text-xs px-2 py-1 h-7"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
               </div>
 
-              {/* Filtri Origine e Tema */}
-              <div className="flex gap-2">
-                <Select value={origineFilter} onValueChange={(v) => setOrigineFilter(v as CashMovementOrigine | "all")}>
-                  <SelectTrigger className="w-[140px] text-xs sm:text-sm">
-                    <SelectValue placeholder="Origine" />
+              {/* Filtro Origine */}
+              <Select value={origineFilter} onValueChange={(v) => setOrigineFilter(v as CashMovementOrigine | "all")}>
+                <SelectTrigger className="w-[130px] text-xs sm:text-sm">
+                  <SelectValue placeholder="Origine" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte origini</SelectItem>
+                  <SelectItem value="walk-in">Walk-in</SelectItem>
+                  <SelectItem value="booking">Prenotazioni</SelectItem>
+                  <SelectItem value="job">Lavori</SelectItem>
+                  <SelectItem value="manuale">Manuali</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Filtro Tema - solo se ci sono temi */}
+              {uniqueTemi.length > 0 && (
+                <Select value={temaFilter} onValueChange={setTemaFilter}>
+                  <SelectTrigger className="w-[130px] text-xs sm:text-sm">
+                    <SelectValue placeholder="Campagna" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tutte le origini</SelectItem>
-                    <SelectItem value="walk-in">Ordini Walk-in</SelectItem>
-                    <SelectItem value="booking">Prenotazioni</SelectItem>
-                    <SelectItem value="job">Lavori</SelectItem>
-                    <SelectItem value="manuale">Manuali</SelectItem>
+                    <SelectItem value="all">Tutte campagne</SelectItem>
+                    {uniqueTemi.map((tema) => (
+                      <SelectItem key={tema} value={tema}>
+                        {tema}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                
-                {uniqueTemi.length > 0 && (
-                  <Select value={temaFilter} onValueChange={setTemaFilter}>
-                    <SelectTrigger className="w-[140px] text-xs sm:text-sm">
-                      <SelectValue placeholder="Tema" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tutti i temi</SelectItem>
-                      {uniqueTemi.map((tema) => (
-                        <SelectItem key={tema} value={tema}>
-                          {tema.charAt(0).toUpperCase() + tema.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              )}
 
-              {/* Bottoni export - Mobile Stack */}
-              <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    const now = new Date();
-                    let startDate: Date | undefined;
-
-                    if (dateRange === "month") {
-                      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    } else if (dateRange === "quarter") {
-                      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-                      startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-                    } else if (dateRange === "year") {
-                      startDate = new Date(now.getFullYear(), 0, 1);
-                    }
-
-                    await exportFinancialData(startDate, now);
-                  }}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <Download className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Esporta Excel</span>
-                  <span className="sm:hidden">Excel</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="text-xs sm:text-sm whitespace-nowrap"
-                >
-                  <FileText className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Stampa Estratto</span>
-                  <span className="sm:hidden">Stampa</span>
-                </Button>
-              </div>
+              {/* Export - Icona sola su mobile */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const startDate = new Date(selectedYear, 0, 1);
+                  const endDate = new Date(selectedYear, 11, 31);
+                  await exportFinancialData(startDate, endDate);
+                }}
+                className="text-xs h-8 px-2"
+                title="Esporta Excel"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
       {/* Statistiche per Origine - Mostra breakdown entrate/uscite per fonte */}
-      {Object.keys(statsByOrigine).length > 0 && (origineFilter !== "all" || temaFilter !== "all") && (
+      {(origineFilter !== "all" || temaFilter !== "all") && (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-blue-600" />
-              Filtro Attivo: {origineFilter !== "all" ? CASH_ORIGINE_LABELS[origineFilter] : "Tutte"} 
-              {temaFilter !== "all" && ` - ${temaFilter.charAt(0).toUpperCase() + temaFilter.slice(1)}`}
+              Filtro Attivo: {origineFilter !== "all" ? CASH_ORIGINE_LABELS[origineFilter] : "Tutte le origini"} 
+              {temaFilter !== "all" && ` → ${temaFilter}`}
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                ({filteredMovements.length} movimenti)
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-lg font-bold text-green-600">{formatCurrency(filteredTotals.entrate)}</div>
-                <div className="text-xs text-muted-foreground">Entrate</div>
+            {filteredMovements.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                <p className="text-sm">Nessun movimento trovato con questi filtri.</p>
+                <p className="text-xs mt-1">I movimenti potrebbero non avere origine/tema assegnato. Esegui la migrazione dalla console: <code className="bg-gray-100 px-1 rounded">migrateMovementsComplete()</code></p>
               </div>
-              <div>
-                <div className="text-lg font-bold text-red-600">{formatCurrency(filteredTotals.uscite)}</div>
-                <div className="text-xs text-muted-foreground">Uscite</div>
-              </div>
-              <div>
-                <div className={`text-lg font-bold ${filteredTotals.entrate - filteredTotals.uscite >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                  {formatCurrency(filteredTotals.entrate - filteredTotals.uscite)}
+            ) : (
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-lg font-bold text-green-600">{formatCurrency(filteredTotals.entrate)}</div>
+                  <div className="text-xs text-muted-foreground">Entrate</div>
                 </div>
-                <div className="text-xs text-muted-foreground">Saldo</div>
+                <div>
+                  <div className="text-lg font-bold text-red-600">{formatCurrency(filteredTotals.uscite)}</div>
+                  <div className="text-xs text-muted-foreground">Uscite</div>
+                </div>
+                <div>
+                  <div className={`text-lg font-bold ${filteredTotals.entrate - filteredTotals.uscite >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                    {formatCurrency(filteredTotals.entrate - filteredTotals.uscite)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Saldo</div>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Riepilogo per Origine - Sempre visibile */}
-      {Object.keys(statsByOrigine).length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Riepilogo per Origine</CardTitle>
-            <CardDescription className="text-xs">Distribuzione entrate per fonte</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {(["walk-in", "booking", "job", "manuale"] as const).map((origine) => {
-                const stats = statsByOrigine[origine] || { entrate: 0, uscite: 0, count: 0 };
-                return (
-                  <div 
-                    key={origine}
-                    className={`p-3 rounded-lg cursor-pointer transition-all ${
-                      origineFilter === origine ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50 hover:bg-gray-100'
-                    }`}
-                    onClick={() => setOrigineFilter(origineFilter === origine ? "all" : origine)}
-                  >
-                    <div className="text-xs font-medium text-muted-foreground">{CASH_ORIGINE_LABELS[origine]}</div>
-                    <div className="text-sm font-bold text-green-600">{formatCurrency(stats.entrate)}</div>
-                    {stats.uscite > 0 && (
-                      <div className="text-xs text-red-500">-{formatCurrency(stats.uscite)}</div>
-                    )}
-                  </div>
-                );
-              })}
+      {/* Riepilogo per Origine - Compatto */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {(["walk-in", "booking", "job", "manuale"] as const).map((origine) => {
+          const stats = statsByOrigine[origine] || { entrate: 0, uscite: 0, count: 0 };
+          const isActive = origineFilter === origine;
+          return (
+            <div 
+              key={origine}
+              className={`p-2 sm:p-3 rounded-lg border transition-all cursor-pointer ${
+                isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setOrigineFilter(isActive ? "all" : origine)}
+            >
+              <div className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                {CASH_ORIGINE_LABELS[origine]}
+              </div>
+              <div className="text-sm sm:text-base font-bold text-green-600">
+                {formatCurrency(stats.entrate)}
+              </div>
+              {stats.uscite > 0 && (
+                <div className="text-[10px] sm:text-xs text-red-500">-{formatCurrency(stats.uscite)}</div>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          );
+        })}
+      </div>
 
       {/* Card Riepilogo - Mobile Optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -581,93 +610,54 @@ export default function CashDashboard() {
         </CardContent>
       </Card>
 
-      {/* Tabelle Movimenti e Pagamenti - Mobile Responsive */}
+      {/* Ultimi Movimenti - Unificato */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">📋 Dettaglio Movimenti</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm sm:text-base">Ultimi Movimenti</CardTitle>
+          <CardDescription className="text-xs">
+            {filteredMovements.length} movimenti nel periodo selezionato
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="payments">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="payments" className="text-xs sm:text-sm">Pagamenti Ordini</TabsTrigger>
-              <TabsTrigger value="cash" className="text-xs sm:text-sm">Movimenti Cassa</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="payments" className="mt-4">
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Cliente</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Tipo</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Importo</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Data</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Metodo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders?.slice(0, 10).map((order) =>
-                      (order.transactions || []).map((t, idx) => (
-                        <tr key={`${order.id}-${idx}`} className="border-t hover:bg-gray-50">
-                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{order.nomeCliente}</td>
-                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
-                            <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs ${t.tipo === 'acconto' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                              {t.tipo}
-                            </span>
-                          </td>
-                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold">{formatCurrency(t.importo)}</td>
-                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
-                            {toDate(t.data).toLocaleDateString("it-IT")}
-                          </td>
-                          <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{t.metodo}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="cash" className="mt-4">
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Descrizione</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Categoria</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Tipo</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Importo</th>
-                      <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm font-semibold">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {movements?.slice(0, 10).map((mov) => (
-                      <tr key={mov.id} className="border-t hover:bg-gray-50">
-                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">{mov.descrizione}</td>
-                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm text-muted-foreground">{mov.categoria}</td>
-                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
-                          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs ${mov.tipo === 'entrata' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            {mov.tipo}
-                          </span>
-                        </td>
-                        <td className={`px-2 sm:px-4 py-2 text-xs sm:text-sm font-semibold ${mov.tipo === 'entrata' ? 'text-green-600' : 'text-red-600'}`}>
-                          {mov.tipo === 'entrata' ? '+' : '-'}{formatCurrency(mov.importo)}
-                        </td>
-                        <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm">
-                          {toDate(mov.data).toLocaleDateString("it-IT")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!movements || movements.length === 0 && (
-                <div className="text-center py-8 text-xs sm:text-sm text-muted-foreground">
-                  Nessun movimento cassa registrato. Aggiungi il primo movimento dalla sezione "Registro Cassa".
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+        <CardContent className="p-0 sm:p-6 sm:pt-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-semibold">Data</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-semibold">Descrizione</th>
+                  <th className="px-2 sm:px-3 py-2 text-left text-[10px] sm:text-xs font-semibold">Origine</th>
+                  <th className="px-2 sm:px-3 py-2 text-right text-[10px] sm:text-xs font-semibold">Importo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMovements.slice(0, 15).map((mov) => (
+                  <tr key={mov.id} className="border-t hover:bg-gray-50">
+                    <td className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs whitespace-nowrap">
+                      {toDate(mov.data).toLocaleDateString("it-IT")}
+                    </td>
+                    <td className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs">
+                      <div className="max-w-[200px] truncate" title={mov.descrizione}>
+                        {mov.descrizione}
+                      </div>
+                    </td>
+                    <td className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs">
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                        {CASH_ORIGINE_LABELS[inferOrigine(mov)] || 'Altro'}
+                      </span>
+                    </td>
+                    <td className={`px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-semibold text-right whitespace-nowrap ${mov.tipo === 'entrata' ? 'text-green-600' : 'text-red-600'}`}>
+                      {mov.tipo === 'entrata' ? '+' : '-'}{formatCurrency(mov.importo)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filteredMovements.length === 0 && (
+            <div className="text-center py-6 text-xs text-muted-foreground">
+              Nessun movimento nel periodo selezionato
+            </div>
+          )}
         </CardContent>
       </Card>
         </div>

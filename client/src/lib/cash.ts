@@ -256,16 +256,22 @@ function toDate(date: any): Date | null {
 /**
  * Ottiene dati per grafico mensile (ultimi 12 mesi)
  */
-export async function getMonthlyData(): Promise<MonthlyData[]> {
+export async function getMonthlyData(year?: number): Promise<MonthlyData[]> {
   const orders = await getAllOrders();
   const cashMovements = await getAllCashMovements();
 
-  // Crea array ultimi 12 mesi
   const now = new Date();
+  const targetYear = year ?? now.getFullYear();
   const months: MonthlyData[] = [];
 
-  for (let i = 11; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  // Se anno specificato, mostra tutti i 12 mesi di quell'anno
+  // Altrimenti, mostra ultimi 12 mesi dalla data corrente
+  const isCurrentYear = targetYear === now.getFullYear();
+
+  for (let i = 0; i < 12; i++) {
+    const date = isCurrentYear
+      ? new Date(now.getFullYear(), now.getMonth() - (11 - i), 1)
+      : new Date(targetYear, i, 1);
     const monthStr = date.toLocaleDateString("it-IT", { month: "short", year: "numeric" });
 
     months.push({
@@ -278,11 +284,16 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
 
   // Helper per determinare indice mese
   const getMonthIndex = (date: Date): number => {
-    const diffMonths =
-      (now.getFullYear() - date.getFullYear()) * 12 +
-      (now.getMonth() - date.getMonth());
-
-    return 11 - diffMonths;
+    if (isCurrentYear) {
+      const diffMonths =
+        (now.getFullYear() - date.getFullYear()) * 12 +
+        (now.getMonth() - date.getMonth());
+      return 11 - diffMonths;
+    } else {
+      // Per anno specifico, indice = mese (0-11)
+      if (date.getFullYear() !== targetYear) return -1;
+      return date.getMonth();
+    }
   };
 
   // Aggiungi entrate da ordini
