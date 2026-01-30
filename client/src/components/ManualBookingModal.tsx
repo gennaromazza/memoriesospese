@@ -97,7 +97,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   
   // Form fields - Pagamento (come QuickOrderModal)
   const [acconto, setAcconto] = useState<number>(0);
-  const [metodoPagamento, setMetodoPagamento] = useState<'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'>('contante');
+  // Allineato a BookingsManager: solo 4 metodi di pagamento supportati
+  const [metodoPagamento, setMetodoPagamento] = useState<'contante' | 'carta' | 'bonifico' | 'paypal'>('contante');
   const [isPaidAndDelivered, setIsPaidAndDelivered] = useState(false);
 
   // Query campagne attive
@@ -452,13 +453,14 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         firstProductName = customProducts[0].nome;
       }
 
-      // Calcola totale e saldo per payload (validazione: acconto non può superare totale)
+      // Calcola totale per payload (validazione: acconto non può superare totale)
       const payloadTotale = calculateTotale();
+      // Se isPaidAndDelivered, l'acconto è già stato impostato a totale dall'effect
       const validAcconto = Math.min(Math.max(0, acconto), payloadTotale);
-      const payloadSaldo = Math.max(0, payloadTotale - validAcconto);
+      // Saldo calcolato server-side per evitare inconsistenze
 
-      // Payload prenotazione V2 (no workingHours/durataMinuti - loaded server-side)
-      const bookingPayload = {
+      // Payload prenotazione V2 (allineato a BookingsManager)
+      const bookingPayload: Record<string, any> = {
         campaignId,
         cliente: {
           nome: nome.trim(),
@@ -470,15 +472,20 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         dataShootingFine: dataFineDate.toISOString(),
         prodottoId: firstProductId,
         prodottoNome: firstProductName,
-        prodotti: prodottiOrderItems, // Nuovo campo multi-prodotto
+        prodotti: prodottiOrderItems,
         note: note.trim(),
         isManual: true,
         createdByAdmin: user?.email || 'admin',
-        // Dati pagamento (centralizzato con ordini)
+        // Dati pagamento (allineati a BookingsManager - saldo calcolato server-side)
         totale: payloadTotale,
         acconto: validAcconto,
         metodoPagamento: metodoPagamento,
       };
+
+      // Includi clienteId se selezionato un cliente esistente
+      if (selectedClienteId) {
+        bookingPayload.clienteId = selectedClienteId;
+      }
 
       console.log('📝 Creazione prenotazione manuale (V2):', bookingPayload);
 
@@ -1033,7 +1040,6 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                         <SelectItem value="carta">Carta</SelectItem>
                         <SelectItem value="bonifico">Bonifico</SelectItem>
                         <SelectItem value="paypal">PayPal</SelectItem>
-                        <SelectItem value="altro">Altro</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -1,0 +1,194 @@
+Problemi attuali (da correggere):
+
+isPaidAndDelivered NON viene inviato al server.
+
+payloadSaldo viene calcolato ma NON incluso nel payload.
+
+metodoPagamento potrebbe non usare lo stesso enum/valori di BookingManager.
+
+I dati pagamento (totale, acconto, eventuale saldo/stato) sono gestiti in modo diverso rispetto a BookingManager.
+
+selectedClienteId viene popolato ma NON usato nel payload (solo cliente embedded).
+
+TASK
+
+TROVA IL COMPORTAMENTO CORRETTO IN BOOKINGMANAGER
+
+Cerca il componente/feature "BookingManager" nel progetto (file con nome simile a BookingManager.tsx o simile).
+
+Individua come BookingManager:
+
+costruisce il payload per la creazione/modifica di una prenotazione,
+
+costruisce / collega l’Ordine (se esiste un ordine associato),
+
+gestisce:
+
+totale
+
+acconto
+
+saldo
+
+metodo di pagamento
+
+stato pagamento (es. PAID / PARTIALLY_PAID / UNPAID)
+
+eventuale stato consegna (es. DELIVERED / NOT_DELIVERED)
+
+eventuale clienteId e ordineId.
+
+Cerca eventuali helper riutilizzabili:
+
+funzioni in @shared/* (es. schema Zod, type Order / Booking / Payment)
+
+utility tipo buildOrderFromBooking, createInitialOrderForBooking, ecc.
+
+endpoint API usato da BookingManager per creare ordine/prenotazione.
+
+Prendi come riferimento:
+
+struttura esatta dei type (es. Order, Booking, PaymentDetails, ecc.),
+
+nomi dei campi,
+
+enum di stato e valori letterali (paymentMethod, paymentStatus, ecc.).
+
+ALLINEA MANUALBOOKING A BOOKINGMANAGER (SENZA CAMBIARE BOOKINGMANAGER)
+
+Nel componente ManualBooking (ManualBookingModal):
+
+NON cambiare BookingManager; devi SOLO adattare ManualBooking.
+
+Fai le seguenti modifiche:
+
+2.1 Metodi / enum di pagamento
+
+Allinea il tipo metodoPagamento agli stessi valori usati da BookingManager.
+
+Se BookingManager usa ad esempio:
+
+paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'PAYPAL' | 'OTHER'
+
+oppure un enum exportato da @shared/schema.ts,
+allora ManualBooking deve usare ESATTAMENTE lo stesso tipo e gli stessi valori.
+
+Se necessario, importa il tipo / enum condiviso da @shared/... e usalo sia a livello di stato React che nel payload.
+
+2.2 Saldo e stato pagamento
+
+Replica la stessa logica di BookingManager:
+
+come viene calcolato il saldo,
+
+se viene salvato un campo saldo o se viene ricalcolato server-side,
+
+come viene impostato paymentStatus (o nome equivalente) in base ad acconto e totale.
+
+Se BookingManager include nel payload campi come:
+
+totale, acconto, saldo,
+
+paymentStatus,
+
+paymentMethod,
+allora:
+
+manualBooking deve costruire lo stesso sotto-oggetto pagamento con gli stessi campi e logica.
+
+2.3 isPaidAndDelivered
+
+Mappa isPaidAndDelivered sugli stessi campi che usa BookingManager per rappresentare “pagato e consegnato”.
+
+Se BookingManager usa campi come:
+
+paymentStatus: 'PAID'
+
+deliveryStatus: 'DELIVERED'
+
+oppure un flag isPaid: boolean + isDelivered: boolean,
+allora:
+
+quando isPaidAndDelivered è true in ManualBooking:
+
+assicurati che:
+
+l’acconto venga allineato alla logica di BookingManager (es. acconto = totale),
+
+e i campi di stato siano impostati come fa BookingManager per un ordine già saldato e consegnato.
+
+NON inventare campi nuovi: usa gli stessi campi e stati che trovi nel codice di BookingManager / schema condiviso.
+
+2.4 Cliente e collegamenti
+
+Se BookingManager collega la prenotazione a un clienteId (id della collection clienti):
+
+fai sì che ManualBooking mandi sia:
+
+clienteId = selectedClienteId (se presente),
+
+che i dati embedded (nome, cognome, email, whatsapp) se la API li prevede.
+
+Se BookingManager crea anche un ordine associato:
+
+verifica se:
+
+chiama un endpoint specifico per creare ordine (es. /api/orders/createFromBooking),
+
+oppure manda un payload combinato booking + order su una rotta unica.
+
+Adatta ManualBooking ad usare LO STESSO flusso:
+
+stesso endpoint,
+
+stessa struttura di payload,
+
+stesso modo di popolare i dati ordine (items, totale, acconto, stati, ecc.).
+
+PULIZIA E RIFATTORIZZAZIONE (FACOLTATIVA MA CONSIGLIATA)
+
+Se per ridurre duplicazione è utile, puoi estrarre una funzione condivisa, ad esempio:
+
+buildPaymentDataFromForm(...) in un file condiviso (client/src/lib/payments.ts o simile),
+che:
+
+prende in input: totale, acconto, isPaidAndDelivered, metodoPagamento, ecc.
+
+restituisce esattamente la struttura usata nel payload da BookingManager (stati compresi).
+
+In questo caso:
+
+BookingManager deve continuare a comportarsi esattamente come prima.
+
+ManualBooking deve chiamare lo stesso helper per costruire i dati pagamento.
+
+Se la rifattorizzazione richiede modifiche significative a BookingManager, EVITA: BookingManager va lasciato invariato a livello di comportamento (puoi eventualmente solo cambiare le call interne per usare il nuovo helper, senza cambiare l’output/protocollo).
+
+CRITERI DI ACCETTAZIONE
+Implementa le modifiche e verifica che:
+
+Il tipo di payload inviato dal ManualBooking (prenotazione manuale) verso la/e API:
+
+abbia gli stessi campi di pagamento usati da BookingManager,
+
+usi gli stessi valori enum / stringa per metodo di pagamento,
+
+popoli correttamente eventuali campi saldo, paymentStatus, deliveryStatus (o equivalenti),
+
+includa clienteId se BookingManager lo usa.
+
+Una prenotazione creata da ManualBooking:
+
+se vista nelle liste / dettaglio gestite da BookingManager (o dagli stessi hook di lettura),
+
+risulti indistinguibile (a livello di campi pagamento e stati) da una prenotazione creata da BookingManager.
+
+Il campo isPaidAndDelivered in ManualBooking:
+
+viene tradotto correttamente nella combinazione di stati che BookingManager considera “pagato e consegnato”.
+
+Nessun tipo/runtime error aggiuntivo:
+
+TS compila senza errori,
+
+le chiamate a fetch/axios usano la stessa forma di payload accettata dalle API già in uso da BookingManager.

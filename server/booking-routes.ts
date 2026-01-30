@@ -2269,6 +2269,7 @@ router.post("/v2/create", async (req, res) => {
     const {
       campaignId,
       cliente,
+      clienteId, // ID cliente esistente (opzionale)
       dataShootingInizio,
       dataShootingFine,
       prodottoId,
@@ -2467,10 +2468,16 @@ router.post("/v2/create", async (req, res) => {
       bookingData.confermataDa = createdByAdmin || "admin";
       bookingData.confermatail = FieldValue.serverTimestamp();
       
+      // Collega a cliente esistente se fornito clienteId
+      if (clienteId && typeof clienteId === 'string') {
+        bookingData.clienteId = clienteId;
+      }
+      
       // Aggiungi dati pagamento se presenti (prenotazione manuale con ordine integrato)
       if (typeof totale === 'number' && totale > 0) {
         // Validazione: acconto non può superare totale
         const accontoValue = typeof acconto === 'number' ? Math.min(Math.max(0, acconto), totale) : 0;
+        // Saldo calcolato server-side per consistenza
         const saldoValue = Math.max(0, totale - accontoValue);
         
         bookingData.totale = totale;
