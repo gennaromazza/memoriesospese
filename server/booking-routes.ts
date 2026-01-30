@@ -10,6 +10,7 @@ import { db, FieldValue } from "./firebase-admin.js";
 import { Timestamp } from "firebase-admin/firestore";
 import { syncBookingWorkflowState } from "../shared/workflow-helpers.js";
 import { WorkflowState } from "../shared/schema.js";
+import type { SlotsResponse } from "../shared/calendar-types.js";
 
 const router = express.Router();
 
@@ -2576,7 +2577,7 @@ router.post("/v2/available-slots", async (req, res) => {
     const { campaignToAvailabilityConfig, validateCampaign } = await import('./booking/calendar-adapter.js');
     const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
     const { hasAllDayEvent } = await import('./calendar-engine/google-sync.js');
-    const { SlotsResponse } = await import('../shared/calendar-types.js');
+    // SlotsResponse è importato staticamente in cima al file
 
     // Step 3: Validate campaign
     if (!validateCampaign(campaign)) {

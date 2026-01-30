@@ -419,7 +419,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Errore durante la creazione della prenotazione');
+        // Server restituisce { error: "messaggio breve", message?: "dettagli" }
+        const errorMessage = errorData.message || errorData.error || 'Errore durante la creazione della prenotazione';
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
