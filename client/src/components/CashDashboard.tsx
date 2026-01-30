@@ -38,6 +38,7 @@ export default function CashDashboard() {
   const toDate = (d: Date | Timestamp): Date => {
     return d instanceof Timestamp ? d.toDate() : d;
   };
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [dateRange, setDateRange] = useState<"all" | "month" | "quarter" | "year">("month");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
@@ -302,7 +303,7 @@ export default function CashDashboard() {
   }
 
   return (
-    <Tabs defaultValue="register" className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sub-Tabs Navigation - Mobile Responsive */}
       <TabsList className="mb-4 sm:mb-6 grid grid-cols-4 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
         <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
