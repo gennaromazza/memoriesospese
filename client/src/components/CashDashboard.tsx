@@ -15,7 +15,15 @@ import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecasted
 import { getAllOrders } from "@/lib/orders";
 import CashRegister from "./CashRegister";
 import WalkInOrdersManager from "./WalkInOrdersManager";
-import type { FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
+import type { FinancialSummary, MonthlyData, ForecastedIncome, CashMovementOrigine, CashMovementFE } from "@shared/cash-types";
+import { CASH_ORIGINE_LABELS } from "@shared/cash-types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Link } from "wouter";
 
 export default function CashDashboard() {
@@ -24,6 +32,8 @@ export default function CashDashboard() {
     return d instanceof Timestamp ? d.toDate() : d;
   };
   const [dateRange, setDateRange] = useState<"all" | "month" | "quarter" | "year">("month");
+  const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
+  const [temaFilter, setTemaFilter] = useState<string>("all");
 
   // Query per riepilogo finanziario
   const { data: summary, isLoading: summaryLoading } = useQuery<FinancialSummary>({
@@ -141,6 +151,59 @@ export default function CashDashboard() {
   });
 
   
+  // Movimenti filtrati per origine e tema
+  const filteredMovements = (movements || []).filter((m: CashMovementFE) => {
+    if (origineFilter !== "all" && m.origine !== origineFilter) return false;
+    if (temaFilter !== "all" && m.origineTema !== temaFilter) return false;
+    return true;
+  });
+  
+  // Estrai temi unici dai movimenti
+  const uniqueTemi = [...new Set((movements || []).map((m: CashMovementFE) => m.origineTema).filter(Boolean))] as string[];
+  
+  // Statistiche aggregate per origine
+  const statsByOrigine = (movements || []).reduce((acc, m: CashMovementFE) => {
+    const origine = m.origine || "manuale";
+    if (!acc[origine]) {
+      acc[origine] = { entrate: 0, uscite: 0, count: 0 };
+    }
+    if (m.tipo === "entrata") {
+      acc[origine].entrate += m.importo;
+    } else {
+      acc[origine].uscite += m.importo;
+    }
+    acc[origine].count++;
+    return acc;
+  }, {} as Record<string, { entrate: number; uscite: number; count: number }>);
+  
+  // Statistiche aggregate per tema
+  const statsByTema = (movements || []).reduce((acc, m: CashMovementFE) => {
+    const tema = m.origineTema || "altro";
+    if (!acc[tema]) {
+      acc[tema] = { entrate: 0, uscite: 0, count: 0 };
+    }
+    if (m.tipo === "entrata") {
+      acc[tema].entrate += m.importo;
+    } else {
+      acc[tema].uscite += m.importo;
+    }
+    acc[tema].count++;
+    return acc;
+  }, {} as Record<string, { entrate: number; uscite: number; count: number }>);
+  
+  // Totali filtrati
+  const filteredTotals = filteredMovements.reduce(
+    (acc, m: CashMovementFE) => {
+      if (m.tipo === "entrata") {
+        acc.entrate += m.importo;
+      } else {
+        acc.uscite += m.importo;
+      }
+      return acc;
+    },
+    { entrate: 0, uscite: 0 }
+  );
+  
   // Formatta valuta
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -246,6 +309,38 @@ export default function CashDashboard() {
                 </Button>
               </div>
 
+              {/* Filtri Origine e Tema */}
+              <div className="flex gap-2">
+                <Select value={origineFilter} onValueChange={(v) => setOrigineFilter(v as CashMovementOrigine | "all")}>
+                  <SelectTrigger className="w-[140px] text-xs sm:text-sm">
+                    <SelectValue placeholder="Origine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte le origini</SelectItem>
+                    <SelectItem value="walk-in">Ordini Walk-in</SelectItem>
+                    <SelectItem value="booking">Prenotazioni</SelectItem>
+                    <SelectItem value="job">Lavori</SelectItem>
+                    <SelectItem value="manuale">Manuali</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {uniqueTemi.length > 0 && (
+                  <Select value={temaFilter} onValueChange={setTemaFilter}>
+                    <SelectTrigger className="w-[140px] text-xs sm:text-sm">
+                      <SelectValue placeholder="Tema" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti i temi</SelectItem>
+                      {uniqueTemi.map((tema) => (
+                        <SelectItem key={tema} value={tema}>
+                          {tema.charAt(0).toUpperCase() + tema.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
               {/* Bottoni export - Mobile Stack */}
               <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
                 <Button
@@ -286,6 +381,69 @@ export default function CashDashboard() {
               </div>
             </div>
           </div>
+
+      {/* Statistiche per Origine - Mostra breakdown entrate/uscite per fonte */}
+      {Object.keys(statsByOrigine).length > 0 && (origineFilter !== "all" || temaFilter !== "all") && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+              Filtro Attivo: {origineFilter !== "all" ? CASH_ORIGINE_LABELS[origineFilter] : "Tutte"} 
+              {temaFilter !== "all" && ` - ${temaFilter.charAt(0).toUpperCase() + temaFilter.slice(1)}`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-lg font-bold text-green-600">{formatCurrency(filteredTotals.entrate)}</div>
+                <div className="text-xs text-muted-foreground">Entrate</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold text-red-600">{formatCurrency(filteredTotals.uscite)}</div>
+                <div className="text-xs text-muted-foreground">Uscite</div>
+              </div>
+              <div>
+                <div className={`text-lg font-bold ${filteredTotals.entrate - filteredTotals.uscite >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                  {formatCurrency(filteredTotals.entrate - filteredTotals.uscite)}
+                </div>
+                <div className="text-xs text-muted-foreground">Saldo</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Riepilogo per Origine - Sempre visibile */}
+      {Object.keys(statsByOrigine).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Riepilogo per Origine</CardTitle>
+            <CardDescription className="text-xs">Distribuzione entrate per fonte</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(["walk-in", "booking", "job", "manuale"] as const).map((origine) => {
+                const stats = statsByOrigine[origine] || { entrate: 0, uscite: 0, count: 0 };
+                return (
+                  <div 
+                    key={origine}
+                    className={`p-3 rounded-lg cursor-pointer transition-all ${
+                      origineFilter === origine ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setOrigineFilter(origineFilter === origine ? "all" : origine)}
+                  >
+                    <div className="text-xs font-medium text-muted-foreground">{CASH_ORIGINE_LABELS[origine]}</div>
+                    <div className="text-sm font-bold text-green-600">{formatCurrency(stats.entrate)}</div>
+                    {stats.uscite > 0 && (
+                      <div className="text-xs text-red-500">-{formatCurrency(stats.uscite)}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Card Riepilogo - Mobile Optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

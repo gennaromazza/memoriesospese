@@ -4,6 +4,13 @@
 
 import { Timestamp } from "firebase/firestore";
 
+// Tipo origine movimento cassa
+export type CashMovementOrigine = 
+  | "walk-in"      // Ordini walk-in (vendita diretta in studio)
+  | "booking"      // Pagamenti da prenotazioni campagne
+  | "job"          // Pagamenti da lavori/servizi fotografici
+  | "manuale";     // Movimenti inseriti manualmente
+
 // Firestore document structure
 export interface CashMovement {
   id: string;
@@ -14,8 +21,13 @@ export interface CashMovement {
   data: Timestamp;
   metodoPagamento: "contante" | "carta" | "bonifico" | "paypal" | "altro";
   note?: string;
-  jobId?: string; // Riferimento opzionale al lavoro
-  orderId?: string; // Riferimento opzionale all'ordine
+  // Tracciamento origine
+  origine?: CashMovementOrigine; // Fonte del movimento
+  origineRef?: string; // ID riferimento (orderId, bookingId, jobId)
+  origineTema?: string; // Tema/categoria della campagna (es. "natale", "carnevale")
+  jobId?: string; // Riferimento opzionale al lavoro (legacy)
+  orderId?: string; // Riferimento opzionale all'ordine (legacy)
+  bookingId?: string; // Riferimento opzionale alla prenotazione
   allegati?: string[]; // URLs di eventuali ricevute/documenti
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -37,7 +49,22 @@ export interface InsertCashMovement {
   metodoPagamento: "contante" | "carta" | "bonifico" | "paypal" | "altro";
   note?: string;
   allegati?: string[];
+  // Tracciamento origine
+  origine?: CashMovementOrigine;
+  origineRef?: string;
+  origineTema?: string;
+  jobId?: string;
+  orderId?: string;
+  bookingId?: string;
 }
+
+// Etichette per origini movimento
+export const CASH_ORIGINE_LABELS: Record<CashMovementOrigine, string> = {
+  "walk-in": "Ordini Walk-in",
+  "booking": "Prenotazioni Campagne",
+  "job": "Lavori/Servizi",
+  "manuale": "Movimenti Manuali"
+};
 
 // Categorie predefinite per movimenti cassa
 export const CASH_CATEGORIES = {
