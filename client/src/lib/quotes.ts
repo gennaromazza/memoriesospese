@@ -188,7 +188,7 @@ export async function createQuote(
       ...(data.jobInfo && { 
         jobInfo: {
           nomeEvento: data.jobInfo.nomeEvento,
-          eventDate: data.jobInfo.eventDate,
+          eventDate: Timestamp.fromDate(data.jobInfo.eventDate),
           rito: data.jobInfo.rito,
           location: data.jobInfo.location
         }
