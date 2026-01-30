@@ -206,6 +206,16 @@ export interface Booking {
   isManual?: boolean; // true se creata da admin, false/undefined se da form pubblico
   createdByAdmin?: string; // Email admin che ha creato prenotazione manuale
   
+  // Multi-prodotto (per prenotazioni manuali con ordine integrato)
+  prodotti?: OrderItem[]; // Array prodotti selezionati (opzionale)
+  
+  // Pagamento (per prenotazioni manuali con acconto/saldo)
+  totale?: number; // Totale ordine in euro
+  acconto?: number; // Acconto pagato in euro
+  saldo?: number; // Saldo residuo (totale - acconto)
+  metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro'; // Metodo pagamento acconto
+  transactions?: Transaction[]; // Storico transazioni (centralizzato con ordini)
+  
   createdAt: Timestamp;
   updatedAt: Timestamp;
   confermataDa?: string; // UID admin che ha confermato
@@ -224,9 +234,14 @@ export interface InsertBooking {
   dataShootingFine: Date;
   prodottoId?: string;
   prodottoNome?: string;
+  prodotti?: OrderItem[]; // Multi-prodotto per prenotazioni manuali
   note: string;
   isManual?: boolean; // Flag per prenotazioni manuali (walk-in)
   createdByAdmin?: string; // Email admin per prenotazioni manuali
+  // Pagamento (per prenotazioni manuali)
+  totale?: number;
+  acconto?: number;
+  metodoPagamento?: 'contante' | 'carta' | 'bonifico' | 'paypal' | 'altro';
 }
 
 /**
