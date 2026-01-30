@@ -117,7 +117,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { QuoteProduct, QuoteTemplate } from '@shared/quotes-types';
 import { catalogProductToQuoteProduct } from '@/lib/quote-mappers';
-import { calculateQuoteTotals } from '@shared/quote-utils';
+import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 
 const templateSchema = z.object({
   nome: z.string().min(1, 'Nome richiesto'),
@@ -516,6 +516,15 @@ export default function QuoteTemplatesManager() {
 
       const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
 
+      // Valida sconto PRIMA di salvare
+      if (data.discountType !== undefined && data.discountValue !== undefined) {
+        const subtotale = allProducts.reduce((sum, p) => sum + p.prezzo, 0);
+        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        if (!discountValidation.valid) {
+          throw new Error(discountValidation.error);
+        }
+      }
+
       // Clausole di default
       const defaultClauses = [
         {
@@ -581,6 +590,15 @@ export default function QuoteTemplatesManager() {
         }));
 
       const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+
+      // Valida sconto PRIMA di salvare
+      if (data.discountType !== undefined && data.discountValue !== undefined) {
+        const subtotale = allProducts.reduce((sum, p) => sum + p.prezzo, 0);
+        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        if (!discountValidation.valid) {
+          throw new Error(discountValidation.error);
+        }
+      }
 
       const updateData: any = {
         nome: data.nome,

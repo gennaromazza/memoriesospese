@@ -1,0 +1,159 @@
+🔴 CONTRASTI REALI CON I COMPONENTI
+1. ❌ validateDiscount NON viene usata da nessuna parte
+
+QuoteBuilder
+
+valida sconti implicitamente
+
+si affida a UI + calculateQuoteTotals
+
+QuoteTemplatesManager
+
+NON valida affatto oltre allo schema base
+
+❌ Risultato:
+
+Stato formalmente valido
+
+Stato semanticamente errato (es. percentuale 300 → clamp silenzioso)
+
+⚠️ BUG SUBDOLO:
+l’utente non sa che lo sconto è stato corretto automaticamente.
+
+✅ Fix consigliato
+Usare sempre validateDiscount:
+
+const validation = validateDiscount(subtotal, discountType, discountValue);
+if (!validation.valid) {
+  throw new Error(validation.error);
+}
+
+2. ❌ calculateQuoteTotals NON usata nel Template Manager
+
+Nel QuoteTemplatesManager fai:
+
+subtotale - discountValue
+subtotale * (1 - discountValue / 100)
+
+
+❌ Contrasto diretto:
+
+Nessun clamp
+
+Nessun rounding condiviso
+
+Logica duplicata
+
+⚠️ Questo genera:
+
+Totali diversi tra template preview e preventivo reale
+
+✅ Fix
+Sostituire TUTTO con:
+
+const { totalAfterDiscount } = calculateQuoteTotals(
+  subtotale,
+  discountType,
+  discountValue
+);
+
+3. ❌ discountValue = 0 viene trattato come “nessuno sconto”
+
+Nel utils:
+
+if (!discountType || !discountValue || discountValue <= 0)
+
+
+⚠️ Questo significa:
+
+discountType = 'amount'
+
+discountValue = 0
+→ sconto ignorato
+
+Nel Template Manager:
+
+discountType può restare settato
+
+discountValue viene azzerato
+
+❌ Stato incoerente:
+
+UI mostra sconto attivo
+
+Backend lo ignora
+
+✅ Fix consigliato (IMPORTANTISSIMO)
+Cambia questa riga:
+
+if (!discountType || discountValue === undefined || discountValue <= 0)
+
+
+👉 0 deve essere valore valido, non “assenza”.
+
+🟠 BUG LATENTI NELLE UTILITY
+4. ❌ validateDiscount e calculateDiscount NON sono simmetrici
+
+Esempio:
+
+discountType = 'percent'
+discountValue = 150
+
+
+calculateDiscount → clamp a 100 → OK
+
+validateDiscount → ❌ errore
+
+⚠️ Questo è un design mismatch:
+
+una funzione corregge
+
+l’altra rifiuta
+
+✅ Devi scegliere UNA filosofia
+Consiglio (enterprise-grade):
+
+❌ NON correggere in automatico
+
+✔️ validare e bloccare
+
+Quindi in calculateDiscount:
+
+if (discountType === 'percent' && discountValue > 100) return 0;
+
+
+oppure lanciare errore (meglio).
+
+5. ❌ subtotal negativo non ha senso
+
+Qui:
+
+const totalBeforeDiscount = Math.max(0, subtotal);
+
+
+⚠️ Mascheri bug a monte (prodotti con prezzo negativo)
+
+✅ Meglio
+
+validare prima
+
+non correggere silenziosamente
+
+🧠 VERDETTO FINALE
+Stato attuale
+
+@quote-utils → corretto
+
+QuoteBuilder → parzialmente allineato
+
+QuoteTemplatesManager → fuori standard
+
+Fix MINIMI da fare subito
+
+Usare calculateQuoteTotals ovunque
+
+Usare validateDiscount prima di salvare
+
+Non trattare discountValue = 0 come assente
+
+Eliminare logica duplicata nei template

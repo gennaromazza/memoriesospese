@@ -5,23 +5,28 @@
 
 /**
  * Calcola sconto da applicare
+ * NOTA: discountValue=0 è un valore valido (sconto zero esplicito)
+ * NOTA: valori fuori range (percent>100, amount>subtotal) restituiscono 0 
+ *       per sicurezza - usare validateDiscount PRIMA per bloccare input invalidi
  */
 export function calculateDiscount(
   subtotal: number,
   discountType?: 'amount' | 'percent',
   discountValue?: number
 ): number {
-  if (!discountType || !discountValue || discountValue <= 0) {
+  // discountValue=0 è valido, solo undefined è "nessuno sconto"
+  if (!discountType || discountValue === undefined || discountValue < 0) {
     return 0;
   }
 
   if (discountType === 'amount') {
-    // Sconto fisso in euro
-    return Math.min(discountValue, subtotal); // Non può superare il subtotale
+    // Sconto fisso in euro - se supera subtotal, blocca a 0 (doveva essere validato prima)
+    if (discountValue > subtotal) return 0;
+    return discountValue;
   } else {
-    // Sconto percentuale
-    const validPercent = Math.min(discountValue, 100); // Max 100%
-    return (subtotal * validPercent) / 100;
+    // Sconto percentuale - se supera 100%, blocca a 0 (doveva essere validato prima)
+    if (discountValue > 100) return 0;
+    return (subtotal * discountValue) / 100;
   }
 }
 
@@ -50,13 +55,15 @@ export function calculateQuoteTotals(
 
 /**
  * Valida sconto
+ * NOTA: discountValue=0 è un valore valido (sconto zero esplicito)
  */
 export function validateDiscount(
   subtotal: number,
   discountType?: 'amount' | 'percent',
   discountValue?: number
 ): { valid: boolean; error?: string } {
-  if (!discountType || !discountValue) {
+  // Solo undefined è "nessuno sconto" - 0 è sconto zero esplicito valido
+  if (!discountType || discountValue === undefined) {
     return { valid: true }; // Nessuno sconto = valido
   }
 

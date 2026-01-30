@@ -89,7 +89,7 @@ import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
-import { calculateQuoteTotals } from '@shared/quote-utils';
+import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import { calculatePaymentSchedule, validatePaymentScheduleConfig, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -872,6 +872,13 @@ export default function QuoteBuilder({
 
       // Calcola totali finali con sconto
       const subtotale = mergedProducts.reduce((sum, p) => sum + p.prezzo, 0);
+      
+      // Valida sconto PRIMA di calcolare (blocca input invalidi invece di correggere silenziosamente)
+      const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+      if (!discountValidation.valid) {
+        throw new Error(discountValidation.error);
+      }
+      
       const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
       // Prepara jobInfo e clientiInfo per il portale firmato
