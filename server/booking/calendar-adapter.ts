@@ -126,7 +126,9 @@ export function campaignToAvailabilityConfig(campaign: BookingCampaign, isManual
     campaignId: campaign.id,
     slotDuration: config.slotDurationMinutes,
     excludedWeekdays: config.excludedWeekdays,
-    workingDaysCount: Object.keys(workingHoursByWeekday).filter(k => workingHoursByWeekday[Number(k)].length > 0).length
+    isManualBooking,
+    workingDaysCount: Object.keys(workingHoursByWeekday).filter(k => workingHoursByWeekday[Number(k)].length > 0).length,
+    workingHoursForSunday: workingHoursByWeekday[0] // 0 = Sunday
   });
   
   return config;

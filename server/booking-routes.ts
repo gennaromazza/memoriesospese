@@ -2613,8 +2613,9 @@ router.post("/v2/create", async (req, res) => {
 
 router.post("/v2/available-slots", async (req, res) => {
   try {
-    console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", req.body);
+    console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", JSON.stringify(req.body));
     const { date, campaignId, isManualBooking } = req.body;
+    console.log("[POST /v2/available-slots] 🔍 isManualBooking received:", isManualBooking, typeof isManualBooking);
 
     if (!date || !campaignId) {
       return res.status(400).json({
