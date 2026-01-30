@@ -1,0 +1,182 @@
+Con questo codice l’errore “Errore prenotazione manuale” può arrivare solo da pochi punti precisi. Te li elenco in ordine di probabilità, con check concreti da fare subito.
+
+1️⃣ selectedSlot.start / selectedSlot.end NON ESISTONO
+
+⚠️ BUG CRITICO più probabile
+
+Nel submit fai:
+
+const dataInizioDate = new Date(selectedSlot.start);
+const dataFineDate = new Date(selectedSlot.end);
+
+
+Ma nel Select usi:
+
+value={`${slot.startTime}-${slot.endTime}`}
+
+
+👉 Quindi availableSlots molto probabilmente hanno questa forma:
+
+{
+  startTime: "09:30",
+  endTime: "09:45",
+  // oppure
+  startDateTime: "2026-02-01T09:30:00.000Z"
+}
+
+
+❌ Se non esiste slot.start e slot.end, succede questo:
+
+new Date(undefined) // Invalid Date
+
+
+➡️ L’API riceve date invalide → 500 / validation error
+
+✅ FIX IMMEDIATO
+
+Logga subito prima del submit:
+
+console.log("SLOT SELEZIONATO:", selectedSlot);
+
+
+E poi usa le chiavi corrette, esempio:
+
+const dataInizioDate = new Date(selectedSlot.startDateTime);
+const dataFineDate   = new Date(selectedSlot.endDateTime);
+
+
+oppure (se solo orari):
+
+const baseDate = parseISO(dataShootingDate);
+const [sh, sm] = selectedSlot.startTime.split(":").map(Number);
+const [eh, em] = selectedSlot.endTime.split(":").map(Number);
+
+const dataInizioDate = setMinutes(setHours(baseDate, sh), sm);
+const dataFineDate   = setMinutes(setHours(baseDate, eh), em);
+
+2️⃣ L’API /api/booking/v2/create sta rifiutando il payload
+
+Stai già facendo:
+
+const errorData = await response.json();
+throw new Error(errorData.error?.message || ...)
+
+
+⚠️ MA se il backend risponde non-JSON, questa riga esplode.
+
+✅ FIX DIAGNOSTICO
+
+Sostituisci temporaneamente:
+
+if (!response.ok) {
+  const text = await response.text();
+  console.error("API ERROR RAW:", text);
+  throw new Error(text);
+}
+
+
+Questo ti dirà esattamente cosa non piace al backend.
+
+3️⃣ cliente incompleto rispetto allo schema backend
+
+Stai inviando:
+
+cliente: {
+  nome,
+  cognome,
+  email,
+  whatsapp,
+}
+
+
+❗ Se nel backend:
+
+clienteId è obbligatorio
+
+oppure esiste un controllo tipo email normalizzata
+
+oppure blocca email duplicate
+
+👉 la prenotazione viene rifiutata.
+
+✅ CHECK
+
+Guarda lo schema server (booking/v2/create):
+
+accetta cliente inline?
+
+oppure pretende clienteId se esiste già?
+
+Possibile fix:
+
+cliente: selectedClienteId
+  ? { id: selectedClienteId }
+  : { nome, cognome, email, whatsapp }
+
+4️⃣ prodottiOrderItems contiene dati inconsistenti
+
+Specie sui bundle.
+
+Qui:
+
+...(product.isBundle && product.bundleItems ? { isBundle: true, bundleItems: product.bundleItems } : {}),
+
+
+❌ Se bundleItems contiene campi non serializzabili / non previsti → errore.
+
+✅ TEST RAPIDO
+
+Prova una prenotazione senza prodotti.
+Se passa → il problema è nei prodotti.
+
+5️⃣ createdByAdmin nullo
+createdByAdmin: user?.email || 'admin'
+
+
+Se il backend valida che sia email valida, 'admin' potrebbe essere rifiutato.
+
+✅ SAFE FIX
+createdByAdmin: user?.email ?? 'admin@system.local'
+
+6️⃣ Errore silenzioso da getAvailableSlots
+
+Se selectedSlot è un oggetto derivato e non quello originale del backend, perdi i campi necessari.
+
+👉 Stai facendo:
+
+const slot = availableSlots.find(...)
+setSelectedSlot(slot || null);
+
+
+Se availableSlots è già mappato / trasformato prima, mancano le date reali.
+
+🔍 DEBUG MINIMO CHE TI DICE SUBITO TUTTO
+
+Aggiungi prima del fetch:
+
+console.log("PAYLOAD FINALE:", bookingPayload);
+console.log("SLOT:", selectedSlot);
+
+
+E dimmi cosa vedi in console per:
+
+selectedSlot
+
+dataShootingInizio
+
+dataShootingFine
+
+✅ In sintesi (netto)
+
+Il 90% delle volte è questo:
+
+stai usando selectedSlot.start / end
+ma gli slot hanno startTime / endTime o startDateTime.
+
+Se vuoi, nel prossimo messaggio:
+
+incollami la struttura di un availableSlots[0]
+
+oppure il codice backend di /booking/v2/create
+
+e te lo sistemo chirurgicamente, zero tentativi a vuoto.

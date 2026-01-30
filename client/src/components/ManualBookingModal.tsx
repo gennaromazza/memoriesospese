@@ -337,9 +337,17 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     try {
       setIsSubmitting(true);
 
+      // DEBUG: Log slot selezionato per diagnostica
+      console.log('🔍 DEBUG selectedSlot:', JSON.stringify(selectedSlot, null, 2));
+      console.log('🔍 DEBUG selectedSlot.start:', selectedSlot.start);
+      console.log('🔍 DEBUG selectedSlot.end:', selectedSlot.end);
+
       // Usa lo slot selezionato dal sistema
       const dataInizioDate = new Date(selectedSlot.start);
       const dataFineDate = new Date(selectedSlot.end);
+      
+      console.log('🔍 DEBUG dataInizioDate:', dataInizioDate, 'isValid:', !isNaN(dataInizioDate.getTime()));
+      console.log('🔍 DEBUG dataFineDate:', dataFineDate, 'isValid:', !isNaN(dataFineDate.getTime()));
 
       // Costruisci array OrderItem (catalogo + custom)
       let prodottiOrderItems: OrderItem[] | undefined = undefined;
@@ -419,9 +427,16 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        // Server restituisce { error: "messaggio breve", message?: "dettagli" }
-        const errorMessage = errorData.message || errorData.error || 'Errore durante la creazione della prenotazione';
+        let errorMessage = 'Errore durante la creazione della prenotazione';
+        try {
+          const errorData = await response.json();
+          console.log('📦 Error response data:', errorData);
+          // Server restituisce { error: "messaggio breve", message?: "dettagli" }
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          errorMessage = `Errore HTTP ${response.status}: ${response.statusText}`;
+        }
         throw new Error(errorMessage);
       }
 
@@ -436,10 +451,11 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('❌ Errore creazione prenotazione manuale:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('❌ Errore creazione prenotazione manuale:', errorMsg);
       toast({
         title: 'Errore',
-        description: error instanceof Error ? error.message : 'Impossibile creare la prenotazione',
+        description: errorMsg || 'Impossibile creare la prenotazione',
         variant: 'destructive',
       });
     } finally {
