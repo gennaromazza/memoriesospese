@@ -42,7 +42,7 @@ import { it } from 'date-fns/locale';
 interface ManualBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (bookingId: string, hasOrder: boolean) => void;
 }
 
 interface CustomProduct {
@@ -511,7 +511,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         description: `Prenotazione per ${nome} ${cognome} creata con successo`,
       });
 
-      onSuccess();
+      // L'ordine viene creato se ci sono prodotti (catalogo o custom)
+      const hasOrder = selectedProducts.length > 0 || customProducts.length > 0;
+      onSuccess(result.bookingId, hasOrder);
       onClose();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

@@ -3115,9 +3115,13 @@ export default function BookingsManager({
       <ManualBookingModal
         isOpen={showManualBookingModal}
         onClose={() => setShowManualBookingModal(false)}
-        onSuccess={() => {
+        onSuccess={(bookingId: string, hasOrder: boolean) => {
           queryClient.invalidateQueries({ queryKey: ["bookings"] });
           refetch();
+          // Espandi automaticamente la sezione ordine se è stato creato un ordine
+          if (hasOrder && bookingId) {
+            setExpandedOrders(prev => ({ ...prev, [bookingId]: true }));
+          }
         }}
       />
 
