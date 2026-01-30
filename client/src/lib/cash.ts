@@ -21,10 +21,12 @@ import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import type { CashMovement, CashMovementFE, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
-import type { Order, Transaction } from "@shared/booking-types";
+import type { Order, Transaction, Booking } from "@shared/booking-types";
 import { getAllJobs } from "./jobs";
 import { getPaymentSchedulesForJob } from "./payment-schedules";
 import type { Job } from "@shared/jobs-types";
+import { getAllBookings } from "./bookings";
+import { getCampaignById } from "./booking-campaigns";
 
 const COLLECTION = "cashMovements";
 
@@ -320,13 +322,14 @@ export async function getMonthlyData(): Promise<MonthlyData[]> {
 }
 
 /**
- * Calcola previsioni incasso da ordini E jobs in sospeso
- * Raggruppa per data servizio/evento ordini + jobs con saldo residuo > 0
+ * Calcola previsioni incasso da ordini, jobs E bookings in sospeso
+ * Raggruppa per data servizio/evento ordini + jobs + bookings con saldo residuo > 0
  */
 export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
-  const [orders, jobs] = await Promise.all([
+  const [orders, jobs, bookings] = await Promise.all([
     getAllOrders(),
     getAllJobs(),
+    getAllBookings(),
   ]);
 
   // 1. Filtra ordini con importo residuo > 0 e data servizio valida
@@ -405,6 +408,7 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
         importo: 0,
         ordini: [],
         jobs: [],
+        bookings: [],
       });
     }
 
@@ -438,6 +442,7 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
         importo: 0,
         ordini: [],
         jobs: [],
+        bookings: [],
       });
     }
 
@@ -448,6 +453,78 @@ export async function getForecastedIncome(): Promise<ForecastedIncome[]> {
       jobType: job.jobType,
       clienteNome: job.clienteNome,
       importoResiduo: job.importoResiduo,
+    });
+  });
+
+  // 3b. Filtra bookings con saldo residuo > 0 e data shooting futura
+  const bookingsWithBalance: Array<Booking & { importoResiduo: number; campaignNome: string }> = [];
+  
+  for (const booking of bookings) {
+    // Solo prenotazioni confermate con dati di pagamento
+    if (booking.stato !== 'confermata') continue;
+    if (!booking.totale || booking.totale <= 0) continue;
+    if (!booking.dataShootingInizio) continue;
+    
+    // Calcola saldo residuo
+    const totalePagato = (booking.transactions || []).reduce((sum, t) => sum + t.importo, 0);
+    const importoResiduo = booking.totale - totalePagato;
+    
+    if (importoResiduo <= 0) continue; // Già pagato
+    
+    // Ottieni nome campagna
+    let campaignNome = "Campagna sconosciuta";
+    try {
+      const campaign = await getCampaignById(booking.campaignId);
+      if (campaign) {
+        campaignNome = campaign.nome;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Errore fetch campagna ${booking.campaignId}:`, error);
+    }
+    
+    bookingsWithBalance.push({
+      ...booking,
+      importoResiduo,
+      campaignNome,
+    });
+  }
+
+  // Aggiungi Bookings
+  bookingsWithBalance.forEach((booking) => {
+    if (!booking.dataShootingInizio) return;
+    
+    let dataShootingDate: Date;
+    if (booking.dataShootingInizio instanceof Timestamp) {
+      dataShootingDate = booking.dataShootingInizio.toDate();
+    } else if (typeof booking.dataShootingInizio === 'string') {
+      dataShootingDate = new Date(booking.dataShootingInizio);
+    } else if ((booking.dataShootingInizio as any)?.seconds) {
+      // Gestisce Timestamp serializzato
+      dataShootingDate = new Date((booking.dataShootingInizio as any).seconds * 1000);
+    } else {
+      dataShootingDate = booking.dataShootingInizio as unknown as Date;
+    }
+
+    const dateKey = dataShootingDate.toISOString().split("T")[0];
+
+    if (!grouped.has(dateKey)) {
+      grouped.set(dateKey, {
+        data: dataShootingDate,
+        importo: 0,
+        ordini: [],
+        jobs: [],
+        bookings: [],
+      });
+    }
+
+    const forecast = grouped.get(dateKey)!;
+    forecast.importo += booking.importoResiduo;
+    if (!forecast.bookings) forecast.bookings = [];
+    forecast.bookings.push({
+      id: booking.id,
+      clienteNome: `${booking.cliente.nome} ${booking.cliente.cognome}`,
+      campaignNome: booking.campaignNome,
+      importoResiduo: booking.importoResiduo,
     });
   });
 

@@ -2270,6 +2270,10 @@ router.post("/v2/create", async (req, res) => {
       note,
       isManual,
       createdByAdmin,
+      // Campi pagamento (per prenotazioni manuali con ordine integrato)
+      totale,
+      acconto,
+      metodoPagamento,
     } = req.body;
 
     // Validazione parametri base
@@ -2434,6 +2438,32 @@ router.post("/v2/create", async (req, res) => {
       bookingData.createdByAdmin = createdByAdmin || "admin";
       bookingData.confermataDa = createdByAdmin || "admin";
       bookingData.confermatail = FieldValue.serverTimestamp();
+      
+      // Aggiungi dati pagamento se presenti (prenotazione manuale con ordine integrato)
+      if (typeof totale === 'number' && totale > 0) {
+        // Validazione: acconto non può superare totale
+        const accontoValue = typeof acconto === 'number' ? Math.min(Math.max(0, acconto), totale) : 0;
+        const saldoValue = Math.max(0, totale - accontoValue);
+        
+        bookingData.totale = totale;
+        bookingData.acconto = accontoValue;
+        bookingData.saldo = saldoValue;
+        bookingData.metodoPagamento = metodoPagamento || 'contante';
+        
+        // Crea prima transazione se acconto > 0
+        if (accontoValue > 0) {
+          bookingData.transactions = [{
+            tipo: saldoValue === 0 ? 'saldo' : 'acconto',
+            importo: accontoValue,
+            metodo: metodoPagamento || 'contante',
+            data: Timestamp.now(),
+            note: saldoValue === 0 ? 'Pagamento completo' : 'Acconto alla prenotazione',
+            emailInviata: false,
+          }];
+        } else {
+          bookingData.transactions = [];
+        }
+      }
     }
 
     const bookingRef = await db.collection("bookings").add(bookingData);

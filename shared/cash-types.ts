@@ -93,4 +93,10 @@ export interface ForecastedIncome {
     clienteNome: string;
     importoResiduo: number;
   }[];
+  bookings?: { // Prenotazioni con saldo residuo (campagne)
+    id: string;
+    clienteNome: string;
+    campaignNome: string;
+    importoResiduo: number;
+  }[];
 }

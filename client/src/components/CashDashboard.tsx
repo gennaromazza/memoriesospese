@@ -573,6 +573,8 @@ export default function CashDashboard() {
                               {forecast.ordini.length > 0 && `${forecast.ordini.length} ordini`}
                               {forecast.ordini.length > 0 && (forecast.jobs?.length || 0) > 0 && ' • '}
                               {(forecast.jobs?.length || 0) > 0 && `${forecast.jobs!.length} lavori`}
+                              {((forecast.ordini.length > 0 || (forecast.jobs?.length || 0) > 0) && (forecast.bookings?.length || 0) > 0) && ' • '}
+                              {(forecast.bookings?.length || 0) > 0 && `${forecast.bookings!.length} prenotazioni`}
                             </div>
                           </div>
                         </div>
@@ -609,6 +611,22 @@ export default function CashDashboard() {
                                 </span>
                               </div>
                             </Link>
+                          ))}
+
+                          {/* Prenotazioni (Bookings) */}
+                          {(forecast.bookings || []).map((booking) => (
+                            <div
+                              key={`booking-${booking.id}`}
+                              className="flex justify-between items-center text-sm bg-purple-50 p-2 rounded"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{booking.clienteNome}</span>
+                                <span className="text-xs text-purple-600">• {booking.campaignNome}</span>
+                              </div>
+                              <span className="text-orange-600 font-semibold">
+                                {formatCurrency(booking.importoResiduo)}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>
