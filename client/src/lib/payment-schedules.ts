@@ -192,6 +192,18 @@ export async function registerPayment(
     // 1. Crea cashMovement (se richiesto)
     let cashMovementId: string | undefined;
     if (data.createCashMovement !== false) {
+      // Recupera origineTema dal job se disponibile
+      let origineTema: string | undefined;
+      try {
+        const jobDoc = await getDoc(doc(db, 'jobs', schedule.jobId));
+        if (jobDoc.exists()) {
+          const jobData = jobDoc.data();
+          origineTema = jobData?.jobType || jobData?.tipo;
+        }
+      } catch (err) {
+        console.warn('⚠️ Impossibile recuperare jobType per origineTema:', err);
+      }
+      
       const cashMovementData = {
         tipo: 'entrata',
         categoria: 'Servizio fotografico',
@@ -203,6 +215,7 @@ export async function registerPayment(
         jobId: schedule.jobId, // Link a job
         origine: 'job' as const, // Track cash origin
         origineRef: schedule.jobId,
+        ...(origineTema && { origineTema }), // Job type as theme
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       };

@@ -66,7 +66,7 @@ export const CASH_ORIGINE_LABELS: Record<CashMovementOrigine, string> = {
   "manuale": "Movimenti Manuali"
 };
 
-// Categorie predefinite per movimenti cassa
+// Categorie predefinite per movimenti cassa (fallback se non ci sono categorie dinamiche)
 export const CASH_CATEGORIES = {
   entrata: [
     "Vendita diretta",
@@ -85,6 +85,22 @@ export const CASH_CATEGORIES = {
     "Altro uscita"
   ]
 } as const;
+
+// Categoria dinamica salvata in Firestore
+export interface CashCategory {
+  id: string;
+  nome: string;
+  tipo: "entrata" | "uscita" | "entrambi"; // Applicabile a entrate, uscite o entrambi
+  ordine: number; // Ordine di visualizzazione
+  attiva: boolean; // Se mostrare o nascondere
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface CashCategoryFE extends Omit<CashCategory, 'createdAt' | 'updatedAt'> {
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // Riepilogo finanziario
 export interface FinancialSummary {

@@ -34,9 +34,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar, FileText, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getAllCashMovements, createCashMovement, updateCashMovement, deleteCashMovement } from "@/lib/cash";
+import { getAllCashMovements, createCashMovement, updateCashMovement, deleteCashMovement, getCategoriesByTipo, getAllCashCategories, createCashCategory } from "@/lib/cash";
 import { CASH_CATEGORIES } from "@shared/cash-types";
 import type { CashMovementFE, InsertCashMovement } from "@shared/cash-types";
+import { getAllCampaigns } from "@/lib/booking-campaigns";
 import SendReceiptDialog from "./SendReceiptDialog";
 import QuickOrderModal from "./QuickOrderModal";
 
@@ -59,7 +60,32 @@ export default function CashRegister() {
     data: new Date(),
     metodoPagamento: "contante",
     note: "",
+    origineTema: "",
   });
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+
+  // Query per categorie dinamiche
+  const { data: dynamicCategories } = useQuery({
+    queryKey: ["cash-categories"],
+    queryFn: getAllCashCategories,
+  });
+
+  // Query per campagne (per selezione tema)
+  const { data: campaigns } = useQuery({
+    queryKey: ["booking-campaigns"],
+    queryFn: getAllCampaigns,
+  });
+
+  // Ottieni categorie per il tipo corrente
+  const availableCategories = (() => {
+    if (!dynamicCategories || dynamicCategories.length === 0) {
+      return CASH_CATEGORIES[formData.tipo];
+    }
+    return dynamicCategories
+      .filter(c => c.attiva && (c.tipo === formData.tipo || c.tipo === "entrambi"))
+      .map(c => c.nome);
+  })();
 
   // Query per movimenti cassa
   const { data: movements, isLoading } = useQuery({
@@ -145,6 +171,7 @@ export default function CashRegister() {
         data: movement.data instanceof Date ? movement.data : new Date(movement.data),
         metodoPagamento: movement.metodoPagamento,
         note: movement.note || "",
+        origineTema: movement.origineTema || "",
       });
     } else {
       setEditingMovement(null);
@@ -156,6 +183,7 @@ export default function CashRegister() {
         data: new Date(),
         metodoPagamento: "contante",
         note: "",
+        origineTema: "",
       });
     }
     setIsDialogOpen(true);
@@ -199,11 +227,6 @@ export default function CashRegister() {
   const toDate = (d: Date | Timestamp): Date => {
     return d instanceof Timestamp ? d.toDate() : d;
   };
-
-  // Categorie disponibili in base al tipo
-  const availableCategories = formData.tipo === "entrata" 
-    ? CASH_CATEGORIES.entrata 
-    : CASH_CATEGORIES.uscita;
 
   return (
     <div className="space-y-6">
@@ -277,21 +300,78 @@ export default function CashRegister() {
               {/* Categoria */}
               <div className="space-y-1 sm:space-y-1.5">
                 <Label className="text-xs sm:text-sm font-medium">Categoria *</Label>
-                <Select
-                  value={formData.categoria}
-                  onValueChange={(value) => setFormData({ ...formData, categoria: value })}
-                >
-                  <SelectTrigger className="h-9 sm:h-10 text-sm">
-                    <SelectValue placeholder="Seleziona categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableCategories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {showNewCategoryInput ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Nome nuova categoria"
+                      className="h-9 sm:h-10 text-sm flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        if (newCategoryName.trim()) {
+                          await createCashCategory({
+                            nome: newCategoryName.trim(),
+                            tipo: formData.tipo,
+                          });
+                          queryClient.invalidateQueries({ queryKey: ["cash-categories"] });
+                          setFormData({ ...formData, categoria: newCategoryName.trim() });
+                          setNewCategoryName("");
+                          setShowNewCategoryInput(false);
+                          toast({
+                            title: "✅ Categoria creata",
+                            description: `"${newCategoryName.trim()}" aggiunta alle categorie`,
+                          });
+                        }
+                      }}
+                      className="h-9 sm:h-10"
+                    >
+                      Salva
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowNewCategoryInput(false);
+                        setNewCategoryName("");
+                      }}
+                      className="h-9 sm:h-10"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.categoria}
+                      onValueChange={(value) => {
+                        if (value === "__new__") {
+                          setShowNewCategoryInput(true);
+                        } else {
+                          setFormData({ ...formData, categoria: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 sm:h-10 text-sm flex-1">
+                        <SelectValue placeholder="Seleziona categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new__" className="text-blue-600 font-medium">
+                          + Nuova categoria...
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Importo */}
@@ -348,6 +428,30 @@ export default function CashRegister() {
                     <SelectItem value="altro">Altro</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Tema/Campagna (per associare spese a campagne) */}
+              <div className="space-y-1 sm:space-y-1.5">
+                <Label className="text-xs sm:text-sm font-medium">Campagna/Tema</Label>
+                <Select
+                  value={formData.origineTema || ""}
+                  onValueChange={(value) => setFormData({ ...formData, origineTema: value === "nessuno" ? "" : value })}
+                >
+                  <SelectTrigger className="h-9 sm:h-10 text-sm">
+                    <SelectValue placeholder="Nessuna campagna" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nessuno">Nessuna campagna</SelectItem>
+                    {campaigns?.filter(c => c.attiva).map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.nome}>
+                        {campaign.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  Associa questa {formData.tipo === "uscita" ? "spesa" : "entrata"} a una campagna
+                </p>
               </div>
 
               {/* Note */}

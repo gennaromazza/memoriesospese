@@ -13,6 +13,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock, ExternalLink, ShoppingBag, Mail, User, Phone } from "lucide-react";
 import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome, exportFinancialData } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
+import { getAllCampaigns } from "@/lib/booking-campaigns";
 import CashRegister from "./CashRegister";
 import WalkInOrdersManager from "./WalkInOrdersManager";
 import type { FinancialSummary, MonthlyData, ForecastedIncome, CashMovementOrigine, CashMovementFE } from "@shared/cash-types";
@@ -34,6 +35,12 @@ export default function CashDashboard() {
   const [dateRange, setDateRange] = useState<"all" | "month" | "quarter" | "year">("month");
   const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
   const [temaFilter, setTemaFilter] = useState<string>("all");
+
+  // Query per campagne
+  const { data: campaigns } = useQuery({
+    queryKey: ["booking-campaigns"],
+    queryFn: getAllCampaigns,
+  });
 
   // Query per riepilogo finanziario
   const { data: summary, isLoading: summaryLoading } = useQuery<FinancialSummary>({
@@ -158,8 +165,10 @@ export default function CashDashboard() {
     return true;
   });
   
-  // Estrai temi unici dai movimenti
-  const uniqueTemi = [...new Set((movements || []).map((m: CashMovementFE) => m.origineTema).filter(Boolean))] as string[];
+  // Estrai temi unici dai movimenti e combina con campagne
+  const temiDaiMovimenti = (movements || []).map((m: CashMovementFE) => m.origineTema).filter(Boolean) as string[];
+  const temiDalleCampagne = (campaigns || []).map(c => c.nome);
+  const uniqueTemi = [...new Set([...temiDaiMovimenti, ...temiDalleCampagne])];
   
   // Statistiche aggregate per origine (usa tutti i movimenti per panoramica globale)
   const statsByOrigine = (movements || []).reduce((acc, m: CashMovementFE) => {

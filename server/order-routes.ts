@@ -803,6 +803,25 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     const hasBooking = !!orderData.bookingId;
     const cashOrigine = hasBooking ? 'booking' : 'walk-in';
     
+    // Recupera il nome della campagna dal booking se disponibile
+    let origineTema: string | undefined;
+    if (hasBooking) {
+      try {
+        const bookingDoc = await db.collection('bookings').doc(orderData.bookingId).get();
+        if (bookingDoc.exists) {
+          const bookingData = bookingDoc.data();
+          if (bookingData?.campaignId) {
+            const campaignDoc = await db.collection('booking_campaigns').doc(bookingData.campaignId).get();
+            if (campaignDoc.exists) {
+              origineTema = campaignDoc.data()?.nome;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Impossibile recuperare campagna per origineTema:', err);
+      }
+    }
+    
     const cashMovementRef = db.collection('cashMovements').doc();
     batch.set(cashMovementRef, {
       tipo: 'entrata',
@@ -816,6 +835,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       note: `Ordine ID: ${orderId} - ${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`,
       origine: cashOrigine, // Track cash origin (booking or walk-in)
       origineRef: hasBooking ? orderData.bookingId : orderId,
+      ...(origineTema && { origineTema }), // Nome della campagna per filtro
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

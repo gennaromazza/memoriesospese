@@ -19,7 +19,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import * as XLSX from "xlsx";
-import type { CashMovement, CashMovementFE, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome } from "@shared/cash-types";
+import type { CashMovement, CashMovementFE, InsertCashMovement, FinancialSummary, MonthlyData, ForecastedIncome, CashCategory, CashCategoryFE } from "@shared/cash-types";
+import { CASH_CATEGORIES } from "@shared/cash-types";
 import { getAllOrders } from "./orders";
 import type { Order, Transaction, Booking } from "@shared/booking-types";
 import { getAllJobs } from "./jobs";
@@ -29,6 +30,7 @@ import { getAllBookings } from "./bookings";
 import { getCampaignById } from "./booking-campaigns";
 
 const COLLECTION = "cashMovements";
+const CATEGORIES_COLLECTION = "cashCategories";
 
 /**
  * Helper: Rimuove campi undefined
@@ -676,4 +678,191 @@ export async function exportFinancialData(
 
   // Download
   XLSX.writeFile(wb, fileName);
+}
+
+// =============================================
+// GESTIONE CATEGORIE DINAMICHE
+// =============================================
+
+/**
+ * Ottiene tutte le categorie dinamiche
+ */
+export async function getAllCashCategories(): Promise<CashCategoryFE[]> {
+  const q = query(
+    collection(db, CATEGORIES_COLLECTION),
+    orderBy("ordine", "asc")
+  );
+  
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      nome: data.nome,
+      tipo: data.tipo,
+      ordine: data.ordine || 0,
+      attiva: data.attiva !== false,
+      createdAt: toSafeDate(data.createdAt),
+      updatedAt: toSafeDate(data.updatedAt),
+    };
+  });
+}
+
+/**
+ * Ottiene categorie per tipo (entrata/uscita)
+ * Combina categorie dinamiche con fallback hardcoded
+ */
+export async function getCategoriesByTipo(tipo: "entrata" | "uscita"): Promise<string[]> {
+  const categories = await getAllCashCategories();
+  const filtered = categories
+    .filter(c => c.attiva && (c.tipo === tipo || c.tipo === "entrambi"))
+    .map(c => c.nome);
+  
+  // Se non ci sono categorie dinamiche, usa quelle hardcoded
+  if (filtered.length === 0) {
+    return [...CASH_CATEGORIES[tipo]];
+  }
+  
+  return filtered;
+}
+
+/**
+ * Crea una nuova categoria
+ */
+export async function createCashCategory(data: {
+  nome: string;
+  tipo: "entrata" | "uscita" | "entrambi";
+  ordine?: number;
+}): Promise<string> {
+  const categories = await getAllCashCategories();
+  const maxOrdine = categories.reduce((max, c) => Math.max(max, c.ordine), 0);
+  
+  const docRef = await addDoc(collection(db, CATEGORIES_COLLECTION), {
+    nome: data.nome,
+    tipo: data.tipo,
+    ordine: data.ordine ?? maxOrdine + 1,
+    attiva: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  
+  return docRef.id;
+}
+
+/**
+ * Aggiorna una categoria
+ */
+export async function updateCashCategory(
+  id: string,
+  data: Partial<{ nome: string; tipo: string; ordine: number; attiva: boolean }>
+): Promise<void> {
+  const docRef = doc(db, CATEGORIES_COLLECTION, id);
+  await updateDoc(docRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Elimina una categoria
+ */
+export async function deleteCashCategory(id: string): Promise<void> {
+  const docRef = doc(db, CATEGORIES_COLLECTION, id);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Seed delle categorie predefinite
+ * Crea le categorie dinamiche a partire dalle costanti hardcoded
+ */
+export async function seedCashCategories(): Promise<void> {
+  const existing = await getAllCashCategories();
+  if (existing.length > 0) {
+    console.log("Categorie già presenti, skip seed");
+    return;
+  }
+  
+  let ordine = 1;
+  
+  // Crea categorie entrata
+  for (const nome of CASH_CATEGORIES.entrata) {
+    await createCashCategory({ nome, tipo: "entrata", ordine: ordine++ });
+  }
+  
+  // Crea categorie uscita
+  for (const nome of CASH_CATEGORIES.uscita) {
+    await createCashCategory({ nome, tipo: "uscita", ordine: ordine++ });
+  }
+  
+  console.log("✅ Seed categorie completato");
+}
+
+// Esponi funzione per seed manuale da console
+if (typeof window !== 'undefined') {
+  (window as any).seedCashCategories = seedCashCategories;
+}
+
+// =============================================
+// SCRIPT MIGRAZIONE ORIGINE MOVIMENTI
+// =============================================
+
+/**
+ * Analizza i movimenti esistenti e assegna automaticamente l'origine
+ * basandosi sui riferimenti (jobId, orderId, bookingId) già presenti
+ */
+export async function migrateMovementsOrigin(): Promise<{ updated: number; skipped: number }> {
+  const movements = await getAllCashMovements();
+  let updated = 0;
+  let skipped = 0;
+  
+  for (const movement of movements) {
+    // Se ha già un'origine, skip
+    if (movement.origine) {
+      skipped++;
+      continue;
+    }
+    
+    let newOrigine: 'walk-in' | 'booking' | 'job' | 'manuale' = 'manuale';
+    let newOrigineRef: string | undefined;
+    
+    // Determina origine basandosi sui riferimenti esistenti
+    if (movement.jobId) {
+      newOrigine = 'job';
+      newOrigineRef = movement.jobId;
+    } else if (movement.bookingId) {
+      newOrigine = 'booking';
+      newOrigineRef = movement.bookingId;
+    } else if (movement.orderId) {
+      // Se ha orderId ma non jobId o bookingId, probabilmente è walk-in
+      newOrigine = 'walk-in';
+      newOrigineRef = movement.orderId;
+    } else if (movement.descrizione) {
+      // Analizza la descrizione per capire l'origine
+      const desc = movement.descrizione.toLowerCase();
+      if (desc.includes('walk-in') || desc.includes('ordine walk')) {
+        newOrigine = 'walk-in';
+      } else if (desc.includes('prenotazione') || desc.includes('booking')) {
+        newOrigine = 'booking';
+      } else if (desc.includes('job') || desc.includes('servizio fotografico') || desc.includes('matrimonio')) {
+        newOrigine = 'job';
+      }
+    }
+    
+    // Aggiorna il movimento
+    await updateCashMovement(movement.id, {
+      origine: newOrigine,
+      origineRef: newOrigineRef,
+    });
+    
+    console.log(`✅ Movimento ${movement.id}: ${newOrigine} (${movement.descrizione?.substring(0, 30)}...)`);
+    updated++;
+  }
+  
+  console.log(`🔄 Migrazione completata: ${updated} aggiornati, ${skipped} già con origine`);
+  return { updated, skipped };
+}
+
+// Esponi funzione per migrazione manuale da console
+if (typeof window !== 'undefined') {
+  (window as any).migrateMovementsOrigin = migrateMovementsOrigin;
 }
