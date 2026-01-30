@@ -74,10 +74,12 @@ export async function createBooking(data: {
 /**
  * Ottiene slot disponibili da API server V2 (usa Calendar Engine V2)
  * Non richiede più workingHours/durataMinuti - usa solo campaignId
+ * @param isManualBooking - Se true, bypassa restrizioni giorni della campagna (per admin)
  */
 export async function getAvailableSlots(
   date: string, // YYYY-MM-DD
-  campaignId: string
+  campaignId: string,
+  isManualBooking: boolean = false
 ): Promise<Array<{
   start: string;
   end: string;
@@ -92,6 +94,7 @@ export async function getAvailableSlots(
     body: JSON.stringify({
       date,
       campaignId,
+      isManualBooking,
     }),
   });
 

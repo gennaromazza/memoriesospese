@@ -136,13 +136,15 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
   }, [selectedCampaign?.temaStagionale, categories]);
 
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
+  // isManualBooking=true bypassa restrizioni giorni della campagna
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
     queryKey: ['manual-booking-slots', dataShootingDate, campaignId],
     queryFn: async () => {
       if (!dataShootingDate || !selectedCampaign) return [];
       
       // V2: Campaign configuration loaded server-side
-      return await getAvailableSlots(dataShootingDate, selectedCampaign.id);
+      // isManualBooking=true: admin può prenotare anche in giorni non configurati nella campagna
+      return await getAvailableSlots(dataShootingDate, selectedCampaign.id, true);
     },
     enabled: !!dataShootingDate && !!selectedCampaign,
   });

@@ -2614,7 +2614,7 @@ router.post("/v2/create", async (req, res) => {
 router.post("/v2/available-slots", async (req, res) => {
   try {
     console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", req.body);
-    const { date, campaignId } = req.body;
+    const { date, campaignId, isManualBooking } = req.body;
 
     if (!date || !campaignId) {
       return res.status(400).json({
@@ -2651,6 +2651,15 @@ router.post("/v2/available-slots", async (req, res) => {
 
     // Step 4: Convert campaign to AvailabilityConfig
     const config = campaignToAvailabilityConfig(campaign);
+
+    // Step 4.5: Se isManualBooking=true (admin), bypassa restrizioni giorni
+    // NOTA: Questo flag viene usato solo da ManualBookingModal (admin)
+    // Il form pubblico non passa questo flag, quindi le restrizioni vengono applicate normalmente
+    // TODO: In futuro, verificare auth token per garantire che solo admin possa usare questo bypass
+    if (isManualBooking === true) {
+      config.excludedWeekdays = []; // Nessun giorno escluso per prenotazioni manuali
+      console.log("[POST /v2/available-slots] 🔓 Manual booking: bypassing day restrictions");
+    }
 
     console.log("[POST /v2/available-slots] 📋 Config generato:", {
       slotDuration: config.slotDurationMinutes,
