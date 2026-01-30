@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
@@ -422,6 +422,8 @@ export default function QuoteBuilder({
   useEffect(() => {
     setSelectedClauseTemplateId('');
     form.setValue('clauseTemplateId', '');
+    // Reset clausole esistenti quando cambia jobType per evitare salvataggio clausole sbagliate
+    form.setValue('products', form.getValues('products').map(p => ({ ...p })));
   }, [jobTypeSlug, form]);
 
   // Auto-select template predefinito per le clausole (dopo form init)
@@ -443,21 +445,24 @@ export default function QuoteBuilder({
     const catalogIds: string[] = [];
     const customProducts: any[] = [];
 
-    existingQuote.products?.forEach((product: any) => {
-      if (product.catalogProductId) {
-        catalogIds.push(product.catalogProductId);
-      } else {
-        customProducts.push({
-          nome: product.nome || '',
-          descrizione: product.descrizione || '',
-          prezzo: product.prezzo || 0,
-          selectable: product.selectable || false,
-          numeroFoto: product.numeroFoto || 0,
-          categoria: product.categoria || '',
-          immagini: product.immagini || []
-        });
-      }
-    });
+    // Protezione struttura array per evitare crash se schema cambia
+    if (Array.isArray(existingQuote.products)) {
+      existingQuote.products.forEach((product: any) => {
+        if (product.catalogProductId) {
+          catalogIds.push(product.catalogProductId);
+        } else {
+          customProducts.push({
+            nome: product.nome || '',
+            descrizione: product.descrizione || '',
+            prezzo: product.prezzo || 0,
+            selectable: product.selectable || false,
+            numeroFoto: product.numeroFoto || 0,
+            categoria: product.categoria || '',
+            immagini: product.immagini || []
+          });
+        }
+      });
+    }
 
     // Popola form
     form.setValue('type', existingQuote.type || 'fisso');
@@ -513,7 +518,8 @@ export default function QuoteBuilder({
 
   const { fields, append, remove, move } = useFieldArray({
     control: form.control,
-    name: 'products'
+    name: 'products',
+    shouldUnregister: false
   });
 
   // Auto-expand newly added custom products
@@ -556,6 +562,9 @@ export default function QuoteBuilder({
   // Watch form values for totals
   const catalogProductIds = form.watch('catalogProductIds') || [];
   const customProducts = form.watch('products') || [];
+  
+  // Watch products for performance optimization in render loop
+  const watchedProducts = useWatch({ control: form.control, name: 'products' });
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
@@ -686,6 +695,16 @@ export default function QuoteBuilder({
   // Upload immagine prodotto custom
   const handleImageUpload = async (file: File, productIndex: number) => {
     try {
+      // Controllo limite 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'File troppo grande',
+          description: 'L\'immagine deve essere inferiore a 5MB',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       setUploadingImages(prev => ({ ...prev, [productIndex]: true }));
 
       // Upload su Firebase Storage
@@ -732,7 +751,7 @@ export default function QuoteBuilder({
         // Helper to clean undefined values from objects (Firestore doesn't accept undefined)
         const cleanObject = (obj: any): any => {
           if (Array.isArray(obj)) {
-            return obj.map(cleanObject);
+            return obj.filter(v => v !== undefined).map(cleanObject);
           }
           if (obj && typeof obj === 'object') {
             const cleaned: any = {};
@@ -857,9 +876,9 @@ export default function QuoteBuilder({
       const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
       // Prepara jobInfo e clientiInfo per il portale firmato
-      const jobInfo = job ? {
+      const jobInfo = job && job.eventDate ? {
         nomeEvento: job.nomeEvento,
-        eventDate: job.eventDate,
+        eventDate: job.eventDate instanceof Date ? job.eventDate : (job.eventDate as any).toDate?.() || new Date(),
         rito: job.rituLocation || '',
         location: job.eventLocation || ''
       } : undefined;
@@ -899,7 +918,7 @@ export default function QuoteBuilder({
         totalBeforeDiscount: finalTotals.totalBeforeDiscount,
         totalAfterDiscount: finalTotals.totalAfterDiscount,
         theme: data.theme,
-        expiresAt: data.expiresAt,
+        expiresAt: data.expiresAt || undefined,
         noteInterne: data.noteInterne,
         paymentScheduleConfig: data.paymentScheduleConfig,
         templateId: selectedTemplateId || undefined,
@@ -926,7 +945,38 @@ export default function QuoteBuilder({
           : 'Il preventivo è stato salvato. Potrai inviarlo manualmente dalla pagina del lavoro.'
       });
       
-      form.reset();
+      // Reset form with default values to preserve structure
+      form.reset({
+        jobId,
+        clienteId,
+        type: 'fisso',
+        catalogProductIds: [],
+        products: [{
+          nome: '',
+          descrizione: '',
+          prezzo: 0,
+          selectable: false,
+          numeroFoto: 0,
+          categoria: '',
+          immagini: []
+        }],
+        theme: {
+          primaryColor: '#8B9A8B',
+          secondaryColor: '#C8B8A8',
+          footerText: 'Image Studio - Fotografia professionale'
+        },
+        noteInterne: '',
+        paymentScheduleConfig: {
+          autoGenerate: false,
+          numberOfPayments: 2,
+          accontoType: 'percentage',
+          accontoPercentage: 30,
+          accontoAmount: 0,
+          useEventDateReference: true,
+          accontoRelativeDays: -30,
+          rateIntervalDays: 30
+        }
+      });
       onClose();
     },
     onError: (error: any) => {
@@ -970,7 +1020,6 @@ export default function QuoteBuilder({
       <DialogContent 
         className="w-[98vw] sm:max-w-4xl p-0"
         onInteractOutside={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
       >
         
         {/* Wrapper scrollabile */}
@@ -1118,8 +1167,8 @@ export default function QuoteBuilder({
               <FormItem>
                 <FormLabel>Template Clausole Contrattuali</FormLabel>
                 <Select 
-                  value={selectedClauseTemplateId || 'default'} 
-                  onValueChange={(val) => val !== 'default' && handleClauseTemplateChange(val)}
+                  value={selectedClauseTemplateId || ''} 
+                  onValueChange={(val) => val && handleClauseTemplateChange(val)}
                   data-testid="select-clause-template"
                 >
                   <FormControl>
@@ -1282,8 +1331,8 @@ export default function QuoteBuilder({
                 >
                   <div className="space-y-4">
                     {fields.map((field, index) => {
-                      const productName = form.watch(`products.${index}.nome`) || '';
-                      const productPrice = form.watch(`products.${index}.prezzo`) || 0;
+                      const productName = watchedProducts?.[index]?.nome || '';
+                      const productPrice = watchedProducts?.[index]?.prezzo || 0;
                       const hasName = productName.trim().length > 0;
                       const hasPrice = productPrice > 0;
                       const isIncomplete = (hasName && !hasPrice) || (!hasName && hasPrice);

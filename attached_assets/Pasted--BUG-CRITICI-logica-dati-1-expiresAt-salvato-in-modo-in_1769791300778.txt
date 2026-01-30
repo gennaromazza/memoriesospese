@@ -1,0 +1,172 @@
+🔴 BUG CRITICI (logica / dati)
+1. expiresAt salvato in modo incoerente (create vs update)
+
+CREATE → expiresAt: data.expiresAt (Date)
+
+UPDATE → Timestamp.fromDate(data.expiresAt)
+
+❌ In Firestore finirai con tipi diversi nello stesso campo.
+
+✅ Fix
+
+expiresAt: data.expiresAt ? Timestamp.fromDate(data.expiresAt) : null
+
+
+Usalo sia in create che update.
+
+2. mergeQuoteProducts + cleanObject può rompere array
+
+cleanObject fa:
+
+if (Array.isArray(obj)) {
+  return obj.map(cleanObject);
+}
+
+
+❌ Se dentro l’array c’è undefined, Firestore non accetta.
+❌ Inoltre non filtra elementi vuoti.
+
+✅ Fix
+
+if (Array.isArray(obj)) {
+  return obj.filter(v => v !== undefined).map(cleanObject);
+}
+
+3. form.reset() senza defaultValues
+
+Dopo submit fai:
+
+form.reset();
+
+
+❌ Perdi jobId, clienteId, theme, paymentScheduleConfig
+❌ Alla riapertura il form è corrotto
+
+✅ Fix
+
+form.reset(form.getValues());
+
+
+oppure:
+
+form.reset(DEFAULT_VALUES);
+
+4. onOpenChange blocca SEMPRE la chiusura
+onInteractOutside={(e) => e.preventDefault()}
+onPointerDownOutside={(e) => e.preventDefault()}
+
+
+❌ Anche dopo submit non puoi chiudere cliccando fuori
+❌ UX pessima su mobile
+
+✅ Fix
+Rimuovi almeno uno dei due (consigliato onPointerDownOutside).
+
+🟠 BUG FUNZIONALI (comportamenti errati)
+5. selectedClauseTemplateId || 'default' è un falso valore
+value={selectedClauseTemplateId || 'default'}
+
+
+❌ 'default' non è un valore valido
+❌ Non viene mai salvato in form
+❌ Cambi select ma non cambia stato reale
+
+✅ Fix
+Usa undefined reale:
+
+value={selectedClauseTemplateId ?? ''}
+
+
+E gestisci "" come default.
+
+6. Cambio jobTypeSlug non resetta le CLAUSOLE esistenti
+
+Hai:
+
+useEffect(() => {
+  setSelectedClauseTemplateId('');
+  form.setValue('clauseTemplateId', '');
+}, [jobTypeSlug]);
+
+
+❌ Ma contractClauses già caricati restano
+❌ In update puoi salvare clausole sbagliate
+
+✅ Fix
+Quando cambia jobType:
+
+form.setValue('contractClauses', []);
+
+7. useFieldArray + DnD senza shouldUnregister:false
+
+❌ Con drag + collapse puoi perdere valori (bug RHF noto)
+
+✅ Fix
+
+const { fields, append, remove, move } = useFieldArray({
+  control: form.control,
+  name: 'products',
+  shouldUnregister: false
+});
+
+🟡 BUG DI PERFORMANCE / LOOP
+8. form.watch() dentro render loop
+
+Dentro .map(fields):
+
+const productName = form.watch(`products.${index}.nome`);
+
+
+❌ Ogni keystroke → rerender totale
+❌ Con 10+ prodotti diventa lento
+
+✅ Fix
+Usa useWatch una sola volta:
+
+const watchedProducts = useWatch({ control: form.control, name: 'products' });
+
+9. useEffect che forza selectable può causare loop
+form.setValue('products', updatedProducts, { shouldDirty:false });
+
+
+❌ Se in futuro aggiungi una validation → loop silenzioso
+
+✅ Fix
+Aggiorna solo il campo:
+
+products.forEach((_, i) =>
+  form.setValue(`products.${i}.selectable`, shouldBeSelectable)
+);
+
+🟢 BUG MINORI / EDGE CASE
+10. Upload immagini senza limite
+
+Il testo dice:
+
+max 5MB
+
+❌ Ma non c’è controllo
+
+✅ Fix
+
+if (file.size > 5 * 1024 * 1024) throw new Error('File troppo grande');
+
+11. discountValue può superare il subtotale
+
+La UI lo suggerisce, ma non è validato in schema
+
+✅ Fix Zod
+
+.refine(
+  data => data.discountType !== 'amount' || data.discountValue <= subtotale,
+  { message: 'Sconto superiore al totale' }
+)
+
+12. existingQuote.products assume struttura stabile
+
+Se in futuro cambi schema → crash silenzioso.
+
+✅ Fix
+Proteggi:
+
+if (!Array.isArray(existingQuote.products)) return;
