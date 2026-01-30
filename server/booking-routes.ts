@@ -604,36 +604,12 @@ router.post("/create", async (req, res) => {
       });
     }
 
-    // 1. Ricontrolla disponibilità slot via Google Calendar
-    const dateStr = slotStart.toISOString().split("T")[0];
-
-    const availableSlots = await getAvailableSlots(
-      "primary",
-      slotStart,
-      workingHours as WorkingHours,
-      durataMinuti,
-    );
-
-    // Verifica che lo slot selezionato sia ancora disponibile
-    const slotStillAvailable = availableSlots.some(
-      (slot) =>
-        Math.abs(slot.start.getTime() - slotStart.getTime()) < 1000 &&
-        Math.abs(slot.end.getTime() - slotEnd.getTime()) < 1000,
-    );
-
-    if (!slotStillAvailable) {
-      return res.status(409).json({
-        error: "Slot non più disponibile",
-        message:
-          "Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.",
-      });
-    }
-
-    // 2. Verifica anche booking esistenti in Firestore con overlap check (prevenzione race condition)
+    // 1. Conflict detection - different logic for manual vs public bookings
     // FIX: Usa Calendar Engine V2 per day boundaries corretti
     const { getDayBoundaries } = await import('./calendar-engine/timezone.js');
-    const { dayStart, dayEnd } = getDayBoundaries(slotStart, 0); // No extension needed
+    const { dayStart, dayEnd } = getDayBoundaries(slotStart, 0);
 
+    // 2. Verifica booking esistenti in Firestore con overlap check
     const existingBookingsSnapshot = await db
       .collection("bookings")
       .where("dataShootingInizio", ">=", Timestamp.fromDate(dayStart))
@@ -666,6 +642,32 @@ router.post("/create", async (req, res) => {
         message:
           "Lo slot selezionato si sovrappone con una prenotazione esistente. Scegli un altro orario.",
       });
+    }
+
+    // For manual bookings: skip slot availability check (admin can book any time)
+    // For public bookings: verify slot is available via Google Calendar
+    if (!isManual) {
+      const availableSlots = await getAvailableSlots(
+        "primary",
+        slotStart,
+        workingHours as WorkingHours,
+        durataMinuti,
+      );
+
+      // Verifica che lo slot selezionato sia ancora disponibile
+      const slotStillAvailable = availableSlots.some(
+        (slot) =>
+          Math.abs(slot.start.getTime() - slotStart.getTime()) < 1000 &&
+          Math.abs(slot.end.getTime() - slotEnd.getTime()) < 1000,
+      );
+
+      if (!slotStillAvailable) {
+        return res.status(409).json({
+          error: "Slot non più disponibile",
+          message:
+            "Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.",
+        });
+      }
     }
 
     // 3. NON creare evento Google Calendar qui - verrà creato solo all'approvazione admin
@@ -2385,7 +2387,7 @@ router.post("/v2/create", async (req, res) => {
     }
 
     // Step 5: Calendar Engine V2 conflict detection
-    const config = campaignToAvailabilityConfig(campaign);
+    // For manual bookings, only check for direct overlaps (skip slot generation which respects excluded days)
     const dateObj = DateTime.fromISO(dataShootingInizio, { zone: "Europe/Rome" });
     const dayStart = dateObj.startOf("day").toJSDate();
     const dayEnd = dateObj.endOf("day").toJSDate();
@@ -2394,25 +2396,44 @@ router.post("/v2/create", async (req, res) => {
     const { getAllExistingBookingEvents } = await import('./booking/calendar-adapter.js');
     const existingEvents = await getAllExistingBookingEvents(dayStart, dayEnd, db);
 
-    // Generate available slots
-    const availableSlots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
-
-    // Verify slot is still available
-    const slotStillAvailable = availableSlots.some(
-      (slot) =>
-        Math.abs(new Date(slot.start).getTime() - slotStart.getTime()) < 1000 &&
-        Math.abs(new Date(slot.end).getTime() - slotEnd.getTime()) < 1000,
-    );
-
-    if (!slotStillAvailable) {
-      console.warn(`[POST /v2/create] ❌ Conflict: slot not available`);
-      return res.status(409).json({
-        error: "Slot non più disponibile",
-        message: "Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.",
+    if (isManual) {
+      // For manual bookings: only check direct overlap with existing events (bypass slot generation)
+      const hasDirectOverlap = existingEvents.some((event) => {
+        const eventStart = new Date(event.start);
+        const eventEnd = new Date(event.end);
+        return slotStart < eventEnd && slotEnd > eventStart;
       });
-    }
 
-    console.log(`[POST /v2/create] ✅ Slot verified available using Calendar Engine V2`);
+      if (hasDirectOverlap) {
+        console.warn(`[POST /v2/create] ❌ Manual booking conflict: direct overlap with existing event`);
+        return res.status(409).json({
+          error: "Slot non più disponibile",
+          message: "Lo slot selezionato si sovrappone con un evento esistente. Scegli un altro orario.",
+        });
+      }
+      console.log(`[POST /v2/create] ✅ Manual booking: no direct conflicts found, bypassing slot generation`);
+    } else {
+      // For public bookings: use full slot availability check
+      const config = campaignToAvailabilityConfig(campaign);
+      const availableSlots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
+
+      // Verify slot is still available
+      const slotStillAvailable = availableSlots.some(
+        (slot) =>
+          Math.abs(new Date(slot.start).getTime() - slotStart.getTime()) < 1000 &&
+          Math.abs(new Date(slot.end).getTime() - slotEnd.getTime()) < 1000,
+      );
+
+      if (!slotStillAvailable) {
+        console.warn(`[POST /v2/create] ❌ Conflict: slot not available`);
+        return res.status(409).json({
+          error: "Slot non più disponibile",
+          message: "Lo slot selezionato è stato prenotato da qualcun altro. Scegli un altro orario.",
+        });
+      }
+
+      console.log(`[POST /v2/create] ✅ Slot verified available using Calendar Engine V2`);
+    }
 
     // Step 6: Create booking (same as legacy)
     const workflowUpdate = syncBookingWorkflowState("in_attesa");

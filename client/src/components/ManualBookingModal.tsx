@@ -135,8 +135,16 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     return 'all';
   }, [selectedCampaign?.temaStagionale, categories]);
 
+  // Controlla se il giorno selezionato è un giorno escluso dalla campagna
+  const isExcludedDay = useMemo(() => {
+    if (!dataShootingDate || !selectedCampaign?.excludedDays?.length) return false;
+    const date = parseISO(dataShootingDate);
+    const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+    return selectedCampaign.excludedDays.includes(dayOfWeek);
+  }, [dataShootingDate, selectedCampaign?.excludedDays]);
+
   // Query slot disponibili per data selezionata (V2: usa Calendar Engine V2)
-  // isManualBooking=true bypassa restrizioni giorni della campagna
+  // Skip query if it's an excluded day (admin will use free time input)
   const { data: availableSlots = [], isLoading: loadingSlots } = useQuery({
     queryKey: ['manual-booking-slots', dataShootingDate, campaignId],
     queryFn: async () => {
@@ -146,7 +154,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       // isManualBooking=true: admin può prenotare anche in giorni non configurati nella campagna
       return await getAvailableSlots(dataShootingDate, selectedCampaign.id, true);
     },
-    enabled: !!dataShootingDate && !!selectedCampaign,
+    enabled: !!dataShootingDate && !!selectedCampaign && !isExcludedDay, // Skip for excluded days
   });
 
   // Helper: Aggiungi prodotto dal catalogo (usato da ProductSelector)
@@ -321,7 +329,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       return;
     }
 
-    if (!dataShootingDate || !selectedSlot) {
+    // Per giorni esclusi non serve selectedSlot (uso orario automatico 09:00)
+    if (!dataShootingDate || (!selectedSlot && !isExcludedDay)) {
       toast({
         title: 'Data e ora mancanti',
         description: 'Seleziona data e orario dello shooting',
@@ -369,14 +378,27 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
     try {
       setIsSubmitting(true);
 
-      // DEBUG: Log slot selezionato per diagnostica
-      console.log('🔍 DEBUG selectedSlot:', JSON.stringify(selectedSlot, null, 2));
-      console.log('🔍 DEBUG selectedSlot.start:', selectedSlot.start);
-      console.log('🔍 DEBUG selectedSlot.end:', selectedSlot.end);
+      let dataInizioDate: Date;
+      let dataFineDate: Date;
+      const durataMinuti = selectedCampaign?.durataShootingMinuti || 30;
 
-      // Usa lo slot selezionato dal sistema
-      const dataInizioDate = new Date(selectedSlot.start);
-      const dataFineDate = new Date(selectedSlot.end);
+      if (isExcludedDay) {
+        // Giorno escluso: usa orario corrente
+        const now = new Date();
+        const baseDate = parseISO(dataShootingDate);
+        dataInizioDate = setMinutes(setHours(baseDate, now.getHours()), now.getMinutes());
+        dataFineDate = addMinutes(dataInizioDate, durataMinuti);
+        console.log('📅 Giorno escluso - usando orario corrente:', dataInizioDate);
+      } else {
+        // DEBUG: Log slot selezionato per diagnostica
+        console.log('🔍 DEBUG selectedSlot:', JSON.stringify(selectedSlot, null, 2));
+        console.log('🔍 DEBUG selectedSlot.start:', selectedSlot.start);
+        console.log('🔍 DEBUG selectedSlot.end:', selectedSlot.end);
+
+        // Usa lo slot selezionato dal sistema
+        dataInizioDate = new Date(selectedSlot.start);
+        dataFineDate = new Date(selectedSlot.end);
+      }
       
       console.log('🔍 DEBUG dataInizioDate:', dataInizioDate, 'isValid:', !isNaN(dataInizioDate.getTime()));
       console.log('🔍 DEBUG dataFineDate:', dataFineDate, 'isValid:', !isNaN(dataFineDate.getTime()));
@@ -627,7 +649,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
             />
           </div>
 
-          {/* Slot Disponibili (da Google Calendar) */}
+          {/* Slot Disponibili o orario automatico per giorni esclusi */}
           {dataShootingDate && (
             <div className="space-y-2">
               <Label htmlFor="slot">
@@ -635,7 +657,16 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
                 Orario *
               </Label>
               
-              {loadingSlots ? (
+              {isExcludedDay ? (
+                /* Giorno escluso: orario corrente */
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-green-800">
+                    ✅ Orario: <strong>quello attuale alla creazione</strong>
+                    <br />
+                    <span className="text-xs text-green-600">Giorno escluso dalla campagna - prenotazione manuale admin</span>
+                  </p>
+                </div>
+              ) : loadingSlots ? (
                 <div className="flex items-center justify-center py-4 border rounded-md bg-muted/50">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
                   <span className="text-sm text-muted-foreground">Caricamento slot disponibili...</span>
@@ -675,8 +706,8 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
             </div>
           )}
 
-          {/* Info Durata */}
-          {selectedSlot && selectedCampaign && (
+          {/* Info Durata - mostra per slot selezionato (non per giorni esclusi, già mostrato sopra) */}
+          {selectedSlot && selectedCampaign && !isExcludedDay && (
             <div className="p-3 bg-green-50 rounded-lg border border-green-200">
               <p className="text-sm text-green-800">
                 ✅ Slot confermato: <strong>{selectedSlot.startTime} - {selectedSlot.endTime}</strong>
