@@ -547,7 +547,18 @@ export async function deleteOrder(orderId: string): Promise<void> {
     console.log(`✅ Rimosso orderId ${orderId} da job ${jobDoc.id}`);
   }
   
-  // 3. Elimina l'ordine
+  // 3. Elimina i movimenti cassa associati a questo ordine
+  const cashMovementsQuery = query(
+    collection(db, "cashMovements"),
+    where("orderId", "==", orderId)
+  );
+  const cashSnapshot = await getDocs(cashMovementsQuery);
+  for (const cashDoc of cashSnapshot.docs) {
+    await deleteDoc(doc(db, "cashMovements", cashDoc.id));
+    console.log(`✅ Eliminato movimento cassa ${cashDoc.id} associato all'ordine ${orderId}`);
+  }
+  
+  // 4. Elimina l'ordine
   await deleteDoc(docRef);
 }
 
