@@ -161,8 +161,23 @@ export default function CashDashboard() {
   // Estrai temi unici dai movimenti
   const uniqueTemi = [...new Set((movements || []).map((m: CashMovementFE) => m.origineTema).filter(Boolean))] as string[];
   
-  // Statistiche aggregate per origine
+  // Statistiche aggregate per origine (usa tutti i movimenti per panoramica globale)
   const statsByOrigine = (movements || []).reduce((acc, m: CashMovementFE) => {
+    const origine = m.origine || "manuale";
+    if (!acc[origine]) {
+      acc[origine] = { entrate: 0, uscite: 0, count: 0 };
+    }
+    if (m.tipo === "entrata") {
+      acc[origine].entrate += m.importo;
+    } else {
+      acc[origine].uscite += m.importo;
+    }
+    acc[origine].count++;
+    return acc;
+  }, {} as Record<string, { entrate: number; uscite: number; count: number }>);
+  
+  // Statistiche aggregate filtrate (rispetta i filtri attivi)
+  const filteredStatsByOrigine = filteredMovements.reduce((acc, m: CashMovementFE) => {
     const origine = m.origine || "manuale";
     if (!acc[origine]) {
       acc[origine] = { entrate: 0, uscite: 0, count: 0 };

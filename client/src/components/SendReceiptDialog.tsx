@@ -29,13 +29,13 @@ import {
 import { Mail, MessageCircle, Search, Loader2, Send } from "lucide-react";
 import { getAllClienti } from "@/lib/clienti";
 import { useToast } from "@/hooks/use-toast";
-import type { CashMovement } from "@shared/cash-types";
+import type { CashMovementFE } from "@shared/cash-types";
 import type { Cliente } from "@shared/clienti-types";
 
 interface SendReceiptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  movement: CashMovement;
+  movement: CashMovementFE;
 }
 
 export default function SendReceiptDialog({

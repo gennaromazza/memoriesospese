@@ -36,7 +36,7 @@ import { Plus, Edit, Trash, TrendingUp, TrendingDown, Calendar, FileText, Shoppi
 import { useToast } from "@/hooks/use-toast";
 import { getAllCashMovements, createCashMovement, updateCashMovement, deleteCashMovement } from "@/lib/cash";
 import { CASH_CATEGORIES } from "@shared/cash-types";
-import type { CashMovement, InsertCashMovement } from "@shared/cash-types";
+import type { CashMovementFE, InsertCashMovement } from "@shared/cash-types";
 import SendReceiptDialog from "./SendReceiptDialog";
 import QuickOrderModal from "./QuickOrderModal";
 
@@ -45,9 +45,9 @@ export default function CashRegister() {
   const queryClient = useQueryClient();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingMovement, setEditingMovement] = useState<CashMovement | null>(null);
+  const [editingMovement, setEditingMovement] = useState<CashMovementFE | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
-  const [selectedMovement, setSelectedMovement] = useState<CashMovement | null>(null);
+  const [selectedMovement, setSelectedMovement] = useState<CashMovementFE | null>(null);
   const [quickOrderModalOpen, setQuickOrderModalOpen] = useState(false);
   const [filterTypeState, setFilterTypeState] = useState<"all" | "entrata" | "uscita">("all");
   const [filterCategoryState, setFilterCategoryState] = useState<string>("all");
@@ -134,7 +134,7 @@ export default function CashRegister() {
   });
 
   // Handler form
-  const handleOpenDialog = (movement?: CashMovement) => {
+  const handleOpenDialog = (movement?: CashMovementFE) => {
     if (movement) {
       setEditingMovement(movement);
       setFormData({
@@ -142,7 +142,7 @@ export default function CashRegister() {
         categoria: movement.categoria,
         importo: movement.importo,
         descrizione: movement.descrizione,
-        data: movement.data instanceof Timestamp ? movement.data.toDate() : new Date(movement.data),
+        data: movement.data instanceof Date ? movement.data : new Date(movement.data),
         metodoPagamento: movement.metodoPagamento,
         note: movement.note || "",
       });
@@ -182,7 +182,10 @@ export default function CashRegister() {
     if (editingMovement) {
       updateMutation.mutate({ id: editingMovement.id, data: formData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate({
+        ...formData,
+        origine: 'manuale' as const,
+      });
     }
   };
 

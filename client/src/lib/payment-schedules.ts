@@ -201,6 +201,8 @@ export async function registerPayment(
         metodoPagamento: data.metodoPagamento,
         note: data.note,
         jobId: schedule.jobId, // Link a job
+        origine: 'job' as const, // Track cash origin
+        origineRef: schedule.jobId,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       };

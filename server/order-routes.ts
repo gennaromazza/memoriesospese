@@ -580,6 +580,8 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
         data: now, // Usa Date per allinearsi con schema client
         metodoPagamento,
         note: `Ordine ID: ${orderId}`,
+        origine: 'walk-in', // Track cash origin
+        origineRef: orderId,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       };
@@ -797,15 +799,23 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       .substring(0, 50) || 'Prodotti';
     const nomeCliente = orderData.nomeCliente || 'Cliente';
 
+    // Determina origine in base al tipo di ordine
+    const hasBooking = !!orderData.bookingId;
+    const cashOrigine = hasBooking ? 'booking' : 'walk-in';
+    
     const cashMovementRef = db.collection('cashMovements').doc();
     batch.set(cashMovementRef, {
       tipo: 'entrata',
-      categoria: 'Vendita diretta',
+      categoria: hasBooking ? 'Servizio fotografico' : 'Vendita diretta',
       importo: paymentAmount,
-      descrizione: `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione}`,
+      descrizione: hasBooking 
+        ? `Ordine da Prenotazione: ${nomeCliente} - ${prodottiDescrizione}`
+        : `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione}`,
       data: paymentDate,
       metodoPagamento,
       note: `Ordine ID: ${orderId} - ${tipo === 'acconto' ? 'Acconto' : 'Saldo'}`,
+      origine: cashOrigine, // Track cash origin (booking or walk-in)
+      origineRef: hasBooking ? orderData.bookingId : orderId,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
