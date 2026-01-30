@@ -2,7 +2,7 @@
 // Unified logic for generating available time slots across all modules
 
 import { DateTime } from 'luxon';
-import { AvailabilityConfig, TimeSlot, CalendarEvent } from '@/shared/calendar-types';
+import { AvailabilityConfig, TimeSlot, CalendarEvent } from '../../shared/calendar-types';
 import { 
   toRome, 
   toUTC, 

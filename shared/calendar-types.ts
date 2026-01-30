@@ -58,18 +58,21 @@ export interface TimeSlot {
  * All Date objects MUST be JavaScript Date instances (not strings or Luxon DateTime)
  */
 export interface CalendarEvent {
+  /** Event ID (optional) */
+  id?: string;
+
   /** Event start time as JavaScript Date */
   start: Date;
-  
+
   /** Event end time as JavaScript Date */
   end: Date;
-  
+
   /** Whether this is an all-day event */
   allDay: boolean;
-  
+
   /** Event title/summary (optional, for debugging) */
   title?: string;
-  
+
   /** Source of the event (consultation, booking, job, google-calendar) */
   source?: string;
 }

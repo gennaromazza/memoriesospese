@@ -53,9 +53,10 @@ export function validateCampaign(campaign: any): campaign is BookingCampaign {
  * Segue lo stesso formato dell'adapter consultations
  * 
  * Gestisce sia campagne con pausa che senza pausa (single range)
+ * @param isManualBooking - Se true, genera workingHours anche per i giorni esclusi
  */
-export function campaignToAvailabilityConfig(campaign: BookingCampaign): AvailabilityConfig {
-  // Costruisci workingHoursByWeekday per tutti i giorni NON esclusi
+export function campaignToAvailabilityConfig(campaign: BookingCampaign, isManualBooking: boolean = false): AvailabilityConfig {
+  // Costruisci workingHoursByWeekday per tutti i giorni
   const workingHoursByWeekday: AvailabilityConfig['workingHoursByWeekday'] = {};
   const excludedDays = campaign.excludedDays || [];
   
@@ -80,8 +81,10 @@ export function campaignToAvailabilityConfig(campaign: BookingCampaign): Availab
   
   // Per ogni giorno della settimana (0-6)
   for (let day = 0; day <= 6; day++) {
-    if (!excludedDays.includes(day)) {
-      // Giorno attivo: crea 1 o 2 range a seconda della pausa
+    // Se è una prenotazione manuale, generiamo gli orari per TUTTI i giorni
+    // Se non lo è, rispettiamo excludedDays
+    if (isManualBooking || !excludedDays.includes(day)) {
+      // Giorno attivo (o forzato da manual booking): crea 1 o 2 range a seconda della pausa
       if (hasValidBreak()) {
         // Con pausa: 2 range (mattina e pomeriggio)
         workingHoursByWeekday[day] = [
@@ -104,7 +107,7 @@ export function campaignToAvailabilityConfig(campaign: BookingCampaign): Availab
         ];
       }
     } else {
-      // Giorno escluso: array vuoto
+      // Giorno escluso (e non manual booking): array vuoto
       workingHoursByWeekday[day] = [];
     }
   }
@@ -113,7 +116,7 @@ export function campaignToAvailabilityConfig(campaign: BookingCampaign): Availab
     timezone: 'Europe/Rome',
     slotDurationMinutes: campaign.durataShootingMinuti,
     workingHoursByWeekday,
-    excludedWeekdays: excludedDays,
+    excludedWeekdays: isManualBooking ? [] : excludedDays,
     excludedDates: [], // Bookings don't have specific excluded dates
     bufferBeforeMinutes: 0, // No buffer for bookings
     bufferAfterMinutes: 0
