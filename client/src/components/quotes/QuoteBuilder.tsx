@@ -420,10 +420,9 @@ export default function QuoteBuilder({
   }, [open, form]);
 
   useEffect(() => {
+    // Reset clausole quando cambia jobType per evitare salvataggio clausole sbagliate
     setSelectedClauseTemplateId('');
     form.setValue('clauseTemplateId', '');
-    // Reset clausole esistenti quando cambia jobType per evitare salvataggio clausole sbagliate
-    form.setValue('products', form.getValues('products').map(p => ({ ...p })));
   }, [jobTypeSlug, form]);
 
   // Auto-select template predefinito per le clausole (dopo form init)
@@ -1167,8 +1166,15 @@ export default function QuoteBuilder({
               <FormItem>
                 <FormLabel>Template Clausole Contrattuali</FormLabel>
                 <Select 
-                  value={selectedClauseTemplateId || ''} 
-                  onValueChange={(val) => val && handleClauseTemplateChange(val)}
+                  value={selectedClauseTemplateId || '_default'} 
+                  onValueChange={(val) => {
+                    if (val === '_default') {
+                      setSelectedClauseTemplateId('');
+                      form.setValue('clauseTemplateId', '');
+                    } else {
+                      handleClauseTemplateChange(val);
+                    }
+                  }}
                   data-testid="select-clause-template"
                 >
                   <FormControl>
@@ -1177,14 +1183,13 @@ export default function QuoteBuilder({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                    {!isLoadingClauses && clauseTemplates.length === 0 && (
-                      <SelectItem value="default">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">DEFAULT</Badge>
-                          <span>Clausole hardcoded</span>
-                        </div>
-                      </SelectItem>
-                    )}
+                    {/* Opzione default sempre disponibile */}
+                    <SelectItem value="_default">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">DEFAULT</Badge>
+                        <span>Clausole predefinite</span>
+                      </div>
+                    </SelectItem>
                     {clauseTemplates.map(template => (
                       <SelectItem key={template.id} value={template.id}>
                         <div className="flex items-center gap-2">
