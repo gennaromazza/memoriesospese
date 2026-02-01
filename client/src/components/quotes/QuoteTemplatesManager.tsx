@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -172,7 +172,6 @@ function SortableTemplateCard({
   onToggle: () => void;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isToggling, setIsToggling] = useState(false);
 
   const {
     attributes,
@@ -194,13 +193,6 @@ function SortableTemplateCard({
     (sum, p) => sum + p.prezzo,
     0,
   );
-
-  const handleToggle = useCallback(() => {
-    if (isToggling) return;
-    setIsToggling(true);
-    onToggle();
-    setTimeout(() => setIsToggling(false), 1000);
-  }, [onToggle, isToggling]);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -230,8 +222,7 @@ function SortableTemplateCard({
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={template.attivo}
-                    onCheckedChange={handleToggle}
-                    disabled={isToggling}
+                    onCheckedChange={onToggle}
                     data-testid={`switch-template-${template.id}`}
                   />
                   <DropdownMenu>
@@ -1198,7 +1189,11 @@ export default function QuoteTemplatesManager() {
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={!!deleteTemplateId}
-        onOpenChange={() => setDeleteTemplateId(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTemplateId(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

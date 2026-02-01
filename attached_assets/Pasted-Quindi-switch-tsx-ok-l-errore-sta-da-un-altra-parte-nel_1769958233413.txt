@@ -1,0 +1,179 @@
+Quindi:
+
+✅ switch.tsx è ok
+
+❌ l’errore sta da un’altra parte nella catena
+
+Ti riassumo dove guardare e ti lascio 2 patch concrete da fare subito nel file dei template.
+
+1. Conferma: il tuo Switch è “pulito”
+
+Questo:
+
+import * as React from "react"
+import * as SwitchPrimitives from "@radix-ui/react-switch"
+
+import { cn } from "@/lib/utils"
+
+const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    ref={ref}
+    className={cn(
+      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-sage data-[state=unchecked]:bg-input",
+      className
+    )}
+    {...props}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+      )}
+    />
+  </SwitchPrimitives.Root>
+))
+Switch.displayName = SwitchPrimitives.Root.displayName
+
+export { Switch }
+
+
+è esattamente il pattern ufficiale di shadcn:
+
+nessun useState
+
+nessun useEffect
+
+nessuna chiamata “di rimbalzo” a onCheckedChange
+
+Quindi la famosa ricorsione non parte più da qui.
+
+2. Patch raccomandate nel QuoteTemplatesManager
+2.1. AlertDialog – evita comportamenti strani
+
+In fondo hai:
+
+<AlertDialog
+  open={!!deleteTemplateId}
+  onOpenChange={() => setDeleteTemplateId(null)}
+>
+
+
+Cambialo così:
+
+<AlertDialog
+  open={!!deleteTemplateId}
+  onOpenChange={(open) => {
+    if (!open) {
+      setDeleteTemplateId(null);
+    }
+  }}
+>
+
+
+Così non richiami setDeleteTemplateId(null) anche quando Radix prova ad aprire il dialog.
+Non è quasi mai causa di “maximum depth”, ma è un pattern da evitare.
+
+2.2. Switch nella card – usa direttamente il valore checked
+
+Adesso:
+
+const handleToggle = useCallback(() => {
+  if (isToggling) return;
+  setIsToggling(true);
+  onToggle();
+  setTimeout(() => setIsToggling(false), 1000);
+}, [onToggle, isToggling]);
+
+<Switch
+  checked={template.attivo}
+  onCheckedChange={handleToggle}
+  disabled={isToggling}
+  data-testid={`switch-template-${template.id}`}
+/>
+
+
+Qui sfrutti lo switch solo come “click”, ignorando il valore checked.
+Io lo semplificherei così:
+
+const handleToggle = useCallback(
+  (checked: boolean) => {
+    if (isToggling) return;
+    setIsToggling(true);
+    onToggle(); // qui dentro fai già il !template.attivo
+    setTimeout(() => setIsToggling(false), 300);
+  },
+  [onToggle, isToggling]
+);
+
+// ...
+
+<Switch
+  checked={template.attivo}
+  onCheckedChange={handleToggle}
+  disabled={isToggling}
+  data-testid={`switch-template-${template.id}`}
+/>
+
+
+Oppure ancora più diretto, eliminando isToggling e lasciando solo la mutation:
+
+<Switch
+  checked={template.attivo}
+  onCheckedChange={(checked) =>
+    toggleMutation.mutate({
+      id: template.id,
+      attivo: checked,
+    })
+  }
+  data-testid={`switch-template-${template.id}`}
+/>
+
+
+e togli completamente isToggling e handleToggle dal componente.
+
+Questo ti assicura che:
+
+ogni click → una sola mutate
+
+nessun setState strano agganciato a callback che può essere richiamata più volte da Radix.
+
+3. Se vedi ancora “Maximum update depth exceeded”
+
+A quel punto:
+
+Switch è pulito ✅
+
+AlertDialog non fa cose strane ✅
+
+Lo switch della card è banalizzato ✅
+
+Se l’errore persiste, quasi sicuramente la ricorsione arriva da un altro componente:
+
+AdminDashboard (gestione dei Tabs)
+
+CatalogProductSelector (se chiama onSelectionChange a ogni render)
+
+o qualche useEffect a monte che fa setState in risposta a qualcosa che cambia ad ogni render.
+
+Quello che ti consiglio di fare come “debug veloce”:
+
+commenta temporaneamente il blocco dei template:
+
+{/*
+<DndContext ...>
+  ...
+</DndContext>
+*/}
+
+
+Se così l’errore sparisce, allora è davvero dentro questa pagina; se resta, è più in alto (Tabs, AdminDashboard, ecc.).
+
+In sintesi:
+
+Il tuo Switch ora è corretto ✔
+
+Applica le due patch sopra (AlertDialog + semplificazione toggle dello switch nella card)
+
+Se dopo queste modifiche l’errore appare ancora, è quasi certamente fuori da questo file e va individuato guardando lo stack aggiornato e l’altro componente coinvolto (Tabs / AdminDashboard / CatalogProductSelector).
