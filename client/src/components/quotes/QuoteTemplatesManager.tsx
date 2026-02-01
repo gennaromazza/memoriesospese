@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
@@ -487,11 +487,11 @@ export default function QuoteTemplatesManager() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTemplate?.id, editModalOpen]); // Depend on editingTemplate?.id to reset when a new template is selected
 
-  // Watch values for totals
-  const catalogProductIds = form.watch('catalogProductIds') || [];
-  const customProducts = form.watch('customProducts') || [];
-  const discountType = form.watch('discountType');
-  const discountValue = form.watch('discountValue') || 0;
+  // Watch values for totals using useWatch for better performance
+  const catalogProductIds = useWatch({ control: form.control, name: 'catalogProductIds' }) || [];
+  const customProducts = useWatch({ control: form.control, name: 'customProducts' }) || [];
+  const discountType = useWatch({ control: form.control, name: 'discountType' });
+  const discountValue = useWatch({ control: form.control, name: 'discountValue' }) || 0;
 
   // Calculate totals
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
