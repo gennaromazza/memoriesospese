@@ -1182,6 +1182,32 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         updateData.specialTheme = null;
       }
 
+      // Aggiorna productRequirements se ci sono prodotti associati modificati
+      if (associatedProducts.length > 0) {
+        // Recupera i productRequirements originali dalla galleria per mantenere i prodottoId
+        const originalProductReqs = (gallery as any).productRequirements || [];
+        
+        updateData.productRequirements = associatedProducts.map((product, idx) => {
+          // Cerca il prodottoId originale se esiste
+          const originalReq = originalProductReqs[idx];
+          return {
+            prodottoId: originalReq?.prodottoId || null,
+            prodottoNome: product.nome,
+            prodottoNumeroFoto: product.numeroFoto
+          };
+        });
+        
+        // Aggiorna anche requiredPhotoCount con la nuova somma
+        if (selectionEnabled && !unlimitedSelection && requiredPhotoCount === 0) {
+          const newSum = associatedProducts.reduce((sum, p) => sum + (p.numeroFoto || 0), 0);
+          if (newSum > 0) {
+            updateData.requiredPhotoCount = newSum;
+          }
+        }
+        
+        console.log('📦 ProductRequirements aggiornati:', updateData.productRequirements);
+      }
+
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
       await updateDoc(galleryRef, updateData);
 
@@ -1763,12 +1789,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-gray-600">
-                                    {product.numeroFoto > 0 
-                                      ? <>🎯 <strong>{product.numeroFoto} foto</strong> richieste per questo prodotto</>
-                                      : <>∞ <strong>Selezione libera</strong> per questo prodotto</>
-                                    }
-                                  </p>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs text-gray-600">🎯 Foto richieste:</span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={product.numeroFoto || 0}
+                                      onChange={(e) => {
+                                        const newValue = parseInt(e.target.value) || 0;
+                                        setAssociatedProducts(prev => prev.map((p, i) => 
+                                          i === idx ? { ...p, numeroFoto: newValue } : p
+                                        ));
+                                      }}
+                                      className="w-20 h-7 text-sm text-center"
+                                    />
+                                    <span className="text-xs text-gray-500">
+                                      {product.numeroFoto === 0 ? '(selezione libera)' : ''}
+                                    </span>
+                                  </div>
                                   {product.isCustom && (
                                     <p className="text-xs text-gray-500 mt-1 italic">
                                       ℹ️ Prodotto personalizzato creato per questo ordine
@@ -1778,6 +1816,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                               </div>
                             </div>
                           ))}
+                          <p className="text-xs text-amber-600 mt-2">
+                            💡 Puoi modificare il numero di foto richieste per ogni prodotto
+                          </p>
                         </div>
                       ) : (
                         !isLoadingProduct && (
