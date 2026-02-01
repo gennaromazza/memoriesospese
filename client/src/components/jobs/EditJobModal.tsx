@@ -224,13 +224,6 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         }
       }
       
-      console.log('🔄 Reset form con dati job:', { 
-        nomeEvento: job.nomeEvento, 
-        rawEventDate: job.eventDate,
-        parsedEventDate: eventDateValue,
-        dataNonDefinita: job.dataNonDefinita 
-      });
-      
       form.reset({
         nomeEvento: job.nomeEvento || '',
         clientiIds: job.clientiIds || [],
@@ -253,19 +246,15 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         const month = String(eventDateValue.getMonth() + 1).padStart(2, '0');
         const year = eventDateValue.getFullYear();
         const formattedDate = `${day}/${month}/${year}`;
-        console.log('📅 Impostando dateInputValue:', formattedDate);
         setDateInputValue(formattedDate);
       } else {
-        console.log('📅 Nessuna data valida, svuotando dateInputValue');
         setDateInputValue('');
       }
       
-      // Reset flag dopo un breve delay per permettere al form di stabilizzarsi
-      setTimeout(() => {
-        isInitializing.current = false;
-      }, 100);
+      // Reset flag IMMEDIATELY without setTimeout to avoid race conditions with watch()
+      isInitializing.current = false;
     }
-  }, [open, job.id, job.eventDate]);
+  }, [open, job.id]);
 
   // Fetch clienti iniziali e inizializza appuntamenti
   useEffect(() => {
@@ -312,7 +301,6 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   useEffect(() => {
     // Skip durante l'inizializzazione per evitare di sovrascrivere il valore impostato dal reset
     if (isInitializing.current) {
-      console.log('📅 Skip sync dateInputValue durante inizializzazione');
       return;
     }
     
