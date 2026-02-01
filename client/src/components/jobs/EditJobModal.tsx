@@ -122,6 +122,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const { toast } = useToast();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateInputValue, setDateInputValue] = useState('');
+  const isInitializing = React.useRef(false);
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [loadingClienti, setLoadingClienti] = useState(true);
   const [appuntamentiClienti, setAppuntamentiClienti] = useState<Record<string, { orario: string; note: string }>>({});
@@ -202,6 +203,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   // Reset form quando il modal si apre o il job cambia
   useEffect(() => {
     if (open && job) {
+      isInitializing.current = true;
+      
       // Converti eventDate direttamente qui (non usare getEventDate() per evitare closure stale)
       let eventDateValue: Date | undefined = undefined;
       if (job.eventDate) {
@@ -244,7 +247,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         noteInterne: job.noteInterne || ''
       });
       
-      // Aggiorna anche dateInputValue manualmente
+      // Aggiorna dateInputValue immediatamente
       if (eventDateValue && !isNaN(eventDateValue.getTime())) {
         const day = String(eventDateValue.getDate()).padStart(2, '0');
         const month = String(eventDateValue.getMonth() + 1).padStart(2, '0');
@@ -256,6 +259,11 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         console.log('📅 Nessuna data valida, svuotando dateInputValue');
         setDateInputValue('');
       }
+      
+      // Reset flag dopo un breve delay per permettere al form di stabilizzarsi
+      setTimeout(() => {
+        isInitializing.current = false;
+      }, 100);
     }
   }, [open, job.id, job.eventDate]);
 
@@ -300,8 +308,14 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     }
   }, [open, job.clientiIds, job.appuntamentiClienti]);
 
-  // Sync dateInputValue when eventDate changes
+  // Sync dateInputValue when eventDate changes (skip during initialization)
   useEffect(() => {
+    // Skip durante l'inizializzazione per evitare di sovrascrivere il valore impostato dal reset
+    if (isInitializing.current) {
+      console.log('📅 Skip sync dateInputValue durante inizializzazione');
+      return;
+    }
+    
     if (eventDate) {
       const day = String(eventDate.getDate()).padStart(2, '0');
       const month = String(eventDate.getMonth() + 1).padStart(2, '0');
