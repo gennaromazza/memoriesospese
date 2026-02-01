@@ -875,8 +875,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
               Annulla
             </Button>
             <Button
-              type="submit"
-              form="edit-job-form"
+              type="button"
+              onClick={form.handleSubmit(handleSubmit)}
               disabled={updateMutation.isPending || checkingConflicts}
               data-testid="button-save"
               className="flex-1 sm:flex-initial"
