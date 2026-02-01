@@ -1172,10 +1172,14 @@ export default function QuoteTemplatesManager() {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      {/* DEBUG: Switch temporaneamente disabilitato per test */}
+                      <button 
+                        type="button"
+                        onClick={() => field.onChange(!field.value)}
+                        className={`w-11 h-6 rounded-full transition-colors ${field.value ? 'bg-sage' : 'bg-gray-300'}`}
+                      >
+                        <span className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${field.value ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
                     </FormControl>
                   </FormItem>
                 )}
