@@ -5427,6 +5427,206 @@ router.post("/order-confirmation-walkin", authenticateFirebase, async (req: any,
 });
 
 /**
+ * POST /api/email/send-payment-receipt
+ * Invia ricevuta di pagamento al cliente
+ * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
+ */
+router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res) => {
+  try {
+    const {
+      recipientEmail,
+      clientName,
+      eventName,
+      paymentType, // acconto, rata, saldo
+      paymentAmount,
+      paymentDate,
+      totalPaid,
+      remainingBalance,
+      jobId
+    } = req.body;
+
+    console.log(`💰 Richiesta invio ricevuta pagamento da utente: ${req.user?.email}`);
+
+    // Validazione campi obbligatori
+    if (!recipientEmail || !clientName || !paymentType || !paymentAmount || !paymentDate) {
+      return res.status(400).json({
+        error: {
+          code: "invalid-argument",
+          message: "Campi obbligatori mancanti: recipientEmail, clientName, paymentType, paymentAmount, paymentDate"
+        }
+      });
+    }
+
+    // Recupera dati contatto studio
+    const studioInfo = await getStudioContactInfo();
+
+    // Formatta tipo pagamento
+    const paymentTypeLabels: Record<string, string> = {
+      acconto: 'Acconto',
+      rata: 'Rata',
+      saldo: 'Saldo'
+    };
+    const paymentTypeLabel = paymentTypeLabels[paymentType] || paymentType;
+
+    // Template email ricevuta
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ricevuta Pagamento</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Helvetica Neue',Arial,sans-serif;background-color:#faf8f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#8b5a3c 0%,#a67c5b 100%);padding:40px 40px 30px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-family:'Georgia',serif;font-size:28px;font-weight:normal;">
+                Ricevuta Pagamento
+              </h1>
+              <p style="margin:10px 0 0;color:rgba(255,255,255,0.9);font-size:16px;">
+                ${eventName || 'Il tuo servizio fotografico'}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding:40px;">
+              <p style="margin:0 0 20px;font-size:18px;color:#333;">
+                Gentile <strong>${clientName}</strong>,
+              </p>
+              <p style="margin:0 0 30px;font-size:16px;color:#555;line-height:1.6;">
+                Ti confermiamo di aver ricevuto correttamente il tuo pagamento. Di seguito trovi i dettagli della transazione.
+              </p>
+
+              <!-- Payment Details Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f6f3;border-radius:8px;margin-bottom:30px;">
+                <tr>
+                  <td style="padding:25px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;">
+                          <span style="color:#666;font-size:14px;">Tipo Pagamento:</span>
+                        </td>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;text-align:right;">
+                          <strong style="color:#333;font-size:14px;">${paymentTypeLabel}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;">
+                          <span style="color:#666;font-size:14px;">Data Pagamento:</span>
+                        </td>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;text-align:right;">
+                          <strong style="color:#333;font-size:14px;">${paymentDate}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:12px 0;border-bottom:1px solid #e8e4df;">
+                          <span style="color:#666;font-size:16px;font-weight:600;">Importo Pagato:</span>
+                        </td>
+                        <td style="padding:12px 0;border-bottom:1px solid #e8e4df;text-align:right;">
+                          <strong style="color:#2e7d32;font-size:20px;">€${Number(paymentAmount).toFixed(2)}</strong>
+                        </td>
+                      </tr>
+                      ${totalPaid !== undefined ? `
+                      <tr>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;">
+                          <span style="color:#666;font-size:14px;">Totale Pagato:</span>
+                        </td>
+                        <td style="padding:8px 0;border-bottom:1px solid #e8e4df;text-align:right;">
+                          <strong style="color:#333;font-size:14px;">€${Number(totalPaid).toFixed(2)}</strong>
+                        </td>
+                      </tr>
+                      ` : ''}
+                      ${remainingBalance !== undefined && remainingBalance > 0 ? `
+                      <tr>
+                        <td style="padding:8px 0;">
+                          <span style="color:#666;font-size:14px;">Saldo Residuo:</span>
+                        </td>
+                        <td style="padding:8px 0;text-align:right;">
+                          <strong style="color:#e65100;font-size:14px;">€${Number(remainingBalance).toFixed(2)}</strong>
+                        </td>
+                      </tr>
+                      ` : `
+                      <tr>
+                        <td colspan="2" style="padding:15px 0 0;text-align:center;">
+                          <span style="color:#2e7d32;font-size:16px;font-weight:600;">✓ Pagamento completato</span>
+                        </td>
+                      </tr>
+                      `}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 15px;font-size:15px;color:#555;line-height:1.6;">
+                Grazie per la fiducia! Per qualsiasi domanda o chiarimento, non esitare a contattarci.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f8f6f3;padding:30px 40px;text-align:center;border-top:1px solid #e8e4df;">
+              <p style="margin:0 0 10px;font-size:14px;color:#8b5a3c;font-weight:600;">
+                ${studioInfo.studioName || 'Studio Fotografico'}
+              </p>
+              ${studioInfo.phone ? `<p style="margin:0 0 5px;font-size:13px;color:#666;">Tel: ${studioInfo.phone}</p>` : ''}
+              ${studioInfo.email ? `<p style="margin:0;font-size:13px;color:#666;">Email: ${studioInfo.email}</p>` : ''}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const subject = `Ricevuta ${paymentTypeLabel} - ${eventName || 'Il tuo servizio fotografico'}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(`✅ Ricevuta pagamento inviata a ${recipientEmail} per ${eventName || 'servizio'}`);
+
+    // Log audit
+    try {
+      await adminDb.collection('emailLogs').add({
+        type: 'payment_receipt',
+        recipientEmail,
+        clientName,
+        eventName,
+        paymentType,
+        paymentAmount,
+        jobId,
+        sentAt: FieldValue.serverTimestamp(),
+        sentBy: req.user?.email,
+        success: true,
+      });
+    } catch (logError) {
+      console.warn('⚠️ Errore logging email ricevuta:', logError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Ricevuta pagamento inviata con successo",
+      recipientEmail
+    });
+
+  } catch (error: any) {
+    console.error("❌ Errore send-payment-receipt:", error);
+    res.status(500).json({
+      error: error.message || "Errore invio ricevuta pagamento"
+    });
+  }
+});
+
+/**
  * POST /api/email/notify-youtube-video
  * Invia notifica email al cliente quando vengono aggiunti video YouTube alla galleria
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)

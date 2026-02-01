@@ -35,13 +35,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus, MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { Loader2, CreditCard, CheckCircle2, AlertCircle, Clock, XCircle, Plus, MoreVertical, Edit, Trash2, Mail, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { PaymentSchedule, PaymentStatus, PaymentType } from '@shared/payment-schedule-types';
 import RegistraPagamentoModal from './RegistraPagamentoModal';
 import GestioneRataModal from './GestioneRataModal';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 
 interface LegacyFinancials {
   totalePreventivato?: number;
@@ -57,6 +58,9 @@ interface PaymentScheduleSectionProps {
   onGeneratePayments?: () => void; // Callback per aprire modal generazione pagamenti
   legacyFinancials?: LegacyFinancials; // Fallback per lavori importati senza payment schedules
   jobSource?: string; // Per distinguere lavori importati da nuovi
+  clientEmail?: string; // Email cliente per invio ricevute
+  clientName?: string; // Nome cliente per ricevute
+  eventName?: string; // Nome evento per ricevute
 }
 
 const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -86,7 +90,7 @@ const PAYMENT_STATUS_ICONS: Record<PaymentStatus, typeof CheckCircle2> = {
   scaduto: XCircle,
 };
 
-export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments, legacyFinancials, jobSource }: PaymentScheduleSectionProps) {
+export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = false, onGeneratePayments, legacyFinancials, jobSource, clientEmail, clientName, eventName }: PaymentScheduleSectionProps) {
   const [selectedPayment, setSelectedPayment] = useState<{ id: string; tipo: string; importo: number; scheduleId: string } | null>(null);
   const [gestioneRataState, setGestioneRataState] = useState<{
     open: boolean;
@@ -100,6 +104,7 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
     tipo: string;
     importo: number;
   } | null>(null);
+  const [sendingReceiptId, setSendingReceiptId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: rawSchedules = [], isLoading } = useQuery<PaymentSchedule[]>({
@@ -169,6 +174,63 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
         description: error.message,
         variant: 'destructive',
       });
+    },
+  });
+
+  // Send payment receipt mutation
+  const sendReceiptMutation = useMutation({
+    mutationFn: async (params: {
+      payment: any;
+      schedule: any;
+      clientEmail: string;
+      clientName: string;
+      eventName: string;
+    }) => {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Non autenticato');
+
+      const response = await fetch('/api/email/send-payment-receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          recipientEmail: params.clientEmail,
+          clientName: params.clientName,
+          eventName: params.eventName,
+          paymentType: params.payment.tipo,
+          paymentAmount: params.payment.importoPagato || params.payment.importo,
+          paymentDate: params.payment.dataPagamento 
+            ? format(params.payment.dataPagamento, 'dd/MM/yyyy', { locale: it })
+            : format(new Date(), 'dd/MM/yyyy', { locale: it }),
+          totalPaid: params.schedule.totalePagato,
+          remainingBalance: params.schedule.saldoResiduo,
+          jobId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || error.error || 'Errore invio ricevuta');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Ricevuta inviata',
+        description: 'La ricevuta di pagamento è stata inviata al cliente',
+      });
+      setSendingReceiptId(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Errore',
+        description: error.message,
+        variant: 'destructive',
+      });
+      setSendingReceiptId(null);
     },
   });
 
@@ -453,10 +515,40 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
                                   </DropdownMenu>
                                 </>
                               )}
-                              {payment.stato === 'pagato' && payment.dataPagamento && (
-                                <p className="text-xs text-muted-foreground">
-                                  {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
-                                </p>
+                              {payment.stato === 'pagato' && (
+                                <div className="flex items-center gap-2">
+                                  {payment.dataPagamento && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
+                                    </p>
+                                  )}
+                                  {clientEmail && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 px-2"
+                                      disabled={sendingReceiptId === payment.id || sendReceiptMutation.isPending}
+                                      onClick={() => {
+                                        setSendingReceiptId(payment.id);
+                                        sendReceiptMutation.mutate({
+                                          payment,
+                                          schedule,
+                                          clientEmail,
+                                          clientName: clientName || 'Cliente',
+                                          eventName: eventName || '',
+                                        });
+                                      }}
+                                      title="Invia ricevuta via email"
+                                      data-testid={`button-send-receipt-${payment.id}`}
+                                    >
+                                      {sendingReceiptId === payment.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <Mail className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </TableCell>

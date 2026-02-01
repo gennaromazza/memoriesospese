@@ -877,6 +877,9 @@ export default function JobDetailPage() {
                     isAdmin={true}
                     legacyFinancials={job.financials}
                     jobSource={job.jobSource}
+                    clientEmail={clienti[0]?.email}
+                    clientName={clienti[0] ? `${clienti[0].nome} ${clienti[0].cognome}` : undefined}
+                    eventName={job.nomeEvento}
                     onGeneratePayments={!quotesLoading ? () => {
                       const signedQuote = quotes?.find(q => q.status === 'firmato');
                       if (signedQuote) {
