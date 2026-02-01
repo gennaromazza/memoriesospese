@@ -202,10 +202,29 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   // Reset form quando il modal si apre o il job cambia
   useEffect(() => {
     if (open && job) {
-      const eventDateValue = getEventDate();
+      // Converti eventDate direttamente qui (non usare getEventDate() per evitare closure stale)
+      let eventDateValue: Date | undefined = undefined;
+      if (job.eventDate) {
+        const ed = job.eventDate as any;
+        if (typeof ed.toDate === 'function') {
+          eventDateValue = ed.toDate();
+        } else if (ed instanceof Date && !isNaN(ed.getTime())) {
+          eventDateValue = ed;
+        } else if (typeof ed === 'object' && ed !== null && typeof ed.seconds === 'number') {
+          eventDateValue = new Date(ed.seconds * 1000);
+        } else if (typeof ed === 'string') {
+          const parsed = new Date(ed);
+          if (!isNaN(parsed.getTime())) eventDateValue = parsed;
+        } else {
+          const fallback = new Date(ed);
+          if (!isNaN(fallback.getTime())) eventDateValue = fallback;
+        }
+      }
+      
       console.log('🔄 Reset form con dati job:', { 
         nomeEvento: job.nomeEvento, 
-        eventDate: eventDateValue,
+        rawEventDate: job.eventDate,
+        parsedEventDate: eventDateValue,
         dataNonDefinita: job.dataNonDefinita 
       });
       
@@ -230,12 +249,15 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         const day = String(eventDateValue.getDate()).padStart(2, '0');
         const month = String(eventDateValue.getMonth() + 1).padStart(2, '0');
         const year = eventDateValue.getFullYear();
-        setDateInputValue(`${day}/${month}/${year}`);
+        const formattedDate = `${day}/${month}/${year}`;
+        console.log('📅 Impostando dateInputValue:', formattedDate);
+        setDateInputValue(formattedDate);
       } else {
+        console.log('📅 Nessuna data valida, svuotando dateInputValue');
         setDateInputValue('');
       }
     }
-  }, [open, job.id]);
+  }, [open, job.id, job.eventDate]);
 
   // Fetch clienti iniziali e inizializza appuntamenti
   useEffect(() => {
