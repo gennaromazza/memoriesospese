@@ -224,6 +224,16 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         oraCerimonia: (job as any).oraCerimonia || (job as any).rituTime || '',
         noteInterne: job.noteInterne || ''
       });
+      
+      // Aggiorna anche dateInputValue manualmente
+      if (eventDateValue && !isNaN(eventDateValue.getTime())) {
+        const day = String(eventDateValue.getDate()).padStart(2, '0');
+        const month = String(eventDateValue.getMonth() + 1).padStart(2, '0');
+        const year = eventDateValue.getFullYear();
+        setDateInputValue(`${day}/${month}/${year}`);
+      } else {
+        setDateInputValue('');
+      }
     }
   }, [open, job.id]);
 
