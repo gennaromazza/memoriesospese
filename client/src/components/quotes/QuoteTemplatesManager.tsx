@@ -172,6 +172,7 @@ function SortableTemplateCard({
   onToggle: () => void;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   const {
     attributes,
@@ -193,6 +194,13 @@ function SortableTemplateCard({
     (sum, p) => sum + p.prezzo,
     0,
   );
+
+  const handleToggle = useCallback(() => {
+    if (isToggling) return;
+    setIsToggling(true);
+    onToggle();
+    setTimeout(() => setIsToggling(false), 1000);
+  }, [onToggle, isToggling]);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -222,7 +230,8 @@ function SortableTemplateCard({
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={template.attivo}
-                    onCheckedChange={onToggle}
+                    onCheckedChange={handleToggle}
+                    disabled={isToggling}
                     data-testid={`switch-template-${template.id}`}
                   />
                   <DropdownMenu>
