@@ -1318,27 +1318,35 @@ export default function GalleryManagementWorkspace() {
                       if (!confirm("Sei sicuro di voler resettare la selezione del cliente? L'utente dovrà rifarla da zero.")) return;
 
                       try {
-                        await updateGalleryMutation.mutateAsync({
-                          id: galleryId!,
-                          updates: {
-                            selectedPhotoIds: [],
-                            photoAssignments: {},
-                            selectionStatus: 'pending',
-                            selectionNotes: '',
-                          },
+                        // Reset diretto via Firestore per massima affidabilità
+                        const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+                        const { db } = await import('@/lib/firebase');
+                        
+                        const galleryRef = doc(db, 'galleries', galleryId!);
+                        await updateDoc(galleryRef, {
+                          selectedPhotoIds: [],
+                          photoAssignments: {},
+                          selectionStatus: 'pending',
+                          selectionNotes: '',
+                          photoNotes: {},
+                          updatedAt: serverTimestamp()
                         });
+                        
+                        console.log('✅ Reset selezione completato in Firestore');
 
+                        // Forza invalidazione cache e refetch
+                        queryClient.removeQueries({ queryKey: ['gallery', galleryId] });
+                        await queryClient.refetchQueries({ queryKey: ['gallery', galleryId] });
+                        
                         toast({
                           title: "🔄 Selezione resettata",
                           description: "Il cliente può ora rifare la selezione.",
                         });
-
-                        await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
                       } catch (err) {
                         console.error("Errore reset selezione:", err);
                         toast({
                           title: "Errore",
-                          description: "Impossibile resettare la selezione.",
+                          description: err instanceof Error ? err.message : "Impossibile resettare la selezione.",
                           variant: "destructive",
                         });
                       }
