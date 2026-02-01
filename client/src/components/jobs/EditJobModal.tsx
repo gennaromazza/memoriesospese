@@ -199,6 +199,34 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const startTime = form.watch('startTime');
   const endTime = form.watch('endTime');
 
+  // Reset form quando il modal si apre o il job cambia
+  useEffect(() => {
+    if (open && job) {
+      const eventDateValue = getEventDate();
+      console.log('🔄 Reset form con dati job:', { 
+        nomeEvento: job.nomeEvento, 
+        eventDate: eventDateValue,
+        dataNonDefinita: job.dataNonDefinita 
+      });
+      
+      form.reset({
+        nomeEvento: job.nomeEvento || '',
+        clientiIds: job.clientiIds || [],
+        jobType: job.jobType || '',
+        dataNonDefinita: job.dataNonDefinita || false,
+        eventDate: eventDateValue,
+        allDay: job.allDay || false,
+        startTime: job.startTime || '',
+        endTime: job.endTime || '',
+        provenance: job.provenance || '',
+        eventLocation: job.eventLocation || '',
+        locationCerimonia: (job as any).locationCerimonia || (job as any).rituLocation || '',
+        oraCerimonia: (job as any).oraCerimonia || (job as any).rituTime || '',
+        noteInterne: job.noteInterne || ''
+      });
+    }
+  }, [open, job.id]);
+
   // Fetch clienti iniziali e inizializza appuntamenti
   useEffect(() => {
     const fetchClienti = async () => {
