@@ -169,7 +169,7 @@ function SortableTemplateCard({
   jobTypes: any[];
   onEdit: () => void;
   onDelete: () => void;
-  onToggle: () => void;
+  onToggle: (checked: boolean) => void;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -770,10 +770,10 @@ export default function QuoteTemplatesManager() {
                     setEditModalOpen(true);
                   }}
                   onDelete={() => setDeleteTemplateId(template.id)}
-                  onToggle={() =>
+                  onToggle={(checked) =>
                     toggleMutation.mutate({
                       id: template.id,
-                      attivo: !template.attivo,
+                      attivo: checked,
                     })
                   }
                 />
