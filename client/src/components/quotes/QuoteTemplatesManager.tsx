@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -157,8 +157,8 @@ const templateSchema = z.object({
 
 type FormData = z.infer<typeof templateSchema>;
 
-// Sortable Template Card Component
-function SortableTemplateCard({
+// Sortable Template Card Component - memoized to prevent unnecessary re-renders
+const SortableTemplateCard = memo(function SortableTemplateCard({
   template,
   jobTypes,
   onEdit,
@@ -315,7 +315,7 @@ function SortableTemplateCard({
       </Card>
     </div>
   );
-}
+});
 
 export default function QuoteTemplatesManager() {
   const { user } = useFirebaseAuth();
