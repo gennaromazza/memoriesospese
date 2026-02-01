@@ -124,7 +124,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<string[]>([]);
   
   // Stati per prodotti associati (da booking/ordine) - MULTI-PRODUCT SUPPORT
-  const [associatedProducts, setAssociatedProducts] = useState<Array<{ nome: string; numeroFoto: number; isCustom: boolean }>>([]);
+  const [associatedProducts, setAssociatedProducts] = useState<Array<{ prodottoId?: string; nome: string; numeroFoto: number; isCustom: boolean }>>([]);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   
   // 🔢 Logica priorità numero foto: campo manuale > somma prodotti
@@ -445,12 +445,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         if ((gallery as any).productRequirements && (gallery as any).productRequirements.length > 0) {
           const productReqs = (gallery as any).productRequirements;
           const products = productReqs.map((prod: any) => ({
+            prodottoId: prod.prodottoId || undefined,
             nome: prod.prodottoNome || 'Prodotto Sconosciuto',
             numeroFoto: prod.prodottoNumeroFoto || 0,
             isCustom: !prod.prodottoId || prod.prodottoId === ''
           }));
           setAssociatedProducts(products);
-          console.log(`✅ ${products.length} prodotti caricati da gallery.productRequirements`);
+          console.log(`✅ ${products.length} prodotti caricati da gallery.productRequirements:`, products);
           return; // STOP qui se productRequirements esiste
         }
         
@@ -1184,28 +1185,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // Aggiorna productRequirements se ci sono prodotti associati modificati
       if (associatedProducts.length > 0) {
-        // Recupera i productRequirements originali dalla galleria per mantenere i prodottoId
-        const originalProductReqs = (gallery as any).productRequirements || [];
+        updateData.productRequirements = associatedProducts.map((product) => ({
+          prodottoId: product.prodottoId || null,
+          prodottoNome: product.nome,
+          prodottoNumeroFoto: product.numeroFoto
+        }));
         
-        updateData.productRequirements = associatedProducts.map((product, idx) => {
-          // Cerca il prodottoId originale se esiste
-          const originalReq = originalProductReqs[idx];
-          return {
-            prodottoId: originalReq?.prodottoId || null,
-            prodottoNome: product.nome,
-            prodottoNumeroFoto: product.numeroFoto
-          };
-        });
-        
-        // Aggiorna anche requiredPhotoCount con la nuova somma
-        if (selectionEnabled && !unlimitedSelection && requiredPhotoCount === 0) {
-          const newSum = associatedProducts.reduce((sum, p) => sum + (p.numeroFoto || 0), 0);
-          if (newSum > 0) {
-            updateData.requiredPhotoCount = newSum;
-          }
+        // Aggiorna anche requiredPhotoCount con la nuova somma dei prodotti
+        const newSum = associatedProducts.reduce((sum, p) => sum + (p.numeroFoto || 0), 0);
+        if (selectionEnabled && !unlimitedSelection) {
+          // Se la selezione è abilitata e non illimitata, aggiorna il count
+          updateData.requiredPhotoCount = newSum;
         }
         
-        console.log('📦 ProductRequirements aggiornati:', updateData.productRequirements);
+        console.log('📦 ProductRequirements aggiornati:', updateData.productRequirements, 'Totale foto:', newSum);
       }
 
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
@@ -1423,7 +1416,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
