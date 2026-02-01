@@ -144,13 +144,34 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   // Query provenances dinamiche
   const { items: provenances = [], isLoading: loadingProvenances } = useJobEntity('provenance');
   
-  // Converti eventDate da Timestamp a Date (gestisce Firestore Timestamp, Date, string)
+  // Converti eventDate da Timestamp a Date (gestisce Firestore Timestamp, Date, string, oggetto serializzato)
   const getEventDate = () => {
     if (!job.eventDate) return undefined;
     const ed = job.eventDate as any;
+    
+    // Firestore Timestamp con metodo toDate()
     if (typeof ed.toDate === 'function') return ed.toDate();
-    if (ed instanceof Date) return ed;
-    return new Date(ed);
+    
+    // Già un Date valido
+    if (ed instanceof Date && !isNaN(ed.getTime())) return ed;
+    
+    // Oggetto serializzato da Firestore con seconds/nanoseconds
+    if (typeof ed === 'object' && ed !== null && typeof ed.seconds === 'number') {
+      return new Date(ed.seconds * 1000);
+    }
+    
+    // String ISO o altro formato
+    if (typeof ed === 'string') {
+      const parsed = new Date(ed);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    
+    // Fallback: prova conversione diretta
+    const fallback = new Date(ed);
+    if (!isNaN(fallback.getTime())) return fallback;
+    
+    console.warn('⚠️ EditJobModal: impossibile convertire eventDate:', ed);
+    return undefined;
   };
 
   const form = useForm<FormData>({
