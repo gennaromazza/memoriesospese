@@ -1,0 +1,144 @@
+Ok, adesso che vedo il file aggiornato: il QuoteTemplatesManager va bene.
+Il loop infinito quasi sicuramente sta ancora nel componente Switch di shadcn (@/components/ui/switch.tsx), non qui.
+
+Il fatto che nell’errore compaia switch.tsx:21 è il segnale chiaro: è lì che React entra nel “Maximum update depth exceeded”.
+
+1. Com’è fatto il tuo Switch adesso?
+
+Se dentro src/components/ui/switch.tsx hai anche solo una cosa del genere:
+
+useState interno per gestire checked
+
+useEffect che chiama onCheckedChange quando cambia checked
+
+oppure useEffect che sincronizza internalChecked con la prop checked e poi richiama onCheckedChange
+
+allora hai creato questo loop:
+
+Clicchi lo switch → Radix/Switch cambia stato interno,
+
+useEffect interno chiama onCheckedChange,
+
+onCheckedChange aggiorna lo stato esterno (template.attivo o field.value),
+
+la prop checked cambia → useEffect la rimappa su stato interno,
+
+useEffect richiama di nuovo onCheckedChange,
+
+torna al punto 3… e React esplode.
+
+Quindi la priorità è: ripulire il componente Switch e renderlo completamente “stupido”.
+
+2. Sovrascrivi completamente src/components/ui/switch.tsx
+
+Apri src/components/ui/switch.tsx e sostituiscilo con questo, 1:1:
+
+// src/components/ui/switch.tsx
+import * as React from "react";
+import * as SwitchPrimitives from "@radix-ui/react-switch";
+import { cn } from "@/lib/utils";
+
+const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    ref={ref}
+    className={cn(
+      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-sage data-[state=unchecked]:bg-input",
+      className
+    )}
+    {...props}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+      )}
+    />
+  </SwitchPrimitives.Root>
+));
+
+Switch.displayName = SwitchPrimitives.Root.displayName;
+
+export { Switch };
+
+
+Importantissimo:
+
+Nessun useState
+
+Nessun useEffect
+
+Nessun onCheckedChange gestito “a mano” dentro il componente
+
+Solo Radix + classi Tailwind (puoi adattare i colori se vuoi, ma non toccare la logica)
+
+Con questa implementazione:
+
+nello switch della card:
+
+<Switch
+  checked={template.attivo}
+  onCheckedChange={handleToggle}
+  disabled={isToggling}
+/>
+
+
+e nello switch del form RHF:
+
+<Switch
+  checked={field.value}
+  onCheckedChange={field.onChange}
+/>
+
+
+non c’è più nessuna possibilità di loop interno: onCheckedChange viene chiamato solo quando l’utente interagisce.
+
+3. Due ritocchi minori (non obbligatori, ma consigliati)
+a) AlertDialog “controlled”
+
+Cambia questa parte:
+
+<AlertDialog
+  open={!!deleteTemplateId}
+  onOpenChange={() => setDeleteTemplateId(null)}
+>
+
+
+in:
+
+<AlertDialog
+  open={!!deleteTemplateId}
+  onOpenChange={(open) => {
+    if (!open) setDeleteTemplateId(null);
+  }}
+>
+
+
+Così non lo chiudi anche quando prova ad aprirsi.
+
+b) Il toggle nella card puoi semplificarlo
+
+Volendo, il handleToggle può anche essere:
+
+const handleToggle = useCallback(() => {
+  if (isToggling) return;
+  setIsToggling(true);
+  onToggle();
+  setTimeout(() => setIsToggling(false), 300);
+}, [onToggle, isToggling]);
+
+
+ma questo non è il problema del loop, è solo un debounce per evitare doppio click mentre la mutation lavora.
+
+4. Riassunto secco
+
+Il codice del QuoteTemplatesManager che hai incollato adesso non crea loop da solo.
+
+L’errore che vedi è quasi certamente ancora dovuto al file @/components/ui/switch.tsx.
+
+Sovrascrivilo con lo snippet “pulito” qui sopra (senza stato/effect interni).
+
+Aggiusta l’onOpenChange dell’AlertDialog come suggerito.
+
+Fatto questo, se ti compare ancora l’errore, incolla qui lo stack trace aggiornato (quello nuovo, con le nuove righe), così andiamo chirurgici sulla prossima cosa.
