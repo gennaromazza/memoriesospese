@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -401,6 +401,9 @@ export default function QuoteTemplatesManager() {
     shouldUnregister: false
   });
 
+  // Ref to track which template has been initialized
+  const initializedTemplateId = useRef<string | null>(null);
+
   // Reset form to defaults when opening create modal
   useEffect(() => {
     if (createModalOpen && !editModalOpen) {
@@ -431,7 +434,14 @@ export default function QuoteTemplatesManager() {
 
   // Load editing template data into form when editingTemplate changes
   useEffect(() => {
-    if (editingTemplate) {
+    if (editingTemplate && editModalOpen) {
+      // Skip if we've already initialized this template
+      if (initializedTemplateId.current === editingTemplate.id) {
+        return;
+      }
+      
+      initializedTemplateId.current = editingTemplate.id;
+      
       const customProducts = editingTemplate.defaultProducts
         .filter((p) => !p.productId)
         .map((p) => ({
@@ -468,6 +478,11 @@ export default function QuoteTemplatesManager() {
         theme: editingTemplate.theme,
         attivo: editingTemplate.attivo,
       });
+    }
+    
+    // Reset the ref when modal closes
+    if (!editModalOpen) {
+      initializedTemplateId.current = null;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTemplate?.id, editModalOpen]); // Depend on editingTemplate?.id to reset when a new template is selected
