@@ -171,6 +171,9 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   onDelete: () => void;
   onToggle: (checked: boolean) => void;
 }) {
+  // DEBUG: Log every render
+  console.log('[DEBUG] SortableTemplateCard RENDER:', template.id, template.nome);
+  
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const {
@@ -434,12 +437,16 @@ export default function QuoteTemplatesManager() {
 
   // Load editing template data into form when editingTemplate changes
   useEffect(() => {
+    console.log('[DEBUG] useEffect triggered - editingTemplate:', editingTemplate?.id, 'editModalOpen:', editModalOpen, 'initializedId:', initializedTemplateId.current);
+    
     if (editingTemplate && editModalOpen) {
       // Skip if we've already initialized this template
       if (initializedTemplateId.current === editingTemplate.id) {
+        console.log('[DEBUG] Skipping - already initialized');
         return;
       }
       
+      console.log('[DEBUG] Initializing form for template:', editingTemplate.id);
       initializedTemplateId.current = editingTemplate.id;
       
       const customProducts = editingTemplate.defaultProducts
@@ -781,6 +788,7 @@ export default function QuoteTemplatesManager() {
                   template={template as QuoteTemplate & { id: string }}
                   jobTypes={jobTypes}
                   onEdit={() => {
+                    console.log('[DEBUG] onEdit clicked for template:', template.id);
                     setEditingTemplateId(template.id);
                     setEditModalOpen(true);
                   }}
