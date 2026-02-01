@@ -3,7 +3,7 @@
  * Form modifica job esistente
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -122,7 +122,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const { toast } = useToast();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateInputValue, setDateInputValue] = useState('');
-  const isInitializing = React.useRef(false);
+  const isInitializing = useRef(false);
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [loadingClienti, setLoadingClienti] = useState(true);
   const [appuntamentiClienti, setAppuntamentiClienti] = useState<Record<string, { orario: string; note: string }>>({});
