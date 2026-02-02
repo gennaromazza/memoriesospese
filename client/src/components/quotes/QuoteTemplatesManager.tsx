@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo, startTransition } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -80,7 +80,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SimpleSwitch } from '@/components/ui/simple-switch';
+import { Switch } from '@/components/ui/switch';
 import {
   Plus,
   Trash2,
@@ -220,10 +220,9 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <SimpleSwitch
+                  <Switch
                     checked={template.attivo}
                     onCheckedChange={onToggle}
-                    data-testid={`switch-template-${template.id}`}
                   />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -781,8 +780,10 @@ export default function QuoteTemplatesManager() {
                   template={template as QuoteTemplate & { id: string }}
                   jobTypes={jobTypes}
                   onEdit={() => {
-                    setEditingTemplateId(template.id);
-                    setEditModalOpen(true);
+                    startTransition(() => {
+                      setEditingTemplateId(template.id);
+                      setEditModalOpen(true);
+                    });
                   }}
                   onDelete={() => setDeleteTemplateId(template.id)}
                   onToggle={(checked) =>
@@ -1161,7 +1162,7 @@ export default function QuoteTemplatesManager() {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <SimpleSwitch
+                      <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />

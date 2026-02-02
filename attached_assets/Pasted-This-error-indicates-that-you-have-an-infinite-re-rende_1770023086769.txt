@@ -1,0 +1,148 @@
+This error indicates that you have an infinite re-render loop in your React application. The "Maximum update depth exceeded" error occurs when a component calls setState (or triggers a state update) repeatedly, causing React to enter an endless update cycle.
+Common Causes and Solutions:
+1. useEffect with Missing/Incorrect Dependency Array
+javascript
+
+// ❌ WRONG - Causes infinite loop
+useEffect(() => {
+  setState(someValue); // Triggers re-render, which triggers useEffect again
+}); // Missing dependency array
+
+// ✅ CORRECT
+useEffect(() => {
+  setState(someValue);
+}, []); // Empty array = run once on mount
+
+// ✅ CORRECT with dependencies
+useEffect(() => {
+  setState(someValue);
+}, [dependency1, dependency2]); // Only runs when dependencies change
+
+2. State Update in Render/Function Body
+javascript
+
+// ❌ WRONG - State update in component body
+function MyComponent() {
+  const [state, setState] = useState(0);
+  
+  setState(state + 1); // This runs on every render!
+  
+  return <div>...</div>;
+}
+
+// ✅ CORRECT - Use useEffect or event handlers
+function MyComponent() {
+  const [state, setState] = useState(0);
+  
+  useEffect(() => {
+    setState(1); // Safe in useEffect
+  }, []);
+  
+  return <div>...</div>;
+}
+
+3. Event Handler Creating New Function on Every Render
+javascript
+
+// ❌ WRONG - Creates new function on every render
+function Parent() {
+  const handleClick = () => console.log('click');
+  
+  return <Child onClick={handleClick} />; // New reference every render
+}
+
+// ✅ CORRECT - Use useCallback
+function Parent() {
+  const handleClick = useCallback(() => {
+    console.log('click');
+  }, []);
+  
+  return <Child onClick={handleClick} />;
+}
+
+4. Object/Array in Dependency Array Creating New Reference
+javascript
+
+// ❌ WRONG - New object/array on every render
+useEffect(() => {
+  // do something
+}, [{ id: 1 }]); // New object every render = infinite loop
+
+// ❌ WRONG - New array on every render
+useEffect(() => {
+  // do something
+}, [[1, 2, 3]]); // New array every render = infinite loop
+
+// ✅ CORRECT - Use useMemo for objects/arrays
+const config = useMemo(() => ({ id: 1 }), []);
+const items = useMemo(() => [1, 2, 3], []);
+
+useEffect(() => {
+  // do something
+}, [config, items]); // Stable references
+
+5. Two-Way Binding or Circular Dependencies
+javascript
+
+// ❌ WRONG - Circular dependency
+const [value, setValue] = useState('');
+const [derivedValue, setDerivedValue] = useState('');
+
+useEffect(() => {
+  setDerivedValue(value.toUpperCase());
+}, [value]);
+
+useEffect(() => {
+  setValue(derivedValue.toLowerCase());
+}, [derivedValue]); // Circular! Value -> derivedValue -> value...
+
+// ✅ CORRECT - Avoid circular dependencies
+const [value, setValue] = useState('');
+
+const derivedValue = value.toUpperCase(); // Derived state, don't store in state
+
+Debugging Steps:
+
+    Check all useEffect hooks - Ensure dependency arrays are correct
+
+    Look for setState calls in component body - Move them to useEffect or event handlers
+
+    Check for infinite recursion in custom hooks
+
+    Use React DevTools to see which component is causing the re-renders
+
+    Add console logs to track render cycles:
+
+javascript
+
+useEffect(() => {
+  console.log('Effect running with value:', value);
+  // Check if this logs excessively
+}, [value]);
+
+Common Fix Pattern:
+javascript
+
+function ProblematicComponent() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // ❌ Problem: Triggers on every render
+  // fetchData(); 
+
+  // ✅ Solution: Wrap in useEffect
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      const result = await fetch('/api/data');
+      setData(await result.json());
+      setLoading(false);
+    };
+    loadData();
+  }, []); // Empty array = run once on mount
+
+  if (loading) return <div>Loading...</div>;
+  return <div>{JSON.stringify(data)}</div>;
+}
+
+Check your code for these patterns, especially in components that are frequently re-rendering or where state updates might trigger other state updates.
