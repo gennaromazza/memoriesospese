@@ -285,9 +285,13 @@ export default function BookingsManager({
     | "past"
     | "today"
     | "tomorrow"
+    | "yesterday"
+    | "last-week"
     | "next-week"
     | "next-month"
   >(initialParams.time);
+  // Filtro campagne: "active" = solo campagne attive (default), "all" = tutte, o ID specifico
+  const [campaignFilter, setCampaignFilter] = useState<string>("active");
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
     initialParams.selection,
   );
@@ -563,6 +567,21 @@ export default function BookingsManager({
         filtered = filtered.filter((b) => b.statoWorkflow === workflowFilter);
       }
 
+      // 3.5. Filtra per campagna
+      if (campaignFilter === "active") {
+        // Solo prenotazioni di campagne attive
+        const activeCampaignIds = campaigns
+          .filter((c) => c.statoVisibilita === "attiva")
+          .map((c) => c.id);
+        filtered = filtered.filter((b) =>
+          activeCampaignIds.includes(b.campaignId),
+        );
+      } else if (campaignFilter !== "all") {
+        // Campagna specifica selezionata
+        filtered = filtered.filter((b) => b.campaignId === campaignFilter);
+      }
+      // Se campaignFilter === "all", mostra tutte le campagne
+
       // 4. Filtra per intervallo temporale
       if (timeFilter !== "all") {
         const now = new Date();
@@ -601,6 +620,28 @@ export default function BookingsManager({
             return (
               bookingTime >= tomorrow.getTime() &&
               bookingTime < dayAfterTomorrow.getTime()
+            );
+          } else if (timeFilter === "yesterday") {
+            // Ieri: >= ieri 00:00 e < oggi 00:00
+            const yesterday = new Date(today.getTime() - 86400000);
+            return (
+              bookingTime >= yesterday.getTime() &&
+              bookingTime < today.getTime()
+            );
+          } else if (timeFilter === "last-week") {
+            // Settimana scorsa: da lunedì scorso a domenica scorsa
+            const currentDayOfWeek = today.getDay();
+            // Calcola lunedì scorso (se oggi è lunedì, torna alla settimana precedente)
+            const daysToLastMonday =
+              currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+            const lastMonday = new Date(
+              today.getTime() - (daysToLastMonday + 7) * 86400000,
+            );
+            const lastSunday = new Date(lastMonday.getTime() + 7 * 86400000);
+
+            return (
+              bookingTime >= lastMonday.getTime() &&
+              bookingTime < lastSunday.getTime()
             );
           } else if (timeFilter === "next-week") {
             // Prossima settimana: dal prossimo lunedì alla prossima domenica
@@ -648,7 +689,13 @@ export default function BookingsManager({
       // - "past": ordine decrescente (più recenti prima)
       // - "upcoming", "today", "tomorrow", etc: ordine crescente (più vicini prima)
       // - "all": ordine decrescente (più recenti prima)
-      const multiplier = timeFilter === "all" || timeFilter === "past" ? -1 : 1;
+      const multiplier =
+        timeFilter === "all" ||
+        timeFilter === "past" ||
+        timeFilter === "yesterday" ||
+        timeFilter === "last-week"
+          ? -1
+          : 1;
       return (
         multiplier *
         (getTime(a.dataShootingInizio) - getTime(b.dataShootingInizio))
@@ -664,6 +711,7 @@ export default function BookingsManager({
     timeFilter,
     selectionFilter,
     workflowFilter,
+    campaignFilter,
     allGalleries,
   ]);
 
@@ -1490,6 +1538,50 @@ export default function BookingsManager({
                 </Select>
               </div>
 
+              {/* Filtro campagna */}
+              <div className="w-full lg:w-56">
+                <Select
+                  value={campaignFilter}
+                  onValueChange={(value) => {
+                    setCampaignFilter(value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger
+                    data-testid="select-campaign-filter"
+                    className="h-10"
+                  >
+                    <SelectValue placeholder="Campagne Attive" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Campagne Attive
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="all">
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Tutte le campagne
+                      </span>
+                    </SelectItem>
+                    {campaigns.map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.id}>
+                        <span className="flex items-center gap-2">
+                          {campaign.statoVisibilita === "attiva" ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <History className="h-4 w-4 text-gray-400" />
+                          )}
+                          {campaign.nome}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Filtro data */}
               <div className="w-full lg:w-56">
                 <Select
@@ -1510,6 +1602,8 @@ export default function BookingsManager({
                     <SelectItem value="past">Impegni Passati</SelectItem>
                     <SelectItem value="all">Tutte le date</SelectItem>
                     <SelectItem value="today">Oggi</SelectItem>
+                    <SelectItem value="yesterday">Ieri</SelectItem>
+                    <SelectItem value="last-week">Settimana Scorsa</SelectItem>
                     <SelectItem value="tomorrow">Domani</SelectItem>
                     <SelectItem value="next-week">
                       Prossima Settimana
@@ -1591,7 +1685,8 @@ export default function BookingsManager({
               {(selectedStato !== "all" ||
                 searchQuery.trim() ||
                 timeFilter !== "all" ||
-                selectionFilter !== "all") && (
+                selectionFilter !== "all" ||
+                campaignFilter !== "active") && (
                 <span className="text-xs text-gray-500">(filtrate)</span>
               )}
             </div>
