@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback, memo, startTransition } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -780,10 +780,8 @@ export default function QuoteTemplatesManager() {
                   template={template as QuoteTemplate & { id: string }}
                   jobTypes={jobTypes}
                   onEdit={() => {
-                    startTransition(() => {
-                      setEditingTemplateId(template.id);
-                      setEditModalOpen(true);
-                    });
+                    setEditingTemplateId(template.id);
+                    setEditModalOpen(true);
                   }}
                   onDelete={() => setDeleteTemplateId(template.id)}
                   onToggle={(checked) =>
