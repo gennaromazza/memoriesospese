@@ -80,7 +80,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+import { SimpleSwitch } from '@/components/ui/simple-switch';
 import {
   Plus,
   Trash2,
@@ -171,9 +171,6 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   onDelete: () => void;
   onToggle: (checked: boolean) => void;
 }) {
-  // DEBUG: Log every render
-  console.log('[DEBUG] SortableTemplateCard RENDER:', template.id, template.nome);
-  
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const {
@@ -223,14 +220,11 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* DEBUG: Switch temporaneamente disabilitato per test */}
-                  <button 
-                    type="button"
-                    onClick={() => onToggle(!template.attivo)}
-                    className={`w-11 h-6 rounded-full transition-colors ${template.attivo ? 'bg-sage' : 'bg-gray-300'}`}
-                  >
-                    <span className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${template.attivo ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
+                  <SimpleSwitch
+                    checked={template.attivo}
+                    onCheckedChange={onToggle}
+                    data-testid={`switch-template-${template.id}`}
+                  />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm">
@@ -440,16 +434,12 @@ export default function QuoteTemplatesManager() {
 
   // Load editing template data into form when editingTemplate changes
   useEffect(() => {
-    console.log('[DEBUG] useEffect triggered - editingTemplate:', editingTemplate?.id, 'editModalOpen:', editModalOpen, 'initializedId:', initializedTemplateId.current);
-    
     if (editingTemplate && editModalOpen) {
       // Skip if we've already initialized this template
       if (initializedTemplateId.current === editingTemplate.id) {
-        console.log('[DEBUG] Skipping - already initialized');
         return;
       }
       
-      console.log('[DEBUG] Initializing form for template:', editingTemplate.id);
       initializedTemplateId.current = editingTemplate.id;
       
       const customProducts = editingTemplate.defaultProducts
@@ -791,7 +781,6 @@ export default function QuoteTemplatesManager() {
                   template={template as QuoteTemplate & { id: string }}
                   jobTypes={jobTypes}
                   onEdit={() => {
-                    console.log('[DEBUG] onEdit clicked for template:', template.id);
                     setEditingTemplateId(template.id);
                     setEditModalOpen(true);
                   }}
@@ -1172,14 +1161,10 @@ export default function QuoteTemplatesManager() {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      {/* DEBUG: Switch temporaneamente disabilitato per test */}
-                      <button 
-                        type="button"
-                        onClick={() => field.onChange(!field.value)}
-                        className={`w-11 h-6 rounded-full transition-colors ${field.value ? 'bg-sage' : 'bg-gray-300'}`}
-                      >
-                        <span className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${field.value ? 'translate-x-5' : 'translate-x-0'}`} />
-                      </button>
+                      <SimpleSwitch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
