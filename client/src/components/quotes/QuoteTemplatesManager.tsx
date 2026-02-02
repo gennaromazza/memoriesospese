@@ -3,12 +3,12 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { nanoid } from 'nanoid';
+import { useState, useMemo, useCallback, memo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { nanoid } from "nanoid";
 import {
   getAllQuoteTemplates,
   createQuoteTemplate,
@@ -16,28 +16,27 @@ import {
   deleteQuoteTemplate,
   toggleTemplateActive,
   updateTemplatesOrder,
-  getQuoteTemplate
-} from '@/lib/quotes';
-import { getAllProducts } from '@/lib/products';
-import { getJobTypes } from '@/lib/job-types';
-import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { queryClient } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
-import CatalogProductSelector from './CatalogProductSelector';
+} from "@/lib/quotes";
+import { getAllProducts } from "@/lib/products";
+import { getJobTypes } from "@/lib/job-types";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import CatalogProductSelector from "./CatalogProductSelector";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,19 +46,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from "@/components/ui/collapsible";
 import {
   Form,
   FormControl,
@@ -68,19 +67,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   Trash2,
@@ -95,9 +94,9 @@ import {
   MoreVertical,
   GripVertical,
   ChevronDown,
-  ChevronUp
-} from 'lucide-react';
-import { JobTypeIcon } from '@/lib/job-type-icons';
+  ChevronUp,
+} from "lucide-react";
+import { JobTypeIcon } from "@/lib/job-type-icons";
 import {
   DndContext,
   closestCenter,
@@ -106,54 +105,68 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-} from '@dnd-kit/core';
+} from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import type { QuoteProduct, QuoteTemplate } from '@shared/quotes-types';
-import { catalogProductToQuoteProduct } from '@/lib/quote-mappers';
-import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import type { QuoteProduct, QuoteTemplate } from "@shared/quotes-types";
+import { catalogProductToQuoteProduct } from "@/lib/quote-mappers";
+import { calculateQuoteTotals, validateDiscount } from "@shared/quote-utils";
 
-const templateSchema = z.object({
-  nome: z.string().min(1, 'Nome richiesto'),
-  jobType: z.string().min(1, 'Tipo lavoro richiesto'),
-  type: z.enum(['fisso', 'variabile']),
-  catalogProductIds: z.array(z.string()).default([]),
-  customProducts: z.array(z.object({
-    nome: z.string(),
-    descrizione: z.string(),
-    prezzo: z.number().min(0),
-    numeroFoto: z.number().optional(),
-    categoria: z.string().optional()
-  })),
-  discountType: z.enum(['amount', 'percent']).optional(),
-  discountValue: z.number().min(0).optional(),
-  theme: z.object({
-    primaryColor: z.string(),
-    secondaryColor: z.string(),
-    footerText: z.string().optional()
-  }),
-  attivo: z.boolean().default(true)
-}).refine((data) => {
-  const hasType = data.discountType !== undefined;
-  const hasValue = data.discountValue !== undefined;
-  return hasType === hasValue;
-}, {
-  message: 'Tipo e valore sconto devono essere entrambi specificati o entrambi vuoti',
-  path: ['discountType']
-}).refine((data) => {
-  // Validazione: almeno un prodotto (catalogo o custom)
-  const hasValidCustomProducts = data.customProducts.some(p => p.nome.trim() && p.prezzo > 0);
-  return data.catalogProductIds.length > 0 || hasValidCustomProducts;
-}, {
-  message: 'Inserisci almeno un prodotto (catalogo o custom)',
-  path: ['customProducts']
-});
+const templateSchema = z
+  .object({
+    nome: z.string().min(1, "Nome richiesto"),
+    jobType: z.string().min(1, "Tipo lavoro richiesto"),
+    type: z.enum(["fisso", "variabile"]),
+    catalogProductIds: z.array(z.string()).default([]),
+    customProducts: z.array(
+      z.object({
+        nome: z.string(),
+        descrizione: z.string(),
+        prezzo: z.number().min(0),
+        numeroFoto: z.number().optional(),
+        categoria: z.string().optional(),
+      }),
+    ),
+    discountType: z.enum(["amount", "percent"]).optional(),
+    discountValue: z.number().min(0).optional(),
+    theme: z.object({
+      primaryColor: z.string(),
+      secondaryColor: z.string(),
+      footerText: z.string().optional(),
+    }),
+    attivo: z.boolean().default(true),
+  })
+  .refine(
+    (data) => {
+      const hasType = data.discountType !== undefined;
+      const hasValue = data.discountValue !== undefined;
+      return hasType === hasValue;
+    },
+    {
+      message:
+        "Tipo e valore sconto devono essere entrambi specificati o entrambi vuoti",
+      path: ["discountType"],
+    },
+  )
+  .refine(
+    (data) => {
+      // Validazione: almeno un prodotto (catalogo o custom)
+      const hasValidCustomProducts = data.customProducts.some(
+        (p) => p.nome.trim() && p.prezzo > 0,
+      );
+      return data.catalogProductIds.length > 0 || hasValidCustomProducts;
+    },
+    {
+      message: "Inserisci almeno un prodotto (catalogo o custom)",
+      path: ["customProducts"],
+    },
+  );
 
 type FormData = z.infer<typeof templateSchema>;
 
@@ -189,10 +202,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   };
 
   const jobType = jobTypes.find((jt) => jt.slug === template.jobType);
-  const totale = template.defaultProducts.reduce(
-    (sum, p) => sum + p.prezzo,
-    0,
-  );
+  const totale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -321,13 +331,13 @@ export default function QuoteTemplatesManager() {
   const { toast } = useToast();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [currentTemplate, setCurrentTemplate] = useState<(QuoteTemplate & { id: string }) | null>(null);
   const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
 
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
-    queryKey: ['quote-templates'],
-    queryFn: getAllQuoteTemplates
+    queryKey: ["quote-templates"],
+    queryFn: getAllQuoteTemplates,
   });
 
   // Sort templates by ordine field
@@ -342,24 +352,17 @@ export default function QuoteTemplatesManager() {
 
   // Query job types - only active ones
   const { data: jobTypes = [] } = useQuery({
-    queryKey: ['job-types'],
+    queryKey: ["job-types"],
     queryFn: async () => {
       const allJobTypes = await getJobTypes();
-      return allJobTypes.filter(jt => jt.attivo);
-    }
+      return allJobTypes.filter((jt) => jt.attivo);
+    },
   });
 
   // Query catalog products
   const { data: catalogProducts = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: getAllProducts
-  });
-
-  // Query single template for editing
-  const { data: editingTemplate } = useQuery({
-    queryKey: ['quote-template', editingTemplateId],
-    queryFn: () => getQuoteTemplate(editingTemplateId!),
-    enabled: !!editingTemplateId,
+    queryKey: ["products"],
+    queryFn: getAllProducts,
   });
 
   // Drag & Drop sensors
@@ -367,165 +370,168 @@ export default function QuoteTemplatesManager() {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   // Form
   const form = useForm<FormData>({
     resolver: zodResolver(templateSchema),
     defaultValues: {
-      nome: '',
-      jobType: '',
-      type: 'fisso',
+      nome: "",
+      jobType: "",
+      type: "fisso",
       catalogProductIds: [],
-      customProducts: [{
-        nome: '',
-        descrizione: '',
-        prezzo: 0,
-        numeroFoto: 0,
-        categoria: ''
-      }],
+      customProducts: [
+        {
+          nome: "",
+          descrizione: "",
+          prezzo: 0,
+          numeroFoto: 0,
+          categoria: "",
+        },
+      ],
       theme: {
-        primaryColor: '#8B9A8B',
-        secondaryColor: '#C8B8A8',
-        footerText: 'Image Studio - Fotografia professionale'
+        primaryColor: "#8B9A8B",
+        secondaryColor: "#C8B8A8",
+        footerText: "Image Studio - Fotografia professionale",
       },
-      attivo: true
-    }
+      attivo: true,
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
-    name: 'customProducts',
-    shouldUnregister: false
+    name: "customProducts",
+    shouldUnregister: false,
   });
 
-  // Ref to track which template has been initialized
-  const initializedTemplateId = useRef<string | null>(null);
+  // Handle edit template - directly set form data without useEffect loop
+  const handleEditTemplate = useCallback((template: QuoteTemplate & { id: string }) => {
+    // Split defaultProducts into catalog and custom
+    const customProductsData = template.defaultProducts
+      .filter((p) => !p.productId)
+      .map((p) => ({
+        nome: p.nome,
+        descrizione: p.descrizione || "",
+        prezzo: p.prezzo,
+        numeroFoto: p.numeroFoto || 0,
+        categoria: p.categoria || "",
+      }));
 
-  // Reset form to defaults when opening create modal
-  useEffect(() => {
-    if (createModalOpen && !editModalOpen) {
-      form.reset({
-        nome: '',
-        jobType: '',
-        type: 'fisso',
-        catalogProductIds: [],
-        customProducts: [{
-          nome: '',
-          descrizione: '',
+    const catalogProductIdsData = template.defaultProducts
+      .filter((p) => p.productId)
+      .map((p) => p.productId!);
+
+    // Reset form with template data
+    form.reset({
+      nome: template.nome,
+      jobType: template.jobType as string,
+      type: template.type,
+      catalogProductIds: catalogProductIdsData,
+      customProducts:
+        customProductsData.length > 0
+          ? customProductsData
+          : [
+              {
+                nome: "",
+                descrizione: "",
+                prezzo: 0,
+                numeroFoto: 0,
+                categoria: "",
+              },
+            ],
+      discountType: template.discountType,
+      discountValue: template.discountValue,
+      theme: template.theme,
+      attivo: template.attivo,
+    });
+
+    // Store template for update mutation (to preserve defaultClauses)
+    setCurrentTemplate(template);
+    setEditModalOpen(true);
+  }, [form]);
+
+  // Handle create modal open
+  const handleCreateTemplate = useCallback(() => {
+    form.reset({
+      nome: "",
+      jobType: "",
+      type: "fisso",
+      catalogProductIds: [],
+      customProducts: [
+        {
+          nome: "",
+          descrizione: "",
           prezzo: 0,
           numeroFoto: 0,
-          categoria: ''
-        }],
-        theme: {
-          primaryColor: '#8B9A8B',
-          secondaryColor: '#C8B8A8',
-          footerText: 'Image Studio - Fotografia professionale'
+          categoria: "",
         },
-        attivo: true,
-        discountType: undefined,
-        discountValue: undefined
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createModalOpen, editModalOpen]);
-
-  // Load editing template data into form when editingTemplate changes
-  useEffect(() => {
-    if (editingTemplate && editModalOpen) {
-      // Skip if we've already initialized this template
-      if (initializedTemplateId.current === editingTemplate.id) {
-        return;
-      }
-      
-      initializedTemplateId.current = editingTemplate.id;
-      
-      const customProducts = editingTemplate.defaultProducts
-        .filter((p) => !p.productId)
-        .map((p) => ({
-          nome: p.nome,
-          descrizione: p.descrizione || '',
-          prezzo: p.prezzo,
-          numeroFoto: p.numeroFoto || 0,
-          categoria: p.categoria || '',
-        }));
-
-      const catalogProductIds = editingTemplate.defaultProducts
-        .filter((p) => p.productId)
-        .map((p) => p.productId!);
-
-      form.reset({
-        nome: editingTemplate.nome,
-        jobType: editingTemplate.jobType as string,
-        type: editingTemplate.type,
-        catalogProductIds,
-        customProducts:
-          customProducts.length > 0
-            ? customProducts
-            : [
-                {
-                  nome: '',
-                  descrizione: '',
-                  prezzo: 0,
-                  numeroFoto: 0,
-                  categoria: '',
-                },
-              ],
-        discountType: editingTemplate.discountType,
-        discountValue: editingTemplate.discountValue,
-        theme: editingTemplate.theme,
-        attivo: editingTemplate.attivo,
-      });
-    }
-    
-    // Reset the ref when modal closes
-    if (!editModalOpen) {
-      initializedTemplateId.current = null;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingTemplate?.id, editModalOpen]); // Depend on editingTemplate?.id to reset when a new template is selected
+      ],
+      theme: {
+        primaryColor: "#8B9A8B",
+        secondaryColor: "#C8B8A8",
+        footerText: "Image Studio - Fotografia professionale",
+      },
+      attivo: true,
+      discountType: undefined,
+      discountValue: undefined,
+    });
+    setCurrentTemplate(null);
+    setCreateModalOpen(true);
+  }, [form]);
 
   // Watch values for totals using useWatch for better performance
-  const catalogProductIds = useWatch({ control: form.control, name: 'catalogProductIds' }) || [];
-  const customProducts = useWatch({ control: form.control, name: 'customProducts' }) || [];
-  const discountType = useWatch({ control: form.control, name: 'discountType' });
-  const discountValue = useWatch({ control: form.control, name: 'discountValue' }) || 0;
+  const catalogProductIds =
+    useWatch({ control: form.control, name: "catalogProductIds" }) || [];
+  const customProducts =
+    useWatch({ control: form.control, name: "customProducts" }) || [];
+  const discountType = useWatch({
+    control: form.control,
+    name: "discountType",
+  });
+  const discountValue =
+    useWatch({ control: form.control, name: "discountValue" }) || 0;
 
   // Calculate totals
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
-    const product = catalogProducts.find(p => p.id === id);
+    const product = catalogProducts.find((p) => p.id === id);
     return sum + (product?.prezzoFinale || product?.prezzo || 0);
   }, 0);
 
   const totaleCustom = customProducts
-    .filter(p => p.nome?.trim())
+    .filter((p) => p.nome?.trim())
     .reduce((sum, p) => sum + (p.prezzo || 0), 0);
 
   const subtotale = totaleCatalogo + totaleCustom;
 
   // Usa utility condivisa per coerenza con QuoteBuilder
-  const { totalAfterDiscount, discountAmount } = calculateQuoteTotals(subtotale, discountType, discountValue);
+  const { totalAfterDiscount, discountAmount } = calculateQuoteTotals(
+    subtotale,
+    discountType,
+    discountValue,
+  );
 
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
       // Merge catalog + custom products
-      const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(id => {
-        const product = catalogProducts.find(p => p.id === id);
-        if (!product) throw new Error(`Prodotto ${id} non trovato`);
-        return catalogProductToQuoteProduct(product, data.type);
-      });
+      const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(
+        (id) => {
+          const product = catalogProducts.find((p) => p.id === id);
+          if (!product) throw new Error(`Prodotto ${id} non trovato`);
+          return catalogProductToQuoteProduct(product, data.type);
+        },
+      );
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
-        .filter(p => p.nome.trim())
-        .map(p => ({
+        .filter((p) => p.nome.trim())
+        .map((p) => ({
           nome: p.nome,
           descrizione: p.descrizione,
           prezzo: p.prezzo,
-          selectable: data.type === 'variabile',
+          selectable: data.type === "variabile",
           numeroFoto: p.numeroFoto,
-          categoria: p.categoria
+          categoria: p.categoria,
         }));
 
       const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
@@ -533,7 +539,11 @@ export default function QuoteTemplatesManager() {
       // Valida sconto PRIMA di salvare
       if (data.discountType !== undefined && data.discountValue !== undefined) {
         const subtotale = allProducts.reduce((sum, p) => sum + p.prezzo, 0);
-        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        const discountValidation = validateDiscount(
+          subtotale,
+          data.discountType,
+          data.discountValue,
+        );
         if (!discountValidation.valid) {
           throw new Error(discountValidation.error);
         }
@@ -542,9 +552,9 @@ export default function QuoteTemplatesManager() {
       // Clausole di default
       const defaultClauses = [
         {
-          text: 'Il cliente accetta i termini e condizioni del servizio',
-          required: true
-        }
+          text: "Il cliente accetta i termini e condizioni del servizio",
+          required: true,
+        },
       ];
 
       const templateData: any = {
@@ -554,7 +564,7 @@ export default function QuoteTemplatesManager() {
         theme: data.theme,
         defaultProducts: allProducts,
         defaultClauses,
-        attivo: data.attivo
+        attivo: data.attivo,
       };
 
       // Only include discount fields if they are actually defined
@@ -566,41 +576,43 @@ export default function QuoteTemplatesManager() {
       return createQuoteTemplate(templateData, user!.uid);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
       toast({
-        title: 'Template creato!',
-        description: 'Il template è ora disponibile per creare preventivi'
+        title: "Template creato!",
+        description: "Il template è ora disponibile per creare preventivi",
       });
       form.reset();
       setCreateModalOpen(false);
     },
     onError: (error: any) => {
       toast({
-        title: 'Errore',
+        title: "Errore",
         description: error.message,
-        variant: 'destructive'
+        variant: "destructive",
       });
-    }
+    },
   });
 
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: FormData }) => {
-      const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(prodId => {
-        const product = catalogProducts.find(p => p.id === prodId);
-        if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
-        return catalogProductToQuoteProduct(product, data.type);
-      });
+      const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(
+        (prodId) => {
+          const product = catalogProducts.find((p) => p.id === prodId);
+          if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
+          return catalogProductToQuoteProduct(product, data.type);
+        },
+      );
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
-        .filter(p => p.nome.trim())
-        .map(p => ({
+        .filter((p) => p.nome.trim())
+        .map((p) => ({
           nome: p.nome,
           descrizione: p.descrizione,
           prezzo: p.prezzo,
-          selectable: data.type === 'variabile',
+          selectable: data.type === "variabile",
           numeroFoto: p.numeroFoto,
-          categoria: p.categoria
+          categoria: p.categoria,
         }));
 
       const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
@@ -608,7 +620,11 @@ export default function QuoteTemplatesManager() {
       // Valida sconto PRIMA di salvare
       if (data.discountType !== undefined && data.discountValue !== undefined) {
         const subtotale = allProducts.reduce((sum, p) => sum + p.prezzo, 0);
-        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        const discountValidation = validateDiscount(
+          subtotale,
+          data.discountType,
+          data.discountValue,
+        );
         if (!discountValidation.valid) {
           throw new Error(discountValidation.error);
         }
@@ -620,13 +636,13 @@ export default function QuoteTemplatesManager() {
         type: data.type,
         theme: data.theme,
         defaultProducts: allProducts,
-        defaultClauses: editingTemplate?.defaultClauses || [
+        defaultClauses: currentTemplate?.defaultClauses || [
           {
-            text: 'Il cliente accetta i termini e condizioni del servizio',
-            required: true
-          }
+            text: "Il cliente accetta i termini e condizioni del servizio",
+            required: true,
+          },
         ],
-        attivo: data.attivo
+        attivo: data.attivo,
       };
 
       // Only include discount fields if they are actually defined
@@ -638,41 +654,41 @@ export default function QuoteTemplatesManager() {
       await updateQuoteTemplate(id, updateData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
       toast({
-        title: 'Template aggiornato!',
-        description: 'Le modifiche sono state salvate'
+        title: "Template aggiornato!",
+        description: "Le modifiche sono state salvate",
       });
       setEditModalOpen(false);
-      setEditingTemplateId(null);
+      setCurrentTemplate(null);
     },
     onError: (error: any) => {
       toast({
-        title: 'Errore',
+        title: "Errore",
         description: error.message,
-        variant: 'destructive'
+        variant: "destructive",
       });
-    }
+    },
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteQuoteTemplate,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
       toast({
-        title: 'Template eliminato',
-        description: 'Il template è stato disattivato'
+        title: "Template eliminato",
+        description: "Il template è stato disattivato",
       });
       setDeleteTemplateId(null);
     },
     onError: (error: any) => {
       toast({
-        title: 'Errore',
+        title: "Errore",
         description: error.message,
-        variant: 'destructive'
+        variant: "destructive",
       });
-    }
+    },
   });
 
   // Toggle active mutation
@@ -680,20 +696,20 @@ export default function QuoteTemplatesManager() {
     mutationFn: ({ id, attivo }: { id: string; attivo: boolean }) =>
       toggleTemplateActive(id, attivo),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
+    },
   });
 
   // Reorder mutation
   const reorderMutation = useMutation({
     mutationFn: updateTemplatesOrder,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quote-templates'] });
+      queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
       toast({
-        title: 'Ordine salvato',
-        description: 'La nuova disposizione è stata salvata'
+        title: "Ordine salvato",
+        description: "La nuova disposizione è stata salvata",
       });
-    }
+    },
   });
 
   // Drag end handler
@@ -701,14 +717,14 @@ export default function QuoteTemplatesManager() {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = templates.findIndex(t => t.id === active.id);
-      const newIndex = templates.findIndex(t => t.id === over.id);
+      const oldIndex = templates.findIndex((t) => t.id === active.id);
+      const newIndex = templates.findIndex((t) => t.id === over.id);
 
       const newTemplates = arrayMove(templates, oldIndex, newIndex);
-      const newOrder = newTemplates.map(t => t.id);
+      const newOrder = newTemplates.map((t) => t.id);
 
       // Optimistic update
-      queryClient.setQueryData(['quote-templates'], newTemplates);
+      queryClient.setQueryData(["quote-templates"], newTemplates);
 
       // Persist to Firestore
       reorderMutation.mutate(newOrder);
@@ -716,9 +732,9 @@ export default function QuoteTemplatesManager() {
   };
 
   const onSubmit = (data: FormData) => {
-    if (editModalOpen && editingTemplateId) {
+    if (editModalOpen && currentTemplate) {
       // Edit mode
-      updateMutation.mutate({ id: editingTemplateId, data });
+      updateMutation.mutate({ id: currentTemplate.id, data });
     } else {
       // Create mode
       createMutation.mutate(data);
@@ -743,7 +759,10 @@ export default function QuoteTemplatesManager() {
             Crea template riutilizzabili per preventivi ricorrenti
           </p>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)} className="bg-sage hover:bg-dark-sage">
+        <Button
+          onClick={handleCreateTemplate}
+          className="bg-sage hover:bg-dark-sage"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Nuovo Template
         </Button>
@@ -754,10 +773,12 @@ export default function QuoteTemplatesManager() {
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">
-              Nessun template creato
-            </p>
-            <Button onClick={() => setCreateModalOpen(true)} className="bg-sage hover:bg-dark-sage" data-testid="button-create-template">
+            <p className="text-muted-foreground mb-4">Nessun template creato</p>
+            <Button
+              onClick={handleCreateTemplate}
+              className="bg-sage hover:bg-dark-sage"
+              data-testid="button-create-template"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Crea il primo template
             </Button>
@@ -779,10 +800,7 @@ export default function QuoteTemplatesManager() {
                   key={template.id}
                   template={template as QuoteTemplate & { id: string }}
                   jobTypes={jobTypes}
-                  onEdit={() => {
-                    setEditingTemplateId(template.id);
-                    setEditModalOpen(true);
-                  }}
+                  onEdit={() => handleEditTemplate(template as QuoteTemplate & { id: string })}
                   onDelete={() => setDeleteTemplateId(template.id)}
                   onToggle={(checked) =>
                     toggleMutation.mutate({
@@ -804,7 +822,7 @@ export default function QuoteTemplatesManager() {
           if (!open) {
             setCreateModalOpen(false);
             setEditModalOpen(false);
-            setEditingTemplateId(null);
+            setCurrentTemplate(null);
             form.reset();
           }
         }}
@@ -813,12 +831,14 @@ export default function QuoteTemplatesManager() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              {editModalOpen ? 'Modifica Template Preventivo' : 'Crea Template Preventivo'}
+              {editModalOpen
+                ? "Modifica Template Preventivo"
+                : "Crea Template Preventivo"}
             </DialogTitle>
             <DialogDescription>
               {editModalOpen
-                ? 'Modifica il template con nuovi prodotti e prezzi'
-                : 'Crea un template riutilizzabile con prodotti e prezzi preimpostati'}
+                ? "Modifica il template con nuovi prodotti e prezzi"
+                : "Crea un template riutilizzabile con prodotti e prezzi preimpostati"}
             </DialogDescription>
           </DialogHeader>
 
@@ -833,10 +853,7 @@ export default function QuoteTemplatesManager() {
                     <FormItem>
                       <FormLabel>Nome Template *</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="es. Comunioni 2025"
-                          {...field}
-                        />
+                        <Input placeholder="es. Comunioni 2025" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -850,28 +867,39 @@ export default function QuoteTemplatesManager() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo Lavoro *</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona tipo...">
                               {field.value && jobTypes.length > 0 ? (
                                 <span className="flex items-center gap-2">
                                   <JobTypeIcon slug={field.value} size="sm" />
-                                  {jobTypes.find(jt => jt.slug === field.value)?.nome}
+                                  {
+                                    jobTypes.find(
+                                      (jt) => jt.slug === field.value,
+                                    )?.nome
+                                  }
                                 </span>
                               ) : (
-                                'Seleziona tipo...'
+                                "Seleziona tipo..."
                               )}
                             </SelectValue>
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                        <SelectContent
+                          position="popper"
+                          sideOffset={4}
+                          className="z-[9999]"
+                        >
                           {jobTypes.length === 0 ? (
                             <SelectItem value="none" disabled>
                               Nessun tipo lavoro configurato
                             </SelectItem>
                           ) : (
-                            jobTypes.map(jt => (
+                            jobTypes.map((jt) => (
                               <SelectItem key={jt.id} value={jt.slug}>
                                 <span className="flex items-center gap-2">
                                   <JobTypeIcon slug={jt.slug} size="sm" />
@@ -904,9 +932,17 @@ export default function QuoteTemplatesManager() {
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent position="popper" sideOffset={4} className="z-[9999]">
-                        <SelectItem value="fisso">Fisso (prezzo totale)</SelectItem>
-                        <SelectItem value="variabile">Variabile (cliente sceglie)</SelectItem>
+                      <SelectContent
+                        position="popper"
+                        sideOffset={4}
+                        className="z-[9999]"
+                      >
+                        <SelectItem value="fisso">
+                          Fisso (prezzo totale)
+                        </SelectItem>
+                        <SelectItem value="variabile">
+                          Variabile (cliente sceglie)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -945,17 +981,21 @@ export default function QuoteTemplatesManager() {
               {/* Prodotti Custom */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Prodotti Custom (opzionale)</h3>
+                  <h3 className="text-lg font-semibold">
+                    Prodotti Custom (opzionale)
+                  </h3>
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => append({
-                      nome: '',
-                      descrizione: '',
-                      prezzo: 0,
-                      numeroFoto: 0,
-                      categoria: ''
-                    })}
+                    onClick={() =>
+                      append({
+                        nome: "",
+                        descrizione: "",
+                        prezzo: 0,
+                        numeroFoto: 0,
+                        categoria: "",
+                      })
+                    }
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Aggiungi Prodotto
@@ -968,7 +1008,9 @@ export default function QuoteTemplatesManager() {
                       <CardContent className="pt-6">
                         <div className="space-y-4">
                           <div className="flex justify-between items-start">
-                            <Badge variant="outline">Prodotto {index + 1}</Badge>
+                            <Badge variant="outline">
+                              Prodotto {index + 1}
+                            </Badge>
                             {fields.length > 1 && (
                               <Button
                                 type="button"
@@ -989,7 +1031,10 @@ export default function QuoteTemplatesManager() {
                                 <FormItem>
                                   <FormLabel>Nome</FormLabel>
                                   <FormControl>
-                                    <Input placeholder="es. Album 30x30" {...field} />
+                                    <Input
+                                      placeholder="es. Album 30x30"
+                                      {...field}
+                                    />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -1007,7 +1052,11 @@ export default function QuoteTemplatesManager() {
                                       type="number"
                                       placeholder="0"
                                       {...field}
-                                      onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
                                     />
                                   </FormControl>
                                   <FormMessage />
@@ -1055,20 +1104,27 @@ export default function QuoteTemplatesManager() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Tipo Sconto</FormLabel>
-                        <Select value={field.value || 'none'} onValueChange={(val) => {
-                          if (val === 'none') {
-                            field.onChange(undefined);
-                            form.setValue('discountValue', undefined);
-                          } else {
-                            field.onChange(val);
-                          }
-                        }}>
+                        <Select
+                          value={field.value || "none"}
+                          onValueChange={(val) => {
+                            if (val === "none") {
+                              field.onChange(undefined);
+                              form.setValue("discountValue", undefined);
+                            } else {
+                              field.onChange(val);
+                            }
+                          }}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                          <SelectContent
+                            position="popper"
+                            sideOffset={4}
+                            className="z-[9999]"
+                          >
                             <SelectItem value="none">Nessuno sconto</SelectItem>
                             <SelectItem value="amount">
                               <div className="flex items-center gap-2">
@@ -1096,17 +1152,22 @@ export default function QuoteTemplatesManager() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>
-                            Valore Sconto {discountType === 'amount' ? '(€)' : '(%)'}
+                            Valore Sconto{" "}
+                            {discountType === "amount" ? "(€)" : "(%)"}
                           </FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               step="0.01"
                               min="0"
-                              placeholder={discountType === 'amount' ? '0.00' : '0'}
+                              placeholder={
+                                discountType === "amount" ? "0.00" : "0"
+                              }
                               {...field}
-                              value={field.value || ''}
-                              onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+                              value={field.value || ""}
+                              onChange={(e) =>
+                                field.onChange(parseFloat(e.target.value) || 0)
+                              }
                             />
                           </FormControl>
                           <FormMessage />
@@ -1123,22 +1184,32 @@ export default function QuoteTemplatesManager() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-green-700">Subtotale</span>
-                      <span className="font-medium">€{subtotale.toFixed(2)}</span>
+                      <span className="font-medium">
+                        €{subtotale.toFixed(2)}
+                      </span>
                     </div>
 
                     {discountType && discountValue > 0 && (
                       <div className="flex items-center justify-between text-sm text-orange-600">
                         <span>
-                          Sconto {discountType === 'percent' ? `(${discountValue}%)` : ''}
+                          Sconto{" "}
+                          {discountType === "percent"
+                            ? `(${discountValue}%)`
+                            : ""}
                         </span>
                         <span>
-                          -€{discountType === 'amount' ? discountValue.toFixed(2) : (subtotale * discountValue / 100).toFixed(2)}
+                          -€
+                          {discountType === "amount"
+                            ? discountValue.toFixed(2)
+                            : ((subtotale * discountValue) / 100).toFixed(2)}
                         </span>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between pt-3 border-t border-green-200">
-                      <span className="text-lg font-semibold">Totale Template</span>
+                      <span className="text-lg font-semibold">
+                        Totale Template
+                      </span>
                       <span className="text-3xl font-bold text-green-600">
                         €{totalAfterDiscount.toFixed(2)}
                       </span>
@@ -1177,22 +1248,26 @@ export default function QuoteTemplatesManager() {
                   onClick={() => {
                     setCreateModalOpen(false);
                     setEditModalOpen(false);
-                    setEditingTemplateId(null);
+                    setCurrentTemplate(null);
                     form.reset();
                   }}
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
                 >
                   Annulla
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
                   className="bg-sage hover:bg-dark-sage"
                 >
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   )}
-                  {editModalOpen ? 'Salva Modifiche' : 'Crea Template'}
+                  {editModalOpen ? "Salva Modifiche" : "Crea Template"}
                 </Button>
               </div>
             </form>
@@ -1221,7 +1296,9 @@ export default function QuoteTemplatesManager() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTemplateId && deleteMutation.mutate(deleteTemplateId)}
+              onClick={() =>
+                deleteTemplateId && deleteMutation.mutate(deleteTemplateId)
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Elimina
