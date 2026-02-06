@@ -33,7 +33,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
 import libroCopertina from "@assets/libro-copertina.jpg";
-import libroPdf from "@assets/lasciati-trasportare.pdf";
+
 import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";

@@ -20,7 +20,6 @@ const GalleryAccessPage = lazy(() => import("./pages/public/GalleryAccessPage"))
 const PortfolioPage = lazy(() => import("./pages/public/PortfolioPage"));
 const PortfolioCategoryPage = lazy(() => import("./pages/public/PortfolioCategoryPage"));
 const StoriePage = lazy(() => import("./pages/public/StoriePage"));
-const LasciatiTrasportarePage = lazy(() => import("./pages/public/LasciatiTrasportarePage"));
 const BlogListPage = lazy(() => import("./pages/public/BlogListPage"));
 const BlogPostPage = lazy(() => import("./pages/public/BlogPostPage"));
 const WeddingVideosPage = lazy(() => import("./pages/public/WeddingVideosPage"));
@@ -99,7 +98,6 @@ function AppRoutes() {
         <Route path="/portfolio" component={PortfolioPage} />
         <Route path="/portfolio/:categoria" component={PortfolioCategoryPage} />
         <Route path="/storie" component={StoriePage} />
-        <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
         <Route path="/blog" component={BlogListPage} />
         <Route path="/blog/:slug" component={BlogPostPage} />
         <Route path="/vision" component={WeddingVideosPage} />
