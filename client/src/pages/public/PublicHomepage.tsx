@@ -27,12 +27,12 @@ import {
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
 import Navigation from "@/components/Navigation";
-import type { BookingCampaign } from "@shared/booking-types";
+import type { BookingCampaignFE } from "@shared/booking-types";
 import { BlogPost, BlogPostStatus, WeddingVideo } from "@shared/schema";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
-import libroCopertina from "@assets/libro-copertina.jpg";
+
 
 import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
@@ -52,7 +52,7 @@ export default function PublicHomepage() {
   const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
-  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
+  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
   const [blogPosts, setBlogPosts] = useState<any[]>([]);
   const [weddingVideos, setWeddingVideos] = useState<any[]>([]);
   const [loadingBlog, setLoadingBlog] = useState(true);
@@ -213,8 +213,8 @@ export default function PublicHomepage() {
       const snapshot = await getDocs(q);
       const videos = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
-      })) as WeddingVideo[];
+        ...doc.data() as Omit<WeddingVideo, 'id'>
+      }));
 
       console.log('[PublicHomepage] Video caricati:', videos.length);
       setWeddingVideos(videos);
@@ -222,12 +222,13 @@ export default function PublicHomepage() {
       console.error('[PublicHomepage] Errore caricamento video:', error);
       // Se fallisce la query con orderBy, prova senza
       try {
-        const simpleQuery = query(videosRef, where('active', '==', true), limit(3));
+        const fallbackRef = collection(db, 'weddingVideos');
+        const simpleQuery = query(fallbackRef, where('active', '==', true), limit(3));
         const snapshot = await getDocs(simpleQuery);
         const videos = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
-        })) as WeddingVideo[];
+          ...doc.data() as Omit<WeddingVideo, 'id'>
+        }));
         console.log('[PublicHomepage] Video caricati (fallback):', videos.length);
         setWeddingVideos(videos);
       } catch (fallbackError) {
@@ -795,7 +796,6 @@ export default function PublicHomepage() {
 
       {/* CTA Book - Lasciati Trasportare */}
       <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-br from-[#8B9A8B] via-[#9AA89A] to-[#7A8A7A] px-4 relative overflow-hidden">
-        {/* Background decorative elements */}
         <div className="absolute inset-0 opacity-5">
           <div
             className="absolute inset-0"
@@ -807,19 +807,17 @@ export default function PublicHomepage() {
 
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="grid md:grid-cols-2 gap-8 items-center">
-            {/* Book Cover Image */}
             <div className="flex justify-center md:justify-end">
               <div className="relative group">
                 <div className="absolute inset-0 bg-white/20 rounded-2xl transform rotate-3 group-hover:rotate-6 transition-transform duration-300" />
                 <img
-                  src={libroCopertina}
+                  src={`${import.meta.env.BASE_URL || '/'}images/libro-copertina.jpg`}
                   alt="Lasciati Trasportare - Copertina del Libro"
                   className="relative w-full max-w-sm rounded-2xl shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
             </div>
 
-            {/* Book Info */}
             <div className="text-white space-y-6">
               <div>
                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">
@@ -853,7 +851,7 @@ export default function PublicHomepage() {
               </div>
 
               <a
-                href={libroPdf}
+                href={`${import.meta.env.BASE_URL || '/'}docs/lasciati-trasportare.pdf`}
                 download="Lasciati-Trasportare.pdf"
                 target="_blank"
                 rel="noopener noreferrer"

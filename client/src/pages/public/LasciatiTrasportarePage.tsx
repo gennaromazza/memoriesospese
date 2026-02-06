@@ -5,8 +5,9 @@ import { ArrowLeft, Download, Calendar, ChevronLeft, ChevronRight, ZoomIn, ZoomO
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-import libroPdf from "@assets/lasciati-trasportare.pdf";
-import libroCopertinaImg from "@assets/libro-copertina.jpg";
+const base = import.meta.env.BASE_URL || '/';
+const libroPdf = `${base}docs/lasciati-trasportare.pdf`;
+const libroCopertinaImg = `${base}images/libro-copertina.jpg`;
 
 // Configure PDF.js worker - Use Mozilla CDN for reliability
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;

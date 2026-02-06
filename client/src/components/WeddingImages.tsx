@@ -1,10 +1,10 @@
 import React from 'react';
 
-// Importiamo le immagini decorative
-import coupleHeartBalloon from '../assets/couple-heart-balloon.png';
-import coupleWeddingCake from '../assets/couple-wedding-cake.png';
-import coupleStanding from '../assets/couple-standing.png';
-import coupleFlowerBouquet from '../assets/couple-flower-bouquet.png';
+const base = import.meta.env.BASE_URL || '/';
+const coupleHeartBalloon = `${base}images/couple-heart-balloon.png`;
+const coupleWeddingCake = `${base}images/couple-wedding-cake.png`;
+const coupleStanding = `${base}images/couple-standing.png`;
+const coupleFlowerBouquet = `${base}images/couple-flower-bouquet.png`;
 
 export type WeddingImageType = 'heart-balloon' | 'wedding-cake' | 'standing' | 'flower-bouquet';
 

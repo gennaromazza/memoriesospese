@@ -139,6 +139,14 @@ export default function StoriePage() {
           </p>
         </div>
 
+        <div className="mt-16 text-center">
+          <Link href="/lasciati-trasportare">
+            <Button size="lg" className="bg-sage hover:bg-dark-sage text-white">
+              <BookOpen className="mr-2 h-5 w-5" />
+              Leggi il Libro Completo
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   );
