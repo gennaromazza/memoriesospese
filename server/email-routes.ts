@@ -3953,6 +3953,203 @@ export function createPaymentReminderEmailHTML(
   `;
 }
 
+function createAdminQuoteSignedNotificationHTML(
+  clienteName: string,
+  quoteType: 'fisso' | 'variabile',
+  nomeEvento: string,
+  totalAmount: number,
+  signatureDate: Date,
+  quoteUrl: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || {
+    name: "Image Studio",
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #2e7d32; text-align: center;">🎉 Nuovo Contratto Firmato!</h2>
+      <div style="background: #f1f8e9; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #2e7d32;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Il cliente <strong>${clienteName}</strong> ha firmato il preventivo per <strong style="color: #2e7d32;">${nomeEvento}</strong>.
+        </p>
+        <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Cliente:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${clienteName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Evento:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${nomeEvento}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Tipo preventivo:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Totale:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 18px; color: #2e7d32;">${formatCurrency(totalAmount)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0;">Data firma:</td>
+            <td style="padding: 8px 0; text-align: right;">${formatDate(signatureDate)}</td>
+          </tr>
+        </table>
+      </div>
+      ${quoteUrl && quoteUrl !== '#' ? `
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${quoteUrl}" style="display: inline-block; background: #2e7d32; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Visualizza Preventivo
+          </a>
+        </div>
+      ` : ''}
+      <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
+      </div>
+    </div>
+  `;
+}
+
+function createAccontoCancelledEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  accontoImporto: number,
+  nuovoAccontoTotale: number,
+  nuovoSaldo: number,
+  motivo: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string }
+): string {
+  const studio = studioInfo || {
+    name: "Image Studio",
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #e65100; text-align: center;">⚠️ Acconto Annullato</h2>
+      <div style="background: #fff3e0; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #e65100;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 15px; margin-bottom: 15px;">
+          Ti informiamo che un acconto di <strong style="color: #e65100;">${formatCurrency(accontoImporto)}</strong>
+          relativo a <strong>${prodottoNome}</strong> è stato annullato.
+        </p>
+        ${motivo ? `<p style="font-size: 14px; color: #666; margin-bottom: 15px;"><em>Motivo: ${motivo}</em></p>` : ''}
+        <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse; margin-top: 10px;">
+          <tr style="border-bottom: 1px solid #ffe0b2;">
+            <td style="padding: 8px 0;">Acconto annullato:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #e65100;">${formatCurrency(accontoImporto)}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ffe0b2;">
+            <td style="padding: 8px 0;">Totale acconti aggiornato:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(nuovoAccontoTotale)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0;">Saldo residuo:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #e65100;">${formatCurrency(nuovoSaldo)}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 14px; color: #666; text-align: center;">
+        Per qualsiasi domanda, non esitare a contattarci.
+      </p>
+      <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
+        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
+      </div>
+    </div>
+  `;
+}
+
+function createOrderSaldoPendenteEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  saldoAmount: number,
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  totaleOrdine?: number,
+  transactions?: Array<{ importo: number; tipo: string; data: string }>
+): string {
+  const studio = studioInfo || {
+    name: "Image Studio",
+    email: "info@imagestudiofotografico.com",
+    phone: "+39 334 7103142",
+    address: ""
+  };
+
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #2e7d32; text-align: center;">✅ Saldo Completato</h2>
+      <div style="background: #f1f8e9; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #2e7d32;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 15px; margin-bottom: 15px;">
+          Il saldo per <strong>${prodottoNome}</strong> è stato completato con successo!
+        </p>
+        <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse; margin-top: 10px;">
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Saldo pagato:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #2e7d32; font-size: 18px;">${formatCurrency(saldoAmount)}</td>
+          </tr>
+          ${totaleOrdine !== undefined ? `
+          <tr style="border-bottom: 1px solid #c8e6c9;">
+            <td style="padding: 8px 0;">Totale ordine:</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(totaleOrdine)}</td>
+          </tr>
+          ` : ''}
+          <tr>
+            <td colspan="2" style="padding: 15px 0 0; text-align: center;">
+              <span style="color: #2e7d32; font-size: 16px; font-weight: 600;">✓ Pagamento completato</span>
+            </td>
+          </tr>
+        </table>
+      </div>
+      ${transactions && transactions.length > 0 ? `
+        <div style="margin: 20px 0;">
+          <h3 style="font-size: 15px; color: #333; margin-bottom: 10px;">Riepilogo Pagamenti</h3>
+          <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+            ${transactions.map(t => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 6px 0; color: #666;">${t.tipo || 'Pagamento'}</td>
+                <td style="padding: 6px 0; color: #666;">${t.data || ''}</td>
+                <td style="padding: 6px 0; text-align: right; font-weight: bold;">${formatCurrency(t.importo)}</td>
+              </tr>
+            `).join('')}
+          </table>
+        </div>
+      ` : ''}
+      <p style="font-size: 14px; color: #666; text-align: center;">
+        Grazie per la tua fiducia!
+      </p>
+      <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
+        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
+        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ''}
+        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
+      </div>
+    </div>
+  `;
+}
+
 /**
  * POST /api/email/admin-quote-signed-notification
  *Invia notifica admin quando il cliente firma il preventivo
@@ -5574,7 +5771,7 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
           <tr>
             <td style="background-color:#f8f6f3;padding:30px 40px;text-align:center;border-top:1px solid #e8e4df;">
               <p style="margin:0 0 10px;font-size:14px;color:#8b5a3c;font-weight:600;">
-                ${studioInfo.studioName || 'Studio Fotografico'}
+                ${studioInfo.name || 'Studio Fotografico'}
               </p>
               ${studioInfo.phone ? `<p style="margin:0 0 5px;font-size:13px;color:#666;">Tel: ${studioInfo.phone}</p>` : ''}
               ${studioInfo.email ? `<p style="margin:0;font-size:13px;color:#666;">Email: ${studioInfo.email}</p>` : ''}
@@ -5596,7 +5793,7 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
 
     // Log audit
     try {
-      await adminDb.collection('emailLogs').add({
+      await db.collection('emailLogs').add({
         type: 'payment_receipt',
         recipientEmail,
         clientName,
