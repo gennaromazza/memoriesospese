@@ -153,14 +153,14 @@ const STATI_WORKFLOW = [
     icon: CheckCircle2,
   },
   {
-    value: WorkflowState.IN_LAVORAZIONE,
-    label: "In lavorazione",
-    icon: Palette,
-  },
-  {
     value: WorkflowState.IN_ATTESA_SELEZIONE,
     label: "In attesa selezione",
     icon: Timer,
+  },
+  {
+    value: WorkflowState.IN_LAVORAZIONE,
+    label: "In lavorazione",
+    icon: Palette,
   },
   { value: WorkflowState.COMPLETATO, label: "Completato", icon: PartyPopper },
   { value: WorkflowState.CONSEGNATO, label: "Consegnato", icon: PackageCheck },
@@ -571,7 +571,7 @@ export default function BookingsManager({
       if (campaignFilter === "active") {
         // Solo prenotazioni di campagne attive
         const activeCampaignIds = campaigns
-          .filter((c) => c.statoVisibilita === "attiva")
+          .filter((c) => c.attiva)
           .map((c) => c.id);
         filtered = filtered.filter((b) =>
           activeCampaignIds.includes(b.campaignId),
@@ -1569,7 +1569,7 @@ export default function BookingsManager({
                     {campaigns.map((campaign) => (
                       <SelectItem key={campaign.id} value={campaign.id}>
                         <span className="flex items-center gap-2">
-                          {campaign.statoVisibilita === "attiva" ? (
+                          {campaign.attiva ? (
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           ) : (
                             <History className="h-4 w-4 text-gray-400" />
@@ -2544,14 +2544,6 @@ export default function BookingsManager({
                                           </span>
                                         </SelectItem>
                                         <SelectItem
-                                          value={WorkflowState.IN_LAVORAZIONE}
-                                        >
-                                          <span className="flex items-center gap-2">
-                                            <Palette className="h-4 w-4" />
-                                            In lavorazione
-                                          </span>
-                                        </SelectItem>
-                                        <SelectItem
                                           value={
                                             WorkflowState.IN_ATTESA_SELEZIONE
                                           }
@@ -2559,6 +2551,14 @@ export default function BookingsManager({
                                           <span className="flex items-center gap-2">
                                             <Timer className="h-4 w-4" />
                                             In attesa selezione
+                                          </span>
+                                        </SelectItem>
+                                        <SelectItem
+                                          value={WorkflowState.IN_LAVORAZIONE}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <Palette className="h-4 w-4" />
+                                            In lavorazione
                                           </span>
                                         </SelectItem>
                                         <SelectItem
