@@ -41,27 +41,58 @@ export default defineConfig(({ mode }) => {
       assetsDir: "assets",
       target: "esnext",
       minify: mode === "production" ? "esbuild" : false,
+      chunkSizeWarningLimit: 1000,
 
-      // 🔹 Aumenta limite per i warning (solo informativo)
-      chunkSizeWarningLimit: 3000,
-
-      // 🔹 Spezzamento manuale dei chunk principali
       rollupOptions: {
         output: {
-          manualChunks: {
-            react: ["react", "react-dom"],
-            firebase: [
-              "firebase/app",
-              "firebase/auth",
-              "firebase/firestore",
-              "firebase/storage",
-            ],
-            vendor: [
-              "react-router-dom",
-              "@tanstack/react-query",
-              "axios",
-              "zod",
-            ],
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("react-dom") || id.includes("/react/")) {
+                return "react";
+              }
+              if (id.includes("firebase/")) {
+                return "firebase";
+              }
+              if (id.includes("recharts") || id.includes("d3-")) {
+                return "charts";
+              }
+              if (id.includes("framer-motion")) {
+                return "framer";
+              }
+              if (id.includes("xlsx")) {
+                return "xlsx";
+              }
+              if (id.includes("@ckeditor")) {
+                return "ckeditor";
+              }
+              if (id.includes("react-pdf") || id.includes("pdfjs-dist")) {
+                return "pdf";
+              }
+              if (id.includes("@dnd-kit")) {
+                return "dndkit";
+              }
+              if (id.includes("luxon")) {
+                return "luxon";
+              }
+              if (id.includes("@radix-ui")) {
+                return "radix";
+              }
+              if (id.includes("embla-carousel")) {
+                return "carousel";
+              }
+              if (
+                id.includes("react-router-dom") ||
+                id.includes("@tanstack/react-query") ||
+                id.includes("axios") ||
+                id.includes("zod") ||
+                id.includes("wouter") ||
+                id.includes("clsx") ||
+                id.includes("tailwind-merge") ||
+                id.includes("class-variance-authority")
+              ) {
+                return "vendor";
+              }
+            }
           },
         },
       },
@@ -72,7 +103,6 @@ export default defineConfig(({ mode }) => {
       __APP_MODE__: JSON.stringify(mode),
     },
 
-    // 🔹 Pre-bundling di dipendenze critiche per evitare warning sui dynamic imports
     optimizeDeps: {
       include: [
         "react",
