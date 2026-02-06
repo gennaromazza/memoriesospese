@@ -4,8 +4,16 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import StudioLogo from "@/components/StudioLogo";
 import gennaroWithCamera from "@assets/DSCF7392_1_1763485862385.jpg";
 import gennaroArtistic from "@assets/DSCF7358_1_1763485862385.jpg";
+import { useSEO } from "@/hooks/useSEO";
 
 export default function StoriePage() {
+  useSEO({
+    title: "La Nostra Storia | Gennaro Mazzacane Fotografo | Image Studio",
+    description: "Scopri la storia di Image Studio e del fotografo Gennaro Mazzacane. 10+ anni di passione per la fotografia matrimoniale in Campania.",
+    canonical: "/storie",
+    keywords: "gennaro mazzacane fotografo, storia image studio, fotografo aversa",
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
       {/* Navigation */}

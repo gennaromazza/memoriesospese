@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin } f
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
 import StudioLogo from "@/components/StudioLogo";
+import { useSEO } from "@/hooks/useSEO";
 
 export default function BlogListPage() {
   const { studioSettings } = useStudio();
@@ -20,6 +21,13 @@ export default function BlogListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedTag, setSelectedTag] = useState<string>('all');
+
+  useSEO({
+    title: "Blog | Consigli Matrimonio e Fotografia | Image Studio",
+    description: "Il blog di Image Studio: consigli per il matrimonio, storie di coppie, tendenze fotografia, guide per sposi a Napoli e Caserta.",
+    canonical: "/blog",
+    keywords: "blog matrimonio, consigli sposi, fotografia matrimonio, storie matrimoni campania",
+  });
 
   useEffect(() => {
     loadPosts();

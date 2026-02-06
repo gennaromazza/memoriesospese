@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
+import { useSEO } from "@/hooks/useSEO";
 
 interface PortfolioPhoto {
   id: string;
@@ -33,6 +34,15 @@ export default function PortfolioCategoryPage() {
   const [loading, setLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const capitalizedCategoria = categoria ? categoria.charAt(0).toUpperCase() + categoria.slice(1) : '';
+
+  useSEO({
+    title: `Portfolio ${capitalizedCategoria} | Image Studio Napoli`,
+    description: `Galleria fotografica ${categoria || ''} di Image Studio. Foto professionali a Napoli, Caserta e Campania.`,
+    canonical: `/portfolio/${categoria || ''}`,
+    keywords: `foto ${categoria || ''} napoli, ${categoria || ''} caserta, fotografo ${categoria || ''} campania`,
+  });
 
   useEffect(() => {
     loadPhotos();

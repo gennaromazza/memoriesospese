@@ -38,6 +38,7 @@ import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 import StudioLogo from "@/components/StudioLogo";
+import { useSEO } from "@/hooks/useSEO";
 
 interface PortfolioPhoto {
   id: string;
@@ -60,7 +61,13 @@ export default function PublicHomepage() {
 
   usePrefetchPopularPages();
 
-  // Carousel for campaigns
+  useSEO({
+    title: "Image Studio | Fotografo Matrimoni Napoli Caserta | Memorie Sospese",
+    description: "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Memorie Sospese a Napoli, Caserta, Aversa, Costiera Amalfitana.",
+    canonical: "/",
+    keywords: "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, memorie sospese, image studio",
+  });
+
   const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
     Autoplay({ delay: 5000, stopOnInteraction: false }),
   ]);
@@ -69,48 +76,6 @@ export default function PublicHomepage() {
     loadPortfolioPreview();
     loadLatestBlogPosts();
     loadLatestVideos();
-
-    // SEO meta tags
-    document.title =
-      "Image Studio | Fotografia Professionale Matrimoni Napoli Caserta | Lasciati Trasportare";
-
-    const updateMetaTag = (name: string, content: string) => {
-      let tag = document.querySelector(`meta[name="${name}"]`);
-      if (!tag) {
-        tag = document.createElement('meta');
-        tag.setAttribute('name', name);
-        document.head.appendChild(tag);
-      }
-      tag.setAttribute('content', content);
-    };
-
-    updateMetaTag(
-      "description",
-      "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Image Studio. Servizi foto e video a Napoli, Caserta, Costiera Amalfitana.",
-    );
-
-    updateMetaTag(
-      "keywords",
-      "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, fotografo battesimi napoli, gallerie foto interattive, image studio fotografico, destination wedding italy, fotografo costiera amalfitana, fotografia eventi napoli",
-    );
-
-    // Open Graph tags
-    const updateOgTag = (property: string, content: string) => {
-      let tag = document.querySelector(`meta[property="${property}"]`);
-      if (!tag) {
-        tag = document.createElement("meta");
-        tag.setAttribute("property", property);
-        document.head.appendChild(tag);
-      }
-      tag.setAttribute("content", content);
-    };
-
-    updateOgTag("og:title", "Image Studio | Fotografia Professionale");
-    updateOgTag(
-      "og:description",
-      "Lasciati trasportare dalle emozioni dei tuoi momenti più belli",
-    );
-    updateOgTag("og:type", "website");
   }, []);
 
   const loadPortfolioPreview = async () => {

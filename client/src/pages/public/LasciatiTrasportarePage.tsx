@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Calendar, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { useSEO } from "@/hooks/useSEO";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 const base = import.meta.env.BASE_URL || '/';
@@ -16,6 +17,13 @@ export default function LasciatiTrasportarePage() {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
+
+  useSEO({
+    title: "Lasciati Trasportare | E-book Fotografia | Image Studio",
+    description: "Scarica l'e-book Lasciati Trasportare di Image Studio. La filosofia e l'approccio emozionale alla fotografia matrimoniale.",
+    canonical: "/lasciati-trasportare",
+    keywords: "ebook fotografia matrimonio, lasciati trasportare, image studio filosofia",
+  });
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);

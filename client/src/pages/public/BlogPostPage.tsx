@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import StudioLogo from "@/components/StudioLogo";
+import { useSEO } from "@/hooks/useSEO";
 
 export default function BlogPostPage() {
   const [, params] = useRoute("/blog/:slug");
@@ -15,6 +16,14 @@ export default function BlogPostPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
+
+  useSEO({
+    title: post ? `${post.title} | Blog Image Studio` : "Blog | Image Studio",
+    description: post ? (post.excerpt || post.title) : "Blog Image Studio",
+    canonical: post ? `/blog/${post.slug}` : "/blog",
+    ogType: "article",
+    ogImage: post?.coverImage || undefined,
+  });
 
   useEffect(() => {
     if (params?.slug) {
@@ -110,44 +119,11 @@ export default function BlogPostPage() {
 
   useEffect(() => {
     if (post) {
-      const pageTitle = post.metaTitle || `${post.title} | Image Studio`;
-      const pageDescription = post.metaDescription || post.excerpt || '';
-
-      document.title = pageTitle;
-
-      // Meta description
-      let metaDescription = document.querySelector('meta[name="description"]');
-      if (!metaDescription) {
-        metaDescription = document.createElement('meta');
-        metaDescription.setAttribute('name', 'description');
-        document.head.appendChild(metaDescription);
-      }
-      metaDescription.setAttribute('content', pageDescription);
-
-      // Open Graph tags
-      const updateOgTag = (property: string, content: string) => {
-        let tag = document.querySelector(`meta[property="${property}"]`);
-        if (!tag) {
-          tag = document.createElement('meta');
-          tag.setAttribute('property', property);
-          document.head.appendChild(tag);
-        }
-        tag.setAttribute('content', content);
-      };
-
-      updateOgTag('og:title', pageTitle);
-      updateOgTag('og:description', pageDescription);
-      updateOgTag('og:type', 'article');
-      if (post.coverImage) {
-        updateOgTag('og:image', post.coverImage);
-      }
-
-      // Article Schema per AI e SEO
       const articleSchema = {
         "@context": "https://schema.org",
         "@type": "Article",
         "headline": post.title,
-        "description": pageDescription,
+        "description": post.metaDescription || post.excerpt || '',
         "image": post.coverImage || '',
         "datePublished": post.publishedAt?.seconds ? new Date(post.publishedAt.seconds * 1000).toISOString() : new Date().toISOString(),
         "dateModified": post.publishedAt?.seconds ? new Date(post.publishedAt.seconds * 1000).toISOString() : new Date().toISOString(),
@@ -181,23 +157,11 @@ export default function BlogPostPage() {
       articleSchemaTag.textContent = JSON.stringify(articleSchema);
     }
 
-    // Cleanup function to reset on unmount
     return () => {
-      document.title = 'Image Studio';
-
-      const metaDescription = document.querySelector('meta[name="description"]');
-      if (metaDescription) {
-        metaDescription.setAttribute('content', 'Image Studio - Fotografia Professionale');
+      const articleSchemaTag = document.querySelector('script[data-article-schema]');
+      if (articleSchemaTag) {
+        articleSchemaTag.remove();
       }
-
-      // Remove OG tags to prevent stale metadata
-      const ogTags = ['og:title', 'og:description', 'og:type', 'og:image'];
-      ogTags.forEach(property => {
-        const tag = document.querySelector(`meta[property="${property}"]`);
-        if (tag) {
-          tag.remove();
-        }
-      });
     };
   }, [post]);
 

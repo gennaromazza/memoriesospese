@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Grid, LayoutGrid } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
 import StudioLogo from "@/components/StudioLogo";
+import { useSEO } from "@/hooks/useSEO";
 
 interface PortfolioPhoto {
   id: string;
@@ -44,6 +45,13 @@ export default function PortfolioPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useSEO({
+    title: "Portfolio Fotografico | Matrimoni, Battesimi, Eventi | Image Studio Napoli",
+    description: "Scopri il portfolio fotografico di Image Studio: matrimoni, battesimi, comunioni, ritratti ed eventi a Napoli, Caserta e Campania. Fotografie emozionali.",
+    canonical: "/portfolio",
+    keywords: "portfolio fotografo napoli, foto matrimoni campania, galleria fotografica, foto battesimi napoli",
+  });
 
   useEffect(() => {
     loadPortfolio();

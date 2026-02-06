@@ -20,7 +20,6 @@
     <meta name="bingbot" content="index, follow" />
 
     <!-- AI & Chatbot Optimization -->
-    <meta name="description" content="Image Studio - Fotografo professionista ad Aversa (Napoli, Caserta). Matrimoni, eventi, ritratti e video. Memorie Sospese: gallerie digitali interattive per rivivere i tuoi ricordi." />
     <meta name="abstract" content="Studio fotografico specializzato in matrimoni, battesimi, comunioni e eventi in Campania con gallerie digitali Memorie Sospese" />
     <meta name="topic" content="Fotografia matrimoni, eventi, Campania, gallerie digitali" />
     <meta name="summary" content="Fotografo professionista per matrimoni ed eventi in Campania. Servizi fotografici emozionali con gallerie digitali interattive Memorie Sospese. 10+ anni di esperienza, 500+ matrimoni documentati." />
@@ -89,15 +88,16 @@
     {
       "@context": "https://schema.org",
       "@type": "ProfessionalService",
+      "@id": "https://imagestudiofotografico.com/#service",
       "name": "Image Studio - Memorie Sospese",
-      "alternateName": "Image Studio Fotografia",
+      "alternateName": ["Image Studio Fotografia", "Image Studio Fotografico", "Memorie Sospese"],
       "image": "https://imagestudiofotografico.com/1200x630px.jpg",
       "logo": "https://imagestudiofotografico.com/favicon.png",
-      "description": "Fotografo professionista specializzato in matrimoni, eventi e storytelling digitale. Servizi fotografici emozionali in tutta la Campania. Gallerie digitali interattive Memorie Sospese per rivivere le tue emozioni.",
+      "description": "Fotografo professionista specializzato in matrimoni, battesimi, comunioni, cresime, eventi e storytelling digitale in Campania. Servizi fotografici emozionali con gallerie digitali interattive Memorie Sospese per rivivere le tue emozioni. Oltre 10 anni di esperienza e 500+ matrimoni documentati.",
       "address": {
         "@type": "PostalAddress",
         "streetAddress": "Aversa",
-        "addressLocality": "Napoli",
+        "addressLocality": "Aversa",
         "addressRegion": "Campania",
         "postalCode": "81031",
         "addressCountry": "IT"
@@ -108,40 +108,23 @@
         "longitude": "14.207"
       },
       "url": "https://imagestudiofotografico.com",
-      "telephone": "+39-XXX-XXXXXXX",
       "email": "info@memoriesospese.it",
       "priceRange": "€€€",
       "openingHours": "Mo-Su 09:00-20:00",
-      "serviceType": ["Fotografia Matrimoni", "Video Matrimoni", "Fotografia Eventi", "Ritratti", "Book Fotografici", "Fotografia Battesimi", "Fotografia Comunioni", "Fotografia Cresime", "Gallerie Digitali Interattive"],
+      "serviceType": ["Fotografia Matrimoni", "Video Matrimoni", "Fotografia Eventi", "Ritratti", "Book Fotografici", "Fotografia Battesimi", "Fotografia Comunioni", "Fotografia Cresime", "Gallerie Digitali Interattive", "Destination Wedding Photography"],
       "areaServed": [
-        {
-          "@type": "City",
-          "name": "Napoli"
-        },
-        {
-          "@type": "City",
-          "name": "Caserta"
-        },
-        {
-          "@type": "City",
-          "name": "Aversa"
-        },
-        {
-          "@type": "City",
-          "name": "Salerno"
-        },
-        {
-          "@type": "Place",
-          "name": "Costiera Amalfitana"
-        },
-        {
-          "@type": "AdministrativeArea",
-          "name": "Campania"
-        },
-        {
-          "@type": "Country",
-          "name": "Italia"
-        }
+        {"@type": "City", "name": "Napoli"},
+        {"@type": "City", "name": "Caserta"},
+        {"@type": "City", "name": "Aversa"},
+        {"@type": "City", "name": "Salerno"},
+        {"@type": "City", "name": "Giugliano in Campania"},
+        {"@type": "Place", "name": "Costiera Amalfitana"},
+        {"@type": "Place", "name": "Amalfi"},
+        {"@type": "Place", "name": "Ravello"},
+        {"@type": "Place", "name": "Positano"},
+        {"@type": "Place", "name": "Sorrento"},
+        {"@type": "AdministrativeArea", "name": "Campania"},
+        {"@type": "Country", "name": "Italia"}
       ],
       "hasOfferCatalog": {
         "@type": "OfferCatalog",
@@ -152,36 +135,116 @@
             "itemOffered": {
               "@type": "Service",
               "name": "Fotografia Matrimoni",
-              "description": "Servizio fotografico completo per matrimoni con reportage emozionale e gallerie digitali interattive"
+              "description": "Servizio fotografico completo per matrimoni con reportage emozionale, ritratti di coppia e gallerie digitali interattive Memorie Sospese"
             }
           },
           {
             "@type": "Offer",
             "itemOffered": {
               "@type": "Service",
-              "name": "Video Matrimoni",
-              "description": "Video matrimoniali cinematografici con storytelling emozionale"
+              "name": "Video Matrimoni - iMaGe Vision",
+              "description": "Video matrimoniali cinematografici ed emozionali con montaggio professionale e musica personalizzata"
             }
           },
           {
             "@type": "Offer",
             "itemOffered": {
               "@type": "Service",
-              "name": "Gallerie Memorie Sospese",
-              "description": "Gallerie fotografiche digitali interattive per rivivere i tuoi ricordi più belli"
+              "name": "Fotografia Battesimi e Cerimonie",
+              "description": "Servizio fotografico professionale per battesimi, comunioni e cresime in tutta la Campania"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Gallerie Digitali Memorie Sospese",
+              "description": "Piattaforma proprietaria di gallerie fotografiche digitali interattive con accesso protetto, selezione foto online e download in alta risoluzione"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Ritratti e Book Fotografici",
+              "description": "Sessioni fotografiche professionali per ritratti individuali, di coppia e familiari"
             }
           }
         ]
       },
+      "founder": {
+        "@type": "Person",
+        "@id": "https://imagestudiofotografico.com/#photographer",
+        "name": "Gennaro Mazzacane",
+        "jobTitle": "Fotografo Professionista"
+      },
       "sameAs": [
-        "https://www.facebook.com/imagestudio",
-        "https://www.instagram.com/imagestudio"
+        "https://www.facebook.com/imagestudiofotografico",
+        "https://www.instagram.com/imagestudiofotografico"
       ],
       "aggregateRating": {
         "@type": "AggregateRating",
         "ratingValue": "5",
-        "reviewCount": "150"
+        "bestRating": "5",
+        "worstRating": "1",
+        "reviewCount": "150",
+        "ratingCount": "150"
       }
+    }
+    </script>
+
+    <!-- Photographer Person Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "@id": "https://imagestudiofotografico.com/#photographer",
+      "name": "Gennaro Mazzacane",
+      "givenName": "Gennaro",
+      "familyName": "Mazzacane",
+      "jobTitle": "Fotografo Professionista Matrimoni",
+      "description": "Fotografo professionista specializzato in matrimoni ed eventi con oltre 10 anni di esperienza e 500+ matrimoni documentati in Campania. Fondatore di Image Studio e della piattaforma Memorie Sospese per gallerie digitali interattive.",
+      "image": "https://imagestudiofotografico.com/1200x630px.jpg",
+      "url": "https://imagestudiofotografico.com/storie",
+      "email": "info@memoriesospese.it",
+      "worksFor": {
+        "@type": "Organization",
+        "@id": "https://imagestudiofotografico.com/#organization"
+      },
+      "knowsAbout": [
+        "Fotografia matrimoni",
+        "Video matrimoniali cinematografici",
+        "Fotografia battesimi",
+        "Fotografia comunioni e cresime",
+        "Ritratti professionali",
+        "Book fotografici",
+        "Destination wedding photography",
+        "Storytelling fotografico",
+        "Post-produzione fotografica",
+        "Gallerie digitali interattive"
+      ],
+      "hasOccupation": {
+        "@type": "Occupation",
+        "name": "Fotografo Matrimoni",
+        "occupationLocation": {
+          "@type": "AdministrativeArea",
+          "name": "Campania, Italia"
+        }
+      },
+      "workLocation": {
+        "@type": "Place",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Aversa",
+          "addressRegion": "Campania",
+          "postalCode": "81031",
+          "addressCountry": "IT"
+        }
+      },
+      "sameAs": [
+        "https://www.facebook.com/imagestudiofotografico",
+        "https://www.instagram.com/imagestudiofotografico"
+      ]
     }
     </script>
 
@@ -221,11 +284,10 @@
       "@id": "https://imagestudiofotografico.com/#business",
       "name": "Image Studio - Memorie Sospese",
       "image": "https://imagestudiofotografico.com/1200x630px.jpg",
-      "telephone": "+39-XXX-XXXXXXX",
       "address": {
         "@type": "PostalAddress",
         "streetAddress": "Aversa",
-        "addressLocality": "Napoli",
+        "addressLocality": "Aversa",
         "addressRegion": "Campania",
         "postalCode": "81031",
         "addressCountry": "IT"
@@ -236,13 +298,15 @@
         "longitude": "14.207"
       },
       "url": "https://imagestudiofotografico.com",
+      "email": "info@memoriesospese.it",
       "priceRange": "€€€",
       "openingHoursSpecification": {
         "@type": "OpeningHoursSpecification",
         "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         "opens": "09:00",
         "closes": "20:00"
-      }
+      },
+      "hasMap": "https://maps.google.com/?q=Aversa+CE+Italia"
     }
     </script>
 
@@ -251,30 +315,49 @@
     {
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": "https://imagestudiofotografico.com/#organization",
       "name": "Image Studio",
-      "alternateName": "Memorie Sospese",
+      "alternateName": ["Memorie Sospese", "Image Studio Fotografico"],
       "url": "https://imagestudiofotografico.com",
       "logo": "https://imagestudiofotografico.com/favicon.png",
-      "description": "Fotografo professionista specializzato in matrimoni, battesimi, comunioni e eventi in Campania. Servizi fotografici emozionali con gallerie digitali interattive Memorie Sospese.",
+      "description": "Studio fotografico professionale specializzato in matrimoni, battesimi, comunioni, cresime e eventi in Campania. Gallerie digitali interattive Memorie Sospese. Fondato da Gennaro Mazzacane, fotografo con 10+ anni di esperienza e 500+ matrimoni.",
+      "foundingDate": "2014",
+      "foundingLocation": {
+        "@type": "Place",
+        "name": "Aversa, Campania, Italia"
+      },
       "founder": {
         "@type": "Person",
+        "@id": "https://imagestudiofotografico.com/#photographer",
         "name": "Gennaro Mazzacane",
-        "jobTitle": "Fotografo Professionista",
-        "image": "https://imagestudiofotografico.com/1200x630px.jpg"
+        "jobTitle": "Fotografo Professionista"
       },
       "knowsAbout": [
         "Fotografia matrimoni",
-        "Video matrimoniali",
+        "Video matrimoniali cinematografici",
         "Fotografia battesimi",
         "Fotografia comunioni",
         "Fotografia cresime",
         "Eventi aziendali",
         "Ritratti famiglia",
         "Book fotografici",
-        "Destination wedding",
-        "Gallerie digitali interattive"
+        "Destination wedding photography",
+        "Gallerie digitali interattive",
+        "Storytelling fotografico",
+        "Wedding photographer Italy",
+        "Amalfi Coast wedding photography"
       ],
-      "slogan": "È tutta questione di Image - Lasciati Trasportare"
+      "slogan": "È tutta questione di Image - Lasciati Trasportare",
+      "sameAs": [
+        "https://www.facebook.com/imagestudiofotografico",
+        "https://www.instagram.com/imagestudiofotografico"
+      ],
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "email": "info@memoriesospese.it",
+        "availableLanguage": ["Italian", "English"]
+      }
     }
     </script>
 
@@ -283,9 +366,15 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": "https://imagestudiofotografico.com/#website",
       "url": "https://imagestudiofotografico.com",
       "name": "Image Studio - Memorie Sospese",
-      "description": "Studio fotografico specializzato in matrimoni ed eventi con gallerie digitali interattive",
+      "description": "Studio fotografico professionale specializzato in matrimoni ed eventi con gallerie digitali interattive Memorie Sospese. Servizi a Napoli, Caserta, Aversa, Costiera Amalfitana.",
+      "publisher": {
+        "@type": "Organization",
+        "@id": "https://imagestudiofotografico.com/#organization"
+      },
+      "inLanguage": "it-IT",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://imagestudiofotografico.com/portfolio?search={search_term_string}",
@@ -305,7 +394,7 @@
           "name": "Cosa sono le Memorie Sospese?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Memorie Sospese sono gallerie fotografiche digitali interattive che ti permettono di rivivere le emozioni dei tuoi eventi speciali. Ogni galleria è accessibile tramite password personalizzata e include tutte le foto professionali del tuo matrimonio, battesimo o evento."
+            "text": "Memorie Sospese sono gallerie fotografiche digitali interattive sviluppate da Image Studio che ti permettono di rivivere le emozioni dei tuoi eventi speciali. Ogni galleria è accessibile tramite password personalizzata e include tutte le foto professionali del tuo matrimonio, battesimo o evento, con possibilità di selezione foto per album e download in alta risoluzione."
           }
         },
         {
@@ -313,23 +402,71 @@
           "name": "In quali zone opera Image Studio?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Image Studio opera principalmente in Campania: Napoli, Caserta, Aversa, Salerno e Costiera Amalfitana. Disponibile anche per destination wedding in tutta Italia."
+            "text": "Image Studio opera principalmente in Campania: Napoli, Caserta, Aversa, Salerno, Costiera Amalfitana (Amalfi, Ravello, Positano, Sorrento). È disponibile anche per destination wedding in tutta Italia e all'estero."
           }
         },
         {
           "@type": "Question",
-          "name": "Quanto costa un servizio fotografico per matrimonio?",
+          "name": "Quanto costa un servizio fotografico per matrimonio con Image Studio?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "I nostri pacchetti per matrimoni partono da diverse fasce di prezzo in base ai servizi inclusi. Contattaci per un preventivo personalizzato che comprenda fotografia, video e galleria digitale Memorie Sospese."
+            "text": "Image Studio offre pacchetti personalizzabili per matrimoni nella fascia medio-alta, che possono includere fotografia, video cinematografico iMaGe Vision, album, stampe e galleria digitale Memorie Sospese. Contattaci per una consulenza gratuita e un preventivo personalizzato su misura per il tuo evento."
           }
         },
         {
           "@type": "Question",
-          "name": "Come posso accedere alla mia galleria fotografica?",
+          "name": "Come posso accedere alla mia galleria fotografica Memorie Sospese?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Dopo il tuo evento, riceverai una password personalizzata via email. Potrai accedere alla galleria Memorie Sospese dalla pagina Accesso Galleria, visualizzare tutte le foto e scaricarle in alta risoluzione."
+            "text": "Dopo il tuo evento, riceverai una password personalizzata via email. Potrai accedere alla galleria Memorie Sospese dalla pagina 'Accesso Galleria' del sito imagestudiofotografico.com, visualizzare tutte le foto organizzate per capitoli, selezionare le preferite per album e stampe, e scaricarle in alta risoluzione."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Chi è Gennaro Mazzacane?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Gennaro Mazzacane è il fondatore e fotografo principale di Image Studio. Con oltre 10 anni di esperienza e 500+ matrimoni documentati, è specializzato in fotografia emozionale per matrimoni ed eventi in Campania. La sua filosofia 'Lasciati Trasportare' si basa sulla cattura di emozioni autentiche e momenti spontanei."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Image Studio fa anche video matrimoniali?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sì, con il servizio 'iMaGe Vision', Image Studio realizza video matrimoniali cinematografici ed emozionali. I video includono riprese in alta definizione, montaggio cinematografico con musica personalizzata, trailer/highlight reel e film completo della giornata."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso prenotare una consulenza gratuita con Image Studio?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sì, è possibile prenotare una consulenza gratuita direttamente dal sito nella sezione 'Consulenze'. Puoi scegliere tra un incontro di persona ad Aversa o una videocall per discutere le tue esigenze e ricevere un preventivo personalizzato."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Image Studio è disponibile per matrimoni sulla Costiera Amalfitana?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Assolutamente sì. Image Studio è uno dei fotografi di riferimento per matrimoni sulla Costiera Amalfitana, incluse location ad Amalfi, Ravello, Positano e Sorrento. Gennaro Mazzacane ha documentato numerosi matrimoni in queste splendide location."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Quali servizi fotografici offre Image Studio oltre ai matrimoni?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Oltre ai matrimoni, Image Studio offre servizi fotografici professionali per battesimi, comunioni, cresime, eventi aziendali e privati, ritratti individuali e di coppia, book fotografici, e foto di famiglia. Tutti i servizi includono la consegna tramite galleria digitale Memorie Sospese."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Image Studio è disponibile per destination wedding all'estero?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sì, Gennaro Mazzacane è disponibile per destination wedding in tutta Italia e all'estero. Contatta Image Studio per verificare disponibilità e ricevere un preventivo che includa i costi di trasferta."
           }
         }
       ]

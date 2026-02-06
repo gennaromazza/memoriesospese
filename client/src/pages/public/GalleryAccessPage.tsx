@@ -11,12 +11,19 @@ import { useStudio } from "@/context/StudioContext";
 import GallerySearch from "@/components/GallerySearch";
 import StudioLogo from "@/components/StudioLogo";
 import type { BookingCampaign } from "@shared/booking-types";
+import { useSEO } from "@/hooks/useSEO";
 
 export default function GalleryAccessPage() {
   const { studioSettings } = useStudio();
   const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
 
-  // Load active campaigns
+  useSEO({
+    title: "Accesso Galleria Memorie Sospese | Image Studio",
+    description: "Accedi alla tua galleria fotografica Memorie Sospese. Inserisci la password per visualizzare e scaricare le foto del tuo evento.",
+    canonical: "/accesso-galleria",
+    noindex: true,
+  });
+
   useEffect(() => {
     const loadActiveCampaigns = async () => {
       try {

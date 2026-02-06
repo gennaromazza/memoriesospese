@@ -1,46 +1,7 @@
-
-
 # www.robotstxt.org/
 
-# Allow all crawlers (including AI)
+# Default rules for all crawlers
 User-agent: *
-Allow: /
-
-# Specific rules for AI crawlers
-User-agent: GPTBot
-Allow: /
-Allow: /blog
-Allow: /blog/*
-Allow: /portfolio
-Allow: /portfolio/*
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-# Google AI
-User-agent: Google-Extended
-Allow: /
-
-# Disallow admin pages
-Disallow: /admin
-Disallow: /admin/*
-Disallow: /login
-
-# Disallow private galleries (require authentication)
-Disallow: /gallery/*
-Disallow: /accesso-galleria
-Disallow: /special-gallery
-
-# Allow public pages explicitly for better indexing
 Allow: /
 Allow: /portfolio
 Allow: /portfolio/*
@@ -52,10 +13,66 @@ Allow: /prenota
 Allow: /consulenze
 Allow: /lasciati-trasportare
 Allow: /privacy
+Allow: /cookie-policy
 Allow: /terms
-
-# Crawl-delay for polite bots
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /login
+Disallow: /gallery/*
+Disallow: /special-gallery
+Disallow: /accesso-galleria
 Crawl-delay: 1
 
-# Sitemap location
+# AI crawlers - explicit allow for public content
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: CCBot
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: Bytespider
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: YouBot
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /admin
+Disallow: /gallery/*
+
+# Sitemap
 Sitemap: https://imagestudiofotografico.com/sitemap.xml

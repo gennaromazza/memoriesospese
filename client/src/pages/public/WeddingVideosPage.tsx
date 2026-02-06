@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSEO } from "@/hooks/useSEO";
 
 // Helper per estrarre ID YouTube
 function getYouTubeVideoId(url: string): string {
@@ -102,6 +103,13 @@ export default function WeddingVideosPage() {
   const [likedVideos, setLikedVideos] = useState<Set<string>>(new Set());
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const { toast } = useToast();
+
+  useSEO({
+    title: "iMaGe Vision | Video Matrimoni Cinematografici | Napoli Caserta",
+    description: "Video matrimoniali cinematografici ed emozionali. Raccontiamo la vostra storia d'amore con riprese professionali a Napoli, Caserta e Campania.",
+    canonical: "/vision",
+    keywords: "video matrimoni napoli, video matrimoni caserta, videografo matrimoni campania",
+  });
 
   useEffect(() => {
     loadVideos();

@@ -26,6 +26,7 @@ import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
 import studioAssistantRoutes from './studio-assistant-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
+import { createSeoMiddleware } from './seo-prerender';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
 
@@ -163,6 +164,10 @@ async function startServer() {
     app.get('/api/health', (req, res) => {
       res.json({ status: 'ok', server: 'dev', timestamp: new Date().toISOString() });
     });
+
+    // SEO prerender middleware per bot e crawler (Google, ChatGPT, etc.)
+    app.use(createSeoMiddleware());
+    console.log('🔍 SEO prerender middleware attivo per crawler e AI');
 
     // Vite dev server middleware
     const vite = await createViteServer({
