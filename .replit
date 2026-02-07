@@ -7,7 +7,7 @@ packages = ["killall"]
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["sh", "-c", "npm install && npm run build"]
+build = ["sh", "-c", "npm ci && npm run build"]
 run = ["sh", "-c", "NODE_ENV=production node dist/index.js"]
 
 [workflows]
@@ -34,6 +34,10 @@ args = "npm install --force && npm run build && node dist/index.js"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 24678
+externalPort = 3000
 
 [agent]
 integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]
