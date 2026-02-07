@@ -19,7 +19,8 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Bell
 } from 'lucide-react';
 import { useStudioSuggestions } from './useStudioSuggestions';
 import SuggestionCard from './SuggestionCard';
@@ -279,6 +280,30 @@ export default function StudioAssistant({
             </div>
             
             <TabsContent value="all" className="space-y-3 mt-0">
+              {stats.pendingApprovalCount && stats.pendingApprovalCount > 0 && (
+                <div
+                  className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => navigate('/admin/dashboard?tab=prenotazioni')}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
+                      <Bell className="h-5 w-5 text-amber-600" />
+                      <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                        {stats.pendingApprovalCount}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-amber-800">
+                        {stats.pendingApprovalCount === 1
+                          ? 'Ricordati! Hai 1 prenotazione da approvare'
+                          : `Ricordati! Hai ${stats.pendingApprovalCount} prenotazioni da approvare`}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-0.5">Clicca per andare alle prenotazioni</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  </div>
+                </div>
+              )}
               {(() => {
                 const allItems = [...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
                   .sort((a, b) => {
@@ -337,7 +362,31 @@ export default function StudioAssistant({
             </TabsContent>
 
             <TabsContent value="bookings" className="space-y-3 mt-0">
-              {pendingBookings.length === 0 ? (
+              {stats.pendingApprovalCount && stats.pendingApprovalCount > 0 && (
+                <div
+                  className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => navigate('/admin/dashboard?tab=prenotazioni')}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-shrink-0">
+                      <Bell className="h-5 w-5 text-amber-600" />
+                      <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                        {stats.pendingApprovalCount}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-amber-800">
+                        {stats.pendingApprovalCount === 1
+                          ? 'Ricordati! Hai 1 prenotazione da approvare'
+                          : `Ricordati! Hai ${stats.pendingApprovalCount} prenotazioni da approvare`}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-0.5">Clicca per andare alle prenotazioni</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  </div>
+                </div>
+              )}
+              {pendingBookings.length === 0 && (!stats.pendingApprovalCount || stats.pendingApprovalCount === 0) ? (
                 <p className="text-center text-gray-500 py-8">
                   Nessun booking da completare
                 </p>

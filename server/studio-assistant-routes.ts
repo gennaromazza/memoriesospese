@@ -580,6 +580,12 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // 3. Consulenze suggerite (jobs in stati specifici senza consulenze recenti)
     // TODO: Implementare logica consulenze basata su template e stato job
     
+    // Conta prenotazioni in attesa di approvazione (qualsiasi data, non solo passate)
+    const pendingApprovalSnapshot = await db.collection('bookings')
+      .where('stato', '==', 'in_attesa')
+      .get();
+    const pendingApprovalCount = pendingApprovalSnapshot.size;
+    
     const allSuggestions = [
       ...unsignedQuotes, 
       ...pendingDeliveries, 
@@ -614,7 +620,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       stats: {
         totalActions: allSuggestions.length,
         estimatedMinutes,
-        highPriority
+        highPriority,
+        pendingApprovalCount
       }
     };
     

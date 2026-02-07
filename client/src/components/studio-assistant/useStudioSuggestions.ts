@@ -216,7 +216,7 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
     pendingBookings,
     loading: isLoading,
     error: error as Error | null,
-    stats: data?.stats ?? { totalActions: 0, estimatedMinutes: 0, highPriority: 0 },
+    stats: data?.stats ?? { totalActions: 0, estimatedMinutes: 0, highPriority: 0, pendingApprovalCount: 0 },
     
     markAsDone: async (suggestionId: string, jobId?: string) => {
       await actionMutation.mutateAsync({ 

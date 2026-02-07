@@ -131,6 +131,7 @@ export interface StudioSuggestionsResponse {
     totalActions: number;
     estimatedMinutes: number;
     highPriority: number;
+    pendingApprovalCount?: number;
   };
 }
 
