@@ -20,16 +20,14 @@ import { WHATSAPP_MESSAGES, calculatePriority, getMessageVariant } from '../shar
 
 const router = Router();
 
-// Lista admin autorizzati
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
-// 🚀 CACHE: Cache in-memory per suggerimenti (TTL 60 secondi)
 interface CacheEntry {
   data: StudioSuggestionsResponse;
   timestamp: number;
 }
 const suggestionsCache: Map<string, CacheEntry> = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 60 secondi
+const CACHE_TTL_MS = 60 * 1000;
 
 function getCachedSuggestions(cacheKey: string): StudioSuggestionsResponse | null {
   const entry = suggestionsCache.get(cacheKey);
@@ -51,15 +49,30 @@ function setCachedSuggestions(cacheKey: string, data: StudioSuggestionsResponse)
   });
 }
 
-// Invalidate cache when actions are performed
 export function invalidateSuggestionsCache(): void {
   suggestionsCache.clear();
   console.log('🗑️ Studio Assistant cache invalidata');
 }
 
-/**
- * Middleware verifica admin
- */
+async function batchFetchDocs(collectionName: string, ids: string[]): Promise<Map<string, FirebaseFirestore.DocumentData>> {
+  const map = new Map();
+  if (ids.length === 0) return map;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    chunks.push(ids.slice(i, i + 100));
+  }
+  for (const chunk of chunks) {
+    const refs = chunk.map(id => db.collection(collectionName).doc(id));
+    const docs = await db.getAll(...refs);
+    for (const doc of docs) {
+      if (doc.exists) {
+        map.set(doc.id, doc.data()!);
+      }
+    }
+  }
+  return map;
+}
+
 async function verifyAdmin(req: Request, res: Response, next: Function) {
   try {
     const authHeader = req.headers.authorization;
@@ -82,9 +95,6 @@ async function verifyAdmin(req: Request, res: Response, next: Function) {
   }
 }
 
-/**
- * Helper: Calcola giorni lavorativi tra due date
- */
 function addWorkingDays(date: Date, days: number): Date {
   const result = new Date(date);
   let addedDays = 0;
@@ -100,9 +110,6 @@ function addWorkingDays(date: Date, days: number): Date {
   return result;
 }
 
-/**
- * Helper: Formatta data per visualizzazione
- */
 function formatDateIT(date: Date): string {
   return date.toLocaleDateString('it-IT', {
     day: 'numeric',
@@ -110,29 +117,22 @@ function formatDateIT(date: Date): string {
   });
 }
 
-/**
- * Helper: Converte un valore Firestore in Date (gestisce Timestamp, stringa, Date)
- */
 function toDate(value: any): Date | null {
   if (!value) return null;
   
-  // Firestore Timestamp
   if (typeof value.toDate === 'function') {
     return value.toDate();
   }
   
-  // Già una Date
   if (value instanceof Date) {
     return value;
   }
   
-  // Stringa ISO o altro formato
   if (typeof value === 'string') {
     const parsed = new Date(value);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
   
-  // Numero (timestamp Unix)
   if (typeof value === 'number') {
     return new Date(value);
   }
@@ -140,14 +140,10 @@ function toDate(value: any): Date | null {
   return null;
 }
 
-/**
- * Helper: Calcola carico settimanale consulenze
- */
 async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[]> {
   const loads: WeeklyLoad[] = [];
   const today = new Date();
   
-  // Trova lunedì corrente
   const currentMonday = new Date(today);
   currentMonday.setDate(today.getDate() - today.getDay() + 1);
   currentMonday.setHours(0, 0, 0, 0);
@@ -160,7 +156,6 @@ async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[
     weekEnd.setDate(weekEnd.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
     
-    // Cerca consulenze in questa settimana
     const consultationsSnapshot = await db.collection('consultations')
       .where('dataConsulenza', '>=', weekStart)
       .where('dataConsulenza', '<=', weekEnd)
@@ -170,7 +165,6 @@ async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[
     let totalWeight = 0;
     for (const doc of consultationsSnapshot.docs) {
       const data = doc.data();
-      // Cerca il template per ottenere il peso
       if (data.templateId) {
         const templateDoc = await db.collection('consultation_templates').doc(data.templateId).get();
         const templateWeight = templateDoc.exists ? (templateDoc.data()?.weight || 1) : 1;
@@ -192,16 +186,12 @@ async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[
   return loads;
 }
 
-/**
- * Helper: Trova range date ottimale per consulenza
- */
 async function findOptimalDateRange(
   templateId: string,
   weeksAhead: number = 4
 ): Promise<{ from: string; to: string } | null> {
   const loads = await calculateWeeklyLoads(weeksAhead);
   
-  // Ottieni giorni preparazione dal template
   let prepDays = 0;
   try {
     const templateDoc = await db.collection('consultation_templates').doc(templateId).get();
@@ -212,16 +202,13 @@ async function findOptimalDateRange(
     console.warn('⚠️ Template non trovato per date range:', templateId);
   }
   
-  // Trova prima settimana non piena
   const availableWeek = loads.find(w => !w.isFull);
   
   if (!availableWeek) {
-    // Tutte le settimane piene, suggerisci comunque la meno impegnata
     const leastBusy = loads.reduce((min, w) => 
       w.totalWeight < min.totalWeight ? w : min, loads[0]);
     
     const fromDate = new Date(leastBusy.weekStart);
-    // Aggiungi giorni preparazione
     const adjustedFrom = addWorkingDays(fromDate, prepDays);
     
     return {
@@ -239,17 +226,12 @@ async function findOptimalDateRange(
   };
 }
 
-/**
- * GET /api/studio-assistant/suggestions
- * Calcola e restituisce tutti i suggerimenti
- */
 router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { jobId, skipCache } = req.query;
     const cacheKey = `suggestions-${jobId || 'all'}`;
     
-    // 🚀 CHECK CACHE FIRST (skip if explicitly requested)
     if (!skipCache) {
       const cached = getCachedSuggestions(cacheKey);
       if (cached) {
@@ -261,7 +243,6 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     console.log('📊 Studio Assistant: Cache MISS, calcolo suggerimenti...');
     const now = new Date();
     
-    // Carica suggerimenti ignorati (non scaduti)
     const dismissedSnapshot = await db.collection('dismissedSuggestions')
       .where('expiresAt', '>', now)
       .get();
@@ -282,29 +263,32 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     
     console.log('📊 Studio Assistant: preventivi trovati con status inviato/visionato =', quotesSnapshot.docs.length);
     
+    // Batch-fetch jobs and clients for quotes
+    const quoteJobIds = quotesSnapshot.docs.map(d => d.data().jobId).filter(Boolean);
+    const uniqueQuoteJobIds = [...new Set(quoteJobIds)] as string[];
+    const quoteJobsMap = await batchFetchDocs('jobs', uniqueQuoteJobIds);
+    
+    const quoteClientiIds: string[] = [];
+    for (const [, jobData] of quoteJobsMap) {
+      if (jobData.clientiIds?.length > 0) quoteClientiIds.push(jobData.clientiIds[0]);
+    }
+    const uniqueQuoteClientiIds = [...new Set(quoteClientiIds)];
+    const quoteClientiMap = await batchFetchDocs('clienti', uniqueQuoteClientiIds);
+    
     for (const quoteDoc of quotesSnapshot.docs) {
       const quote = quoteDoc.data();
       
-      // Filtra per jobId se specificato
       if (jobId && quote.jobId !== jobId) continue;
 
-      // Salta se il preventivo è legato a un lavoro eliminato, consegnato o archiviato
       if (quote.jobId) {
-        try {
-          const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            const jobStatus = jobData?.status;
-            // Salta lavori eliminati o completati
-            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
-              continue;
-            }
-          } else {
-            // Job non esiste più, salta questo preventivo
+        const jobData = quoteJobsMap.get(quote.jobId);
+        if (jobData) {
+          const jobStatus = jobData.status;
+          if (jobData.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
             continue;
           }
-        } catch (e) {
-          console.warn('⚠️ Errore controllo status job per quote:', quoteDoc.id);
+        } else {
+          continue;
         }
       }
       
@@ -313,46 +297,34 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       const daysSinceSent = Math.floor((now.getTime() - sentAt.getTime()) / (1000 * 60 * 60 * 24));
       
-      // Recupera dati cliente
       let clientName = '';
       let clientPhone = '';
       let jobName = '';
       
       if (quote.jobId) {
-        try {
-          const jobDoc = await db.collection('jobs').doc(quote.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            if (jobData) {
-              jobName = jobData.nomeEvento || '';
-              
-              if (jobData.clientiIds?.length > 0) {
-                const clienteDoc = await db.collection('clienti').doc(jobData.clientiIds[0]).get();
-                if (clienteDoc.exists) {
-                  const cliente = clienteDoc.data();
-                  clientName = `${cliente?.nome || ''} ${cliente?.cognome || ''}`.trim();
-                  clientPhone = cliente?.cellulare1 || cliente?.cellulare2 || '';
-                }
-              }
+        const jobData = quoteJobsMap.get(quote.jobId);
+        if (jobData) {
+          jobName = jobData.nomeEvento || '';
+          
+          if (jobData.clientiIds?.length > 0) {
+            const cliente = quoteClientiMap.get(jobData.clientiIds[0]);
+            if (cliente) {
+              clientName = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+              clientPhone = cliente.cellulare1 || cliente.cellulare2 || '';
             }
           }
-        } catch (e) {
-          console.warn('⚠️ Errore recupero dati job/cliente per quote:', quoteDoc.id);
         }
       }
       
-      // Determina variante messaggio
       const followUpCount = quote.followUpCount || 0;
       const messageVariant = getMessageVariant(followUpCount);
       const priority = calculatePriority('unsigned_quote', daysSinceSent, followUpCount);
       
-      // Genera messaggio WhatsApp
       const whatsappMessage = WHATSAPP_MESSAGES.unsignedQuote[messageVariant](
         clientName || 'Cliente',
         jobName || 'il tuo evento'
       );
       
-      // Salta se ignorato
       const suggestionId = `quote_${quoteDoc.id}`;
       if (dismissedIds.has(suggestionId)) continue;
       
@@ -382,50 +354,45 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       .where('stato', 'in', ['bozza', 'in_lavorazione'])
       .get();
     
+    // Batch-fetch jobs and galleries for orders
+    const orderJobIds = ordersSnapshot.docs.map(d => d.data().jobId).filter(Boolean);
+    const orderGalleryIds = ordersSnapshot.docs.map(d => d.data().galleryId).filter(Boolean);
+    const uniqueOrderJobIds = [...new Set(orderJobIds)] as string[];
+    const uniqueOrderGalleryIds = [...new Set(orderGalleryIds)] as string[];
+    const [orderJobsMap, orderGalleriesMap] = await Promise.all([
+      batchFetchDocs('jobs', uniqueOrderJobIds),
+      batchFetchDocs('galleries', uniqueOrderGalleryIds)
+    ]);
+    
     for (const orderDoc of ordersSnapshot.docs) {
       const order = orderDoc.data();
       
-      // Filtra per jobId se specificato
       if (jobId && order.jobId !== jobId) continue;
 
-      // Salta se l'ordine è completato o consegnato (già filtrato da query, ma per sicurezza se cambiano gli stati)
       if (order.stato === 'completato' || order.stato === 'consegnato') continue;
 
-      // Salta se l'ordine è legato a un lavoro eliminato, consegnato o archiviato
       if (order.jobId) {
-        try {
-          const jobDoc = await db.collection('jobs').doc(order.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            const jobStatus = jobData?.status;
-            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
-              continue;
-            }
-          } else {
-            continue; // Job non esiste più
+        const jobData = orderJobsMap.get(order.jobId);
+        if (jobData) {
+          const jobStatus = jobData.status;
+          if (jobData.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+            continue;
           }
-        } catch (e) {
-          console.warn('⚠️ Errore controllo status job per ordine:', orderDoc.id);
+        } else {
+          continue;
         }
       }
 
-      // Controllo WorkflowState per ordini/gallerie
-      if (order.statoWorkflow === 'consegnato' || order.statoWorkflow === 'completato') {
+      if (order.statoWorkflow === 'consegnato' || order.statoWorkflow === 'pronto_ritiro') {
         continue;
       }
 
-      // Controllo galleria associata (se presente)
       if (order.galleryId) {
-        try {
-          const galleryDoc = await db.collection('galleries').doc(order.galleryId).get();
-          if (galleryDoc.exists) {
-            const galleryData = galleryDoc.data();
-            if (galleryData?.workflowState === 'consegnato' || galleryData?.workflowState === 'completato') {
-              continue;
-            }
+        const galleryData = orderGalleriesMap.get(order.galleryId);
+        if (galleryData) {
+          if (galleryData.workflowState === 'consegnato' || galleryData.workflowState === 'pronto_ritiro') {
+            continue;
           }
-        } catch (e) {
-          console.warn('⚠️ Errore controllo gallery status per ordine:', orderDoc.id);
         }
       }
 
@@ -456,52 +423,48 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       .where('stato', 'in', ['in_attesa', 'confermata'])
       .get();
 
+    // Batch-fetch jobs and galleries for bookings
+    const bookingJobIds = bookingsSnapshot.docs.map(d => d.data().jobId).filter(Boolean);
+    const bookingGalleryIds = bookingsSnapshot.docs.map(d => d.data().specialGalleryId).filter(Boolean);
+    const uniqueBookingJobIds = [...new Set(bookingJobIds)] as string[];
+    const uniqueBookingGalleryIds = [...new Set(bookingGalleryIds)] as string[];
+    const [bookingJobsMap, bookingGalleriesMap] = await Promise.all([
+      batchFetchDocs('jobs', uniqueBookingJobIds),
+      batchFetchDocs('galleries', uniqueBookingGalleryIds)
+    ]);
+
     for (const bookingDoc of bookingsSnapshot.docs) {
       const booking = bookingDoc.data();
       
-      // Filtra per jobId se specificato
       if (jobId && booking.jobId !== jobId) continue;
 
-      // Salta se la prenotazione è legata a un lavoro eliminato, consegnato o archiviato
       if (booking.jobId) {
-        try {
-          const jobDoc = await db.collection('jobs').doc(booking.jobId).get();
-          if (jobDoc.exists) {
-            const jobData = jobDoc.data();
-            const jobStatus = jobData?.status;
-            if (jobData?.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
-              continue;
-            }
-          } else {
-            continue; // Job non esiste più
+        const jobData = bookingJobsMap.get(booking.jobId);
+        if (jobData) {
+          const jobStatus = jobData.status;
+          if (jobData.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
+            continue;
           }
-        } catch (e) {
-          console.warn('⚠️ Errore controllo status job per booking:', bookingDoc.id);
+        } else {
+          continue;
         }
       }
 
-      // Controllo WorkflowState e Stato Prenotazione
-      if (booking.stato === 'completata' || booking.statoWorkflow === 'consegnato' || booking.statoWorkflow === 'completato') {
+      if (booking.stato === 'completata' || booking.statoWorkflow === 'consegnato' || booking.statoWorkflow === 'pronto_ritiro') {
         continue;
       }
 
-      // Controllo galleria speciale allegata
       if (booking.specialGalleryId) {
-        try {
-          const galleryDoc = await db.collection('galleries').doc(booking.specialGalleryId).get();
-          if (galleryDoc.exists) {
-            const galleryData = galleryDoc.data();
-            if (galleryData?.workflowState === 'consegnato' || galleryData?.workflowState === 'completato') {
-              continue;
-            }
+        const galleryData = bookingGalleriesMap.get(booking.specialGalleryId);
+        if (galleryData) {
+          if (galleryData.workflowState === 'consegnato' || galleryData.workflowState === 'pronto_ritiro') {
+            continue;
           }
-        } catch (e) {
-          console.warn('⚠️ Errore controllo special gallery per booking:', bookingDoc.id);
         }
       }
 
       const shootingDate = toDate(booking.dataShootingInizio);
-      if (!shootingDate || shootingDate > now) continue; // Solo se data passata
+      if (!shootingDate || shootingDate > now) continue;
 
       const daysSinceBooking = Math.floor((now.getTime() - shootingDate.getTime()) / (1000 * 60 * 60 * 24));
       
@@ -530,46 +493,45 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       .where('status', 'not-in', ['consegnato', 'archiviato'])
       .get();
     
+    // Batch-fetch clients for jobs section
+    const jobClientiIds: string[] = [];
+    for (const jobDoc of jobsSnapshot.docs) {
+      const job = jobDoc.data();
+      if (job.deleted === true) continue;
+      if (job.clientiIds?.length > 0) jobClientiIds.push(job.clientiIds[0]);
+    }
+    const uniqueJobClientiIds = [...new Set(jobClientiIds)];
+    const jobClientiMap = await batchFetchDocs('clienti', uniqueJobClientiIds);
+    
     for (const jobDoc of jobsSnapshot.docs) {
       const job = jobDoc.data();
       
-      // Salta i lavori eliminati (soft delete)
       if (job.deleted === true) continue;
       
-      // Filtra per jobId se specificato
       if (jobId && jobDoc.id !== jobId) continue;
       
       const eventDate = toDate(job.eventDate);
       if (!eventDate) continue;
       
-      // Solo eventi passati
       if (eventDate > now) continue;
       
       const monthsSinceEvent = Math.floor((now.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
       
-      // Suggerisci solo se passati almeno 3 mesi
       if (monthsSinceEvent < 3) continue;
       
-      // Recupera nome cliente
       let clientName = '';
       let clientPhone = '';
       
       if (job.clientiIds?.length > 0) {
-        try {
-          const clienteDoc = await db.collection('clienti').doc(job.clientiIds[0]).get();
-          if (clienteDoc.exists) {
-            const cliente = clienteDoc.data();
-            clientName = `${cliente?.nome || ''} ${cliente?.cognome || ''}`.trim();
-            clientPhone = cliente?.cellulare1 || cliente?.cellulare2 || '';
-          }
-        } catch (e) {
-          console.warn('⚠️ Errore recupero cliente per job:', jobDoc.id);
+        const cliente = jobClientiMap.get(job.clientiIds[0]);
+        if (cliente) {
+          clientName = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+          clientPhone = cliente.cellulare1 || cliente.cellulare2 || '';
         }
       }
       
       const priority = calculatePriority('pending_delivery', monthsSinceEvent);
       
-      // Se già flaggato come needsWork, aggiungi a quella lista
       if (job.needsWork) {
         const suggestionId = `needswork_${jobDoc.id}`;
         if (dismissedIds.has(suggestionId)) continue;
@@ -618,17 +580,16 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // 3. Consulenze suggerite (jobs in stati specifici senza consulenze recenti)
     // TODO: Implementare logica consulenze basata su template e stato job
     
-    // Calcola statistiche
     const allSuggestions = [
       ...unsignedQuotes, 
       ...pendingDeliveries, 
       ...consultations, 
+      ...needsWorkJobs, 
       ...pendingOrders, 
       ...pendingBookings
     ];
     const highPriority = allSuggestions.filter(s => s.priority === 'high').length;
     
-    // Stima tempo: 2 min per azione
     const estimatedMinutes = allSuggestions.length * 2;
     
     console.log('📊 Studio Assistant: Risultati finali:', {
@@ -657,7 +618,6 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       }
     };
     
-    // 🚀 SAVE TO CACHE
     setCachedSuggestions(cacheKey, response);
     console.log(`📊 Studio Assistant: Calcolo completato in ${Date.now() - startTime}ms, salvato in cache`);
     
@@ -672,21 +632,15 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/studio-assistant/suggestions/:id/action
- * Esegue azione su suggerimento
- */
 router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { action, pendingReason, jobId } = req.body;
     const adminEmail = (req as any).adminEmail;
     
-    // Parse ID per capire il tipo
     const [type, docId] = id.split('_');
     
     if (type === 'quote' && action === 'contacted') {
-      // Incrementa contatore follow-up sul preventivo
       const quoteRef = db.collection('quotes').doc(docId);
       const quoteDoc = await quoteRef.get();
       
@@ -701,7 +655,6 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
     }
     
     if ((type === 'delivery' || type === 'needswork') && action === 'completed') {
-      // Marca job come consegnato
       const targetJobId = jobId || docId;
       await db.collection('jobs').doc(targetJobId).update({
         status: 'consegnato',
@@ -712,21 +665,17 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
       });
     }
     
-    // Gestione azione "archived" (ignora suggerimento)
     if (action === 'archived') {
-      // Salva suggerimento ignorato per non mostrarlo di nuovo
       await db.collection('dismissedSuggestions').doc(id).set({
         suggestionId: id,
         type,
         docId,
         dismissedAt: new Date(),
         dismissedBy: adminEmail,
-        // Scade automaticamente dopo 30 giorni
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       });
     }
     
-    // 🚀 Invalida cache dopo azione
     invalidateSuggestionsCache();
     
     return res.json({ success: true });
@@ -740,10 +689,6 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
   }
 });
 
-/**
- * PATCH /api/jobs/:id/work-status
- * Aggiorna stato lavorazione job
- */
 router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -758,7 +703,6 @@ router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Res
       updateData.pendingReason = pendingReason || 'other';
       updateData.needsWorkSince = new Date();
     } else {
-      // Rimuovi campi se non più "da lavorare"
       updateData.pendingReason = FieldValue.delete();
       updateData.needsWorkSince = FieldValue.delete();
       updateData.status = 'consegnato';
@@ -766,7 +710,6 @@ router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Res
     
     await db.collection('jobs').doc(id).update(updateData);
     
-    // 🚀 Invalida cache dopo modifica
     invalidateSuggestionsCache();
     
     return res.json({ success: true });

@@ -41,6 +41,9 @@ export default function StudioAssistant({
 }: StudioAssistantProps) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState('all');
+  const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+  const getVisibleCount = (key: string) => visibleCounts[key] || 10;
+  const showMore = (key: string) => setVisibleCounts(prev => ({ ...prev, [key]: (prev[key] || 10) + 10 }));
   
   const {
     unsignedQuotes,
@@ -276,22 +279,34 @@ export default function StudioAssistant({
             </div>
             
             <TabsContent value="all" className="space-y-3 mt-0">
-              {[...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
-                .sort((a, b) => {
-                  const priorityOrder = { high: 0, medium: 1, low: 2 };
-                  return priorityOrder[a.priority] - priorityOrder[b.priority];
-                })
-                .map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))}
+              {(() => {
+                const allItems = [...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
+                  .sort((a, b) => {
+                    const priorityOrder = { high: 0, medium: 1, low: 2 };
+                    return priorityOrder[a.priority] - priorityOrder[b.priority];
+                  });
+                const visible = getVisibleCount('all');
+                return (
+                  <>
+                    {allItems.slice(0, visible).map(suggestion => (
+                      <SuggestionCard
+                        key={suggestion.id}
+                        suggestion={suggestion}
+                        onMarkAsDone={markAsDone}
+                        onDismiss={dismiss}
+                        onMarkAsNeedsWork={markAsNeedsWork}
+                        onMarkAsDelivered={markAsDelivered}
+                        onBookConsultation={handleBookConsultation}
+                      />
+                    ))}
+                    {allItems.length > visible && (
+                      <Button variant="outline" className="w-full" onClick={() => showMore('all')}>
+                        Mostra altri ({allItems.length - visible} rimanenti)
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
             </TabsContent>
 
             <TabsContent value="orders" className="space-y-3 mt-0">
@@ -300,17 +315,24 @@ export default function StudioAssistant({
                   Nessun ordine in sospeso
                 </p>
               ) : (
-                pendingOrders.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
+                <>
+                  {pendingOrders.slice(0, getVisibleCount('orders')).map(suggestion => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onMarkAsDone={markAsDone}
+                      onDismiss={dismiss}
+                      onMarkAsNeedsWork={markAsNeedsWork}
+                      onMarkAsDelivered={markAsDelivered}
+                      onBookConsultation={handleBookConsultation}
+                    />
+                  ))}
+                  {pendingOrders.length > getVisibleCount('orders') && (
+                    <Button variant="outline" className="w-full" onClick={() => showMore('orders')}>
+                      Mostra altri ({pendingOrders.length - getVisibleCount('orders')} rimanenti)
+                    </Button>
+                  )}
+                </>
               )}
             </TabsContent>
 
@@ -320,17 +342,24 @@ export default function StudioAssistant({
                   Nessun booking da completare
                 </p>
               ) : (
-                pendingBookings.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
+                <>
+                  {pendingBookings.slice(0, getVisibleCount('bookings')).map(suggestion => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onMarkAsDone={markAsDone}
+                      onDismiss={dismiss}
+                      onMarkAsNeedsWork={markAsNeedsWork}
+                      onMarkAsDelivered={markAsDelivered}
+                      onBookConsultation={handleBookConsultation}
+                    />
+                  ))}
+                  {pendingBookings.length > getVisibleCount('bookings') && (
+                    <Button variant="outline" className="w-full" onClick={() => showMore('bookings')}>
+                      Mostra altri ({pendingBookings.length - getVisibleCount('bookings')} rimanenti)
+                    </Button>
+                  )}
+                </>
               )}
             </TabsContent>
             
@@ -340,57 +369,24 @@ export default function StudioAssistant({
                   Nessun preventivo in attesa di firma
                 </p>
               ) : (
-                unsignedQuotes.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
-              )}
-            </TabsContent>
-            
-            <TabsContent value="bookings" className="space-y-3 mt-0">
-              {pendingBookings.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  Nessun booking da completare
-                </p>
-              ) : (
-                pendingBookings.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
-              )}
-            </TabsContent>
-            
-            <TabsContent value="bookings" className="space-y-3 mt-0">
-              {pendingBookings.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  Nessun booking da completare
-                </p>
-              ) : (
-                pendingBookings.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
+                <>
+                  {unsignedQuotes.slice(0, getVisibleCount('quotes')).map(suggestion => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onMarkAsDone={markAsDone}
+                      onDismiss={dismiss}
+                      onMarkAsNeedsWork={markAsNeedsWork}
+                      onMarkAsDelivered={markAsDelivered}
+                      onBookConsultation={handleBookConsultation}
+                    />
+                  ))}
+                  {unsignedQuotes.length > getVisibleCount('quotes') && (
+                    <Button variant="outline" className="w-full" onClick={() => showMore('quotes')}>
+                      Mostra altri ({unsignedQuotes.length - getVisibleCount('quotes')} rimanenti)
+                    </Button>
+                  )}
+                </>
               )}
             </TabsContent>
 
@@ -400,26 +396,38 @@ export default function StudioAssistant({
                   Nessun lavoro in attesa di consegna
                 </p>
               ) : (
-                pendingDeliveries.map(suggestion => (
-                  <SuggestionCard
-                    key={suggestion.id}
-                    suggestion={suggestion}
-                    onMarkAsDone={markAsDone}
-                    onDismiss={dismiss}
-                    onMarkAsNeedsWork={markAsNeedsWork}
-                    onMarkAsDelivered={markAsDelivered}
-                    onBookConsultation={handleBookConsultation}
-                  />
-                ))
+                <>
+                  {pendingDeliveries.slice(0, getVisibleCount('delivery')).map(suggestion => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onMarkAsDone={markAsDone}
+                      onDismiss={dismiss}
+                      onMarkAsNeedsWork={markAsNeedsWork}
+                      onMarkAsDelivered={markAsDelivered}
+                      onBookConsultation={handleBookConsultation}
+                    />
+                  ))}
+                  {pendingDeliveries.length > getVisibleCount('delivery') && (
+                    <Button variant="outline" className="w-full" onClick={() => showMore('delivery')}>
+                      Mostra altri ({pendingDeliveries.length - getVisibleCount('delivery')} rimanenti)
+                    </Button>
+                  )}
+                </>
               )}
             </TabsContent>
             
             <TabsContent value="work" className="mt-0">
               <WorkPendingList 
-                jobs={needsWorkJobs}
+                jobs={needsWorkJobs.slice(0, getVisibleCount('work'))}
                 onMarkAsDelivered={markAsDelivered}
                 onBookConsultation={handleBookConsultation}
               />
+              {needsWorkJobs.length > getVisibleCount('work') && (
+                <Button variant="outline" className="w-full mt-3" onClick={() => showMore('work')}>
+                  Mostra altri ({needsWorkJobs.length - getVisibleCount('work')} rimanenti)
+                </Button>
+              )}
             </TabsContent>
           </Tabs>
         )}
