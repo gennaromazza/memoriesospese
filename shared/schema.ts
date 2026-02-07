@@ -14,7 +14,7 @@ export enum WorkflowState {
   SHOOTING_COMPLETATO = 'shooting_completato',
   IN_LAVORAZIONE = 'in_lavorazione',
   IN_ATTESA_SELEZIONE = 'in_attesa_selezione',
-  COMPLETATO = 'completato',
+  PRONTO_RITIRO = 'pronto_ritiro',
   CONSEGNATO = 'consegnato'
 }
 

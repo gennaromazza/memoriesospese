@@ -741,13 +741,18 @@ async function sendWorkflowStateEmail(
         payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
         break;
 
-      case 'completato':
+      case 'pronto_ritiro':
         endpoint = '/api/email/order-ready';
         payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
         break;
 
+      case 'consegnato':
+        endpoint = '/api/email/order-delivered';
+        payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
+        break;
+
       default:
-        // shooting_da_svolgere, in_attesa_selezione, consegnato: no email automatica
+        // shooting_da_svolgere, in_attesa_selezione: no email automatica
         console.log(`ℹ️ Stato ${stato} non richiede email automatica`);
         return;
     }

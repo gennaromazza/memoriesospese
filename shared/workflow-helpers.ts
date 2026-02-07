@@ -9,7 +9,7 @@ const WORKFLOW_STATE_RANK: Record<WorkflowState, number> = {
   [WorkflowState.SHOOTING_COMPLETATO]: 2,
   [WorkflowState.IN_LAVORAZIONE]: 3,
   [WorkflowState.IN_ATTESA_SELEZIONE]: 4,
-  [WorkflowState.COMPLETATO]: 5,
+  [WorkflowState.PRONTO_RITIRO]: 5,
   [WorkflowState.CONSEGNATO]: 6,
 };
 
@@ -41,9 +41,9 @@ export function syncBookingWorkflowState(
       break;
 
     case 'completata':
-      // Booking completato → COMPLETATO (non SHOOTING_COMPLETATO!)
-      // Fix: usa COMPLETATO per permettere transizioni manuali successive
-      targetState = WorkflowState.COMPLETATO;
+      // Booking completato → PRONTO_RITIRO (non SHOOTING_COMPLETATO!)
+      // Fix: usa PRONTO_RITIRO per permettere transizioni manuali successive
+      targetState = WorkflowState.PRONTO_RITIRO;
       break;
 
     case 'annullata':
@@ -59,7 +59,7 @@ export function syncBookingWorkflowState(
   // Se workflow corrente è undefined → imposta target SOLO per in_attesa/confermata/completata
   // Per annullata, torna {} (già gestito sopra)
   if (!currentWorkflowState) {
-    // Fix: per completata senza workflow, imposta COMPLETATO
+    // Fix: per completata senza workflow, imposta PRONTO_RITIRO
     // Per in_attesa/confermata senza workflow, imposta SHOOTING_DA_SVOLGERE
     return { statoWorkflow: targetState };
   }

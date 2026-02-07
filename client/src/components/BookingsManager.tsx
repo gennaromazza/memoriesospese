@@ -162,8 +162,8 @@ const STATI_WORKFLOW = [
     label: "In lavorazione",
     icon: Palette,
   },
-  { value: WorkflowState.COMPLETATO, label: "Completato", icon: PartyPopper },
-  { value: WorkflowState.CONSEGNATO, label: "Consegnato", icon: PackageCheck },
+  { value: WorkflowState.PRONTO_RITIRO, label: "Pronto per il Ritiro", icon: Package },
+  { value: WorkflowState.CONSEGNATO, label: "Consegnato al Cliente", icon: PackageCheck },
 ] as const;
 
 function getStatoBadge(stato: string) {
@@ -2562,11 +2562,11 @@ export default function BookingsManager({
                                           </span>
                                         </SelectItem>
                                         <SelectItem
-                                          value={WorkflowState.COMPLETATO}
+                                          value={WorkflowState.PRONTO_RITIRO}
                                         >
                                           <span className="flex items-center gap-2">
-                                            <PartyPopper className="h-4 w-4" />
-                                            Completato
+                                            <Package className="h-4 w-4" />
+                                            Pronto per il Ritiro
                                           </span>
                                         </SelectItem>
                                         <SelectItem
@@ -2574,7 +2574,7 @@ export default function BookingsManager({
                                         >
                                           <span className="flex items-center gap-2">
                                             <PackageCheck className="h-4 w-4" />
-                                            Consegnato
+                                            Consegnato al Cliente
                                           </span>
                                         </SelectItem>
                                       </SelectContent>
@@ -3945,15 +3945,15 @@ export default function BookingsManager({
                           </>
                         )}
                         {workflowChangeBooking.newState ===
-                          WorkflowState.COMPLETATO && (
+                          WorkflowState.PRONTO_RITIRO && (
                           <>
-                            <PartyPopper className="h-4 w-4" /> Completato
+                            <Package className="h-4 w-4" /> Pronto per il Ritiro
                           </>
                         )}
                         {workflowChangeBooking.newState ===
                           WorkflowState.CONSEGNATO && (
                           <>
-                            <PackageCheck className="h-4 w-4" /> Consegnato
+                            <PackageCheck className="h-4 w-4" /> Consegnato al Cliente
                           </>
                         )}
                       </span>

@@ -177,6 +177,7 @@ export async function getStudioContactInfo(): Promise<{
   email: string;
   phone: string;
   address: string;
+  whatsapp: string;
 }> {
   try {
     const studioDoc = await getFirestoreDocument("settings/studio");
@@ -186,7 +187,8 @@ export async function getStudioContactInfo(): Promise<{
         name: studioDoc.fields.name?.stringValue || "Image Studio Fotografico",
         email: studioDoc.fields.email?.stringValue || "image.studio.fotografico@gmail.com",
         phone: studioDoc.fields.phone?.stringValue || "+39 334 7103142",
-        address: studioDoc.fields.address?.stringValue || ""
+        address: studioDoc.fields.address?.stringValue || "",
+        whatsapp: studioDoc.fields.whatsapp?.stringValue || "+39 327 4656179"
       };
     }
   } catch (error) {
@@ -198,7 +200,8 @@ export async function getStudioContactInfo(): Promise<{
     name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
+    whatsapp: "+39 327 4656179"
   };
 }
 
@@ -1678,7 +1681,7 @@ export function createBookingCompletedEmailHTML(
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #17a2b8; text-align: center;">📸 Shooting Completato!</h2>
+      <h2 style="color: #17a2b8; text-align: center;">Shooting Completato!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
@@ -1689,14 +1692,14 @@ export function createBookingCompletedEmailHTML(
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">
-            <strong>✅ Stato: Completato</strong><br>
+            <strong>Stato: Completato</strong><br>
             Il tuo shooting si è svolto il <strong>${bookingDate}</strong> ed è ora completato. 
             Ti contatteremo presto per la consegna delle foto e per eventuali pacchetti aggiuntivi.
           </p>
         </div>
 
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">💡 Prossimi Passi</h4>
+          <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
           <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #333;">
             <li>Riceverai una notifica quando le foto saranno pronte</li>
             <li>Potrai visualizzare e selezionare le tue foto preferite</li>
@@ -1705,7 +1708,7 @@ export function createBookingCompletedEmailHTML(
         </div>
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Grazie per aver scelto i nostri servizi! ❤️
+          Grazie per aver scelto i nostri servizi!
         </p>
       </div>
 
@@ -3020,7 +3023,7 @@ router.post("/order-ready", async (req, res) => {
       studioInfo
     );
 
-    const subject = `Il tuo ordine è pronto - ${prodottoNome}`;
+    const subject = `Il tuo ordine e' pronto per il ritiro - ${prodottoNome}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
@@ -3034,9 +3037,56 @@ router.post("/order-ready", async (req, res) => {
       recipientEmail
     });
   } catch (error) {
-    console.error("❌ Errore order-ready email:", error);
+    console.error("Errore order-ready email:", error);
     res.status(500).json({
       error: "Errore invio email ordine pronto"
+    });
+  }
+});
+
+/**
+ * POST /api/email/order-delivered
+ * Invia email "Ordine Consegnato" quando admin marca l'ordine come consegnato al cliente
+ */
+router.post("/order-delivered", async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      clienteName,
+      prodottoNome
+    } = req.body;
+
+    if (!recipientEmail || !clienteName || !prodottoNome) {
+      return res.status(400).json({
+        error: "Parametri mancanti per email ordine consegnato"
+      });
+    }
+
+    const studioInfo = await getStudioContactInfo();
+
+    const htmlContent = createOrderDeliveredEmailHTML(
+      clienteName,
+      prodottoNome,
+      studioInfo
+    );
+
+    const subject = `Ordine consegnato - ${prodottoNome}`;
+
+    await sendGmailEmail(recipientEmail, subject, htmlContent);
+
+    console.log(
+      `Email "Ordine Consegnato" inviata a ${recipientEmail} per ${prodottoNome}`
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Order delivered email sent successfully",
+      recipientEmail
+    });
+  } catch (error) {
+    console.error("Errore order-delivered email:", error);
+    res.status(500).json({
+      error: "Errore invio email ordine consegnato"
     });
   }
 });
@@ -3059,19 +3109,19 @@ function createShootingCompletedEmailHTML(
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">Shooting Completato! 📸</h2>
+      <h2 style="color: #8b5a3c; text-align: center;">Shooting Completato!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
           Grazie per aver partecipato al nostro shooting <strong style="color: #8b5a3c;">${campaignName}</strong> 
-          del ${bookingDate}. È stato un piacere fotografarti! 🎉
+          del ${bookingDate}. E' stato un piacere fotografarti!
         </p>
 
         <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #1b5e20;">
-            <strong>✨ Prossimi Passi</strong><br>
+            <strong>Prossimi Passi</strong><br>
             Le tue foto saranno elaborate nei prossimi giorni. Riceverai una notifica via email 
             non appena la galleria sarà pronta per la visualizzazione e selezione.
           </p>
@@ -3079,14 +3129,14 @@ function createShootingCompletedEmailHTML(
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
           <p style="margin: 0; font-size: 14px; color: #666;">
-            <strong style="color: #333;">💡 Lo sapevi?</strong><br>
+            <strong style="color: #333;">Lo sapevi?</strong><br>
             Ogni foto viene curata con attenzione per garantire il miglior risultato possibile. 
             Ti contatteremo presto per mostrarti il lavoro finale!
           </p>
         </div>
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Per qualsiasi domanda, siamo sempre disponibili! 😊
+          Per qualsiasi domanda, siamo sempre disponibili!
         </p>
       </div>
 
@@ -3117,26 +3167,26 @@ function createOrderProcessingEmailHTML(
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #ff9800; text-align: center;">Il tuo ordine è in lavorazione! 🎨</h2>
+      <h2 style="color: #ff9800; text-align: center;">Il tuo ordine e' in lavorazione!</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
           Siamo entusiasti di comunicarti che abbiamo iniziato a lavorare al tuo ordine 
-          <strong style="color: #8b5a3c;">${prodottoNome}</strong>! 🚀
+          <strong style="color: #8b5a3c;">${prodottoNome}</strong>!
         </p>
 
         <div style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #e65100;">
-            <strong>🎯 Stato Attuale: In Lavorazione</strong><br>
+            <strong>Stato Attuale: In Lavorazione</strong><br>
             Il tuo progetto è nelle nostre mani esperte. Stiamo curando ogni dettaglio 
             per garantire un risultato eccellente che supererà le tue aspettative.
           </p>
         </div>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
-          <h4 style="color: #8b5a3c; margin-top: 0;">⏱️ Tempi di Consegna</h4>
+          <h4 style="color: #8b5a3c; margin-top: 0;">Tempi di Consegna</h4>
           <p style="margin: 0; font-size: 14px; color: #666;">
             Riceverai una notifica non appena il tuo ordine sarà completato e pronto per il ritiro. 
             La cura nei dettagli richiede tempo, ma il risultato ne varrà la pena!
@@ -3144,7 +3194,7 @@ function createOrderProcessingEmailHTML(
         </div>
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
-          Hai domande? Contattaci in qualsiasi momento! 📞
+          Hai domande? Contattaci in qualsiasi momento!
         </p>
       </div>
 
@@ -3159,68 +3209,130 @@ function createOrderProcessingEmailHTML(
 }
 
 /**
- * Template HTML per email ordine pronto per consegna
+ * Template HTML per email ordine pronto per il ritiro
  */
 function createOrderReadyEmailHTML(
   clienteName: string,
   prodottoNome: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string; whatsapp: string }
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio Fotografico", 
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
+    whatsapp: "+39 327 4656179"
   };
+
+  const whatsappNumber = (studio.whatsapp || studio.phone).replace(/[\s+\-]/g, '');
+  const whatsappMessage = encodeURIComponent(`Ciao, vorrei concordare il ritiro del mio ordine "${prodottoNome}". Grazie!`);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #4caf50; text-align: center;">Il tuo ordine è pronto</h2>
+      <h2 style="color: #4caf50; text-align: center;">Il tuo ordine e' pronto per il ritiro</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
           Ciao <strong>${clienteName}</strong>,
         </p>
-        <p style="font-size: 18px; margin-bottom: 20px; font-weight: 600; color: #4caf50;">
-          Fantastica notizia!
-        </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          Il tuo ordine <strong style="color: #8b5a3c;">${prodottoNome}</strong> è stato completato 
-          ed è pronto per il ritiro! Non vediamo l'ora di mostrartelo!
+          Siamo lieti di comunicarti che il tuo ordine <strong style="color: #8b5a3c;">${prodottoNome}</strong> 
+          e' stato realizzato ed e' pronto per il ritiro.
         </p>
 
         <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #1b5e20;">
-            <strong>Ordine Completato</strong><br>
-            Abbiamo curato ogni dettaglio per garantire che il risultato finale sia esattamente 
-            come lo immaginavi. Il tuo lavoro ti sta aspettando!
+            <strong>Pronto per il Ritiro</strong><br>
+            Abbiamo curato ogni dettaglio per garantire un risultato eccellente. 
+            Il tuo lavoro ti sta aspettando!
           </p>
         </div>
 
         <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #4caf50;">
-          <h4 style="color: #4caf50; margin-top: 0; text-align: center;">Come Ritirare il tuo Ordine</h4>
+          <h4 style="color: #4caf50; margin-top: 0; text-align: center;">Come ritirare il tuo ordine</h4>
           <p style="margin: 10px 0; font-size: 14px; color: #333; text-align: center;">
-            <strong>Contattaci per concordare l'orario di ritiro:</strong>
+            Contattaci su WhatsApp per concordare giorno e orario del ritiro:
           </p>
           <div style="text-align: center; margin: 15px 0;">
-            <a href="tel:${studio.phone.replace(/\s/g, '')}" 
-               style="display: inline-block; background: #4caf50; color: white; padding: 12px 25px; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">
-              ${studio.phone}
-            </a>
-            <a href="mailto:${studio.email}" 
-               style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 25px; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">
-              Email
+            <a href="https://wa.me/${whatsappNumber}?text=${whatsappMessage}" 
+               style="display: inline-block; background: #25D366; color: white; padding: 12px 25px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px; font-size: 15px;">
+              Scrivici su WhatsApp
             </a>
           </div>
-        </div>
-
-        <div style="background: #fff9c4; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 13px; color: #f57f17; text-align: center;">
-            <strong>Suggerimento:</strong> Contattaci in anticipo per evitare attese e garantire 
-            la disponibilità del nostro staff per mostrarti il lavoro nel dettaglio!
+          <p style="margin: 10px 0 0; font-size: 13px; color: #666; text-align: center;">
+            Oppure scrivici a <a href="mailto:${studio.email}" style="color: #8b5a3c;">${studio.email}</a>
           </p>
         </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Ti aspettiamo!
+        </p>
+      </div>
+
+      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        <p style="margin: 5px 0;">Email: ${studio.email}</p>
+        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Template HTML per email ordine consegnato al cliente
+ */
+function createOrderDeliveredEmailHTML(
+  clienteName: string,
+  prodottoNome: string,
+  studioInfo?: { name: string; email: string; phone: string; address: string; whatsapp: string }
+): string {
+  const studio = studioInfo || { 
+    name: "Image Studio Fotografico", 
+    email: "image.studio.fotografico@gmail.com",
+    phone: "+39 334 7103142",
+    address: "",
+    whatsapp: "+39 327 4656179"
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #8b5a3c; text-align: center;">Ordine consegnato con successo</h2>
+      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
+        <p style="font-size: 16px; margin-bottom: 15px;">
+          Ciao <strong>${clienteName}</strong>,
+        </p>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Ti confermiamo che il tuo ordine <strong style="color: #8b5a3c;">${prodottoNome}</strong> 
+          e' stato consegnato con successo.
+        </p>
+
+        <div style="background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #1b5e20;">
+            <strong>Consegna completata</strong><br>
+            Speriamo che il risultato finale sia all'altezza delle tue aspettative. 
+            E' stato un piacere lavorare per te!
+          </p>
+        </div>
+
+        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
+          <p style="margin: 0; font-size: 14px; color: #333; text-align: center;">
+            Se hai domande o necessiti di assistenza, non esitare a contattarci.<br>
+            <strong>La tua soddisfazione e' la nostra priorita'.</strong>
+          </p>
+        </div>
+
+        <div style="background: #fff8e1; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0; font-size: 14px; color: #333; text-align: center;">
+            <strong>Ti e' piaciuto il nostro lavoro?</strong><br>
+            Una recensione su Google ci aiuterebbe tantissimo a far crescere il nostro studio. 
+            Grazie di cuore per il tuo supporto!
+          </p>
+        </div>
+
+        <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
+          Grazie per aver scelto ${studio.name}!
+        </p>
       </div>
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">

@@ -398,6 +398,7 @@ interface StudioSettings {
   whatsappButtonText: string;
   partitaIVA?: string;
   codiceFiscale?: string;
+  whatsapp?: string;
 }
 
 export default function AdminDashboard() {
@@ -474,7 +475,8 @@ export default function AdminDashboard() {
     whatsappTitle: 'Contattaci su WhatsApp',
     whatsappSubtitle: 'Siamo qui per te',
     whatsappText: 'Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!',
-    whatsappButtonText: 'Scrivici su WhatsApp'
+    whatsappButtonText: 'Scrivici su WhatsApp',
+    whatsapp: ''
   });
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -2508,6 +2510,16 @@ export default function AdminDashboard() {
                                 value={studioSettings.phone}
                                 onChange={(e) => handleSettingsChange('phone', e.target.value)}
                                 placeholder="Numero di telefono"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="studio-whatsapp">WhatsApp</Label>
+                              <Input
+                                id="studio-whatsapp"
+                                value={studioSettings.whatsapp || ''}
+                                onChange={(e) => handleSettingsChange('whatsapp', e.target.value)}
+                                placeholder="Numero WhatsApp per contatti clienti"
                               />
                             </div>
 
