@@ -5,7 +5,7 @@
  */
 
 import express from "express";
-import { getAvailableSlots, type WorkingHours } from "./google-calendar.js";
+import { getAvailableSlots, deleteEvent, type WorkingHours } from "./google-calendar.js";
 import { db, FieldValue } from "./firebase-admin.js";
 import { Timestamp } from "firebase-admin/firestore";
 import { syncBookingWorkflowState } from "../shared/workflow-helpers.js";
@@ -2933,6 +2933,60 @@ router.post("/resend-confirmation-emails", async (req, res) => {
     console.error("❌ Errore resend-confirmation-emails:", error);
     return res.status(500).json({
       error: error.message || "Errore rinvio email"
+    });
+  }
+});
+
+/**
+ * DELETE /api/booking/:bookingId/delete
+ * Elimina atomicamente una prenotazione:
+ * 1. Legge il documento booking
+ * 2. Se presente googleCalendarEventId, cancella l'evento da Google Calendar (ignora 404)
+ * 3. Cancella il documento Firestore
+ */
+router.delete("/:bookingId/delete", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    if (!bookingId) {
+      return res.status(400).json({ error: "bookingId mancante" });
+    }
+
+    const docRef = db.collection("bookings").doc(bookingId);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      return res.status(404).json({ error: "Prenotazione non trovata" });
+    }
+
+    const bookingData = docSnap.data();
+    const googleCalendarEventId = bookingData?.googleCalendarEventId;
+
+    if (googleCalendarEventId) {
+      try {
+        await deleteEvent("primary", googleCalendarEventId);
+        console.log(`✅ Evento Google Calendar ${googleCalendarEventId} cancellato per booking ${bookingId}`);
+      } catch (calError: any) {
+        if (calError?.code === 404 || calError?.message?.includes("not found") || calError?.message?.includes("Not Found")) {
+          console.log(`⚠️ Evento Google Calendar ${googleCalendarEventId} già rimosso (404)`);
+        } else {
+          console.error(`❌ Errore cancellazione evento Google Calendar ${googleCalendarEventId}:`, calError);
+          return res.status(500).json({
+            error: "Errore cancellazione evento Google Calendar",
+            details: calError.message,
+          });
+        }
+      }
+    }
+
+    await docRef.delete();
+    console.log(`✅ Booking ${bookingId} eliminato da Firestore`);
+
+    return res.json({ success: true, bookingId });
+  } catch (error: any) {
+    console.error("❌ Errore DELETE booking:", error);
+    return res.status(500).json({
+      error: error.message || "Errore eliminazione prenotazione",
     });
   }
 });
