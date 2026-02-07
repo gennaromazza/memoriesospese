@@ -39,10 +39,23 @@ import type { Cliente } from '@shared/clienti-types';
 import { format, addMinutes, parseISO, setHours, setMinutes, startOfDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 
+interface ManualBookingSuccessData {
+  bookingId: string;
+  nome: string;
+  cognome: string;
+  email: string;
+  whatsapp: string;
+  campaignId: string;
+  prodottoId: string;
+  prodottoNome: string;
+  dataShootingInizio: string;
+  prodotti: any[];
+}
+
 interface ManualBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (bookingData: ManualBookingSuccessData) => void;
 }
 
 interface CustomProduct {
@@ -492,7 +505,18 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
         description: `Prenotazione per ${nome} ${cognome} creata con successo`,
       });
 
-      onSuccess();
+      onSuccess({
+        bookingId: result.bookingId,
+        nome: nome.trim(),
+        cognome: cognome.trim(),
+        email: email.trim(),
+        whatsapp: whatsapp.trim(),
+        campaignId,
+        prodottoId: firstProductId || '',
+        prodottoNome: firstProductName || '',
+        dataShootingInizio: dataInizioDate.toISOString(),
+        prodotti: prodottiOrderItems || [],
+      });
       onClose();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);

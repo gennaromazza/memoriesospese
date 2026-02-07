@@ -265,6 +265,7 @@ export default function BookingsManager({
   const [isResolvingCliente, setIsResolvingCliente] = useState(false);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
+  const [pendingOrderBookingId, setPendingOrderBookingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(initialParams.page);
   const ITEMS_PER_PAGE = 10;
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -402,6 +403,16 @@ export default function BookingsManager({
       }
     }
   }, [campaigns]);
+
+  useEffect(() => {
+    if (pendingOrderBookingId && allBookings.length > 0) {
+      const booking = allBookings.find(b => b.id === pendingOrderBookingId);
+      if (booking) {
+        setSelectedBookingForOrder(booking);
+        setPendingOrderBookingId(null);
+      }
+    }
+  }, [pendingOrderBookingId, allBookings]);
 
   // Query ordini per lookup
   const { data: allOrders = [] } = useQuery<Order[]>({
@@ -3618,9 +3629,15 @@ export default function BookingsManager({
       <ManualBookingModal
         isOpen={showManualBookingModal}
         onClose={() => setShowManualBookingModal(false)}
-        onSuccess={() => {
+        onSuccess={(bookingData) => {
           queryClient.invalidateQueries({ queryKey: ["bookings"] });
-          refetch();
+          refetch().then(() => {
+            setPendingOrderBookingId(bookingData.bookingId);
+          });
+          toast({
+            title: 'Prenotazione creata',
+            description: `Prenotazione per ${bookingData.nome} ${bookingData.cognome} creata. Apertura creazione ordine...`,
+          });
         }}
       />
 
