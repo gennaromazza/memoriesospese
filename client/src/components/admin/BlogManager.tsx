@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
-import { CKEditor } from '@ckeditor/ckeditor5-react';
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -577,31 +577,34 @@ export default function BlogManager() {
                   <div className="col-span-2">
                     <Label>Contenuto *</Label>
                     <div className="border rounded-md">
-                      <CKEditor
-                        editor={ClassicEditor}
-                        data={formData.content}
-                        onChange={(event, editor) => {
-                          const data = editor.getData();
-                          setFormData(prev => ({ ...prev, content: data }));
+                      <ReactQuill
+                        theme="snow"
+                        value={formData.content}
+                        onChange={(value) => {
+                          setFormData(prev => ({ ...prev, content: value }));
                         }}
-                        config={{
+                        modules={{
                           toolbar: [
-                            'heading', '|',
-                            'bold', 'italic', 'link', '|',
-                            'bulletedList', 'numberedList', '|',
-                            'blockQuote', 'insertTable', '|',
-                            'imageUpload', 'mediaEmbed', '|',
-                            'undo', 'redo'
-                          ],
-                          heading: {
-                            options: [
-                              { model: 'paragraph', title: 'Paragrafo', class: 'ck-heading_paragraph' },
-                              { model: 'heading1', view: 'h1', title: 'Titolo 1', class: 'ck-heading_heading1' },
-                              { model: 'heading2', view: 'h2', title: 'Titolo 2', class: 'ck-heading_heading2' },
-                              { model: 'heading3', view: 'h3', title: 'Titolo 3', class: 'ck-heading_heading3' }
-                            ]
-                          }
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            ['link', 'image', 'video'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['blockquote', 'code-block'],
+                            [{ 'align': [] }],
+                            [{ 'color': [] }, { 'background': [] }],
+                            ['clean']
+                          ]
                         }}
+                        formats={[
+                          'header',
+                          'bold', 'italic', 'underline', 'strike',
+                          'link', 'image', 'video',
+                          'list',
+                          'blockquote', 'code-block',
+                          'align',
+                          'color', 'background'
+                        ]}
+                        style={{ minHeight: '300px' }}
                       />
                     </div>
                   </div>
