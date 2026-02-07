@@ -105,7 +105,9 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ChevronUp,
+  Filter,
   Wallet,
   MessageCircle,
   Euro,
@@ -298,6 +300,8 @@ export default function BookingsManager({
   const [workflowFilter, setWorkflowFilter] = useState<string>(
     initialParams.workflow,
   );
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const campaignAutoSelectDoneRef = useRef(false);
 
   // Sincronizza filtri con URL (senza ricaricare la pagina)
   const updateUrlParams = useCallback(
@@ -388,6 +392,16 @@ export default function BookingsManager({
     queryKey: ["campaigns"],
     queryFn: getAllCampaigns,
   });
+
+  useEffect(() => {
+    if (campaigns.length > 0 && campaignFilter === "active" && !campaignAutoSelectDoneRef.current) {
+      campaignAutoSelectDoneRef.current = true;
+      const activeCampaigns = campaigns.filter(c => c.attiva);
+      if (activeCampaigns.length === 1) {
+        setCampaignFilter(activeCampaigns[0].id);
+      }
+    }
+  }, [campaigns]);
 
   // Query ordini per lookup
   const { data: allOrders = [] } = useQuery<Order[]>({
@@ -1482,63 +1496,20 @@ export default function BookingsManager({
           </div>
 
           {/* Filtri */}
-          <div className="px-6 py-4 space-y-4">
-            {/* Prima riga filtri */}
+          <div className="px-6 py-4 space-y-3">
+            {/* Row 1: Search + Campaign + Time + Nuova Prenotazione */}
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-              {/* Filtro stato prenotazione */}
-              <div className="w-full lg:w-40">
-                <Select value={selectedStato} onValueChange={setSelectedStato}>
-                  <SelectTrigger
-                    data-testid="select-stato-filter"
-                    className="h-10"
-                  >
-                    <SelectValue placeholder="Tutti" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATI_BOOKING.map((stato) => {
-                      const IconComponent = stato.icon;
-                      return (
-                        <SelectItem key={stato.value} value={stato.value}>
-                          <span className="flex items-center gap-2">
-                            <IconComponent className="h-4 w-4" />
-                            {stato.label}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Cerca per nome, email o campagna..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-10"
+                  data-testid="input-search-bookings"
+                />
               </div>
 
-              {/* Filtro stato workflow */}
-              <div className="w-full lg:w-52">
-                <Select
-                  value={workflowFilter}
-                  onValueChange={setWorkflowFilter}
-                >
-                  <SelectTrigger
-                    data-testid="select-workflow-filter"
-                    className="h-10"
-                  >
-                    <SelectValue placeholder="Tutti i workflow" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATI_WORKFLOW.map((stato) => {
-                      const IconComponent = stato.icon;
-                      return (
-                        <SelectItem key={stato.value} value={stato.value}>
-                          <span className="flex items-center gap-2">
-                            <IconComponent className="h-4 w-4" />
-                            {stato.label}
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Filtro campagna */}
               <div className="w-full lg:w-56">
                 <Select
                   value={campaignFilter}
@@ -1582,7 +1553,6 @@ export default function BookingsManager({
                 </Select>
               </div>
 
-              {/* Filtro data */}
               <div className="w-full lg:w-56">
                 <Select
                   value={timeFilter}
@@ -1613,66 +1583,126 @@ export default function BookingsManager({
                 </Select>
               </div>
 
-              {/* Pulsanti Tutte/Solo Approvate */}
-              <div className="flex gap-2">
-                <Button
-                  variant={selectionFilter === "all" ? "default" : "outline"}
-                  size="default"
-                  onClick={() => setSelectionFilter("all")}
-                  className={
-                    selectionFilter === "all"
-                      ? "bg-sage hover:bg-dark-sage h-10"
-                      : "h-10"
-                  }
-                  data-testid="filter-all-selections-btn"
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Tutte
-                </Button>
-                <Button
-                  variant={
-                    selectionFilter === "approved" ? "default" : "outline"
-                  }
-                  size="default"
-                  onClick={() => setSelectionFilter("approved")}
-                  className={
-                    selectionFilter === "approved"
-                      ? "bg-green-600 hover:bg-green-700 h-10"
-                      : "h-10"
-                  }
-                  data-testid="filter-approved-selections-btn"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Selezioni Approvate
-                </Button>
-              </div>
-
-              {/* Pulsanti azione */}
-              <div className="flex gap-2 ml-auto">
-                <Button
-                  variant="default"
-                  size="default"
-                  onClick={() => setShowManualBookingModal(true)}
-                  className="bg-sage hover:bg-dark-sage h-10"
-                  data-testid="button-new-manual-booking"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuova Prenotazione
-                </Button>
-              </div>
+              <Button
+                variant="default"
+                size="default"
+                onClick={() => setShowManualBookingModal(true)}
+                className="bg-sage hover:bg-dark-sage h-10"
+                data-testid="button-new-manual-booking"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nuova Prenotazione
+              </Button>
             </div>
 
-            {/* Seconda riga - Barra di ricerca */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Cerca per nome, email o campagna..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10"
-                data-testid="input-search-bookings"
-              />
+            {/* Advanced filters toggle */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-sage transition-colors relative"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filtri</span>
+                {(selectedStato !== "all" || workflowFilter !== "all" || selectionFilter !== "all") && (
+                  <span className="w-2 h-2 rounded-full bg-sage absolute -top-0.5 -right-2.5" />
+                )}
+                {showAdvancedFilters ? (
+                  <ChevronUp className="w-3.5 h-3.5 ml-1" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                )}
+              </button>
             </div>
+
+            {/* Row 2: Advanced filters (collapsible) */}
+            {showAdvancedFilters && (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1 pb-1 pl-1 border-l-2 border-sage/20">
+                <div className="w-full sm:w-40">
+                  <Select value={selectedStato} onValueChange={setSelectedStato}>
+                    <SelectTrigger
+                      data-testid="select-stato-filter"
+                      className="h-10"
+                    >
+                      <SelectValue placeholder="Tutti" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATI_BOOKING.map((stato) => {
+                        const IconComponent = stato.icon;
+                        return (
+                          <SelectItem key={stato.value} value={stato.value}>
+                            <span className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              {stato.label}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-full sm:w-52">
+                  <Select
+                    value={workflowFilter}
+                    onValueChange={setWorkflowFilter}
+                  >
+                    <SelectTrigger
+                      data-testid="select-workflow-filter"
+                      className="h-10"
+                    >
+                      <SelectValue placeholder="Tutti i workflow" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATI_WORKFLOW.map((stato) => {
+                        const IconComponent = stato.icon;
+                        return (
+                          <SelectItem key={stato.value} value={stato.value}>
+                            <span className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              {stato.label}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant={selectionFilter === "all" ? "default" : "outline"}
+                    size="default"
+                    onClick={() => setSelectionFilter("all")}
+                    className={
+                      selectionFilter === "all"
+                        ? "bg-sage hover:bg-dark-sage h-10"
+                        : "h-10"
+                    }
+                    data-testid="filter-all-selections-btn"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Tutte
+                  </Button>
+                  <Button
+                    variant={
+                      selectionFilter === "approved" ? "default" : "outline"
+                    }
+                    size="default"
+                    onClick={() => setSelectionFilter("approved")}
+                    className={
+                      selectionFilter === "approved"
+                        ? "bg-green-600 hover:bg-green-700 h-10"
+                        : "h-10"
+                    }
+                    data-testid="filter-approved-selections-btn"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Selezioni Approvate
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Badge contatore risultati */}
             <div className="flex items-center gap-2">
