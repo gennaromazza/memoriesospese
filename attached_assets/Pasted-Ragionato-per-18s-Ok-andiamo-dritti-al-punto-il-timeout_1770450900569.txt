@@ -1,0 +1,173 @@
+Ragionato per 18s
+
+Ok, andiamo dritti al punto: il timeout in deploy su Replit di solito è una combinazione di:
+
+Build troppo lenta (npm install ogni volta, magari con --force)
+
+Server che non parte o non ascolta sulla porta giusta
+
+Processo che si avvia e muore subito (errori runtime, DB non raggiungibile, ecc.)
+
+Ti propongo due cose:
+
+una versione ottimizzata del .replit per il deploy
+
+una checklist veloce per capire dov’è che si pianta.
+
+1. .replit ottimizzato per il deploy (prod)
+
+Partendo dal tuo, ti propongo questa variante più “snella”:
+
+modules = ["nodejs-20", "postgresql-16"]
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["killall"]
+
+[env]
+NODE_ENV = "production"
+
+[deployment]
+deploymentTarget = "autoscale"
+
+# ⚠️ IMPORTANTE:
+# Usa npm ci (molto più veloce e sfrutta la cache, se hai package-lock.json)
+build = ["sh", "-c", "npm ci --omit=dev && npm run build"]
+
+# Il server deve ascoltare su process.env.PORT
+run = ["sh", "-c", "node dist/index.js"]
+
+[workflows]
+runButton = "Dev Workflow"
+
+[[workflows.workflow]]
+name = "Dev Workflow"
+mode = "sequential"
+author = "agent"
+
+# STEP 1 — install dipendenze (solo in dev)
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install"
+
+# STEP 2 — avvio dev server
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+
+[[workflows.workflow]]
+name = "Prod Build & Start"
+mode = "sequential"
+author = "agent"
+
+# STEP 1 — install prod
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm ci --omit=dev"
+
+# STEP 2 — build prod
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+# STEP 3 — start (per testare prod dentro il Repl, non per Deploy)
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dist/index.js"
+
+
+E io toglierei proprio tutta la parte [[ports]] quando usi le Deployments autoscale:
+Replit sui deploy non usa quelle mappature, vuole solo che l’app ascolti su process.env.PORT.
+Le ports sono più utili quando il Repl gira “normale” (non come deployment).
+
+2. Cosa devi controllare nel codice Node
+
+Per evitare il timeout, dentro dist/index.js (o nel sorgente) assicurati che il server faccia roba del genere:
+
+const express = require("express");
+const app = express();
+
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("OK");
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server in ascolto sulla porta ${PORT}`);
+});
+
+
+Punti chiave:
+
+Porta: deve essere process.env.PORT (SE FISSI 5000, in deploy Replit non lo vede e va in timeout).
+
+Host: meglio "0.0.0.0" che localhost, per sicurezza.
+
+Niente npm run dev in deploy: usa solo il server di produzione (node dist/index.js), non Vite dev server & co.
+
+3. Perché il tuo attuale deploy va in timeout (probabile causa)
+
+Con la config attuale:
+
+build = ["sh", "-c", "npm install --force && npm run build"]
+run = ["sh", "-c", "node dist/index.js"]
+
+
+Problemi tipici:
+
+npm install --force
+
+Butta via la cache e reinstalli TUTTO ogni volta.
+
+Se il progetto è grosso (molti pacchetti), i 5 minuti di timeout li bruci solo in install.
+
+Postgres module
+
+Se all’avvio l’API aspetta la connessione al DB e c’è un errore (credenziali, host, migrazioni lente), il server potrebbe:
+
+non partire mai
+
+o crashare subito → Replit vede che il processo muore → timeout/failure.
+
+Porta hardcoded
+
+Se dentro usi const port = 5000; e ascolti lì, ma Replit si aspetta PORT, il health check non passa.
+
+4. Mini check-list debug
+
+Dentro la sezione Deployments → Logs controlla:
+
+Si blocca su npm install?
+
+Se sì: passa a npm ci e togli --force, come ti ho messo sopra.
+
+Il build (npm run build) finisce o esplode?
+
+Errori di TypeScript / bundle → fixare prima.
+
+Dopo node dist/index.js vedi il log “Server in ascolto sulla porta…”?
+
+Se non lo vedi: il server crasha prima. Controlla stack trace nel log.
+
+Errore di connessione al DB?
+
+Tipo ECONNREFUSED, auth failed ecc.
+In quel caso commenta temporaneamente la parte di DB all’avvio e verifica che il deploy passi, così isoli il problema.
+
+5. Riassunto azioni concrete
+
+Aggiorna .replit come ti ho scritto sopra:
+
+npm ci --omit=dev al posto di npm install --force
+
+rimuovi [[ports]] per il deploy
+
+aggiungi [env] NODE_ENV="production"
+
+Nel codice Node:
+
+usa process.env.PORT || 3000
+
+app.listen(PORT, "0.0.0.0", ...)
