@@ -727,16 +727,8 @@ export default function BookingsManager({
         return new Date(timestamp).getTime();
       };
 
-      // - "past": ordine decrescente (più recenti prima)
-      // - "upcoming", "today", "tomorrow", etc: ordine crescente (più vicini prima)
-      // - "all": ordine decrescente (più recenti prima)
-      const multiplier =
-        timeFilter === "all" ||
-        timeFilter === "past" ||
-        timeFilter === "yesterday" ||
-        timeFilter === "last-week"
-          ? -1
-          : 1;
+      // Ordine decrescente (più recenti prima) per tutti i filtri
+      const multiplier = -1;
       return (
         multiplier *
         (getTime(a.dataShootingInizio) - getTime(b.dataShootingInizio))
