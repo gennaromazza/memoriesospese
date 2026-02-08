@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Share2, Copy, Check, MessageCircle, ExternalLink } from "lucide-react";
+import { Share2, Copy, Check, MessageCircle, ExternalLink, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,10 @@ interface ShareGalleryButtonProps {
   galleryName: string;
   clientPhone?: string;
   clientName?: string;
+  galleryPassword?: string;
+  galleryPin?: string;
+  onWhatsAppSent?: () => void;
+  whatsAppSent?: boolean;
   variant?: "icon" | "button";
   size?: "sm" | "default" | "lg" | "icon";
   className?: string;
@@ -26,6 +30,10 @@ export default function ShareGalleryButton({
   galleryName,
   clientPhone,
   clientName,
+  galleryPassword,
+  galleryPin,
+  onWhatsAppSent,
+  whatsAppSent,
   variant = "icon",
   size = "icon",
   className = "",
@@ -60,15 +68,23 @@ export default function ShareGalleryButton({
 
   const handleShareWhatsApp = () => {
     const url = getPublicGalleryUrl();
-    const message = clientName 
+    let message = clientName 
       ? `Ciao ${clientName}! Ecco il link alla tua galleria fotografica "${galleryName}":\n\n${url}`
       : `Ecco il link alla galleria fotografica "${galleryName}":\n\n${url}`;
+    
+    if (galleryPassword) {
+      message += `\n\nPassword: ${galleryPassword}`;
+    }
+    if (galleryPin) {
+      message += `\n\nPIN di accesso: ${galleryPin}`;
+    }
     
     const whatsappUrl = clientPhone
       ? `https://wa.me/${formatPhoneForWhatsApp(clientPhone)}?text=${encodeURIComponent(message)}`
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
     
     window.open(whatsappUrl, "_blank");
+    onWhatsAppSent?.();
     setIsOpen(false);
   };
 
@@ -83,23 +99,28 @@ export default function ShareGalleryButton({
         <Button
           variant="outline"
           size={size}
-          className={`h-9 w-9 bg-teal-50 hover:bg-teal-100 border-teal-200 transition-colors ${className}`}
+          className={`h-9 w-9 ${whatsAppSent ? "bg-green-50 hover:bg-green-100 border-green-300" : "bg-teal-50 hover:bg-teal-100 border-teal-200"} transition-colors relative ${className}`}
           onClick={() => setIsOpen(true)}
-          title="Condividi galleria"
+          title={whatsAppSent ? "Galleria già condivisa via WhatsApp" : "Condividi galleria"}
           data-testid="button-share-gallery"
         >
-          <Share2 className="h-4 w-4 text-teal-600" />
+          <Share2 className={`h-4 w-4 ${whatsAppSent ? "text-green-600" : "text-teal-600"}`} />
+          {whatsAppSent && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center">
+              <Check className="h-2.5 w-2.5 text-white" />
+            </span>
+          )}
         </Button>
       ) : (
         <Button
           variant="outline"
           size={size}
-          className={`bg-teal-50 hover:bg-teal-100 border-teal-200 text-teal-700 ${className}`}
+          className={`${whatsAppSent ? "bg-green-50 hover:bg-green-100 border-green-300 text-green-700" : "bg-teal-50 hover:bg-teal-100 border-teal-200 text-teal-700"} ${className}`}
           onClick={() => setIsOpen(true)}
           data-testid="button-share-gallery"
         >
           <Share2 className="h-4 w-4 mr-2" />
-          Condividi Galleria
+          {whatsAppSent ? "Già condivisa" : "Condividi Galleria"}
         </Button>
       )}
 
@@ -122,6 +143,25 @@ export default function ShareGalleryButton({
                 {getPublicGalleryUrl()}
               </p>
             </div>
+
+            {(galleryPassword || galleryPin) && (
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <KeyRound className="h-4 w-4 text-amber-600" />
+                  <p className="text-xs text-amber-700 font-medium">Credenziali di accesso</p>
+                </div>
+                {galleryPassword && (
+                  <p className="text-sm font-mono text-amber-900">
+                    Password: <span className="font-semibold">{galleryPassword}</span>
+                  </p>
+                )}
+                {galleryPin && (
+                  <p className="text-sm font-mono text-amber-900">
+                    PIN: <span className="font-semibold">{galleryPin}</span>
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-3">
               <Button
