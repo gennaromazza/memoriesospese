@@ -810,7 +810,6 @@ export default function GalleryManagementWorkspace() {
                           variant="outline"
                           size="sm"
                           onClick={async () => {
-                            // 🔧 FORZA REFETCH IMMEDIATO bypassa cache
                             await refetchPhotos();
                             toast({
                               title: '🔄 Foto ricaricate',
@@ -829,6 +828,32 @@ export default function GalleryManagementWorkspace() {
                               🔄 Ricarica Foto
                             </>
                           )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const filteredPhotos = allPhotos.filter(photo =>
+                              searchTerm === '' ||
+                              photo.name.toLowerCase().includes(searchTerm.toLowerCase())
+                            );
+                            if (selectedPhotos.size === filteredPhotos.length && filteredPhotos.length > 0) {
+                              setSelectedPhotos(new Set());
+                            } else {
+                              setSelectedPhotos(new Set(filteredPhotos.map(p => p.id)));
+                            }
+                          }}
+                        >
+                          <Checkbox
+                            checked={
+                              allPhotos.length > 0 &&
+                              selectedPhotos.size === allPhotos.filter(p => searchTerm === '' || p.name.toLowerCase().includes(searchTerm.toLowerCase())).length
+                            }
+                            className="mr-1.5 pointer-events-none"
+                          />
+                          {selectedPhotos.size > 0 && selectedPhotos.size === allPhotos.filter(p => searchTerm === '' || p.name.toLowerCase().includes(searchTerm.toLowerCase())).length
+                            ? 'Deseleziona tutto'
+                            : 'Seleziona tutto'}
                         </Button>
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
