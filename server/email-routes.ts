@@ -2672,20 +2672,40 @@ router.get("/get-gallery-secrets/:galleryId", authenticateFirebase, async (req: 
     // Leggi secrets dalla collection protetta
     const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
 
-    if (!secretsDoc.exists) {
-      // Nessun secrets salvato per questa galleria
-      return res.status(200).json({
-        password: null,
-        specialPin: null
-      });
+    let password: string | null = null;
+    let specialPin: string | null = null;
+
+    if (secretsDoc.exists) {
+      const secretsData = secretsDoc.data();
+      password = secretsData?.password || null;
+      specialPin = secretsData?.specialPin || null;
     }
 
-    const secretsData = secretsDoc.data();
+    // BACKWARD COMPATIBILITY: se non c'è password in gallerySecrets, prova il campo legacy nella galleria
+    if (!password) {
+      const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+      if (galleryDoc.exists) {
+        const galleryData = galleryDoc.data();
+        if (galleryData?.password) {
+          password = galleryData.password;
+          // Migra automaticamente a gallerySecrets
+          try {
+            await db.collection('gallerySecrets').doc(galleryId).set(
+              { password: galleryData.password },
+              { merge: true }
+            );
+            console.log(`✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`);
+          } catch (migErr) {
+            console.warn(`⚠️ Migrazione password fallita per galleria ${galleryId}:`, migErr);
+          }
+        }
+        if (!specialPin && galleryData?.specialPin) {
+          specialPin = galleryData.specialPin;
+        }
+      }
+    }
 
-    res.status(200).json({
-      password: secretsData?.password || null,
-      specialPin: secretsData?.specialPin || null
-    });
+    res.status(200).json({ password, specialPin });
 
   } catch (error) {
     console.error("❌ Errore recupero gallery secrets:", error);

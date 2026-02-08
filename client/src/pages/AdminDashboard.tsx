@@ -1890,6 +1890,7 @@ export default function AdminDashboard() {
                                           </Button>
                                         </Link>
                                         <ShareGalleryButton
+                                          galleryId={gallery.id}
                                           galleryCode={gallery.code}
                                           galleryName={gallery.name}
                                         />
@@ -2012,6 +2013,7 @@ export default function AdminDashboard() {
                                     </Link>
                                   )}
                                   <ShareGalleryButton
+                                    galleryId={gallery.id}
                                     galleryCode={gallery.code}
                                     galleryName={gallery.name}
                                     variant="button"

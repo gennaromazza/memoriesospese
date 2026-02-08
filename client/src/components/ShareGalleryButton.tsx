@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Share2, Copy, Check, MessageCircle, ExternalLink, KeyRound } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Share2, Copy, Check, MessageCircle, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,14 +10,14 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
+import { auth } from "@/lib/firebase";
 
 interface ShareGalleryButtonProps {
+  galleryId: string;
   galleryCode: string;
   galleryName: string;
   clientPhone?: string;
   clientName?: string;
-  galleryPassword?: string;
-  galleryPin?: string;
   onWhatsAppSent?: () => void;
   whatsAppSent?: boolean;
   variant?: "icon" | "button";
@@ -26,12 +26,11 @@ interface ShareGalleryButtonProps {
 }
 
 export default function ShareGalleryButton({
+  galleryId,
   galleryCode,
   galleryName,
   clientPhone,
   clientName,
-  galleryPassword,
-  galleryPin,
   onWhatsAppSent,
   whatsAppSent,
   variant = "icon",
@@ -40,7 +39,38 @@ export default function ShareGalleryButton({
 }: ShareGalleryButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [secrets, setSecrets] = useState<{ password: string | null; specialPin: string | null } | null>(null);
+  const [loadingSecrets, setLoadingSecrets] = useState(false);
   const { toast } = useToast();
+
+  const fetchSecrets = useCallback(async () => {
+    if (secrets) return;
+    setLoadingSecrets(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) { setLoadingSecrets(false); return; }
+      const response = await fetch(`/api/email/get-gallery-secrets/${galleryId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSecrets(data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch gallery secrets:', e);
+    } finally {
+      setLoadingSecrets(false);
+    }
+  }, [galleryId, secrets]);
+
+  useEffect(() => {
+    if (isOpen && !secrets) {
+      fetchSecrets();
+    }
+  }, [isOpen]);
+
+  const galleryPassword = secrets?.password || undefined;
+  const galleryPin = secrets?.specialPin || undefined;
 
   const getPublicGalleryUrl = () => {
     const baseUrl = window.location.origin;
@@ -144,7 +174,14 @@ export default function ShareGalleryButton({
               </p>
             </div>
 
-            {(galleryPassword || galleryPin) && (
+            {loadingSecrets && (
+              <div className="p-3 bg-gray-50 rounded-lg border flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                <p className="text-xs text-gray-500">Caricamento credenziali...</p>
+              </div>
+            )}
+
+            {!loadingSecrets && (galleryPassword || galleryPin) && (
               <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                 <div className="flex items-center gap-2 mb-1">
                   <KeyRound className="h-4 w-4 text-amber-600" />

@@ -122,7 +122,6 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
-import { auth } from "@/lib/firebase";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -363,27 +362,7 @@ export default function BookingsManager({
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editNote, setEditNote] = useState("");
 
-  // State per gallery secrets (password/PIN) cache
-  const [gallerySecrets, setGallerySecrets] = useState<Record<string, { password: string | null; specialPin: string | null }>>({});
   const [whatsAppSentMap, setWhatsAppSentMap] = useState<Record<string, boolean>>({});
-
-  const fetchGallerySecrets = useCallback(async (galleryId: string) => {
-    if (gallerySecrets[galleryId]) return gallerySecrets[galleryId];
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) return null;
-      const response = await fetch(`/api/email/get-gallery-secrets/${galleryId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      setGallerySecrets(prev => ({ ...prev, [galleryId]: data }));
-      return data;
-    } catch (e) {
-      console.warn('Failed to fetch gallery secrets:', e);
-      return null;
-    }
-  }, [gallerySecrets]);
 
   const markWhatsAppSent = useCallback(async (bookingId: string, galleryId: string) => {
     try {
@@ -474,15 +453,6 @@ export default function BookingsManager({
     queryKey: ["galleries"],
     queryFn: GalleryService.getAllGalleries,
   });
-
-  // Pre-fetch gallery secrets for galleries with passwords/PINs
-  useEffect(() => {
-    if (!allGalleries?.length) return;
-    const galleriesNeedingSecrets = allGalleries.filter(g => 
-      (g.hasPassword || g.hasSpecialPin) && !gallerySecrets[g.id]
-    );
-    galleriesNeedingSecrets.forEach(g => fetchGallerySecrets(g.id));
-  }, [allGalleries]);
 
   // Sincronizza URL quando cambiano i filtri
   useEffect(() => {
@@ -2264,14 +2234,13 @@ export default function BookingsManager({
                                               </p>
                                             </div>
                                             <ShareGalleryButton
+                                              galleryId={gallery.id}
                                               galleryCode={gallery.code}
                                               galleryName={gallery.name}
                                               clientPhone={
                                                 booking.cliente?.whatsapp
                                               }
                                               clientName={`${booking.cliente?.nome || ""} ${booking.cliente?.cognome || ""}`.trim()}
-                                              galleryPassword={gallerySecrets[gallery.id]?.password || undefined}
-                                              galleryPin={gallerySecrets[gallery.id]?.specialPin || undefined}
                                               whatsAppSent={!!(booking as any).whatsappGallerySent?.[gallery.id] || whatsAppSentMap[`${booking.id}_${gallery.id}`]}
                                               onWhatsAppSent={() => markWhatsAppSent(booking.id, gallery.id)}
                                             />
