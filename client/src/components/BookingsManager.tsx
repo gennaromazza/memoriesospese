@@ -544,19 +544,19 @@ export default function BookingsManager({
       groups.get(dateKey)!.bookings.push(booking);
     }
 
-    // Ordina gruppi per data (dal più vicino al più lontano)
+    // Ordina gruppi per data (dal più recente al meno recente)
     const sortedGroups = Array.from(groups.values()).sort(
-      (a, b) => a.date.getTime() - b.date.getTime(),
+      (a, b) => b.date.getTime() - a.date.getTime(),
     );
 
-    // Ordina booking all'interno di ogni gruppo per orario
+    // Ordina booking all'interno di ogni gruppo per orario (più recente prima)
     for (const group of sortedGroups) {
       group.bookings.sort((a, b) => {
         const timeA =
           getDateFromTimestamp(a.dataShootingInizio)?.getTime() || 0;
         const timeB =
           getDateFromTimestamp(b.dataShootingInizio)?.getTime() || 0;
-        return timeA - timeB;
+        return timeB - timeA;
       });
     }
 
