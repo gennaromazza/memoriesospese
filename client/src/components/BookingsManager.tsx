@@ -240,7 +240,7 @@ export default function BookingsManager({
           | "today"
           | "tomorrow"
           | "next-week"
-          | "next-month") || "upcoming",
+          | "next-month") || "all",
       workflow: params.get("workflow") || "all",
       selection: (params.get("selection") as "all" | "approved") || "all",
       page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
