@@ -173,6 +173,107 @@ function createOrderUpdatedEmailHTML(orderData: any, studioInfo: any): string {
 }
 
 /**
+ * Helper: Espandi prodotti ordine in productRequirements per galleria
+ * Replica la stessa logica di espansione bundle usata nella creazione galleria (BookingsManager)
+ */
+async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]> {
+  const expandedProducts: any[] = [];
+
+  // Pre-fetch catalogo prodotti per fallback bundle (come BookingsManager)
+  let catalogProducts: Map<string, any> = new Map();
+  const productIds = prodotti.filter(p => p.prodottoId && !p.prodottoId.startsWith('custom_')).map(p => p.prodottoId);
+  if (productIds.length > 0) {
+    try {
+      const chunks = [];
+      for (let i = 0; i < productIds.length; i += 10) {
+        chunks.push(productIds.slice(i, i + 10));
+      }
+      for (const chunk of chunks) {
+        const snapshot = await db.collection('products').where('__name__', 'in', chunk).get();
+        snapshot.docs.forEach(doc => catalogProducts.set(doc.id, { id: doc.id, ...doc.data() }));
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Impossibile caricare catalogo prodotti per fallback bundle:', err.message);
+    }
+  }
+
+  for (const orderItem of prodotti) {
+    const orderItemQuantity = orderItem.quantita || 1;
+
+    // PRIORITY: orderItem.bundleItems → fallback a catalogo (come BookingsManager)
+    const hasOrderItemBundle = orderItem.isBundle && orderItem.bundleItems && orderItem.bundleItems.length > 0;
+    const catalogProduct = catalogProducts.get(orderItem.prodottoId);
+    const hasCatalogBundle = catalogProduct?.isBundle && catalogProduct.bundleItems && catalogProduct.bundleItems.length > 0;
+    
+    const bundleItems = hasOrderItemBundle 
+      ? orderItem.bundleItems 
+      : hasCatalogBundle 
+        ? catalogProduct!.bundleItems 
+        : null;
+    const bundleParentName = orderItem.prodottoNome || catalogProduct?.nome || 'Bundle';
+
+    if (bundleItems && bundleItems.length > 0) {
+      let bundleExpandedCount = 0;
+      for (let orderQty = 0; orderQty < orderItemQuantity; orderQty++) {
+        for (const bundleItem of bundleItems) {
+          if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
+          if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
+
+          for (let i = 0; i < bundleItem.quantita; i++) {
+            const bundlePrefix = orderItemQuantity > 1
+              ? `[${orderQty + 1}/${orderItemQuantity}] `
+              : '';
+            const req: any = {
+              prodottoNome: bundleItem.quantita > 1
+                ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
+                : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
+              prodottoNumeroFoto: bundleItem.numeroFoto,
+            };
+            if (bundleItem.prodottoId) {
+              req.prodottoId = bundleItem.prodottoId;
+            }
+            expandedProducts.push(req);
+            bundleExpandedCount++;
+          }
+        }
+      }
+      console.log(`📦 Bundle "${bundleParentName}" x${orderItemQuantity} espanso in ${bundleExpandedCount} requirements`);
+    } else {
+      for (let i = 0; i < orderItemQuantity; i++) {
+        const req: any = {
+          prodottoNome: orderItemQuantity > 1
+            ? `${orderItem.prodottoNome} (${i + 1}/${orderItemQuantity})`
+            : orderItem.prodottoNome,
+          prodottoNumeroFoto: orderItem.prodottoNumeroFoto ?? 0,
+        };
+        if (orderItem.prodottoId && !orderItem.prodottoId.startsWith('custom_')) {
+          req.prodottoId = orderItem.prodottoId;
+        }
+        expandedProducts.push(req);
+      }
+    }
+  }
+
+  return expandedProducts;
+}
+
+/**
+ * Helper: Confronta due array di productRequirements per determinare se sono cambiati
+ * Confronto semantico: ignora ordine, confronta nome + numeroFoto + id
+ */
+function areProductRequirementsEqual(a: any[], b: any[]): boolean {
+  if (a.length !== b.length) return false;
+
+  const serialize = (req: any) => 
+    `${req.prodottoNome || ''}|${req.prodottoNumeroFoto ?? 0}|${req.prodottoId || ''}`;
+  
+  const setA = a.map(serialize).sort();
+  const setB = b.map(serialize).sort();
+  
+  return setA.every((val, idx) => val === setB[idx]);
+}
+
+/**
  * PATCH /api/orders/:id - Aggiorna ordine esistente con email automatica
  */
 router.patch('/:id', async (req: Request, res: Response) => {
@@ -219,6 +320,66 @@ router.patch('/:id', async (req: Request, res: Response) => {
     // 4. Update Firestore
     await orderRef.update(finalUpdateData);
     console.log(`✅ Ordine ${id} aggiornato in Firestore`);
+
+    // 4.05 SYNC PRODOTTI → GALLERIE: Se i prodotti cambiano, aggiorna productRequirements nelle gallerie
+    let gallerySyncResult = { updated: 0, selectionsReset: 0 };
+    const bookingId = currentOrder.bookingId;
+    if (updateData.prodotti && Array.isArray(updateData.prodotti) && bookingId) {
+      try {
+        const galleriesSnapshot = await db.collection('galleries')
+          .where('bookingId', '==', bookingId)
+          .get();
+
+        if (!galleriesSnapshot.empty) {
+          // Espandi bundle nei loro componenti (stessa logica di creazione galleria)
+          const newProductRequirements = await expandOrderProductsToRequirements(updateData.prodotti);
+          
+          // Per ogni galleria: confronta con requirements esistenti, aggiorna solo se cambiati
+          const updatePromises = galleriesSnapshot.docs.map(async (galleryDoc) => {
+            const galleryData = galleryDoc.data();
+            const existingReqs = galleryData.productRequirements || [];
+            
+            const requirementsChanged = !areProductRequirementsEqual(existingReqs, newProductRequirements);
+            
+            if (!requirementsChanged) {
+              console.log(`⏭️ Galleria ${galleryDoc.id}: productRequirements invariati, skip`);
+              return;
+            }
+            
+            const hasSelections = 
+              (galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) ||
+              (galleryData.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0);
+            
+            const galleryUpdate: any = {
+              productRequirements: newProductRequirements,
+              selectionStatus: 'pending',
+              updatedAt: FieldValue.serverTimestamp(),
+            };
+            
+            // Reset selezioni se c'erano (prodotti cambiati → selezioni invalidate)
+            if (hasSelections) {
+              galleryUpdate.photoAssignments = {};
+              galleryUpdate.selectedPhotoIds = [];
+              gallerySyncResult.selectionsReset++;
+              console.log(`⚠️ Galleria ${galleryDoc.id}: selezioni resettate per cambio prodotti`);
+            }
+            
+            // Single vs multi product mode
+            if (newProductRequirements.length === 1) {
+              galleryUpdate.requiredPhotoCount = newProductRequirements[0].prodottoNumeroFoto || 0;
+            }
+            
+            await galleryDoc.ref.update(galleryUpdate);
+            gallerySyncResult.updated++;
+          });
+          
+          await Promise.all(updatePromises);
+          console.log(`✅ ${gallerySyncResult.updated} galleria/e aggiornata/e con productRequirements espansi`);
+        }
+      } catch (gallerySyncError: any) {
+        console.error(`⚠️ Errore sync gallerie per prodotti:`, gallerySyncError.message);
+      }
+    }
 
     // 4.1 Se lo status dell'ordine cambia, aggiorna anche la galleria associata
     if (updateData.status && currentOrder.galleryId) {
@@ -312,6 +473,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       success: true,
       message: 'Ordine aggiornato con successo',
       order: updatedOrder,
+      gallerySync: gallerySyncResult,
     });
 
   } catch (error: any) {

@@ -106,85 +106,16 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       const response = await apiRequest('PATCH', `/api/orders/${orderId}`, data);
       return response.json();
     },
-    onSuccess: async (updatedOrder) => {
-      // Aggiorna le gallerie associate con i nuovi productRequirements
-      if (order?.bookingId) {
-        try {
-          const { collection, query: firestoreQuery, where, getDocs, updateDoc, doc } = await import('firebase/firestore');
-          const { db } = await import('@/lib/firebase');
-          
-          // Trova tutte le gallerie con questo bookingId
-          const galleriesQuery = firestoreQuery(
-            collection(db, 'galleries'),
-            where('bookingId', '==', order.bookingId)
-          );
-          const galleriesSnapshot = await getDocs(galleriesQuery);
-          
-          if (!galleriesSnapshot.empty) {
-            // Costruisci il nuovo array productRequirements dai prodotti aggiornati
-            const newProductRequirements = selectedProdotti.map(p => {
-              const req: any = {
-                prodottoNome: p.prodottoNome,
-                prodottoNumeroFoto: p.prodottoNumeroFoto || 0,
-              };
-              // Solo aggiungi prodottoId se esiste (Firestore non accetta undefined)
-              if (p.prodottoId && p.prodottoId.trim() && !p.prodottoId.startsWith('custom_')) {
-                req.prodottoId = p.prodottoId;
-              }
-              return req;
-            });
-            
-            // Conta gallerie con selezioni attive da resettare (multi-prodotto + legacy)
-            let galleriesWithSelections = 0;
-            galleriesSnapshot.docs.forEach(galleryDoc => {
-              const galleryData = galleryDoc.data();
-              const hasMultiProductSelections = galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0;
-              const hasLegacySelections = galleryData.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0;
-              
-              if (hasMultiProductSelections || hasLegacySelections) {
-                galleriesWithSelections++;
-              }
-            });
-            
-            // Aggiorna tutte le gallerie trovate
-            // IMPORTANTE: Reset completo delle selezioni per evitare indici orfani
-            const updatePromises = galleriesSnapshot.docs.map(galleryDoc =>
-              updateDoc(doc(db, 'galleries', galleryDoc.id), {
-                productRequirements: newProductRequirements,
-                photoAssignments: {}, // Reset assegnazioni multi-prodotto
-                selectedPhotoIds: [], // Reset legacy single-product
-                selectionStatus: 'pending' // Reset stato selezione
-              })
-            );
-            
-            await Promise.all(updatePromises);
-            
-            console.log(`✅ ${galleriesSnapshot.size} galleria/e aggiornata/e con nuovi productRequirements`);
-            if (galleriesWithSelections > 0) {
-              console.log(`⚠️ ${galleriesWithSelections} galleria/e con selezioni resettate per evitare corruzione dati`);
-            }
-            
-            toast({
-              title: '✅ Ordine aggiornato',
-              description: galleriesWithSelections > 0
-                ? `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e. ⚠️ ${galleriesWithSelections} selezioni cliente resettate.`
-                : `Modifiche salvate. ${galleriesSnapshot.size} galleria/e aggiornata/e automaticamente.`,
-              variant: galleriesWithSelections > 0 ? 'default' : 'default',
-            });
-          } else {
-            toast({
-              title: '✅ Ordine aggiornato',
-              description: 'Le modifiche sono state salvate e il cliente ha ricevuto una email di conferma.',
-            });
-          }
-        } catch (error) {
-          console.error('❌ Errore aggiornamento gallerie:', error);
-          toast({
-            title: '⚠️ Ordine aggiornato',
-            description: 'Ordine salvato ma errore nell\'aggiornamento delle gallerie associate.',
-            variant: 'destructive',
-          });
-        }
+    onSuccess: async (response) => {
+      const gallerySync = response?.gallerySync;
+      
+      if (gallerySync && gallerySync.updated > 0) {
+        toast({
+          title: '✅ Ordine aggiornato',
+          description: gallerySync.selectionsReset > 0
+            ? `Modifiche salvate. ${gallerySync.updated} galleria/e aggiornata/e. ⚠️ ${gallerySync.selectionsReset} selezioni cliente resettate per cambio prodotti.`
+            : `Modifiche salvate. ${gallerySync.updated} galleria/e aggiornata/e automaticamente.`,
+        });
       } else {
         toast({
           title: '✅ Ordine aggiornato',
