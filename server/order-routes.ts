@@ -1156,4 +1156,120 @@ router.post('/sync-bundle-data', authenticateFirebase, async (req: any, res: Res
   }
 });
 
+/**
+ * POST /api/orders/repair-bundle-galleries
+ * One-shot repair: scansiona tutti gli ordini con bundle e riallinea i productRequirements delle gallerie associate
+ */
+router.post('/repair-bundle-galleries', async (req: Request, res: Response) => {
+  try {
+    console.log('🔧 === AVVIO REPAIR BUNDLE GALLERIES ===');
+
+    const ordersSnapshot = await db.collection('orders').get();
+    console.log(`📋 Trovati ${ordersSnapshot.size} ordini totali`);
+
+    let scanned = 0;
+    let repaired = 0;
+    let selectionsReset = 0;
+    let skipped = 0;
+    let noGallery = 0;
+    const details: any[] = [];
+
+    for (const orderDoc of ordersSnapshot.docs) {
+      const order = orderDoc.data();
+      scanned++;
+
+      if (!order.prodotti || order.prodotti.length === 0) {
+        continue;
+      }
+
+      const hasBundleProduct = order.prodotti.some((p: any) => p.isBundle);
+      if (!hasBundleProduct) {
+        continue;
+      }
+
+      const bookingId = order.bookingId;
+      if (!bookingId) {
+        continue;
+      }
+
+      const galleriesSnapshot = await db.collection('galleries')
+        .where('bookingId', '==', bookingId)
+        .get();
+
+      if (galleriesSnapshot.empty) {
+        noGallery++;
+        continue;
+      }
+
+      const newProductRequirements = await expandOrderProductsToRequirements(order.prodotti);
+
+      for (const galleryDoc of galleriesSnapshot.docs) {
+        const galleryData = galleryDoc.data();
+        const currentRequirements = galleryData.productRequirements || [];
+
+        if (areProductRequirementsEqual(currentRequirements, newProductRequirements)) {
+          skipped++;
+          continue;
+        }
+
+        const hasSelections = 
+          (galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) ||
+          (galleryData.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0);
+
+        const galleryUpdate: any = {
+          productRequirements: newProductRequirements,
+          selectionStatus: 'pending',
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+
+        if (hasSelections) {
+          galleryUpdate.photoAssignments = {};
+          galleryUpdate.selectedPhotoIds = [];
+          selectionsReset++;
+        }
+
+        if (newProductRequirements.length === 1) {
+          galleryUpdate.requiredPhotoCount = newProductRequirements[0].prodottoNumeroFoto || 0;
+        }
+
+        await galleryDoc.ref.update(galleryUpdate);
+        repaired++;
+
+        details.push({
+          orderId: orderDoc.id,
+          galleryId: galleryDoc.id,
+          galleryName: galleryData.name || galleryData.galleryName || '?',
+          oldRequirementsCount: currentRequirements.length,
+          newRequirementsCount: newProductRequirements.length,
+          selectionsReset: hasSelections,
+        });
+
+        console.log(`✅ Galleria ${galleryDoc.id} (${galleryData.name || '?'}): ${currentRequirements.length} → ${newProductRequirements.length} requirements${hasSelections ? ' [SELEZIONI RESET]' : ''}`);
+      }
+    }
+
+    console.log(`🔧 === REPAIR COMPLETATO ===`);
+    console.log(`📊 Scansionati: ${scanned}, Riparati: ${repaired}, Saltati (già ok): ${skipped}, Senza galleria: ${noGallery}, Selezioni resettate: ${selectionsReset}`);
+
+    res.json({
+      success: true,
+      summary: {
+        ordersScanned: scanned,
+        galleriesRepaired: repaired,
+        galleriesSkipped: skipped,
+        ordersWithoutGallery: noGallery,
+        selectionsReset,
+      },
+      details,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore repair bundle galleries:', error);
+    res.status(500).json({
+      error: 'Errore durante il repair',
+      details: error.message,
+    });
+  }
+});
+
 export default router;
