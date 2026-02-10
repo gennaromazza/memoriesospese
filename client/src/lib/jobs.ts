@@ -51,50 +51,46 @@ export async function createJob(
       throw new Error('Almeno un cliente è obbligatorio per creare un lavoro');
     }
     
-    const jobData: Omit<Job, 'id'> = {
+    const isDND = data.dataNonDefinita === true;
+
+    const jobData: Record<string, any> = {
       nomeEvento: data.nomeEvento,
       clientiIds: data.clientiIds,
       jobType: data.jobType,
-      // Se dataNonDefinita è true, non impostiamo eventDate
-      ...(data.dataNonDefinita ? {} : { eventDate: Timestamp.fromDate(data.eventDate!) }),
-      dataNonDefinita: data.dataNonDefinita || false,
-      allDay: data.allDay,
-      ...(data.startTime && { startTime: data.startTime }),
-      ...(data.endTime && { endTime: data.endTime }),
-      ...(data.eventLocation && { eventLocation: data.eventLocation }),
-      ...(data.rituLocation && { rituLocation: data.rituLocation }),
-      ...(data.rituTime && { rituTime: data.rituTime }),
+      dataNonDefinita: isDND,
+      allDay: isDND ? true : (data.allDay ?? false),
       provenance: data.provenance,
-      ...(data.noteInterne && { noteInterne: data.noteInterne }),
-      ...(data.appuntamentiClienti && data.appuntamentiClienti.length > 0 && { appuntamentiClienti: data.appuntamentiClienti }),
-      
-      // Riferimenti vuoti inizialmente
       orderIds: [],
       galleryIds: [],
       quoteIds: [],
-      
-      // Status iniziale
       status: 'lead',
-      
-      // Financials iniziali
       financials: {
         totalePreventivato: 0,
         totaleOrdini: 0,
         totalePagato: 0,
         saldoResiduo: 0
       },
-      
-      // Costi, PDF e workflow events vuoti
       costi: [],
       pdfs: [],
       workflowEvents: [],
-      
-      // Metadata
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId,
       jobSource: 'manual'
     };
+
+    if (!isDND && data.eventDate) {
+      jobData.eventDate = Timestamp.fromDate(data.eventDate);
+    }
+    if (data.startTime) jobData.startTime = data.startTime;
+    if (data.endTime) jobData.endTime = data.endTime;
+    if (data.eventLocation) jobData.eventLocation = data.eventLocation;
+    if (data.rituLocation) jobData.rituLocation = data.rituLocation;
+    if (data.rituTime) jobData.rituTime = data.rituTime;
+    if (data.noteInterne) jobData.noteInterne = data.noteInterne;
+    if (data.appuntamentiClienti && data.appuntamentiClienti.length > 0) {
+      jobData.appuntamentiClienti = data.appuntamentiClienti;
+    }
 
     const docRef = await addDoc(collection(db, JOBS_COLLECTION), jobData);
     
