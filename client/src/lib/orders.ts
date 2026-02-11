@@ -329,6 +329,7 @@ export async function createOrder(data: InsertOrder): Promise<string> {
         ? item.quantita
         : 1,
     ...(item.isCustom ? { isCustom: true } : {}),
+    ...(item.isBundle && item.bundleItems ? { isBundle: true, bundleItems: item.bundleItems } : {}),
   }));
 
   console.log("📦 Prodotti normalizzati:", normalizedProdotti);
