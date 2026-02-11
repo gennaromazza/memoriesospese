@@ -598,7 +598,7 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // 6. Gallerie con selezione completata dal cliente (da lavorare)
     const completedSelections: StudioSuggestion[] = [];
     const galleriesWithSelectionSnap = await db.collection('galleries')
-      .where('selectionCompleted', '==', true)
+      .where('selectionStatus', '==', 'completed')
       .get();
     
     for (const galDoc of galleriesWithSelectionSnap.docs) {
