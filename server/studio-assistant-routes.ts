@@ -405,13 +405,14 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         }
       }
 
-      const workflowLabel = currentWorkflowState ? {
+      const workflowLabelsMap: Record<string, string> = {
         'shooting_da_svolgere': 'Shooting da svolgere',
         'shooting_completato': 'Shooting completato',
         'in_lavorazione': 'In lavorazione',
         'in_attesa_selezione': 'In attesa selezione',
         'pronto_ritiro': 'Pronto per il ritiro',
-      }[currentWorkflowState] || currentWorkflowState : 'Stato non impostato';
+      };
+      const workflowLabel = currentWorkflowState ? (workflowLabelsMap[currentWorkflowState] || currentWorkflowState) : 'Stato non impostato';
 
       pendingOrders.push({
         id: suggestionId,
@@ -596,6 +597,18 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // TODO: Implementare logica consulenze basata su template e stato job
     
     // 6. Gallerie con selezione completata dal cliente (da lavorare)
+    // Costruisci mappa inversa galleryId -> orderId per collegare selezioni agli ordini
+    const galleryToOrderMap = new Map<string, { orderId: string; workflowState: string }>();
+    for (const orderDoc of ordersSnapshot.docs) {
+      const order = orderDoc.data();
+      if (order.galleryId) {
+        galleryToOrderMap.set(order.galleryId, {
+          orderId: orderDoc.id,
+          workflowState: order.statoWorkflow || ''
+        });
+      }
+    }
+
     const completedSelections: StudioSuggestion[] = [];
     const galleriesWithSelectionSnap = await db.collection('galleries')
       .where('selectionStatus', '==', 'completed')
@@ -604,7 +617,11 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     for (const galDoc of galleriesWithSelectionSnap.docs) {
       const gallery = galDoc.data();
       
-      if (gallery.workflowState === 'consegnato' || gallery.workflowState === 'pronto_ritiro') continue;
+      // Trova lo stato workflow dall'ordine collegato, poi dalla galleria, poi dalla booking
+      const orderInfo = galleryToOrderMap.get(galDoc.id);
+      const effectiveWorkflowState = orderInfo?.workflowState || gallery.workflowState || '';
+      
+      if (effectiveWorkflowState === 'consegnato') continue;
       
       const suggestionId = `selection_${galDoc.id}`;
       if (dismissedIds.has(suggestionId)) continue;
@@ -622,6 +639,15 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
 
       const selectedCount = gallery.selectedPhotoIds?.length || 
         Object.values(gallery.photoAssignments || {}).reduce((sum: number, ids: any) => sum + (Array.isArray(ids) ? ids.length : 0), 0);
+
+      const selectionWorkflowLabels: Record<string, string> = {
+        'shooting_da_svolgere': '📷 Shooting da svolgere',
+        'shooting_completato': '✅ Shooting completato',
+        'in_lavorazione': '🔧 In lavorazione',
+        'in_attesa_selezione': '⏳ In attesa selezione',
+        'pronto_ritiro': '📦 Pronto per il ritiro',
+      };
+      const workflowLabel = effectiveWorkflowState ? (selectionWorkflowLabels[effectiveWorkflowState] || effectiveWorkflowState) : '⚠️ Stato non impostato';
       
       completedSelections.push({
         id: suggestionId,
@@ -630,14 +656,15 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         galleryCode: gallery.code,
         galleryName: gallery.name,
         bookingId: gallery.bookingId,
+        orderId: orderInfo?.orderId,
         clientName: clientName || gallery.name || 'Cliente',
         selectedPhotosCount: selectedCount,
         requiredPhotosCount: gallery.requiredPhotoCount || 0,
         selectionCompletedAt: selectionDate.toISOString(),
-        workflowState: gallery.workflowState || '',
+        workflowState: effectiveWorkflowState,
         priority: daysSinceSelection > 3 ? 'high' : daysSinceSelection > 1 ? 'medium' : 'low',
         createdAt: gallery.createdAt,
-        reason: `📸 Selezione completata ${daysSinceSelection > 0 ? daysSinceSelection + ' giorni fa' : 'oggi'} (${selectedCount} foto)`
+        reason: `📸 Selezione completata ${daysSinceSelection > 0 ? daysSinceSelection + ' giorni fa' : 'oggi'} (${selectedCount} foto) - ${workflowLabel}`
       });
     }
     

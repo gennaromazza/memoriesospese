@@ -376,26 +376,53 @@ export default function SuggestionCard({
               
               {/* Azioni per selezione completata */}
               {suggestion.type === 'completed_selection' && (
-                <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
-                    onClick={() => window.open(`/admin/dashboard?tab=prenotazioni`, '_blank')}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                    Prenotazioni
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
-                    onClick={() => handleAction(() => onDismiss(suggestion.id))}
-                    disabled={isLoading}
-                  >
-                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                    Ignora
-                  </Button>
+                <div className="space-y-2">
+                  {onWorkflowStateChange && suggestion.orderId && (
+                    <Select
+                      value={suggestion.workflowState || undefined}
+                      onValueChange={(value) => {
+                        if (suggestion.orderId && onWorkflowStateChange) {
+                          setIsLoading(true);
+                          onWorkflowStateChange(suggestion.orderId, value).finally(() => setIsLoading(false));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-9 text-xs sm:text-sm">
+                        <SelectValue placeholder="- Imposta stato -" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(workflowStateLabels).map(([value, { label, icon: Icon }]) => (
+                          <SelectItem key={value} value={value}>
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                      onClick={() => window.open(`/admin/dashboard?tab=prenotazioni`, '_blank')}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                      Prenotazioni
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                      onClick={() => handleAction(() => onDismiss(suggestion.id))}
+                      disabled={isLoading}
+                    >
+                      <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                      Ignora
+                    </Button>
+                  </div>
                 </div>
               )}
 
