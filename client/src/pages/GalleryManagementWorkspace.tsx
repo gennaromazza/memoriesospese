@@ -1285,11 +1285,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                           {gallery.productRequirements.map((product, productIndex) => {
-                            // Filter photos assigned to this product
-                            const productPhotos = allPhotos.filter(photo => {
-                              const assignments = gallery.photoAssignments?.[photo.id] || [];
-                              return assignments.includes(String(productIndex));
-                            });
+                            const productPhotos = isMultiProductMode
+                              ? allPhotos.filter(photo => {
+                                  const assignments = gallery.photoAssignments?.[photo.id] || [];
+                                  return assignments.includes(String(productIndex));
+                                })
+                              : clientSelectedPhotos;
 
                             const productFilenameList = productPhotos.map(p => cleanFilenameForExport(p.name)).join('\n');
 
