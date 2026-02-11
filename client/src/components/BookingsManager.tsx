@@ -55,6 +55,11 @@ import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import ShareGalleryButton from "@/components/ShareGalleryButton";
 import ManualBookingModal from "@/components/ManualBookingModal";
+import GalleryManagementWorkspace from "@/pages/GalleryManagementWorkspace";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -263,6 +268,7 @@ export default function BookingsManager({
     string | undefined
   >(undefined);
   const [isResolvingCliente, setIsResolvingCliente] = useState(false);
+  const [manageGalleryId, setManageGalleryId] = useState<string | null>(null);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [pendingOrderBookingId, setPendingOrderBookingId] = useState<string | null>(null);
@@ -2431,9 +2437,7 @@ export default function BookingsManager({
                                               );
                                               setIsResolvingCliente(false);
                                             } else {
-                                              navigate(
-                                                `/admin/gallery/${gallery.id}/manage`,
-                                              );
+                                              setManageGalleryId(gallery.id);
                                             }
                                           }}
                                           data-testid={`button-gallery-${booking.id}`}
@@ -3627,10 +3631,9 @@ export default function BookingsManager({
                   toast({
                     title: "Galleria creata",
                     description:
-                      "Reindirizzamento alla schermata di caricamento foto...",
+                      "Apertura gestione galleria...",
                   });
-                  // Navigate to gallery management page
-                  navigate(`/admin/gallery/${galleryId}/manage`);
+                  setManageGalleryId(galleryId);
                 }}
                 prePopulate={prePopulateData}
               />
@@ -3665,6 +3668,19 @@ export default function BookingsManager({
           }}
         />
       )}
+
+      {/* Gallery Management Sheet */}
+      <Sheet open={!!manageGalleryId} onOpenChange={(open) => { if (!open) { setManageGalleryId(null); queryClient.invalidateQueries({ queryKey: ["galleries"] }); } }}>
+        <SheetContent side="right" className="w-full sm:max-w-full p-0 overflow-y-auto [&>button]:z-50">
+          {manageGalleryId && (
+            <GalleryManagementWorkspace
+              galleryIdProp={manageGalleryId}
+              onClose={() => { setManageGalleryId(null); queryClient.invalidateQueries({ queryKey: ["galleries"] }); }}
+              embedded
+            />
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Dialog Registrazione Pagamento */}
       <Dialog

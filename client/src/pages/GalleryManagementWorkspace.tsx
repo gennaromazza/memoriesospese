@@ -68,12 +68,26 @@ const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any;
 });
 PhotoCard.displayName = 'PhotoCard';
 
-export default function GalleryManagementWorkspace() {
+interface GalleryManagementWorkspaceProps {
+  galleryIdProp?: string;
+  onClose?: () => void;
+  embedded?: boolean;
+}
+
+export default function GalleryManagementWorkspace({ galleryIdProp, onClose, embedded }: GalleryManagementWorkspaceProps = {}) {
   const [, params] = useRoute('/admin/gallery/:galleryId/manage');
   const [, setLocation] = useLocation();
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
-  const galleryId = params?.galleryId;
+  const galleryId = galleryIdProp || params?.galleryId;
+
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else {
+      setLocation('/admin/dashboard');
+    }
+  }, [onClose, setLocation]);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -157,9 +171,9 @@ export default function GalleryManagementWorkspace() {
         description: "La galleria è stata eliminata. Reindirizzamento alla dashboard...",
         variant: "destructive"
       });
-      setLocation('/admin/dashboard');
+      handleBack();
     }
-  }, [isLoading, gallery, galleryId, toast, setLocation]);
+  }, [isLoading, gallery, galleryId, toast, handleBack]);
 
   // Crea preview per file selezionati
   const createPreviews = useCallback((files: File[]) => {
@@ -463,9 +477,9 @@ export default function GalleryManagementWorkspace() {
         <Card className="max-w-md">
           <CardContent className="text-center py-12">
             <p className="text-lg font-medium text-gray-700 mb-4">Galleria non trovata</p>
-            <Button onClick={() => setLocation('/admin/dashboard')}>
+            <Button onClick={handleBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Torna alla Dashboard
+              {onClose ? 'Chiudi' : 'Torna alla Dashboard'}
             </Button>
           </CardContent>
         </Card>
@@ -480,12 +494,12 @@ export default function GalleryManagementWorkspace() {
         <div className="mb-6">
           <Button
             variant="outline"
-            onClick={() => setLocation('/admin/dashboard')}
+            onClick={handleBack}
             className="mb-4"
             data-testid="button-back-dashboard"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Torna a BookingsManager
+            {onClose ? 'Chiudi Gestione Galleria' : 'Torna a BookingsManager'}
           </Button>
 
           <Card>
