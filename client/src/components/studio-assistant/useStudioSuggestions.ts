@@ -26,6 +26,7 @@ export interface UseStudioSuggestionsReturn {
   needsWorkJobs: StudioSuggestion[];
   pendingOrders: StudioSuggestion[];
   pendingBookings: StudioSuggestion[];
+  completedSelections: StudioSuggestion[];
   loading: boolean;
   error: Error | null;
   stats: {
@@ -37,6 +38,7 @@ export interface UseStudioSuggestionsReturn {
   dismiss: (suggestionId: string) => Promise<void>;
   markAsNeedsWork: (jobId: string, reason: PendingReason) => Promise<void>;
   markAsDelivered: (jobId: string) => Promise<void>;
+  updateOrderWorkflowState: (orderId: string, workflowState: string) => Promise<void>;
   performAction: (suggestionId: string, action: SuggestionAction, data?: any) => Promise<void>;
   refetch: () => void;
 }
@@ -84,6 +86,28 @@ async function performSuggestionAction(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Errore esecuzione azione');
+  }
+}
+
+async function updateOrderWorkflow(
+  orderId: string,
+  workflowState: string
+): Promise<void> {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error('Non autenticato');
+  
+  const response = await fetch(`/api/studio-assistant/orders/${orderId}/workflow-state`, {
+    method: 'PATCH',
+    headers: { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ workflowState })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Errore aggiornamento stato workflow');
   }
 }
 
@@ -150,7 +174,8 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
             consultations: previousData.data?.consultations?.filter(s => s.id !== suggestionId) ?? [],
             needsWorkJobs: previousData.data?.needsWorkJobs?.filter(s => s.id !== suggestionId) ?? [],
             pendingOrders: previousData.data?.pendingOrders?.filter(s => s.id !== suggestionId) ?? [],
-            pendingBookings: previousData.data?.pendingBookings?.filter(s => s.id !== suggestionId) ?? []
+            pendingBookings: previousData.data?.pendingBookings?.filter(s => s.id !== suggestionId) ?? [],
+            completedSelections: previousData.data?.completedSelections?.filter(s => s.id !== suggestionId) ?? []
           },
           stats: {
             ...previousData.stats,
@@ -186,19 +211,33 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
     }
   });
   
+  const workflowMutation = useMutation({
+    mutationFn: ({ orderId, workflowState }: {
+      orderId: string;
+      workflowState: string;
+    }) => updateOrderWorkflow(orderId, workflowState),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['studio-suggestions'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    }
+  });
+  
   const unsignedQuotes = data?.data?.unsignedQuotes ?? [];
   const pendingDeliveries = data?.data?.pendingDeliveries ?? [];
   const consultations = data?.data?.consultations ?? [];
   const needsWorkJobs = data?.data?.needsWorkJobs ?? [];
   const pendingOrders = data?.data?.pendingOrders ?? [];
   const pendingBookings = data?.data?.pendingBookings ?? [];
+  const completedSelections = data?.data?.completedSelections ?? [];
   
   const allSuggestions = [
     ...unsignedQuotes,
     ...pendingDeliveries,
     ...consultations,
     ...pendingOrders,
-    ...pendingBookings
+    ...pendingBookings,
+    ...completedSelections
   ];
   
   // Filtra per modalità
@@ -214,6 +253,7 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
     needsWorkJobs,
     pendingOrders,
     pendingBookings,
+    completedSelections,
     loading: isLoading,
     error: error as Error | null,
     stats: data?.stats ?? { totalActions: 0, estimatedMinutes: 0, highPriority: 0, pendingApprovalCount: 0 },
@@ -246,6 +286,10 @@ export function useStudioSuggestions(options: UseStudioSuggestionsOptions): UseS
         jobId, 
         needsWork: false 
       });
+    },
+    
+    updateOrderWorkflowState: async (orderId: string, workflowState: string) => {
+      await workflowMutation.mutateAsync({ orderId, workflowState });
     },
     
     performAction: async (suggestionId: string, action: SuggestionAction, data?: any) => {

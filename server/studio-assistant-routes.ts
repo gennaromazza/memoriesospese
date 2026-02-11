@@ -349,19 +349,20 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       });
     }
 
-    // 4. Ordini non completati (walk-in e normali)
-    const ordersSnapshot = await db.collection('orders')
-      .where('stato', 'in', ['bozza', 'in_lavorazione'])
-      .get();
+    // 4. Ordini attivi (non consegnati) - con stato workflow visibile
+    const ordersSnapshot = await db.collection('orders').get();
     
     // Batch-fetch jobs and galleries for orders
     const orderJobIds = ordersSnapshot.docs.map(d => d.data().jobId).filter(Boolean);
     const orderGalleryIds = ordersSnapshot.docs.map(d => d.data().galleryId).filter(Boolean);
+    const orderBookingIds = ordersSnapshot.docs.map(d => d.data().bookingId).filter(Boolean);
     const uniqueOrderJobIds = [...new Set(orderJobIds)] as string[];
     const uniqueOrderGalleryIds = [...new Set(orderGalleryIds)] as string[];
-    const [orderJobsMap, orderGalleriesMap] = await Promise.all([
+    const uniqueOrderBookingIds = [...new Set(orderBookingIds)] as string[];
+    const [orderJobsMap, orderGalleriesMap, orderBookingsMap] = await Promise.all([
       batchFetchDocs('jobs', uniqueOrderJobIds),
-      batchFetchDocs('galleries', uniqueOrderGalleryIds)
+      batchFetchDocs('galleries', uniqueOrderGalleryIds),
+      batchFetchDocs('bookings', uniqueOrderBookingIds)
     ]);
     
     for (const orderDoc of ordersSnapshot.docs) {
@@ -369,28 +370,12 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       
       if (jobId && order.jobId !== jobId) continue;
 
-      if (order.stato === 'completato' || order.stato === 'consegnato') continue;
+      if (order.statoWorkflow === 'consegnato') continue;
 
       if (order.jobId) {
         const jobData = orderJobsMap.get(order.jobId);
         if (jobData) {
-          const jobStatus = jobData.status;
-          if (jobData.deleted === true || jobStatus === 'consegnato' || jobStatus === 'archiviato') {
-            continue;
-          }
-        } else {
-          continue;
-        }
-      }
-
-      if (order.statoWorkflow === 'consegnato' || order.statoWorkflow === 'pronto_ritiro') {
-        continue;
-      }
-
-      if (order.galleryId) {
-        const galleryData = orderGalleriesMap.get(order.galleryId);
-        if (galleryData) {
-          if (galleryData.workflowState === 'consegnato' || galleryData.workflowState === 'pronto_ritiro') {
+          if (jobData.deleted === true || jobData.status === 'consegnato' || jobData.status === 'archiviato') {
             continue;
           }
         }
@@ -402,19 +387,49 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       const suggestionId = `order_${orderDoc.id}`;
       if (dismissedIds.has(suggestionId)) continue;
 
+      const currentWorkflowState = order.statoWorkflow || '';
+      let bookingDate = '';
+      if (order.bookingId) {
+        const bookingData = orderBookingsMap.get(order.bookingId);
+        if (bookingData) {
+          const shootingDate = toDate(bookingData.dataShootingInizio);
+          if (shootingDate) bookingDate = shootingDate.toISOString();
+        }
+      }
+
+      let gallerySelectionInfo = '';
+      if (order.galleryId) {
+        const galleryData = orderGalleriesMap.get(order.galleryId);
+        if (galleryData && galleryData.selectionCompleted) {
+          gallerySelectionInfo = ' - Selezione completata';
+        }
+      }
+
+      const workflowLabel = currentWorkflowState ? {
+        'shooting_da_svolgere': 'Shooting da svolgere',
+        'shooting_completato': 'Shooting completato',
+        'in_lavorazione': 'In lavorazione',
+        'in_attesa_selezione': 'In attesa selezione',
+        'pronto_ritiro': 'Pronto per il ritiro',
+      }[currentWorkflowState] || currentWorkflowState : 'Stato non impostato';
+
       pendingOrders.push({
         id: suggestionId,
         type: 'pending_order',
         orderId: orderDoc.id,
         jobId: order.jobId,
+        bookingId: order.bookingId,
         clientName: order.nomeCliente || 'Cliente',
         orderTotal: order.totale || 0,
         orderStatus: order.stato,
         isWalkIn: !order.bookingId,
-        priority: daysSinceCreated > 7 ? 'high' : 'medium',
+        workflowState: currentWorkflowState,
+        bookingDate,
+        priority: currentWorkflowState === 'pronto_ritiro' ? 'high' : 
+                 daysSinceCreated > 7 ? 'medium' : 'low',
         createdAt: order.createdAt,
         daysSinceOrderCreated: daysSinceCreated,
-        reason: `📦 Ordine ${order.stato === 'bozza' ? 'in bozza' : 'in lavorazione'} da ${daysSinceCreated} giorni`
+        reason: `📦 ${workflowLabel}${gallerySelectionInfo}`
       });
     }
 
@@ -580,6 +595,52 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     // 3. Consulenze suggerite (jobs in stati specifici senza consulenze recenti)
     // TODO: Implementare logica consulenze basata su template e stato job
     
+    // 6. Gallerie con selezione completata dal cliente (da lavorare)
+    const completedSelections: StudioSuggestion[] = [];
+    const galleriesWithSelectionSnap = await db.collection('galleries')
+      .where('selectionCompleted', '==', true)
+      .get();
+    
+    for (const galDoc of galleriesWithSelectionSnap.docs) {
+      const gallery = galDoc.data();
+      
+      if (gallery.workflowState === 'consegnato' || gallery.workflowState === 'pronto_ritiro') continue;
+      
+      const suggestionId = `selection_${galDoc.id}`;
+      if (dismissedIds.has(suggestionId)) continue;
+      
+      const selectionDate = toDate(gallery.selectionCompletedAt) || toDate(gallery.updatedAt) || now;
+      const daysSinceSelection = Math.floor((now.getTime() - selectionDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      let clientName = gallery.clientName || '';
+      if (!clientName && gallery.bookingId) {
+        const bookingData = orderBookingsMap.get(gallery.bookingId);
+        if (bookingData?.cliente) {
+          clientName = `${bookingData.cliente.nome || ''} ${bookingData.cliente.cognome || ''}`.trim();
+        }
+      }
+
+      const selectedCount = gallery.selectedPhotoIds?.length || 
+        Object.values(gallery.photoAssignments || {}).reduce((sum: number, ids: any) => sum + (Array.isArray(ids) ? ids.length : 0), 0);
+      
+      completedSelections.push({
+        id: suggestionId,
+        type: 'completed_selection',
+        galleryId: galDoc.id,
+        galleryCode: gallery.code,
+        galleryName: gallery.name,
+        bookingId: gallery.bookingId,
+        clientName: clientName || gallery.name || 'Cliente',
+        selectedPhotosCount: selectedCount,
+        requiredPhotosCount: gallery.requiredPhotoCount || 0,
+        selectionCompletedAt: selectionDate.toISOString(),
+        workflowState: gallery.workflowState || '',
+        priority: daysSinceSelection > 3 ? 'high' : daysSinceSelection > 1 ? 'medium' : 'low',
+        createdAt: gallery.createdAt,
+        reason: `📸 Selezione completata ${daysSinceSelection > 0 ? daysSinceSelection + ' giorni fa' : 'oggi'} (${selectedCount} foto)`
+      });
+    }
+    
     // Conta prenotazioni in attesa di approvazione (qualsiasi data, non solo passate)
     const pendingApprovalSnapshot = await db.collection('bookings')
       .where('stato', '==', 'in_attesa')
@@ -592,7 +653,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       ...consultations, 
       ...needsWorkJobs, 
       ...pendingOrders, 
-      ...pendingBookings
+      ...pendingBookings,
+      ...completedSelections
     ];
     const highPriority = allSuggestions.filter(s => s.priority === 'high').length;
     
@@ -604,7 +666,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
       consultations: consultations.length,
       needsWorkJobs: needsWorkJobs.length,
       pendingOrders: pendingOrders.length,
-      pendingBookings: pendingBookings.length
+      pendingBookings: pendingBookings.length,
+      completedSelections: completedSelections.length
     });
     
     const response: StudioSuggestionsResponse = {
@@ -615,7 +678,8 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
         consultations,
         needsWorkJobs,
         pendingOrders,
-        pendingBookings
+        pendingBookings,
+        completedSelections
       },
       stats: {
         totalActions: allSuggestions.length,
@@ -723,6 +787,57 @@ router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Res
     
   } catch (error) {
     console.error('❌ Errore aggiornamento work-status:', error);
+    return res.status(500).json({
+      error: 'Errore server',
+      message: error instanceof Error ? error.message : 'Errore sconosciuto'
+    });
+  }
+});
+
+router.patch('/orders/:id/workflow-state', verifyAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { workflowState } = req.body;
+    
+    const validStates = ['shooting_da_svolgere', 'shooting_completato', 'in_lavorazione', 'in_attesa_selezione', 'pronto_ritiro', 'consegnato'];
+    if (!validStates.includes(workflowState)) {
+      return res.status(400).json({ error: 'Stato workflow non valido' });
+    }
+    
+    const orderDoc = await db.collection('orders').doc(id).get();
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Ordine non trovato' });
+    }
+    const order = orderDoc.data()!;
+    
+    await db.collection('orders').doc(id).update({
+      statoWorkflow: workflowState,
+      updatedAt: new Date()
+    });
+    
+    if (order.bookingId) {
+      const bookingDoc = await db.collection('bookings').doc(order.bookingId).get();
+      if (bookingDoc.exists) {
+        await db.collection('bookings').doc(order.bookingId).update({
+          statoWorkflow: workflowState,
+          updatedAt: new Date()
+        });
+      }
+    }
+    
+    if (order.galleryId) {
+      await db.collection('galleries').doc(order.galleryId).update({
+        workflowState: workflowState,
+        updatedAt: new Date()
+      });
+    }
+    
+    invalidateSuggestionsCache();
+    
+    return res.json({ success: true, workflowState });
+    
+  } catch (error) {
+    console.error('❌ Errore aggiornamento workflow state ordine:', error);
     return res.status(500).json({
       error: 'Errore server',
       message: error instanceof Error ? error.message : 'Errore sconosciuto'

@@ -13,7 +13,8 @@ export type SuggestionType =
   | 'pending_delivery'    // Lavoro da consegnare
   | 'consultation'        // Consulenza da prenotare
   | 'pending_order'       // Ordine non completato
-  | 'pending_booking';    // Prenotazione non completata
+  | 'pending_booking'     // Prenotazione non completata
+  | 'completed_selection'; // Galleria con selezione completata dal cliente
 
 /**
  * Stato follow-up preventivo
@@ -110,6 +111,15 @@ export interface StudioSuggestion {
   bookingDate?: string;
   daysSinceBooking?: number;
   
+  // Per completed_selection
+  galleryId?: string;
+  galleryCode?: string;
+  galleryName?: string;
+  selectedPhotosCount?: number;
+  requiredPhotosCount?: number;
+  selectionCompletedAt?: string;
+  workflowState?: string;
+  
   // Motivo visualizzazione (per UI)
   reason?: string;
 }
@@ -126,6 +136,7 @@ export interface StudioSuggestionsResponse {
     needsWorkJobs: StudioSuggestion[];
     pendingOrders?: StudioSuggestion[];
     pendingBookings?: StudioSuggestion[];
+    completedSelections?: StudioSuggestion[];
   };
   stats: {
     totalActions: number;

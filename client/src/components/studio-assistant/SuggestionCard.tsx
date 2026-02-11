@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -16,6 +15,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   MessageSquare, 
   Calendar, 
@@ -26,7 +32,13 @@ import {
   Truck,
   Loader2,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Image,
+  Palette,
+  Timer,
+  Package,
+  PackageCheck
 } from 'lucide-react';
 import type { StudioSuggestion, PendingReason } from '@shared/studio-assistant-types';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
@@ -38,6 +50,7 @@ interface SuggestionCardProps {
   onMarkAsNeedsWork: (jobId: string, reason: PendingReason) => Promise<void>;
   onMarkAsDelivered: (jobId: string) => Promise<void>;
   onBookConsultation?: (templateId: string, jobId: string, dates?: { from: string; to: string }) => void;
+  onWorkflowStateChange?: (orderId: string, newState: string) => Promise<void>;
 }
 
 const priorityColors = {
@@ -59,13 +72,23 @@ const pendingReasonLabels: Record<PendingReason, string> = {
   other: '❓ Altro'
 };
 
+const workflowStateLabels: Record<string, { label: string; icon: typeof Camera }> = {
+  'shooting_da_svolgere': { label: 'Shooting da svolgere', icon: Camera },
+  'shooting_completato': { label: 'Shooting completato', icon: CheckCircle2 },
+  'in_lavorazione': { label: 'In lavorazione', icon: Palette },
+  'in_attesa_selezione': { label: 'In attesa selezione', icon: Timer },
+  'pronto_ritiro': { label: 'Pronto per il Ritiro', icon: Package },
+  'consegnato': { label: 'Consegnato al Cliente', icon: PackageCheck },
+};
+
 export default function SuggestionCard({
   suggestion,
   onMarkAsDone,
   onDismiss,
   onMarkAsNeedsWork,
   onMarkAsDelivered,
-  onBookConsultation
+  onBookConsultation,
+  onWorkflowStateChange
 }: SuggestionCardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -110,10 +133,18 @@ export default function SuggestionCard({
         return <Truck className="h-5 w-5 text-blue-600" />;
       case 'consultation':
         return <Calendar className="h-5 w-5 text-sage" />;
-      case 'pending_order':
+      case 'pending_order': {
+        const stateInfo = suggestion.workflowState ? workflowStateLabels[suggestion.workflowState] : null;
+        if (stateInfo) {
+          const Icon = stateInfo.icon;
+          return <Icon className="h-5 w-5 text-orange-600" />;
+        }
         return <AlertCircle className="h-5 w-5 text-orange-600" />;
+      }
       case 'pending_booking':
         return <Calendar className="h-5 w-5 text-purple-600" />;
+      case 'completed_selection':
+        return <Image className="h-5 w-5 text-green-600" />;
       default:
         return <Clock className="h-5 w-5 text-gray-600" />;
     }
@@ -127,10 +158,14 @@ export default function SuggestionCard({
         return 'Lavoro da consegnare';
       case 'consultation':
         return 'Consulenza suggerita';
-      case 'pending_order':
-        return suggestion.isWalkIn ? 'Ordine Walk-in' : 'Ordine da completare';
+      case 'pending_order': {
+        const stateInfo = suggestion.workflowState ? workflowStateLabels[suggestion.workflowState] : null;
+        return stateInfo ? stateInfo.label : (suggestion.isWalkIn ? 'Ordine Walk-in' : 'Ordine');
+      }
       case 'pending_booking':
         return 'Booking da completare';
+      case 'completed_selection':
+        return 'Selezione completata';
       default:
         return 'Suggerimento';
     }
@@ -198,30 +233,57 @@ export default function SuggestionCard({
             </div>
             
             {/* Azioni */}
-            <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-2 border-t border-gray-100">
-              {/* Azioni per ordini non completati */}
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              {/* Azioni per ordini - con dropdown stato workflow */}
               {suggestion.type === 'pending_order' && (
-                <>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
-                    onClick={() => window.open(`/admin/ordini/${suggestion.orderId}`, '_blank')}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                    <span className="hidden xs:inline">Apri </span>Ordine
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
-                    onClick={() => handleAction(() => onDismiss(suggestion.id))}
-                    disabled={isLoading}
-                  >
-                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                    Ignora
-                  </Button>
-                </>
+                <div className="space-y-2">
+                  {onWorkflowStateChange && suggestion.orderId && (
+                    <Select
+                      value={suggestion.workflowState || undefined}
+                      onValueChange={(value) => {
+                        if (suggestion.orderId && onWorkflowStateChange) {
+                          setIsLoading(true);
+                          onWorkflowStateChange(suggestion.orderId, value).finally(() => setIsLoading(false));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-9 text-xs sm:text-sm">
+                        <SelectValue placeholder="- Imposta stato -" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(workflowStateLabels).map(([value, { label, icon: Icon }]) => (
+                          <SelectItem key={value} value={value}>
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                      onClick={() => window.open(`/admin/dashboard?tab=prenotazioni`, '_blank')}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                      Prenotazioni
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                      onClick={() => handleAction(() => onDismiss(suggestion.id))}
+                      disabled={isLoading}
+                    >
+                      <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                      Ignora
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {/* Azioni per booking da completare */}
@@ -312,6 +374,31 @@ export default function SuggestionCard({
                 </>
               )}
               
+              {/* Azioni per selezione completata */}
+              {suggestion.type === 'completed_selection' && (
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                    onClick={() => window.open(`/admin/dashboard?tab=prenotazioni`, '_blank')}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                    Prenotazioni
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                    onClick={() => handleAction(() => onDismiss(suggestion.id))}
+                    disabled={isLoading}
+                  >
+                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+                    Ignora
+                  </Button>
+                </div>
+              )}
+
               {/* Azioni per consulenza */}
               {suggestion.type === 'consultation' && (
                 <>

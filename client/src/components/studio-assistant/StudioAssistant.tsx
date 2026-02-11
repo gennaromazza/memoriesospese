@@ -20,7 +20,9 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
-  Bell
+  Bell,
+  Image,
+  Package
 } from 'lucide-react';
 import { useStudioSuggestions } from './useStudioSuggestions';
 import SuggestionCard from './SuggestionCard';
@@ -53,6 +55,7 @@ export default function StudioAssistant({
     needsWorkJobs,
     pendingOrders = [],
     pendingBookings = [],
+    completedSelections = [],
     loading,
     error,
     stats,
@@ -60,6 +63,7 @@ export default function StudioAssistant({
     dismiss,
     markAsNeedsWork,
     markAsDelivered,
+    updateOrderWorkflowState,
     refetch
   } = useStudioSuggestions({ mode, jobId });
   
@@ -75,7 +79,7 @@ export default function StudioAssistant({
     navigate(url);
   };
   
-  const totalSuggestions = unsignedQuotes.length + pendingDeliveries.length + consultations.length + pendingOrders.length + pendingBookings.length;
+  const totalSuggestions = unsignedQuotes.length + pendingDeliveries.length + consultations.length + pendingOrders.length + pendingBookings.length + completedSelections.length;
   
   if (loading) {
     return (
@@ -111,6 +115,7 @@ export default function StudioAssistant({
   // Modalità compact: mostra solo riepilogo e top 3 urgenti
   if (mode === 'compact') {
     const urgentSuggestions = [
+      ...completedSelections.filter(s => s.priority === 'high'),
       ...unsignedQuotes.filter(s => s.priority === 'high'),
       ...pendingDeliveries.filter(s => s.priority === 'high'),
       ...consultations.filter(s => s.priority === 'high'),
@@ -159,6 +164,7 @@ export default function StudioAssistant({
               onMarkAsNeedsWork={markAsNeedsWork}
               onMarkAsDelivered={markAsDelivered}
               onBookConsultation={handleBookConsultation}
+              onWorkflowStateChange={updateOrderWorkflowState}
             />
           ))}
           
@@ -241,11 +247,20 @@ export default function StudioAssistant({
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="orders" className="text-xs whitespace-nowrap px-2 sm:px-3">
-                  <AlertCircle className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <Package className="h-4 w-4 sm:mr-1 flex-shrink-0" />
                   <span className="hidden lg:inline">Ordini</span>
                   {pendingOrders.length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                       {pendingOrders.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="selections" className="text-xs whitespace-nowrap px-2 sm:px-3">
+                  <Image className="h-4 w-4 sm:mr-1 flex-shrink-0" />
+                  <span className="hidden lg:inline">Selezioni</span>
+                  {completedSelections.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-green-100 text-green-800">
+                      {completedSelections.length}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -305,7 +320,7 @@ export default function StudioAssistant({
                 </div>
               )}
               {(() => {
-                const allItems = [...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
+                const allItems = [...completedSelections, ...unsignedQuotes, ...pendingDeliveries, ...consultations, ...pendingOrders, ...pendingBookings]
                   .sort((a, b) => {
                     const priorityOrder = { high: 0, medium: 1, low: 2 };
                     return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -322,6 +337,7 @@ export default function StudioAssistant({
                         onMarkAsNeedsWork={markAsNeedsWork}
                         onMarkAsDelivered={markAsDelivered}
                         onBookConsultation={handleBookConsultation}
+                        onWorkflowStateChange={updateOrderWorkflowState}
                       />
                     ))}
                     {allItems.length > visible && (
@@ -350,11 +366,40 @@ export default function StudioAssistant({
                       onMarkAsNeedsWork={markAsNeedsWork}
                       onMarkAsDelivered={markAsDelivered}
                       onBookConsultation={handleBookConsultation}
+                      onWorkflowStateChange={updateOrderWorkflowState}
                     />
                   ))}
                   {pendingOrders.length > getVisibleCount('orders') && (
                     <Button variant="outline" className="w-full" onClick={() => showMore('orders')}>
                       Mostra altri ({pendingOrders.length - getVisibleCount('orders')} rimanenti)
+                    </Button>
+                  )}
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="selections" className="space-y-3 mt-0">
+              {completedSelections.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  Nessuna selezione completata in attesa
+                </p>
+              ) : (
+                <>
+                  {completedSelections.slice(0, getVisibleCount('selections')).map(suggestion => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      onMarkAsDone={markAsDone}
+                      onDismiss={dismiss}
+                      onMarkAsNeedsWork={markAsNeedsWork}
+                      onMarkAsDelivered={markAsDelivered}
+                      onBookConsultation={handleBookConsultation}
+                      onWorkflowStateChange={updateOrderWorkflowState}
+                    />
+                  ))}
+                  {completedSelections.length > getVisibleCount('selections') && (
+                    <Button variant="outline" className="w-full" onClick={() => showMore('selections')}>
+                      Mostra altri ({completedSelections.length - getVisibleCount('selections')} rimanenti)
                     </Button>
                   )}
                 </>
@@ -401,6 +446,7 @@ export default function StudioAssistant({
                       onMarkAsNeedsWork={markAsNeedsWork}
                       onMarkAsDelivered={markAsDelivered}
                       onBookConsultation={handleBookConsultation}
+                      onWorkflowStateChange={updateOrderWorkflowState}
                     />
                   ))}
                   {pendingBookings.length > getVisibleCount('bookings') && (
@@ -428,6 +474,7 @@ export default function StudioAssistant({
                       onMarkAsNeedsWork={markAsNeedsWork}
                       onMarkAsDelivered={markAsDelivered}
                       onBookConsultation={handleBookConsultation}
+                      onWorkflowStateChange={updateOrderWorkflowState}
                     />
                   ))}
                   {unsignedQuotes.length > getVisibleCount('quotes') && (
@@ -455,6 +502,7 @@ export default function StudioAssistant({
                       onMarkAsNeedsWork={markAsNeedsWork}
                       onMarkAsDelivered={markAsDelivered}
                       onBookConsultation={handleBookConsultation}
+                      onWorkflowStateChange={updateOrderWorkflowState}
                     />
                   ))}
                   {pendingDeliveries.length > getVisibleCount('delivery') && (
