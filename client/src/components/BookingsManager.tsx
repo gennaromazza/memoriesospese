@@ -1873,7 +1873,7 @@ export default function BookingsManager({
                           className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
                         >
                           <CardContent className="p-4 md:p-6">
-                            <div className="flex justify-between items-start gap-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-6">
                               {/* Info prenotazione */}
                               <div className="flex-1 space-y-3">
                                 {/* Intestazione */}
@@ -2205,15 +2205,13 @@ export default function BookingsManager({
                                           >
                                             <div className="flex-1 min-w-0">
                                               <div className="flex items-center gap-2">
-                                                <a
-                                                  href={`/gallery/${gallery.code}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline truncate"
+                                                <span
+                                                  onClick={() => navigate(`/gallery/${gallery.code}`)}
+                                                  className="text-sm font-medium text-purple-700 hover:text-purple-900 hover:underline truncate cursor-pointer"
                                                   data-testid={`link-gallery-${gallery.code}`}
                                                 >
                                                   {gallery.name}
-                                                </a>
+                                                </span>
                                                 {gallery.selectionStatus ===
                                                   "completed" && (
                                                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs shrink-0">
@@ -2271,7 +2269,7 @@ export default function BookingsManager({
                               </div>
 
                               {/* Azioni */}
-                              <div className="flex flex-col gap-2 min-w-[180px]">
+                              <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[180px]">
                                 {/* Badge NUOVA se non ancora visualizzata */}
                                 {!booking.dataVisualizzazione && (
                                   <Badge className="bg-red-500 text-white hover:bg-red-600 animate-pulse justify-center">
@@ -2336,7 +2334,7 @@ export default function BookingsManager({
 
                                 {/* Azioni con icone e tooltip */}
                                 <TooltipProvider>
-                                  <div className="flex items-center gap-2 w-full">
+                                  <div className="flex items-center gap-2 w-full flex-wrap">
                                     {/* Pulsante Ordine */}
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2433,9 +2431,8 @@ export default function BookingsManager({
                                               );
                                               setIsResolvingCliente(false);
                                             } else {
-                                              window.open(
+                                              navigate(
                                                 `/admin/gallery/${gallery.id}/manage`,
-                                                "_blank",
                                               );
                                             }
                                           }}
@@ -2473,9 +2470,8 @@ export default function BookingsManager({
                                                   booking.id,
                                                 );
                                               if (gallery) {
-                                                window.open(
+                                                navigate(
                                                   `/gallery/${gallery.code}`,
-                                                  "_blank",
                                                 );
                                               }
                                             }}
