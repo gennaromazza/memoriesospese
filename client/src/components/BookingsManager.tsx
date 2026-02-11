@@ -273,7 +273,6 @@ export default function BookingsManager({
   const [showManualBookingModal, setShowManualBookingModal] = useState(false);
   const [pendingOrderBookingId, setPendingOrderBookingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(initialParams.page);
-  const ITEMS_PER_PAGE = 10;
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -308,6 +307,8 @@ export default function BookingsManager({
     initialParams.workflow,
   );
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
+  const ITEMS_PER_PAGE_GROUPS = 5;
   const campaignAutoSelectDoneRef = useRef(false);
 
   // Sincronizza filtri con URL (senza ricaricare la pagina)
@@ -528,7 +529,7 @@ export default function BookingsManager({
   }
 
   // Helper: Raggruppa prenotazioni per giorno
-  const groupBookingsByDay = (bookingsList: Booking[]): DayGroup[] => {
+  const groupBookingsByDay = (bookingsList: Booking[], sortDir: "desc" | "asc" = "desc"): DayGroup[] => {
     const groups: Map<string, DayGroup> = new Map();
 
     for (const booking of bookingsList) {
@@ -550,19 +551,18 @@ export default function BookingsManager({
       groups.get(dateKey)!.bookings.push(booking);
     }
 
-    // Ordina gruppi per data (dal più recente al meno recente)
+    const sortMultiplier = sortDir === "desc" ? -1 : 1;
     const sortedGroups = Array.from(groups.values()).sort(
-      (a, b) => b.date.getTime() - a.date.getTime(),
+      (a, b) => sortMultiplier * (a.date.getTime() - b.date.getTime()),
     );
 
-    // Ordina booking all'interno di ogni gruppo per orario (più recente prima)
     for (const group of sortedGroups) {
       group.bookings.sort((a, b) => {
         const timeA =
           getDateFromTimestamp(a.dataShootingInizio)?.getTime() || 0;
         const timeB =
           getDateFromTimestamp(b.dataShootingInizio)?.getTime() || 0;
-        return timeB - timeA;
+        return sortMultiplier * (timeA - timeB);
       });
     }
 
@@ -733,8 +733,7 @@ export default function BookingsManager({
         return new Date(timestamp).getTime();
       };
 
-      // Ordine decrescente (più recenti prima) per tutti i filtri
-      const multiplier = -1;
+      const multiplier = sortDirection === "desc" ? -1 : 1;
       return (
         multiplier *
         (getTime(a.dataShootingInizio) - getTime(b.dataShootingInizio))
@@ -752,17 +751,18 @@ export default function BookingsManager({
     workflowFilter,
     campaignFilter,
     allGalleries,
+    sortDirection,
   ]);
 
   // Gruppi per giorno (calcolato da bookings filtrati)
-  const dayGroups = useMemo(() => groupBookingsByDay(bookings), [bookings]);
+  const dayGroups = useMemo(() => groupBookingsByDay(bookings, sortDirection), [bookings, sortDirection]);
 
-  // Paginazione
-  const totalPages = Math.ceil(bookings.length / ITEMS_PER_PAGE);
-  const paginatedBookings = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return bookings.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [bookings, currentPage]);
+  // Paginazione per gruppi di giorni
+  const totalPages = Math.ceil(dayGroups.length / ITEMS_PER_PAGE_GROUPS);
+  const paginatedDayGroups = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE_GROUPS;
+    return dayGroups.slice(startIndex, startIndex + ITEMS_PER_PAGE_GROUPS);
+  }, [dayGroups, currentPage]);
 
   // Reset currentPage quando cambiano filtri (ma non al primo mount per preservare URL)
   useEffect(() => {
@@ -771,7 +771,7 @@ export default function BookingsManager({
       return;
     }
     setCurrentPage(1);
-  }, [selectedStato, searchQuery, timeFilter, selectionFilter, workflowFilter]);
+  }, [selectedStato, searchQuery, timeFilter, selectionFilter, workflowFilter, sortDirection]);
 
   // 🔔 Auto-mark bookings in_attesa come visualizzati (per notifiche)
   useEffect(() => {
@@ -834,30 +834,17 @@ export default function BookingsManager({
       return;
     }
 
-    // Calcola la pagina dove si trova il booking PRIMA di resettare i filtri
-    // Usa allBookings direttamente (equivalente a filtri='all', search='')
-    const sortedAllBookings = [...allBookings].sort((a, b) => {
-      const getTime = (timestamp: any): number => {
-        if (!timestamp) return 0;
-        if (timestamp.toDate) return timestamp.toDate().getTime();
-        if (timestamp instanceof Date) return timestamp.getTime();
-        return new Date(timestamp).getTime();
-      };
-      return getTime(b.dataShootingInizio) - getTime(a.dataShootingInizio);
-    });
-
-    const bookingIndex = sortedAllBookings.findIndex(
-      (b) => b.id === highlightBookingId,
-    );
-    if (bookingIndex === -1) {
-      console.warn(
-        `Booking ${highlightBookingId} non trovato nella lista ordinata`,
-      );
-      onHighlightComplete?.();
-      return;
+    // Calcola la pagina (per day groups) dove si trova il booking
+    const bookingDate = getDateFromTimestamp(targetBooking.dataShootingInizio);
+    const allDayGroups = groupBookingsByDay(allBookings, sortDirection);
+    let targetPage = 1;
+    if (bookingDate) {
+      const targetDateKey = format(startOfDay(bookingDate), "yyyy-MM-dd");
+      const groupIndex = allDayGroups.findIndex(g => g.dateKey === targetDateKey);
+      if (groupIndex !== -1) {
+        targetPage = Math.floor(groupIndex / ITEMS_PER_PAGE_GROUPS) + 1;
+      }
     }
-
-    const targetPage = Math.floor(bookingIndex / ITEMS_PER_PAGE) + 1;
 
     // Reset TUTTI i filtri e paginazione in modo sincrono
     setSelectedStato("all");
@@ -865,6 +852,7 @@ export default function BookingsManager({
     setTimeFilter("all");
     setWorkflowFilter("all");
     setSelectionFilter("all");
+    setCampaignFilter("all");
     setCurrentPage(targetPage);
 
     // Timeout per assicurarsi che il DOM sia renderizzato dopo cambio pagina
@@ -906,7 +894,7 @@ export default function BookingsManager({
         clearHighlightTimeoutRef.current = null;
       }
     };
-  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete]);
+  }, [highlightBookingId, allBookings, isLoading, onHighlightComplete, sortDirection]);
 
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
@@ -1498,19 +1486,19 @@ export default function BookingsManager({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       {/* Contenuto Prenotazioni */}
       <>
         {/* Header e filtri */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           {/* Header */}
-          <div className="border-b border-gray-200 px-6 py-4">
+          <div className="border-b border-gray-200 px-4 sm:px-6 py-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-sage/10 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-sage/10 flex items-center justify-center shrink-0">
                 <Calendar className="w-5 h-5 text-sage" />
               </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
                   Gestione Prenotazioni
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -1521,7 +1509,7 @@ export default function BookingsManager({
           </div>
 
           {/* Filtri */}
-          <div className="px-6 py-4 space-y-3">
+          <div className="px-4 sm:px-6 py-4 space-y-3">
             {/* Row 1: Search + Campaign + Time + Nuova Prenotazione */}
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
               <div className="relative flex-1">
@@ -1729,8 +1717,8 @@ export default function BookingsManager({
               </div>
             )}
 
-            {/* Badge contatore risultati */}
-            <div className="flex items-center gap-2">
+            {/* Badge contatore risultati + ordinamento */}
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sage/10 text-sage">
                 <span className="font-semibold">{bookings.length}</span>
                 <span className="text-sm">
@@ -1744,6 +1732,24 @@ export default function BookingsManager({
                 campaignFilter !== "active") && (
                 <span className="text-xs text-gray-500">(filtrate)</span>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSortDirection(prev => prev === "desc" ? "asc" : "desc")}
+                className="h-8 gap-1.5 text-xs"
+              >
+                {sortDirection === "desc" ? (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                    Più recenti prima
+                  </>
+                ) : (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                    Meno recenti prima
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -1771,14 +1777,14 @@ export default function BookingsManager({
           </Card>
         ) : (
           <div className="space-y-6">
-            {dayGroups.map((group) => {
+            {paginatedDayGroups.map((group) => {
               const isPast = group.date < startOfDay(new Date());
 
               return (
                 <div key={group.dateKey} className="space-y-3">
                   {/* Header del giorno */}
                   <div
-                    className={`sticky top-0 z-10 flex items-center gap-3 p-3 rounded-lg shadow-sm ${
+                    className={`sticky top-0 z-10 flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg shadow-sm ${
                       group.label === "Oggi"
                         ? "bg-green-100 border border-green-300"
                         : group.label === "Domani"
@@ -1835,7 +1841,7 @@ export default function BookingsManager({
                   </div>
 
                   {/* Card delle prenotazioni del giorno */}
-                  <div className="grid gap-3 pl-2 border-l-2 border-gray-200 ml-5">
+                  <div className="grid gap-3 pl-2 border-l-2 border-gray-200 ml-2 sm:ml-5">
                     {group.bookings.map((booking, index) => {
                       const cardColors = [
                         {
@@ -1878,14 +1884,14 @@ export default function BookingsManager({
                           }}
                           className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
                         >
-                          <CardContent className="p-4 md:p-6">
-                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-6">
+                          <CardContent className="p-3 sm:p-4 md:p-6">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-6">
                               {/* Info prenotazione */}
-                              <div className="flex-1 space-y-3">
+                              <div className="flex-1 min-w-0 space-y-3">
                                 {/* Intestazione */}
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h3 className="text-lg font-bold font-playfair text-blue-gray flex items-center gap-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <h3 className="text-base sm:text-lg font-bold font-playfair text-blue-gray flex items-center gap-2 flex-wrap">
                                       {booking.cliente.nome}{" "}
                                       {booking.cliente.cognome}
                                       {booking.isManual && (
@@ -1905,27 +1911,27 @@ export default function BookingsManager({
                                 </div>
 
                                 {/* Dettagli */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                  <div className="flex items-center gap-2 text-gray-700">
-                                    <Calendar className="w-4 h-4 text-sage" />
-                                    <span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 text-sm">
+                                  <div className="flex items-center gap-2 text-gray-700 min-w-0">
+                                    <Calendar className="w-4 h-4 text-sage shrink-0" />
+                                    <span className="truncate">
                                       {formatDateTime(
                                         booking.dataShootingInizio,
                                       )}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2 text-gray-700">
-                                    <Clock className="w-4 h-4 text-sage" />
+                                    <Clock className="w-4 h-4 text-sage shrink-0" />
                                     <span>
                                       {formatTime(booking.dataShootingInizio)} -{" "}
                                       {formatTime(booking.dataShootingFine)}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2 text-gray-700">
-                                    <Mail className="w-4 h-4 text-sage" />
+                                  <div className="flex items-center gap-2 text-gray-700 min-w-0">
+                                    <Mail className="w-4 h-4 text-sage shrink-0" />
                                     <a
                                       href={`mailto:${booking.cliente.email}`}
-                                      className="hover:underline"
+                                      className="hover:underline truncate"
                                     >
                                       {booking.cliente.email}
                                     </a>
@@ -2859,17 +2865,16 @@ export default function BookingsManager({
           </div>
         )}
 
-        {/* Controlli Paginazione - disabilitati per vista raggruppata per giorno */}
-        {false && !isLoading && bookings.length > 0 && totalPages > 1 && (
+        {/* Controlli Paginazione */}
+        {!isLoading && dayGroups.length > 0 && totalPages > 1 && (
           <Card className="mt-4">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="py-3 px-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="text-sm text-gray-600">
                   Pagina <strong>{currentPage}</strong> di{" "}
                   <strong>{totalPages}</strong>
                   <span className="ml-2 text-gray-500">
-                    ({paginatedBookings.length} di {bookings.length}{" "}
-                    prenotazioni)
+                    ({dayGroups.length} giorni, {bookings.length} prenotazioni)
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2883,10 +2888,9 @@ export default function BookingsManager({
                     data-testid="button-prev-page"
                   >
                     <ChevronLeft className="w-4 h-4 mr-1" />
-                    Precedente
+                    <span className="hidden sm:inline">Precedente</span>
                   </Button>
 
-                  {/* Page numbers */}
                   <div className="flex gap-1">
                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                       let pageNum;
@@ -2930,7 +2934,7 @@ export default function BookingsManager({
                     disabled={currentPage === totalPages}
                     data-testid="button-next-page"
                   >
-                    Successiva
+                    <span className="hidden sm:inline">Successiva</span>
                     <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
