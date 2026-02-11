@@ -361,24 +361,23 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
 
   // Filter selected photos
-  // Multi-product mode: use photoAssignments, Legacy mode: use selectedPhotoIds
+  const isMultiProductMode = (gallery?.productRequirements?.length ?? 0) > 1;
+
   const selectedPhotoIds = useMemo(() => {
     if (!gallery) return new Set<string>();
 
-    if (gallery.productRequirements) {
+    if (isMultiProductMode && gallery.photoAssignments) {
       const ids = new Set<string>();
-      if (gallery.photoAssignments) {
-        Object.entries(gallery.photoAssignments).forEach(([photoId, assignments]) => {
-          if (assignments && assignments.length > 0) {
-            ids.add(photoId);
-          }
-        });
-      }
+      Object.entries(gallery.photoAssignments).forEach(([photoId, assignments]) => {
+        if (assignments && assignments.length > 0) {
+          ids.add(photoId);
+        }
+      });
       return ids;
     } else {
       return new Set(gallery.selectedPhotoIds || []);
     }
-  }, [gallery]);
+  }, [gallery, isMultiProductMode]);
 
   const clientSelectedPhotos = useMemo(() =>
     allPhotos.filter(photo => selectedPhotoIds.has(photo.id)),
@@ -1094,9 +1093,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                     <div>
                       <p className="text-gray-600">Foto Selezionate</p>
                       <p className="text-2xl font-bold text-sage" data-testid="text-selected-count">
-                        {gallery.productRequirements
+                        {isMultiProductMode
                           ? `${Object.keys(gallery.photoAssignments || {}).length} foto assegnate`
-                          : `${selectedPhotoIds.size} / ${gallery?.requiredPhotoCount || 0}`
+                          : gallery.productRequirements?.length === 1
+                            ? `${selectedPhotoIds.size} / ${gallery.productRequirements[0].prodottoNumeroFoto || 0}`
+                            : `${selectedPhotoIds.size} / ${gallery?.requiredPhotoCount || 0}`
                         }
                       </p>
                     </div>
@@ -1117,9 +1118,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                     <h4 className="font-semibold text-blue-gray mb-3">📊 Statistiche per Prodotto</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {gallery.productRequirements.map((prod, idx) => {
-                        const assignedCount = Object.entries(gallery.photoAssignments || {}).filter(
-                          ([photoId, assignments]) => assignments.includes(String(idx))
-                        ).length;
+                        const assignedCount = isMultiProductMode
+                          ? Object.entries(gallery.photoAssignments || {}).filter(
+                              ([photoId, assignments]) => assignments.includes(String(idx))
+                            ).length
+                          : selectedPhotoIds.size;
                         const isComplete = assignedCount >= prod.prodottoNumeroFoto;
 
                         return (
