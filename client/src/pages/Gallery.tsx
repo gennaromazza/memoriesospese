@@ -864,7 +864,9 @@ export default function Gallery() {
             assignments => assignments.includes(productIndex)
           ).length;
 
-          if (currentProductCount >= productLimit) {
+          const isProductUnlimited = productLimit <= 0;
+
+          if (!isProductUnlimited && currentProductCount >= productLimit) {
             toast({
               title: `⚠️ Limite raggiunto`,
               description: `${productName} può avere massimo ${productLimit} foto. Ne hai già ${currentProductCount} assegnate.`,
@@ -879,7 +881,7 @@ export default function Gallery() {
           // Toast feedback for assignment
           toast({
             title: `✨ Foto aggiunta`,
-            description: `Assegnata a ${productName} (${currentProductCount + 1}/${productLimit})`,
+            description: `Assegnata a ${productName} (${currentProductCount + 1}/${isProductUnlimited ? '∞' : productLimit})`,
             duration: 2000,
           });
         }
