@@ -357,6 +357,26 @@ export default function ProductsManager() {
 
   function openEditDialog(product: Product) {
     setEditingProduct(product);
+
+    let syncedBundleItems = product.bundleItems || [];
+    if (product.isBundle && syncedBundleItems.length > 0) {
+      let synced = false;
+      syncedBundleItems = syncedBundleItems.map(item => {
+        const catalogProduct = products.find(p => p.id === item.prodottoId);
+        if (catalogProduct && catalogProduct.numeroFoto !== item.numeroFoto) {
+          synced = true;
+          return { ...item, numeroFoto: catalogProduct.numeroFoto, prodottoNome: catalogProduct.nome };
+        }
+        return item;
+      });
+      if (synced) {
+        toast({
+          title: 'Foto aggiornate dal catalogo',
+          description: 'Il numero di foto dei prodotti nel bundle è stato aggiornato automaticamente con i valori attuali dal catalogo.',
+        });
+      }
+    }
+
     setFormData({
       nome: product.nome,
       descrizione: product.descrizione,
@@ -367,7 +387,7 @@ export default function ProductsManager() {
       attivo: product.attivo,
       immagini: product.immagini || [],
       isBundle: product.isBundle || false,
-      bundleItems: product.bundleItems || [],
+      bundleItems: syncedBundleItems,
     });
     setProductImages(product.immagini || []);
     setBundleSearchTerm('');
