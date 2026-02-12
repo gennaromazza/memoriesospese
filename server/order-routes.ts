@@ -210,6 +210,7 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
       : hasCatalogBundle 
         ? catalogProduct!.bundleItems 
         : null;
+    const catalogBundleItems = hasCatalogBundle ? catalogProduct!.bundleItems : null;
     const bundleParentName = orderItem.prodottoNome || catalogProduct?.nome || 'Bundle';
 
     if (bundleItems && bundleItems.length > 0) {
@@ -219,6 +220,14 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
           if (!bundleItem.quantita || bundleItem.quantita <= 0) continue;
           if (bundleItem.numeroFoto === undefined || bundleItem.numeroFoto < 0) continue;
 
+          let finalNumeroFoto = bundleItem.numeroFoto;
+          if (bundleItem.prodottoId && catalogBundleItems) {
+            const catalogBundleItem = catalogBundleItems.find((cbi: any) => cbi.prodottoId === bundleItem.prodottoId);
+            if (catalogBundleItem && catalogBundleItem.numeroFoto !== undefined) {
+              finalNumeroFoto = catalogBundleItem.numeroFoto;
+            }
+          }
+
           for (let i = 0; i < bundleItem.quantita; i++) {
             const bundlePrefix = orderItemQuantity > 1
               ? `[${orderQty + 1}/${orderItemQuantity}] `
@@ -227,7 +236,7 @@ async function expandOrderProductsToRequirements(prodotti: any[]): Promise<any[]
               prodottoNome: bundleItem.quantita > 1
                 ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
                 : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
-              prodottoNumeroFoto: bundleItem.numeroFoto,
+              prodottoNumeroFoto: finalNumeroFoto,
             };
             if (bundleItem.prodottoId) {
               req.prodottoId = bundleItem.prodottoId;
@@ -1212,19 +1221,26 @@ router.post('/repair-bundle-galleries', async (req: Request, res: Response) => {
           continue;
         }
 
+        const structureChanged = currentRequirements.length !== newProductRequirements.length ||
+          currentRequirements.some((req: any, idx: number) => {
+            const newReq = newProductRequirements[idx];
+            return (req.prodottoNome || '') !== (newReq?.prodottoNome || '') ||
+                   (req.prodottoId || '') !== (newReq?.prodottoId || '');
+          });
+
         const hasSelections = 
           (galleryData.photoAssignments && Object.keys(galleryData.photoAssignments).length > 0) ||
           (galleryData.selectedPhotoIds && galleryData.selectedPhotoIds.length > 0);
 
         const galleryUpdate: any = {
           productRequirements: newProductRequirements,
-          selectionStatus: 'pending',
           updatedAt: FieldValue.serverTimestamp(),
         };
 
-        if (hasSelections) {
+        if (structureChanged && hasSelections) {
           galleryUpdate.photoAssignments = {};
           galleryUpdate.selectedPhotoIds = [];
+          galleryUpdate.selectionStatus = 'pending';
           selectionsReset++;
         }
 
@@ -1241,10 +1257,11 @@ router.post('/repair-bundle-galleries', async (req: Request, res: Response) => {
           galleryName: galleryData.name || galleryData.galleryName || '?',
           oldRequirementsCount: currentRequirements.length,
           newRequirementsCount: newProductRequirements.length,
-          selectionsReset: hasSelections,
+          selectionsReset: structureChanged && hasSelections,
+          onlyPhotoCountChanged: !structureChanged,
         });
 
-        console.log(`✅ Galleria ${galleryDoc.id} (${galleryData.name || '?'}): ${currentRequirements.length} → ${newProductRequirements.length} requirements${hasSelections ? ' [SELEZIONI RESET]' : ''}`);
+        console.log(`✅ Galleria ${galleryDoc.id} (${galleryData.name || '?'}): ${currentRequirements.length} → ${newProductRequirements.length} requirements${structureChanged && hasSelections ? ' [SELEZIONI RESET]' : !structureChanged ? ' [SOLO FOTO AGGIORNATE - SELEZIONI PRESERVATE]' : ''}`);
       }
     }
 

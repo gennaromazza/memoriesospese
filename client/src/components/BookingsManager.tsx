@@ -3546,6 +3546,7 @@ export default function BookingsManager({
                   : hasCatalogBundle
                     ? fullProduct!.bundleItems
                     : null;
+                const catalogBundleItems = hasCatalogBundle ? fullProduct!.bundleItems : null;
                 const bundleParentName =
                   orderItem.prodottoNome || fullProduct?.nome || "Bundle";
 
@@ -3566,23 +3567,31 @@ export default function BookingsManager({
                       )
                         continue;
 
+                      let finalNumeroFoto = bundleItem.numeroFoto;
+                      const bundleItemId =
+                        "prodottoId" in bundleItem
+                          ? (bundleItem as { prodottoId: string }).prodottoId
+                          : undefined;
+
+                      if (bundleItemId && catalogBundleItems) {
+                        const catalogBI = catalogBundleItems.find(cbi => cbi.prodottoId === bundleItemId);
+                        if (catalogBI && catalogBI.numeroFoto !== undefined) {
+                          finalNumeroFoto = catalogBI.numeroFoto;
+                        }
+                      }
+
                       for (let i = 0; i < bundleItem.quantita; i++) {
                         const bundlePrefix =
                           orderItemQuantity > 1
                             ? `[${orderQty + 1}/${orderItemQuantity}] `
                             : "";
-                        // prodottoId esiste solo in BundleItem (catalogo), non in BundleItemSnapshot (ordine)
-                        const bundleItemId =
-                          "prodottoId" in bundleItem
-                            ? (bundleItem as { prodottoId: string }).prodottoId
-                            : undefined;
                         expandedProducts.push({
                           prodottoId: bundleItemId,
                           prodottoNome:
                             bundleItem.quantita > 1
                               ? `${bundlePrefix}${bundleItem.prodottoNome} (${i + 1}/${bundleItem.quantita}) - ${bundleParentName}`
                               : `${bundlePrefix}${bundleItem.prodottoNome} - ${bundleParentName}`,
-                          prodottoNumeroFoto: bundleItem.numeroFoto,
+                          prodottoNumeroFoto: finalNumeroFoto,
                           isFromBundle: true,
                           bundleParentName: bundleParentName,
                         });
