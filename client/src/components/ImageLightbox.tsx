@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { PhotoData } from "../hooks/use-gallery-data";
-import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus, ChevronDown, ChevronUp, Expand } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
 
@@ -42,6 +42,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [productPanelCollapsed, setProductPanelCollapsed] = useState(false);
   const lightboxRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const isMobile = useIsMobile();
@@ -50,7 +51,8 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
   // Reset current index when the component receives a new initialIndex
   useEffect(() => {
     setCurrentIndex(initialIndex);
-    setZoom(1); // Reset zoom when changing photos
+    setZoom(1);
+    setProductPanelCollapsed(false);
   }, [initialIndex]);
 
   // Handle keyboard navigation
@@ -331,7 +333,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
           </div>
         )}
         
-        {/* 🏷️ Controlli Multi-Product - Assegnazione a prodotti */}
+        {/* 🏷️ Controlli Multi-Product - Assegnazione a prodotti (compatto e riducibile) */}
         {multiProductInfo?.isMultiProductMode && multiProductInfo.selectionStatus !== 'completed' && currentPhoto && (
           <div className="mb-3">
             {(() => {
@@ -347,101 +349,81 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
               ];
               
               return (
-                <div className="bg-black/60 backdrop-blur-sm rounded-xl px-4 py-3 mx-auto max-w-lg border border-white/10">
-                  {/* Header con stato foto */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-white/90 text-sm font-medium">Assegna a prodotto</span>
-                    {currentAssignments.length > 0 ? (
-                      <span className="bg-sage/90 text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                        <Check size={12} />
-                        {currentAssignments.length} assegnazion{currentAssignments.length === 1 ? 'e' : 'i'}
-                      </span>
-                    ) : (
-                      <span className="bg-white/20 text-white/70 text-xs px-2.5 py-1 rounded-full">
-                        Non assegnata
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Griglia prodotti con progress bar */}
-                  <div className="space-y-2">
-                    {multiProductInfo.productRequirements.map((prod, idx) => {
-                      const productIdStr = String(idx);
-                      const isAssigned = currentAssignments.includes(productIdStr);
-                      const color = productColors[idx % productColors.length];
-                      
-                      const assignedCount = Object.values(multiProductInfo.photoAssignments).filter(
-                        assignments => assignments.includes(productIdStr)
-                      ).length;
-                      const productLimit = prod.prodottoNumeroFoto || 0;
-                      const hasNoLimit = productLimit <= 0; // Prodotti custom senza limite
-                      const progressPercent = hasNoLimit ? 0 : Math.min((assignedCount / productLimit) * 100, 100);
-                      const isFull = !hasNoLimit && assignedCount >= productLimit && !isAssigned;
-                      const isComplete = !hasNoLimit && assignedCount >= productLimit;
-                      
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => multiProductInfo.onToggleProductAssignment(photoId, productIdStr)}
-                          disabled={isFull}
-                          className={`w-full rounded-lg p-2.5 transition-all duration-200 ${
-                            isAssigned
-                              ? `${color.bg} ring-2 ${color.ring} shadow-lg scale-[1.02]`
-                              : isFull
-                                ? 'bg-white/5 cursor-not-allowed opacity-50'
-                                : 'bg-white/10 hover:bg-white/20 hover:scale-[1.01]'
-                          }`}
-                          data-testid={`lightbox-product-chip-${idx}`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            {/* Nome prodotto e stato */}
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {isAssigned ? (
-                                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                                  <Check size={14} className="text-white" />
-                                </div>
-                              ) : (
-                                <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
-                                  isFull ? 'border-white/20' : 'border-white/40'
-                                }`} />
-                              )}
-                              <span className={`font-medium truncate ${isAssigned ? 'text-white' : 'text-white/90'}`}>
-                                {prod.prodottoNome}
-                              </span>
-                            </div>
-                            
-                            {/* Contatore e stato */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <span className={`text-sm font-bold ${
-                                isComplete ? 'text-green-300' : isAssigned ? 'text-white' : 'text-white/70'
-                              }`}>
-                                {hasNoLimit ? (
-                                  <>{assignedCount} <span className="text-xs font-normal opacity-70">(∞)</span></>
-                                ) : (
-                                  <>{assignedCount}/{productLimit}</>
-                                )}
-                              </span>
-                              {isComplete && !isAssigned && (
-                                <span className="text-green-300 text-xs">✓</span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Progress bar - nascosta per prodotti senza limite */}
-                          {!hasNoLimit && (
-                            <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  isComplete ? 'bg-green-400' : isAssigned ? 'bg-white/80' : 'bg-white/40'
-                                }`}
-                                style={{ width: `${progressPercent}%` }}
-                              />
-                            </div>
+                <div className="mx-auto max-w-lg">
+                  {productPanelCollapsed ? (
+                    <button
+                      onClick={() => setProductPanelCollapsed(false)}
+                      className="w-full bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 border border-white/10 flex items-center justify-center gap-2 text-white/80 hover:text-white hover:bg-black/60 transition-all"
+                    >
+                      <span className="text-sm font-medium">Assegna a prodotto</span>
+                      {currentAssignments.length > 0 && (
+                        <span className="bg-sage/90 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                          {currentAssignments.length}
+                        </span>
+                      )}
+                      <ChevronUp size={14} />
+                    </button>
+                  ) : (
+                    <div className="bg-black/60 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/90 text-xs font-medium">Assegna a prodotto</span>
+                          {currentAssignments.length > 0 && (
+                            <span className="bg-sage/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                              <Check size={10} />
+                              {currentAssignments.length}
+                            </span>
                           )}
+                        </div>
+                        <button
+                          onClick={() => setProductPanelCollapsed(true)}
+                          className="text-white/50 hover:text-white/80 p-0.5 transition-colors"
+                          aria-label="Nascondi pannello prodotti"
+                        >
+                          <ChevronDown size={14} />
                         </button>
-                      );
-                    })}
-                  </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1.5">
+                        {multiProductInfo.productRequirements.map((prod, idx) => {
+                          const productIdStr = String(idx);
+                          const isAssigned = currentAssignments.includes(productIdStr);
+                          const color = productColors[idx % productColors.length];
+                          
+                          const assignedCount = Object.values(multiProductInfo.photoAssignments).filter(
+                            assignments => assignments.includes(productIdStr)
+                          ).length;
+                          const productLimit = prod.prodottoNumeroFoto || 0;
+                          const hasNoLimit = productLimit <= 0;
+                          const isFull = !hasNoLimit && assignedCount >= productLimit && !isAssigned;
+                          const isComplete = !hasNoLimit && assignedCount >= productLimit;
+                          
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => multiProductInfo.onToggleProductAssignment(photoId, productIdStr)}
+                              disabled={isFull}
+                              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                                isAssigned
+                                  ? `${color.bg} ring-1 ${color.ring} shadow-md text-white`
+                                  : isFull
+                                    ? 'bg-white/5 cursor-not-allowed opacity-40 text-white/50'
+                                    : 'bg-white/10 hover:bg-white/20 text-white/90'
+                              }`}
+                              data-testid={`lightbox-product-chip-${idx}`}
+                            >
+                              {isAssigned && <Check size={12} />}
+                              <span className="truncate max-w-[100px]">{prod.prodottoNome}</span>
+                              <span className={`text-[10px] font-bold ${isComplete ? 'text-green-300' : ''}`}>
+                                {hasNoLimit ? assignedCount : `${assignedCount}/${productLimit}`}
+                                {isComplete && ' ✓'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}

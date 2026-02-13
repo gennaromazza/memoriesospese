@@ -54,7 +54,7 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
-import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
+import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X, Expand } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -452,6 +452,7 @@ export default function Gallery() {
   const [showProductSummary, setShowProductSummary] = useState(false); // Sheet riepilogo prodotti
   const [filterByProduct, setFilterByProduct] = useState<number | null>(null); // Filtro per prodotto specifico
   const [showReviewModal, setShowReviewModal] = useState(false); // Modale review selezione prima conferma
+  const [reviewLightboxPhoto, setReviewLightboxPhoto] = useState<string | null>(null); // Foto ingrandita nel riepilogo
   const [showResetDialog, setShowResetDialog] = useState(false); // Dialog conferma reset selezione
   const [hideConfirmationBanner, setHideConfirmationBanner] = useState(() => {
     // Recupera preferenza da localStorage
@@ -2865,7 +2866,7 @@ export default function Gallery() {
                       </AlertDialog>
 
                       {/* 🖼️ Modal Review Selezione - Riepilogo prima della conferma */}
-                      <AlertDialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+                      <AlertDialog open={showReviewModal} onOpenChange={(open) => { setShowReviewModal(open); if (!open) setReviewLightboxPhoto(null); }}>
                         <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <AlertDialogHeader>
                             <AlertDialogTitle className="text-2xl font-playfair text-blue-gray flex items-center gap-3">
@@ -2948,12 +2949,19 @@ export default function Gallery() {
                                             const photo = photos.find(p => p.id === photoId);
                                             if (!photo) return null;
                                             return (
-                                              <div key={photoId} className="relative aspect-square">
+                                              <div
+                                                key={photoId}
+                                                className="relative aspect-square cursor-pointer group/thumb"
+                                                onClick={() => setReviewLightboxPhoto(photo.url)}
+                                              >
                                                 <img
                                                   src={photo.url}
                                                   alt={`Foto ${photoIdx + 1}`}
-                                                  className="w-full h-full object-cover rounded-lg"
+                                                  className="w-full h-full object-cover rounded-lg transition-opacity group-hover/thumb:opacity-80"
                                                 />
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                                  <Expand className="w-5 h-5 text-white drop-shadow-lg" />
+                                                </div>
                                                 <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
                                                   {photoIdx + 1}
                                                 </span>
@@ -3006,12 +3014,19 @@ export default function Gallery() {
                                     const photo = photos.find(p => p.id === photoId);
                                     if (!photo) return null;
                                     return (
-                                      <div key={photoId} className="relative aspect-square">
+                                      <div
+                                        key={photoId}
+                                        className="relative aspect-square cursor-pointer group/thumb"
+                                        onClick={() => setReviewLightboxPhoto(photo.url)}
+                                      >
                                         <img
                                           src={photo.url}
                                           alt={`Foto ${idx + 1}`}
-                                          className="w-full h-full object-cover rounded-lg"
+                                          className="w-full h-full object-cover rounded-lg transition-opacity group-hover/thumb:opacity-80"
                                         />
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                          <Expand className="w-5 h-5 text-white drop-shadow-lg" />
+                                        </div>
                                         <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
                                           {idx + 1}
                                         </span>
@@ -3022,6 +3037,10 @@ export default function Gallery() {
                               </div>
                             )}
                           </div>
+
+                          <p className="text-xs text-gray-400 text-center mt-2">
+                            Tocca una miniatura per vederla a tutto schermo
+                          </p>
 
                           <AlertDialogFooter className="mt-6 gap-3 flex-col sm:flex-row">
                             <Button
@@ -3035,7 +3054,6 @@ export default function Gallery() {
                             <Button
                                 onClick={() => {
                                   setShowReviewModal(false);
-                                  // Conferma direttamente
                                   setTimeout(() => {
                                     handleConfirmSelection();
                                   }, 100);
@@ -3048,6 +3066,28 @@ export default function Gallery() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+
+                      {/* Overlay foto ingrandita dal riepilogo */}
+                      {reviewLightboxPhoto && (
+                        <div
+                          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
+                          onClick={() => setReviewLightboxPhoto(null)}
+                        >
+                          <button
+                            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 z-10"
+                            onClick={() => setReviewLightboxPhoto(null)}
+                            aria-label="Chiudi"
+                          >
+                            <X className="w-7 h-7" />
+                          </button>
+                          <img
+                            src={reviewLightboxPhoto}
+                            alt="Foto ingrandita"
+                            className="max-w-full max-h-full object-contain rounded-lg"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
 
                       {/* Banner Istruzioni Multi-Prodotto - NASCOSTO per UX pulita */}
                       {false && isSelectionMode &&
