@@ -3679,6 +3679,7 @@ export default function BookingsManager({
             queryClient.invalidateQueries({ queryKey: ["orders"] });
             setEditingOrder(null);
           }}
+          onOrderUpdated={(updated) => setEditingOrder(updated)}
         />
       )}
 

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { createProduct } from '@/lib/products';
+import { getOrderById } from '@/lib/orders';
 import { getActiveProductCategories } from '@/lib/product-categories';
 import type { Order, Product, OrderItem, ProductCategory } from '@shared/booking-types';
 import ProductSelector from '@/components/ProductSelector';
@@ -47,9 +48,10 @@ interface EditOrderModalProps {
   order: Order | null;
   products: Product[];
   onClose: () => void;
+  onOrderUpdated?: (updatedOrder: Order) => void;
 }
 
-export default function EditOrderModal({ order, products, onClose }: EditOrderModalProps) {
+export default function EditOrderModal({ order, products, onClose, onOrderUpdated }: EditOrderModalProps) {
   const { toast } = useToast();
   
   // Query categorie prodotti per filtro
@@ -114,7 +116,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       const response = await apiRequest('POST', `/api/orders/${orderId}/delete-payment`, { transactionIndex, sendEmail, expectedImporto, expectedTipo });
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({
         title: '🗑️ Pagamento eliminato',
         description: data.message || 'Il pagamento è stato rimosso con successo.',
@@ -122,6 +124,12 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       setDeletePaymentIndex(null);
       setDeletePaymentSendEmail(false);
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (order && onOrderUpdated) {
+        try {
+          const updated = await getOrderById(order.id);
+          if (updated) onOrderUpdated(updated);
+        } catch (e) {}
+      }
     },
     onError: (error: any) => {
       toast({

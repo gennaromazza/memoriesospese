@@ -1473,6 +1473,7 @@ export function OrdersManager({
         order={editOrder}
         products={products}
         onClose={() => setEditOrder(null)}
+        onOrderUpdated={(updated) => setEditOrder(updated)}
       />
     </div>
   );
