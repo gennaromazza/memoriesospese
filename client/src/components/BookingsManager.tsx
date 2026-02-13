@@ -773,6 +773,63 @@ export default function BookingsManager({
     setCurrentPage(1);
   }, [selectedStato, searchQuery, timeFilter, selectionFilter, workflowFilter, sortDirection]);
 
+  // 📍 ID del prossimo appuntamento di oggi (per badge visivo)
+  const nextBookingId = useMemo(() => {
+    if (timeFilter !== 'today') return null;
+    const todayGroup = dayGroups.find(g => g.label === 'Oggi');
+    if (!todayGroup || todayGroup.bookings.length === 0) return null;
+    const now = new Date();
+    const sorted = [...todayGroup.bookings].sort((a, b) => {
+      const tA = getDateFromTimestamp(a.dataShootingInizio)?.getTime() || 0;
+      const tB = getDateFromTimestamp(b.dataShootingInizio)?.getTime() || 0;
+      return tA - tB;
+    });
+    const next = sorted.find(b => {
+      const endTime = getDateFromTimestamp(b.dataShootingFine);
+      return endTime && endTime.getTime() > now.getTime();
+    });
+    return next?.id || null;
+  }, [timeFilter, dayGroups]);
+
+  // 📍 Auto-scroll al prossimo appuntamento quando filtro è "Oggi"
+  const autoScrollDoneRef = useRef(false);
+  useEffect(() => {
+    if (timeFilter !== 'today') {
+      autoScrollDoneRef.current = false;
+      return;
+    }
+    if (autoScrollDoneRef.current) return;
+
+    const todayGroup = paginatedDayGroups.find(g => g.label === 'Oggi');
+    if (!todayGroup || todayGroup.bookings.length === 0) return;
+
+    const now = new Date();
+    const nextBooking = todayGroup.bookings
+      .sort((a, b) => {
+        const tA = getDateFromTimestamp(a.dataShootingInizio)?.getTime() || 0;
+        const tB = getDateFromTimestamp(b.dataShootingInizio)?.getTime() || 0;
+        return tA - tB;
+      })
+      .find(b => {
+        const endTime = getDateFromTimestamp(b.dataShootingFine);
+        return endTime && endTime.getTime() > now.getTime();
+      });
+
+    const targetBooking = nextBooking || todayGroup.bookings[todayGroup.bookings.length - 1];
+    if (!targetBooking) return;
+
+    autoScrollDoneRef.current = true;
+
+    setTimeout(() => {
+      const el = bookingRefs.current[targetBooking.id];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedId(targetBooking.id);
+        setTimeout(() => setHighlightedId(null), 3000);
+      }
+    }, 300);
+  }, [timeFilter, paginatedDayGroups]);
+
   // 🔔 Auto-mark bookings in_attesa come visualizzati (per notifiche)
   useEffect(() => {
     if (!allBookings || !user || allBookings.length === 0) return;
@@ -1875,6 +1932,7 @@ export default function BookingsManager({
                         booking.stato === "completata";
 
                       const isHighlighted = highlightedId === booking.id;
+                      const isNextBooking = nextBookingId === booking.id;
 
                       return (
                         <Card
@@ -1882,7 +1940,7 @@ export default function BookingsManager({
                           ref={(el) => {
                             bookingRefs.current[booking.id] = el;
                           }}
-                          className={`hover:shadow-lg transition-all ${colorClass.border} ${colorClass.bg} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
+                          className={`hover:shadow-lg transition-all ${isNextBooking ? "border-l-4 border-l-green-600 bg-green-50/50 ring-2 ring-green-300" : `${colorClass.border} ${colorClass.bg}`} ${isHighlighted ? "ring-4 ring-blue-500 ring-offset-2 shadow-2xl" : ""}`}
                         >
                           <CardContent className="p-3 sm:p-4 md:p-6">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-6">
@@ -1894,6 +1952,11 @@ export default function BookingsManager({
                                     <h3 className="text-base sm:text-lg font-bold font-playfair text-blue-gray flex items-center gap-2 flex-wrap">
                                       {booking.cliente.nome}{" "}
                                       {booking.cliente.cognome}
+                                      {isNextBooking && (
+                                        <Badge className="bg-green-600 text-white text-xs animate-pulse">
+                                          PROSSIMO
+                                        </Badge>
+                                      )}
                                       {booking.isManual && (
                                         <Badge
                                           variant="outline"
