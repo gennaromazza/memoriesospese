@@ -126,6 +126,8 @@ import {
   Bookmark,
   BookmarkCheck,
   RotateCcw,
+  StickyNote,
+  Save,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -391,6 +393,24 @@ export default function BookingsManager({
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editNote, setEditNote] = useState("");
   const [editNoteAdmin, setEditNoteAdmin] = useState("");
+
+  const [quickNoteBookingId, setQuickNoteBookingId] = useState<string | null>(null);
+  const [quickNoteText, setQuickNoteText] = useState("");
+  const [quickNoteSaving, setQuickNoteSaving] = useState(false);
+
+  const handleQuickNoteSave = async (bookingId: string) => {
+    setQuickNoteSaving(true);
+    try {
+      await updateBooking(bookingId, { noteAdmin: quickNoteText.trim() });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "Nota salvata", description: "I tuoi appunti sono stati salvati" });
+      setQuickNoteBookingId(null);
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message || "Impossibile salvare la nota", variant: "destructive" });
+    } finally {
+      setQuickNoteSaving(false);
+    }
+  };
 
   const [whatsAppSentMap, setWhatsAppSentMap] = useState<Record<string, boolean>>({});
 
@@ -2335,13 +2355,71 @@ export default function BookingsManager({
                                   </div>
                                 )}
 
-                                {/* Note admin */}
-                                {booking.noteAdmin && (
-                                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                                {/* Note admin con modifica rapida */}
+                                {quickNoteBookingId === booking.id ? (
+                                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
+                                        <StickyNote className="w-4 h-4" />
+                                        Note studio
+                                      </span>
+                                      <button
+                                        onClick={() => setQuickNoteBookingId(null)}
+                                        className="text-gray-400 hover:text-gray-600 text-xs"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                    <Textarea
+                                      value={quickNoteText}
+                                      onChange={(e) => setQuickNoteText(e.target.value)}
+                                      placeholder="Scrivi i tuoi appunti..."
+                                      rows={3}
+                                      className="text-sm"
+                                      autoFocus
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setQuickNoteBookingId(null)}
+                                        disabled={quickNoteSaving}
+                                        className="h-7 text-xs"
+                                      >
+                                        Annulla
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleQuickNoteSave(booking.id)}
+                                        disabled={quickNoteSaving}
+                                        className="h-7 text-xs bg-amber-600 hover:bg-amber-700"
+                                      >
+                                        {quickNoteSaving ? "Salvo..." : <><Save className="w-3 h-3 mr-1" /> Salva</>}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : booking.noteAdmin ? (
+                                  <div
+                                    className="bg-amber-50 border border-amber-200 p-3 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors group"
+                                    onClick={() => { setQuickNoteBookingId(booking.id); setQuickNoteText(booking.noteAdmin || ""); }}
+                                  >
                                     <p className="text-sm text-amber-800">
-                                      <strong>🔒 Note studio:</strong> {booking.noteAdmin}
+                                      <strong className="flex items-center gap-1.5">
+                                        <StickyNote className="w-3.5 h-3.5" />
+                                        Note studio:
+                                        <span className="text-xs text-amber-500 font-normal opacity-0 group-hover:opacity-100 transition-opacity ml-auto">clicca per modificare</span>
+                                      </strong>
+                                      {booking.noteAdmin}
                                     </p>
                                   </div>
+                                ) : (
+                                  <button
+                                    onClick={() => { setQuickNoteBookingId(booking.id); setQuickNoteText(""); }}
+                                    className="w-full flex items-center gap-2 text-sm text-gray-400 hover:text-amber-600 border border-dashed border-gray-200 hover:border-amber-300 rounded-lg p-2.5 transition-colors"
+                                  >
+                                    <StickyNote className="w-4 h-4" />
+                                    Aggiungi nota...
+                                  </button>
                                 )}
 
                                 {/* Gallerie Collegate */}
