@@ -1332,10 +1332,12 @@ export default function BookingsManager({
       bookingId,
       newState,
       emailData,
+      booking,
     }: {
       bookingId: string;
       newState: WorkflowState;
       emailData?: any;
+      booking: Booking;
     }) => {
       await updateWorkflowState(bookingId, "booking", newState, emailData);
     },
@@ -1348,8 +1350,8 @@ export default function BookingsManager({
           "Il workflow è stato aggiornato e l'email è stata inviata al cliente.",
       });
 
-      if (variables.newState === WorkflowState.PRONTO_RITIRO && workflowChangeBooking) {
-        const booking = workflowChangeBooking.booking;
+      if (variables.newState === WorkflowState.PRONTO_RITIRO) {
+        const booking = variables.booking;
         const phone = formatPhoneForWhatsApp(booking.cliente.whatsapp);
         const clientName = booking.cliente.nome;
         const campaignName = getCampaignName(booking.campaignId);
@@ -1411,6 +1413,7 @@ export default function BookingsManager({
       bookingId: booking.id,
       newState,
       emailData,
+      booking,
     });
   };
 
