@@ -384,7 +384,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                         </button>
                       </div>
                       
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-col gap-1.5">
                         {multiProductInfo.productRequirements.map((prod, idx) => {
                           const productIdStr = String(idx);
                           const isAssigned = currentAssignments.includes(productIdStr);
@@ -403,7 +403,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                               key={idx}
                               onClick={() => multiProductInfo.onToggleProductAssignment(photoId, productIdStr)}
                               disabled={isFull}
-                              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${
                                 isAssigned
                                   ? `${color.bg} ring-1 ${color.ring} shadow-md text-white`
                                   : isFull
@@ -413,8 +413,8 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                               data-testid={`lightbox-product-chip-${idx}`}
                             >
                               {isAssigned && <Check size={12} />}
-                              <span>{prod.prodottoNome}</span>
-                              <span className={`text-[10px] font-bold ${isComplete ? 'text-green-300' : ''}`}>
+                              <span className="flex-1 text-left">{prod.prodottoNome}</span>
+                              <span className={`text-[10px] font-bold flex-shrink-0 ${isComplete ? 'text-green-300' : ''}`}>
                                 {hasNoLimit ? assignedCount : `${assignedCount}/${productLimit}`}
                                 {isComplete && ' ✓'}
                               </span>
