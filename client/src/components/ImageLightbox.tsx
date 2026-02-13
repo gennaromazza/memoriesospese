@@ -413,7 +413,7 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
                               data-testid={`lightbox-product-chip-${idx}`}
                             >
                               {isAssigned && <Check size={12} />}
-                              <span className="truncate max-w-[100px]">{prod.prodottoNome}</span>
+                              <span>{prod.prodottoNome}</span>
                               <span className={`text-[10px] font-bold ${isComplete ? 'text-green-300' : ''}`}>
                                 {hasNoLimit ? assignedCount : `${assignedCount}/${productLimit}`}
                                 {isComplete && ' ✓'}
