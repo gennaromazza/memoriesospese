@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { QuantityInput } from '@/components/ui/quantity-input';
-import { Trash2, Plus, Save, ShoppingCart, Package, Clock } from 'lucide-react';
+import { Trash2, Plus, Save, ShoppingCart, Package, Clock, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -68,6 +68,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   const [note, setNote] = useState('');
   const [stato, setStato] = useState<'bozza' | 'in_lavorazione' | 'completato' | 'annullato'>('bozza');
   const [acconto, setAcconto] = useState(0);
+  const [sconto, setSconto] = useState(0);
   
   // Prodotto custom
   const [showCustomProduct, setShowCustomProduct] = useState(false);
@@ -87,19 +88,48 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
       setNote(''); // Note non salvate nell'ordine, solo nelle transazioni
       setStato(order.stato || 'bozza');
       setAcconto(order.acconto || 0);
+      setSconto(order.sconto || 0);
     }
   }, [order]);
   
   // Calcola totali
-  const totale = selectedProdotti.reduce((sum, item) => {
+  const subtotale = selectedProdotti.reduce((sum, item) => {
     return sum + (item.prodottoPrezzo * item.quantita);
   }, 0);
+  
+  const totale = Math.max(0, subtotale - sconto);
   
   // Calcola totale pagato dalle transactions (unica fonte di verità)
   const totalePagato = (order?.transactions || []).reduce((sum, t) => sum + t.importo, 0);
   
   const saldo = totale - totalePagato;
   
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Mutation per eliminare ordine
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await apiRequest('DELETE', `/api/orders/${orderId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: '🗑️ Ordine eliminato',
+        description: 'L\'ordine è stato eliminato con successo.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['galleries'] });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: '❌ Errore',
+        description: error.message || 'Impossibile eliminare l\'ordine',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Mutation per update ordine
   const updateOrderMutation = useMutation({
     mutationFn: async ({ orderId, data }: { orderId: string; data: any }) => {
@@ -271,7 +301,7 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
         whatsappCliente: whatsappCliente || null,
         note: note || null,
         stato,
-        // NON inviamo più acconto - gestito solo via transactions array
+        sconto: sconto || 0,
       }
     });
   };
@@ -508,9 +538,31 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
             <h3 className="font-semibold text-lg">💰 Riepilogo Prezzi</h3>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Totale:</span>
-                <span className="font-semibold text-lg">€{totale.toFixed(2)}</span>
+                <span className="text-muted-foreground">Subtotale:</span>
+                <span className="font-semibold text-lg">€{subtotale.toFixed(2)}</span>
               </div>
+              
+              {/* Sconto */}
+              <div className="flex justify-between items-center">
+                <Label className="min-w-[120px] text-muted-foreground">Sconto (€):</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max={subtotale}
+                  step="0.01"
+                  value={sconto}
+                  onChange={(e) => setSconto(Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-32 text-right"
+                  placeholder="0.00"
+                />
+              </div>
+              
+              {sconto > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground font-medium">Totale con sconto:</span>
+                  <span className="font-bold text-lg text-green-700">€{totale.toFixed(2)}</span>
+                </div>
+              )}
               
               {/* Totale Pagato (read-only, calcolato da transactions) */}
               <div className="flex justify-between items-center">
@@ -650,20 +702,56 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
           </div>
         </div>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={updateOrderMutation.isPending}>
-            Annulla
-          </Button>
-          <Button onClick={handleSave} disabled={updateOrderMutation.isPending}>
-            {updateOrderMutation.isPending ? (
-              <>Salvataggio...</>
+        <DialogFooter className="flex !justify-between items-center">
+          <div>
+            {!showDeleteConfirm ? (
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)} 
+                disabled={updateOrderMutation.isPending || deleteOrderMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Elimina Ordine
+              </Button>
             ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Salva e Invia Email
-              </>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <span className="text-sm text-red-600 font-medium">Sei sicuro?</span>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => order && deleteOrderMutation.mutate(order.id)}
+                  disabled={deleteOrderMutation.isPending}
+                >
+                  {deleteOrderMutation.isPending ? 'Eliminazione...' : 'Conferma'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleteOrderMutation.isPending}
+                >
+                  No
+                </Button>
+              </div>
             )}
-          </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} disabled={updateOrderMutation.isPending}>
+              Annulla
+            </Button>
+            <Button onClick={handleSave} disabled={updateOrderMutation.isPending}>
+              {updateOrderMutation.isPending ? (
+                <>Salvataggio...</>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Salva e Invia Email
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

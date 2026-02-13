@@ -306,12 +306,27 @@ router.patch('/:id', async (req: Request, res: Response) => {
     let totale = currentOrder.totale;
     let saldo = currentOrder.saldo;
 
+    // Validazione sconto server-side
+    if (updateData.sconto !== undefined) {
+      updateData.sconto = Math.max(0, Number(updateData.sconto) || 0);
+    }
+
     if (updateData.prodotti && Array.isArray(updateData.prodotti)) {
-      totale = updateData.prodotti.reduce((sum: number, item: any) => {
+      const subtotale = updateData.prodotti.reduce((sum: number, item: any) => {
         return sum + (item.prodottoPrezzo * item.quantita);
       }, 0);
+      const scontoApplicato = updateData.sconto !== undefined ? Math.min(updateData.sconto, subtotale) : Math.min(currentOrder.sconto || 0, subtotale);
+      updateData.sconto = scontoApplicato;
+      totale = Math.max(0, subtotale - scontoApplicato);
 
       const acconto = updateData.acconto !== undefined ? updateData.acconto : currentOrder.acconto || 0;
+      saldo = totale - acconto;
+    } else if (updateData.sconto !== undefined) {
+      const subtotale = (currentOrder.prodotti || []).reduce((sum: number, item: any) => {
+        return sum + (item.prodottoPrezzo * item.quantita);
+      }, 0);
+      totale = Math.max(0, subtotale - updateData.sconto);
+      const acconto = currentOrder.acconto || 0;
       saldo = totale - acconto;
     } else if (updateData.acconto !== undefined) {
       const acconto = updateData.acconto;
@@ -1162,6 +1177,90 @@ router.post('/sync-bundle-data', authenticateFirebase, async (req: any, res: Res
       error: 'Errore sincronizzazione dati bundle',
       details: error.message
     });
+  }
+});
+
+/**
+ * DELETE /api/orders/:id - Elimina un ordine (RICHIEDE AUTENTICAZIONE ADMIN)
+ */
+router.delete('/:id', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Non autorizzato' });
+    }
+
+    const { id } = req.params;
+    console.log(`🗑️ Eliminazione ordine ${id} da admin ${req.user?.email}`);
+
+    const orderRef = db.collection('orders').doc(id);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Ordine non trovato' });
+    }
+
+    const order = orderDoc.data()!;
+
+    // Rimuovi riferimento ordine dal job associato
+    if (order.jobId) {
+      try {
+        const jobRef = db.collection('jobs').doc(order.jobId);
+        const jobDoc = await jobRef.get();
+        if (jobDoc.exists) {
+          await jobRef.update({
+            orderIds: FieldValue.arrayRemove(id),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Rimosso ordine ${id} dal job ${order.jobId}`);
+        }
+      } catch (err: any) {
+        console.warn(`⚠️ Errore rimozione ordine da job:`, err.message);
+      }
+    }
+
+    // Rimuovi riferimento ordine dal cliente associato
+    if (order.clienteId) {
+      try {
+        const clientRef = db.collection('clients').doc(order.clienteId);
+        const clientDoc = await clientRef.get();
+        if (clientDoc.exists) {
+          await clientRef.update({
+            'sourceRefs.orderIds': FieldValue.arrayRemove(id),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Rimosso ordine ${id} dal cliente ${order.clienteId}`);
+        }
+      } catch (err: any) {
+        console.warn(`⚠️ Errore rimozione ordine da cliente:`, err.message);
+      }
+    }
+
+    // Rimuovi riferimento ordine dal booking associato
+    if (order.bookingId) {
+      try {
+        const bookingRef = db.collection('bookings').doc(order.bookingId);
+        const bookingDoc = await bookingRef.get();
+        if (bookingDoc.exists) {
+          await bookingRef.update({
+            orderId: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Rimosso ordine ${id} dal booking ${order.bookingId}`);
+        }
+      } catch (err: any) {
+        console.warn(`⚠️ Errore rimozione ordine da booking:`, err.message);
+      }
+    }
+
+    // Elimina ordine
+    await orderRef.delete();
+    console.log(`✅ Ordine ${id} eliminato`);
+
+    res.json({ success: true, message: 'Ordine eliminato con successo' });
+  } catch (error: any) {
+    console.error('❌ Errore eliminazione ordine:', error);
+    res.status(500).json({ error: 'Errore eliminazione ordine', details: error.message });
   }
 });
 
