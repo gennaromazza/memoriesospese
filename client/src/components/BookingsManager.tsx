@@ -390,6 +390,7 @@ export default function BookingsManager({
   const [editEmail, setEditEmail] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [editNote, setEditNote] = useState("");
+  const [editNoteAdmin, setEditNoteAdmin] = useState("");
 
   const [whatsAppSentMap, setWhatsAppSentMap] = useState<Record<string, boolean>>({});
 
@@ -1105,7 +1106,7 @@ export default function BookingsManager({
       oldEmail,
     }: {
       bookingId: string;
-      data: { cliente?: any; note?: string };
+      data: { cliente?: any; note?: string; noteAdmin?: string };
       oldEmail?: string;
     }) => updateBooking(bookingId, data, oldEmail),
     onSuccess: (_, variables) => {
@@ -1389,6 +1390,7 @@ export default function BookingsManager({
     setEditEmail(booking.cliente.email);
     setEditWhatsapp(booking.cliente.whatsapp);
     setEditNote(booking.note || "");
+    setEditNoteAdmin(booking.noteAdmin || "");
   };
 
   // Handler: Salva modifiche prenotazione
@@ -1431,8 +1433,9 @@ export default function BookingsManager({
           whatsapp: editWhatsapp.trim(),
         },
         note: editNote.trim(),
+        noteAdmin: editNoteAdmin.trim(),
       },
-      oldEmail: editBooking.cliente.email, // Per rilevare cambio email
+      oldEmail: editBooking.cliente.email,
     });
   };
 
@@ -2323,11 +2326,20 @@ export default function BookingsManager({
                                   return null;
                                 })()}
 
-                                {/* Note */}
+                                {/* Note cliente */}
                                 {booking.note && (
                                   <div className="bg-gray-50 p-3 rounded-lg">
                                     <p className="text-sm text-gray-700">
-                                      <strong>Note:</strong> {booking.note}
+                                      <strong>📝 Note cliente:</strong> {booking.note}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Note admin */}
+                                {booking.noteAdmin && (
+                                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                                    <p className="text-sm text-amber-800">
+                                      <strong>🔒 Note studio:</strong> {booking.noteAdmin}
                                     </p>
                                   </div>
                                 )}
@@ -3353,8 +3365,15 @@ export default function BookingsManager({
 
                     {selectedBooking.note && (
                       <div>
-                        <span className="text-gray-600">Note:</span>
+                        <span className="text-gray-600">📝 Note cliente:</span>
                         <p className="font-medium">{selectedBooking.note}</p>
+                      </div>
+                    )}
+
+                    {selectedBooking.noteAdmin && (
+                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                        <span className="text-amber-700 font-semibold">🔒 Note studio:</span>
+                        <p className="text-amber-800 mt-1">{selectedBooking.noteAdmin}</p>
                       </div>
                     )}
                   </div>
@@ -3550,13 +3569,28 @@ export default function BookingsManager({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-note">Note</Label>
+                  <Label htmlFor="edit-note">Note cliente</Label>
                   <Input
                     id="edit-note"
                     value={editNote}
                     onChange={(e) => setEditNote(e.target.value)}
-                    placeholder="Note aggiuntive (opzionale)"
+                    placeholder="Note lasciate dal cliente"
                     data-testid="input-edit-note"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-note-admin" className="flex items-center gap-2">
+                    <span>🔒 Note studio</span>
+                    <span className="text-xs text-gray-400 font-normal">(visibili solo a te)</span>
+                  </Label>
+                  <Textarea
+                    id="edit-note-admin"
+                    value={editNoteAdmin}
+                    onChange={(e) => setEditNoteAdmin(e.target.value)}
+                    placeholder="Appunti interni, promemoria, dettagli importanti..."
+                    rows={3}
+                    data-testid="input-edit-note-admin"
                   />
                 </div>
 
