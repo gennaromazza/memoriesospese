@@ -1339,7 +1339,7 @@ export default function BookingsManager({
     }) => {
       await updateWorkflowState(bookingId, "booking", newState, emailData);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
@@ -1347,6 +1347,18 @@ export default function BookingsManager({
         description:
           "Il workflow è stato aggiornato e l'email è stata inviata al cliente.",
       });
+
+      if (variables.newState === WorkflowState.PRONTO_RITIRO && workflowChangeBooking) {
+        const booking = workflowChangeBooking.booking;
+        const phone = formatPhoneForWhatsApp(booking.cliente.whatsapp);
+        const clientName = booking.cliente.nome;
+        const campaignName = getCampaignName(booking.campaignId);
+        const msg = encodeURIComponent(
+          `Ciao ${clientName}! 😊\n\nTi informiamo che le tue foto${campaignName ? ` per "${campaignName}"` : ""} sono pronte per il ritiro! 📸\n\nContattaci per concordare il ritiro.\n\nA presto!`
+        );
+        window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+      }
+
       setWorkflowChangeBooking(null);
     },
     onError: (error: Error) => {
