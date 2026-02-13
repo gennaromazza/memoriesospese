@@ -123,6 +123,9 @@ import {
   Timer,
   PartyPopper,
   PackageCheck,
+  Bookmark,
+  BookmarkCheck,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -230,12 +233,27 @@ export default function BookingsManager({
   const [, navigate] = useLocation();
   const searchParams = useSearch();
 
-  // Helper per leggere i query params iniziali
+  const SAVED_FILTERS_KEY = 'bookingsManagerSavedFilters';
+
+  const getSavedFilters = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(SAVED_FILTERS_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  }, []);
+
+  const [hasSavedFilters, setHasSavedFilters] = useState(() => {
+    try { return !!localStorage.getItem(SAVED_FILTERS_KEY); } catch { return false; }
+  });
+
+  // Helper per leggere i query params iniziali (con fallback a filtri salvati)
   const getInitialParams = useCallback(() => {
     const params = new URLSearchParams(searchParams);
+    const hasUrlParams = params.has("stato") || params.has("time") || params.has("workflow") || params.has("selection");
+    const saved = !hasUrlParams ? getSavedFilters() : null;
     const parsedPage = parseInt(params.get("page") || "1", 10);
     return {
-      stato: params.get("stato") || "all",
+      stato: params.get("stato") || saved?.stato || "all",
       search: params.get("search") || "",
       time:
         (params.get("time") as
@@ -245,9 +263,11 @@ export default function BookingsManager({
           | "today"
           | "tomorrow"
           | "next-week"
-          | "next-month") || "all",
-      workflow: params.get("workflow") || "all",
-      selection: (params.get("selection") as "all" | "approved") || "all",
+          | "next-month") || saved?.time || "all",
+      workflow: params.get("workflow") || saved?.workflow || "all",
+      selection: (params.get("selection") as "all" | "approved") || saved?.selection || "all",
+      campaign: saved?.campaign || "active",
+      sortDir: saved?.sortDir || "desc",
       page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
     };
   }, [searchParams]);
@@ -299,15 +319,17 @@ export default function BookingsManager({
     | "next-month"
   >(initialParams.time);
   // Filtro campagne: "active" = solo campagne attive (default), "all" = tutte, o ID specifico
-  const [campaignFilter, setCampaignFilter] = useState<string>("active");
+  const [campaignFilter, setCampaignFilter] = useState<string>(initialParams.campaign);
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
     initialParams.selection,
   );
   const [workflowFilter, setWorkflowFilter] = useState<string>(
     initialParams.workflow,
   );
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(
+    initialParams.stato !== "all" || initialParams.workflow !== "all" || initialParams.selection !== "all"
+  );
+  const [sortDirection, setSortDirection] = useState<"desc" | "asc">(initialParams.sortDir as "desc" | "asc");
   const ITEMS_PER_PAGE_GROUPS = 5;
   const campaignAutoSelectDoneRef = useRef(false);
 
@@ -1770,6 +1792,57 @@ export default function BookingsManager({
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Selezioni Approvate
                   </Button>
+                </div>
+
+                <div className="flex gap-2 sm:ml-auto">
+                  <Button
+                    variant="outline"
+                    size="default"
+                    className="h-10 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    onClick={() => {
+                      const filters = {
+                        stato: selectedStato,
+                        time: timeFilter,
+                        workflow: workflowFilter,
+                        selection: selectionFilter,
+                        campaign: campaignFilter,
+                        sortDir: sortDirection,
+                      };
+                      localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(filters));
+                      setHasSavedFilters(true);
+                      toast({
+                        title: 'Filtri salvati',
+                        description: 'I filtri verranno applicati automaticamente alla prossima apertura.',
+                      });
+                    }}
+                  >
+                    {hasSavedFilters ? <BookmarkCheck className="w-4 h-4 mr-2" /> : <Bookmark className="w-4 h-4 mr-2" />}
+                    Salva Filtri
+                  </Button>
+                  {hasSavedFilters && (
+                    <Button
+                      variant="ghost"
+                      size="default"
+                      className="h-10 text-gray-500 hover:text-red-600"
+                      onClick={() => {
+                        localStorage.removeItem(SAVED_FILTERS_KEY);
+                        setHasSavedFilters(false);
+                        setSelectedStato("all");
+                        setTimeFilter("all");
+                        setWorkflowFilter("all");
+                        setSelectionFilter("all");
+                        setCampaignFilter("active");
+                        setSortDirection("desc");
+                        toast({
+                          title: 'Filtri resettati',
+                          description: 'I filtri salvati sono stati rimossi.',
+                        });
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Resetta
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
