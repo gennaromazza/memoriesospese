@@ -957,12 +957,15 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       nuovoSaldo = 0;
     }
 
+    const cashMovementRef = db.collection('cashMovements').doc();
+
     const newTransaction = {
       tipo,
       importo: paymentAmount,
       metodo: metodoPagamento,
       data: paymentDate,
       emailInviata: false,
+      cashMovementId: cashMovementRef.id,
       ...(note?.trim() && { note: note.trim() }),
     };
 
@@ -1008,7 +1011,6 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
       }
     }
     
-    const cashMovementRef = db.collection('cashMovements').doc();
     batch.set(cashMovementRef, {
       tipo: 'entrata',
       categoria: hasBooking ? 'Servizio fotografico' : 'Vendita diretta',
@@ -1046,6 +1048,155 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     res.status(500).json({
       error: 'Errore registrazione pagamento',
       details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/orders/:id/delete-payment
+ * Elimina un pagamento (transaction) dall'ordine, ricalcola saldi, rimuove movimento cassa
+ * Opzionalmente invia email di notifica al cliente
+ * RICHIEDE AUTENTICAZIONE: Solo admin
+ */
+router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    if (!req.user || !ADMIN_EMAILS.includes(req.user.email)) {
+      return res.status(403).json({ error: 'Solo gli admin possono eliminare pagamenti' });
+    }
+
+    const { id: orderId } = req.params;
+    const { transactionIndex, sendEmail = false, expectedImporto, expectedTipo } = req.body;
+
+    if (transactionIndex === undefined || transactionIndex === null || transactionIndex < 0) {
+      return res.status(400).json({ error: 'Indice transazione non valido' });
+    }
+
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      return res.status(404).json({ error: 'Ordine non trovato' });
+    }
+
+    const orderData = orderDoc.data()!;
+    const transactions: any[] = orderData.transactions || [];
+
+    if (transactionIndex >= transactions.length) {
+      return res.status(400).json({ error: 'Indice transazione fuori range' });
+    }
+
+    const deletedTransaction = transactions[transactionIndex];
+    const deletedAmount = deletedTransaction.importo || 0;
+
+    if (expectedImporto !== undefined && Math.abs(deletedAmount - expectedImporto) > 0.01) {
+      return res.status(409).json({ error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
+    }
+    if (expectedTipo && deletedTransaction.tipo !== expectedTipo) {
+      return res.status(409).json({ error: 'La transazione è stata modificata. Ricarica la pagina e riprova.' });
+    }
+
+    const updatedTransactions = transactions.filter((_: any, i: number) => i !== transactionIndex);
+
+    const nuovoAccontoPagato = updatedTransactions.reduce((sum: number, t: any) => sum + (t.importo || 0), 0);
+    const totale = orderData.totale || 0;
+    const nuovoSaldo = totale - nuovoAccontoPagato;
+
+    const batch = db.batch();
+
+    batch.update(orderRef, {
+      transactions: updatedTransactions,
+      acconto: nuovoAccontoPagato,
+      saldo: nuovoSaldo,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    let cashMovementDeleted = false;
+    try {
+      if (deletedTransaction.cashMovementId) {
+        const cmRef = db.collection('cashMovements').doc(deletedTransaction.cashMovementId);
+        const cmDoc = await cmRef.get();
+        if (cmDoc.exists) {
+          batch.delete(cmRef);
+          cashMovementDeleted = true;
+          console.log(`🗑️ Rimosso movimento cassa ${deletedTransaction.cashMovementId} (tramite ID diretto)`);
+        }
+      } else {
+        const cashQuery = await db.collection('cashMovements')
+          .where('note', '==', `Ordine ID: ${orderId} - ${deletedTransaction.tipo === 'acconto' ? 'Acconto' : 'Saldo'}`)
+          .where('importo', '==', deletedAmount)
+          .limit(1)
+          .get();
+
+        if (!cashQuery.empty) {
+          batch.delete(cashQuery.docs[0].ref);
+          cashMovementDeleted = true;
+          console.log(`🗑️ Rimosso 1 movimento cassa per pagamento eliminato (${cashQuery.docs[0].id}) (fallback query)`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Errore ricerca movimento cassa:', err.message);
+    }
+
+    await batch.commit();
+
+    console.log(`✅ Pagamento #${transactionIndex} eliminato dall'ordine ${orderId}: €${deletedAmount} (${deletedTransaction.tipo})`);
+
+    if (sendEmail) {
+      try {
+        const clientEmail = orderData.emailCliente || orderData.email;
+        if (clientEmail?.trim()) {
+          const studioDoc = await db.collection('settings').doc('studio').get();
+          const studioData = studioDoc.exists ? studioDoc.data() : {};
+          const studioInfo = studioData as { name: string; email: string; phone: string; address: string } | undefined;
+          const studioName = studioInfo?.name || 'Image Studio Fotografico';
+          const nomeCliente = orderData.nomeCliente || 'Cliente';
+
+          const htmlContent = `
+            <div style="font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
+              <div style="background: linear-gradient(135deg, #8B7355, #A0926B); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">${studioName}</h1>
+              </div>
+              <div style="background: white; padding: 30px; border-radius: 0 0 12px 12px; border: 1px solid #e8e0d8;">
+                <p style="color: #5c5040; margin: 0 0 15px 0;">Gentile <strong>${nomeCliente}</strong>,</p>
+                <p style="color: #5c5040; margin: 0 0 20px 0;">La informiamo che un pagamento di <strong>€${deletedAmount.toFixed(2)}</strong> (${deletedTransaction.tipo === 'acconto' ? 'Acconto' : 'Saldo'}) è stato stornato dal suo ordine.</p>
+                <div style="background: #f7f4f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                  <h3 style="color: #8B7355; margin: 0 0 10px 0;">Riepilogo Aggiornato</h3>
+                  <p style="margin: 5px 0; color: #5c5040;">Totale ordine: <strong>€${totale.toFixed(2)}</strong></p>
+                  <p style="margin: 5px 0; color: #5c5040;">Totale versato: <strong>€${nuovoAccontoPagato.toFixed(2)}</strong></p>
+                  <p style="margin: 5px 0; color: ${nuovoSaldo > 0 ? '#e74c3c' : '#22c55e'}; font-weight: 600;">Saldo residuo: €${nuovoSaldo.toFixed(2)}</p>
+                </div>
+                <p style="color: #8a7e6e; font-size: 13px; margin: 20px 0 0 0;">Per qualsiasi chiarimento, non esiti a contattarci.</p>
+              </div>
+            </div>
+          `;
+
+          await sendGmailEmail(
+            clientEmail,
+            `Aggiornamento Pagamento - ${studioName}`,
+            htmlContent
+          );
+
+          console.log(`📧 Email storno pagamento inviata a ${clientEmail}`);
+        }
+      } catch (emailErr: any) {
+        console.warn('⚠️ Errore invio email storno:', emailErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Pagamento di €${deletedAmount.toFixed(2)} eliminato con successo`,
+      deletedAmount,
+      nuovoAcconto: nuovoAccontoPagato,
+      nuovoSaldo,
+      cashMovementDeleted,
+    });
+
+  } catch (error: any) {
+    console.error('❌ Errore eliminazione pagamento:', error);
+    res.status(500).json({
+      error: 'Errore eliminazione pagamento',
+      details: error.message,
     });
   }
 });

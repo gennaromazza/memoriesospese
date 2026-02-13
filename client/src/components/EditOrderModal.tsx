@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { QuantityInput } from '@/components/ui/quantity-input';
-import { Trash2, Plus, Save, ShoppingCart, Package, Clock, AlertTriangle } from 'lucide-react';
+import { Trash2, Plus, Save, ShoppingCart, Package, Clock, AlertTriangle, Mail, MailX } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -105,6 +105,32 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
   const saldo = totale - totalePagato;
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePaymentIndex, setDeletePaymentIndex] = useState<number | null>(null);
+  const [deletePaymentSendEmail, setDeletePaymentSendEmail] = useState(false);
+
+  // Mutation per eliminare pagamento
+  const deletePaymentMutation = useMutation({
+    mutationFn: async ({ orderId, transactionIndex, sendEmail, expectedImporto, expectedTipo }: { orderId: string; transactionIndex: number; sendEmail: boolean; expectedImporto: number; expectedTipo: string }) => {
+      const response = await apiRequest('POST', `/api/orders/${orderId}/delete-payment`, { transactionIndex, sendEmail, expectedImporto, expectedTipo });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: '🗑️ Pagamento eliminato',
+        description: data.message || 'Il pagamento è stato rimosso con successo.',
+      });
+      setDeletePaymentIndex(null);
+      setDeletePaymentSendEmail(false);
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: '❌ Errore',
+        description: error.message || 'Impossibile eliminare il pagamento',
+        variant: 'destructive',
+      });
+    },
+  });
 
   // Mutation per eliminare ordine
   const deleteOrderMutation = useMutation({
@@ -617,38 +643,36 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                       <TableHead className="text-right">Importo</TableHead>
                       <TableHead>Metodo</TableHead>
                       <TableHead>Note</TableHead>
+                      <TableHead className="text-center w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {order.transactions
+                      .map((transaction, originalIndex) => ({ ...transaction, _originalIndex: originalIndex }))
                       .sort((a, b) => {
-                        // Helper per convertire timestamp in Date - gestisce Firestore Timestamp, ISO string, e millisecondi
                         const parseTransactionDate = (data: any): Date => {
-                          if (!data) return new Date(0); // Fallback per sort
-                          if (data.toDate && typeof data.toDate === 'function') return data.toDate(); // Firestore Timestamp
-                          if (typeof data === 'string') return new Date(data); // ISO string
-                          if (typeof data === 'number') return new Date(data); // Milliseconds
-                          return new Date(0); // Fallback sicuro
+                          if (!data) return new Date(0);
+                          if (data.toDate && typeof data.toDate === 'function') return data.toDate();
+                          if (typeof data === 'string') return new Date(data);
+                          if (typeof data === 'number') return new Date(data);
+                          return new Date(0);
                         };
-                        
-                        const dateA = parseTransactionDate(a.data);
-                        const dateB = parseTransactionDate(b.data);
-                        return dateB.getTime() - dateA.getTime();
+                        return parseTransactionDate(b.data).getTime() - parseTransactionDate(a.data).getTime();
                       })
-                      .map((transaction, index) => {
-                        // Helper per convertire timestamp in Date - gestisce Firestore Timestamp, ISO string, e millisecondi
+                      .map((transaction) => {
                         const parseTransactionDate = (data: any): Date => {
-                          if (!data) return new Date(); // Fallback per visualizzazione
-                          if (data.toDate && typeof data.toDate === 'function') return data.toDate(); // Firestore Timestamp
-                          if (typeof data === 'string') return new Date(data); // ISO string
-                          if (typeof data === 'number') return new Date(data); // Milliseconds
-                          return new Date(); // Fallback sicuro
+                          if (!data) return new Date();
+                          if (data.toDate && typeof data.toDate === 'function') return data.toDate();
+                          if (typeof data === 'string') return new Date(data);
+                          if (typeof data === 'number') return new Date(data);
+                          return new Date();
                         };
                         
                         const date = parseTransactionDate(transaction.data);
+                        const isDeleting = deletePaymentIndex === transaction._originalIndex;
                         
                         return (
-                          <TableRow key={index}>
+                          <TableRow key={transaction._originalIndex} className={isDeleting ? 'bg-red-50' : ''}>
                             <TableCell className="font-medium">
                               {format(date, "dd MMMM yyyy 'alle' HH:mm", { locale: it })}
                             </TableCell>
@@ -671,6 +695,69 @@ export default function EditOrderModal({ order, products, onClose }: EditOrderMo
                             </TableCell>
                             <TableCell className="text-sm text-gray-600">
                               {transaction.note || '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {!isDeleting ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                  onClick={() => {
+                                    setDeletePaymentIndex(transaction._originalIndex);
+                                    setDeletePaymentSendEmail(false);
+                                  }}
+                                  disabled={deletePaymentMutation.isPending}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs text-red-600 font-medium">Eliminare?</span>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => order && deletePaymentMutation.mutate({
+                                        orderId: order.id,
+                                        transactionIndex: transaction._originalIndex,
+                                        sendEmail: false,
+                                        expectedImporto: transaction.importo,
+                                        expectedTipo: transaction.tipo,
+                                      })}
+                                      disabled={deletePaymentMutation.isPending}
+                                      title="Elimina senza inviare email"
+                                    >
+                                      {deletePaymentMutation.isPending ? '...' : <><MailX className="w-3 h-3 mr-1" />Senza email</>}
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs bg-orange-600 hover:bg-orange-700"
+                                      onClick={() => order && deletePaymentMutation.mutate({
+                                        orderId: order.id,
+                                        transactionIndex: transaction._originalIndex,
+                                        sendEmail: true,
+                                        expectedImporto: transaction.importo,
+                                        expectedTipo: transaction.tipo,
+                                      })}
+                                      disabled={deletePaymentMutation.isPending}
+                                      title="Elimina e invia email di notifica al cliente"
+                                    >
+                                      {deletePaymentMutation.isPending ? '...' : <><Mail className="w-3 h-3 mr-1" />Con email</>}
+                                    </Button>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 px-1 text-xs text-gray-500"
+                                    onClick={() => setDeletePaymentIndex(null)}
+                                    disabled={deletePaymentMutation.isPending}
+                                  >
+                                    Annulla
+                                  </Button>
+                                </div>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
