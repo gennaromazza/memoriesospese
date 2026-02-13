@@ -186,6 +186,9 @@ export interface Booking {
   // Note cliente
   note: string;
   
+  // Note admin (appunti interni dello studio)
+  noteAdmin?: string;
+  
   // Stato prenotazione
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata';
   

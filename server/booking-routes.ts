@@ -1881,19 +1881,20 @@ router.get("/health", (req, res) => {
 
 /**
  * PATCH /api/booking/:id/update
- * Aggiorna dati prenotazione (nome, email, whatsapp, note)
+ * Aggiorna dati prenotazione (nome, email, whatsapp, note, noteAdmin)
  * Invia notifica email se l'email cambia
  *
  * Body: {
  *   cliente?: { nome?, cognome?, email?, whatsapp? },
  *   note?: string,
+ *   noteAdmin?: string,
  *   oldEmail?: string // Per rilevare cambio email
  * }
  */
 router.patch("/:id/update", async (req, res) => {
   try {
     const { id } = req.params;
-    const { cliente, note, oldEmail } = req.body;
+    const { cliente, note, noteAdmin, oldEmail } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: "ID prenotazione mancante" });
@@ -1934,6 +1935,11 @@ router.patch("/:id/update", async (req, res) => {
     // Aggiorna note se fornite
     if (note !== undefined) {
       updateData.note = note;
+    }
+
+    // Aggiorna note admin se fornite
+    if (noteAdmin !== undefined) {
+      updateData.noteAdmin = noteAdmin;
     }
 
     // Aggiorna Firestore

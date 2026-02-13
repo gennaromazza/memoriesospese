@@ -255,8 +255,9 @@ export async function updateBooking(
       whatsapp?: string;
     };
     note?: string;
+    noteAdmin?: string;
   },
-  oldEmail?: string // Per rilevare cambio email e inviare notifica
+  oldEmail?: string
 ): Promise<void> {
   const response = await fetch(`/api/booking/${bookingId}/update`, {
     method: 'PATCH',
