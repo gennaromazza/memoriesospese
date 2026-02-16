@@ -689,6 +689,8 @@ export default function JobDetailPage() {
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                   {eventDateFormatted} • {timeInfo}
+                  {job.eventLocation && ` • ${job.eventLocation}`}
+                  {(job as any).rituLocation && ` • ${(job as any).rituLocation}`}
                 </p>
               </div>
             </div>

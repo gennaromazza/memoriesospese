@@ -55,6 +55,7 @@ import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle, Clock } from
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import type { AppuntamentoCliente } from '@shared/jobs-types';
 
@@ -145,36 +146,6 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   // Query provenances dinamiche
   const { items: provenances = [], isLoading: loadingProvenances } = useJobEntity('provenance');
   
-  // Converti eventDate da Timestamp a Date (gestisce Firestore Timestamp, Date, string, oggetto serializzato)
-  const getEventDate = () => {
-    if (!job.eventDate) return undefined;
-    const ed = job.eventDate as any;
-    
-    // Firestore Timestamp con metodo toDate()
-    if (typeof ed.toDate === 'function') return ed.toDate();
-    
-    // Già un Date valido
-    if (ed instanceof Date && !isNaN(ed.getTime())) return ed;
-    
-    // Oggetto serializzato da Firestore con seconds/nanoseconds
-    if (typeof ed === 'object' && ed !== null && typeof ed.seconds === 'number') {
-      return new Date(ed.seconds * 1000);
-    }
-    
-    // String ISO o altro formato
-    if (typeof ed === 'string') {
-      const parsed = new Date(ed);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
-    
-    // Fallback: prova conversione diretta
-    const fallback = new Date(ed);
-    if (!isNaN(fallback.getTime())) return fallback;
-    
-    console.warn('⚠️ EditJobModal: impossibile convertire eventDate:', ed);
-    return undefined;
-  };
-
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -182,7 +153,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
       clientiIds: job.clientiIds || [],
       jobType: job.jobType || '',
       dataNonDefinita: job.dataNonDefinita || false,
-      eventDate: getEventDate(),
+      eventDate: convertFirestoreTimestamp(job.eventDate) || undefined,
       allDay: job.allDay || false,
       startTime: job.startTime || '',
       endTime: job.endTime || '',
@@ -205,24 +176,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     if (open && job) {
       isInitializing.current = true;
       
-      // Converti eventDate direttamente qui (non usare getEventDate() per evitare closure stale)
-      let eventDateValue: Date | undefined = undefined;
-      if (job.eventDate) {
-        const ed = job.eventDate as any;
-        if (typeof ed.toDate === 'function') {
-          eventDateValue = ed.toDate();
-        } else if (ed instanceof Date && !isNaN(ed.getTime())) {
-          eventDateValue = ed;
-        } else if (typeof ed === 'object' && ed !== null && typeof ed.seconds === 'number') {
-          eventDateValue = new Date(ed.seconds * 1000);
-        } else if (typeof ed === 'string') {
-          const parsed = new Date(ed);
-          if (!isNaN(parsed.getTime())) eventDateValue = parsed;
-        } else {
-          const fallback = new Date(ed);
-          if (!isNaN(fallback.getTime())) eventDateValue = fallback;
-        }
-      }
+      const eventDateValue = convertFirestoreTimestamp(job.eventDate) || undefined;
       
       form.reset({
         nomeEvento: job.nomeEvento || '',

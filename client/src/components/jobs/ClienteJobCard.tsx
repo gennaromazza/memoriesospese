@@ -79,6 +79,14 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                   </a>
                 </div>
               )}
+              {(cliente.via || cliente.citta) && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>
+                    {[cliente.via, [cliente.cap, cliente.citta].filter(Boolean).join(' '), cliente.provincia].filter(Boolean).join(', ')}
+                  </span>
+                </div>
+              )}
             </div>
             
             {/* Appuntamento */}

@@ -543,7 +543,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
 
       {/* Delete Confirmation Dialog - 2-Step per Signed Quotes */}
       <AlertDialog open={!!deleteQuoteId} onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !deleteMutation.isPending) {
           setDeleteQuoteId(null);
           setForceDeleteMode(false);
         }
@@ -615,14 +615,20 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
             )}
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
               data-testid="button-cancel-delete"
-              onClick={() => setForceDeleteMode(false)}
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setDeleteQuoteId(null);
+                setForceDeleteMode(false);
+              }}
             >
               Annulla
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </Button>
+            <Button
+              variant="destructive"
               onClick={() => {
                 if (deleteQuoteId) {
                   deleteMutation.mutate({
@@ -632,7 +638,6 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                 }
               }}
               disabled={deleteMutation.isPending}
-              className="bg-destructive hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? (
@@ -646,8 +651,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                   {forceDeleteMode ? 'Elimina Comunque' : 'Elimina Definitivamente'}
                 </>
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+            </Button>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
 
