@@ -1040,6 +1040,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     const legacyScheduleRefs = legacySnapshot.docs.map((doc) => doc.ref);
 
     // 3. Firestore transaction per atomicità (usando paymentScheduleIds se disponibili)
+    let deletedQuoteJobId: string | null = null;
     await db.runTransaction(async (transaction) => {
       const quoteRef = db.collection("quotes").doc(id);
       const quoteDoc = await transaction.get(quoteRef);
@@ -1049,6 +1050,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       }
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
+      deletedQuoteJobId = quote.jobId || null;
 
       // 4. Get payment schedule IDs from quote (atomic lookup) OR fallback to legacy
       const scheduleIds = quote.paymentScheduleIds || [];
@@ -1127,6 +1129,17 @@ router.delete("/:id", async (req: Request, res: Response) => {
         }
       }
     });
+
+    // Sync Google Calendar after deletion (outside transaction)
+    if (deletedQuoteJobId) {
+      try {
+        const { ensureJobCalendarEvent } = await import('./job-routes.js');
+        await ensureJobCalendarEvent(deletedQuoteJobId);
+        console.log(`✅ Google Calendar aggiornato per job ${deletedQuoteJobId} dopo eliminazione preventivo`);
+      } catch (calendarError) {
+        console.warn(`⚠️ Errore sync Calendar dopo eliminazione (non critico):`, calendarError);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -1989,6 +2002,17 @@ router.patch(
         },
       });
 
+      // 9. Sync Google Calendar description (reflects new status)
+      if (quote.jobId) {
+        try {
+          const { ensureJobCalendarEvent } = await import('./job-routes.js');
+          await ensureJobCalendarEvent(quote.jobId);
+          console.log(`✅ Google Calendar aggiornato per job ${quote.jobId} dopo cambio stato ${oldStatus} → ${newStatus}`);
+        } catch (calendarError) {
+          console.warn(`⚠️ Errore sync Calendar dopo cambio stato (non critico):`, calendarError);
+        }
+      }
+
       return res.status(200).json({
         success: true,
         message: `Stato aggiornato da "${oldStatus}" a "${newStatus}"`,
@@ -2270,6 +2294,15 @@ router.post(
         console.log(`✅ Job ${quote.jobId} aggiornato a stato "confermato"`);
       } else {
         console.log(`⏭️ Job ${quote.jobId} già in stato ${job?.status}, skip update`);
+      }
+
+      // 6b. Sync Google Calendar description (reflects signed quote status)
+      try {
+        const { ensureJobCalendarEvent } = await import('./job-routes.js');
+        await ensureJobCalendarEvent(quote.jobId);
+        console.log(`✅ Google Calendar aggiornato per job ${quote.jobId} post-firma`);
+      } catch (calendarError) {
+        console.warn(`⚠️ Errore sync Calendar post-firma (non critico):`, calendarError);
       }
 
       // 7. Add timeline event (check se già esiste per questo quote)

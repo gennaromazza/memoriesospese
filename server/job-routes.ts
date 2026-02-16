@@ -5,12 +5,88 @@
 
 import express from 'express';
 import { DateTime } from 'luxon';
-import { getEvents, createEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
+import { getEvents, createEvent, updateEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = express.Router();
+
+async function buildCalendarDescription(jobId: string, job: any): Promise<{ summary: string; description: string }> {
+  let clientiNomi: string[] = [];
+  if (job.clientiIds && job.clientiIds.length > 0) {
+    const clientiPromises = job.clientiIds.map(async (clienteId: string) => {
+      try {
+        const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+        if (clienteDoc.exists) {
+          const c = clienteDoc.data();
+          return c?.nome && c?.cognome ? `${c.nome} ${c.cognome}` : (c?.nome || c?.cognome || clienteId);
+        }
+      } catch (e) { /* ignore */ }
+      return null;
+    });
+    const results = await Promise.all(clientiPromises);
+    clientiNomi = results.filter((n): n is string => n !== null);
+  }
+
+  let signedQuoteUrl: string | null = null;
+  let hasSignedQuote = false;
+  if (job.quoteIds && job.quoteIds.length > 0) {
+    const baseUrl = getSiteBaseUrl();
+    for (const quoteId of job.quoteIds) {
+      try {
+        const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+        if (quoteDoc.exists) {
+          const quote = quoteDoc.data();
+          if (quote?.status === 'firmato' || quote?.signature?.signedAt) {
+            signedQuoteUrl = `${baseUrl}/preventivo/${quoteId}`;
+            hasSignedQuote = true;
+            break;
+          }
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  const descriptionParts: string[] = [];
+
+  if (clientiNomi.length > 0) {
+    descriptionParts.push(`👥 Clienti: ${clientiNomi.join(', ')}`);
+  }
+
+  if (job.startTime && job.endTime) {
+    descriptionParts.push(`⏰ Orario: ${job.startTime} - ${job.endTime}`);
+  }
+
+  if (job.eventLocation) {
+    descriptionParts.push(`📍 Location: ${job.eventLocation}`);
+  }
+
+  if (job.rituLocation) {
+    const rituInfo = job.rituTime ? `${job.rituLocation} (${job.rituTime})` : job.rituLocation;
+    descriptionParts.push(`⛪ Rito: ${rituInfo}`);
+  }
+
+  if (job.appuntamentiClienti && job.appuntamentiClienti.length > 0) {
+    const appuntamentiStr = job.appuntamentiClienti.map((app: any) => {
+      const dataApp = app.data?.toDate ? DateTime.fromJSDate(app.data.toDate(), { zone: 'Europe/Rome' }).toFormat('dd/MM/yyyy') : '';
+      return `${app.titolo || 'Appuntamento'}: ${dataApp}${app.ora ? ` ${app.ora}` : ''}${app.luogo ? ` - ${app.luogo}` : ''}`;
+    }).join('\n  ');
+    descriptionParts.push(`📅 Appuntamenti:\n  ${appuntamentiStr}`);
+  }
+
+  if (signedQuoteUrl) {
+    descriptionParts.push(`📄 Preventivo firmato: ${signedQuoteUrl}`);
+  }
+
+  const statusLabel = hasSignedQuote ? 'Contratto firmato' : (job.status || 'N/A');
+  descriptionParts.push(`\n---\nJob ID: ${jobId}\nStatus: ${statusLabel}\nProvenienza: ${job.provenance || 'N/A'}`);
+
+  const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
+  const description = descriptionParts.join('\n');
+
+  return { summary, description };
+}
 
 /**
  * HELPER: Ensure job has valid Calendar event
@@ -49,7 +125,18 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
       const existingEvent = await getEventById('primary', job.googleCalendarEventId);
       
       if (existingEvent) {
-        console.log(`✅ Calendar event ${job.googleCalendarEventId} esiste - verified`);
+        console.log(`📝 Calendar event ${job.googleCalendarEventId} esiste - aggiorno descrizione...`);
+        const { summary, description } = await buildCalendarDescription(jobId, job);
+        try {
+          await updateEvent('primary', job.googleCalendarEventId, {
+            summary,
+            description,
+            location: job.eventLocation,
+          });
+          console.log(`✅ Calendar event ${job.googleCalendarEventId} aggiornato con descrizione corrente`);
+        } catch (updateError: any) {
+          console.warn(`⚠️ Errore aggiornamento descrizione Calendar (non critico):`, updateError.message);
+        }
         return {
           success: true,
           eventId: job.googleCalendarEventId,
@@ -57,9 +144,8 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
         };
       }
       
-      // Evento non esiste più (cancellato manualmente) - rimuovi stale ID
       console.warn(`⚠️  Calendar event ${job.googleCalendarEventId} NON esiste più - stale ID, ricreo...`);
-      hadStaleId = true;  // Salva flag PRIMA di delete
+      hadStaleId = true;
       
       await db.collection('jobs').doc(jobId).update({
         googleCalendarEventId: FieldValue.delete(),
@@ -68,8 +154,6 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     }
     
     // 4. Crea nuovo evento Calendar
-    // CRITICAL: Usa Luxon per estrarre la data nel fuso orario italiano
-    // Il server è in UTC, ma eventDate è memorizzato come timestamp Rome
     const eventDateJs = job.eventDate.toDate();
     const romeDate = DateTime.fromJSDate(eventDateJs, { zone: 'Europe/Rome' });
     const year = romeDate.year;
@@ -77,91 +161,11 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     const day = String(romeDate.day).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
-    // 4a. Recupera nomi clienti
-    let clientiNomi: string[] = [];
-    if (job.clientiIds && job.clientiIds.length > 0) {
-      const clientiPromises = job.clientiIds.map(async (clienteId: string) => {
-        try {
-          const clienteDoc = await db.collection('clienti').doc(clienteId).get();
-          if (clienteDoc.exists) {
-            const c = clienteDoc.data();
-            return c?.nome && c?.cognome ? `${c.nome} ${c.cognome}` : (c?.nome || c?.cognome || clienteId);
-          }
-        } catch (e) { /* ignore */ }
-        return null;
-      });
-      const results = await Promise.all(clientiPromises);
-      clientiNomi = results.filter((n): n is string => n !== null);
-    }
-    
-    // 4b. Cerca preventivo firmato
-    let signedQuoteUrl: string | null = null;
-    if (job.quoteIds && job.quoteIds.length > 0) {
-      const baseUrl = getSiteBaseUrl();
-      for (const quoteId of job.quoteIds) {
-        try {
-          const quoteDoc = await db.collection('preventivi').doc(quoteId).get();
-          if (quoteDoc.exists) {
-            const quote = quoteDoc.data();
-            // Il preventivo è firmato se stato === 'firmato' o ha signature.signedAt
-            if (quote?.stato === 'firmato' || quote?.signature?.signedAt) {
-              // Costruisce link al preventivo nel portale clienti
-              signedQuoteUrl = `${baseUrl}/preventivo/${quoteId}`;
-              break;
-            }
-          }
-        } catch (e) { /* ignore */ }
-      }
-    }
-    
-    // 4c. Costruisci descrizione arricchita
-    const descriptionParts: string[] = [];
-    
-    // Clienti
-    if (clientiNomi.length > 0) {
-      descriptionParts.push(`👥 Clienti: ${clientiNomi.join(', ')}`);
-    }
-    
-    // Orari
-    if (job.startTime && job.endTime) {
-      descriptionParts.push(`⏰ Orario: ${job.startTime} - ${job.endTime}`);
-    }
-    
-    // Location evento principale
-    if (job.eventLocation) {
-      descriptionParts.push(`📍 Location: ${job.eventLocation}`);
-    }
-    
-    // Rito (se diverso)
-    if (job.rituLocation) {
-      const rituInfo = job.rituTime ? `${job.rituLocation} (${job.rituTime})` : job.rituLocation;
-      descriptionParts.push(`⛪ Rito: ${rituInfo}`);
-    }
-    
-    // Appuntamenti clienti
-    if (job.appuntamentiClienti && job.appuntamentiClienti.length > 0) {
-      const appuntamentiStr = job.appuntamentiClienti.map((app: any) => {
-        const dataApp = app.data?.toDate ? DateTime.fromJSDate(app.data.toDate(), { zone: 'Europe/Rome' }).toFormat('dd/MM/yyyy') : '';
-        return `${app.titolo || 'Appuntamento'}: ${dataApp}${app.ora ? ` ${app.ora}` : ''}${app.luogo ? ` - ${app.luogo}` : ''}`;
-      }).join('\n  ');
-      descriptionParts.push(`📅 Appuntamenti:\n  ${appuntamentiStr}`);
-    }
-    
-    // Link preventivo firmato
-    if (signedQuoteUrl) {
-      descriptionParts.push(`📄 Preventivo firmato: ${signedQuoteUrl}`);
-    }
-    
-    // Metadata
-    descriptionParts.push(`\n---\nJob ID: ${jobId}\nStatus: ${job.status}\nProvenienza: ${job.provenance || 'N/A'}`);
-    
-    const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
-    const description = descriptionParts.join('\n');
+    const { summary, description } = await buildCalendarDescription(jobId, job);
     
     let createdEvent;
     
     if (job.allDay) {
-      // All-day event
       createdEvent = await createEvent('primary', {
         summary,
         description,
@@ -171,7 +175,6 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
         attendees: []
       });
     } else {
-      // Time-bound event
       if (!job.startTime || !job.endTime) {
         return { 
           success: false,
@@ -198,7 +201,6 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
       updatedAt: FieldValue.serverTimestamp()
     });
     
-    // 6. Verifica che update sia stato salvato (critical: evita success senza ID persistito)
     const updatedJobDoc = await db.collection('jobs').doc(jobId).get();
     const updatedJob = updatedJobDoc.data();
     
