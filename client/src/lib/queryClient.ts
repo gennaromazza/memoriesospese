@@ -93,7 +93,15 @@ export async function apiRequest(
     '/api/calendar/',
     '/api/consultations/v2/', // All V2 consultation endpoints except public ones
     '/api/orders/', // Order management endpoints requiring auth
-    '/api/payment-schedules/' // Payment schedule management endpoints requiring auth
+    '/api/payment-schedules/', // Payment schedule management endpoints requiring auth
+    '/api/collaboratori', // Collaborator management endpoints requiring auth
+    '/api/admin/', // Admin endpoints requiring auth
+    '/api/bulk-email/', // Bulk email endpoints requiring auth
+    '/api/receipts/', // Receipt endpoints requiring auth
+    '/api/reminders/', // Reminder endpoints requiring auth
+    '/api/jobs/', // Job management endpoints requiring auth
+    '/api/jobs?', // Job listing endpoint requiring auth
+    '/api/migrations/' // Migration endpoints requiring auth
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici

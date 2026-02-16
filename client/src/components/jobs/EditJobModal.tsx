@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { updateJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useJobEntity } from '@/hooks/useJobEntity';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
@@ -292,7 +292,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
           params.append('endTime', endTime);
         }
         
-        const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`);
+        const response = await apiRequest('GET', `/api/jobs/check-calendar?${params.toString()}`);
         const data = await response.json();
         
         if (data.hasConflicts && data.conflicts.length > 0) {
@@ -403,7 +403,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
       // Sincronizza con Google Calendar dopo l'aggiornamento se la data è definita
       if (!data.dataNonDefinita && data.eventDate) {
         try {
-          await fetch(`/api/jobs/${job.id}/sync-calendar`, { method: 'POST' });
+          await apiRequest('POST', `/api/jobs/${job.id}/sync-calendar`);
         } catch (syncError) {
           console.error('Errore sincronizzazione calendario:', syncError);
         }

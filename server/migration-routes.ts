@@ -6,6 +6,7 @@
 import express from 'express';
 import { db } from './firebase-admin.js';
 import { getAuth } from 'firebase-admin/auth';
+import { authenticateFirebase } from './email-routes.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
  * Migra tutte le foto dalle sottocollezioni galleries/{id}/photos alla collezione photos
  * Solo admin autorizzati
  */
-router.post('/legacy-photos', async (req, res) => {
+router.post('/legacy-photos', authenticateFirebase, async (req: any, res) => {
   try {
     // Verifica autenticazione
     const authHeader = req.headers.authorization;
@@ -140,7 +141,7 @@ router.post('/legacy-photos', async (req, res) => {
  * GET /api/migrations/legacy-photos/preview
  * Anteprima della migrazione senza eseguirla (dry-run)
  */
-router.get('/legacy-photos/preview', async (req, res) => {
+router.get('/legacy-photos/preview', authenticateFirebase, async (req: any, res) => {
   try {
     // Verifica autenticazione
     const authHeader = req.headers.authorization;

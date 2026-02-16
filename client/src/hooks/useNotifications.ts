@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { apiRequest } from '@/lib/queryClient';
 
 export interface Notification {
   id: string;
@@ -22,7 +23,7 @@ export function useNotifications() {
       // 🚀 Fetch bookings e consultations via API server-side
       const fetchBookingsAndConsultations = async () => {
         try {
-          const response = await fetch('/api/jobs/notifications');
+          const response = await apiRequest('GET', '/api/jobs/notifications');
           if (!response.ok) {
             console.error('[Notifications] API error:', response.status);
             return [];

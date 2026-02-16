@@ -12,7 +12,7 @@ import { useLocation } from 'wouter';
 import { createJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
-import { queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useJobEntity } from '@/hooks/useJobEntity';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
@@ -193,7 +193,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
           params.append('endTime', endTime);
         }
         
-        const response = await fetch(`/api/jobs/check-calendar?${params.toString()}`);
+        const response = await apiRequest('GET', `/api/jobs/check-calendar?${params.toString()}`);
         const data = await response.json();
         
         if (data.hasConflicts && data.conflicts.length > 0) {

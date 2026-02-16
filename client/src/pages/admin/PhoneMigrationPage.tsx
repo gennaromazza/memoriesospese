@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiRequest } from "@/lib/queryClient";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,10 +54,7 @@ export default function PhoneMigrationPage() {
     if (!user) return;
     setIsLoadingPreview(true);
     try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/admin/phone-migration-preview', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiRequest('GET', '/api/admin/phone-migration-preview');
       
       if (!response.ok) {
         throw new Error('Errore nel caricamento anteprima');
@@ -86,14 +84,7 @@ export default function PhoneMigrationPage() {
     if (!user) return;
     setIsMigrating(true);
     try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/admin/migrate-phone-numbers', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await apiRequest('POST', '/api/admin/migrate-phone-numbers');
       
       if (!response.ok) {
         throw new Error('Errore nella migrazione');

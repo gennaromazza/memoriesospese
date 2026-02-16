@@ -81,7 +81,7 @@ export default function BulkEmailSender() {
     queryKey: ['/api/bulk-email/recipients', filter],
     queryFn: async () => {
       const params = filter !== 'all' ? `?filter=${filter}` : '';
-      const response = await fetch(`/api/bulk-email/recipients${params}`);
+      const response = await apiRequest('GET', `/api/bulk-email/recipients${params}`);
       if (!response.ok) throw new Error('Errore caricamento destinatari');
       return response.json();
     }
@@ -94,7 +94,7 @@ export default function BulkEmailSender() {
     queryKey: ['/api/bulk-email/jobs', activeJobId],
     queryFn: async () => {
       if (!activeJobId) return null;
-      const response = await fetch(`/api/bulk-email/jobs/${activeJobId}`);
+      const response = await apiRequest('GET', `/api/bulk-email/jobs/${activeJobId}`);
       if (!response.ok) return null;
       return response.json();
     },

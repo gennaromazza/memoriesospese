@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { authenticateFirebase } from './email-routes.js';
 
 const router = Router();
 
@@ -349,7 +350,7 @@ function createReceiptHTML(receiptData: any): string {
  * POST /api/receipts/send
  * Genera e invia ricevuta fiscale via email o WhatsApp
  */
-router.post('/send', async (req, res) => {
+router.post('/send', authenticateFirebase, async (req: any, res) => {
   try {
     const { movementId, method, recipient, clienteNome, clienteCognome } = req.body;
 

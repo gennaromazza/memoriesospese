@@ -519,7 +519,7 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
  * Invia email al cliente quando admin registra un pagamento (acconto o saldo)
  * Body: { orderId, paymentType: 'acconto'|'saldo', paymentAmount, paymentMethod, paymentDate, notes? }
  */
-router.post('/payment-received-notification', async (req: Request, res: Response) => {
+router.post('/payment-received-notification', authenticateFirebase, async (req: any, res: Response) => {
   try {
     const {
       orderId,

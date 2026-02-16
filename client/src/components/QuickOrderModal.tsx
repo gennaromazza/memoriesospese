@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { getActiveProducts } from '@/lib/products';
 import { getAllClienti } from '@/lib/clienti';
+import { apiRequest } from '@/lib/queryClient';
 import type { Product, OrderItem } from '@shared/booking-types';
 import type { Cliente } from '@shared/clienti-types';
 import { ProductFilters, useProductFilter } from '@/components/ProductFilters';
@@ -363,35 +364,24 @@ export default function QuickOrderModal({ isOpen, onClose, onSuccess }: QuickOrd
         .map(p => `${p.prodottoNome} x${p.quantita}`)
         .join(', ');
 
-      // Ottieni token autenticazione
-      const token = await user?.getIdToken();
-      if (!token) {
-        throw new Error('Devi essere autenticato per creare ordini');
-      }
-
       // Chiama API backend per creare ordine
-      const response = await fetch('/api/orders/create-walkin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          nomeCliente: `${nome.trim()} ${cognome.trim()}`,
-          emailCliente: email.trim() || null,
-          telefonoCliente: whatsapp.trim() || null,
-          prodotti: prodottiOrderItems,
-          totale,
-          acconto,
-          metodoPagamento,
-          note: note.trim() || null,
-          sendEmail: sendEmail && !!email.trim(),
-          clienteId: selectedClienteId || null,
-          createNewCliente: isNewCliente,
-          clienteNome: nome.trim(),
-          clienteCognome: cognome.trim(),
-        }),
-      });
+      const bodyData = {
+        nomeCliente: `${nome.trim()} ${cognome.trim()}`,
+        emailCliente: email.trim() || null,
+        telefonoCliente: whatsapp.trim() || null,
+        prodotti: prodottiOrderItems,
+        totale,
+        acconto,
+        metodoPagamento,
+        note: note.trim() || null,
+        sendEmail: sendEmail && !!email.trim(),
+        clienteId: selectedClienteId || null,
+        createNewCliente: isNewCliente,
+        clienteNome: nome.trim(),
+        clienteCognome: cognome.trim(),
+      };
+
+      const response = await apiRequest('POST', '/api/orders/create-walkin', bodyData);
 
       if (!response.ok) {
         const errorData = await response.json();

@@ -7,7 +7,7 @@ import express from 'express';
 import { DateTime } from 'luxon';
 import { getEvents, createEvent, updateEvent, createEuropeRomeDate, getEventById } from './google-calendar.js';
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
-import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
+import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = express.Router();
@@ -235,7 +235,7 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
  * Recupera notifiche (booking e consulenze non visualizzate)
  * NOTA: Questa route DEVE essere definita PRIMA di /:id per evitare conflitti
  */
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', authenticateFirebase, async (req: any, res) => {
   try {
     const notifications: any[] = [];
     
@@ -304,7 +304,7 @@ router.get('/notifications', async (req, res) => {
  * GET /api/jobs/:id
  * Recupera un singolo lavoro per ID (con verifica admin)
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -337,7 +337,7 @@ router.get('/:id', async (req, res) => {
  * GET /api/jobs/:id/timeline
  * Recupera la timeline di un lavoro
  */
-router.get('/:id/timeline', async (req, res) => {
+router.get('/:id/timeline', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -361,7 +361,7 @@ router.get('/:id/timeline', async (req, res) => {
 /**
  * Endpoint per sincronizzare il calendario di un lavoro
  */
-router.post('/:id/sync-calendar', async (req, res) => {
+router.post('/:id/sync-calendar', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const result = await ensureJobCalendarEvent(id);
@@ -378,7 +378,7 @@ router.post('/:id/sync-calendar', async (req, res) => {
  * GET /api/consultation-templates?jobType=Matrimonio
  * Recupera tutti i template di consulenza attivi per un jobType specifico
  */
-router.get('/consultation-templates', async (req, res) => {
+router.get('/consultation-templates', authenticateFirebase, async (req: any, res) => {
   try {
     const { jobType } = req.query;
     
@@ -418,7 +418,7 @@ router.get('/consultation-templates', async (req, res) => {
  * - startTime: string HH:MM (opzionale, richiesto se !allDay)
  * - endTime: string HH:MM (opzionale, richiesto se !allDay)
  */
-router.get('/check-calendar', async (req, res) => {
+router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
   try {
     const { eventDate, allDay, startTime, endTime } = req.query;
     
@@ -536,7 +536,7 @@ router.get('/check-calendar', async (req, res) => {
  * Verifica esistenza evento esistente, ricrea se stale
  * Query params: force=true per forzare ricreazione (elimina evento esistente)
  */
-router.post('/:id/calendar-event', async (req, res) => {
+router.post('/:id/calendar-event', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const force = req.query.force === 'true';
@@ -595,7 +595,7 @@ router.post('/:id/calendar-event', async (req, res) => {
  * Body:
  * - channel: 'email' | 'whatsapp'
  */
-router.post('/:id/send-consultation-request', async (req, res) => {
+router.post('/:id/send-consultation-request', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { channel, templateId, dateFrom, dateTo } = req.body;
@@ -802,7 +802,7 @@ router.post('/:id/send-consultation-request', async (req, res) => {
  * - descrizione: string
  * - metadata: object (opzionale)
  */
-router.post('/:id/timeline-events', async (req, res) => {
+router.post('/:id/timeline-events', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { tipo, descrizione, metadata } = req.body;
@@ -853,7 +853,7 @@ router.post('/:id/timeline-events', async (req, res) => {
  * GET /api/jobs
  * Recupera tutti i lavori con filtri opzionali
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticateFirebase, async (req: any, res) => {
   try {
     const { status, jobType, clienteId, searchQuery, dateFrom, dateTo } = req.query;
     

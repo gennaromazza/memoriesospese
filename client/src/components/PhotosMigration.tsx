@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import { auth } from '@/lib/firebase';
 import { Download, Upload, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -46,12 +47,7 @@ export default function PhotosMigration() {
         return;
       }
 
-      const token = await user.getIdToken();
-      const response = await fetch('/api/migrations/legacy-photos/preview', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiRequest('GET', '/api/migrations/legacy-photos/preview');
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
@@ -96,14 +92,7 @@ export default function PhotosMigration() {
         return;
       }
 
-      const token = await user.getIdToken();
-      const response = await fetch('/api/migrations/legacy-photos', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await apiRequest('POST', '/api/migrations/legacy-photos');
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));

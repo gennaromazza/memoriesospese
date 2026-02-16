@@ -34,6 +34,7 @@ import type {
   JobFinancials
 } from '@shared/jobs-types';
 import { removeUndefinedFields } from '@shared/firestore-utils';
+import { apiRequest } from '@/lib/queryClient';
 
 const JOBS_COLLECTION = 'jobs';
 const TIMELINE_COLLECTION = 'jobTimeline';
@@ -123,10 +124,7 @@ export async function createJob(
     // Sincronizza automaticamente con Google Calendar (se ha una data definita)
     if (!data.dataNonDefinita && data.eventDate) {
       try {
-        const calendarResponse = await fetch(`/api/jobs/${docRef.id}/calendar-event`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        const calendarResponse = await apiRequest('POST', `/api/jobs/${docRef.id}/calendar-event`);
         
         if (calendarResponse.ok) {
           const calendarResult = await calendarResponse.json();
@@ -153,7 +151,7 @@ export async function createJob(
 export async function getJob(jobId: string): Promise<Job | null> {
   try {
     console.log('🔍 Fetching job via API with ID:', jobId);
-    const response = await fetch(`/api/jobs/${jobId}`);
+    const response = await apiRequest('GET', `/api/jobs/${jobId}`);
     
     if (response.status === 404) {
       console.warn('⚠️ Job not found:', jobId);
@@ -374,10 +372,7 @@ export async function updateJobStatus(
     if (BLOCKING_STATUSES.includes(newStatus)) {
       try {
         console.log(`📅 Status ${newStatus} richiede Calendar event - chiamo backend (idempotente)...`);
-        const response = await fetch(`/api/jobs/${jobId}/calendar-event`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        const response = await apiRequest('POST', `/api/jobs/${jobId}/calendar-event`);
         
         if (!response.ok) {
           const error = await response.json();
@@ -496,7 +491,7 @@ export async function updateJobFinancials(
  */
 export async function getJobTimeline(jobId: string): Promise<JobTimelineEvent[]> {
   try {
-    const response = await fetch(`/api/jobs/${jobId}/timeline`);
+    const response = await apiRequest('GET', `/api/jobs/${jobId}/timeline`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

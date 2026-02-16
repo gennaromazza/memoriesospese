@@ -12,7 +12,8 @@ import {
   sendGmailEmail, 
   getStudioContactInfo,
   createConsultationReminderEmailHTML,
-  generateGoogleCalendarLink
+  generateGoogleCalendarLink,
+  authenticateFirebase
 } from "./email-routes.js";
 import { DateTime } from "luxon";
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
@@ -117,7 +118,7 @@ function createBookingReminderEmailHTML(
  * Invia reminder email per tutti gli appuntamenti nelle prossime 20-28 ore
  * (booking + consulenze)
  */
-router.post("/send-all", async (req, res) => {
+router.post("/send-all", authenticateFirebase, async (req: any, res) => {
   try {
     console.log("[Reminders] 🚀 Avvio invio reminder...");
     
@@ -370,7 +371,7 @@ router.post("/send-all", async (req, res) => {
  * GET /api/reminders/status
  * Mostra lo stato dei reminder: quanti appuntamenti sono in arrivo e quanti reminder sono stati inviati
  */
-router.get("/status", async (req, res) => {
+router.get("/status", authenticateFirebase, async (req: any, res) => {
   try {
     const nowRome = DateTime.now().setZone("Europe/Rome");
     const next48h = nowRome.plus({ hours: 48 }).toJSDate();

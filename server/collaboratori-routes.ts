@@ -4,7 +4,7 @@ import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
-import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl } from './email-routes.js';
+import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import type {
   Collaboratore,
   InsertCollaboratore,
@@ -16,6 +16,8 @@ import type {
   CollaboratorPaymentType,
   PaymentMethod
 } from '@shared/collaboratori-types';
+
+const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = express.Router();
 
@@ -680,7 +682,7 @@ async function sendCompensoModificatoEmail(
  * GET /api/collaboratori
  * Ottieni tutti i collaboratori (con filtro opzionale per attivi)
  */
-router.get('/collaboratori', async (req, res) => {
+router.get('/collaboratori', authenticateFirebase, async (req: any, res) => {
   try {
     const { attiviOnly } = req.query;
     
@@ -711,7 +713,7 @@ router.get('/collaboratori', async (req, res) => {
  * Ottieni tutte le assegnazioni collaboratori-job (per filtri admin)
  * NOTA: Questa route deve essere PRIMA di /collaboratori/:id per evitare conflitti
  */
-router.get('/collaboratori/assignments', async (req, res) => {
+router.get('/collaboratori/assignments', authenticateFirebase, async (req: any, res) => {
   try {
     const snapshot = await db.collection('jobCollaboratoreAssignments').get();
     const assignments = snapshot.docs.map(doc => ({
@@ -730,7 +732,7 @@ router.get('/collaboratori/assignments', async (req, res) => {
  * GET /api/collaboratori/:id
  * Ottieni un singolo collaboratore
  */
-router.get('/collaboratori/:id', async (req, res) => {
+router.get('/collaboratori/:id', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const doc = await db.collection('collaboratori').doc(id).get();
@@ -750,7 +752,7 @@ router.get('/collaboratori/:id', async (req, res) => {
  * POST /api/collaboratori
  * Crea nuovo collaboratore
  */
-router.post('/collaboratori', async (req, res) => {
+router.post('/collaboratori', authenticateFirebase, async (req: any, res) => {
   try {
     const data: InsertCollaboratore = req.body;
     
@@ -789,7 +791,7 @@ router.post('/collaboratori', async (req, res) => {
  * PATCH /api/collaboratori/:id
  * Aggiorna collaboratore
  */
-router.patch('/collaboratori/:id', async (req, res) => {
+router.patch('/collaboratori/:id', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const updates: UpdateCollaboratore = req.body;
@@ -831,7 +833,7 @@ router.patch('/collaboratori/:id', async (req, res) => {
  * POST /api/collaboratori/assign-to-job
  * Assegna collaboratore a job
  */
-router.post('/collaboratori/assign-to-job', async (req, res) => {
+router.post('/collaboratori/assign-to-job', authenticateFirebase, async (req: any, res) => {
   try {
     const data: InsertJobCollaboratoreAssignment = req.body;
     
@@ -863,7 +865,7 @@ router.post('/collaboratori/assign-to-job', async (req, res) => {
  * PATCH /api/collaboratori/assignments/:id/products-tasks
  * Aggiorna prodotti e mansioni assegnate
  */
-router.patch('/collaboratori/assignments/:id/products-tasks', async (req, res) => {
+router.patch('/collaboratori/assignments/:id/products-tasks', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { prodottiAssegnati, mansioniAssegnate } = req.body;
@@ -900,7 +902,7 @@ router.patch('/collaboratori/assignments/:id/products-tasks', async (req, res) =
  * GET /api/collaboratori/assignments/job/:jobId
  * Ottieni assegnazioni per job
  */
-router.get('/collaboratori/assignments/job/:jobId', async (req, res) => {
+router.get('/collaboratori/assignments/job/:jobId', authenticateFirebase, async (req: any, res) => {
   try {
     const { jobId } = req.params;
     
@@ -926,7 +928,7 @@ router.get('/collaboratori/assignments/job/:jobId', async (req, res) => {
  * GET /api/collaboratori/assignments/collaboratore/:collaboratoreId
  * Ottieni assegnazioni per collaboratore
  */
-router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', async (req, res) => {
+router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', authenticateFirebase, async (req: any, res) => {
   try {
     const { collaboratoreId } = req.params;
     
@@ -952,7 +954,7 @@ router.get('/collaboratori/assignments/collaboratore/:collaboratoreId', async (r
  * DELETE /api/collaboratori/assignments/:id
  * Rimuovi assegnazione collaboratore e movimenti cassa associati
  */
-router.delete('/collaboratori/assignments/:id', async (req, res) => {
+router.delete('/collaboratori/assignments/:id', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -1027,7 +1029,7 @@ router.delete('/collaboratori/assignments/:id', async (req, res) => {
  * PATCH /api/collaboratori/assignments/:id/compenso
  * Modifica compenso assegnazione e notifica collaboratore
  */
-router.patch('/collaboratori/assignments/:id/compenso', async (req, res) => {
+router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { compenso, noteModifica, sendEmail = true } = req.body;
@@ -1094,7 +1096,7 @@ router.patch('/collaboratori/assignments/:id/compenso', async (req, res) => {
  * POST /api/collaboratori/:id/generate-token
  * Genera token dashboard per collaboratore esistente
  */
-router.post('/collaboratori/:id/generate-token', async (req, res) => {
+router.post('/collaboratori/:id/generate-token', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -1123,10 +1125,15 @@ router.post('/collaboratori/:id/generate-token', async (req, res) => {
  * PATCH /api/collaboratori/assignments/:id/respond
  * Rispondi a assegnazione (accetta/rifiuta)
  */
-router.patch('/collaboratori/assignments/:id/respond', async (req, res) => {
+router.patch('/collaboratori/assignments/:id/respond', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { status, noteRifiuto } = req.body;
+    
+    const validStatuses = ['accepted', 'declined', 'pending'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status non valido. Valori ammessi: ${validStatuses.join(', ')}` });
+    }
     
     const updateData: any = {
       status,
@@ -1152,7 +1159,7 @@ router.patch('/collaboratori/assignments/:id/respond', async (req, res) => {
  * PATCH /api/collaboratori/assignments/:id/mark-paid
  * Segna assegnazione come pagata
  */
-router.patch('/collaboratori/assignments/:id/mark-paid', async (req, res) => {
+router.patch('/collaboratori/assignments/:id/mark-paid', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -1174,7 +1181,7 @@ router.patch('/collaboratori/assignments/:id/mark-paid', async (req, res) => {
  * GET /api/collaboratori/:id/stats
  * Ottieni statistiche collaboratore
  */
-router.get('/collaboratori/:id/stats', async (req, res) => {
+router.get('/collaboratori/:id/stats', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -1288,7 +1295,7 @@ router.post('/collaboratori/public/assignment/:id/decline', async (req, res) => 
  * POST /api/collaboratori/assignments/:id/add-payment
  * Registra pagamento (acconto/saldo) per assegnazione collaboratore
  */
-router.post('/collaboratori/assignments/:id/add-payment', async (req, res) => {
+router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { importo, tipo, metodo, note, data } = req.body as {
@@ -1424,7 +1431,7 @@ router.post('/collaboratori/assignments/:id/add-payment', async (req, res) => {
  * POST /api/collaboratori/:id/regenerate-token
  * Rigenera token dashboard per un collaboratore
  */
-router.post('/collaboratori/:id/regenerate-token', async (req, res) => {
+router.post('/collaboratori/:id/regenerate-token', authenticateFirebase, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -1819,7 +1826,7 @@ async function sendEventReminderEmail(
  * Invia reminder email a collaboratori con eventi il giorno successivo
  * Questo endpoint può essere chiamato da un cron job/scheduled function
  */
-router.post('/collaboratori/send-reminders', async (req, res) => {
+router.post('/collaboratori/send-reminders', authenticateFirebase, async (req: any, res) => {
   try {
     // Calcola intervallo per "domani" (Europe/Rome timezone)
     // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
@@ -1941,7 +1948,7 @@ router.post('/collaboratori/send-reminders', async (req, res) => {
  * GET /api/collaboratori/upcoming-events
  * Lista eventi prossimi con assegnazioni (per preview admin)
  */
-router.get('/collaboratori/upcoming-events', async (req, res) => {
+router.get('/collaboratori/upcoming-events', authenticateFirebase, async (req: any, res) => {
   try {
     const { days = '7' } = req.query;
     const numDays = parseInt(days as string, 10) || 7;

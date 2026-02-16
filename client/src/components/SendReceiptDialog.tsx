@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/command";
 import { Mail, MessageCircle, Search, Loader2, Send } from "lucide-react";
 import { getAllClienti } from "@/lib/clienti";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { CashMovementFE } from "@shared/cash-types";
 import type { Cliente } from "@shared/clienti-types";
@@ -118,17 +119,12 @@ export default function SendReceiptDialog({
     setSending(true);
 
     try {
-      const baseUrl = window.location.origin;
-      const response = await fetch(`${baseUrl}/api/receipts/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          movementId: movement.id,
-          method: sendMethod,
-          recipient,
-          clienteNome,
-          clienteCognome,
-        }),
+      const response = await apiRequest('POST', '/api/receipts/send', {
+        movementId: movement.id,
+        method: sendMethod,
+        recipient,
+        clienteNome,
+        clienteCognome,
       });
 
       if (!response.ok) {

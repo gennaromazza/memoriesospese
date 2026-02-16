@@ -55,6 +55,7 @@ import {
   useProductCategories,
   useReorderProducts,
 } from '@/lib/products';
+import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
 
 interface SortableProductCardProps {
@@ -699,14 +700,7 @@ export default function ProductsManager() {
 
     setIsSyncingBundles(true);
     try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await fetch('/api/orders/sync-bundle-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiRequest('POST', '/api/orders/sync-bundle-data');
       
       const data = await response.json();
       

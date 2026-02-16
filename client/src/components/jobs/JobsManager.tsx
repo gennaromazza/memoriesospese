@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
+import { apiRequest } from '@/lib/queryClient';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
 import type { Order } from '@shared/booking-types';
@@ -239,8 +240,7 @@ export default function JobsManager() {
   const { data: allCollaboratori = [] } = useQuery<{ id: string; nome: string }[]>({
     queryKey: ['collaboratoriList'],
     queryFn: async () => {
-      const response = await fetch('/api/collaboratori');
-      if (!response.ok) throw new Error('Failed to fetch collaboratori');
+      const response = await apiRequest('GET', '/api/collaboratori');
       const data = await response.json();
       return data.map((c: any) => ({
         id: c.id,
@@ -253,8 +253,7 @@ export default function JobsManager() {
   const { data: allAssignments = [] } = useQuery<JobCollaboratoreAssignment[]>({
     queryKey: ['collaboratoriAssignments'],
     queryFn: async () => {
-      const response = await fetch('/api/collaboratori/assignments');
-      if (!response.ok) throw new Error('Failed to fetch assignments');
+      const response = await apiRequest('GET', '/api/collaboratori/assignments');
       return response.json();
     }
   });

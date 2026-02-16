@@ -8,6 +8,7 @@ import { db } from './firebase-admin.js';
 import { triggerManualRetry } from './workers/cancellation-retry.js';
 import { ensureJobCalendarEvent } from './job-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { authenticateFirebase } from './email-routes.js';
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ const router = express.Router();
  * GET /api/admin/pending-cancellations
  * Lista bookings in cancellation_pending per admin monitoring
  */
-router.get('/pending-cancellations', async (req, res) => {
+router.get('/pending-cancellations', authenticateFirebase, async (req: any, res) => {
   try {
     const pendingSnapshot = await db.collection('bookings')
       .where('stato', '==', 'cancellation_pending')
@@ -54,7 +55,7 @@ router.get('/pending-cancellations', async (req, res) => {
  * POST /api/admin/retry-cancellation/:bookingId
  * Manual trigger retry per booking specifico
  */
-router.post('/retry-cancellation/:bookingId', async (req, res) => {
+router.post('/retry-cancellation/:bookingId', authenticateFirebase, async (req: any, res) => {
   try {
     const { bookingId } = req.params;
     
@@ -75,7 +76,7 @@ router.post('/retry-cancellation/:bookingId', async (req, res) => {
  * GET /api/admin/worker-health
  * Health check del cancellation retry worker
  */
-router.get('/worker-health', async (req, res) => {
+router.get('/worker-health', authenticateFirebase, async (req: any, res) => {
   try {
     // Query stats sullo stato dei pending cancellations
     const pendingSnapshot = await db.collection('bookings')
@@ -123,7 +124,7 @@ router.get('/worker-health', async (req, res) => {
  * Backfill googleCalendarEventId per legacy jobs con blocking status
  * Utile dopo migrazioni o per riparazione automatica
  */
-router.post('/jobs/reconcile-calendar', async (req, res) => {
+router.post('/jobs/reconcile-calendar', authenticateFirebase, async (req: any, res) => {
   try {
     console.log('🔄 Avvio reconciliation Calendar events per legacy jobs...');
     
@@ -232,7 +233,7 @@ router.post('/jobs/reconcile-calendar', async (req, res) => {
  * Sincronizzazione manuale Google Calendar <-> Firestore
  * Elimina eventi fantasma e ripara inconsistenze
  */
-router.post('/sync-calendar', async (req, res) => {
+router.post('/sync-calendar', authenticateFirebase, async (req: any, res) => {
   try {
     console.log('🔄 Admin triggered manual calendar sync');
     
@@ -272,7 +273,7 @@ router.post('/sync-calendar', async (req, res) => {
  * Migra e standardizza tutti i numeri di telefono nel database per WhatsApp
  * Aggiorna clienti, bookings, orders, jobs con numeri formattati correttamente
  */
-router.post('/migrate-phone-numbers', async (req, res) => {
+router.post('/migrate-phone-numbers', authenticateFirebase, async (req: any, res) => {
   try {
     console.log('📱 Inizio migrazione numeri di telefono...');
     
@@ -459,7 +460,7 @@ router.post('/migrate-phone-numbers', async (req, res) => {
  * GET /api/admin/phone-migration-preview
  * Anteprima della migrazione: mostra quanti numeri verrebbero aggiornati
  */
-router.get('/phone-migration-preview', async (req, res) => {
+router.get('/phone-migration-preview', authenticateFirebase, async (req: any, res) => {
   try {
     console.log('📱 Anteprima migrazione numeri...');
     
