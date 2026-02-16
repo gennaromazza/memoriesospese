@@ -1017,19 +1017,11 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
  * Delete quote con cascade cleanup (admin-only)
  * Query params: forceDelete=true per override protezione preventivi firmati
  */
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", verifyAdminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const adminEmail = req.headers["x-admin-email"] as string;
+    const adminEmail = (req as any).verifiedAdmin?.email || req.headers["x-admin-email"] as string;
     const forceDelete = req.query.forceDelete === "true";
-
-    // 1. Admin-only check
-    if (!adminEmail || adminEmail !== "gennaro.mazzacane@gmail.com") {
-      return res.status(403).json({
-        error: "Accesso negato",
-        message: "Solo gli amministratori possono eliminare preventivi",
-      });
-    }
 
     // 2. Pre-fetch legacy schedules for quotes without paymentScheduleIds
     //    NOTE: Query MUST be OUTSIDE transaction (Firestore limitation)
@@ -1180,18 +1172,10 @@ router.delete("/:id", async (req: Request, res: Response) => {
  * Reimposta firma preventivo (firmato → bozza)
  * Admin-only - Rimuove firma e dataFirma mantenendo resto dei dati
  */
-router.patch("/:id/reset-signature", async (req: Request, res: Response) => {
+router.patch("/:id/reset-signature", verifyAdminAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const adminEmail = req.headers["x-admin-email"] as string;
-
-    // 1. Validate admin
-    if (!adminEmail || adminEmail !== "gennaro.mazzacane@gmail.com") {
-      return res.status(403).json({
-        error: "Non autorizzato",
-        message: "Solo gli admin possono reimpostare le firme",
-      });
-    }
+    const adminEmail = (req as any).verifiedAdmin?.email || req.headers["x-admin-email"] as string;
 
     // 2. Fetch quote
     const quoteRef = db.collection("quotes").doc(id);
@@ -1235,6 +1219,55 @@ router.patch("/:id/reset-signature", async (req: Request, res: Response) => {
     }
 
     await quoteRef.update(updateData);
+
+    // FIX: Aggiorna job status da "confermato" a stato precedente e sync Calendar
+    if (quote.jobId) {
+      try {
+        const jobRef = db.collection("jobs").doc(quote.jobId);
+        const jobDoc = await jobRef.get();
+        if (jobDoc.exists) {
+          const jobData = jobDoc.data();
+          // Se il job era "confermato" (impostato dalla firma), verifica se ci sono ALTRI preventivi firmati
+          if (jobData?.status === 'confermato') {
+            const otherSignedQuotes = await db.collection('quotes')
+              .where('jobId', '==', quote.jobId)
+              .where('status', '==', 'firmato')
+              .get();
+            // Filtra via il preventivo corrente (che stiamo resettando)
+            const remainingSignedQuotes = otherSignedQuotes.docs.filter(d => d.id !== id);
+            if (remainingSignedQuotes.length === 0) {
+              // Nessun altro preventivo firmato: riporta job a "preventivo_inviato"
+              await jobRef.update({
+                status: 'preventivo_inviato',
+                updatedAt: new Date(),
+              });
+              console.log(`✅ Job ${quote.jobId} riportato a stato "preventivo_inviato" dopo reset firma`);
+            }
+          }
+        }
+      } catch (jobError) {
+        console.warn(`⚠️ Errore aggiornamento job dopo reset firma (non critico):`, jobError);
+      }
+
+      // Sync Google Calendar description
+      try {
+        const { ensureJobCalendarEvent } = await import('./job-routes.js');
+        await ensureJobCalendarEvent(quote.jobId);
+        console.log(`✅ Google Calendar aggiornato per job ${quote.jobId} dopo reset firma`);
+      } catch (calendarError) {
+        console.warn(`⚠️ Errore sync Calendar dopo reset firma (non critico):`, calendarError);
+      }
+    }
+
+    // Audit log
+    await logAuditEvent({
+      quoteId: id,
+      adminEmail: adminEmail,
+      action: 'signature_override',
+      previousValue: 'firmato',
+      newValue: 'bozza',
+      reason: 'Reset firma manuale admin',
+    });
 
     return res.status(200).json({
       success: true,
@@ -1372,15 +1405,20 @@ router.post("/send-quote", async (req: Request, res: Response) => {
     await sendGmailEmail(recipientEmails, subject, htmlContent);
 
     // Update quote con tracking invio
+    // FIX: Non sovrascrivere status se il preventivo è in stato avanzato (firmato, visionato)
+    const statusesNotToOverwrite = ['firmato', 'visionato'];
+    const updateFields: any = {
+      sentAt: new Date(),
+      sentTo: recipientEmails.join(", "),
+      emailSentAt: new Date(),
+    };
+    if (!statusesNotToOverwrite.includes(quote.status)) {
+      updateFields.status = "inviato";
+    }
     await db
       .collection("quotes")
       .doc(quoteId)
-      .update({
-        sentAt: new Date(),
-        sentTo: recipientEmails.join(", "), // Salva tutte le email
-        emailSentAt: new Date(), // Traccia invio manuale email
-        status: "inviato",
-      });
+      .update(updateFields);
 
     console.log(
       `✅ Preventivo ${quoteId} inviato via email a ${recipientEmails.join(", ")}`,
@@ -2238,11 +2276,10 @@ router.post(
 
       const quote = { id: quoteDoc.id, ...quoteDoc.data() } as Quote;
 
-      // FIX: Calcola totale corretto usando helper che gestisce sconti e quote legacy
-      // Se il client passa totaleSelezionato (calcolato correttamente), lo usa per quote variabili
-      const correctTotale = quote.type === 'variabile' && totaleSelezionato !== undefined
-        ? totaleSelezionato
-        : calculateCorrectQuoteTotal(quote);
+      // FIX: Calcola totale SEMPRE server-side per sicurezza
+      // Per quote variabili, usa totaleSelezionato già salvato in Firestore (impostato al momento della firma)
+      // Non fidarsi del valore passato dal client
+      const correctTotale = calculateCorrectQuoteTotal(quote);
 
       // 3. Verify publicToken matches
       if (quote.publicToken !== publicToken) {

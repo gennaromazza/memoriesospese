@@ -16,7 +16,8 @@ import {
   where,
   orderBy,
   Timestamp,
-  arrayUnion
+  arrayUnion,
+  increment
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import type {
@@ -208,11 +209,18 @@ export async function createQuote(
     const docRef = await addDoc(collection(db, QUOTES_COLLECTION), cleanedQuoteData);
     
     // Aggiorna job con quoteId e financials (usa arrayUnion per atomic update)
+    // FIX: Usa increment() per sommare al totale esistente invece di sovrascrivere
+    // Questo supporta correttamente job con più preventivi
     const jobDoc = await getDoc(doc(db, 'jobs', data.jobId));
     if (jobDoc.exists()) {
+      const existingFinancials = jobDoc.data()?.financials;
+      const isFirstQuote = !existingFinancials?.totalePreventivato || existingFinancials.totalePreventivato === 0;
+      
       await updateDoc(doc(db, 'jobs', data.jobId), {
         quoteIds: arrayUnion(docRef.id),
-        'financials.totalePreventivato': totalAfterDiscount, // Server-calculated
+        'financials.totalePreventivato': isFirstQuote 
+          ? totalAfterDiscount 
+          : increment(totalAfterDiscount),
         updatedAt: Timestamp.now()
       });
     }
@@ -717,12 +725,21 @@ export async function updateTemplatesOrder(templateIds: string[]): Promise<void>
  */
 export async function resetQuoteSignature(quoteId: string, adminEmail: string): Promise<void> {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-admin-email': adminEmail
+    };
+    // FIX: Aggiungi Firebase auth token per verifyAdminAuth middleware
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`/api/quotes/${quoteId}/reset-signature`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-email': adminEmail
-      }
+      headers
     });
 
     if (!response.ok) {
@@ -742,18 +759,26 @@ export async function resetQuoteSignature(quoteId: string, adminEmail: string): 
  */
 export async function deleteQuote(quoteId: string, adminEmail: string, forceDelete = false): Promise<void> {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-admin-email': adminEmail
+    };
+    // FIX: Aggiungi Firebase auth token per verifyAdminAuth middleware
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const url = `/api/quotes/${quoteId}${forceDelete ? '?forceDelete=true' : ''}`;
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-email': adminEmail
-      }
+      headers
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      // Preserve error code for frontend detection (e.g. SIGNED_QUOTE_PROTECTION)
       throw new Error(errorData.error || errorData.message || 'Errore eliminazione preventivo');
     }
   } catch (error) {
