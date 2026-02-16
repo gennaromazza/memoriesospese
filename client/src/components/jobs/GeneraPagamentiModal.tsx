@@ -11,7 +11,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -306,11 +306,7 @@ export default function GeneraPagamentiModal({
             totale: quoteTotale,
           };
 
-      const response = await fetch('/api/payment-schedules/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const response = await apiRequest('POST', '/api/payment-schedules/generate', body);
 
       if (!response.ok) {
         const error = await response.json();

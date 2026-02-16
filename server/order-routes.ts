@@ -285,8 +285,13 @@ function areProductRequirementsEqual(a: any[], b: any[]): boolean {
 /**
  * PATCH /api/orders/:id - Aggiorna ordine esistente con email automatica
  */
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
   try {
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Solo gli admin possono aggiornare ordini' });
+    }
+
     const { id } = req.params;
     const updateData = req.body;
 
@@ -1373,7 +1378,7 @@ router.delete('/:id', authenticateFirebase, async (req: any, res: Response) => {
     // Rimuovi riferimento ordine dal cliente associato
     if (order.clienteId) {
       try {
-        const clientRef = db.collection('clients').doc(order.clienteId);
+        const clientRef = db.collection('clienti').doc(order.clienteId);
         const clientDoc = await clientRef.get();
         if (clientDoc.exists) {
           await clientRef.update({
@@ -1419,8 +1424,13 @@ router.delete('/:id', authenticateFirebase, async (req: any, res: Response) => {
  * POST /api/orders/repair-bundle-galleries
  * One-shot repair: scansiona tutti gli ordini con bundle e riallinea i productRequirements delle gallerie associate
  */
-router.post('/repair-bundle-galleries', async (req: Request, res: Response) => {
+router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, res: Response) => {
   try {
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Solo gli admin possono eseguire repair' });
+    }
+
     console.log('🔧 === AVVIO REPAIR BUNDLE GALLERIES ===');
 
     const ordersSnapshot = await db.collection('orders').get();

@@ -573,17 +573,14 @@ async function autoGeneratePaymentSchedule(
     descrizione: p.descrizione
   }));
   
-  // Chiama API generazione
-  const response = await fetch('/api/payment-schedules/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quoteId,
-      jobId,
-      clienteId,
-      payments,
-      totale
-    })
+  // Chiama API generazione con autenticazione Firebase
+  const { apiRequest } = await import('@/lib/queryClient');
+  const response = await apiRequest('POST', '/api/payment-schedules/generate', {
+    quoteId,
+    jobId,
+    clienteId,
+    payments,
+    totale
   });
   
   if (!response.ok) {

@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -169,15 +169,11 @@ export default function GestioneRataModal({
 
       const method = mode === "add" ? "POST" : "PATCH";
 
-      const response = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: data.tipo,
-          importo: data.importo,
-          dataScadenza: data.dataScadenza.toISOString(),
-          descrizione: data.descrizione,
-        }),
+      const response = await apiRequest(method, endpoint, {
+        tipo: data.tipo,
+        importo: data.importo,
+        dataScadenza: data.dataScadenza.toISOString(),
+        descrizione: data.descrizione,
       });
 
       if (!response.ok) {

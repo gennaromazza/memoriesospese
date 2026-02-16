@@ -146,9 +146,7 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
   // Delete payment mutation
   const deleteMutation = useMutation({
     mutationFn: async ({ scheduleId, paymentId }: { scheduleId: string; paymentId: string }) => {
-      const response = await fetch(`/api/payment-schedules/${scheduleId}/payments/${paymentId}`, {
-        method: 'DELETE',
-      });
+      const response = await apiRequest('DELETE', `/api/payment-schedules/${scheduleId}/payments/${paymentId}`);
 
       if (!response.ok) {
         const error = await response.json();
