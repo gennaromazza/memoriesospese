@@ -2,7 +2,7 @@
  * Cash Dashboard - Dashboard Finanziaria Principale
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Timestamp } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar, Download, BarChart3, FileText, Clock, ExternalLink, ShoppingBag, Mail, User, Phone } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, DollarSign, Calendar as CalendarIcon, Download, BarChart3, FileText, Clock, ExternalLink, ShoppingBag, Mail, User, Phone } from "lucide-react";
 import { getFinancialSummary, getMonthlyData, getAllCashMovements, getForecastedIncome, exportFinancialData } from "@/lib/cash";
 import { getAllOrders } from "@/lib/orders";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
@@ -30,8 +30,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { ChevronDown } from "lucide-react";
 import { Link } from "wouter";
+import { it } from "date-fns/locale/it";
+import { format } from "date-fns";
 
 export default function CashDashboard() {
   // Helper per convertire Date | Timestamp in Date
@@ -39,10 +42,13 @@ export default function CashDashboard() {
     return d instanceof Timestamp ? d.toDate() : d;
   };
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [dateRange, setDateRange] = useState<"all" | "month" | "quarter" | "year">("month");
+  const [dateRange, setDateRange] = useState<"all" | "day" | "custom" | "month" | "quarter" | "year">("month");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
   const [temaFilter, setTemaFilter] = useState<string>("all");
+  const [customDateFrom, setCustomDateFrom] = useState<Date>(new Date());
+  const [customDateTo, setCustomDateTo] = useState<Date>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   
   // Anni disponibili per selezione (ultimi 3 anni + anno corrente)
   const currentYear = new Date().getFullYear();
@@ -54,30 +60,37 @@ export default function CashDashboard() {
     queryFn: getAllCampaigns,
   });
 
+  const getDateRangeBounds = () => {
+    const now = new Date();
+    const cm = selectedYear === currentYear ? now.getMonth() : 0;
+    const cq = Math.floor(cm / 3) * 3;
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+
+    if (dateRange === "day") {
+      startDate = new Date(customDateFrom.getFullYear(), customDateFrom.getMonth(), customDateFrom.getDate(), 0, 0, 0);
+      endDate = new Date(customDateFrom.getFullYear(), customDateFrom.getMonth(), customDateFrom.getDate(), 23, 59, 59);
+    } else if (dateRange === "custom") {
+      startDate = new Date(customDateFrom.getFullYear(), customDateFrom.getMonth(), customDateFrom.getDate(), 0, 0, 0);
+      endDate = new Date(customDateTo.getFullYear(), customDateTo.getMonth(), customDateTo.getDate(), 23, 59, 59);
+    } else if (dateRange === "month") {
+      startDate = new Date(selectedYear, cm, 1);
+      endDate = new Date(selectedYear, cm + 1, 0);
+    } else if (dateRange === "quarter") {
+      startDate = new Date(selectedYear, cq, 1);
+      endDate = new Date(selectedYear, cq + 3, 0);
+    } else if (dateRange === "year") {
+      startDate = new Date(selectedYear, 0, 1);
+      endDate = new Date(selectedYear, 11, 31);
+    }
+    return { startDate, endDate };
+  };
+
   // Query per riepilogo finanziario
   const { data: summary, isLoading: summaryLoading } = useQuery<FinancialSummary>({
-    queryKey: ["financial-summary", dateRange, selectedYear],
+    queryKey: ["financial-summary", dateRange, selectedYear, customDateFrom.toISOString(), customDateTo.toISOString()],
     queryFn: async () => {
-      const now = new Date();
-      
-      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
-      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
-      const currentQuarter = Math.floor(currentMonth / 3) * 3;
-      
-      let startDate: Date | undefined;
-      let endDate: Date | undefined;
-
-      if (dateRange === "month") {
-        startDate = new Date(selectedYear, currentMonth, 1);
-        endDate = new Date(selectedYear, currentMonth + 1, 0);
-      } else if (dateRange === "quarter") {
-        startDate = new Date(selectedYear, currentQuarter, 1);
-        endDate = new Date(selectedYear, currentQuarter + 3, 0);
-      } else if (dateRange === "year") {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-      }
-
+      const { startDate, endDate } = getDateRangeBounds();
       return getFinancialSummary(startDate, endDate);
     },
   });
@@ -90,27 +103,10 @@ export default function CashDashboard() {
 
   // Query per ultimi movimenti (filtra per dateRange e anno)
   const { data: movements } = useQuery({
-    queryKey: ["cash-movements", dateRange, selectedYear],
+    queryKey: ["cash-movements", dateRange, selectedYear, customDateFrom.toISOString(), customDateTo.toISOString()],
     queryFn: async () => {
       const allMovements = await getAllCashMovements();
-      const now = new Date();
-      let startDate: Date | undefined;
-      let endDate: Date | undefined;
-
-      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
-      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
-      const currentQuarter = Math.floor(currentMonth / 3) * 3;
-
-      if (dateRange === "month") {
-        startDate = new Date(selectedYear, currentMonth, 1);
-        endDate = new Date(selectedYear, currentMonth + 1, 0);
-      } else if (dateRange === "quarter") {
-        startDate = new Date(selectedYear, currentQuarter, 1);
-        endDate = new Date(selectedYear, currentQuarter + 3, 0);
-      } else if (dateRange === "year") {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-      }
+      const { startDate, endDate } = getDateRangeBounds();
 
       if (!startDate) return allMovements;
 
@@ -126,31 +122,13 @@ export default function CashDashboard() {
 
   // Query per previsioni incasso (filtra per dateRange e anno)
   const { data: forecasts } = useQuery<ForecastedIncome[]>({
-    queryKey: ["forecasted-income", dateRange, selectedYear],
+    queryKey: ["forecasted-income", dateRange, selectedYear, customDateFrom.toISOString(), customDateTo.toISOString()],
     queryFn: async () => {
       const allForecasts = await getForecastedIncome();
-      const now = new Date();
-      let startDate: Date | undefined;
-      let endDate: Date | undefined;
-
-      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
-      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
-      const currentQuarter = Math.floor(currentMonth / 3) * 3;
-
-      if (dateRange === "month") {
-        startDate = new Date(selectedYear, currentMonth, 1);
-        endDate = new Date(selectedYear, currentMonth + 1, 0);
-      } else if (dateRange === "quarter") {
-        startDate = new Date(selectedYear, currentQuarter, 1);
-        endDate = new Date(selectedYear, currentQuarter + 3, 0);
-      } else if (dateRange === "year") {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-      }
+      const { startDate, endDate } = getDateRangeBounds();
 
       if (!startDate) return allForecasts;
 
-      // Filtra forecasts con data servizio nel range
       return allForecasts.filter((f) => {
         const fDate = f.data instanceof Date ? f.data : new Date(f.data);
         return fDate >= startDate! && fDate <= endDate!;
@@ -160,32 +138,13 @@ export default function CashDashboard() {
 
   // Query per ultimi pagamenti ordini (filtra transazioni per dateRange e anno)
   const { data: orders } = useQuery({
-    queryKey: ["orders-payments", dateRange, selectedYear],
+    queryKey: ["orders-payments", dateRange, selectedYear, customDateFrom.toISOString(), customDateTo.toISOString()],
     queryFn: async () => {
       const allOrders = await getAllOrders();
-      const now = new Date();
-      
-      // Calcola mese/trimestre corrente (usato solo se anno = corrente)
-      const currentMonth = selectedYear === currentYear ? now.getMonth() : 0;
-      const currentQuarter = Math.floor(currentMonth / 3) * 3;
-      
-      let startDate: Date | undefined;
-      let endDate: Date | undefined;
-
-      if (dateRange === "month") {
-        startDate = new Date(selectedYear, currentMonth, 1);
-        endDate = new Date(selectedYear, currentMonth + 1, 0);
-      } else if (dateRange === "quarter") {
-        startDate = new Date(selectedYear, currentQuarter, 1);
-        endDate = new Date(selectedYear, currentQuarter + 3, 0);
-      } else if (dateRange === "year") {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-      }
+      const { startDate, endDate } = getDateRangeBounds();
 
       if (!startDate) return allOrders;
 
-      // Filtra ordini che hanno almeno una transazione nel range
       return allOrders
         .map((order) => ({
           ...order,
@@ -355,7 +314,7 @@ export default function CashDashboard() {
               {/* Selezione Anno */}
               <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
                 <SelectTrigger className="w-[100px] text-xs sm:text-sm">
-                  <Calendar className="h-3 w-3 mr-1" />
+                  <CalendarIcon className="h-3 w-3 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -368,8 +327,10 @@ export default function CashDashboard() {
               </Select>
 
               {/* Filtri periodo - Compatti */}
-              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+              <div className="flex gap-1 bg-muted/50 p-1 rounded-lg flex-wrap">
                 {[
+                  { value: "day", label: "Giorno" },
+                  { value: "custom", label: "Periodo" },
                   { value: "month", label: "Mese" },
                   { value: "quarter", label: "Trim." },
                   { value: "year", label: "Anno" },
@@ -380,13 +341,71 @@ export default function CashDashboard() {
                     type="button"
                     variant={dateRange === option.value ? "default" : "ghost"}
                     size="sm"
-                    onClick={() => setDateRange(option.value as any)}
+                    onClick={() => {
+                      setDateRange(option.value as any);
+                      if (option.value === "day" || option.value === "custom") {
+                        setCalendarOpen(true);
+                      }
+                    }}
                     className="text-xs px-2 py-1 h-7"
                   >
                     {option.label}
                   </Button>
                 ))}
               </div>
+
+              {/* Selezione data con calendario */}
+              {(dateRange === "day" || dateRange === "custom") && (
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {dateRange === "day" ? (
+                        format(customDateFrom, "d MMM yyyy", { locale: it })
+                      ) : (
+                        <>
+                          {format(customDateFrom, "d MMM", { locale: it })} - {format(customDateTo, "d MMM yyyy", { locale: it })}
+                        </>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    {dateRange === "day" ? (
+                      <Calendar
+                        mode="single"
+                        selected={customDateFrom}
+                        onSelect={(date) => {
+                          if (date) {
+                            setCustomDateFrom(date);
+                            setCustomDateTo(date);
+                            setCalendarOpen(false);
+                          }
+                        }}
+                        locale={it}
+                        initialFocus
+                      />
+                    ) : (
+                      <div className="p-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2 text-center">Seleziona intervallo date</p>
+                        <Calendar
+                          mode="range"
+                          selected={{ from: customDateFrom, to: customDateTo }}
+                          onSelect={(range) => {
+                            if (range?.from) setCustomDateFrom(range.from);
+                            if (range?.to) {
+                              setCustomDateTo(range.to);
+                              setCalendarOpen(false);
+                            }
+                          }}
+                          locale={it}
+                          numberOfMonths={1}
+                          initialFocus
+                        />
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
 
               {/* Filtro attivo - mostra solo se c'è un filtro attivo */}
               {(origineFilter !== "all" || temaFilter !== "all") && (
@@ -627,6 +646,86 @@ export default function CashDashboard() {
         </Card>
       </div>
 
+      {/* Riepilogo Giornaliero - visibile in modalità Giorno/Periodo */}
+      {(dateRange === "day" || dateRange === "custom") && filteredMovements.length > 0 && (() => {
+        const dailyMap: Record<string, { entrate: number; uscite: number; movimenti: CashMovementFE[] }> = {};
+        filteredMovements.forEach((m: CashMovementFE) => {
+          const d = toDate(m.data);
+          const key = format(d, "yyyy-MM-dd");
+          if (!dailyMap[key]) dailyMap[key] = { entrate: 0, uscite: 0, movimenti: [] };
+          if (m.tipo === "entrata") dailyMap[key].entrate += m.importo;
+          else dailyMap[key].uscite += m.importo;
+          dailyMap[key].movimenti.push(m);
+        });
+        const days = Object.keys(dailyMap).sort().reverse();
+
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-blue-600" />
+                {dateRange === "day" ? "Dettaglio Giornata" : `Dettaglio per Giorno (${days.length} giorni)`}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {dateRange === "day"
+                  ? format(customDateFrom, "EEEE d MMMM yyyy", { locale: it })
+                  : `${format(customDateFrom, "d MMM yyyy", { locale: it })} → ${format(customDateTo, "d MMM yyyy", { locale: it })}`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {days.map((dayKey) => {
+                  const day = dailyMap[dayKey];
+                  const dayDate = new Date(dayKey + "T00:00:00");
+                  const saldo = day.entrate - day.uscite;
+                  return (
+                    <div key={dayKey} className="border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">
+                            {format(dayDate, "EEEE d MMM", { locale: it })}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            ({day.movimenti.length} mov.)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-green-600 font-semibold">+{formatCurrency(day.entrate)}</span>
+                          {day.uscite > 0 && <span className="text-red-600 font-semibold">-{formatCurrency(day.uscite)}</span>}
+                          <span className={`font-bold ${saldo >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                            = {formatCurrency(saldo)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y">
+                        {day.movimenti.map((mov) => (
+                          <div key={mov.id} className="flex items-center justify-between px-3 py-1.5 text-xs hover:bg-muted/20">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-muted-foreground whitespace-nowrap">
+                                {format(toDate(mov.data), "HH:mm")}
+                              </span>
+                              <span className="truncate max-w-[200px] sm:max-w-[300px]" title={mov.descrizione}>
+                                {mov.descrizione}
+                              </span>
+                              <span className="px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] whitespace-nowrap">
+                                {CASH_ORIGINE_LABELS[inferOrigine(mov)] || 'Altro'}
+                              </span>
+                            </div>
+                            <span className={`font-semibold whitespace-nowrap ml-2 ${mov.tipo === 'entrata' ? 'text-green-600' : 'text-red-600'}`}>
+                              {mov.tipo === 'entrata' ? '+' : '-'}{formatCurrency(mov.importo)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Grafico Andamento Mensile */}
       <Card>
         <CardHeader>
@@ -759,7 +858,7 @@ export default function CashDashboard() {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="flex items-center gap-2">
-                              <Calendar className="h-5 w-5 text-gray-600" />
+                              <CalendarIcon className="h-5 w-5 text-gray-600" />
                               <h4 className="font-semibold text-lg">
                                 {forecast.data.toLocaleDateString("it-IT", {
                                   weekday: "long",
