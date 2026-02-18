@@ -2710,6 +2710,33 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
+    // 2b. Crea evento Google Calendar (se data disponibile)
+    try {
+      if (!isDND && eventDate) {
+        const { createEvent } = await import("./google-calendar.js");
+        const dateStr = new Date(eventDate).toISOString().split("T")[0];
+
+        const calendarEvent = await createEvent("primary", {
+          summary: `${template.jobType || "Shooting"}: ${nome} ${cognome} - ${nomeEvento}`,
+          description: `Preventivo Rapido\n\nCliente: ${nome} ${cognome}\nEmail: ${email}\n${cellulare ? `Tel: ${cellulare}\n` : ""}Evento: ${nomeEvento}\n${eventLocation ? `Location: ${eventLocation}\n` : ""}${noteCliente ? `Note: ${noteCliente}` : ""}`,
+          isAllDay: true,
+          startDateStr: dateStr,
+          location: eventLocation || rituLocation || "",
+          attendees: [email],
+        });
+
+        if (calendarEvent?.id) {
+          await jobRef.update({
+            googleCalendarEventId: calendarEvent.id,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          console.log(`✅ Evento Google Calendar creato per preventivo rapido: ${calendarEvent.id}`);
+        }
+      }
+    } catch (calendarError) {
+      console.warn("⚠️ Evento Google Calendar non creato per preventivo rapido:", calendarError);
+    }
+
     // 3. Crea Quote dal template
     const products = template.defaultProducts || [];
     const quoteProducts = products.map((p: any) => {
