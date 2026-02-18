@@ -653,13 +653,13 @@ export default function JobsManager() {
     return {
       totalJobs: filteredJobs.length,
       totalePreventivato: filteredJobs.reduce((sum, j) => 
-        sum + j.financials.totalePreventivato, 0
+        sum + (j.financials?.totalePreventivato || 0), 0
       ),
       totalePagato: filteredJobs.reduce((sum, j) => 
-        sum + j.financials.totalePagato, 0
+        sum + (j.financials?.totalePagato || 0), 0
       ),
       saldoResiduo: filteredJobs.reduce((sum, j) => 
-        sum + j.financials.saldoResiduo, 0
+        sum + (j.financials?.saldoResiduo || 0), 0
       )
     };
   }, [filteredJobs]);
@@ -1721,14 +1721,14 @@ function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Preventivato:</span>
             <span className="font-semibold text-green-600">
-              €{job.financials.totalePreventivato}
+              €{job.financials?.totalePreventivato || 0}
             </span>
           </div>
-          {job.financials.saldoResiduo > 0 && (
+          {(job.financials?.saldoResiduo || 0) > 0 && (
             <div className="flex items-center justify-between text-xs mt-1">
               <span className="text-gray-500">Da incassare:</span>
               <span className="font-semibold text-orange-600">
-                €{job.financials.saldoResiduo}
+                €{job.financials?.saldoResiduo || 0}
               </span>
             </div>
           )}
