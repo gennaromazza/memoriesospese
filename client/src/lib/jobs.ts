@@ -201,11 +201,7 @@ export async function getAllJobs(filters?: JobFilters): Promise<Job[]> {
     const queryString = params.toString();
     const url = queryString ? `/api/jobs?${queryString}` : '/api/jobs';
     
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
+    const response = await apiRequest('GET', url);
     const data = await response.json();
     return data.jobs as Job[];
   } catch (error) {
