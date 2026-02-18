@@ -4085,7 +4085,7 @@ export function createPaymentReminderEmailHTML(
   `;
 }
 
-function createAdminQuoteSignedNotificationHTML(
+export function createAdminQuoteSignedNotificationHTML(
   clienteName: string,
   quoteType: 'fisso' | 'variabile',
   nomeEvento: string,

@@ -12,7 +12,8 @@ import {
   getStudioContactInfo,
   createQuoteSignedEmailHTML,
   createPaymentReminderEmailHTML,
-  createQuoteSentEmailHTML, // Importato il nuovo template
+  createQuoteSentEmailHTML,
+  createAdminQuoteSignedNotificationHTML,
 } from "./email-routes.js";
 import { nanoid } from "nanoid";
 
