@@ -278,6 +278,9 @@ export interface QuoteTemplate {
   // Ordinamento drag&drop
   ordine?: number;
   
+  // Preventivo Rapido - token condivisibile per link pubblico
+  shareableToken?: string;
+  
   // Stato
   attivo: boolean;
   

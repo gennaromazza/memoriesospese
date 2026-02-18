@@ -21,7 +21,7 @@ import { deleteField } from "firebase/firestore";
 import { getAllProducts } from "@/lib/products";
 import { getJobTypes } from "@/lib/job-types";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import CatalogProductSelector from "./CatalogProductSelector";
 import {
@@ -96,6 +96,7 @@ import {
   GripVertical,
   ChevronDown,
   ChevronUp,
+  Link2,
 } from "lucide-react";
 import { JobTypeIcon } from "@/lib/job-type-icons";
 import {
@@ -178,12 +179,14 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   onEdit,
   onDelete,
   onToggle,
+  onGenerateLink,
 }: {
   template: QuoteTemplate & { id: string };
   jobTypes: any[];
   onEdit: () => void;
   onDelete: () => void;
   onToggle: (checked: boolean) => void;
+  onGenerateLink: () => void;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -257,6 +260,11 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                       >
                         <FileText className="h-4 w-4 mr-2" />
                         {isPreviewOpen ? "Nascondi" : "Anteprima"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={onGenerateLink}>
+                        <Link2 className="h-4 w-4 mr-2" />
+                        {template.shareableToken ? "Copia Link Rapido" : "Genera Link Rapido"}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -378,6 +386,43 @@ export default function QuoteTemplatesManager() {
     queryKey: ["products"],
     queryFn: getAllProducts,
   });
+
+  const handleGenerateLink = useCallback(async (template: QuoteTemplate & { id: string }) => {
+    try {
+      if (template.shareableToken) {
+        const url = `${window.location.origin}/preventivo-rapido/${template.shareableToken}`;
+        await navigator.clipboard.writeText(url);
+        toast({
+          title: "Link copiato!",
+          description: "Il link del Preventivo Rapido è stato copiato negli appunti.",
+        });
+        return;
+      }
+
+      const response = await apiRequest(
+        "POST",
+        `/api/quotes/quick/generate-token/${template.id}`
+      );
+      const data = await response.json();
+
+      if (data.success && data.shareableToken) {
+        const url = `${window.location.origin}/preventivo-rapido/${data.shareableToken}`;
+        await navigator.clipboard.writeText(url);
+        queryClient.invalidateQueries({ queryKey: ["quote-templates"] });
+        toast({
+          title: "Link generato e copiato!",
+          description: "Il link del Preventivo Rapido è stato generato e copiato negli appunti. Puoi condividerlo via WhatsApp.",
+        });
+      }
+    } catch (error) {
+      console.error("Errore generazione link:", error);
+      toast({
+        title: "Errore",
+        description: "Impossibile generare il link. Riprova.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   // Drag & Drop sensors
   const sensors = useSensors(
@@ -821,6 +866,7 @@ export default function QuoteTemplatesManager() {
                       attivo: checked,
                     })
                   }
+                  onGenerateLink={() => handleGenerateLink(template as QuoteTemplate & { id: string })}
                 />
               ))}
             </div>

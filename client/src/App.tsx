@@ -81,6 +81,7 @@ const OrphanedPhotosManager = lazyWithRetry(() => import("./pages/admin/Orphaned
 const PhoneMigrationPage = lazyWithRetry(() => import("./pages/admin/PhoneMigrationPage"));
 const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
+const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
@@ -148,6 +149,9 @@ function AppRoutes() {
 
         {/* Quote portale pubblico - Link unico che si adatta allo stato */}
         <Route path="/quote/:token" component={QuotePortal} />
+
+        {/* Preventivo Rapido - Link condivisibile per compilazione pubblica */}
+        <Route path="/preventivo-rapido/:token" component={QuickQuotePage} />
 
         {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
         <Route path="/special-gallery" component={SpecialGalleryAccess} />

@@ -2474,6 +2474,473 @@ router.post(
 );
 
 /**
+ * ============================================
+ * PREVENTIVO RAPIDO - Link pubblico condivisibile
+ * ============================================
+ */
+
+/**
+ * GET /api/quotes/quick/:token
+ * Fetch template data per link pubblico (NO AUTH)
+ */
+router.get("/quick/:token", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: "Token mancante" });
+    }
+
+    const templatesSnapshot = await db
+      .collection("quoteTemplates")
+      .where("shareableToken", "==", token)
+      .where("attivo", "==", true)
+      .limit(1)
+      .get();
+
+    if (templatesSnapshot.empty) {
+      return res.status(404).json({
+        error: "Template non trovato",
+        message: "Il link non è valido o il template non è più attivo.",
+      });
+    }
+
+    const templateDoc = templatesSnapshot.docs[0];
+    const template = { id: templateDoc.id, ...templateDoc.data() };
+
+    const jobTypeDoc = await db
+      .collection("jobTypes")
+      .where("slug", "==", (template as any).jobType)
+      .limit(1)
+      .get();
+
+    let jobTypeInfo = null;
+    if (!jobTypeDoc.empty) {
+      const jt = jobTypeDoc.docs[0].data();
+      jobTypeInfo = {
+        id: jobTypeDoc.docs[0].id,
+        nome: jt.nome,
+        slug: jt.slug,
+        imageUrl: jt.imageUrl || null,
+      };
+    }
+
+    let studioInfo = null;
+    try {
+      studioInfo = await getStudioContactInfo();
+    } catch (e) {
+      console.warn("⚠️ Studio info non disponibile");
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        template: {
+          id: template.id,
+          nome: (template as any).nome,
+          jobType: (template as any).jobType,
+          type: (template as any).type,
+          theme: (template as any).theme,
+          defaultProducts: (template as any).defaultProducts || [],
+          defaultClauses: (template as any).defaultClauses || [],
+          discountType: (template as any).discountType,
+          discountValue: (template as any).discountValue,
+        },
+        jobTypeInfo,
+        studioInfo: studioInfo
+          ? {
+              studioName: studioInfo.studioName,
+              email: studioInfo.email,
+              phone: studioInfo.phone,
+              logo: studioInfo.logo,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Errore fetch quick quote template:", error);
+    return res.status(500).json({
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/quick/:token/activate
+ * Crea client + job + quote da template (NO AUTH - pubblico)
+ */
+router.post("/quick/:token/activate", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const {
+      nome,
+      cognome,
+      email,
+      cellulare,
+      nomeEvento,
+      eventDate,
+      eventLocation,
+      rituLocation,
+      rituTime,
+      dataNonDefinita,
+      noteCliente,
+      selectedProducts,
+      signerName,
+      clausesAccepted,
+    } = req.body;
+
+    if (!nome || !cognome || !email) {
+      return res.status(400).json({
+        error: "Dati mancanti",
+        message: "Nome, cognome e email sono obbligatori.",
+      });
+    }
+
+    if (!nomeEvento) {
+      return res.status(400).json({
+        error: "Dati mancanti",
+        message: "Il nome dell'evento è obbligatorio.",
+      });
+    }
+
+    const templatesSnapshot = await db
+      .collection("quoteTemplates")
+      .where("shareableToken", "==", token)
+      .where("attivo", "==", true)
+      .limit(1)
+      .get();
+
+    if (templatesSnapshot.empty) {
+      return res.status(404).json({
+        error: "Template non trovato",
+        message: "Il link non è valido o il template non è più attivo.",
+      });
+    }
+
+    const templateDoc = templatesSnapshot.docs[0];
+    const template = templateDoc.data();
+
+    // 1. Cerca cliente esistente per email, altrimenti crea nuovo
+    let clienteId: string;
+    const existingClientSnapshot = await db
+      .collection("clienti")
+      .where("email", "==", email.toLowerCase().trim())
+      .limit(1)
+      .get();
+
+    if (!existingClientSnapshot.empty) {
+      clienteId = existingClientSnapshot.docs[0].id;
+      await db.collection("clienti").doc(clienteId).update({
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      const clienteData: Record<string, any> = {
+        nome: nome.trim(),
+        cognome: cognome.trim(),
+        email: email.toLowerCase().trim(),
+        cellulare1: cellulare?.trim() || "",
+        tags: ["preventivo-rapido"],
+        sourceRefs: {
+          bookingIds: [],
+          orderIds: [],
+          galleryIds: [],
+          jobIds: [],
+        },
+        lifecycle: {
+          firstContactAt: FieldValue.serverTimestamp(),
+          lastInteractionAt: FieldValue.serverTimestamp(),
+          status: "lead",
+        },
+        financials: {
+          totalRevenue: 0,
+          outstandingBalance: 0,
+          totalOrders: 0,
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      const clienteRef = await db.collection("clienti").add(clienteData);
+      clienteId = clienteRef.id;
+    }
+
+    // 2. Crea Job
+    const isDND = dataNonDefinita === true;
+    const jobData: Record<string, any> = {
+      nomeEvento: nomeEvento.trim(),
+      clientiIds: [clienteId],
+      jobType: template.jobType,
+      dataNonDefinita: isDND,
+      allDay: isDND ? true : true,
+      provenance: "preventivo-rapido",
+      orderIds: [],
+      galleryIds: [],
+      quoteIds: [],
+      status: "lead",
+      financials: {
+        totalePreventivato: 0,
+        totaleOrdini: 0,
+        totalePagato: 0,
+        saldoResiduo: 0,
+      },
+      costi: [],
+      pdfs: [],
+      workflowEvents: [],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdBy: "preventivo-rapido",
+      jobSource: "preventivo-rapido",
+    };
+
+    if (!isDND && eventDate) {
+      jobData.eventDate = new Date(eventDate);
+      jobData.allDay = true;
+    }
+    if (eventLocation) jobData.eventLocation = eventLocation.trim();
+    if (rituLocation) jobData.rituLocation = rituLocation.trim();
+    if (rituTime) jobData.rituTime = rituTime.trim();
+    if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
+
+    const jobRef = await db.collection("jobs").add(jobData);
+    const jobId = jobRef.id;
+
+    // Link cliente -> job
+    await db.collection("clienti").doc(clienteId).update({
+      "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 3. Crea Quote dal template
+    const products = template.defaultProducts || [];
+    const quoteProducts = products.map((p: any) => {
+      const isSelected = template.type === "variabile"
+        ? selectedProducts?.includes(p.productId || p.nome) || false
+        : undefined;
+      return {
+        ...p,
+        selectable: template.type === "variabile",
+        selected: isSelected,
+      };
+    });
+
+    let subtotale = 0;
+    if (template.type === "variabile") {
+      quoteProducts.forEach((p: any) => {
+        if (p.selected) subtotale += p.prezzo || 0;
+      });
+    } else {
+      quoteProducts.forEach((p: any) => {
+        subtotale += p.prezzo || 0;
+      });
+    }
+
+    const discountType = template.discountType;
+    const discountValue = template.discountValue;
+    let totalBeforeDiscount = subtotale;
+    let totalAfterDiscount = subtotale;
+    let discountAmount = 0;
+
+    if (discountType && discountValue && discountValue > 0) {
+      if (discountType === "percent") {
+        discountAmount = Math.round(subtotale * (discountValue / 100) * 100) / 100;
+      } else {
+        discountAmount = Math.min(discountValue, subtotale);
+      }
+      totalAfterDiscount = Math.max(0, subtotale - discountAmount);
+    }
+
+    const clausesWithIds = (template.defaultClauses || []).map((c: any) => ({
+      ...c,
+      id: nanoid(),
+      accepted: clausesAccepted?.includes(c.text) || false,
+      ...(clausesAccepted?.includes(c.text)
+        ? { acceptedAt: new Date() }
+        : {}),
+    }));
+
+    const quoteToken = nanoid(32);
+    const quoteData: Record<string, any> = {
+      jobId,
+      clienteId,
+      type: template.type,
+      products: quoteProducts,
+      contractClauses: clausesWithIds,
+      theme: template.theme || {},
+      totaleBase: totalBeforeDiscount,
+      totalBeforeDiscount,
+      totalAfterDiscount,
+      discountType: discountType || null,
+      discountValue: discountValue || null,
+      discountAmount,
+      publicToken: quoteToken,
+      status: "inviato",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdBy: "preventivo-rapido",
+      revokedTokens: [],
+      auditLog: [
+        {
+          id: nanoid(),
+          quoteId: "",
+          timestamp: new Date(),
+          adminEmail: "preventivo-rapido",
+          action: "quote_created",
+          newValue: "inviato",
+          reason: "Creato da Preventivo Rapido",
+        },
+      ],
+    };
+
+    // Se il cliente ha firmato (signerName presente), segna come firmato
+    if (signerName && signerName.trim()) {
+      const allRequired = clausesWithIds
+        .filter((c: any) => c.required)
+        .every((c: any) => c.accepted);
+
+      if (allRequired) {
+        quoteData.status = "firmato";
+        quoteData.signature = {
+          signedAt: new Date(),
+          ipAddress: req.ip || "unknown",
+          userAgent: req.headers["user-agent"] || "unknown",
+          clientName: signerName.trim(),
+        };
+        quoteData.totaleSelezionato = totalAfterDiscount;
+
+        // Aggiorna job financials
+        await jobRef.update({
+          "financials.totalePreventivato": totalAfterDiscount,
+          status: "confermato",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    const quoteRef = await db.collection("quotes").add(quoteData);
+    const quoteId = quoteRef.id;
+
+    // Link quote -> job
+    await jobRef.update({
+      quoteIds: FieldValue.arrayUnion(quoteId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Aggiorna job financials con totale preventivato
+    if (quoteData.status !== "firmato") {
+      await jobRef.update({
+        "financials.totalePreventivato": totalAfterDiscount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 4. Invia email admin con notifica nuovo preventivo rapido
+    try {
+      const studioInfo = await getStudioContactInfo();
+      if (studioInfo?.email) {
+        const adminEmailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Nuovo Preventivo Rapido</h2>
+            <p>Un nuovo cliente ha compilato un preventivo rapido:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Cliente:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nome} ${cognome}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${email}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Telefono:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${cellulare || "Non fornito"}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Evento:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nomeEvento}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Template:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${template.nome}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Totale:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">€${totalAfterDiscount.toFixed(2)}</td></tr>
+              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Stato:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${quoteData.status === "firmato" ? "FIRMATO" : "In attesa di firma"}</td></tr>
+            </table>
+            ${noteCliente ? `<p><strong>Note cliente:</strong> ${noteCliente}</p>` : ""}
+          </div>
+        `;
+
+        await sendGmailEmail(
+          studioInfo.email,
+          `Nuovo Preventivo Rapido: ${nomeEvento} - ${nome} ${cognome}`,
+          adminEmailHtml
+        );
+      }
+    } catch (emailError) {
+      console.warn("⚠️ Email notifica admin non inviata:", emailError);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        clienteId,
+        jobId,
+        quoteId,
+        quoteToken,
+        status: quoteData.status,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Errore activate quick quote:", error);
+    return res.status(500).json({
+      error: "Errore server",
+      message: error instanceof Error ? error.message : "Errore sconosciuto",
+    });
+  }
+});
+
+/**
+ * POST /api/quotes/quick/generate-token/:templateId
+ * Genera shareableToken per un template (AUTH REQUIRED)
+ */
+router.post(
+  "/quick/generate-token/:templateId",
+  async (req: Request, res: Response) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Non autorizzato" });
+      }
+
+      const idToken = authHeader.split("Bearer ")[1];
+      const decodedToken = await getAuth().verifyIdToken(idToken);
+      if (!decodedToken) {
+        return res.status(401).json({ error: "Token non valido" });
+      }
+
+      const { templateId } = req.params;
+      const templateDoc = await db
+        .collection("quoteTemplates")
+        .doc(templateId)
+        .get();
+
+      if (!templateDoc.exists) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+
+      const templateData = templateDoc.data();
+      if (templateData?.shareableToken) {
+        return res.json({
+          success: true,
+          shareableToken: templateData.shareableToken,
+        });
+      }
+
+      const shareableToken = nanoid(16);
+      await db.collection("quoteTemplates").doc(templateId).update({
+        shareableToken,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return res.json({
+        success: true,
+        shareableToken,
+      });
+    } catch (error) {
+      console.error("❌ Errore generate shareable token:", error);
+      return res.status(500).json({
+        error: "Errore server",
+        message:
+          error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    }
+  },
+);
+
+/**
  * GET /api/quotes/health
  * Health check per quote API
  */
