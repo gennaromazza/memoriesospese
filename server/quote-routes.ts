@@ -2712,14 +2712,14 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     // 3. Crea Quote dal template
     const products = template.defaultProducts || [];
     const quoteProducts = products.map((p: any) => {
-      const isSelected = template.type === "variabile"
-        ? selectedProducts?.includes(p.productId || p.nome) || false
-        : undefined;
-      return {
+      const result: any = {
         ...p,
         selectable: template.type === "variabile",
-        selected: isSelected,
       };
+      if (template.type === "variabile") {
+        result.selected = selectedProducts?.includes(p.productId || p.nome) || false;
+      }
+      return result;
     });
 
     let subtotale = 0;
