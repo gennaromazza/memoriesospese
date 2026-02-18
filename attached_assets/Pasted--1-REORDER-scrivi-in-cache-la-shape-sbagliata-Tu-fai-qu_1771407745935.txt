@@ -1,0 +1,149 @@
+❌ 1) REORDER: scrivi in cache la shape sbagliata
+
+Tu fai:
+
+queryClient.setQueryData(["quote-templates"], newTemplates);
+
+
+Ma la query originale (getAllQuoteTemplates) probabilmente ritorna templatesData (array “raw” da Firestore).
+newTemplates invece è l’array già sortato + magari con campi calcolati (dipende da lib). In ogni caso il problema grosso è questo:
+
+templates è un useMemo([...templatesData].sort(...))
+
+Quando fai optimistic update, stai settando direttamente ["quote-templates"] con newTemplates (che è già ordinato), ma senza aggiornare ordine sugli oggetti.
+
+Dopo un refetch, se Firestore ordina per ordine e tu non l’hai aggiornato correttamente, l’ordine può “saltare” o tornare indietro.
+
+✅ Fix minimo: quando persisti, invia anche gli indici e aggiorna ordine nei doc. E nell’optimistic set, setta anche ordine coerente:
+
+const newTemplates = arrayMove(templates, oldIndex, newIndex).map((t, idx) => ({ ...t, ordine: idx }));
+queryClient.setQueryData(["quote-templates"], newTemplates);
+reorderMutation.mutate(newTemplates.map(t => ({ id: t.id, ordine: t.ordine })));
+
+
+(oggi stai mandando solo id[], quindi la tua updateTemplatesOrder deve fare la mappatura. Se non la fa → BUG.)
+
+❌ 2) Update: “sconto fantasma” impossibile da rimuovere
+
+Nel tuo update:
+
+const updateData: any = { ... }
+if (data.discountType !== undefined && data.discountValue !== undefined) {
+  updateData.discountType = data.discountType;
+  updateData.discountValue = data.discountValue;
+}
+await updateQuoteTemplate(id, updateData);
+
+
+Problema: se in UI scegli “none”, tu fai:
+
+field.onChange(undefined);
+form.setValue("discountValue", undefined);
+
+
+Quindi in update non includi i campi… ma in Firestore restano quelli vecchi (perché updateDoc non li cancella).
+
+Risultato reale:
+
+apri template con sconto
+
+metti “nessuno sconto”
+
+salvi
+
+lo sconto resta in DB → in QuoteBuilder te lo ritrovi
+
+✅ Fix: quando “none”, devi unset i campi. In Firestore serve deleteField() oppure set a null in modo consistente.
+
+Esempio:
+
+import { deleteField } from "firebase/firestore";
+
+if (data.discountType === undefined || data.discountValue === undefined) {
+  updateData.discountType = deleteField();
+  updateData.discountValue = deleteField();
+}
+
+❌ 3) Totale mostrato nelle card NON considera sconto
+
+In SortableTemplateCard:
+
+const totale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
+
+
+Poi mostri:
+
+€{totale.toLocaleString()}
+
+
+Ma se il template ha discountType/discountValue, la card mostra un totale sbagliato (utente pensa che il template valga X, ma in builder vale Y).
+
+✅ Fix: usa calculateQuoteTotals(totale, template.discountType, template.discountValue).totalAfterDiscount.
+
+❌ 4) toLocaleString() senza decimali e senza locale/valuta coerente
+€{totale.toLocaleString()}
+
+
+Questo:
+
+può troncare/format non stabile
+
+niente .toFixed(2)
+
+dipende dalla locale del browser
+
+✅ Fix:
+
+€{totale.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+❌ 5) Sorting iniziale: se uno dei due non ha ordine, ritorni 0 → ordine “random”
+if (a.ordine !== undefined && b.ordine !== undefined) return a.ordine - b.ordine;
+return 0;
+
+
+Se un template ha ordine e l’altro no, return 0 → lascia all’engine l’ordine originale (che può cambiare ad ogni refetch).
+
+✅ Fix robusto:
+
+const ao = a.ordine ?? Number.MAX_SAFE_INTEGER;
+const bo = b.ordine ?? Number.MAX_SAFE_INTEGER;
+return ao - bo;
+
+⚠️ 6) Import doppi / inutilizzati (sporco e potenziali warning)
+
+Hai:
+
+import { useQueryClient } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+
+
+useQueryClient non viene mai usato.
+E stai usando il queryClient globale: ok, ma allora togli useQueryClient.
+
+(Non è bug runtime, ma è rumore + confusione.)
+
+⚠️ 7) SortableTemplateCard usa state interno isPreviewOpen → si resetta su re-render “strani”
+
+Con dnd + memo è ok, però:
+
+se cambiano key o l’oggetto template viene ricreato spesso, la preview collassa
+
+non è critico, ma se ti “lampeggia” è questo.
+
+Se vuoi stabilità assoluta: salva isPreviewOpen in parent per templateId.
+
+⚠️ 8) Discount input: stessa UX brutta del builder (vuoto → 0 immediato)
+parseFloat(e.target.value) || 0
+
+
+Appena cancelli il valore diventa 0 → non puoi digitare “0.5” bene in alcune sequenze.
+
+Fix migliore: gestire stringhe o usare Number.isNaN.
+
+✅ I 3 fix che ti consiglio subito
+
+Update: gestisci rimozione sconto (deleteField()), altrimenti ti resta in DB.
+
+Reorder: aggiorna ordine in modo coerente (optimistic + persist).
+
+Card totale: mostra totale dopo sconto, altrimenti l’admin prende decisioni sbagli

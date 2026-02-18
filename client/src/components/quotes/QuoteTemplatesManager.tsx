@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +17,7 @@ import {
   toggleTemplateActive,
   updateTemplatesOrder,
 } from "@/lib/quotes";
+import { deleteField } from "firebase/firestore";
 import { getAllProducts } from "@/lib/products";
 import { getJobTypes } from "@/lib/job-types";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
@@ -202,7 +203,13 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   };
 
   const jobType = jobTypes.find((jt) => jt.slug === template.jobType);
-  const totale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
+  const subtotale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
+  const { totalAfterDiscount, discountAmount } = calculateQuoteTotals(
+    subtotale,
+    template.discountType,
+    template.discountValue,
+  );
+  const hasDiscount = discountAmount > 0;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -279,10 +286,18 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
               {template.defaultProducts.length}
             </span>
           </div>
+          {hasDiscount && (
+            <div className="flex items-center justify-between text-sm text-orange-600">
+              <span className="text-muted-foreground">Subtotale:</span>
+              <span className="line-through">
+                €{subtotale.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-sm">Totale:</span>
             <span className="text-lg font-bold text-sage">
-              €{totale.toLocaleString()}
+              €{totalAfterDiscount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
@@ -343,10 +358,9 @@ export default function QuoteTemplatesManager() {
   // Sort templates by ordine field
   const templates = useMemo(() => {
     return [...templatesData].sort((a, b) => {
-      if (a.ordine !== undefined && b.ordine !== undefined) {
-        return a.ordine - b.ordine;
-      }
-      return 0;
+      const ao = a.ordine ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.ordine ?? Number.MAX_SAFE_INTEGER;
+      return ao - bo;
     });
   }, [templatesData]);
 
@@ -645,10 +659,12 @@ export default function QuoteTemplatesManager() {
         attivo: data.attivo,
       };
 
-      // Only include discount fields if they are actually defined
       if (data.discountType !== undefined && data.discountValue !== undefined) {
         updateData.discountType = data.discountType;
         updateData.discountValue = data.discountValue;
+      } else {
+        updateData.discountType = deleteField();
+        updateData.discountValue = deleteField();
       }
 
       await updateQuoteTemplate(id, updateData);
@@ -720,14 +736,11 @@ export default function QuoteTemplatesManager() {
       const oldIndex = templates.findIndex((t) => t.id === active.id);
       const newIndex = templates.findIndex((t) => t.id === over.id);
 
-      const newTemplates = arrayMove(templates, oldIndex, newIndex);
-      const newOrder = newTemplates.map((t) => t.id);
+      const newTemplates = arrayMove(templates, oldIndex, newIndex).map((t, idx) => ({ ...t, ordine: idx }));
 
-      // Optimistic update
       queryClient.setQueryData(["quote-templates"], newTemplates);
 
-      // Persist to Firestore
-      reorderMutation.mutate(newOrder);
+      reorderMutation.mutate(newTemplates.map(t => t.id));
     }
   };
 
@@ -1164,10 +1177,18 @@ export default function QuoteTemplatesManager() {
                                 discountType === "amount" ? "0.00" : "0"
                               }
                               {...field}
-                              value={field.value || ""}
-                              onChange={(e) =>
-                                field.onChange(parseFloat(e.target.value) || 0)
-                              }
+                              value={field.value ?? ""}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === "" || raw === ".") {
+                                  field.onChange(0);
+                                  return;
+                                }
+                                const parsed = parseFloat(raw);
+                                if (!Number.isNaN(parsed)) {
+                                  field.onChange(parsed);
+                                }
+                              }}
                             />
                           </FormControl>
                           <FormMessage />
