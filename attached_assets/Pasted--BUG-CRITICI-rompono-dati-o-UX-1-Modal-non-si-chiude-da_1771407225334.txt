@@ -1,0 +1,194 @@
+❌ BUG CRITICI (rompono dati o UX)
+1) Modal non si chiude davvero: bottone “Annulla” bypassa la confirm
+
+Hai:
+
+<Dialog open={open} onOpenChange={handleDialogChange}>
+
+<Button type="button" onClick={onClose}>Annulla</Button>
+
+Problema
+
+handleDialogChange fa la confirm “modifiche non salvate”
+
+ma il bottone chiama onClose diretto → chiude senza conferma
+
+✅ Fix: usa handleDialogChange(false) oppure estrai una requestClose().
+
+const requestClose = () => handleDialogChange(false);
+
+// ...
+<Button type="button" onClick={requestClose}>Annulla</Button>
+
+2) In edit mode non resetti lo stato UI (template / expanded / immagini)
+
+Quando carichi existingQuote, aggiorni form, ma NON resetti:
+
+selectedTemplateId
+
+expandedProducts
+
+uploadingImages
+
+Risultato:
+
+apri un quote A → poi quote B → ti ritrovi UI “sporca” (prodotti espansi sbagliati, template selezionato vecchio)
+
+✅ Fix (in effect di load existingQuote):
+
+setSelectedTemplateId(existingQuote.templateId ?? '');
+setExpandedProducts(new Set()); // o espandi i primi
+setUploadingImages({});
+
+3) Query key job incoerente (cache mismatch)
+
+Qui:
+
+queryKey: ['jobs', jobId]
+
+
+Altrove nel tuo codice spesso usi ['job', jobId] o ['jobs', jobId] (hai già mostrato pattern misti).
+
+Problema: invalidate/refetch potrebbero non colpire il job giusto → preview pagamenti/eventDate stale.
+
+✅ Fix: standardizza. Se usi ['job', jobId] altrove, usa quello anche qui.
+
+4) Pagamento preview usa job.eventDate invece della data del form
+
+Preview:
+
+const eventDate = job?.eventDate ? ... : null;
+return calculatePaymentSchedule(totalAfterDiscount, paymentConfig, eventDate || undefined);
+
+
+Ma nel builder potresti voler usare una eventDate modificabile / diversa dal job (o job non ancora aggiornato).
+
+Bug pratico:
+
+job.eventDate è null o vecchio → preview scadenze sbagliate
+
+ma l’admin pensa che sia corretto
+
+✅ Fix: se vuoi “reference evento”, usa job.eventDate ok, ma allora:
+
+mostra warning “evento senza data”
+
+o disable useEventDateReference se job.eventDate mancante
+
+5) onInteractOutside preventDefault blocca chiusura naturale + focus trap edge-case
+onInteractOutside={(e) => e.preventDefault()}
+
+
+Questo:
+
+impedisce click outside per chiudere (ok se voluto)
+
+ma può rompere interazioni con portali (Select/Popover) in alcuni casi
+
+e può rendere il dialog “intrappolato” se l’utente vuole solo chiudere
+
+Se già hai confirm, meglio lasciare Radix fare il suo e gestire onOpenChange.
+
+✅ Fix: rimuovilo o applicalo solo quando createMutation.isPending.
+
+⚠️ BUG DI VALIDAZIONE / DATI
+6) Discount validation manca in EDIT mode
+
+Nel create nuovo fai:
+
+validateDiscount(...) -> throw error
+
+
+Nel ramo edit NO.
+
+Bug:
+
+in edit puoi salvare sconto > 100% o > subtotale (dipende da schema)
+
+e poi totals incoerenti
+
+✅ Fix: stessa validazione anche nel ramo edit.
+
+7) Schema: products[].prezzo può essere NaN e passa male
+
+Input:
+
+onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
+
+
+Se l’utente digita - o vuoto:
+
+diventa 0 subito (UX pessima)
+
+e perdi l’intento
+
+Meglio: gestire stringa temporanea o Number.isNaN.
+
+8) paymentConfig usa || invece di ?? (bug con 0)
+accontoRelativeDays: paymentConfigAccontoRelativeDays || 0,
+
+
+Se vuoi impostare 0 va bene, ma in altri campi:
+
+accontoPercentage: paymentConfigAccontoPercentage || 30,
+
+
+Se l’utente imposta 0% (valido), tu lo trasformi in 30.
+
+✅ Fix:
+
+accontoPercentage: paymentConfigAccontoPercentage ?? 30,
+
+
+Stessa cosa per numberOfPayments ecc.
+
+9) Aggiorni selectable su tutti i prodotti a cambio type, MA…
+form.setValue('products', updatedProducts, { shouldDirty:false })
+
+
+Se l’utente aveva modifiche e cambi type, tu:
+
+cambi prodotti
+
+ma non segni dirty → rischio “chiudo senza warning” perché la tua confirm guarda solo nome/prezzo, non dirty.
+
+✅ Fix: o usi form.formState.isDirty nella confirm, oppure segni dirty quando fai questo update.
+
+⚠️ BUG UI/UX
+10) Prodotti frequenti: Select con value="" fisso
+<Select value="" onValueChange=...>
+
+
+Radix non ama value controllato sempre uguale:
+
+può impedire selezioni ripetute della stessa voce
+
+può dare warning controllato/ non controllato
+
+✅ Fix: usa stato frequentSelected, e poi reset a '' dopo append.
+
+const [freq, setFreq] = useState('');
+<Select value={freq} onValueChange={(v)=>{ setFreq(v); ...; setFreq(''); }}>
+
+11) Expand set: memory leak logico dopo reorder/remove
+
+expandedProducts contiene id dei field.
+Quando fai remove, quell’id resta nel Set → cresce.
+
+✅ Fix:
+
+quando rimuovi, elimina id dal set
+
+quando riordini, non serve (gli id restano), ok.
+
+✅ LISTA FIX “TOP 5” (quelli che ti conviene fare subito)
+
+Bottone Annulla deve passare dalla confirm (requestClose)
+
+Reset stati UI in edit mode (template/expanded/uploading)
+
+Standardizza queryKey job (['job', jobId] vs ['jobs', jobId])
+
+paymentConfig usa ?? (0 deve restare 0)
+
+Discount validation anche in edit mode

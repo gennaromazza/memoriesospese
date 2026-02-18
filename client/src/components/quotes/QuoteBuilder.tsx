@@ -327,6 +327,7 @@ export default function QuoteBuilder({
   const [selectedClauseTemplateId, setSelectedClauseTemplateId] = useState<string>('');
   const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  const [frequentProductValue, setFrequentProductValue] = useState<string>('');
   const prevFieldsCountRef = useRef<number>(0);
 
   // Query job per eventDate
@@ -503,6 +504,10 @@ export default function QuoteBuilder({
       form.setValue('clauseTemplateId', existingQuote.clauseTemplateId);
     }
 
+    setSelectedTemplateId(existingQuote.templateId ?? '');
+    setExpandedProducts(new Set());
+    setUploadingImages({});
+
     toast({
       title: 'Preventivo caricato',
       description: 'Modifica i campi e salva per aggiornare'
@@ -579,8 +584,7 @@ export default function QuoteBuilder({
           ...p,
           selectable: shouldBeSelectable
         }));
-        // Use a functional update or ensure we don't trigger unnecessary re-renders
-        form.setValue('products', updatedProducts, { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+        form.setValue('products', updatedProducts, { shouldDirty: true, shouldTouch: false, shouldValidate: false });
       }
     }
   }, [quoteType, form]);
@@ -597,14 +601,14 @@ export default function QuoteBuilder({
   
   // Rebuild paymentConfig object for calculations
   const paymentConfig = useMemo(() => ({
-    autoGenerate: paymentConfigAutoGenerate || false,
-    numberOfPayments: paymentConfigNumberOfPayments || 2,
-    accontoType: paymentConfigAccontoType || 'percentage',
-    accontoPercentage: paymentConfigAccontoPercentage || 30,
-    accontoAmount: paymentConfigAccontoAmount || 0,
-    accontoRelativeDays: paymentConfigAccontoRelativeDays || 0,
-    rateIntervalDays: paymentConfigRateIntervalDays || 30,
-    useEventDateReference: paymentConfigUseEventDateReference || false,
+    autoGenerate: paymentConfigAutoGenerate ?? false,
+    numberOfPayments: paymentConfigNumberOfPayments ?? 2,
+    accontoType: paymentConfigAccontoType ?? 'percentage',
+    accontoPercentage: paymentConfigAccontoPercentage ?? 30,
+    accontoAmount: paymentConfigAccontoAmount ?? 0,
+    accontoRelativeDays: paymentConfigAccontoRelativeDays ?? 0,
+    rateIntervalDays: paymentConfigRateIntervalDays ?? 30,
+    useEventDateReference: paymentConfigUseEventDateReference ?? false,
   }), [
     paymentConfigAutoGenerate,
     paymentConfigNumberOfPayments,
@@ -773,6 +777,12 @@ export default function QuoteBuilder({
         ));
 
         const subtotale = mergedProducts.reduce((sum: number, p: any) => sum + p.prezzo, 0);
+
+        const discountValidation = validateDiscount(subtotale, data.discountType, data.discountValue);
+        if (!discountValidation.valid) {
+          throw new Error(discountValidation.error);
+        }
+
         const finalTotals = calculateQuoteTotals(subtotale, data.discountType, data.discountValue);
 
         // Prepara clausole per l'update
@@ -1025,7 +1035,7 @@ export default function QuoteBuilder({
            e spostare lo scroll in un wrapper interno */}
       <DialogContent 
         className="w-[98vw] sm:max-w-4xl p-0"
-        onInteractOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => { if (createMutation.isPending) e.preventDefault(); }}
       >
         
         {/* Wrapper scrollabile */}
@@ -1281,7 +1291,7 @@ export default function QuoteBuilder({
                 <div className="flex items-center gap-2">
                   {/* Dropdown prodotti frequenti */}
                   <Select
-                    value=""
+                    value={frequentProductValue}
                     onValueChange={(value) => {
                       const product = FREQUENT_PRODUCTS.find(p => p.nome === value);
                       if (product) {
@@ -1295,6 +1305,7 @@ export default function QuoteBuilder({
                           immagini: []
                         });
                       }
+                      setFrequentProductValue('');
                     }}
                   >
                     <SelectTrigger className="w-[200px]" data-testid="select-frequent-product">
@@ -1359,7 +1370,14 @@ export default function QuoteBuilder({
                           isEmpty={isEmpty}
                           hasName={hasName}
                           fieldsLength={fields.length}
-                          onRemove={() => remove(index)}
+                          onRemove={() => {
+                            setExpandedProducts(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(field.id);
+                              return newSet;
+                            });
+                            remove(index);
+                          }}
                           isExpanded={expandedProducts.has(field.id)}
                           onToggleExpand={() => {
                             setExpandedProducts(prev => {
@@ -1830,6 +1848,12 @@ export default function QuoteBuilder({
                       )}
                     />
 
+                    {paymentConfig?.useEventDateReference && !job?.eventDate && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                        ⚠️ Il lavoro non ha una data evento impostata. Le scadenze relative all'evento non potranno essere calcolate correttamente.
+                      </div>
+                    )}
+
                     {paymentConfig?.useEventDateReference && (
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
@@ -2014,7 +2038,7 @@ export default function QuoteBuilder({
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
+                onClick={() => handleDialogChange(false)}
                 disabled={createMutation.isPending}
                 data-testid="button-cancel"
               >
