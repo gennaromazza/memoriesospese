@@ -130,7 +130,7 @@ export default function JobsManager() {
   const [filterYear, setFilterYear] = useState<string>('all');
   const [filterSemester, setFilterSemester] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all'); // Nuovo: filtro mese
-  const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('firmato'); // Nuovo: stato preventivo (default: firmato)
+  const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('all'); // Stato preventivo (default: tutti per mostrare anche lavori nuovi)
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
   const [filterCollaboratore, setFilterCollaboratore] = useState<string>('all'); // Filtro collaboratore
   const [customDateRange, setCustomDateRange] = useState<{

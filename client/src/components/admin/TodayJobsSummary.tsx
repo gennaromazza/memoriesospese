@@ -34,6 +34,9 @@ function parseEventDate(eventDate: any): Date | null {
     if (typeof eventDate?.seconds === 'number') {
       return new Timestamp(eventDate.seconds, eventDate.nanoseconds || 0).toDate();
     }
+    if (typeof eventDate?._seconds === 'number') {
+      return new Date(eventDate._seconds * 1000);
+    }
     return new Date(eventDate);
   } catch {
     return null;
