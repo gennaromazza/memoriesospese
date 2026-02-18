@@ -16,56 +16,71 @@ import NotFound from "./pages/NotFound";
 import CookieBanner from "./components/CookieBanner";
 import ProfileImageWelcomeProvider from "./components/ProfileImageWelcomeProvider";
 
-const GalleryAccessPage = lazy(() => import("./pages/public/GalleryAccessPage"));
-const PortfolioPage = lazy(() => import("./pages/public/PortfolioPage"));
-const PortfolioCategoryPage = lazy(() => import("./pages/public/PortfolioCategoryPage"));
-const StoriePage = lazy(() => import("./pages/public/StoriePage"));
-const LasciatiTrasportarePage = lazy(() => import("./pages/public/LasciatiTrasportarePage"));
-const BlogListPage = lazy(() => import("./pages/public/BlogListPage"));
-const BlogPostPage = lazy(() => import("./pages/public/BlogPostPage"));
-const WeddingVideosPage = lazy(() => import("./pages/public/WeddingVideosPage"));
-const GalleryAccess = lazy(() => import("./pages/GalleryAccess"));
-const Gallery = lazy(() => import("./pages/Gallery"));
-const SpecialGalleryAccess = lazy(() => import("./pages/SpecialGalleryAccess"));
-const BookingIndex = lazy(() => import("./pages/BookingIndex"));
-const BookingPage = lazy(() => import("./pages/BookingPage"));
-const QuotePortal = lazy(() => import("./pages/QuotePortal"));
-const Privacy = lazy(() => import("./pages/Privacy"));
-const CookiePolicy = lazy(() => import("./pages/CookiePolicy"));
-const GdprRequest = lazy(() => import("./pages/GdprRequest"));
-const Terms = lazy(() => import("./pages/Terms"));
-const ConsultationIndex = lazy(() => import("./pages/ConsultationIndex"));
-const ConsultationTemplates = lazy(() => import("./pages/ConsultationTemplates"));
-const ConsultationBooking = lazy(() => import("./pages/ConsultationBooking"));
-const CollaboratorAssignmentResponse = lazy(() => import("./pages/CollaboratorAssignmentResponse"));
-const CollaboratoreDashboard = lazy(() => import("./pages/CollaboratoreDashboard"));
-const QuestionnaireForm = lazy(() => import("./pages/QuestionnaireForm"));
-const RequestPassword = lazy(() => import("./pages/RequestPassword"));
-const PasswordResult = lazy(() => import("./pages/PasswordResult"));
-const AdminLogin = lazy(() => import("./pages/AdminLogin"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const AdminGalleryAccess = lazy(() => import("./pages/AdminGalleryAccess"));
-const Faq = lazy(() => import("./pages/admin/Faq"));
-const QuestionnaireManager = lazy(() => import("./pages/admin/QuestionnaireManager"));
-const DeleteGalleryPage = lazy(() => import("./pages/DeleteGalleryPage"));
-const UserProfile = lazy(() => import("./pages/UserProfile"));
-const GalleryManagementWorkspace = lazy(() => import("./pages/GalleryManagementWorkspace"));
-const JobDetailPage = lazy(() => import("./pages/JobDetailPage"));
-const JobsListPage = lazy(() => import("./pages/JobsListPage"));
-const ImportDataPage = lazy(() => import("./pages/ImportDataPage"));
-const ConsultationTemplatesManager = lazy(() => import("./pages/admin/ConsultationTemplatesManager"));
-const AdminConsultationsRoute = lazy(() => import("./pages/admin/AdminConsultationsRoute"));
-const AdminJsonImporter = lazy(() => import("./pages/admin/AdminJsonImporter"));
-const AdminLegacyImporter = lazy(() => import("./pages/admin/AdminLegacyImporter"));
-const AdminLegacyJobsAnalyzer = lazy(() => import("./pages/admin/AdminLegacyJobsAnalyzer"));
-const QuoteManagementDemo = lazy(() => import("./pages/admin/QuoteManagementDemo"));
-const ProductStatsPage = lazy(() => import("./pages/admin/ProductStatsPage"));
-const BackupManager = lazy(() => import("./pages/admin/BackupManager"));
-const AuditSystem = lazy(() => import("./pages/admin/AuditSystem"));
-const OrphanedPhotosManager = lazy(() => import("./pages/admin/OrphanedPhotosManager"));
-const PhoneMigrationPage = lazy(() => import("./pages/admin/PhoneMigrationPage"));
-const PaymentDiscrepanciesAudit = lazy(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
-const BulkEmailSender = lazy(() => import("./pages/BulkEmailSender"));
+function lazyWithRetry(importFn: () => Promise<any>) {
+  return lazy(() =>
+    importFn().catch((err: Error) => {
+      const hasReloaded = sessionStorage.getItem('chunk_reload');
+      if (!hasReloaded) {
+        sessionStorage.setItem('chunk_reload', '1');
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem('chunk_reload');
+      throw err;
+    })
+  );
+}
+
+const GalleryAccessPage = lazyWithRetry(() => import("./pages/public/GalleryAccessPage"));
+const PortfolioPage = lazyWithRetry(() => import("./pages/public/PortfolioPage"));
+const PortfolioCategoryPage = lazyWithRetry(() => import("./pages/public/PortfolioCategoryPage"));
+const StoriePage = lazyWithRetry(() => import("./pages/public/StoriePage"));
+const LasciatiTrasportarePage = lazyWithRetry(() => import("./pages/public/LasciatiTrasportarePage"));
+const BlogListPage = lazyWithRetry(() => import("./pages/public/BlogListPage"));
+const BlogPostPage = lazyWithRetry(() => import("./pages/public/BlogPostPage"));
+const WeddingVideosPage = lazyWithRetry(() => import("./pages/public/WeddingVideosPage"));
+const GalleryAccess = lazyWithRetry(() => import("./pages/GalleryAccess"));
+const Gallery = lazyWithRetry(() => import("./pages/Gallery"));
+const SpecialGalleryAccess = lazyWithRetry(() => import("./pages/SpecialGalleryAccess"));
+const BookingIndex = lazyWithRetry(() => import("./pages/BookingIndex"));
+const BookingPage = lazyWithRetry(() => import("./pages/BookingPage"));
+const QuotePortal = lazyWithRetry(() => import("./pages/QuotePortal"));
+const Privacy = lazyWithRetry(() => import("./pages/Privacy"));
+const CookiePolicy = lazyWithRetry(() => import("./pages/CookiePolicy"));
+const GdprRequest = lazyWithRetry(() => import("./pages/GdprRequest"));
+const Terms = lazyWithRetry(() => import("./pages/Terms"));
+const ConsultationIndex = lazyWithRetry(() => import("./pages/ConsultationIndex"));
+const ConsultationTemplates = lazyWithRetry(() => import("./pages/ConsultationTemplates"));
+const ConsultationBooking = lazyWithRetry(() => import("./pages/ConsultationBooking"));
+const CollaboratorAssignmentResponse = lazyWithRetry(() => import("./pages/CollaboratorAssignmentResponse"));
+const CollaboratoreDashboard = lazyWithRetry(() => import("./pages/CollaboratoreDashboard"));
+const QuestionnaireForm = lazyWithRetry(() => import("./pages/QuestionnaireForm"));
+const RequestPassword = lazyWithRetry(() => import("./pages/RequestPassword"));
+const PasswordResult = lazyWithRetry(() => import("./pages/PasswordResult"));
+const AdminLogin = lazyWithRetry(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazyWithRetry(() => import("./pages/AdminDashboard"));
+const AdminGalleryAccess = lazyWithRetry(() => import("./pages/AdminGalleryAccess"));
+const Faq = lazyWithRetry(() => import("./pages/admin/Faq"));
+const QuestionnaireManager = lazyWithRetry(() => import("./pages/admin/QuestionnaireManager"));
+const DeleteGalleryPage = lazyWithRetry(() => import("./pages/DeleteGalleryPage"));
+const UserProfile = lazyWithRetry(() => import("./pages/UserProfile"));
+const GalleryManagementWorkspace = lazyWithRetry(() => import("./pages/GalleryManagementWorkspace"));
+const JobDetailPage = lazyWithRetry(() => import("./pages/JobDetailPage"));
+const JobsListPage = lazyWithRetry(() => import("./pages/JobsListPage"));
+const ImportDataPage = lazyWithRetry(() => import("./pages/ImportDataPage"));
+const ConsultationTemplatesManager = lazyWithRetry(() => import("./pages/admin/ConsultationTemplatesManager"));
+const AdminConsultationsRoute = lazyWithRetry(() => import("./pages/admin/AdminConsultationsRoute"));
+const AdminJsonImporter = lazyWithRetry(() => import("./pages/admin/AdminJsonImporter"));
+const AdminLegacyImporter = lazyWithRetry(() => import("./pages/admin/AdminLegacyImporter"));
+const AdminLegacyJobsAnalyzer = lazyWithRetry(() => import("./pages/admin/AdminLegacyJobsAnalyzer"));
+const QuoteManagementDemo = lazyWithRetry(() => import("./pages/admin/QuoteManagementDemo"));
+const ProductStatsPage = lazyWithRetry(() => import("./pages/admin/ProductStatsPage"));
+const BackupManager = lazyWithRetry(() => import("./pages/admin/BackupManager"));
+const AuditSystem = lazyWithRetry(() => import("./pages/admin/AuditSystem"));
+const OrphanedPhotosManager = lazyWithRetry(() => import("./pages/admin/OrphanedPhotosManager"));
+const PhoneMigrationPage = lazyWithRetry(() => import("./pages/admin/PhoneMigrationPage"));
+const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
+const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
@@ -203,7 +218,7 @@ function App() {
   );
 }
 
-const PathDebugInfo = lazy(() => import("./components/PathDebugInfo"));
-const AuthDebugPanel = lazy(() => import("./components/AuthDebugPanel"));
+const PathDebugInfo = lazyWithRetry(() => import("./components/PathDebugInfo"));
+const AuthDebugPanel = lazyWithRetry(() => import("./components/AuthDebugPanel"));
 
 export default App;
