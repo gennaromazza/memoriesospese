@@ -1,0 +1,141 @@
+❌ 1. importo → BUG silenzioso con 0
+Problema
+importo: payment?.importo || 0,
+
+
+Se payment.importo === 0 (valido in edit), viene sovrascritto da 0 comunque ok,
+ma in generale questo pattern è sbagliato e fragile.
+
+Fix corretto
+importo: payment?.importo ?? 0,
+
+
+👉 Usa nullish coalescing, non ||.
+
+❌ 2. tipo NON validato correttamente
+Problema
+
+Schema:
+
+tipo: z.enum(["acconto", "rata", "saldo"]),
+
+
+Props:
+
+payment?: { tipo: string }
+
+
+Se arriva dal backend un valore non perfettamente allineato ("ACCONTO", "saldo_finale", typo ecc.)
+👉 crash silenzioso / form invalido
+
+Fix consigliato
+
+Normalizza prima:
+
+const safeTipo = ["acconto", "rata", "saldo"].includes(payment?.tipo)
+  ? (payment?.tipo as "acconto" | "rata" | "saldo")
+  : "acconto";
+
+
+Usalo in defaultValues e reset.
+
+❌ 3. DateInput + Calendar → possibile undefined
+Problema
+onSelect={field.onChange}
+
+
+Calendar di shadcn può restituire undefined
+ma lo schema richiede:
+
+dataScadenza: z.date()
+
+
+👉 Errore di validazione o crash runtime.
+
+Fix sicuro
+onSelect={(date) => date && field.onChange(date)}
+
+❌ 4. relativeDays → parseInt BUG
+Problema
+parseInt(e.target.value) || 0
+
+
+Se l’utente scrive:
+
+-
+
+stringa vuota
+
++
+
+👉 viene forzato a 0 mentre sta digitando → UX pessima
+
+Fix corretto
+const value = e.target.value;
+setRelativeDays(value === "" ? 0 : Number(value));
+
+
+Oppure usa Number.isNaN.
+
+❌ 5. Cambio dateMode → data NON ricalcolata subito
+Problema
+
+Quando passi da absolute → relative:
+
+relativeDays resta quello precedente
+
+dataScadenza non viene ricalcolata immediatamente
+
+Dipende solo dall’useEffect.
+
+Fix robusto
+
+Nel onValueChange:
+
+onValueChange={(value) => {
+  const mode = value as "absolute" | "relative";
+  setDateMode(mode);
+
+  if (mode === "relative" && eventDate) {
+    form.setValue("dataScadenza", addDays(eventDate, relativeDays));
+  }
+}}
+
+❌ 6. dataScadenza.toISOString() → BUG timezone
+Problema
+dataScadenza: data.dataScadenza.toISOString(),
+
+
+Se lavori a mezzanotte locale, l’ISO può diventare giorno precedente.
+
+Fix consigliato (date-only)
+const d = data.dataScadenza;
+const safeDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+dataScadenza: safeDate.toISOString(),
+
+
+Oppure invia yyyy-MM-dd.
+
+⚠️ 7. queryKey incoerenti
+
+Usi:
+
+["payment-schedules", jobId]
+["paymentSchedule", jobId]
+["paymentSchedules", "aggregated", jobId]
+
+
+⚠️ Naming non coerente → rischio cache non invalidata correttamente.
+
+Consiglio: standardizza (paymentSchedule vs payment-schedules).
+
+⚠️ 8. Import inutilizzati
+
+Puoi rimuovere:
+
+cn
+Textarea
+Calendar (se usi solo DateInput + Popover)
+
+
+Non bug, ma rumore inutile.

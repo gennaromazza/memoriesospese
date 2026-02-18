@@ -42,16 +42,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DateInput } from "@/components/ui/date-input";
-import { cn } from "@/lib/utils";
 import { CalendarIcon, Loader2, CalendarDays } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { it } from "date-fns/locale/it";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
+
+const VALID_TIPI = ["acconto", "rata", "saldo"] as const;
+type TipoRata = (typeof VALID_TIPI)[number];
 
 const formSchema = z.object({
-  tipo: z.enum(["acconto", "rata", "saldo"]),
+  tipo: z.enum(VALID_TIPI),
   importo: z.number().min(0.01, "Importo deve essere maggiore di 0"),
   dataScadenza: z.date(),
   descrizione: z.string().optional(),
@@ -75,6 +76,13 @@ interface GestioneRataModalProps {
   mode: "add" | "edit";
 }
 
+function safeTipo(tipo?: string): TipoRata {
+  if (tipo && (VALID_TIPI as readonly string[]).includes(tipo)) {
+    return tipo as TipoRata;
+  }
+  return "acconto";
+}
+
 export default function GestioneRataModal({
   open,
   onClose,
@@ -88,43 +96,36 @@ export default function GestioneRataModal({
   const [dateMode, setDateMode] = useState<"absolute" | "relative">("absolute");
   const [relativeDays, setRelativeDays] = useState<number>(0);
 
-  // Helper: converti dataScadenza in Date (gestisce Timestamp Firestore o Date già convertito)
   const getDateFromPayment = (dataScadenza: any): Date => {
     if (!dataScadenza) return new Date();
-    // Se è già un Date object, usalo direttamente
     if (dataScadenza instanceof Date) return dataScadenza;
-    // Se è un Timestamp Firestore, converti con toDate()
     if (dataScadenza.toDate && typeof dataScadenza.toDate === "function") {
       return dataScadenza.toDate();
     }
-    // Fallback: prova a parsare come string/number
     return new Date(dataScadenza);
   };
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      tipo: (payment?.tipo as "acconto" | "rata" | "saldo") || "acconto",
-      importo: payment?.importo || 0,
+      tipo: safeTipo(payment?.tipo),
+      importo: payment?.importo ?? 0,
       dataScadenza: getDateFromPayment(payment?.dataScadenza),
-      descrizione: payment?.descrizione || "",
+      descrizione: payment?.descrizione ?? "",
     },
   });
 
-  // Reset form quando modal si apre con payment diverso
   useEffect(() => {
     if (open) {
       const paymentDate = getDateFromPayment(payment?.dataScadenza);
 
       form.reset({
-        tipo: (payment?.tipo as "acconto" | "rata" | "saldo") || "acconto",
-        importo: payment?.importo || 0,
+        tipo: safeTipo(payment?.tipo),
+        importo: payment?.importo ?? 0,
         dataScadenza: paymentDate,
-        descrizione: payment?.descrizione || "",
+        descrizione: payment?.descrizione ?? "",
       });
 
-      // Se c'è eventDate e payment, prova a calcolare l'offset relativo
-      // FIX: Usa constructor per reset ore (evita setHours())
       if (eventDate && payment?.dataScadenza) {
         const ed = new Date(eventDate);
         const eventDateNormalized = new Date(ed.getFullYear(), ed.getMonth(), ed.getDate());
@@ -135,7 +136,6 @@ export default function GestioneRataModal({
           paymentDateNormalized.getTime() - eventDateNormalized.getTime();
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-        // Se la differenza è "ragionevole" (es: entro ±365 giorni), mostra modalità relativa
         if (Math.abs(diffDays) <= 365) {
           setDateMode("relative");
           setRelativeDays(diffDays);
@@ -144,14 +144,12 @@ export default function GestioneRataModal({
           setRelativeDays(0);
         }
       } else {
-        // Nuovo payment o no eventDate: default assoluta
         setDateMode("absolute");
         setRelativeDays(0);
       }
     }
   }, [open, payment, eventDate, form]);
 
-  // Calcola data quando modalità relativa è attiva E l'utente cambia relativeDays
   useEffect(() => {
     if (dateMode === "relative" && eventDate) {
       const calculatedDate = addDays(new Date(eventDate), relativeDays);
@@ -159,7 +157,6 @@ export default function GestioneRataModal({
     }
   }, [dateMode, relativeDays, eventDate, form]);
 
-  // Mutation: aggiungi/modifica rata
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const endpoint =
@@ -169,10 +166,13 @@ export default function GestioneRataModal({
 
       const method = mode === "add" ? "POST" : "PATCH";
 
+      const d = data.dataScadenza;
+      const safeDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+
       const response = await apiRequest(method, endpoint, {
         tipo: data.tipo,
         importo: data.importo,
-        dataScadenza: data.dataScadenza.toISOString(),
+        dataScadenza: safeDate.toISOString(),
         descrizione: data.descrizione,
       });
 
@@ -192,7 +192,7 @@ export default function GestioneRataModal({
       queryClient.invalidateQueries({ queryKey: ["paymentSchedules", "aggregated", jobId] });
       queryClient.invalidateQueries({ queryKey: ["jobs", jobId] });
       toast({
-        title: mode === "add" ? "✅ Rata aggiunta!" : "✅ Rata modificata!",
+        title: mode === "add" ? "Rata aggiunta!" : "Rata modificata!",
         description:
           mode === "add"
             ? "La rata è stata aggiunta con successo al piano pagamenti."
@@ -230,7 +230,6 @@ export default function GestioneRataModal({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Tipo */}
             <FormField
               control={form.control}
               name="tipo"
@@ -257,7 +256,6 @@ export default function GestioneRataModal({
               )}
             />
 
-            {/* Importo */}
             <FormField
               control={form.control}
               name="importo"
@@ -281,14 +279,13 @@ export default function GestioneRataModal({
               )}
             />
 
-            {/* Data Scadenza */}
             <div className="space-y-3">
               <Label>Modalità Scadenza</Label>
 
               {!eventDate && (
                 <div className="rounded-md bg-yellow-50 border border-yellow-200 p-3 mb-3">
                   <p className="text-sm text-yellow-800">
-                    ℹ️ Data evento non disponibile. Puoi impostare solo scadenze
+                    Data evento non disponibile. Puoi impostare solo scadenze
                     assolute.
                   </p>
                 </div>
@@ -296,9 +293,14 @@ export default function GestioneRataModal({
 
               <RadioGroup
                 value={dateMode}
-                onValueChange={(value) =>
-                  setDateMode(value as "absolute" | "relative")
-                }
+                onValueChange={(value) => {
+                  const mode = value as "absolute" | "relative";
+                  setDateMode(mode);
+
+                  if (mode === "relative" && eventDate) {
+                    form.setValue("dataScadenza", addDays(new Date(eventDate), relativeDays));
+                  }
+                }}
                 className="space-y-2"
               >
                 <div className="flex items-center space-x-2">
@@ -354,7 +356,7 @@ export default function GestioneRataModal({
                             <Calendar
                               mode="single"
                               selected={field.value}
-                              onSelect={field.onChange}
+                              onSelect={(date) => date && field.onChange(date)}
                               initialFocus
                               locale={it}
                             />
@@ -387,9 +389,10 @@ export default function GestioneRataModal({
                         id="relative-days"
                         type="number"
                         value={relativeDays}
-                        onChange={(e) =>
-                          setRelativeDays(parseInt(e.target.value) || 0)
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setRelativeDays(val === "" || val === "-" ? 0 : Number(val));
+                        }}
                         className="text-center w-20"
                       />
                       <Button
@@ -428,7 +431,7 @@ export default function GestioneRataModal({
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    💡 Esempi: <strong>-30</strong> = 30 giorni prima
+                    Esempi: <strong>-30</strong> = 30 giorni prima
                     dell'evento (alla firma), <strong>-10</strong> = 10 giorni
                     prima, <strong>0</strong> = giorno evento,{" "}
                     <strong>+7</strong> = 7 giorni dopo
@@ -437,7 +440,6 @@ export default function GestioneRataModal({
               )}
             </div>
 
-            {/* Descrizione */}
             <FormField
               control={form.control}
               name="descrizione"
@@ -456,7 +458,6 @@ export default function GestioneRataModal({
               )}
             />
 
-            {/* Footer */}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
                 Annulla
