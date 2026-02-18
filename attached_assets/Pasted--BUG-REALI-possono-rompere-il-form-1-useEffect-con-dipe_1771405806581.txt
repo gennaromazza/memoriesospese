@@ -1,0 +1,198 @@
+❌ BUG REALI (possono rompere il form)
+1️⃣ useEffect con dipendenze SBAGLIATE (bug React serio)
+useEffect(() => {
+  if (open && job) { ... }
+}, [open, job.id]);
+
+❌ Problema
+
+Usi job.id ma leggi tutto job dentro l’effect.
+
+Se cambia:
+
+job.nomeEvento
+
+job.eventDate
+
+job.clientiIds
+
+job.appuntamentiClienti
+
+👉 il form NON si resetta
+👉 dati vecchi mostrati
+
+✅ Fix corretto
+}, [open, job]);
+
+
+oppure (più sicuro):
+
+}, [open, job.id, job.updatedAt]);
+
+2️⃣ Calendar onSelect → può passare undefined ❌
+onSelect={(date) => {
+  field.onChange(date);
+  setDatePickerOpen(false);
+}}
+
+❌ Problema
+
+Calendar di shadcn può restituire undefined
+ma lo schema vuole:
+
+eventDate: z.date().optional()
+
+
+👉 passi undefined senza controllo
+👉 trigger di validazioni strane + sync effetti
+
+✅ Fix
+onSelect={(date) => {
+  if (!date) return;
+  field.onChange(date);
+  setDatePickerOpen(false);
+}}
+
+3️⃣ handleDateInputChange NON resetta data invalida
+❌ Problema
+
+Se l’utente scrive:
+
+32/13/2025
+
+
+eventDate resta il valore precedente
+
+ma dateInputValue cambia
+
+👉 UI e form state DESINCRONIZZATI
+
+✅ Fix minimo
+if (!validDate) {
+  form.setValue('eventDate', undefined);
+}
+
+
+oppure blocca input con mask.
+
+4️⃣ Conflitti calendario chiamati anche quando NON dovrebbero
+useEffect(() => {
+  if (!eventDate) return;
+
+❌ Problema
+
+Viene chiamato anche se:
+
+dataNonDefinita === true
+
+!allDay ma manca startTime / endTime
+
+👉 API chiamata in stato invalido
+
+✅ Fix
+if (!eventDate || dataNonDefinita) return;
+if (!allDay && (!startTime || !endTime)) return;
+
+5️⃣ checkingConflicts blocca SALVATAGGIO ❌ UX bug
+disabled={updateMutation.isPending || checkingConflicts}
+
+❌ Problema
+
+Se la chiamata conflitti:
+
+è lenta
+
+o fallisce
+
+👉 non puoi salvare
+
+Ma sotto scrivi:
+
+"Puoi comunque salvare le modifiche"
+
+✅ Fix
+disabled={updateMutation.isPending}
+
+
+(o solo warning visivo)
+
+⚠️ BUG LOGICI / DATI SPORCHI
+6️⃣ startTime / endTime salvati anche se allDay
+startTime: data.startTime,
+endTime: data.endTime,
+
+❌ Problema
+
+Se allDay === true, stai comunque salvando orari vecchi.
+
+✅ Fix
+startTime: data.allDay ? undefined : data.startTime,
+endTime: data.allDay ? undefined : data.endTime,
+
+7️⃣ eventDate timezone bug (🔥 classico)
+eventDate: data.eventDate,
+
+
+Se Firestore + Google Calendar:
+
+mezzanotte locale → giorno sbagliato
+
+✅ Fix consigliato
+const d = data.eventDate;
+const safeDate = d
+  ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  : undefined;
+
+8️⃣ Fetch clienti → N query Firestore ❌
+for (const clienteId of job.clientiIds) {
+  await getDoc(...)
+}
+
+❌ Problema
+
+lento
+
+blocca UI
+
+non cancellabile
+
+✅ Fix architetturale
+
+Promise.all
+
+oppure endpoint batch
+
+⚠️ BUG DI STATO / REACT
+9️⃣ isInitializing NON serve così
+
+Stai usando:
+
+isInitializing.current = true;
+form.reset(...)
+isInitializing.current = false;
+
+
+👉 inutile perché reset è sincrono
+👉 rischia race con watch
+
+✅ Fix
+
+Rimuovilo del tutto
+oppure usa una flag di useEffect più semplice.
+
+🔥 BUG POTENZIALE MOLTO BRUTTO
+🔟 Dialog onOpenChange={onClose}
+<Dialog open={open} onOpenChange={onClose}>
+
+❌ Problema
+
+onOpenChange riceve (boolean)
+
+Tu passi onClose() senza controllare
+
+👉 viene chiamato anche quando open = true
+
+✅ Fix corretto
+onOpenChange={(isOpen) => {
+  if (!isOpen) onClose();
+}}

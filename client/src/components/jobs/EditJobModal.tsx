@@ -3,7 +3,7 @@
  * Form modifica job esistente
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,7 +51,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, X, User, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -123,7 +123,6 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const { toast } = useToast();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateInputValue, setDateInputValue] = useState('');
-  const isInitializing = useRef(false);
   const [selectedClienti, setSelectedClienti] = useState<Cliente[]>([]);
   const [loadingClienti, setLoadingClienti] = useState(true);
   const [appuntamentiClienti, setAppuntamentiClienti] = useState<Record<string, { orario: string; note: string }>>({});
@@ -137,11 +136,10 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   }>>([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   
-  // Query job types dinamici
-  const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery<JobTypeDoc[]>({
+  const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery({
     queryKey: ['jobTypes'],
     queryFn: getJobTypes
-  });
+  }) as { data: JobTypeDoc[]; isLoading: boolean };
 
   // Query provenances dinamiche
   const { items: provenances = [], isLoading: loadingProvenances } = useJobEntity('provenance');
@@ -171,20 +169,17 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   const startTime = form.watch('startTime');
   const endTime = form.watch('endTime');
 
-  // Reset form quando il modal si apre o il job cambia
   useEffect(() => {
     if (open && job) {
-      isInitializing.current = true;
-      
       const eventDateValue = convertFirestoreTimestamp(job.eventDate) || undefined;
       
       form.reset({
         nomeEvento: job.nomeEvento || '',
         clientiIds: job.clientiIds || [],
         jobType: job.jobType || '',
-        dataNonDefinita: job.dataNonDefinita || false,
+        dataNonDefinita: job.dataNonDefinita ?? false,
         eventDate: eventDateValue,
-        allDay: job.allDay || false,
+        allDay: job.allDay ?? false,
         startTime: job.startTime || '',
         endTime: job.endTime || '',
         provenance: job.provenance || '',
@@ -194,35 +189,28 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         noteInterne: job.noteInterne || ''
       });
       
-      // Aggiorna dateInputValue immediatamente
       if (eventDateValue && !isNaN(eventDateValue.getTime())) {
         const day = String(eventDateValue.getDate()).padStart(2, '0');
         const month = String(eventDateValue.getMonth() + 1).padStart(2, '0');
         const year = eventDateValue.getFullYear();
-        const formattedDate = `${day}/${month}/${year}`;
-        setDateInputValue(formattedDate);
+        setDateInputValue(`${day}/${month}/${year}`);
       } else {
         setDateInputValue('');
       }
-      
-      // Reset flag IMMEDIATELY without setTimeout to avoid race conditions with watch()
-      isInitializing.current = false;
     }
-  }, [open, job.id]);
+  }, [open, job.id, job.nomeEvento, job.eventDate, job.clientiIds, job.allDay, job.startTime, job.endTime, job.jobType, job.provenance, job.dataNonDefinita, job.noteInterne, job.eventLocation]);
 
-  // Fetch clienti iniziali e inizializza appuntamenti
   useEffect(() => {
     const fetchClienti = async () => {
       try {
         setLoadingClienti(true);
-        const clientiData: Cliente[] = [];
-        
-        for (const clienteId of job.clientiIds || []) {
-          const clienteDoc = await getDoc(doc(db, 'clienti', clienteId));
-          if (clienteDoc.exists()) {
-            clientiData.push({ id: clienteDoc.id, ...clienteDoc.data() } as Cliente);
-          }
-        }
+        const ids = job.clientiIds || [];
+        const results = await Promise.all(
+          ids.map(id => getDoc(doc(db, 'clienti', id)))
+        );
+        const clientiData = results
+          .filter(d => d.exists())
+          .map(d => ({ id: d.id, ...d.data() } as Cliente));
         
         setSelectedClienti(clientiData);
         
@@ -251,13 +239,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     }
   }, [open, job.clientiIds, job.appuntamentiClienti]);
 
-  // Sync dateInputValue when eventDate changes (skip during initialization)
   useEffect(() => {
-    // Skip durante l'inizializzazione per evitare di sovrascrivere il valore impostato dal reset
-    if (isInitializing.current) {
-      return;
-    }
-    
     if (eventDate) {
       const day = String(eventDate.getDate()).padStart(2, '0');
       const month = String(eventDate.getMonth() + 1).padStart(2, '0');
@@ -268,9 +250,12 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     }
   }, [eventDate]);
 
-  // Auto-check calendar conflicts
   useEffect(() => {
-    if (!eventDate) return;
+    if (!eventDate || dataNonDefinita) {
+      setDetectedConflicts([]);
+      return;
+    }
+    if (!allDay && (!startTime || !endTime)) return;
 
     const checkConflicts = async () => {
       try {
@@ -309,7 +294,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
 
     const timer = setTimeout(checkConflicts, 500);
     return () => clearTimeout(timer);
-  }, [eventDate, allDay, startTime, endTime, job.id]);
+  }, [eventDate, allDay, startTime, endTime, dataNonDefinita, job.id]);
 
   // Multi-client handlers
   const handleAddCliente = (cliente: Cliente | null) => {
@@ -364,8 +349,12 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         const date = new Date(year, month, day);
         if (date.getDate() === day && date.getMonth() === month && date.getFullYear() === year) {
           form.setValue('eventDate', date);
+          return;
         }
       }
+    }
+    if (value.length >= 10) {
+      form.setValue('eventDate', undefined);
     }
   };
 
@@ -383,15 +372,21 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
           ...(val.note && { noteAppuntamento: val.note })
         }));
       
+      let safeEventDate: Date | undefined = undefined;
+      if (!data.dataNonDefinita && data.eventDate) {
+        const d = data.eventDate;
+        safeEventDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+      }
+
       await updateJob(job.id, {
         nomeEvento: data.nomeEvento,
         clientiIds: data.clientiIds,
         jobType: data.jobType,
         dataNonDefinita: data.dataNonDefinita,
-        eventDate: data.dataNonDefinita ? undefined : data.eventDate,
+        eventDate: safeEventDate,
         allDay: data.allDay,
-        startTime: data.startTime,
-        endTime: data.endTime,
+        startTime: data.allDay ? undefined : data.startTime,
+        endTime: data.allDay ? undefined : data.endTime,
         eventLocation: data.eventLocation,
         locationCerimonia: data.locationCerimonia,
         oraCerimonia: data.oraCerimonia,
@@ -435,7 +430,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onClose}>
+      <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
         <DialogContent className="w-[95vw] max-w-3xl h-[90vh] sm:h-auto max-h-[90vh] flex flex-col p-0 z-[10000]">
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b">
             <DialogTitle className="text-lg sm:text-xl">Modifica Lavoro</DialogTitle>
@@ -695,6 +690,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                               mode="single"
                               selected={field.value}
                               onSelect={(date) => {
+                                if (!date) return;
                                 field.onChange(date);
                                 setDatePickerOpen(false);
                               }}
@@ -914,7 +910,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
             <Button
               type="button"
               onClick={form.handleSubmit(handleSubmit)}
-              disabled={updateMutation.isPending || checkingConflicts}
+              disabled={updateMutation.isPending}
               data-testid="button-save"
               className="flex-1 sm:flex-initial"
             >
