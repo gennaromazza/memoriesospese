@@ -5,7 +5,7 @@ import { apiRequest } from '@/lib/queryClient';
 
 export interface Notification {
   id: string;
-  type: 'booking' | 'consultation' | 'comment' | 'selection';
+  type: 'booking' | 'consultation' | 'comment' | 'selection' | 'quick_quote';
   title: string;
   description: string;
   createdAt: Timestamp | null;
@@ -125,15 +125,51 @@ export function useNotifications() {
         }
       };
       
+      const fetchQuickQuoteNotifications = async () => {
+        try {
+          const sevenDaysAgo = new Date(new Date().getTime() - 7 * 86400000);
+          const notifRef = collection(db, 'adminNotifications');
+          const notifQuery = query(
+            notifRef,
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          const notifSnap = await getDocs(notifQuery);
+
+          return notifSnap.docs
+            .map(doc => {
+              const data = doc.data();
+              const createdDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+              if (!createdDate || createdDate < sevenDaysAgo) return null;
+
+              return {
+                id: `quick-quote-${doc.id}`,
+                type: 'quick_quote' as const,
+                title: data.title || 'Preventivo Rapido',
+                description: data.description || '',
+                createdAt: data.createdAt || null,
+                isRead: data.isRead || false,
+                resourceId: data.jobId || doc.id,
+                deepLink: data.deepLink || `/admin/dashboard?tab=lavori`,
+              } as Notification;
+            })
+            .filter((n): n is Notification => n !== null && n !== undefined);
+        } catch (error) {
+          console.error('[Notifications] Errore fetch quick quote notifications:', error);
+          return [];
+        }
+      };
+
       // 🚀 Esegui tutte le fetch in parallelo per massima performance
-      const [bookingsAndConsultations, comments, selections] = await Promise.all([
+      const [bookingsAndConsultations, comments, selections, quickQuotes] = await Promise.all([
         fetchBookingsAndConsultations(),
         fetchComments(),
-        fetchSelections()
+        fetchSelections(),
+        fetchQuickQuoteNotifications()
       ]);
       
       // Combina e ordina tutte le notifiche
-      const allNotifications = [...bookingsAndConsultations, ...comments, ...selections];
+      const allNotifications = [...bookingsAndConsultations, ...comments, ...selections, ...quickQuotes];
       
       return allNotifications.sort((a, b) => {
         if (!a || !b) return 0;

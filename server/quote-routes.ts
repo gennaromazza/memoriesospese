@@ -2833,35 +2833,142 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       });
     }
 
-    // 4. Invia email admin con notifica nuovo preventivo rapido
+    // 4. Invia email di notifica
     try {
       const studioInfo = await getStudioContactInfo();
-      if (studioInfo?.email) {
-        const adminEmailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #333;">Nuovo Preventivo Rapido</h2>
-            <p>Un nuovo cliente ha compilato un preventivo rapido:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Cliente:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nome} ${cognome}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${email}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Telefono:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${cellulare || "Non fornito"}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Evento:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nomeEvento}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Template:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${template.nome}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Totale:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">€${totalAfterDiscount.toFixed(2)}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Stato:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${quoteData.status === "firmato" ? "FIRMATO" : "In attesa di firma"}</td></tr>
-            </table>
-            ${noteCliente ? `<p><strong>Note cliente:</strong> ${noteCliente}</p>` : ""}
-          </div>
-        `;
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.REPL_SLUG
+          ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+          : "https://imagestudiofotografico.com";
 
-        await sendGmailEmail(
-          studioInfo.email,
-          `Nuovo Preventivo Rapido: ${nomeEvento} - ${nome} ${cognome}`,
-          adminEmailHtml
-        );
+      if (quoteData.status === "firmato") {
+        // CASO FIRMATO: Email professionale al cliente + admin
+        const portalLink = `${baseUrl}/portale-cliente/${quoteToken}`;
+
+        // Email al cliente
+        if (email) {
+          try {
+            const clientEmailHtml = createQuoteSignedEmailHTML(
+              `${nome} ${cognome}`,
+              template.type || "fisso",
+              nomeEvento,
+              totalAfterDiscount,
+              new Date(),
+              portalLink,
+              undefined,
+              undefined,
+              studioInfo || undefined
+            );
+            await sendGmailEmail(
+              email,
+              `Contratto Firmato - ${nomeEvento}`,
+              clientEmailHtml,
+              undefined,
+              {
+                type: "quote_signed_client",
+                relatedDocId: quoteId,
+                relatedDocType: "quote",
+                clientName: `${nome} ${cognome}`,
+              }
+            );
+            console.log(`✅ Email conferma firma inviata al cliente: ${email}`);
+          } catch (clientEmailError) {
+            console.warn("⚠️ Email conferma firma al cliente non inviata:", clientEmailError);
+          }
+        }
+
+        // Email admin con template professionale
+        if (studioInfo?.email) {
+          try {
+            const adminEmailHtml = createAdminQuoteSignedNotificationHTML(
+              `${nome} ${cognome}`,
+              (template.type || "fisso") as "fisso" | "variabile",
+              nomeEvento,
+              totalAfterDiscount,
+              new Date(),
+              `${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}`,
+              studioInfo || undefined
+            );
+            await sendGmailEmail(
+              studioInfo.email,
+              `🎉 Preventivo Rapido FIRMATO: ${nomeEvento} - ${nome} ${cognome}`,
+              adminEmailHtml,
+              undefined,
+              {
+                type: "quick_quote_signed_admin",
+                relatedDocId: quoteId,
+                relatedDocType: "quote",
+                clientName: `${nome} ${cognome}`,
+              }
+            );
+            console.log(`✅ Email notifica firma inviata all'admin`);
+          } catch (adminEmailError) {
+            console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+          }
+        }
+      } else {
+        // CASO NON FIRMATO: Solo notifica admin
+        if (studioInfo?.email) {
+          try {
+            const adminEmailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #e65100;">📋 Nuovo Preventivo Rapido (In attesa di firma)</h2>
+                <p>Un nuovo cliente ha compilato un preventivo rapido ma <strong>non ha ancora firmato</strong>:</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Cliente:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nome} ${cognome}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Email:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${email}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Telefono:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${cellulare || "Non fornito"}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Evento:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${nomeEvento}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Template:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${template.nome}</td></tr>
+                  <tr><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">Totale:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">€${totalAfterDiscount.toFixed(2)}</td></tr>
+                </table>
+                ${noteCliente ? `<p><strong>Note cliente:</strong> ${noteCliente}</p>` : ""}
+                <div style="text-align: center; margin: 20px 0;">
+                  <a href="${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}" style="display: inline-block; background: #e65100; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                    Visualizza Lavoro
+                  </a>
+                </div>
+              </div>
+            `;
+            await sendGmailEmail(
+              studioInfo.email,
+              `📋 Nuovo Preventivo Rapido: ${nomeEvento} - ${nome} ${cognome}`,
+              adminEmailHtml,
+              undefined,
+              {
+                type: "quick_quote_created_admin",
+                relatedDocId: quoteId,
+                relatedDocType: "quote",
+                clientName: `${nome} ${cognome}`,
+              }
+            );
+          } catch (adminEmailError) {
+            console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+          }
+        }
       }
     } catch (emailError) {
-      console.warn("⚠️ Email notifica admin non inviata:", emailError);
+      console.warn("⚠️ Errore generale invio email:", emailError);
+    }
+
+    // 5. Salva notifica in Firestore per il NotificationBell admin
+    try {
+      await db.collection("adminNotifications").add({
+        type: quoteData.status === "firmato" ? "quick_quote_signed" : "quick_quote_created",
+        title: quoteData.status === "firmato"
+          ? `Preventivo Rapido FIRMATO`
+          : `Nuovo Preventivo Rapido`,
+        description: `${nome} ${cognome} - ${nomeEvento} (€${totalAfterDiscount.toFixed(2)})`,
+        clientName: `${nome} ${cognome}`,
+        jobId,
+        quoteId,
+        isRead: false,
+        createdAt: FieldValue.serverTimestamp(),
+        deepLink: `/admin/dashboard?tab=lavori&job=${jobId}`,
+      });
+    } catch (notifError) {
+      console.warn("⚠️ Notifica admin non salvata:", notifError);
     }
 
     return res.json({

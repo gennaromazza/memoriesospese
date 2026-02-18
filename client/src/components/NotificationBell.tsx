@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, X } from 'lucide-react';
+import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, FileText, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,6 +28,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
       case 'consultation': return <MessageCircle className="h-4 w-4" />;
       case 'comment': return <MessageSquare className="h-4 w-4" />;
       case 'selection': return <CheckSquare className="h-4 w-4" />;
+      case 'quick_quote': return <FileText className="h-4 w-4" />;
       default: return <Bell className="h-4 w-4" />;
     }
   }, []);
@@ -62,32 +63,33 @@ export const NotificationBell = React.memo(function NotificationBell() {
     }, 500);
   }, [navigate, queryClient]);
   
-  const handleDismissNotification = useCallback(async (resourceId: string) => {
+  const handleDismissNotification = useCallback(async (notificationId: string, resourceId: string, type: string) => {
     try {
-      // Segna come letta in Firestore
       const { db } = await import('@/lib/firebase');
       const { doc, updateDoc } = await import('firebase/firestore');
       
-      // Trova la notifica per tipo
-      const notification = notifications.find(n => n && n.resourceId === resourceId);
-      if (!notification) return;
-      
-      let collectionName = '';
-      if (notification.type === 'booking') collectionName = 'bookings';
-      else if (notification.type === 'consultation') collectionName = 'consultations';
-      
-      if (collectionName) {
-        await updateDoc(doc(db, collectionName, resourceId), {
-          dataVisualizzazione: new Date()
+      if (type === 'quick_quote') {
+        const firestoreDocId = notificationId.replace('quick-quote-', '');
+        await updateDoc(doc(db, 'adminNotifications', firestoreDocId), {
+          isRead: true
         });
+      } else {
+        let collectionName = '';
+        if (type === 'booking') collectionName = 'bookings';
+        else if (type === 'consultation') collectionName = 'consultations';
+
+        if (collectionName) {
+          await updateDoc(doc(db, collectionName, resourceId), {
+            dataVisualizzazione: new Date()
+          });
+        }
       }
       
-      // Refresh notifiche
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
     } catch (error) {
       console.error('Errore dismissione notifica:', error);
     }
-  }, [notifications, queryClient]);
+  }, [queryClient]);
   
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -176,7 +178,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
                     className="absolute top-2 right-2 h-8 w-8 sm:h-6 sm:w-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-accent"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDismissNotification(notification.resourceId);
+                      handleDismissNotification(notification.id, notification.resourceId, notification.type);
                     }}
                   >
                     <X className="h-4 w-4" />
