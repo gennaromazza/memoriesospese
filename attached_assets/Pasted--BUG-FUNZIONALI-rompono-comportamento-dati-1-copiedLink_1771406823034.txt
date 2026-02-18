@@ -1,0 +1,534 @@
+❌ BUG FUNZIONALI (rompono comportamento / dati)
+1️⃣ copiedLink è globale → bug UI
+const [copiedLink, setCopiedLink] = useState(false);
+
+❌ Problema
+
+Se copi il link di un preventivo
+
+tutte le card mostrano l’icona ✅
+
+👉 stato condiviso tra tutti i preventivi
+
+✅ Fix
+
+Usa stato per quoteId:
+
+const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+
+
+e:
+
+{copiedLinkId === quote.id ? <Check /> : <Copy />}
+
+2️⃣ Collapsible → click azioni chiude/apre card ❌
+<CollapsibleTrigger asChild>
+  <CardContent className="cursor-pointer">
+
+❌ Problema
+
+I pulsanti interni (Elimina, Apri, menu ecc.)
+
+devono sempre fare e.stopPropagation()
+
+alcuni non lo fanno
+
+Esempio:
+
+<DropdownMenuItem onClick={() => setDeleteQuoteId(quote.id)}>
+
+
+👉 apre/chiude il collapsible in modo imprevedibile
+
+✅ Fix
+
+Sempre:
+
+onClick={(e) => {
+  e.stopPropagation();
+  ...
+}}
+
+3️⃣ queryKey clienti usa array come key ❌
+queryKey: ['clienti', 'job', job?.clientiIds],
+
+❌ Problema
+
+clientiIds è un array
+
+reference cambia → refetch continuo
+
+cache instabile
+
+✅ Fix
+queryKey: ['clienti', 'job', job?.clientiIds?.join(',')],
+
+
+oppure usa jobId.
+
+4️⃣ Delete mutation: double invalidate inutile
+queryClient.setQueryData(...)
+queryClient.invalidateQueries(...)
+
+❌ Problema
+
+fai optimistic update
+
+poi refetch immediato
+
+👉 doppio lavoro inutile
+
+✅ Fix
+
+O:
+
+solo setQueryData
+
+oppure solo invalidateQueries
+
+Non entrambi.
+
+5️⃣ Errore forceDeleteMode NON reset se retry ok
+
+Scenario:
+
+delete → errore SIGNED
+
+forceDeleteMode = true
+
+delete riuscito
+
+❌ Problema
+
+Se la modale resta montata:
+
+stato rimane “critico” per delete successivi
+
+✅ Fix
+
+Già quasi fatto, ma serve anche qui:
+
+onSuccess: () => {
+  setForceDeleteMode(false);
+}
+
+⚠️ BUG DI DATI / LOGICA
+6️⃣ Totale preventivo: possibile NaN
+(quote.totalAfterDiscount ?? quote.totaleBase ?? 0).toFixed(2)
+
+
+Se totalAfterDiscount è undefined
+ma totaleBase è null → 💥
+
+✅ Fix safe
+Number(quote.totalAfterDiscount ?? quote.totaleBase ?? 0).toFixed(2)
+
+7️⃣ TYPE_LABELS[quote.type] non protetto
+<Badge>{TYPE_LABELS[quote.type]}</Badge>
+
+❌ Problema
+
+Se arriva tipo sconosciuto → undefined
+
+✅ Fix
+TYPE_LABELS[quote.type] ?? quote.type
+
+8️⃣ getQuoteUrl usa window (SSR bug)
+const baseUrl = window.location.origin;
+
+❌ Problema
+
+rompe SSR / test / pre-render
+
+✅ Fix
+if (typeof window === 'undefined') return '';
+
+
+oppure baseUrl da env.
+
+9️⃣ WhatsApp: numero NON validato
+formatPhoneForWhatsApp(cliente.whatsapp || cliente.cellulare1);
+
+
+Se ritorna:
+
+''
+
+undefined
+
+numero invalido
+
+👉 link wa.me/undefined
+
+✅ Fix
+if (!phoneNumber) return null;
+
+⚠️ UX / STATO
+🔟 selectedQuoteId → solo una aperta (ok) MA
+
+Se:
+
+elimini quote aperta
+
+👉 selectedQuoteId punta a ID inesistente
+
+✅ Fix
+
+Già mitigato, ma più sicuro:
+
+useEffect(() => {
+  if (selectedQuoteId && !quotes.some(q => q.id === selectedQuoteId)) {
+    setSelectedQuoteId(null);
+  }
+}, [quotes, selectedQuoteId]);
+
+1️⃣1️⃣ navigate importato ma mai usato ❌
+const [, navigate] = useLocation();
+
+Fix
+
+👉 rimuovere.
+
+⚠️ PERFORMANCE
+1️⃣2️⃣ quotes.filter(...).length calcolato 2 volte
+quotes.filter(q => q.status === 'firmato').length
+
+Fix
+const signedCount = useMemo(...)
+
+✅ RIASSUNTO RAPIDO
+BUG DA SISTEMARE SUBITO
+
+ copiedLink globale
+
+ CollapsibleTrigger + click bubbling
+
+ queryKey con array
+
+ window in getQuoteUrl
+
+ delete flow forceDeleteMode
+
+MIGLIORIE IMPORTANTI
+
+ NaN totali
+
+ tipi sconosciuti
+
+ WhatsApp phone guard
+
+ stato quote eliminata
+
+Se vuoi, al prossimo messaggio ti preparo:
+
+🔧 patch diff pronta
+
+🧪 test cases critici
+
+🧠 refactor “production-safe”
+
+Dimmi tu.
+
+test case crticii
+
+Perfetto.
+Qui sotto trovi TEST CASE CRITICI (quelli che rompono davvero o creano bug subdoli) per ModuliJobSection.
+Strutturati Given / When / Then, pronti per QA manuale o test automatizzati.
+
+🔥 TEST CASE CRITICI – Moduli / Preventivi
+1️⃣ Stato “Copia link” per più preventivi
+
+Given
+
+Job con 2+ preventivi
+
+When
+
+Clicco “Copia link” sul preventivo A
+
+Then
+
+✅ Solo il bottone di A mostra l’icona Check
+
+❌ Nessun altro preventivo cambia stato
+
+👉 intercetta bug copiedLink globale
+
+2️⃣ Collapsible + Azioni (bubbling)
+
+Given
+
+Un preventivo aperto (collapsible expanded)
+
+When
+
+Clicco:
+
+Elimina
+
+Modifica
+
+Menu “Azioni”
+
+Copia link
+
+WhatsApp
+
+Then
+
+❌ Il collapsible NON deve aprirsi/chiudersi
+
+✅ Solo l’azione richiesta viene eseguita
+
+👉 intercetta stopPropagation mancanti
+
+3️⃣ Eliminazione preventivo aperto
+
+Given
+
+Preventivo A aperto
+
+Preventivo B chiuso
+
+When
+
+Elimino il preventivo A
+
+Then
+
+✅ Lista aggiornata
+
+✅ Nessun errore React
+
+✅ Nessun collapsible “fantasma” aperto
+
+👉 intercetta selectedQuoteId orfano
+
+4️⃣ Eliminazione preventivo firmato – 2 step
+
+Given
+
+Preventivo con status = firmato
+
+When
+
+Clicco elimina
+
+Confermo primo alert
+
+Backend ritorna errore SIGNED_QUOTE_PROTECTION
+
+Then
+
+✅ UI entra in forceDeleteMode
+
+✅ Mostra warning critico
+
+❌ Preventivo NON eliminato
+
+When
+4. Confermo “Elimina comunque”
+
+Then
+
+✅ Preventivo eliminato
+
+✅ forceDeleteMode resettato
+
+5️⃣ Retry delete dopo errore
+
+Given
+
+Delete firmato → errore → forceDeleteMode = true
+
+When
+
+Chiudo modale
+
+Provo a eliminare un altro preventivo NON firmato
+
+Then
+
+❌ NON deve apparire la modale “critica”
+
+✅ Delete normale
+
+👉 intercetta stato non resettato
+
+6️⃣ Cache inconsistente dopo delete
+
+Given
+
+Lista preventivi visibile
+
+When
+
+Elimino un preventivo
+
+Then
+
+✅ Preventivo scompare subito
+
+❌ Non deve riapparire dopo 1–2 secondi
+
+❌ Nessun flicker UI
+
+👉 intercetta setQueryData + invalidateQueries insieme
+
+7️⃣ Clienti query con clientiIds variabili
+
+Given
+
+Job con clienti [A, B]
+
+When
+
+Modifico job → clienti [A, C]
+
+Then
+
+✅ UI mostra A e C
+
+❌ NON deve continuare a refetchare all’infinito
+
+👉 intercetta queryKey con array reference
+
+8️⃣ Totale preventivo con valori null
+
+Given
+
+quote.totalAfterDiscount = undefined
+
+quote.totaleBase = null
+
+When
+
+Render card
+
+Then
+
+❌ Nessun NaN
+
+✅ Totale visualizzato €0.00
+
+9️⃣ Tipo preventivo sconosciuto
+
+Given
+
+quote.type = "custom" (valore nuovo / legacy)
+
+When
+
+Render card
+
+Then
+
+❌ Nessun crash
+
+✅ Badge mostra fallback (custom o label default)
+
+🔟 SSR / test environment
+
+Given
+
+Rendering server-side / test Jest
+
+When
+
+Componente monta
+
+Then
+
+❌ Nessun errore window is not defined
+
+👉 intercetta getQuoteUrl
+
+1️⃣1️⃣ WhatsApp con numero invalido
+
+Given
+
+Cliente senza whatsapp e cellulare1
+
+When
+
+Render sezione WhatsApp
+
+Then
+
+❌ Nessun bottone WhatsApp visibile
+
+❌ Nessun link wa.me/undefined
+
+1️⃣2️⃣ Reset firma
+
+Given
+
+Preventivo firmato
+
+When
+
+Reimposto firma
+
+Then
+
+✅ Status → bozza
+
+✅ Firma rimossa
+
+✅ Azioni “firma” riabilitate
+
+❌ NON deve restare badge “Firmato”
+
+1️⃣3️⃣ Multi preventivi firmati
+
+Given
+
+3 preventivi
+
+2 firmati
+
+When
+
+Render header
+
+Then
+
+✅ Badge mostra “2 firmati”
+
+❌ Non deve ricalcolarsi inutilmente ad ogni render
+
+1️⃣4️⃣ Navigazione esterna
+
+Given
+
+Click su “Apri preventivo”
+
+When
+
+Si apre nuova tab
+
+Then
+
+✅ Tab corretta
+
+❌ Nessuna navigazione SPA
+
+❌ Nessuna modifica stato UI
+
+1️⃣5️⃣ Performance – 50+ preventivi
+
+Given
+
+Job con 50 preventivi
+
+When
+
+Scroll / apri / chiudi collapsible
+
+Then
+
+❌ Nessun lag evidente
+
+❌ Nessun refetch clienti ripetuto
+
+❌ Nessun memory leak (dialog)
