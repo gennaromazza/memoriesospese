@@ -575,15 +575,8 @@ export default function JobsManager() {
   const toDate = (val: any): Date => {
     if (!val) return new Date(0);
     
-    let result: Date;
-    if (typeof val.toDate === 'function') {
-      result = val.toDate();
-    } else {
-      result = new Date(val);
-    }
-    
-    // Validate: fallback to epoch if invalid date
-    if (!Number.isFinite(result.getTime())) {
+    const result = convertFirestoreTimestamp(val);
+    if (!result || !Number.isFinite(result.getTime())) {
       return new Date(0);
     }
     
