@@ -93,7 +93,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
   });
 
   const { data: job } = useQuery({
-    queryKey: ['job', jobId],
+    queryKey: ['jobs', jobId],
     queryFn: () => getJob(jobId),
     enabled: !!jobId
   });

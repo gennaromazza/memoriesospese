@@ -86,7 +86,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
   
   // Queries
   const { data: job, isLoading } = useQuery({
-    queryKey: ['job', jobId],
+    queryKey: ['jobs', jobId],
     queryFn: () => getJob(jobId)
   });
   
@@ -130,7 +130,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
     mutationFn: (newStatus: JobStatus) => 
       updateJobStatus(jobId, newStatus, user!.uid),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['job-timeline', jobId] });
       toast({
@@ -148,7 +148,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
     setUploadingPDF(true);
     try {
       await attachPDF(jobId, file, 'modulo_prenotazione', user.uid);
-      queryClient.invalidateQueries({ queryKey: ['job', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         title: 'PDF caricato',
         description: 'Il documento è stato caricato con successo.'

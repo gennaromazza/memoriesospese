@@ -558,7 +558,7 @@ export default function GeneraPagamentiModal({
 
           {/* Tab Manuale - Custom Rate */}
           <TabsContent value="manuale" className="space-y-4 mt-4">
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit((data) => onSubmit(data))} className="space-y-4">
                 {/* Lista Rate */}
                 <div className="space-y-3">
                   {fields.map((field, index) => (

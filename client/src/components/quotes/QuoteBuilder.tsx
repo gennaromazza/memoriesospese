@@ -87,7 +87,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
-import type { JobType } from '@shared/job-types';
+import type { JobType, JobTypeFE } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import { calculatePaymentSchedule, validatePaymentScheduleConfig, formatDueDate, formatCurrency } from '@shared/payment-schedule-utils';
@@ -305,7 +305,7 @@ function SortableProductCard({
 interface QuoteBuilderProps {
   jobId: string;
   clienteId: string;
-  jobType: JobType;
+  jobType: JobType | JobTypeFE;
   jobTypeSlug: JobTypeSlug;
   open: boolean;
   onClose: () => void;
