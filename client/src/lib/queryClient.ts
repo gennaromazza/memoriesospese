@@ -99,8 +99,7 @@ export async function apiRequest(
     '/api/bulk-email/', // Bulk email endpoints requiring auth
     '/api/receipts/', // Receipt endpoints requiring auth
     '/api/reminders/', // Reminder endpoints requiring auth
-    '/api/jobs/', // Job management endpoints requiring auth
-    '/api/jobs?', // Job listing endpoint requiring auth
+    '/api/jobs', // Job endpoints requiring auth (matches /api/jobs, /api/jobs/, /api/jobs?...)
     '/api/migrations/' // Migration endpoints requiring auth
   ];
   
