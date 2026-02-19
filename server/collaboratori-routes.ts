@@ -688,7 +688,7 @@ router.get('/collaboratori', authenticateFirebase, async (req: any, res) => {
     const { attiviOnly } = req.query;
     
     // 🔧 Fix: where() deve venire prima di orderBy() per evitare errore Firestore
-    let baseQuery = db.collection('collaboratori');
+    let baseQuery: any = db.collection('collaboratori');
     
     if (attiviOnly === 'true') {
       baseQuery = baseQuery.where('attivo', '==', true);
@@ -697,7 +697,7 @@ router.get('/collaboratori', authenticateFirebase, async (req: any, res) => {
     const queryWithOrder = baseQuery.orderBy('cognome', 'asc');
     
     const snapshot = await queryWithOrder.get();
-    const collaboratori = snapshot.docs.map(doc => ({
+    const collaboratori = snapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data()
     }));
@@ -838,9 +838,9 @@ router.post('/collaboratori/assign-to-job', authenticateFirebase, async (req: an
   try {
     const data: InsertJobCollaboratoreAssignment = req.body;
     
-    const assignmentData: Omit<JobCollaboratoreAssignment, 'id'> = {
+    const assignmentData = {
       ...data,
-      status: 'pending',
+      status: 'pending' as const,
       dataRichiesta: Timestamp.now(),
       isPagato: false,
       pagamenti: [],
@@ -1791,11 +1791,11 @@ async function sendEventReminderEmail(
     </div>
   `;
 
-  await sendGmailEmail({
-    to: collaboratore.email,
-    subject: `Promemoria: ${jobNome} - Domani | ${studioInfo.name}`,
-    html: htmlContent
-  }, req);
+  await sendGmailEmail(
+    collaboratore.email,
+    `Promemoria: ${jobNome} - Domani | ${studioInfo.name}`,
+    htmlContent
+  );
 
   console.log(`📧 Reminder email inviata a ${collaboratore.email} per job ${jobNome}`);
 }
@@ -1955,7 +1955,7 @@ router.get('/collaboratori/upcoming-events', authenticateFirebase, async (req: a
           .get();
         
         const assignments = await Promise.all(
-          assignmentsSnapshot.docs.map(async (aDoc) => {
+          assignmentsSnapshot.docs.map(async (aDoc: any) => {
             const assignment = aDoc.data();
             const colDoc = await db.collection('collaboratori').doc(assignment.collaboratoreId).get();
             return {
@@ -1969,8 +1969,8 @@ router.get('/collaboratori/upcoming-events', authenticateFirebase, async (req: a
         return {
           job,
           assignments,
-          acceptedCount: assignments.filter(a => a.status === 'accepted').length,
-          pendingCount: assignments.filter(a => a.status === 'pending').length
+          acceptedCount: assignments.filter((a: any) => a.status === 'accepted').length,
+          pendingCount: assignments.filter((a: any) => a.status === 'pending').length
         };
       })
     );

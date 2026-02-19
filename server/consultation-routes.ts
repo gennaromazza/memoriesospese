@@ -18,6 +18,7 @@ import {
   UpdateConsultationSchema,
   type ConsultationStatus,
 } from "../shared/consultation-types.js";
+import type { SlotsResponse } from "../shared/calendar-types.js";
 import { db, Timestamp, FieldValue, storage } from "./firebase-admin.js";
 import {
   createEvent,
@@ -152,16 +153,16 @@ async function getConflictDetails(
       });
       
       conflicts.push({
-        id: googleEvent?.id || `gcal-${eventStart}`,
+        id: googleEvent?.eventId || `gcal-${eventStart}`,
         title: event.title || 'Evento senza titolo',
         source: 'google-calendar',
         startTime: event.allDay ? 'Tutto il giorno' : startTimeStr,
         endTime: event.allDay ? '' : endTimeStr,
         allDay: event.allDay || false,
         calendarName: googleEvent?.calendarName || 'Google Calendar',
-        isDeletable: googleEvent?.calendarId === 'primary', // Only primary calendar events are deletable
+        isDeletable: googleEvent?.calendarId === 'primary',
         metadata: {
-          googleEventId: googleEvent?.id,
+          googleEventId: googleEvent?.eventId,
           calendarId: googleEvent?.calendarId || 'primary'
         }
       });
@@ -884,7 +885,7 @@ router.get(
         dayStart,
         dayEnd,
         db,
-        consultationId // Pass ID to exclude current consultation
+        id // Pass ID to exclude current consultation
       );
 
       console.log(`[GET /v2/:id/conflicts] ${conflictDetails.hasConflict ? `⚠️ Found ${conflictDetails.conflicts.length} conflicts` : '✅ No conflicts'}`);
@@ -1019,7 +1020,7 @@ router.post(
       try {
         await consultationService.updateConsultation(id, {
           stato: "confermata",
-          googleCalendarEventId: eventId,
+          googleCalendarEventId: eventId || undefined,
         });
 
         await db.collection("consultations").doc(id).update({
@@ -1095,6 +1096,7 @@ router.post(
 
         const studioInfo = {
           name: "Gennaro Mazzacane Photography",
+          email: "image.studio.fotografico@gmail.com",
           address: "Via Roma 123, Napoli",
           phone: "+39 123 456 7890",
         };
@@ -1229,7 +1231,7 @@ router.patch(
       // Elimina evento Google Calendar se presente (BUGFIX: libera lo slot!)
       if (consultation.googleCalendarEventId) {
         try {
-          const { deleteEvent } = await import("./calendar-routes.js"); // NOTE: This import might be incorrect, assuming it should be './google-calendar.js'
+          const { deleteEvent } = await import("./google-calendar.js");
           await deleteEvent("primary", consultation.googleCalendarEventId);
           console.log(
             `📅 Evento Google Calendar ${consultation.googleCalendarEventId} eliminato (consulenza rifiutata)`,
@@ -1570,11 +1572,14 @@ router.post("/v2/create", async (req, res) => {
     const conflict = hasConflict(slotStart, slotEnd, existingEvents);
 
     if (conflict) {
-      console.error(`[POST /v2/create] ❌ CONFLICT - Slot ${orarioInizio}-${orarioFine} blocked by ${conflict.source}`);
+      const conflictingEvent = existingEvents.find(e =>
+        e.start.getTime() < slotEnd.getTime() && e.end.getTime() > slotStart.getTime()
+      );
+      console.error(`[POST /v2/create] ❌ CONFLICT - Slot ${orarioInizio}-${orarioFine} blocked by ${conflictingEvent?.source || 'unknown'}`);
       return res.status(409).json({
         error: "Slot non disponibile",
         message: "Lo slot selezionato non è più disponibile. Scegli un altro orario.",
-        conflictSource: conflict.source
+        conflictSource: conflictingEvent?.source || 'unknown'
       });
     }
 
@@ -1633,7 +1638,7 @@ router.post("/v2/create", async (req, res) => {
         const adminEmailHTML = createAdminNotificationEmailHTML(
           clienteName,
           validatedData.cliente.email,
-          validatedData.cliente.whatsapp,
+          validatedData.cliente.whatsapp || '',
           template.jobType,
           formattedDate,
           `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
@@ -2267,11 +2272,11 @@ router.post("/send-reminders", async (req, res) => {
       try {
         // Atomic check-and-set: marca reminder come inviato solo se non già inviato
         // Usa transazione per prevenire race conditions
-        const shouldSend = await db.runTransaction(async (transaction) => {
+        const shouldSend = await db.runTransaction(async (transaction: any) => {
           const consultationDoc = await transaction.get(consultation.ref);
 
           if (!consultationDoc.exists) {
-            return false; // Consultation eliminata nel frattempo
+            return false;
           }
 
           const data = consultationDoc.data();
@@ -2577,8 +2582,6 @@ router.post("/v2/available-slots", async (req, res) => {
     const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
     const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
     const { checkGoogleCalendarBusyPeriods, hasAllDayEvent } = await import('./calendar-engine/google-sync.js');
-    const { CalendarEvent, SlotsResponse } = await import('../shared/calendar-types.js');
-
     // Step 3: Validate template
     if (!validateConsultationTemplate(template)) {
       return res.status(400).json({
@@ -2636,7 +2639,7 @@ router.post("/v2/available-slots", async (req, res) => {
 
       if (unavailabilityInfo.reason) {
         response.unavailableReason = unavailabilityInfo.reason;
-        response.message = unavailabilityInfo.message;
+        response.message = unavailabilityInfo.message || undefined;
       } else {
         // All slots are booked
         response.unavailableReason = 'all-booked';

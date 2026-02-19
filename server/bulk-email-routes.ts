@@ -48,7 +48,7 @@ interface BulkEmailJob {
   quotaConsumed: number;
   sentCount: number;
   failedCount: number;
-  status: "queued" | "in_progress" | "completed" | "failed";
+  status: "queued" | "scheduled" | "in_progress" | "completed" | "failed";
   errors: Array<{ email: string; error: string }>;
   createdAt: Date;
   startedAt?: Date;
@@ -56,6 +56,9 @@ interface BulkEmailJob {
   lastHeartbeatAt: Date;
   createdBy: string;
   quotaDate: string;
+  retryOf?: string;
+  batchIndex?: number;
+  totalBatches?: number;
 }
 
 // --- VARIABILI GLOBALI ---
@@ -824,7 +827,7 @@ router.get("/recipients", authenticateFirebase, async (req: any, res: Response) 
 
     const snapshot = await query.get();
 
-    snapshot.forEach((doc) => {
+    snapshot.forEach((doc: any) => {
       const data = doc.data();
       if (data.email && !emailsAdded.has(data.email)) {
         emailsAdded.add(data.email);
