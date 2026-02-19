@@ -1538,12 +1538,17 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
           };
         }
         
-        // Recupera TUTTI i clienti collegati al job
         const clienti: any[] = [];
+        const processedClientIds = new Set<string>();
+        const allClientIds: string[] = Array.isArray(rawJobData?.clientiIds) ? rawJobData.clientiIds : [];
+        if (allClientIds.length === 0 && rawJobData?.clienteId) {
+          allClientIds.push(rawJobData.clienteId);
+        }
         
-        // Cliente principale
-        if (rawJobData?.clienteId) {
-          const clienteDoc = await db.collection('clienti').doc(rawJobData.clienteId).get();
+        for (let i = 0; i < allClientIds.length; i++) {
+          const cid = allClientIds[i];
+          processedClientIds.add(cid);
+          const clienteDoc = await db.collection('clienti').doc(cid).get();
           if (clienteDoc.exists) {
             const clienteData = clienteDoc.data();
             clienti.push({
@@ -1555,35 +1560,8 @@ router.get('/collaboratori/dashboard/:token', async (req, res) => {
               whatsapp: clienteData?.whatsapp,
               indirizzo: clienteData?.indirizzo || clienteData?.via || clienteData?.address,
               citta: clienteData?.citta || clienteData?.city,
-              isPrimary: true,
+              isPrimary: i === 0,
             });
-          }
-        }
-        
-        // Clienti secondari da clientiIds (se presenti)
-        const processedClientIds = new Set<string>();
-        if (rawJobData?.clienteId) processedClientIds.add(rawJobData.clienteId);
-        
-        if (rawJobData?.clientiIds && Array.isArray(rawJobData.clientiIds)) {
-          for (const clienteId of rawJobData.clientiIds) {
-            if (!processedClientIds.has(clienteId)) {
-              processedClientIds.add(clienteId);
-              const clienteDoc = await db.collection('clienti').doc(clienteId).get();
-              if (clienteDoc.exists) {
-                const clienteData = clienteDoc.data();
-                clienti.push({
-                  id: clienteDoc.id,
-                  nome: clienteData?.nome,
-                  cognome: clienteData?.cognome,
-                  email: clienteData?.email,
-                  cellulare: clienteData?.cellulare,
-                  whatsapp: clienteData?.whatsapp,
-                  indirizzo: clienteData?.indirizzo || clienteData?.via || clienteData?.address,
-                  citta: clienteData?.citta || clienteData?.city,
-                  isPrimary: false,
-                });
-              }
-            }
           }
         }
         

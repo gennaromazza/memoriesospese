@@ -1387,12 +1387,9 @@ router.post('/send-reminders', authenticateFirebase, async (req: any, res: Respo
       const job = jobDoc.data();
       if (!job) continue;
       
-      // Recupera info clienti - supporta sia clientiIds (array) che clienteId (legacy singolo)
-      let clientiIds = job.clientiIds || [];
-      // Fallback per jobs legacy con clienteId singolo
-      if (clientiIds.length === 0 && job.clienteId) {
-        clientiIds = [job.clienteId];
-      }
+      const clientiIds: string[] = Array.isArray(job.clientiIds) && job.clientiIds.length > 0
+        ? job.clientiIds
+        : (job.clienteId ? [job.clienteId] : []);
       if (clientiIds.length === 0) {
         console.log(`[Payment Reminder] Nessun cliente trovato per job ${schedule.jobId}`);
         continue;

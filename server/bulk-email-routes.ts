@@ -769,13 +769,11 @@ router.get("/recipients", authenticateFirebase, async (req: any, res: Response) 
       
       for (const jobDoc of jobsSnapshot.docs) {
         const jobData = jobDoc.data();
-        // Supporta sia clienteId singolo che clientiIds array
-        if (jobData.clienteId) {
-          clientIds.add(jobData.clienteId);
+        const ids: string[] = Array.isArray(jobData.clientiIds) ? jobData.clientiIds : [];
+        if (ids.length === 0 && jobData.clienteId) {
+          ids.push(jobData.clienteId);
         }
-        if (Array.isArray(jobData.clientiIds)) {
-          jobData.clientiIds.forEach((id: string) => clientIds.add(id));
-        }
+        ids.forEach((id: string) => clientIds.add(id));
       }
       
       // Batch load clienti (max 30 per batch)

@@ -720,11 +720,6 @@ export default function ConsultationsManager({
                   const jobDataCount = Object.keys(consultation.jobDataCollected || {}).length;
                   const isHighlighted = highlightedId === consultation.id;
                   
-                  // 🔍 DEBUG: Log formato dataConsulenza
-                  console.log('🔍 [DEBUG] consultation.dataConsulenza:', consultation.dataConsulenza);
-                  console.log('🔍 [DEBUG] consultation.dataConsulenza type:', typeof consultation.dataConsulenza);
-                  console.log('🔍 [DEBUG] consultation object:', consultation);
-                  
                   return (
                     <TableRow 
                       key={consultation.id} 
@@ -740,7 +735,6 @@ export default function ConsultationsManager({
                             <Calendar className="w-3 h-3" />
                             {(() => {
                               const date = normalizeTimestampToDate(consultation.dataConsulenza);
-                              console.log('🔍 [DEBUG] normalized date:', date);
                               return date ? format(date, 'dd MMM yyyy', { locale: it }) : 'Data non valida';
                             })()}
                           </div>

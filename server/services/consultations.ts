@@ -869,8 +869,8 @@ export async function updateConsultation(
       if (!isNaN(combinedDate.getTime())) {
         updates.dataConsulenza = Timestamp.fromDate(combinedDate);
       }
-    } catch (e) {
-      console.warn(`[updateConsultation] Errore parsing data combinata: ${e.message}`);
+    } catch (e: any) {
+      console.warn(`[updateConsultation] Errore parsing data combinata: ${e?.message || e}`);
     }
   }
 
