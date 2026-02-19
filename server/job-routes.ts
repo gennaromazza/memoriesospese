@@ -235,7 +235,7 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     
     return {
       success: true,
-      eventId: createdEvent.id,
+      eventId: createdEvent.id ?? undefined,
       action
     };
     
