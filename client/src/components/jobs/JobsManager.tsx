@@ -17,7 +17,7 @@ import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import type { Quote } from '@shared/quotes-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
-import type { JobType as JobTypeDoc } from '@shared/job-types';
+import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

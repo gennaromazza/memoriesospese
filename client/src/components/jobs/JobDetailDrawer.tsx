@@ -186,7 +186,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                 {job.nomeEvento}
               </SheetTitle>
               <SheetDescription>
-                {format(job.eventDate.toDate(), 'PPP', { locale: it })}
+                {job.eventDate ? format(job.eventDate.toDate(), 'PPP', { locale: it }) : 'Data non definita'}
                 {!job.allDay && job.startTime && (
                   <span className="ml-2">
                     • {job.startTime}{job.endTime && ` - ${job.endTime}`}
@@ -271,7 +271,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>{format(job.eventDate.toDate(), 'PPP', { locale: it })}</span>
+                    <span>{job.eventDate ? format(job.eventDate.toDate(), 'PPP', { locale: it }) : 'Data non definita'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-400" />
@@ -456,7 +456,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                         <div className="flex justify-between">
                           <span>Totale:</span>
                           <span className="font-semibold">
-                            €{quote.totaleBase.toLocaleString()}
+                            €{(quote.totaleBase ?? 0).toLocaleString()}
                           </span>
                         </div>
                         {quote.sentAt && (

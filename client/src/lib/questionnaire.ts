@@ -31,7 +31,6 @@ import {
   generateSecureToken,
   sha256Hash
 } from '@shared/schema';
-import { executeAtomicTransaction, createSetOperation, createUpdateOperation, retryTransaction } from './transactionUtils';
 import { withDistributedLock } from './lockingUtils';
 import { questionnaireLogger, tokenLogger, measurePerformance } from './loggingUtils';
 

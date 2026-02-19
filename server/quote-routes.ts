@@ -295,34 +295,9 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       .get();
 
     if (quotesSnapshot.empty) {
-      // Token non trovato come publicToken attivo, verifica se è revocato
-      const allQuotesSnapshot = await db.collection("quotes").get();
-      let isRevoked = false;
-
-      for (const doc of allQuotesSnapshot.docs) {
-        const data = doc.data();
-        if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
-          const revoked = data.revokedTokens.find(
-            (rt: any) => rt.token === token,
-          );
-          if (revoked) {
-            isRevoked = true;
-            break;
-          }
-        }
-      }
-
-      if (isRevoked) {
-        return res.status(410).json({
-          error: "Link revocato",
-          message:
-            "Questo link è stato revocato. Richiedi un nuovo link aggiornato.",
-        });
-      }
-
       return res.status(404).json({
         error: "Preventivo non trovato",
-        message: "Il link non è valido o è scaduto",
+        message: "Il link non è valido, è stato revocato o è scaduto. Richiedi un nuovo link aggiornato.",
       });
     }
 
@@ -626,34 +601,9 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
       .get();
 
     if (quotesSnapshot.empty) {
-      // Token non trovato come publicToken attivo, verifica se è revocato
-      const allQuotesSnapshot = await db.collection("quotes").get();
-      let isRevoked = false;
-
-      for (const doc of allQuotesSnapshot.docs) {
-        const data = doc.data();
-        if (data.revokedTokens && Array.isArray(data.revokedTokens)) {
-          const revoked = data.revokedTokens.find(
-            (rt: any) => rt.token === token,
-          );
-          if (revoked) {
-            isRevoked = true;
-            break;
-          }
-        }
-      }
-
-      if (isRevoked) {
-        return res.status(410).json({
-          error: "Link revocato",
-          message:
-            "Questo link è stato revocato. Richiedi un nuovo link aggiornato.",
-        });
-      }
-
       return res.status(404).json({
         error: "Preventivo non trovato",
-        message: "Il link non è valido o è scaduto",
+        message: "Il link non è valido, è stato revocato o è scaduto. Richiedi un nuovo link aggiornato.",
       });
     }
 
@@ -2549,10 +2499,9 @@ router.get("/quick/:token", async (req: Request, res: Response) => {
         jobTypeInfo,
         studioInfo: studioInfo
           ? {
-              studioName: studioInfo.studioName,
+              studioName: studioInfo.name,
               email: studioInfo.email,
               phone: studioInfo.phone,
-              logo: studioInfo.logo,
             }
           : null,
       },

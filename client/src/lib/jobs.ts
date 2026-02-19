@@ -364,18 +364,17 @@ export async function updateJobStatus(
     // - Stati attivi: crea/aggiorna evento (titolo, colore, descrizione)
     // - Annullato: elimina evento Calendar
     const CALENDAR_SYNC_STATUSES: JobStatus[] = [
+      'lead',
       'confermato',
       'shooting_fatto',
       'selezione_pending',
       'produzione',
-      'completato',
-      'consegnato',
-      'lead'
+      'consegnato'
     ];
     
-    if (newStatus === 'annullato') {
+    if (newStatus === 'archiviato') {
       try {
-        console.log(`📅 Status annullato - elimino evento Calendar...`);
+        console.log(`📅 Status archiviato - elimino evento Calendar...`);
         await apiRequest('DELETE', `/api/jobs/${jobId}/calendar-event`);
         console.log('✅ Evento Calendar eliminato');
       } catch (error) {

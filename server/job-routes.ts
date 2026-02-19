@@ -14,9 +14,12 @@ const router = express.Router();
 
 function getJobCalendarColorId(status: string, hasSignedQuote: boolean): string {
   if (hasSignedQuote || status === 'confermato') return '2';
-  if (status === 'lead') return '6';
-  if (status === 'completato' || status === 'consegnato') return '10';
-  if (status === 'annullato') return '4';
+  if (status === 'lead' || status === 'preventivo_inviato') return '6';
+  if (status === 'consegnato') return '10';
+  if (status === 'archiviato') return '4';
+  if (status === 'shooting_fatto') return '3';
+  if (status === 'selezione_pending') return '5';
+  if (status === 'produzione') return '9';
   return '8';
 }
 
