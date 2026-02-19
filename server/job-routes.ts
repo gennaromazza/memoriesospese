@@ -493,7 +493,7 @@ router.get('/consultation-templates', authenticateFirebase, async (req: any, res
       return res.status(400).json({ error: 'jobType query parameter richiesto' });
     }
     
-    const templatesSnapshot = await db.collection('consultation_templates')
+    const templatesSnapshot = await db.collection('consultationTemplates')
       .where('jobType', '==', jobType)
       .where('attiva', '==', true)
       .get();

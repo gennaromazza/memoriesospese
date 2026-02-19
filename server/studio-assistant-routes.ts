@@ -161,7 +161,7 @@ async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[
     for (const doc of consultationsSnapshot.docs) {
       const data = doc.data();
       if (data.templateId) {
-        const templateDoc = await db.collection('consultation_templates').doc(data.templateId).get();
+        const templateDoc = await db.collection('consultationTemplates').doc(data.templateId).get();
         const templateWeight = templateDoc.exists ? (templateDoc.data()?.weight || 1) : 1;
         totalWeight += templateWeight;
       } else {
@@ -189,7 +189,7 @@ async function findOptimalDateRange(
   
   let prepDays = 0;
   try {
-    const templateDoc = await db.collection('consultation_templates').doc(templateId).get();
+    const templateDoc = await db.collection('consultationTemplates').doc(templateId).get();
     if (templateDoc.exists) {
       prepDays = templateDoc.data()?.giorniPreparazione || 0;
     }
