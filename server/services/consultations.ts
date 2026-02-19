@@ -25,7 +25,8 @@ import {
   deleteEvent,
   type WorkingHours,
 } from "../google-calendar.js";
-import { DateTime } from "luxon"; // Importa Luxon per gestione fusi orari
+import { DateTime } from "luxon";
+import { normalizeEmail, generateClienteIdFromEmail } from "../utils/normalize.js";
 
 /**
  * 🔥 FUNZIONE UNIVERSALE DI OVERLAP
@@ -581,21 +582,6 @@ export async function migrateSaturdayHours(
 /**
  * CONSULTATION OPERATIONS
  */
-
-/**
- * Helper: Normalizza email per matching
- */
-function normalizeEmail(email: string): string {
-  return email.toLowerCase().trim();
-}
-
-/**
- * Helper: Genera document ID deterministico da email
- */
-function generateClienteIdFromEmail(email: string): string {
-  const normalized = normalizeEmail(email);
-  return Buffer.from(normalized).toString("base64url");
-}
 
 /**
  * Helper: Collega consultation a cliente (pattern unificato)

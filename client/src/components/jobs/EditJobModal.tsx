@@ -157,8 +157,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
       endTime: job.endTime || '',
       provenance: job.provenance || '',
       eventLocation: job.eventLocation || '',
-      locationCerimonia: (job as any).locationCerimonia || (job as any).rituLocation || '',
-      oraCerimonia: (job as any).oraCerimonia || (job as any).rituTime || '',
+      locationCerimonia: job.locationCerimonia || job.rituLocation || '',
+      oraCerimonia: job.oraCerimonia || job.rituTime || '',
       noteInterne: job.noteInterne || ''
     }
   });
@@ -184,8 +184,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         endTime: job.endTime || '',
         provenance: job.provenance || '',
         eventLocation: job.eventLocation || '',
-        locationCerimonia: (job as any).locationCerimonia || (job as any).rituLocation || '',
-        oraCerimonia: (job as any).oraCerimonia || (job as any).rituTime || '',
+        locationCerimonia: job.locationCerimonia || job.rituLocation || '',
+        oraCerimonia: job.oraCerimonia || job.rituTime || '',
         noteInterne: job.noteInterne || ''
       });
       

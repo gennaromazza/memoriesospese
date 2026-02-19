@@ -12,24 +12,9 @@ import { syncBookingWorkflowState } from "../shared/workflow-helpers.js";
 import { WorkflowState } from "../shared/schema.js";
 import type { SlotsResponse, TimeSlot } from "../shared/calendar-types.js";
 import type { BookingCampaign } from "../shared/booking-types.js";
+import { normalizeEmail, generateClienteIdFromEmail } from "./utils/normalize.js";
 
 const router = express.Router();
-
-/**
- * Helper: Normalizza email per matching
- */
-function normalizeEmail(email: string): string {
-  return email.toLowerCase().trim();
-}
-
-/**
- * Helper: Genera document ID deterministico da email
- * Usa base64url encoding per garantire caratteri validi Firestore
- */
-function generateClienteIdFromEmail(email: string): string {
-  const normalized = normalizeEmail(email);
-  return Buffer.from(normalized).toString("base64url");
-}
 
 /**
  * Helper: Collega booking a cliente (server-side)

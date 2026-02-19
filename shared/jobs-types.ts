@@ -101,6 +101,7 @@ export interface Job {
   id: string;
   
   // Riferimenti
+  clienteId?: string;           // @deprecated Legacy campo singolo - usare clientiIds
   clientiIds: string[];         // Array clienti collegati (OBBLIGATORIO - almeno 1)
   bookingId?: string;           // Link opzionale a booking (se da campagna)
   consultationId?: string;      // Link opzionale a consultation (se da consulenza) - Fix #1
@@ -118,7 +119,9 @@ export interface Job {
   startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
   endTime?: string;             // Orario fine (HH:mm) - opzionale
   eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
+  locationCerimonia?: string;   // @deprecated Legacy - usare rituLocation
   rituLocation?: string;        // Luogo rito/celebrazione (es. "Chiesa San Giuseppe")
+  oraCerimonia?: string;        // @deprecated Legacy - usare rituTime
   rituTime?: string;            // Orario rito/celebrazione (HH:mm)
   provenance: string;           // Dynamic provenance slug from Firestore jobProvenances collection
   

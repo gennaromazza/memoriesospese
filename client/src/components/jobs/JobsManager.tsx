@@ -451,12 +451,12 @@ export default function JobsManager() {
     // Helper per ricerca testuale
     const matchesSearch = (job: typeof jobs[0], query: string): boolean => {
       const nomeEvento = job.nomeEvento?.toLowerCase() || '';
-      const eventLocation = (job.eventLocation || job.rituLocation || (job as any).locationCerimonia || '').toLowerCase();
+      const eventLocation = (job.eventLocation || job.rituLocation || job.locationCerimonia || '').toLowerCase();
       const note = job.noteInterne?.toLowerCase() || '';
       
       const clientIds = job.clientiIds?.length 
         ? job.clientiIds 
-        : ((job as any).clienteId ? [(job as any).clienteId] : []);
+        : (job.clienteId ? [job.clienteId] : []);
       const clientiNames = clientIds
         .map((id: string) => clienteNamesMap[id]?.toLowerCase() || '')
         .join(' ');

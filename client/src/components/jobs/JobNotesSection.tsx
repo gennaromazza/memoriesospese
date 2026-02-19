@@ -31,10 +31,10 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [noteText, setNoteText] = useState(job?.note || '');
   const [modalitaFoto, setModalitaFoto] = useState(
-    (job as any)?.notePerFoto && (job as any)?.notePerFoto.length > 0
+    job?.notePerFoto && job.notePerFoto.length > 0
   );
   const [notePerFoto, setNotePerFoto] = useState<NoteFotoItem[]>(
-    (job as any)?.notePerFoto || []
+    job?.notePerFoto || []
   );
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -99,8 +99,8 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
 
   const handleCancel = () => {
     setNoteText(job?.note || '');
-    setNotePerFoto((job as any)?.notePerFoto || []);
-    setModalitaFoto((job as any)?.notePerFoto && (job as any)?.notePerFoto.length > 0);
+    setNotePerFoto(job?.notePerFoto || []);
+    setModalitaFoto(job?.notePerFoto && job.notePerFoto.length > 0);
     setIsEditing(false);
   };
 
@@ -404,13 +404,13 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
         ) : (
           // Visualizzazione Read-Only
           <div>
-            {(job as any).notePerFoto && (job as any).notePerFoto.length > 0 ? (
+            {job.notePerFoto && job.notePerFoto.length > 0 ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
                   <Camera className="h-4 w-4" />
-                  Note per foto ({(job as any).notePerFoto.length})
+                  Note per foto ({job.notePerFoto.length})
                 </div>
-                {(job as any).notePerFoto.map((item: NoteFotoItem, index: number) => (
+                {job.notePerFoto.map((item: NoteFotoItem, index: number) => (
                   <div 
                     key={item.id} 
                     className="border rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-900/50"

@@ -4,13 +4,9 @@ import { db } from "../lib/firebase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import type { Cliente } from "@shared/clienti-types";
 
-interface Cliente {
-  id: string;
-  nome: string;
-  cognome: string;
-  email?: string;
-}
+type ClienteListItem = Pick<Cliente, 'id' | 'nome' | 'cognome' | 'email'>;
 
 interface ClienteSelectorProps {
   value: string;
@@ -22,7 +18,7 @@ interface ClienteSelectorProps {
   disabled?: boolean;
 }
 
-function fuzzySearchClients(clients: Cliente[], searchTerm: string): Cliente[] {
+function fuzzySearchClients(clients: ClienteListItem[], searchTerm: string): ClienteListItem[] {
   if (!searchTerm.trim()) return clients;
   
   const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
@@ -42,7 +38,7 @@ export function ClienteSelector({
   className = "",
   disabled = false
 }: ClienteSelectorProps) {
-  const [clientiList, setClientiList] = useState<Cliente[]>([]);
+  const [clientiList, setClientiList] = useState<ClienteListItem[]>([]);
   const [clienteSearch, setClienteSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -205,7 +201,7 @@ export function ClienteSelectorWithSave({
   className = "",
   disabled = false
 }: ClienteSelectorWithSaveProps) {
-  const [clientiList, setClientiList] = useState<Cliente[]>([]);
+  const [clientiList, setClientiList] = useState<ClienteListItem[]>([]);
   const [clienteSearch, setClienteSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -389,7 +385,7 @@ export function ClienteSelectorCompact({
   disabled = false,
   className = ""
 }: Omit<ClienteSelectorProps, 'label' | 'showCurrentClient'>) {
-  const [clientiList, setClientiList] = useState<Cliente[]>([]);
+  const [clientiList, setClientiList] = useState<ClienteListItem[]>([]);
   const [clienteSearch, setClienteSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 

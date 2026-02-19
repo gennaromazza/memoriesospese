@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { sendGmailEmail, createOrderPaymentReceivedEmailHTML, authenticateFirebase } from './email-routes.js';
 import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
+import { normalizeEmail } from './utils/normalize.js';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -679,11 +680,22 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
     let finalClienteId = clienteId;
     
     if (createNewCliente && !clienteId) {
-      // Crea nuovo cliente nel database
+      if (emailCliente) {
+        const existingSnapshot = await db.collection('clienti')
+          .where('email', '==', normalizeEmail(emailCliente))
+          .limit(1)
+          .get();
+        if (!existingSnapshot.empty) {
+          finalClienteId = existingSnapshot.docs[0].id;
+          console.log('ℹ️ Cliente esistente trovato per email, uso ID:', finalClienteId);
+        }
+      }
+
+      if (!finalClienteId) {
       const newClienteData = {
         nome: clienteNome || nomeCliente.split(' ')[0] || 'N/D',
         cognome: clienteCognome || nomeCliente.split(' ').slice(1).join(' ') || 'N/D',
-        email: emailCliente ? emailCliente.toLowerCase().trim() : null,
+        email: emailCliente ? normalizeEmail(emailCliente) : null,
         whatsapp: telefonoCliente || null,
         cellulare1: telefonoCliente || null,
         tags: ['walk-in'],
@@ -709,12 +721,13 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
       const newClienteRef = await db.collection('clienti').add(newClienteData);
       finalClienteId = newClienteRef.id;
       console.log('✅ Nuovo cliente creato:', finalClienteId, clienteNome, clienteCognome);
+      }
     }
 
     // Crea ordine
     const orderData: any = {
       nomeCliente,
-      emailCliente: emailCliente || null,
+      emailCliente: emailCliente ? normalizeEmail(emailCliente) : null,
       telefonoCliente: telefonoCliente || null,
       nomeEvento: `Ordine Walk-in - ${prodottiDescrizione.substring(0, 50)}`,
       dataEvento: null,

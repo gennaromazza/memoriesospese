@@ -55,6 +55,12 @@ function normalizeEmail(email: string): string {
  * Crea nuovo cliente
  */
 export async function createCliente(data: InsertCliente): Promise<string> {
+  const normalizedEmail = normalizeEmail(data.email);
+  const existing = await getClienteByEmail(normalizedEmail);
+  if (existing) {
+    throw new Error(`Esiste già un cliente con l'email "${normalizedEmail}" (${existing.nome} ${existing.cognome})`);
+  }
+
   const now = serverTimestamp();
   
   const clienteData: Omit<Cliente, 'id'> = {

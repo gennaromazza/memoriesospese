@@ -17,6 +17,7 @@ import {
 } from "./email-routes.js";
 import { nanoid } from "nanoid";
 import { nowRomeDate, toRomeDateTime, daysFromNowRome, formatRomeDateLocale } from "./utils/timezone.js";
+import { normalizeEmail } from "./utils/normalize.js";
 
 const router = Router();
 
@@ -2569,7 +2570,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     let clienteId: string;
     const existingClientSnapshot = await db
       .collection("clienti")
-      .where("email", "==", email.toLowerCase().trim())
+      .where("email", "==", normalizeEmail(email))
       .limit(1)
       .get();
 
@@ -2582,7 +2583,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       const clienteData: Record<string, any> = {
         nome: nome.trim(),
         cognome: cognome.trim(),
-        email: email.toLowerCase().trim(),
+        email: normalizeEmail(email),
         cellulare1: cellulare?.trim() || "",
         tags: ["preventivo-rapido"],
         sourceRefs: {
