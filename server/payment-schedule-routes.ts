@@ -10,6 +10,7 @@ import * as admin from 'firebase-admin';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
 import { authenticateFirebase } from './email-routes.js';
+import { nowRomeDate, daysFromNowRome, toRomeDateTime } from './utils/timezone.js';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -47,14 +48,11 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
       });
     }
 
-    const today = new Date();
-    // FIX: Usa Luxon per addDays DST-safe (usa import top-level)
+    const today = nowRomeDate();
     const addDays = (date: Date, days: number) => {
-      const dt = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
-      return dt.plus({ days }).toJSDate();
+      return toRomeDateTime(date).plus({ days }).toJSDate();
     };
 
-    // Genera preset automatici
     const presets = {
       'acconto-saldo': {
         nome: 'Acconto + Saldo',
@@ -191,14 +189,11 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
       });
     }
 
-    const today = new Date();
-    // FIX: Usa Luxon per addDays DST-safe (usa import top-level)
+    const today = nowRomeDate();
     const addDays = (date: Date, days: number) => {
-      const dt = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
-      return dt.plus({ days }).toJSDate();
+      return toRomeDateTime(date).plus({ days }).toJSDate();
     };
 
-    // Genera payments automaticamente basato su preset
     let paymentsData: Array<{tipo: string, importo: number, dataScadenza: Date, descrizione: string}> = [];
     
     switch (presetType) {
@@ -357,8 +352,7 @@ router.post('/generate', authenticateFirebase, async (req: any, res: Response) =
       });
     }
 
-    // Data riferimento: usa dataRiferimento se fornito, altrimenti oggi
-    const baseDate = dataRiferimento ? new Date(dataRiferimento) : new Date();
+    const baseDate = dataRiferimento ? toRomeDateTime(dataRiferimento).toJSDate() : nowRomeDate();
 
     // ==== MODE 1: AUTOMATIC (presetType provided) ====
     if (presetType) {
@@ -729,7 +723,7 @@ router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, a
     // Crea CashMovement prima dell'update principale
     let cashMovementId: string | null = null;
     try {
-      const paymentDate = new Date(dataPagamento || Date.now());
+      const paymentDate = dataPagamento ? toRomeDateTime(dataPagamento).toJSDate() : nowRomeDate();
       const paymentTipo = schedule.payments[paymentIndex]?.tipo || 'rata';
       const tipoLabel = paymentTipo === 'acconto' ? 'Acconto' : paymentTipo === 'saldo' ? 'Saldo' : 'Rata';
       
@@ -767,7 +761,7 @@ router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, a
     const nuovoImportoPagato = importoGiaVersato + Number(importoPagato);
     payment.importoPagato = Math.round(nuovoImportoPagato * 100) / 100;
     
-    payment.dataPagamento = Timestamp.fromDate(new Date(dataPagamento || Date.now()));
+    payment.dataPagamento = Timestamp.fromDate(dataPagamento ? toRomeDateTime(dataPagamento).toJSDate() : nowRomeDate());
     payment.metodoPagamento = metodoPagamento || 'contante';
     
     // FIX: Stato pagamento coerente

@@ -9,6 +9,7 @@ import { db } from './firebase-admin.js';
 import { DateTime } from 'luxon';
 import { FieldValue } from 'firebase-admin/firestore';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { nowRomeDate } from './utils/timezone.js';
 
 const router = Router();
 
@@ -1952,7 +1953,7 @@ export function createOrderAccontoRicevutoEmailHTML(
                 // Helper robusto per parsing date - gestisce Firestore Timestamp, ISO string, millisecondi
                 let date: Date;
                 if (!t.data) {
-                  date = new Date(); // Fallback
+                  date = nowRomeDate(); // Fallback
                 } else if (t.data.toDate && typeof t.data.toDate === 'function') {
                   date = t.data.toDate(); // Firestore Timestamp
                 } else if (typeof t.data === 'string') {
@@ -1962,7 +1963,7 @@ export function createOrderAccontoRicevutoEmailHTML(
                 } else if (t.data instanceof Date) {
                   date = t.data; // Already a Date
                 } else {
-                  date = new Date(); // Fallback sicuro
+                  date = nowRomeDate(); // Fallback sicuro
                 }
 
                 const dateStr = date.toLocaleDateString('it-IT', { 
@@ -5067,7 +5068,7 @@ router.post("/admin/migrate-legacy-secrets", authenticateFirebase, async (req: a
         
         // Prepara i dati da migrare
         const migrateData: any = {
-          migratedAt: new Date(),
+          migratedAt: nowRomeDate(),
           migratedFrom: 'galleries'
         };
         

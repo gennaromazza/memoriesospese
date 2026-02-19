@@ -5,6 +5,7 @@
 import { Router, Request, Response } from 'express';
 import { sendGmailEmail, createOrderPaymentReceivedEmailHTML, authenticateFirebase } from './email-routes.js';
 import { db, FieldValue } from './firebase-admin.js';
+import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -762,13 +763,13 @@ router.post('/create-walkin', authenticateFirebase, async (req: any, res: Respon
 
     // Se c'è acconto, crea movimento cassa con schema allineato
     if (acconto > 0) {
-      const now = new Date();
+      const now = nowRomeDate();
       const cashData = {
         tipo: 'entrata',
         categoria: 'Vendita diretta',
         importo: acconto,
         descrizione: `Ordine Walk-in: ${nomeCliente} - ${prodottiDescrizione.substring(0, 50)}`,
-        data: now, // Usa Date per allinearsi con schema client
+        data: now,
         metodoPagamento,
         note: `Ordine ID: ${orderId}`,
         origine: 'walk-in', // Track cash origin
@@ -934,7 +935,7 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     const accontoAttuale = orderData.acconto || 0;
     const saldoAttuale = orderData.saldo || totale - accontoAttuale;
     const transactions = orderData.transactions || [];
-    const paymentDate = data ? new Date(data) : new Date();
+    const paymentDate = data ? toRomeDateTime(data).toJSDate() : nowRomeDate();
 
     let paymentAmount: number;
     let nuovoAcconto: number;

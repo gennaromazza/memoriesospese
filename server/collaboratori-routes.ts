@@ -4,6 +4,7 @@ import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
+import { nowRome } from './utils/timezone.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import type {
   Collaboratore,
@@ -1908,8 +1909,9 @@ router.post('/collaboratori/send-reminders', authenticateFirebase, async (req: a
       // Controlla se abbiamo già inviato un reminder oggi per questa assegnazione
       if (assignment.lastReminderSentAt) {
         const lastReminder = assignment.lastReminderSentAt.toDate?.() || new Date(assignment.lastReminderSentAt);
-        const today = new Date();
-        if (lastReminder.toDateString() === today.toDateString()) {
+        const todayRome = DateTime.now().setZone('Europe/Rome');
+        const lastRome = DateTime.fromJSDate(lastReminder).setZone('Europe/Rome');
+        if (lastRome.hasSame(todayRome, 'day')) {
           console.log(`⏭️ Reminder già inviato oggi per assegnazione ${assignment.id}`);
           continue;
         }

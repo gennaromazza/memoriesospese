@@ -8,6 +8,7 @@ import { db } from "./firebase-admin.js";
 import { sendGmailEmail, authenticateFirebase } from "./email-routes.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { DateTime } from "luxon";
+import { nowRomeDate } from "./utils/timezone.js";
 
 /**
  * Ottiene la data di oggi in formato YYYY-MM-DD usando Europe/Rome
@@ -122,7 +123,7 @@ export async function cleanupStaleJobs() {
             error: "Job crashed/timeout (Heartbeat expired)",
             retry: false,
           }),
-          completedAt: new Date(),
+          completedAt: nowRomeDate(),
         });
       });
     }
@@ -167,8 +168,8 @@ export async function processNextBulkEmailJob() {
       // Lock immediato
       t.update(potentialJobRef, {
         status: "in_progress",
-        startedAt: new Date(),
-        lastHeartbeatAt: new Date(),
+        startedAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
       });
 
       return { id: doc.id, quotaDate: data?.quotaDate };
@@ -257,7 +258,7 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
           sentCount,
           failedCount,
           quotaConsumed: sentCount,
-          lastHeartbeatAt: new Date(),
+          lastHeartbeatAt: nowRomeDate(),
         };
         
         if (currentErrors.length > 0) {
@@ -277,8 +278,8 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
       sentCount,
       failedCount,
       quotaConsumed: sentCount,
-      completedAt: new Date(),
-      lastHeartbeatAt: new Date(),
+      completedAt: nowRomeDate(),
+      lastHeartbeatAt: nowRomeDate(),
     });
 
     console.log(
@@ -289,7 +290,7 @@ async function sendBulkEmails(jobId: string, quotaDate: string) {
     await jobRef.update({
       status: "failed",
       errors: FieldValue.arrayUnion({ email: "system", error: error.message }),
-      completedAt: new Date(),
+      completedAt: nowRomeDate(),
     });
   } finally {
     // RILASCIO QUOTA FINALE (Always run)
@@ -506,7 +507,7 @@ router.post("/quota/reset", authenticateFirebase, async (req: any, res: Response
     await quotaRef.set({
       sent: 0,
       reserved: 0,
-      resetAt: new Date(),
+      resetAt: nowRomeDate(),
       resetBy: "admin"
     });
     
@@ -561,8 +562,8 @@ router.post("/templates", authenticateFirebase, async (req: any, res: Response) 
       name,
       subject,
       body,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: nowRomeDate(),
+      updatedAt: nowRomeDate()
     };
     
     const docRef = await db.collection("emailTemplates").add(templateData);
@@ -582,7 +583,7 @@ router.put("/templates/:id", authenticateFirebase, async (req: any, res: Respons
     const { id } = req.params;
     const { name, subject, body } = req.body;
     
-    const updateData: any = { updatedAt: new Date() };
+    const updateData: any = { updatedAt: nowRomeDate() };
     if (name) updateData.name = name;
     if (subject) updateData.subject = subject;
     if (body) updateData.body = body;
@@ -876,7 +877,7 @@ router.post("/send", authenticateFirebase, async (req: any, res: Response) => {
         {
           reserved: FieldValue.increment(recipients.length),
           date: today,
-          lastUpdated: new Date(),
+          lastUpdated: nowRomeDate(),
         },
         { merge: true },
       );
@@ -895,8 +896,8 @@ router.post("/send", authenticateFirebase, async (req: any, res: Response) => {
         failedCount: 0,
         status: "queued",
         errors: [],
-        createdAt: new Date(),
-        lastHeartbeatAt: new Date(),
+        createdAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
         createdBy: senderId || "admin",
       };
 
@@ -966,8 +967,8 @@ router.post("/send-split", authenticateFirebase, async (req: any, res: Response)
         failedCount: 0,
         status: isFirst ? "queued" : "scheduled",
         errors: [],
-        createdAt: new Date(),
-        lastHeartbeatAt: new Date(),
+        createdAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
         createdBy: senderId || "admin",
         batchIndex: i + 1,
         totalBatches: chunks.length,
@@ -982,7 +983,7 @@ router.post("/send-split", authenticateFirebase, async (req: any, res: Response)
       await quotaRef.set({
         reserved: FieldValue.increment(firstChunkSize),
         date: today,
-        lastUpdated: new Date(),
+        lastUpdated: nowRomeDate(),
       }, { merge: true });
     }
     
@@ -1044,14 +1045,14 @@ router.post("/jobs/:jobId/start", authenticateFirebase, async (req: any, res: Re
       transaction.update(quotaRef, {
         reserved: FieldValue.increment(recipientCount),
         date: today,
-        lastUpdated: new Date(),
+        lastUpdated: nowRomeDate(),
       });
       
       transaction.update(jobRef, {
         status: "queued",
         quotaReserved: recipientCount,
         quotaDate: today,
-        lastHeartbeatAt: new Date(),
+        lastHeartbeatAt: nowRomeDate(),
       });
     });
     
@@ -1148,7 +1149,7 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, async (req: any, 
         {
           reserved: FieldValue.increment(recipientsToRetry.length),
           date: today,
-          lastUpdated: new Date(),
+          lastUpdated: nowRomeDate(),
         },
         { merge: true }
       );
@@ -1166,8 +1167,8 @@ router.post("/jobs/:jobId/retry-failed", authenticateFirebase, async (req: any, 
         failedCount: 0,
         status: "queued",
         errors: [],
-        createdAt: new Date(),
-        lastHeartbeatAt: new Date(),
+        createdAt: nowRomeDate(),
+        lastHeartbeatAt: nowRomeDate(),
         createdBy: "admin",
         retryOf: jobId,
       };

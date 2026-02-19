@@ -10,6 +10,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { db } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
+import { nowRomeDate, nowRome, daysAgoRome } from './utils/timezone.js';
 
 const router = Router();
 
@@ -415,9 +416,8 @@ async function checkSuspiciousDates(): Promise<AuditIssue[]> {
   const issues: AuditIssue[] = [];
   
   try {
-    const now = new Date();
-    const farFuture = new Date();
-    farFuture.setFullYear(farFuture.getFullYear() + 5);
+    const now = nowRomeDate();
+    const farFuture = nowRome().plus({ years: 5 }).toJSDate();
     
     // Controlla jobs con date molto nel futuro
     const jobsSnap = await db.collection('jobs').get();
@@ -496,11 +496,9 @@ async function checkJobCalendarSync(): Promise<AuditIssue[]> {
       // Job con data definita ma senza evento calendar
       if (data.eventDate && !data.calendarEventId && !data.deleted) {
         const eventDate = data.eventDate.toDate ? data.eventDate.toDate() : new Date(data.eventDate);
-        const now = new Date();
+        const now = nowRomeDate();
         
-        // Solo per eventi futuri o recenti (ultimi 30 giorni)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgo = daysAgoRome(30);
         
         if (eventDate > thirtyDaysAgo) {
           issues.push({
@@ -1252,7 +1250,7 @@ router.post('/fix-schedule-total/:jobId', authenticateFirebase, requireAdmin, as
     const updates: any = {
       totale: totaleFinale,
       saldoResiduo: nuovoSaldoResiduo,
-      updatedAt: new Date(),
+      updatedAt: nowRomeDate(),
     };
     
     let payments = [...(schedule.payments || [])];
@@ -1430,7 +1428,7 @@ router.post('/fix-all-discrepancies', authenticateFirebase, requireAdmin, async 
           const updates: any = {
             totale: quoteTotale,
             saldoResiduo: nuovoSaldoResiduo,
-            updatedAt: new Date(),
+            updatedAt: nowRomeDate(),
           };
           
           let payments = [...(schedule.payments || [])];

@@ -18,6 +18,7 @@ import { db } from "../firebase-admin.js";
 import { getEventsWithDetailsAllCalendars } from "../google-calendar.js";
 import type { Consultation } from "../../shared/consultation-types.js";
 import type { Booking } from "../../shared/booking-types.js";
+import { nowRomeDate } from "../utils/timezone.js";
 
 // ========================================
 // TYPES
@@ -283,7 +284,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     // 6. Report finale
     const duration = Date.now() - startTime;
     const report: SyncReport = {
-      timestamp: new Date(),
+      timestamp: nowRomeDate(),
       duration,
       googleCalendarEvents: googleEventIds.size,
       firestoreRecords: {
@@ -335,7 +336,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     // ✅ MAI throw da un worker! Assorbi l'errore e restituisci report vuoto
     console.error('[EVENT SYNC GUARD] ❌ Sync failed (absorbed):', error?.message || error);
     return {
-      timestamp: new Date(),
+      timestamp: nowRomeDate(),
       duration: Date.now() - startTime,
       googleCalendarEvents: 0,
       firestoreRecords: { consultations: 0, bookings: 0 },

@@ -13,6 +13,7 @@
 
 import { db, Timestamp, FieldValue } from '../firebase-admin.js';
 import type { Timestamp as TimestampType } from '@google-cloud/firestore';
+import { nowRomeDate } from '../utils/timezone.js';
 
 const MAX_RETRY_ATTEMPTS = 10;
 const WORKER_INTERVAL_MS = 60 * 1000; // 1 minute
@@ -46,7 +47,7 @@ async function processPendingCancellation(bookingId: string, metadata: Cancellat
     }
 
     // Verifica se è il momento di ritentare (rispetta backoff)
-    const now = new Date();
+    const now = nowRomeDate();
     const nextRetry = metadata.nextRetryAt.toDate();
     if (now < nextRetry) {
       return; // Non ancora il momento

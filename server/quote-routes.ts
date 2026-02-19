@@ -16,6 +16,7 @@ import {
   createAdminQuoteSignedNotificationHTML,
 } from "./email-routes.js";
 import { nanoid } from "nanoid";
+import { nowRomeDate, toRomeDateTime, daysFromNowRome, formatRomeDateLocale } from "./utils/timezone.js";
 
 const router = Router();
 
@@ -184,7 +185,7 @@ async function logAuditEvent(data: {
       newValue: data.newValue || null,
       reason: data.reason || "",
       metadata: data.metadata || {},
-      timestamp: new Date(),
+      timestamp: nowRomeDate(),
     });
   } catch (error) {
     console.error("❌ Errore logging audit event:", error);
@@ -306,7 +307,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
 
     // 2. Verifica scadenza (se presente)
     if (quote.expiresAt) {
-      const now = new Date();
+      const now = nowRomeDate();
       const expiryDate = quote.expiresAt.toDate();
       if (expiryDate < now) {
         return res.status(410).json({
@@ -316,12 +317,11 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Update viewedAt se prima visualizzazione (solo per status 'inviato')
     if (quote.status === "inviato" && !quote.viewedAt) {
       try {
         await db.collection("quotes").doc(quote.id).update({
           status: "visionato",
-          viewedAt: new Date(),
+          viewedAt: nowRomeDate(),
         });
         quote.status = "visionato";
       } catch (error) {
@@ -620,7 +620,7 @@ router.get("/signed/:token", async (req: Request, res: Response) => {
 
     // 3. Verifica scadenza (se presente)
     if (quote.expiresAt) {
-      const now = new Date();
+      const now = nowRomeDate();
       const expiryDate = quote.expiresAt.toDate();
       if (expiryDate < now) {
         return res.status(410).json({
@@ -1190,7 +1190,7 @@ router.patch("/:id/reset-signature", verifyAdminAuth, async (req: Request, res: 
               // Nessun altro preventivo firmato: riporta job a "preventivo_inviato"
               await jobRef.update({
                 status: 'preventivo_inviato',
-                updatedAt: new Date(),
+                updatedAt: nowRomeDate(),
               });
               console.log(`✅ Job ${quote.jobId} riportato a stato "preventivo_inviato" dopo reset firma`);
             }
@@ -1359,9 +1359,9 @@ router.post("/send-quote", async (req: Request, res: Response) => {
     // FIX: Non sovrascrivere status se il preventivo è in stato avanzato (firmato, visionato)
     const statusesNotToOverwrite = ['firmato', 'visionato'];
     const updateFields: any = {
-      sentAt: new Date(),
+      sentAt: nowRomeDate(),
       sentTo: recipientEmails.join(", "),
-      emailSentAt: new Date(),
+      emailSentAt: nowRomeDate(),
     };
     if (!statusesNotToOverwrite.includes(quote.status)) {
       updateFields.status = "inviato";
@@ -1752,18 +1752,13 @@ router.post("/payment-reminder", async (req: Request, res: Response) => {
 
     // Calcola giorni fino a scadenza
     const dueDate = payment.dataScadenza.toDate();
-    const today = new Date();
+    const today = nowRomeDate();
     const daysUntilDue = Math.ceil(
       (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
     const isOverdue = daysUntilDue < 0;
 
-    // Formato data scadenza
-    const paymentDueDate = dueDate.toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
+    const paymentDueDate = formatRomeDateLocale(dueDate);
 
     // URL portale unificato (auto-adatta a stato preventivo)
     const baseUrl = process.env.REPLIT_DOMAINS
@@ -1944,7 +1939,7 @@ router.patch(
 
       const updateData: any = {
         status: newStatus,
-        updatedAt: new Date(),
+        updatedAt: nowRomeDate(),
       };
 
       // 6. Rigenerazione token se necessario
@@ -1955,7 +1950,7 @@ router.patch(
         // Crea entry per token revocato
         const revokedEntry: RevokedToken = {
           token: oldToken,
-          revokedAt: new Date() as any,
+          revokedAt: nowRomeDate() as any,
           revokedBy: adminEmail,
           reason: `status_change: ${oldStatus} → ${newStatus}`,
         };
@@ -2072,7 +2067,7 @@ router.patch(
         signature: manualSignature,
         signedAt: signedAtDate, // FIX: Aggiunto signedAt a livello root per visualizzazione portale
         status: "firmato",
-        updatedAt: new Date(),
+        updatedAt: nowRomeDate(),
       });
 
       // 5. Log inserimento firma manuale
@@ -2275,7 +2270,7 @@ router.post(
       if (job?.status !== "confermato" && job?.status !== "completato") {
         await jobRef.update({
           status: "confermato",
-          updatedAt: new Date(),
+          updatedAt: nowRomeDate(),
           "financials.totalePreventivato": correctTotale,
         });
         completedSteps.jobStatusUpdated = true;
@@ -2306,7 +2301,7 @@ router.post(
           jobId: quote.jobId,
           tipo: "preventivo_firmato",
           descrizione: `Preventivo firmato da ${clientName || quote.signature?.clientName || "Cliente"}`,
-          data: new Date(),
+          data: nowRomeDate(),
           metadata: { 
             quoteId: id, 
             totale: correctTotale 
@@ -2339,7 +2334,7 @@ router.post(
         }
 
         if (clientEmails.length > 0) {
-          const signedAt = (quote as any).signedAt || quote.signature?.signedAt || new Date();
+          const signedAt = (quote as any).signedAt || quote.signature?.signedAt || nowRomeDate();
           const signedAtDate = signedAt instanceof Date ? signedAt : 
             (signedAt as any).toDate ? (signedAt as any).toDate() : new Date(signedAt);
 
@@ -2730,7 +2725,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       id: nanoid(),
       accepted: clausesAccepted?.includes(c.text) || false,
       ...(clausesAccepted?.includes(c.text)
-        ? { acceptedAt: new Date() }
+        ? { acceptedAt: nowRomeDate() }
         : {}),
     }));
 
@@ -2758,7 +2753,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         {
           id: nanoid(),
           quoteId: "",
-          timestamp: new Date(),
+          timestamp: nowRomeDate(),
           adminEmail: "preventivo-rapido",
           action: "quote_created",
           newValue: "inviato",
@@ -2776,7 +2771,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       if (allRequired) {
         quoteData.status = "firmato";
         quoteData.signature = {
-          signedAt: new Date(),
+          signedAt: nowRomeDate(),
           ipAddress: req.ip || "unknown",
           userAgent: req.headers["user-agent"] || "unknown",
           clientName: signerName.trim(),
@@ -2830,7 +2825,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
               template.type || "fisso",
               nomeEvento,
               totalAfterDiscount,
-              new Date(),
+              nowRomeDate(),
               portalLink,
               undefined,
               undefined,
@@ -2862,7 +2857,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
               (template.type || "fisso") as "fisso" | "variabile",
               nomeEvento,
               totalAfterDiscount,
-              new Date(),
+              nowRomeDate(),
               `${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}`,
               studioInfo || undefined
             );

@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { db, FieldValue } from './firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
+import { nowRomeDate, nowRome, daysFromNowRome } from './utils/timezone.js';
 import type { 
   StudioSuggestion, 
   StudioSuggestionsResponse,
@@ -142,19 +143,13 @@ function toDate(value: any): Date | null {
 
 async function calculateWeeklyLoads(weeksAhead: number = 4): Promise<WeeklyLoad[]> {
   const loads: WeeklyLoad[] = [];
-  const today = new Date();
+  const todayRome = nowRome();
   
-  const currentMonday = new Date(today);
-  currentMonday.setDate(today.getDate() - today.getDay() + 1);
-  currentMonday.setHours(0, 0, 0, 0);
+  const currentMonday = todayRome.startOf('week');
   
   for (let week = 0; week < weeksAhead; week++) {
-    const weekStart = new Date(currentMonday);
-    weekStart.setDate(weekStart.getDate() + (week * 7));
-    
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
+    const weekStart = currentMonday.plus({ weeks: week }).toJSDate();
+    const weekEnd = currentMonday.plus({ weeks: week, days: 6 }).endOf('day').toJSDate();
     
     const consultationsSnapshot = await db.collection('consultations')
       .where('dataConsulenza', '>=', weekStart)
@@ -241,7 +236,7 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     }
     
     console.log('📊 Studio Assistant: Cache MISS, calcolo suggerimenti...');
-    const now = new Date();
+    const now = nowRomeDate();
     
     const dismissedSnapshot = await db.collection('dismissedSuggestions')
       .where('expiresAt', '>', now)
@@ -502,8 +497,7 @@ router.get('/suggestions', verifyAdmin, async (req: Request, res: Response) => {
     }
 
     // 2. Lavori da consegnare (evento passato da più di 3 mesi, non consegnati)
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgo = nowRome().minus({ months: 3 }).toJSDate();
     
     const jobsSnapshot = await db.collection('jobs')
       .where('status', 'not-in', ['consegnato', 'archiviato'])
@@ -746,8 +740,8 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
         const currentCount = quoteDoc.data()?.followUpCount || 0;
         await quoteRef.update({
           followUpCount: currentCount + 1,
-          lastFollowUpAt: new Date(),
-          updatedAt: new Date()
+          lastFollowUpAt: nowRomeDate(),
+          updatedAt: nowRomeDate()
         });
       }
     }
@@ -759,7 +753,7 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
         needsWork: false,
         pendingReason: FieldValue.delete(),
         needsWorkSince: FieldValue.delete(),
-        updatedAt: new Date()
+        updatedAt: nowRomeDate()
       });
     }
     
@@ -768,9 +762,9 @@ router.post('/suggestions/:id/action', verifyAdmin, async (req: Request, res: Re
         suggestionId: id,
         type,
         docId,
-        dismissedAt: new Date(),
+        dismissedAt: nowRomeDate(),
         dismissedBy: adminEmail,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        expiresAt: daysFromNowRome(30)
       });
     }
     
@@ -794,12 +788,12 @@ router.patch('/jobs/:id/work-status', verifyAdmin, async (req: Request, res: Res
     
     const updateData: any = {
       needsWork,
-      updatedAt: new Date()
+      updatedAt: nowRomeDate()
     };
     
     if (needsWork) {
       updateData.pendingReason = pendingReason || 'other';
-      updateData.needsWorkSince = new Date();
+      updateData.needsWorkSince = nowRomeDate();
     } else {
       updateData.pendingReason = FieldValue.delete();
       updateData.needsWorkSince = FieldValue.delete();
@@ -839,7 +833,7 @@ router.patch('/orders/:id/workflow-state', verifyAdmin, async (req: Request, res
     
     await db.collection('orders').doc(id).update({
       statoWorkflow: workflowState,
-      updatedAt: new Date()
+      updatedAt: nowRomeDate()
     });
     
     if (order.bookingId) {
@@ -847,7 +841,7 @@ router.patch('/orders/:id/workflow-state', verifyAdmin, async (req: Request, res
       if (bookingDoc.exists) {
         await db.collection('bookings').doc(order.bookingId).update({
           statoWorkflow: workflowState,
-          updatedAt: new Date()
+          updatedAt: nowRomeDate()
         });
       }
     }
@@ -855,7 +849,7 @@ router.patch('/orders/:id/workflow-state', verifyAdmin, async (req: Request, res
     if (order.galleryId) {
       await db.collection('galleries').doc(order.galleryId).update({
         workflowState: workflowState,
-        updatedAt: new Date()
+        updatedAt: nowRomeDate()
       });
     }
     
