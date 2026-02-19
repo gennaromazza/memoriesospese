@@ -289,6 +289,13 @@ export async function updateJob(
       updateData.endTime = deleteField();
       updateData.googleCalendarEventId = deleteField();
       updateData.allDay = true; // Reset a true per sicurezza
+      // Elimina evento Google Calendar associato
+      try {
+        await apiRequest('DELETE', `/api/jobs/${jobId}/calendar-event`);
+        console.log('📅 Evento Calendar eliminato (dataNonDefinita attivato)');
+      } catch (calError) {
+        console.warn('⚠️ Cleanup Calendar non riuscito (non bloccante):', calError);
+      }
     } else if (data.dataNonDefinita === false && data.eventDate) {
       // Se dataNonDefinita viene disattivato e c'è una eventDate, converti
       updateData.dataNonDefinita = false;
@@ -353,38 +360,45 @@ export async function updateJobStatus(
     
     console.log('✅ Status aggiornato:', jobId, newStatus);
     
-    // Stati che richiedono blocco slot su Google Calendar
-    const BLOCKING_STATUSES: JobStatus[] = [
+    // Sincronizzazione Google Calendar in base allo status
+    // - Stati attivi: crea/aggiorna evento (titolo, colore, descrizione)
+    // - Annullato: elimina evento Calendar
+    const CALENDAR_SYNC_STATUSES: JobStatus[] = [
       'confermato',
       'shooting_fatto',
       'selezione_pending',
-      'produzione'
+      'produzione',
+      'completato',
+      'consegnato',
+      'lead'
     ];
     
-    // Se nuovo status richiede blocco, chiama SEMPRE backend (gestisce idempotenza)
-    // IMPORTANTE: non skippiamo se googleCalendarEventId esiste, perché:
-    // 1. Legacy jobs potrebbero non avere l'ID anche se evento esiste
-    // 2. Se evento cancellato ma ID presente, backend lo ricrea
-    if (BLOCKING_STATUSES.includes(newStatus)) {
+    if (newStatus === 'annullato') {
       try {
-        console.log(`📅 Status ${newStatus} richiede Calendar event - chiamo backend (idempotente)...`);
+        console.log(`📅 Status annullato - elimino evento Calendar...`);
+        await apiRequest('DELETE', `/api/jobs/${jobId}/calendar-event`);
+        console.log('✅ Evento Calendar eliminato');
+      } catch (error) {
+        console.warn('⚠️ Cleanup Calendar non riuscito (non bloccante):', error);
+      }
+    } else if (CALENDAR_SYNC_STATUSES.includes(newStatus)) {
+      try {
+        console.log(`📅 Status ${newStatus} - sincronizzo Calendar event...`);
         const response = await apiRequest('POST', `/api/jobs/${jobId}/calendar-event`);
         
         if (!response.ok) {
           const error = await response.json();
-          console.error('❌ Errore creazione Calendar event:', error);
-          // Non bloccare update status se Calendar fallisce - log warning only
+          console.error('❌ Errore sync Calendar event:', error);
         } else {
           const result = await response.json();
           if (result.alreadyExists) {
-            console.log('ℹ️  Calendar event già esistente:', result.eventId);
+            console.log('ℹ️  Calendar event aggiornato:', result.eventId);
           } else {
             console.log('✅ Calendar event creato:', result.eventId);
           }
         }
       } catch (error) {
         console.error('❌ Errore chiamata API Calendar event:', error);
-        // Non bloccare update status se Calendar fallisce
       }
     }
     
@@ -610,6 +624,14 @@ export async function deleteJob(
   try {
     console.log('🗑️ Eliminazione job:', jobId);
     
+    // 0. Elimina evento Google Calendar associato (prima del delete Firestore)
+    try {
+      await apiRequest('DELETE', `/api/jobs/${jobId}/calendar-event`);
+      console.log('  ├─ Evento Calendar eliminato');
+    } catch (calError) {
+      console.warn('  ├─ Cleanup Calendar non riuscito (non bloccante):', calError);
+    }
+
     // 1. Fetch job per ottenere riferimenti
     const jobDoc = await getDoc(doc(db, JOBS_COLLECTION, jobId));
     if (!jobDoc.exists()) {

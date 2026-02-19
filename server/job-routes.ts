@@ -418,6 +418,51 @@ router.get('/:id/timeline', authenticateFirebase, async (req: any, res) => {
 });
 
 /**
+ * DELETE /api/jobs/:id/calendar-event
+ * Elimina evento Google Calendar associato a un job
+ * Usato quando: job viene eliminato, dataNonDefinita attivato, status annullato
+ */
+router.delete('/:id/calendar-event', authenticateFirebase, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const jobDoc = await db.collection('jobs').doc(id).get();
+    
+    if (!jobDoc.exists) {
+      return res.status(404).json({ error: 'Job non trovato' });
+    }
+    
+    const job = jobDoc.data();
+    const calendarEventId = job?.googleCalendarEventId;
+    
+    if (!calendarEventId) {
+      return res.json({ success: true, deleted: false, reason: 'Nessun evento Calendar associato' });
+    }
+    
+    try {
+      const { deleteEvent } = await import('./google-calendar.js');
+      await deleteEvent('primary', calendarEventId);
+      console.log(`✅ Evento Calendar ${calendarEventId} eliminato per Job ${id}`);
+    } catch (deleteError: any) {
+      if (deleteError?.code === 404 || deleteError?.message?.includes('not found')) {
+        console.log(`ℹ️  Evento Calendar ${calendarEventId} già inesistente per Job ${id}`);
+      } else {
+        console.warn(`⚠️ Errore eliminazione evento Calendar ${calendarEventId}:`, deleteError?.message);
+      }
+    }
+    
+    await db.collection('jobs').doc(id).update({
+      googleCalendarEventId: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    
+    res.json({ success: true, deleted: true, eventId: calendarEventId });
+  } catch (error: any) {
+    console.error(`❌ Errore eliminazione Calendar event per Job:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Endpoint per sincronizzare il calendario di un lavoro
  */
 router.post('/:id/sync-calendar', authenticateFirebase, async (req: any, res) => {
@@ -496,22 +541,16 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
     
     // Parse eventDate
     const dateStr = eventDate as string;
-    const [year, month, day] = dateStr.split('-').map(Number);
     
     let timeMin: Date;
     let timeMax: Date;
     
     if (isAllDay) {
-      // Tutto il giorno: 00:00 → 23:59
-      timeMin = new Date(year, month - 1, day, 0, 0, 0);
-      timeMax = new Date(year, month - 1, day, 23, 59, 59);
+      timeMin = createEuropeRomeDate(dateStr, '00:00');
+      timeMax = createEuropeRomeDate(dateStr, '23:59');
     } else {
-      // Orari specifici
-      const [startHours, startMinutes] = (startTime as string).split(':').map(Number);
-      const [endHours, endMinutes] = (endTime as string).split(':').map(Number);
-      
-      timeMin = new Date(year, month - 1, day, startHours, startMinutes, 0);
-      timeMax = new Date(year, month - 1, day, endHours, endMinutes, 0);
+      timeMin = createEuropeRomeDate(dateStr, startTime as string);
+      timeMax = createEuropeRomeDate(dateStr, endTime as string);
     }
     
     // 1. Query Google Calendar
@@ -533,8 +572,8 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
     // 2. Query Firestore bookings
     // NOTA: Firestore non permette inequality su campi diversi, quindi fetchiamo
     // tutti i bookings del giorno usando solo dataShootingInizio, poi filtriamo in-memory
-    const dayStart = new Date(year, month - 1, day, 0, 0, 0);
-    const dayEnd = new Date(year, month - 1, day, 23, 59, 59);
+    const dayStart = createEuropeRomeDate(dateStr, '00:00');
+    const dayEnd = createEuropeRomeDate(dateStr, '23:59');
     
     const bookingsSnapshot = await db.collection('bookings')
       .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
