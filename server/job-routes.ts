@@ -12,7 +12,15 @@ import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 
 const router = express.Router();
 
-async function buildCalendarDescription(jobId: string, job: any): Promise<{ summary: string; description: string }> {
+function getJobCalendarColorId(status: string, hasSignedQuote: boolean): string {
+  if (hasSignedQuote || status === 'confermato') return '2';
+  if (status === 'lead') return '6';
+  if (status === 'completato' || status === 'consegnato') return '10';
+  if (status === 'annullato') return '4';
+  return '8';
+}
+
+async function buildCalendarDescription(jobId: string, job: any): Promise<{ summary: string; description: string; colorId: string }> {
   let clientiNomi: string[] = [];
   if (job.clientiIds && job.clientiIds.length > 0) {
     const clientiPromises = job.clientiIds.map(async (clienteId: string) => {
@@ -82,10 +90,17 @@ async function buildCalendarDescription(jobId: string, job: any): Promise<{ summ
   const statusLabel = hasSignedQuote ? 'Contratto firmato' : (job.status || 'N/A');
   descriptionParts.push(`\n---\nJob ID: ${jobId}\nStatus: ${statusLabel}\nProvenienza: ${job.provenance || 'N/A'}`);
 
-  const summary = `📸 ${job.nomeEvento} (${job.jobType})`;
-  const description = descriptionParts.join('\n');
+  const statusPrefix = hasSignedQuote || job.status === 'confermato'
+    ? '✅'
+    : job.status === 'lead'
+      ? '⏳ LEAD -'
+      : '📸';
 
-  return { summary, description };
+  const summary = `${statusPrefix} ${job.nomeEvento} (${job.jobType})`;
+  const description = descriptionParts.join('\n');
+  const colorId = getJobCalendarColorId(job.status, hasSignedQuote);
+
+  return { summary, description, colorId };
 }
 
 /**
@@ -106,7 +121,7 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
       return { success: false, error: 'Job non trovato' };
     }
     
-    let job = jobDoc.data();
+    let job = jobDoc.data()!;
     
     // 2. Validation: job deve avere eventDate e non essere in fase di trattativa
     if (job.dataNonDefinita) {
@@ -126,12 +141,13 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
       
       if (existingEvent) {
         console.log(`📝 Calendar event ${job.googleCalendarEventId} esiste - aggiorno descrizione...`);
-        const { summary, description } = await buildCalendarDescription(jobId, job);
+        const { summary, description, colorId } = await buildCalendarDescription(jobId, job);
         try {
           await updateEvent('primary', job.googleCalendarEventId, {
             summary,
             description,
             location: job.eventLocation,
+            colorId,
           });
           console.log(`✅ Calendar event ${job.googleCalendarEventId} aggiornato con descrizione corrente`);
         } catch (updateError: any) {
@@ -161,7 +177,7 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
     const day = String(romeDate.day).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
-    const { summary, description } = await buildCalendarDescription(jobId, job);
+    const { summary, description, colorId } = await buildCalendarDescription(jobId, job);
     
     let createdEvent;
     
@@ -172,7 +188,8 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
         isAllDay: true,
         startDateStr: dateStr,
         location: job.eventLocation,
-        attendees: []
+        attendees: [],
+        colorId,
       });
     } else {
       if (!job.startTime || !job.endTime) {
@@ -191,7 +208,8 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
         start: startDateTime,
         end: endDateTime,
         location: job.eventLocation,
-        attendees: []
+        attendees: [],
+        colorId,
       });
     }
     
@@ -286,6 +304,30 @@ router.get('/notifications', authenticateFirebase, async (req: any, res) => {
         });
       });
     
+    // Fetch admin notifications (preventivi rapidi)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+    const adminNotifSnap = await db.collection('adminNotifications')
+      .orderBy('createdAt', 'desc')
+      .limit(20)
+      .get();
+
+    adminNotifSnap.docs.forEach(doc => {
+      const data = doc.data();
+      const createdDate = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+      if (!createdDate || createdDate < sevenDaysAgo) return;
+
+      notifications.push({
+        id: `quick-quote-${doc.id}`,
+        type: 'quick_quote',
+        title: data.title || 'Preventivo Rapido',
+        description: data.description || '',
+        createdAt: data.createdAt || null,
+        isRead: data.isRead || false,
+        resourceId: data.jobId || doc.id,
+        deepLink: data.deepLink || '/admin/dashboard?tab=lavori',
+      });
+    });
+
     // Ordina per data creazione (più recenti prima)
     notifications.sort((a, b) => {
       const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
@@ -296,6 +338,23 @@ router.get('/notifications', authenticateFirebase, async (req: any, res) => {
     res.json({ success: true, notifications });
   } catch (error: any) {
     console.error('❌ Errore get notifications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/jobs/notifications/:id/dismiss
+ * Segna una notifica admin come letta
+ */
+router.post('/notifications/:id/dismiss', authenticateFirebase, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection('adminNotifications').doc(id).update({
+      isRead: true,
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('❌ Errore dismiss notification:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -920,6 +979,91 @@ router.get('/', authenticateFirebase, async (req: any, res) => {
     res.json({ success: true, jobs });
   } catch (error: any) {
     console.error('❌ Errore get all jobs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/jobs/sync-all-calendar
+ * Sync batch di tutti i jobs con Google Calendar (aggiorna titoli, colori, descrizioni)
+ */
+router.post('/sync-all-calendar', authenticateFirebase, async (req: any, res) => {
+  try {
+    const jobsSnap = await db.collection('jobs')
+      .where('deletedAt', '==', null)
+      .get();
+    
+    const allJobs = jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const jobsWithDate = allJobs.filter((j: any) => j.eventDate && !j.dataNonDefinita);
+    
+    const results = {
+      total: jobsWithDate.length,
+      synced: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
+    
+    for (const job of jobsWithDate as any[]) {
+      try {
+        const result = await ensureJobCalendarEvent(job.id);
+        if (result.success) {
+          results.synced++;
+          if (result.action === 'created' || result.action === 'recreated') {
+            results.created++;
+          } else {
+            results.updated++;
+          }
+        } else {
+          results.skipped++;
+          if (result.error) {
+            results.errors.push(`${job.id} (${job.nomeEvento}): ${result.error}`);
+          }
+        }
+      } catch (err: any) {
+        results.skipped++;
+        results.errors.push(`${job.id} (${job.nomeEvento}): ${err.message}`);
+      }
+    }
+    
+    // Cerca anche jobs senza deletedAt field (legacy)
+    const jobsNoDeletedSnap = await db.collection('jobs').get();
+    const legacyJobs = jobsNoDeletedSnap.docs
+      .filter(doc => {
+        const data = doc.data();
+        return data.eventDate && !data.dataNonDefinita && !data.deletedAt && 
+               !jobsWithDate.some((j: any) => j.id === doc.id);
+      })
+      .map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    for (const job of legacyJobs as any[]) {
+      try {
+        const result = await ensureJobCalendarEvent(job.id);
+        if (result.success) {
+          results.synced++;
+          results.total++;
+          if (result.action === 'created' || result.action === 'recreated') {
+            results.created++;
+          } else {
+            results.updated++;
+          }
+        }
+      } catch (err: any) {
+        results.total++;
+        results.skipped++;
+        results.errors.push(`${job.id} (${job.nomeEvento}): ${err.message}`);
+      }
+    }
+    
+    console.log(`✅ Sync Calendar completata: ${results.synced}/${results.total} sincronizzati, ${results.created} creati, ${results.updated} aggiornati`);
+    
+    res.json({
+      success: true,
+      results,
+    });
+  } catch (error: any) {
+    console.error('❌ Errore sync-all-calendar:', error);
     res.status(500).json({ error: error.message });
   }
 });

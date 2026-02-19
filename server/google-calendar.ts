@@ -540,10 +540,11 @@ export async function createEvent(
     start?: Date;
     end?: Date;
     location?: string;
-    attendees?: string[]; // Array di email
+    attendees?: string[];
     isAllDay?: boolean;
     startDateStr?: string;
     endDateStr?: string;
+    colorId?: string;
   },
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -588,23 +589,28 @@ export async function createEvent(
     );
   }
 
+  const requestBody: any = {
+    summary: eventData.summary,
+    description: eventData.description,
+    location: eventData.location,
+    start: startField,
+    end: endField,
+    attendees: eventData.attendees?.map((email) => ({ email })),
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: "email", minutes: 24 * 60 },
+        { method: "popup", minutes: 30 },
+      ],
+    },
+  };
+  if (eventData.colorId) {
+    requestBody.colorId = eventData.colorId;
+  }
+
   const response = await calendar.events.insert({
     calendarId,
-    requestBody: {
-      summary: eventData.summary,
-      description: eventData.description,
-      location: eventData.location,
-      start: startField,
-      end: endField,
-      attendees: eventData.attendees?.map((email) => ({ email })),
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: "email", minutes: 24 * 60 }, // 1 giorno prima
-          { method: "popup", minutes: 30 }, // 30 min prima
-        ],
-      },
-    },
+    requestBody,
   });
 
   return response.data;
@@ -624,6 +630,7 @@ export async function updateEvent(
     end: Date;
     location: string;
     isAllDay: boolean;
+    colorId: string;
   }>,
 ) {
   const calendar = await getGoogleCalendarClient();
@@ -633,6 +640,7 @@ export async function updateEvent(
   if (eventData.summary) requestBody.summary = eventData.summary;
   if (eventData.description !== undefined) requestBody.description = eventData.description;
   if (eventData.location !== undefined) requestBody.location = eventData.location;
+  if (eventData.colorId) requestBody.colorId = eventData.colorId;
   
   if (eventData.start || eventData.end) {
     const { DateTime } = await import('luxon');

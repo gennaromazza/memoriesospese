@@ -65,15 +65,20 @@ export const NotificationBell = React.memo(function NotificationBell() {
   
   const handleDismissNotification = useCallback(async (notificationId: string, resourceId: string, type: string) => {
     try {
-      const { db } = await import('@/lib/firebase');
-      const { doc, updateDoc } = await import('firebase/firestore');
-      
       if (type === 'quick_quote') {
         const firestoreDocId = notificationId.replace('quick-quote-', '');
-        await updateDoc(doc(db, 'adminNotifications', firestoreDocId), {
-          isRead: true
-        });
+        const { getAuth } = await import('firebase/auth');
+        const auth = getAuth();
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          await fetch(`/api/jobs/notifications/${firestoreDocId}/dismiss`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+        }
       } else {
+        const { db } = await import('@/lib/firebase');
+        const { doc, updateDoc } = await import('firebase/firestore');
         let collectionName = '';
         if (type === 'booking') collectionName = 'bookings';
         else if (type === 'consultation') collectionName = 'consultations';
