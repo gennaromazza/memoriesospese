@@ -429,7 +429,7 @@ export async function getEventsWithDetailsAllCalendars(
         
         // Pagina attraverso TUTTI gli eventi del calendario
         do {
-          const response = await calendar.events.list({
+          const response: any = await calendar.events.list({
             calendarId: cal.id!,
             timeMin: timeMin.toISOString(),
             timeMax: timeMax.toISOString(),

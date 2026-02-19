@@ -267,7 +267,7 @@ export default function JobsManager() {
     
     const details: Record<string, { count: number; nomi: string[] }> = {};
     allAssignments.forEach((assignment: JobCollaboratoreAssignment) => {
-      if (assignment.jobId) {
+      if (assignment.jobId && assignment.status !== 'declined') {
         if (!details[assignment.jobId]) {
           details[assignment.jobId] = { count: 0, nomi: [] };
         }
@@ -286,7 +286,7 @@ export default function JobsManager() {
     const result: Record<string, Set<string>> = {};
     
     allAssignments.forEach((assignment: JobCollaboratoreAssignment) => {
-      if (assignment.collaboratoreId && assignment.jobId) {
+      if (assignment.collaboratoreId && assignment.jobId && assignment.status !== 'declined') {
         if (!result[assignment.collaboratoreId]) {
           result[assignment.collaboratoreId] = new Set();
         }
