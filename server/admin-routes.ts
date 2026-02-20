@@ -229,6 +229,81 @@ router.post('/jobs/reconcile-calendar', authenticateFirebase, async (req: any, r
 });
 
 /**
+ * POST /api/admin/fix-calendar-links
+ * Aggiorna la descrizione di tutti gli eventi Google Calendar dei job
+ * con i link corretti (publicToken per preventivi firmati)
+ * One-time migration script
+ */
+router.post('/fix-calendar-links', authenticateFirebase, async (req: any, res) => {
+  try {
+    console.log('🔗 Inizio fix link calendario per tutti i job...');
+    const { ensureJobCalendarEvent } = await import('./job-routes.js');
+
+    const jobsSnap = await db.collection('jobs')
+      .where('googleCalendarEventId', '!=', '')
+      .get();
+
+    console.log(`📋 Trovati ${jobsSnap.size} job con evento calendario`);
+
+    const results = {
+      total: jobsSnap.size,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      details: [] as Array<{ jobId: string; nomeEvento: string; status: string; result: string }>,
+    };
+
+    for (const doc of jobsSnap.docs) {
+      const job = doc.data();
+      try {
+        const result = await ensureJobCalendarEvent(doc.id);
+        if (result.success) {
+          results.updated++;
+          results.details.push({
+            jobId: doc.id,
+            nomeEvento: job.nomeEvento || 'N/A',
+            status: job.status || 'N/A',
+            result: `✅ ${result.action || 'updated'}`,
+          });
+        } else {
+          results.skipped++;
+          results.details.push({
+            jobId: doc.id,
+            nomeEvento: job.nomeEvento || 'N/A',
+            status: job.status || 'N/A',
+            result: `⏭️ ${result.error || 'skipped'}`,
+          });
+        }
+        console.log(`  [${results.updated + results.skipped + results.errors}/${results.total}] ${job.nomeEvento || doc.id}: ${result.success ? '✅' : '⏭️'}`);
+      } catch (err: any) {
+        results.errors++;
+        results.details.push({
+          jobId: doc.id,
+          nomeEvento: job.nomeEvento || 'N/A',
+          status: job.status || 'N/A',
+          result: `❌ ${err.message}`,
+        });
+        console.error(`  ❌ Errore job ${doc.id}:`, err.message);
+      }
+    }
+
+    console.log(`🔗 Fix completato: ${results.updated} aggiornati, ${results.skipped} saltati, ${results.errors} errori`);
+
+    res.json({
+      success: true,
+      message: `Fix link calendario completato: ${results.updated} aggiornati, ${results.skipped} saltati, ${results.errors} errori`,
+      results,
+    });
+  } catch (error: any) {
+    console.error('❌ Errore fix calendar links:', error);
+    res.status(500).json({
+      error: 'Errore durante fix link calendario',
+      details: error.message,
+    });
+  }
+});
+
+/**
  * POST /api/admin/sync-calendar
  * Sincronizzazione manuale Google Calendar <-> Firestore
  * Elimina eventi fantasma e ripara inconsistenze
