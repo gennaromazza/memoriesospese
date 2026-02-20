@@ -898,6 +898,23 @@ export default function JobDetailPage() {
                 </CardContent>
               </Card>
 
+              {/* Note Interne (dalla creazione del lavoro) */}
+              {job.noteInterne && (
+                <Card className="shadow-sm hover:shadow-md transition-shadow border-amber-200/50">
+                  <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <FileText className="h-5 w-5 text-amber-600" />
+                      Note Interne
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      {job.noteInterne}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Note e Personalizzazioni */}
               <JobNotesSection job={job} />
             </div>
