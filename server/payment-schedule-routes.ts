@@ -145,7 +145,7 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
  */
 router.post('/generate-auto', authenticateFirebase, async (req: any, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, presetType = 'acconto-saldo', accontoIniziale, eventDate: eventDateStr } = req.body;
+    const { quoteId, jobId, clienteId, presetType = 'acconto-saldo', accontoIniziale, eventDate: eventDateStr, rata2Perc: r2p, rata3Perc: r3p, rata2Days: r2d, rata3Days: r3d, saldoDays: sd } = req.body;
 
     // Validazione
     if (!quoteId || !jobId || !clienteId) {
@@ -230,26 +230,34 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
             message: 'Per il preset 4 rate è necessaria la data dell\'evento'
           });
         }
-        const acconto = accontoIniziale || 0;
-        if (acconto < 0 || acconto >= totale * 0.5) {
+        const acconto = Math.round(accontoIniziale || 0);
+        const p2Perc = r2p || 50;
+        const p3Perc = r3p || 25;
+        const d2Days = r2d ?? -10;
+        const d3Days = r3d ?? 90;
+        const dSaldoDays = sd ?? 130;
+
+        if (acconto < 0 || acconto >= totale) {
           return res.status(400).json({
             error: 'Acconto non valido',
-            message: 'L\'acconto deve essere positivo e inferiore al 50% del totale'
+            message: 'L\'acconto deve essere positivo e inferiore al totale'
           });
         }
         const eventDateParsed = toRomeDateTime(eventDateStr).toJSDate();
-        const metaTotale = totale * 0.5;
-        const secondaRata = Math.round((metaTotale - acconto) * 100) / 100;
-        const terzaRata = Math.round(totale * 0.25 * 100) / 100;
-        const saldo = Math.round((totale - acconto - secondaRata - terzaRata) * 100) / 100;
-        const dataSecondaRata = addDays(eventDateParsed, -10);
-        const dataTerzaRata = addDays(eventDateParsed, 90);
-        const dataSaldo = addDays(eventDateParsed, 130);
+        const targetRata2 = Math.round(totale * p2Perc / 100) - acconto;
+        const rata2val = Math.max(0, targetRata2);
+        const rata3val = Math.round(totale * p3Perc / 100);
+        const saldo = totale - acconto - rata2val - rata3val;
+
+        const dataSecondaRata = addDays(eventDateParsed, d2Days);
+        const dataTerzaRata = addDays(eventDateParsed, d3Days);
+        const dataSaldo = addDays(eventDateParsed, dSaldoDays);
+        const saldoPerc = 100 - p2Perc - p3Perc;
         paymentsData = [
           { tipo: 'acconto', importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
-          { tipo: 'rata', importo: secondaRata, dataScadenza: dataSecondaRata < today ? today : dataSecondaRata, descrizione: '2ª rata (50% - acconto) pre-evento' },
-          { tipo: 'rata', importo: terzaRata, dataScadenza: dataTerzaRata, descrizione: '3ª rata (25%) post-evento' },
-          { tipo: 'saldo', importo: saldo, dataScadenza: dataSaldo, descrizione: 'Saldo finale' },
+          { tipo: 'rata', importo: rata2val, dataScadenza: dataSecondaRata < today ? today : dataSecondaRata, descrizione: `2ª rata (${p2Perc}% - acconto) pre-evento` },
+          { tipo: 'rata', importo: rata3val, dataScadenza: dataTerzaRata, descrizione: `3ª rata (${p3Perc}%) post-evento` },
+          { tipo: 'saldo', importo: saldo, dataScadenza: dataSaldo, descrizione: `Saldo (${saldoPerc}%)` },
         ];
         break;
       }
@@ -260,11 +268,11 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
         });
     }
 
-    // Crea ScheduledPayment[] con nanoid + fix rounding
-    const scheduledPayments = paymentsData.map((p, idx) => ({
+    // Crea ScheduledPayment[] con nanoid + round to whole euros
+    const scheduledPayments = paymentsData.map((p) => ({
       id: nanoid(),
       tipo: p.tipo as 'acconto' | 'rata' | 'saldo',
-      importo: Math.round(p.importo * 100) / 100, // Round to cents
+      importo: Math.round(p.importo),
       dataScadenza: Timestamp.fromDate(p.dataScadenza),
       stato: 'atteso' as const,
       note: p.descrizione,
@@ -272,7 +280,7 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
 
     // Fix rounding: adjust last payment to match exact total
     const totaleRounded = scheduledPayments.reduce((sum, p) => sum + p.importo, 0);
-    const differenza = Math.round((totale - totaleRounded) * 100) / 100;
+    const differenza = Math.round(totale - totaleRounded);
     
     if (Math.abs(differenza) > 0) {
       // Add rounding difference to last payment
@@ -361,7 +369,7 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
  */
 router.post('/generate', authenticateFirebase, async (req: any, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento, accontoIniziale, eventDate: eventDateBody } = req.body;
+    const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento, accontoIniziale, eventDate: eventDateBody, rata2Perc, rata3Perc, rata2Days, rata3Days, saldoDays } = req.body;
 
     // Validazione base
     if (!quoteId || !jobId || !clienteId) {
@@ -453,26 +461,34 @@ router.post('/generate', authenticateFirebase, async (req: any, res: Response) =
               message: 'Per il preset 4 rate è necessaria la data dell\'evento'
             });
           }
-          const acconto = accontoIniziale || 0;
-          if (acconto < 0 || acconto >= totaleQuote * 0.5) {
+          const acconto = Math.round(accontoIniziale || 0);
+          const p2Perc = rata2Perc || 50;
+          const p3Perc = rata3Perc || 25;
+          const d2Days = rata2Days ?? -10;
+          const d3Days = rata3Days ?? 90;
+          const dSaldoDays = saldoDays ?? 130;
+
+          if (acconto < 0 || acconto >= totaleQuote) {
             return res.status(400).json({
               error: 'Acconto non valido',
-              message: 'L\'acconto deve essere positivo e inferiore al 50% del totale'
+              message: 'L\'acconto deve essere positivo e inferiore al totale'
             });
           }
           const evDate = toRomeDateTime(evDateStr).toJSDate();
-          const metaTot = totaleQuote * 0.5;
-          const rata2 = Math.round((metaTot - acconto) * 100) / 100;
-          const rata3 = Math.round(totaleQuote * 0.25 * 100) / 100;
-          const saldoFinale = Math.round((totaleQuote - acconto - rata2 - rata3) * 100) / 100;
-          const dataRata2 = addDaysHelper(evDate, -10);
-          const dataRata3 = addDaysHelper(evDate, 90);
-          const dataSaldoF = addDaysHelper(evDate, 130);
+          const targetRata2 = Math.round(totaleQuote * p2Perc / 100) - acconto;
+          const rata2val = Math.max(0, targetRata2);
+          const rata3val = Math.round(totaleQuote * p3Perc / 100);
+          const saldoFinale = totaleQuote - acconto - rata2val - rata3val;
+
+          const dataRata2 = addDaysHelper(evDate, d2Days);
+          const dataRata3 = addDaysHelper(evDate, d3Days);
+          const dataSaldoF = addDaysHelper(evDate, dSaldoDays);
+          const saldoPerc = 100 - p2Perc - p3Perc;
           paymentsData = [
             { tipo: 'acconto', importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
-            { tipo: 'rata', importo: rata2, dataScadenza: dataRata2 < today ? today : dataRata2, descrizione: '2ª rata (50% - acconto) pre-evento' },
-            { tipo: 'rata', importo: rata3, dataScadenza: dataRata3, descrizione: '3ª rata (25%) post-evento' },
-            { tipo: 'saldo', importo: saldoFinale, dataScadenza: dataSaldoF, descrizione: 'Saldo finale' },
+            { tipo: 'rata', importo: rata2val, dataScadenza: dataRata2 < today ? today : dataRata2, descrizione: `2ª rata (${p2Perc}% - acconto) pre-evento` },
+            { tipo: 'rata', importo: rata3val, dataScadenza: dataRata3, descrizione: `3ª rata (${p3Perc}%) post-evento` },
+            { tipo: 'saldo', importo: saldoFinale, dataScadenza: dataSaldoF, descrizione: `Saldo (${saldoPerc}%)` },
           ];
           break;
         }

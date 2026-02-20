@@ -102,6 +102,8 @@ export default function GeneraPagamentiModal({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accontoIniziale, setAccontoIniziale] = useState<number>(0);
+  const [ratePerc, setRatePerc] = useState({ rata2Perc: 50, rata3Perc: 25 });
+  const [rateDays, setRateDays] = useState({ rata2Days: -10, rata3Days: 90, saldoDays: 130 });
 
   // Refs per passare i flag alla mutation senza dipendere da state (evita React batching e reset prematuro)
   const bypassRef = useRef(false);
@@ -217,23 +219,27 @@ export default function GeneraPagamentiModal({
   const differenza = totaleRate - quoteTotale;
   const isValid = Math.abs(differenza) < 0.01; // Tolleranza 1 centesimo
 
-  const compute4RatePreview = (acconto: number) => {
+  const compute4RatePreview = (acconto: number, perc = ratePerc, days = rateDays) => {
     if (!eventDate) return [];
     const today = new Date();
     const evDate = new Date(eventDate);
-    const metaTotale = quoteTotale * 0.5;
-    const secondaRata = Math.round((metaTotale - acconto) * 100) / 100;
-    const terzaRata = Math.round(quoteTotale * 0.25 * 100) / 100;
-    const saldo = Math.round((quoteTotale - acconto - secondaRata - terzaRata) * 100) / 100;
-    const dataSecondaRata = addDays(evDate, -10);
-    const dataTerzaRata = addDays(evDate, 90);
-    const dataSaldo = addDays(evDate, 130);
+    const accontoRound = Math.round(acconto);
+    const targetRata2 = Math.round(quoteTotale * perc.rata2Perc / 100) - accontoRound;
+    const rata2 = Math.max(0, targetRata2);
+    const rata3 = Math.round(quoteTotale * perc.rata3Perc / 100);
+    const saldo = quoteTotale - accontoRound - rata2 - rata3;
+
+    const dataRata2 = addDays(evDate, days.rata2Days);
+    const dataRata3 = addDays(evDate, days.rata3Days);
+    const dataSaldo = addDays(evDate, days.saldoDays);
+
+    const saldoPerc = 100 - perc.rata2Perc - perc.rata3Perc;
 
     return [
-      { importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
-      { importo: secondaRata, dataScadenza: dataSecondaRata < today ? today : dataSecondaRata, descrizione: '2ª rata (50% - acconto) pre-evento' },
-      { importo: terzaRata, dataScadenza: dataTerzaRata, descrizione: '3ª rata (25%) post-evento' },
-      { importo: saldo, dataScadenza: dataSaldo, descrizione: 'Saldo finale' },
+      { importo: accontoRound, dataScadenza: today, descrizione: 'Acconto alla firma' },
+      { importo: rata2, dataScadenza: dataRata2 < today ? today : dataRata2, descrizione: `2ª rata (${perc.rata2Perc}% - acconto) pre-evento` },
+      { importo: rata3, dataScadenza: dataRata3, descrizione: `3ª rata (${perc.rata3Perc}%) post-evento` },
+      { importo: saldo, dataScadenza: dataSaldo, descrizione: `Saldo (${saldoPerc}%)` },
     ];
   };
 
@@ -283,12 +289,12 @@ export default function GeneraPagamentiModal({
 
   useEffect(() => {
     if (selectedPreset === '4-rate-evento' && eventDate) {
-      const preview = compute4RatePreview(accontoIniziale);
+      const preview = compute4RatePreview(accontoIniziale, ratePerc, rateDays);
       if (preview.length > 0) {
         replace(preview);
       }
     }
-  }, [accontoIniziale, eventDate, selectedPreset]);
+  }, [accontoIniziale, eventDate, selectedPreset, ratePerc, rateDays]);
 
   // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
@@ -315,8 +321,13 @@ export default function GeneraPagamentiModal({
             ...baseBody,
             presetType: selectedPreset,
             ...(selectedPreset === '4-rate-evento' && {
-              accontoIniziale,
+              accontoIniziale: Math.round(accontoIniziale),
               eventDate: eventDate ? eventDate.toISOString() : undefined,
+              rata2Perc: ratePerc.rata2Perc,
+              rata3Perc: ratePerc.rata3Perc,
+              rata2Days: rateDays.rata2Days,
+              rata3Days: rateDays.rata3Days,
+              saldoDays: rateDays.saldoDays,
             }),
           }
         : {
@@ -375,10 +386,18 @@ export default function GeneraPagamentiModal({
         });
         return;
       }
-      if (accontoIniziale < 0 || accontoIniziale >= quoteTotale * 0.5) {
+      if (accontoIniziale < 0 || accontoIniziale >= quoteTotale) {
         toast({
           title: 'Acconto non valido',
-          description: `L'acconto deve essere tra €0 e €${(quoteTotale * 0.5).toFixed(2)}`,
+          description: `L'acconto deve essere tra €0 e €${quoteTotale.toFixed(0)}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (ratePerc.rata2Perc + ratePerc.rata3Perc >= 100) {
+        toast({
+          title: 'Percentuali non valide',
+          description: 'La somma delle percentuali non può essere 100% o più.',
           variant: 'destructive',
         });
         return;
@@ -494,7 +513,7 @@ export default function GeneraPagamentiModal({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Acconto alla firma, 50% pre-evento (-10gg), 25% post (+90gg), saldo (+130gg)
+                  Acconto personalizzabile, percentuali e scadenze modificabili. Importi arrotondati automaticamente.
                 </p>
 
                 {!eventDate && (
@@ -505,27 +524,94 @@ export default function GeneraPagamentiModal({
                 )}
 
                 {eventDate && selectedPreset === '4-rate-evento' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="acconto-input">Importo acconto alla firma</Label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-medium">€</span>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="acconto-input">Acconto alla firma (€)</Label>
                       <Input
                         id="acconto-input"
                         type="number"
                         min={0}
-                        max={Math.floor(quoteTotale * 0.5)}
+                        max={quoteTotale - 1}
                         step={50}
                         value={accontoIniziale}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setAccontoIniziale(val);
-                        }}
-                        className="max-w-[200px]"
+                        onChange={(e) => setAccontoIniziale(parseFloat(e.target.value) || 0)}
+                        className="max-w-[180px]"
                         placeholder="0"
                       />
                     </div>
-                    {accontoIniziale >= quoteTotale * 0.5 && (
-                      <p className="text-xs text-red-600">L'acconto deve essere inferiore al 50% del totale (€{(quoteTotale * 0.5).toFixed(2)})</p>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">2ª rata (%)</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={5}
+                            max={90}
+                            step={5}
+                            value={ratePerc.rata2Perc}
+                            onChange={(e) => {
+                              const v = Math.min(90, Math.max(5, parseInt(e.target.value) || 50));
+                              const remaining = 100 - v;
+                              setRatePerc({ rata2Perc: v, rata3Perc: Math.min(ratePerc.rata3Perc, remaining - 5) });
+                            }}
+                            className="w-20"
+                          />
+                          <span className="text-xs text-muted-foreground">gg evento:</span>
+                          <Input
+                            type="number"
+                            min={-90}
+                            max={0}
+                            value={rateDays.rata2Days}
+                            onChange={(e) => setRateDays(prev => ({ ...prev, rata2Days: parseInt(e.target.value) || -10 }))}
+                            className="w-20"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">3ª rata (%)</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={5}
+                            max={100 - ratePerc.rata2Perc - 5}
+                            step={5}
+                            value={ratePerc.rata3Perc}
+                            onChange={(e) => {
+                              const maxVal = 100 - ratePerc.rata2Perc - 5;
+                              const v = Math.min(maxVal, Math.max(5, parseInt(e.target.value) || 25));
+                              setRatePerc(prev => ({ ...prev, rata3Perc: v }));
+                            }}
+                            className="w-20"
+                          />
+                          <span className="text-xs text-muted-foreground">gg evento:</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={rateDays.rata3Days}
+                            onChange={(e) => setRateDays(prev => ({ ...prev, rata3Days: parseInt(e.target.value) || 90 }))}
+                            className="w-20"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">Saldo ({100 - ratePerc.rata2Perc - ratePerc.rata3Perc}%) a +</span>
+                      <Input
+                        type="number"
+                        min={rateDays.rata3Days + 1}
+                        max={730}
+                        value={rateDays.saldoDays}
+                        onChange={(e) => setRateDays(prev => ({ ...prev, saldoDays: parseInt(e.target.value) || 130 }))}
+                        className="w-20"
+                      />
+                      <span className="text-xs text-muted-foreground">gg dall'evento</span>
+                    </div>
+
+                    {(ratePerc.rata2Perc + ratePerc.rata3Perc) >= 100 && (
+                      <p className="text-xs text-red-600">La somma delle percentuali non può superare il 95% (serve almeno un 5% di saldo)</p>
                     )}
                   </div>
                 )}
@@ -581,21 +667,24 @@ export default function GeneraPagamentiModal({
                 <CardContent className="p-4">
                   <h4 className="font-medium mb-3">Anteprima Scadenzario:</h4>
                   <div className="space-y-2">
-                    {payments.map((payment, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground">{payment.descrizione}</span>
-                        <div className="text-right">
-                          <span className="font-semibold">€{payment.importo.toFixed(2)}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            {format(payment.dataScadenza, 'dd/MM/yyyy', { locale: it })}
-                          </span>
+                    {payments.map((payment, idx) => {
+                      const importoStr = Number.isInteger(payment.importo) ? payment.importo.toFixed(0) : payment.importo.toFixed(2);
+                      return (
+                        <div key={idx} className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">{payment.descrizione}</span>
+                          <div className="text-right">
+                            <span className="font-semibold">€{importoStr}</span>
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {format(payment.dataScadenza, 'dd/MM/yyyy', { locale: it })}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex justify-between items-center text-sm font-semibold mt-3 pt-3 border-t">
                     <span>Pagamento totale</span>
-                    <span>€{totaleRate.toFixed(2)}</span>
+                    <span>€{Number.isInteger(totaleRate) ? totaleRate.toFixed(0) : totaleRate.toFixed(2)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -609,7 +698,7 @@ export default function GeneraPagamentiModal({
               <Button
                 type="button"
                 onClick={() => onSubmit(form.getValues())}
-                disabled={isSubmitting || createMutation.isPending || (selectedPreset === '4-rate-evento' && (!eventDate || accontoIniziale >= quoteTotale * 0.5))}
+                disabled={isSubmitting || createMutation.isPending || (selectedPreset === '4-rate-evento' && (!eventDate || accontoIniziale >= quoteTotale || ratePerc.rata2Perc + ratePerc.rata3Perc >= 100))}
                 data-testid="button-genera-automatico"
               >
                 {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
