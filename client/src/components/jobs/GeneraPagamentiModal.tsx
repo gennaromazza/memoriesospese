@@ -95,12 +95,13 @@ export default function GeneraPagamentiModal({
 }: GeneraPagamentiModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'automatico' | 'manuale'>('automatico');
-  const [selectedPreset, setSelectedPreset] = useState<'acconto-saldo' | '2-rate' | '3-rate'>('acconto-saldo');
+  const [selectedPreset, setSelectedPreset] = useState<'acconto-saldo' | '2-rate' | '3-rate' | '4-rate-evento'>('4-rate-evento');
   const [dateModes, setDateModes] = useState<Array<'absolute' | 'relative'>>([]);
   const [relativeDaysArray, setRelativeDaysArray] = useState<number[]>([]);
   const [quoteSignatureDate, setQuoteSignatureDate] = useState<Date | undefined>();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accontoIniziale, setAccontoIniziale] = useState<number>(0);
 
   // Refs per passare i flag alla mutation senza dipendere da state (evita React batching e reset prematuro)
   const bypassRef = useRef(false);
@@ -145,6 +146,15 @@ export default function GeneraPagamentiModal({
       setIsSubmitting(false);
       bypassRef.current = false;
       replaceRef.current = false;
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && eventDate && selectedPreset === '4-rate-evento') {
+      const preview = compute4RatePreview(accontoIniziale);
+      if (preview.length > 0) {
+        replace(preview);
+      }
     }
   }, [open]);
 
@@ -207,13 +217,32 @@ export default function GeneraPagamentiModal({
   const differenza = totaleRate - quoteTotale;
   const isValid = Math.abs(differenza) < 0.01; // Tolleranza 1 centesimo
 
-  // Presets automatici
-  const applyPreset = (preset: '30-70' | '50-50' | '3-rate') => {
-    // Map frontend preset to backend presetType
-    const presetTypeMap: Record<string, 'acconto-saldo' | '2-rate' | '3-rate'> = {
+  const compute4RatePreview = (acconto: number) => {
+    if (!eventDate) return [];
+    const today = new Date();
+    const evDate = new Date(eventDate);
+    const metaTotale = quoteTotale * 0.5;
+    const secondaRata = Math.round((metaTotale - acconto) * 100) / 100;
+    const terzaRata = Math.round(quoteTotale * 0.25 * 100) / 100;
+    const saldo = Math.round((quoteTotale - acconto - secondaRata - terzaRata) * 100) / 100;
+    const dataSecondaRata = addDays(evDate, -10);
+    const dataTerzaRata = addDays(evDate, 90);
+    const dataSaldo = addDays(evDate, 130);
+
+    return [
+      { importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
+      { importo: secondaRata, dataScadenza: dataSecondaRata < today ? today : dataSecondaRata, descrizione: '2ª rata (50% - acconto) pre-evento' },
+      { importo: terzaRata, dataScadenza: dataTerzaRata, descrizione: '3ª rata (25%) post-evento' },
+      { importo: saldo, dataScadenza: dataSaldo, descrizione: 'Saldo finale' },
+    ];
+  };
+
+  const applyPreset = (preset: '30-70' | '50-50' | '3-rate' | '4-rate-evento') => {
+    const presetTypeMap: Record<string, 'acconto-saldo' | '2-rate' | '3-rate' | '4-rate-evento'> = {
       '30-70': 'acconto-saldo',
       '50-50': '2-rate',
       '3-rate': '3-rate',
+      '4-rate-evento': '4-rate-evento',
     };
     setSelectedPreset(presetTypeMap[preset]);
 
@@ -223,57 +252,43 @@ export default function GeneraPagamentiModal({
     switch (preset) {
       case '30-70':
         newPayments = [
-          {
-            importo: quoteTotale * 0.3,
-            dataScadenza: addDays(today, 7),
-            descrizione: 'Acconto 30%',
-          },
-          {
-            importo: quoteTotale * 0.7,
-            dataScadenza: addDays(today, 30),
-            descrizione: 'Saldo 70%',
-          },
+          { importo: quoteTotale * 0.3, dataScadenza: addDays(today, 7), descrizione: 'Acconto 30%' },
+          { importo: quoteTotale * 0.7, dataScadenza: addDays(today, 30), descrizione: 'Saldo 70%' },
         ];
         break;
       case '50-50':
         newPayments = [
-          {
-            importo: quoteTotale * 0.5,
-            dataScadenza: addDays(today, 7),
-            descrizione: 'Acconto 50%',
-          },
-          {
-            importo: quoteTotale * 0.5,
-            dataScadenza: addDays(today, 30),
-            descrizione: 'Saldo 50%',
-          },
+          { importo: quoteTotale * 0.5, dataScadenza: addDays(today, 7), descrizione: 'Acconto 50%' },
+          { importo: quoteTotale * 0.5, dataScadenza: addDays(today, 30), descrizione: 'Saldo 50%' },
         ];
         break;
-      case '3-rate':
+      case '3-rate': {
         const rataImporto = quoteTotale / 3;
         newPayments = [
-          {
-            importo: rataImporto,
-            dataScadenza: addDays(today, 7),
-            descrizione: 'Prima rata (1/3)',
-          },
-          {
-            importo: rataImporto,
-            dataScadenza: addDays(today, 30),
-            descrizione: 'Seconda rata (2/3)',
-          },
-          {
-            importo: rataImporto,
-            dataScadenza: addDays(today, 60),
-            descrizione: 'Terza rata (3/3)',
-          },
+          { importo: rataImporto, dataScadenza: addDays(today, 7), descrizione: 'Prima rata (1/3)' },
+          { importo: rataImporto, dataScadenza: addDays(today, 30), descrizione: 'Seconda rata (2/3)' },
+          { importo: rataImporto, dataScadenza: addDays(today, 60), descrizione: 'Terza rata (3/3)' },
         ];
+        break;
+      }
+      case '4-rate-evento':
+        newPayments = compute4RatePreview(accontoIniziale);
         break;
     }
 
-    replace(newPayments); // Use useFieldArray replace to sync fields per preview
-    // Note: NON switch a 'manuale' altrimenti mutation invia payments invece di presetType
+    if (newPayments.length > 0) {
+      replace(newPayments);
+    }
   };
+
+  useEffect(() => {
+    if (selectedPreset === '4-rate-evento' && eventDate) {
+      const preview = compute4RatePreview(accontoIniziale);
+      if (preview.length > 0) {
+        replace(preview);
+      }
+    }
+  }, [accontoIniziale, eventDate, selectedPreset]);
 
   // Mutation: crea payment schedule (automatic vs manual)
   const createMutation = useMutation({
@@ -298,7 +313,11 @@ export default function GeneraPagamentiModal({
       const body = activeTab === 'automatico'
         ? {
             ...baseBody,
-            presetType: selectedPreset, // Server calcola automaticamente
+            presetType: selectedPreset,
+            ...(selectedPreset === '4-rate-evento' && {
+              accontoIniziale,
+              eventDate: eventDate ? eventDate.toISOString() : undefined,
+            }),
           }
         : {
             ...baseBody,
@@ -343,12 +362,28 @@ export default function GeneraPagamentiModal({
   });
 
   const onSubmit = (data: FormData, options?: { bypass?: boolean; replace?: boolean }) => {
-    // Previeni doppio submit
     if (isSubmitting) {
       return;
     }
 
-    if (!isValid) {
+    if (activeTab === 'automatico' && selectedPreset === '4-rate-evento') {
+      if (!eventDate) {
+        toast({
+          title: 'Data evento mancante',
+          description: 'Per generare il piano a 4 rate è necessaria la data dell\'evento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (accontoIniziale < 0 || accontoIniziale >= quoteTotale * 0.5) {
+        toast({
+          title: 'Acconto non valido',
+          description: `L'acconto deve essere tra €0 e €${(quoteTotale * 0.5).toFixed(2)}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    } else if (!isValid) {
       toast({
         title: 'Totale non valido',
         description: `Il totale delle rate (€${totaleRate.toFixed(2)}) deve essere uguale al totale preventivato (€${quoteTotale.toFixed(2)})`,
@@ -441,84 +476,107 @@ export default function GeneraPagamentiModal({
               <TabsTrigger value="manuale">Manuale</TabsTrigger>
             </TabsList>
 
-            {/* Tab Automatico - Presets */}
+            {/* Tab Automatico - 4 Rate Evento (default) + Presets classici */}
             <TabsContent value="automatico" className="space-y-4 mt-4">
-            <p className="text-sm text-muted-foreground">
-              Seleziona un preset per generare automaticamente lo scadenzario
-            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Card
-                className={cn(
-                  "cursor-pointer hover:bg-accent transition-colors border-2",
-                  selectedPreset === 'acconto-saldo' && "border-primary bg-primary/5"
-                )}
-                onClick={() => applyPreset('30-70')}
-                data-testid="card-preset-30-70"
-              >
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2">30% / 70%</h3>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Acconto:</span>
-                      <span className="font-medium">€{(quoteTotale * 0.3).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Saldo:</span>
-                      <span className="font-medium">€{(quoteTotale * 0.7).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Acconto Input */}
+            <Card className={cn(
+              "border-2",
+              selectedPreset === '4-rate-evento' ? "border-primary bg-primary/5" : ""
+            )}>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Piano 4 Rate</h3>
+                  {selectedPreset !== '4-rate-evento' && (
+                    <Button variant="outline" size="sm" onClick={() => applyPreset('4-rate-evento')}>
+                      Seleziona
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Acconto alla firma, 50% pre-evento (-10gg), 25% post (+90gg), saldo (+130gg)
+                </p>
 
-              <Card
-                className={cn(
-                  "cursor-pointer hover:bg-accent transition-colors border-2",
-                  selectedPreset === '2-rate' && "border-primary bg-primary/5"
-                )}
-                onClick={() => applyPreset('50-50')}
-                data-testid="card-preset-50-50"
-              >
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2">50% / 50%</h3>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Acconto:</span>
-                      <span className="font-medium">€{(quoteTotale * 0.5).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Saldo:</span>
-                      <span className="font-medium">€{(quoteTotale * 0.5).toFixed(2)}</span>
-                    </div>
+                {!eventDate && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>Data evento non definita. Imposta la data evento sul lavoro per usare questo piano.</span>
                   </div>
-                </CardContent>
-              </Card>
+                )}
 
-              <Card
-                className={cn(
-                  "cursor-pointer hover:bg-accent transition-colors border-2",
-                  selectedPreset === '3-rate' && "border-primary bg-primary/5"
-                )}
-                onClick={() => applyPreset('3-rate')}
-                data-testid="card-preset-3-rate"
-              >
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2">3 Rate Uguali</h3>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Importo rata:</span>
-                      <span className="font-medium">€{(quoteTotale / 3).toFixed(2)}</span>
+                {eventDate && selectedPreset === '4-rate-evento' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="acconto-input">Importo acconto alla firma</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-medium">€</span>
+                      <Input
+                        id="acconto-input"
+                        type="number"
+                        min={0}
+                        max={Math.floor(quoteTotale * 0.5)}
+                        step={50}
+                        value={accontoIniziale}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setAccontoIniziale(val);
+                        }}
+                        className="max-w-[200px]"
+                        placeholder="0"
+                      />
                     </div>
-                    <div className="text-muted-foreground text-xs mt-2">
-                      Scadenze: +7, +30, +60 giorni
-                    </div>
+                    {accontoIniziale >= quoteTotale * 0.5 && (
+                      <p className="text-xs text-red-600">L'acconto deve essere inferiore al 50% del totale (€{(quoteTotale * 0.5).toFixed(2)})</p>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Preset classici (collapsible) */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Oppure scegli un preset classico:</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Card
+                  className={cn(
+                    "cursor-pointer hover:bg-accent transition-colors border",
+                    selectedPreset === 'acconto-saldo' && "border-primary bg-primary/5"
+                  )}
+                  onClick={() => applyPreset('30-70')}
+                >
+                  <CardContent className="p-3 text-center">
+                    <h4 className="text-sm font-semibold">30/70</h4>
+                    <p className="text-xs text-muted-foreground mt-1">€{(quoteTotale * 0.3).toFixed(0)} + €{(quoteTotale * 0.7).toFixed(0)}</p>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={cn(
+                    "cursor-pointer hover:bg-accent transition-colors border",
+                    selectedPreset === '2-rate' && "border-primary bg-primary/5"
+                  )}
+                  onClick={() => applyPreset('50-50')}
+                >
+                  <CardContent className="p-3 text-center">
+                    <h4 className="text-sm font-semibold">50/50</h4>
+                    <p className="text-xs text-muted-foreground mt-1">€{(quoteTotale * 0.5).toFixed(0)} + €{(quoteTotale * 0.5).toFixed(0)}</p>
+                  </CardContent>
+                </Card>
+                <Card
+                  className={cn(
+                    "cursor-pointer hover:bg-accent transition-colors border",
+                    selectedPreset === '3-rate' && "border-primary bg-primary/5"
+                  )}
+                  onClick={() => applyPreset('3-rate')}
+                >
+                  <CardContent className="p-3 text-center">
+                    <h4 className="text-sm font-semibold">3 Rate</h4>
+                    <p className="text-xs text-muted-foreground mt-1">€{(quoteTotale / 3).toFixed(0)} x3</p>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
-            {/* Anteprima Rate Selezionate */}
-            {selectedPreset && (
+            {/* Anteprima Scadenzario */}
+            {payments.length > 0 && selectedPreset && (
               <Card className="bg-muted/50">
                 <CardContent className="p-4">
                   <h4 className="font-medium mb-3">Anteprima Scadenzario:</h4>
@@ -535,6 +593,10 @@ export default function GeneraPagamentiModal({
                       </div>
                     ))}
                   </div>
+                  <div className="flex justify-between items-center text-sm font-semibold mt-3 pt-3 border-t">
+                    <span>Pagamento totale</span>
+                    <span>€{totaleRate.toFixed(2)}</span>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -547,7 +609,7 @@ export default function GeneraPagamentiModal({
               <Button
                 type="button"
                 onClick={() => onSubmit(form.getValues())}
-                disabled={isSubmitting || createMutation.isPending}
+                disabled={isSubmitting || createMutation.isPending || (selectedPreset === '4-rate-evento' && (!eventDate || accontoIniziale >= quoteTotale * 0.5))}
                 data-testid="button-genera-automatico"
               >
                 {(isSubmitting || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

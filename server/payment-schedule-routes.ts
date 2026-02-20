@@ -54,6 +54,13 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
     };
 
     const presets = {
+      '4-rate-evento': {
+        nome: 'Piano 4 Rate',
+        descrizione: 'Acconto alla firma, 50% pre-evento, 25% post, saldo',
+        requiresEventDate: true,
+        requiresAccontoInput: true,
+        payments: [],
+      },
       'acconto-saldo': {
         nome: 'Acconto + Saldo',
         descrizione: 'Acconto 30% + Saldo 70%',
@@ -134,11 +141,11 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
 /**
  * POST /api/payment-schedules/generate-auto
  * Genera E salva automaticamente piano pagamenti da preventivo firmato
- * Body: { quoteId, jobId, clienteId, presetType: 'acconto-saldo' | '2-rate' | '3-rate' }
+ * Body: { quoteId, jobId, clienteId, presetType: 'acconto-saldo' | '2-rate' | '3-rate' | '4-rate-evento', accontoIniziale?: number, eventDate?: string }
  */
 router.post('/generate-auto', authenticateFirebase, async (req: any, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, presetType = 'acconto-saldo' } = req.body;
+    const { quoteId, jobId, clienteId, presetType = 'acconto-saldo', accontoIniziale, eventDate: eventDateStr } = req.body;
 
     // Validazione
     if (!quoteId || !jobId || !clienteId) {
@@ -216,10 +223,40 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
           { tipo: 'saldo', importo: totale / 3, dataScadenza: addDays(today, 60), descrizione: 'Terza rata (3/3)' },
         ];
         break;
+      case '4-rate-evento': {
+        if (!eventDateStr) {
+          return res.status(400).json({
+            error: 'Data evento obbligatoria',
+            message: 'Per il preset 4 rate è necessaria la data dell\'evento'
+          });
+        }
+        const acconto = accontoIniziale || 0;
+        if (acconto < 0 || acconto >= totale * 0.5) {
+          return res.status(400).json({
+            error: 'Acconto non valido',
+            message: 'L\'acconto deve essere positivo e inferiore al 50% del totale'
+          });
+        }
+        const eventDateParsed = toRomeDateTime(eventDateStr).toJSDate();
+        const metaTotale = totale * 0.5;
+        const secondaRata = Math.round((metaTotale - acconto) * 100) / 100;
+        const terzaRata = Math.round(totale * 0.25 * 100) / 100;
+        const saldo = Math.round((totale - acconto - secondaRata - terzaRata) * 100) / 100;
+        const dataSecondaRata = addDays(eventDateParsed, -10);
+        const dataTerzaRata = addDays(eventDateParsed, 90);
+        const dataSaldo = addDays(eventDateParsed, 130);
+        paymentsData = [
+          { tipo: 'acconto', importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
+          { tipo: 'rata', importo: secondaRata, dataScadenza: dataSecondaRata < today ? today : dataSecondaRata, descrizione: '2ª rata (50% - acconto) pre-evento' },
+          { tipo: 'rata', importo: terzaRata, dataScadenza: dataTerzaRata, descrizione: '3ª rata (25%) post-evento' },
+          { tipo: 'saldo', importo: saldo, dataScadenza: dataSaldo, descrizione: 'Saldo finale' },
+        ];
+        break;
+      }
       default:
         return res.status(400).json({
           error: 'Preset non valido',
-          message: 'presetType deve essere: acconto-saldo, 2-rate o 3-rate'
+          message: 'presetType deve essere: acconto-saldo, 2-rate, 3-rate o 4-rate-evento'
         });
     }
 
@@ -324,7 +361,7 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
  */
 router.post('/generate', authenticateFirebase, async (req: any, res: Response) => {
   try {
-    const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento } = req.body;
+    const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento, accontoIniziale, eventDate: eventDateBody } = req.body;
 
     // Validazione base
     if (!quoteId || !jobId || !clienteId) {
@@ -408,10 +445,41 @@ router.post('/generate', authenticateFirebase, async (req: any, res: Response) =
             { tipo: 'saldo', importo: totaleQuote / 3, dataScadenza: addDaysHelper(today, 60), descrizione: 'Terza rata (3/3)' },
           ];
           break;
+        case '4-rate-evento': {
+          const evDateStr = eventDateBody;
+          if (!evDateStr) {
+            return res.status(400).json({
+              error: 'Data evento obbligatoria',
+              message: 'Per il preset 4 rate è necessaria la data dell\'evento'
+            });
+          }
+          const acconto = accontoIniziale || 0;
+          if (acconto < 0 || acconto >= totaleQuote * 0.5) {
+            return res.status(400).json({
+              error: 'Acconto non valido',
+              message: 'L\'acconto deve essere positivo e inferiore al 50% del totale'
+            });
+          }
+          const evDate = toRomeDateTime(evDateStr).toJSDate();
+          const metaTot = totaleQuote * 0.5;
+          const rata2 = Math.round((metaTot - acconto) * 100) / 100;
+          const rata3 = Math.round(totaleQuote * 0.25 * 100) / 100;
+          const saldoFinale = Math.round((totaleQuote - acconto - rata2 - rata3) * 100) / 100;
+          const dataRata2 = addDaysHelper(evDate, -10);
+          const dataRata3 = addDaysHelper(evDate, 90);
+          const dataSaldoF = addDaysHelper(evDate, 130);
+          paymentsData = [
+            { tipo: 'acconto', importo: acconto, dataScadenza: today, descrizione: 'Acconto alla firma' },
+            { tipo: 'rata', importo: rata2, dataScadenza: dataRata2 < today ? today : dataRata2, descrizione: '2ª rata (50% - acconto) pre-evento' },
+            { tipo: 'rata', importo: rata3, dataScadenza: dataRata3, descrizione: '3ª rata (25%) post-evento' },
+            { tipo: 'saldo', importo: saldoFinale, dataScadenza: dataSaldoF, descrizione: 'Saldo finale' },
+          ];
+          break;
+        }
         default:
           return res.status(400).json({
             error: 'Preset non valido',
-            message: 'presetType deve essere: acconto-saldo, 2-rate o 3-rate'
+            message: 'presetType deve essere: acconto-saldo, 2-rate, 3-rate o 4-rate-evento'
           });
       }
 
