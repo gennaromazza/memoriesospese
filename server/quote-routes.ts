@@ -2087,6 +2087,17 @@ router.patch(
         },
       });
 
+      // 5b. Sync Google Calendar description (reflects signed quote)
+      if (quote.jobId) {
+        try {
+          const { ensureJobCalendarEvent } = await import('./job-routes.js');
+          await ensureJobCalendarEvent(quote.jobId);
+          console.log(`✅ Google Calendar aggiornato per job ${quote.jobId} dopo firma manuale`);
+        } catch (calendarError) {
+          console.warn(`⚠️ Errore sync Calendar dopo firma manuale (non critico):`, calendarError);
+        }
+      }
+
       // 6. Invia email conferma (se richiesto)
       let emailSent = false;
       if (sendEmail) {

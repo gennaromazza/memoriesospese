@@ -50,7 +50,9 @@ async function buildCalendarDescription(jobId: string, job: any): Promise<{ summ
         if (quoteDoc.exists) {
           const quote = quoteDoc.data();
           if (quote?.status === 'firmato' || quote?.signature?.signedAt) {
-            signedQuoteUrl = `${baseUrl}/preventivo/${quoteId}`;
+            signedQuoteUrl = quote?.publicToken
+              ? `${baseUrl}/quote/${quote.publicToken}`
+              : `${baseUrl}/preventivo/${quoteId}`;
             hasSignedQuote = true;
             break;
           }
