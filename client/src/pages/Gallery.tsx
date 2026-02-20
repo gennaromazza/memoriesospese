@@ -54,7 +54,7 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useUserInfo } from "@/hooks/useUserInfo";
-import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X, Expand } from "lucide-react";
+import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X, Expand, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -462,6 +462,8 @@ export default function Gallery() {
     }
     return false;
   });
+
+  const [showSelectedPhotosSection, setShowSelectedPhotosSection] = useState(true);
 
   // 📱 Mobile Product Assignment Dialog
   const [showMobileProductDialog, setShowMobileProductDialog] = useState(false);
@@ -3436,6 +3438,97 @@ export default function Gallery() {
                                 </a>
                               )}
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 📸 Sezione "Le tue foto scelte" - visibile dopo conferma selezione */}
+                      {isSelectionMode && selectionStatus === "completed" && selectedPhotoIds.length > 0 && (
+                        <div className="mt-6 mb-8">
+                          <div 
+                            className="bg-gradient-to-br from-sage/5 to-beige/20 border border-sage/20 rounded-xl overflow-hidden shadow-sm"
+                          >
+                            <button
+                              onClick={() => setShowSelectedPhotosSection(prev => !prev)}
+                              className="w-full flex items-center justify-between p-5 hover:bg-sage/5 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-sage/15 flex items-center justify-center">
+                                  <CheckCircle2 className="w-5 h-5 text-sage" />
+                                </div>
+                                <div className="text-left">
+                                  <h4 className="text-lg font-playfair text-dark-sage font-semibold">
+                                    Le tue foto scelte
+                                  </h4>
+                                  <p className="text-sm text-blue-gray/70">
+                                    {selectedPhotoIds.length} {selectedPhotoIds.length === 1 ? 'foto selezionata' : 'foto selezionate'}
+                                    {isMultiProductMode && productRequirements && (
+                                      <span> · {productRequirements.length} {productRequirements.length === 1 ? 'prodotto' : 'prodotti'}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronDown className={`w-5 h-5 text-sage transition-transform ${showSelectedPhotosSection ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {showSelectedPhotosSection && (
+                              <div className="px-5 pb-5 border-t border-sage/10">
+                                {isMultiProductMode && productRequirements ? (
+                                  <div className="space-y-5 mt-4">
+                                    {productRequirements.map((product, productIndex) => {
+                                      const productPhotos = allPhotos.filter(p => 
+                                        photoAssignments[p.id]?.includes(String(productIndex))
+                                      );
+                                      if (productPhotos.length === 0) return null;
+                                      return (
+                                        <div key={productIndex}>
+                                          <p className="text-sm font-medium text-dark-sage mb-2">
+                                            {product.prodottoNome} ({productPhotos.length} foto)
+                                          </p>
+                                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                                            {productPhotos.map((photo) => (
+                                              <div key={photo.id} className="aspect-square rounded-lg overflow-hidden shadow-sm border border-sage/10 cursor-pointer hover:shadow-md transition-shadow"
+                                                onClick={() => {
+                                                  const idx = allPhotos.findIndex(p => p.id === photo.id);
+                                                  if (idx >= 0) openLightbox(idx);
+                                                }}
+                                              >
+                                                <img 
+                                                  src={photo.url} 
+                                                  alt={photo.name || ''} 
+                                                  className="w-full h-full object-cover" 
+                                                  loading="lazy" 
+                                                />
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="mt-4">
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                                      {allPhotos.filter(p => selectedPhotoIds.includes(p.id)).map((photo) => (
+                                        <div key={photo.id} className="aspect-square rounded-lg overflow-hidden shadow-sm border border-sage/10 cursor-pointer hover:shadow-md transition-shadow"
+                                          onClick={() => {
+                                            const idx = allPhotos.findIndex(pp => pp.id === photo.id);
+                                            if (idx >= 0) openLightbox(idx);
+                                          }}
+                                        >
+                                          <img 
+                                            src={photo.url} 
+                                            alt={photo.name || ''} 
+                                            className="w-full h-full object-cover" 
+                                            loading="lazy" 
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

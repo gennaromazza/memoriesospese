@@ -830,7 +830,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     if (!gallery) return;
     
     const confirmed = window.confirm(
-      "Sei sicuro di voler sbloccare la selezione? Questo resetterà lo stato a 'pending' e permetterà al cliente di modificare la selezione."
+      "Sei sicuro di voler sbloccare la selezione? Le foto già scelte verranno mantenute e il cliente potrà modificare la selezione."
     );
     
     if (!confirmed) return;
@@ -841,19 +841,16 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       
       await updateDoc(galleryRef, {
         selectionStatus: 'pending',
-        selectedPhotoIds: [],
         updatedAt: serverTimestamp()
       });
       
       setSelectionStatus('pending');
-      setSelectedPhotoIds([]);
       
       toast({
         title: "Selezione sbloccata",
-        description: "Il cliente può ora modificare la selezione foto"
+        description: "Il cliente può ora modificare la selezione foto. Le foto già scelte sono state mantenute."
       });
       
-      // Invalida cache per sincronizzare con altri componenti
       queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
     } catch (error) {
       console.error('Errore sblocco selezione:', error);
