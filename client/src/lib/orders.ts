@@ -25,6 +25,47 @@ import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
 const COLLECTION = "orders";
 
 /**
+ * Helper: Espande prodotti ordine (bundle → componenti) per productRequirements galleria
+ * Replica la logica server-side di expandOrderProductsToRequirements
+ */
+function expandProductsToRequirements(prodotti: any[]): any[] {
+  const expanded: any[] = [];
+  for (const item of prodotti) {
+    const qty = item.quantita || 1;
+    const bundleItems = (item.isBundle && item.bundleItems && item.bundleItems.length > 0) ? item.bundleItems : null;
+    const bundleParentName = item.prodottoNome || 'Bundle';
+
+    if (bundleItems) {
+      for (let orderQty = 0; orderQty < qty; orderQty++) {
+        for (const bi of bundleItems) {
+          if (!bi.quantita || bi.quantita <= 0) continue;
+          if (bi.numeroFoto === undefined || bi.numeroFoto < 0) continue;
+          for (let i = 0; i < bi.quantita; i++) {
+            const prefix = qty > 1 ? `[${orderQty + 1}/${qty}] ` : '';
+            expanded.push({
+              prodottoId: bi.prodottoId || null,
+              prodottoNome: bi.quantita > 1
+                ? `${prefix}${bi.prodottoNome} (${i + 1}/${bi.quantita}) - ${bundleParentName}`
+                : `${prefix}${bi.prodottoNome} - ${bundleParentName}`,
+              prodottoNumeroFoto: bi.numeroFoto,
+            });
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < qty; i++) {
+        expanded.push({
+          prodottoId: (item.prodottoId && !item.prodottoId.startsWith('custom_')) ? item.prodottoId : null,
+          prodottoNome: qty > 1 ? `${item.prodottoNome} (${i + 1}/${qty})` : item.prodottoNome,
+          prodottoNumeroFoto: item.prodottoNumeroFoto ?? 0,
+        });
+      }
+    }
+  }
+  return expanded;
+}
+
+/**
  * Helper: Rimuove campi undefined da un oggetto
  * Firestore non accetta valori undefined
  */
@@ -425,6 +466,34 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     } catch (error) {
       console.error("⚠️ Errore auto-link ordine a job:", error);
       // Non bloccare creazione ordine se link fallisce
+    }
+  }
+
+  // Sync productRequirements sulla galleria collegata (se esiste)
+  const linkedGalleryId = autoLinkedGalleryId || data.galleryId;
+  if (linkedGalleryId && normalizedProdotti.length > 0) {
+    try {
+      const galleryRef = doc(db, "galleries", linkedGalleryId);
+      const gallerySnap = await getDoc(galleryRef);
+      if (gallerySnap.exists()) {
+        const galleryData = gallerySnap.data();
+        if (galleryData.selectionEnabled) {
+          const newReqs = expandProductsToRequirements(normalizedProdotti);
+          const totalFoto = newReqs.reduce((s: number, r: any) => s + (r.prodottoNumeroFoto || 0), 0);
+          const galleryUpdate: any = {
+            productRequirements: newReqs,
+            requiredPhotoCount: totalFoto,
+            updatedAt: serverTimestamp(),
+          };
+          if (newReqs.length > 1 && !galleryData.photoAssignments) {
+            galleryUpdate.photoAssignments = {};
+          }
+          await updateDoc(galleryRef, galleryUpdate);
+          console.log(`🔗 Galleria ${linkedGalleryId} aggiornata con ${newReqs.length} productRequirements espansi (${totalFoto} foto)`);
+        }
+      }
+    } catch (err: any) {
+      console.error("⚠️ Errore sync productRequirements galleria:", err.message);
     }
   }
 

@@ -489,35 +489,19 @@ export default function NewGalleryModal({
             return req;
           });
 
-          // 🔥 FIX Task 5-6: Distingui single-product (1 prodotto) vs multi-product (2+ prodotti)
-          const hasSingleProduct = productReqs.length === 1;
-          const hasMultipleProducts = productReqs.length > 1;
-
-          if (hasSingleProduct) {
-            // Single-Product Mode: Save as requiredPhotoCount (compatible with Gallery.tsx refactor)
-            galleryData.requiredPhotoCount =
-              productReqs[0].prodottoNumeroFoto || 0;
-            galleryData.selectionStatus = "pending";
-            galleryData.selectedPhotoIds = [];
-            // NON salvare productRequirements per single-product
-            console.log(
-              "💾 Salvando galleria single-prodotto con requiredPhotoCount:",
-              galleryData.requiredPhotoCount,
-              "(da prodotto:",
-              productReqs[0].prodottoNome,
-              ")",
-            );
-          } else if (hasMultipleProducts) {
-            // Multi-Product Mode: Save productRequirements array
-            galleryData.productRequirements = productReqs;
-            galleryData.photoAssignments = {}; // Empty initially - client will populate during selection
-            galleryData.selectionStatus = "pending";
-            galleryData.selectedPhotoIds = []; // Legacy field - mantieni per compatibility
-            console.log(
-              "💾 Salvando galleria multi-prodotto con productRequirements:",
-              productReqs,
-            );
+          galleryData.productRequirements = productReqs;
+          galleryData.requiredPhotoCount = productReqs.reduce((sum, p) => sum + (p.prodottoNumeroFoto || 0), 0);
+          galleryData.selectionStatus = "pending";
+          galleryData.selectedPhotoIds = [];
+          if (productReqs.length > 1) {
+            galleryData.photoAssignments = {};
           }
+          console.log(
+            `💾 Salvando galleria con ${productReqs.length} prodotto/i, productRequirements:`,
+            productReqs,
+            "Totale foto richieste:",
+            galleryData.requiredPhotoCount,
+          );
         }
         // Legacy Single-Product Mode: Save requiredPhotoCount (manual input)
         else if (requiredPhotoCount > 0) {

@@ -355,11 +355,25 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
     // 4.05 SYNC PRODOTTI → GALLERIE: Se i prodotti cambiano, aggiorna productRequirements nelle gallerie
     let gallerySyncResult = { updated: 0, selectionsReset: 0 };
     const bookingId = currentOrder.bookingId;
-    if (updateData.prodotti && Array.isArray(updateData.prodotti) && bookingId) {
+    if (updateData.prodotti && Array.isArray(updateData.prodotti)) {
       try {
-        const galleriesSnapshot = await db.collection('galleries')
-          .where('bookingId', '==', bookingId)
-          .get();
+        // Cerca gallerie sia per bookingId che per galleryId dell'ordine
+        const galleryDocs = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+        if (bookingId) {
+          const byBooking = await db.collection('galleries')
+            .where('bookingId', '==', bookingId)
+            .get();
+          byBooking.docs.forEach(d => galleryDocs.set(d.id, d));
+        }
+        if (currentOrder.galleryId) {
+          const byGallery = await db.collection('galleries')
+            .doc(currentOrder.galleryId)
+            .get();
+          if (byGallery.exists && !galleryDocs.has(byGallery.id)) {
+            galleryDocs.set(byGallery.id, byGallery as any);
+          }
+        }
+        const galleriesSnapshot = { empty: galleryDocs.size === 0, docs: Array.from(galleryDocs.values()) };
 
         if (!galleriesSnapshot.empty) {
           // Espandi bundle nei loro componenti (stessa logica di creazione galleria)
@@ -395,9 +409,13 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
               console.log(`⚠️ Galleria ${galleryDoc.id}: selezioni resettate per cambio prodotti`);
             }
             
-            // Single vs multi product mode
-            if (newProductRequirements.length === 1) {
-              galleryUpdate.requiredPhotoCount = newProductRequirements[0].prodottoNumeroFoto || 0;
+            // Aggiorna sempre requiredPhotoCount con il totale
+            galleryUpdate.requiredPhotoCount = newProductRequirements.reduce(
+              (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
+            );
+            // Multi-product: inizializza photoAssignments se non esiste
+            if (newProductRequirements.length > 1 && !galleryData.photoAssignments) {
+              galleryUpdate.photoAssignments = {};
             }
             
             await galleryDoc.ref.update(galleryUpdate);
