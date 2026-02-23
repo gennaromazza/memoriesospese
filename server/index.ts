@@ -195,21 +195,21 @@ async function startServer() {
       cancellationWorkerCleanup = startCancellationRetryWorker();
       
       // Start Event Sync Guard worker (every 10 minutes)
-      startEventSyncWorker(10);
+      startEventSyncWorker(30);
       
       // BOOT-TIME CLEANUP: Rilascia quota da stale jobs (crash recovery)
       await cleanupStaleJobs();
       console.log('🧹 Boot-time cleanup completato');
       
-      // BULK EMAIL DISPATCHER: Pull and execute queued jobs (every 5s)
-      startBulkEmailDispatcher(5000);
+      // BULK EMAIL DISPATCHER: Pull and execute queued jobs (every 30s)
+      startBulkEmailDispatcher(30000);
       
-      // RECURRING CLEANUP: Heartbeat-aware cleanup (every 2 minutes)
+      // RECURRING CLEANUP: Heartbeat-aware cleanup (every 10 minutes)
       bulkEmailCleanupInterval = setInterval(async () => {
         console.log('🧹 Recurring cleanup check...');
         await cleanupStaleJobs();
-      }, 2 * 60 * 1000); // 2 minuti (più frequente per heartbeat timeout)
-      console.log('⏰ Recurring cleanup worker started (2 min interval)');
+      }, 10 * 60 * 1000);
+      console.log('⏰ Recurring cleanup worker started (10 min interval)');
     });
 
     // Graceful shutdown: cleanup workers on SIGTERM/SIGINT

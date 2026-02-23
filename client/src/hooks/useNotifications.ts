@@ -142,7 +142,7 @@ export function useNotifications() {
         return dateB.getTime() - dateA.getTime();
       });
     },
-    refetchInterval: 30000,
-    staleTime: 10000, // 🚀 Cache valida per 10 secondi
+    refetchInterval: 2 * 60 * 1000, // 2 minuti
+    staleTime: 60 * 1000, // 1 minuto
   });
 }

@@ -81,15 +81,25 @@ interface CalendarEventDTO {
  * - endDate: string ISO (es. "2025-11-30T23:59:59Z")
  * - calendarId: string (opzionale, default 'primary')
  */
+// In-memory cache for calendar events (keyed by startDate+endDate)
+const calendarCache = new Map<string, { data: any; timestamp: number }>();
+const CALENDAR_CACHE_TTL = 2 * 60 * 1000; // 2 minuti
+
 router.get('/events', authenticateFirebase, async (req, res) => {
   try {
     const { startDate, endDate, calendarId } = req.query;
     
-    // Validazione parametri
     if (!startDate || !endDate) {
       return res.status(400).json({
         error: 'Missing required query parameters: startDate, endDate'
       });
+    }
+
+    // Check cache
+    const cacheKey = `${startDate}_${endDate}_${calendarId || 'primary'}`;
+    const cached = calendarCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CALENDAR_CACHE_TTL) {
+      return res.json(cached.data);
     }
 
     const events: CalendarEventDTO[] = [];
@@ -318,7 +328,15 @@ router.get('/events', authenticateFirebase, async (req, res) => {
       console.log(`⚠️ Warnings: ${warnings.join(', ')}`);
     }
     
-    res.json({ events, warnings });
+    const responseData = { events, warnings };
+    calendarCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
+    // Limita dimensione cache a 10 entry
+    if (calendarCache.size > 10) {
+      const firstKey = calendarCache.keys().next().value;
+      if (firstKey) calendarCache.delete(firstKey);
+    }
+    
+    res.json(responseData);
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
     console.error('❌ Error fetching calendar events:', errorMessage);
@@ -365,7 +383,7 @@ const createEventSchema = z.object({
 
 router.post('/create-event', authenticateFirebase, async (req, res) => {
   try {
-    // Validazione input
+    calendarCache.clear();
     const data = createEventSchema.parse(req.body);
     
     console.log(`📅 Creazione evento Google Calendar: "${data.title}"`);

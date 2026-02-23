@@ -16,7 +16,7 @@ import type { Timestamp as TimestampType } from '@google-cloud/firestore';
 import { nowRomeDate } from '../utils/timezone.js';
 
 const MAX_RETRY_ATTEMPTS = 10;
-const WORKER_INTERVAL_MS = 60 * 1000; // 1 minute
+const WORKER_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const BATCH_SIZE = 10;
 
 interface CancellationMetadata {

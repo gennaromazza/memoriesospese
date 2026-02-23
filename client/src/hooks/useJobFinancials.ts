@@ -32,7 +32,7 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     queryKey: ['paymentSchedules', 'aggregated', job?.id], // Plurale + 'aggregated' per separare da singolo schedule
     queryFn: () => getPaymentSchedulesForJob(job!.id),
     enabled: !!job?.id,
-    staleTime: 10000, // 10 secondi - refresh frequente per vedere pagamenti aggiornati
+    staleTime: 2 * 60 * 1000,
   });
 
   // FIX: Fetch quotes per calcolare totalePreventivato corretto (con sconti applicati)
@@ -40,7 +40,7 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     queryKey: ['quotes', 'financials', job?.id],
     queryFn: () => getQuotesForJob(job!.id),
     enabled: !!job?.id,
-    staleTime: 30000, // 30 secondi - quote cambiano meno frequentemente
+    staleTime: 3 * 60 * 1000,
   });
 
   if (!job) {

@@ -258,8 +258,17 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
  * Recupera notifiche (booking e consulenze non visualizzate)
  * NOTA: Questa route DEVE essere definita PRIMA di /:id per evitare conflitti
  */
+// In-memory cache for notifications
+let notificationsCache: { data: any[]; timestamp: number } | null = null;
+const NOTIFICATIONS_CACHE_TTL = 60 * 1000; // 1 minuto
+
 router.get('/notifications', authenticateFirebase, async (req: any, res) => {
   try {
+    // Serve da cache se ancora valida
+    if (notificationsCache && (Date.now() - notificationsCache.timestamp) < NOTIFICATIONS_CACHE_TTL) {
+      return res.json({ notifications: notificationsCache.data });
+    }
+
     const notifications: any[] = [];
     
     // Fetch bookings non visualizzati
@@ -339,6 +348,9 @@ router.get('/notifications', authenticateFirebase, async (req: any, res) => {
       const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
       return dateB.getTime() - dateA.getTime();
     });
+    
+    // Aggiorna cache
+    notificationsCache = { data: notifications, timestamp: Date.now() };
     
     res.json({ success: true, notifications });
   } catch (error: any) {

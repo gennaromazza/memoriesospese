@@ -452,6 +452,7 @@ export default function BookingsManager({
   } = useQuery<Booking[]>({
     queryKey: ["bookings"],
     queryFn: getAllBookings,
+    staleTime: 2 * 60 * 1000,
   });
 
   // Query campagne per nomi
@@ -484,12 +485,14 @@ export default function BookingsManager({
   const { data: allOrders = [] } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: getAllOrders,
+    staleTime: 2 * 60 * 1000,
   });
 
   // Query prodotti attivi per dialog creazione ordine
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["products", "active"],
     queryFn: getActiveProducts,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Query categorie prodotti per ProductSelector
@@ -502,6 +505,7 @@ export default function BookingsManager({
   const { data: allGalleries = [] } = useQuery<Gallery[]>({
     queryKey: ["galleries"],
     queryFn: GalleryService.getAllGalleries,
+    staleTime: 3 * 60 * 1000,
   });
 
   // Sincronizza URL quando cambiano i filtri

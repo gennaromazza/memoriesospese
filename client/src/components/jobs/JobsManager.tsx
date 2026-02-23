@@ -321,10 +321,9 @@ export default function JobsManager() {
       
       return ordersMap;
     },
-    staleTime: 30000 // Cache per 30 secondi
+    staleTime: 3 * 60 * 1000,
   });
   
-  // Query tutti i preventivi per determinare stato firma (supporta job legacy)
   const { data: quotesByJob = {} } = useQuery<Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>>({
     queryKey: ['jobQuotesStatus'],
     queryFn: async () => {
@@ -336,13 +335,10 @@ export default function JobsManager() {
         const jobId = quote.jobId;
         if (!jobId) return;
         
-        // Controlla firma: signature presente OPPURE status === 'firmato'
         const quoteIsSigned = !!quote.signature || quote.status === 'firmato';
-        // Controlla invio: emailSentAt, sentTo, oppure status non è 'bozza'
         const quoteIsEmailSent = !!quote.emailSentAt || !!quote.sentTo || 
           (quote.status && quote.status !== 'bozza');
         
-        // Se già esiste una entry, aggiorna solo se migliora lo stato
         if (!statusMap[jobId]) {
           statusMap[jobId] = {
             hasQuote: true,
@@ -350,11 +346,9 @@ export default function JobsManager() {
             isEmailSent: quoteIsEmailSent
           };
         } else {
-          // Se c'è un preventivo firmato, marca come firmato
           if (quoteIsSigned) {
             statusMap[jobId].isSigned = true;
           }
-          // Se almeno un preventivo è stato inviato
           if (quoteIsEmailSent) {
             statusMap[jobId].isEmailSent = true;
           }
@@ -363,7 +357,7 @@ export default function JobsManager() {
       
       return statusMap;
     },
-    staleTime: 30000
+    staleTime: 3 * 60 * 1000,
   });
   
   // Deriva conteggio transazioni per job dai dati caricati

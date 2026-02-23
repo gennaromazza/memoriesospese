@@ -493,9 +493,9 @@ export default function AdminDashboard() {
   } = useQuery<Gallery[]>({
     queryKey: ['galleries', 'admin'],
     queryFn: GalleryService.getAllGalleriesForAdmin,
-    enabled: !authLoading && !!user, // Abilita solo quando auth è pronto e user esiste
-    retry: 2, // Riprova 2 volte in caso di errore
-    staleTime: 30000, // Cache valida per 30 secondi
+    enabled: !authLoading && !!user,
+    retry: 2,
+    staleTime: 3 * 60 * 1000, // 3 minuti - riduce richieste Firestore
   });
 
   // Hook notifiche per prenotazioni in attesa
