@@ -64,18 +64,15 @@ import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(() => import('@/components/studio-assistant/StudioAssistant'));
 
-// Componente per visualizzare stato Google Calendar
 function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
   const [status, setStatus] = useState<{
     connected: boolean;
     accountEmail?: string;
-    accountName?: string;
-    connectionId?: string;
+    calendarId?: string;
+    authMethod?: string;
     error?: string;
-    needsReconnect?: boolean;
     loading: boolean;
   }>({ connected: false, loading: true });
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const checkStatus = async () => {
     setStatus(prev => ({ ...prev, loading: true }));
@@ -86,40 +83,13 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
         return;
       }
       
-      const response = await fetch('/api/calendar/status', {
+      const response = await fetch('/api/calendar/connection-status', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
       setStatus({ ...data, loading: false });
     } catch (error: any) {
       setStatus({ connected: false, loading: false, error: error.message });
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!confirm('Vuoi disconnettere Google Calendar? Le prenotazioni e i lavori non verranno più sincronizzati.')) {
-      return;
-    }
-    
-    setIsDisconnecting(true);
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      const response = await fetch('/api/calendar/connection', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        toast({ title: 'Google Calendar disconnesso', description: 'Puoi riconnettere un nuovo account dalle Integrazioni Replit' });
-        await checkStatus();
-      } else {
-        toast({ title: 'Errore', description: data.error || 'Impossibile disconnettere', variant: 'destructive' });
-      }
-    } catch (error: any) {
-      toast({ title: 'Errore', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDisconnecting(false);
     }
   };
 
@@ -144,46 +114,21 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
             <CheckCircle className="h-5 w-5 text-green-600" />
             <div>
               <span className="text-sm text-green-800">
-                Account connesso: <strong>{status.accountEmail}</strong>
+                Service Account: <strong>{status.accountEmail}</strong>
               </span>
-              {status.accountName && (
-                <p className="text-xs text-green-600">{status.accountName}</p>
-              )}
+              <p className="text-xs text-green-600">
+                Calendario: {status.calendarId} — Connessione permanente
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={checkStatus}
-              className="text-green-700 hover:text-green-800"
-              data-testid="button-refresh-calendar"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-          <p className="text-sm text-amber-800 mb-2">
-            <strong>Vuoi cambiare account Google?</strong>
-          </p>
-          <p className="text-xs text-amber-700 mb-3">
-            Per connettere un account diverso, vai nel pannello Replit → Deployments → Integrations → Google Calendar → Reconnect
-          </p>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={handleDisconnect}
-            disabled={isDisconnecting}
-            className="text-amber-700 border-amber-300 hover:bg-amber-100"
-            data-testid="button-disconnect-calendar"
+            onClick={checkStatus}
+            className="text-green-700 hover:text-green-800"
+            data-testid="button-refresh-calendar"
           >
-            {isDisconnecting ? (
-              <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Disconnessione...</>
-            ) : (
-              'Disconnetti Calendar'
-            )}
+            <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -196,7 +141,7 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
         <AlertCircle className="h-5 w-5 text-red-600" />
         <div className="flex-1">
           <span className="text-sm text-red-800 font-medium">
-            {status.needsReconnect ? 'Credenziali scadute' : 'Google Calendar non connesso'}
+            Google Calendar non connesso
           </span>
           {status.error && (
             <p className="text-xs text-red-600 mt-1">{status.error}</p>

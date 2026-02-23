@@ -696,188 +696,30 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
   }
 });
 
-// Helper per ottenere token e hostname Replit
-function getReplitConnectorInfo() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
-  const hasReplIdentity = !!process.env.REPL_IDENTITY;
-  const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
-  
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? "depl " + process.env.WEB_REPL_RENEWAL
-      : null;
-      
-  return { hostname, xReplitToken, hasReplIdentity, hasWebRenewal };
-}
-
 /**
- * GET /api/calendar/status
- * Verifica stato connessione Google Calendar
- * Ritorna: connected, account email, eventuali errori
+ * GET /api/calendar/connection-status
+ * Verifica stato connessione Google Calendar via Service Account
+ * Con Service Account non ci sono token che scadono
  */
-router.get('/status', authenticateFirebase, async (req, res) => {
+router.get('/connection-status', authenticateFirebase, async (req, res) => {
   try {
-    const { hostname, xReplitToken, hasReplIdentity, hasWebRenewal } = getReplitConnectorInfo();
-
-    if (!xReplitToken) {
-      return res.json({
-        connected: false,
-        error: 'Token Replit non disponibile',
-        environment: hasReplIdentity ? 'development' : hasWebRenewal ? 'production' : 'unknown'
-      });
-    }
-
-    const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-calendar`;
+    const status = await getCalendarConnectionStatus();
+    const calendarId = process.env.GOOGLE_CALENDAR_ID || 'non configurato';
     
-    const response = await fetch(connectorUrl, {
-      headers: {
-        Accept: "application/json",
-        X_REPLIT_TOKEN: xReplitToken,
-      },
+    res.json({
+      connected: status.connected,
+      accountEmail: status.email || '',
+      calendarId,
+      authMethod: 'service_account',
+      needsReconnect: false,
+      error: status.error || undefined,
     });
-
-    if (!response.ok) {
-      return res.json({
-        connected: false,
-        error: `Errore connettore: ${response.status} ${response.statusText}`,
-        environment: hasReplIdentity ? 'development' : 'production'
-      });
-    }
-
-    const data = await response.json();
-    const connection = data.items?.[0];
-
-    if (!connection?.settings?.access_token) {
-      return res.json({
-        connected: false,
-        error: 'Google Calendar non connesso o token mancante',
-        environment: hasReplIdentity ? 'development' : 'production'
-      });
-    }
-
-    // Verifica che il token funzioni ottenendo il calendario primario
-    try {
-      const { google } = await import('googleapis');
-      const oauth2Client = new google.auth.OAuth2();
-      oauth2Client.setCredentials({
-        access_token: connection.settings.access_token,
-      });
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-      
-      // Ottieni il calendario primario (restituisce l'email del proprietario)
-      const primaryCalendar = await calendar.calendarList.get({ calendarId: 'primary' });
-      
-      // L'ID del calendario primario è l'email dell'account
-      const accountEmail = primaryCalendar.data.id || connection.settings.email || 'Account Google connesso';
-      
-      res.json({
-        connected: true,
-        accountEmail: accountEmail,
-        accountName: primaryCalendar.data.summary || undefined,
-        connectionId: connection.id,
-        environment: hasReplIdentity ? 'development' : 'production',
-        expiresAt: connection.settings.expires_at || undefined
-      });
-    } catch (apiError: any) {
-      // Token presente ma non valido (scaduto o revocato)
-      res.json({
-        connected: false,
-        error: apiError.message?.includes('Invalid Credentials') 
-          ? 'Credenziali scadute - riconnetti il calendario'
-          : `Errore API: ${apiError.message}`,
-        needsReconnect: true,
-        connectionId: connection.id,
-        environment: hasReplIdentity ? 'development' : 'production'
-      });
-    }
   } catch (error: any) {
     console.error('❌ Error checking calendar status:', error);
     res.status(500).json({
       connected: false,
       error: error.message || 'Errore verifica stato calendario'
     });
-  }
-});
-
-/**
- * DELETE /api/calendar/connection
- * Disconnette Google Calendar
- */
-router.delete('/connection', authenticateFirebase, async (req, res) => {
-  try {
-    const { hostname, xReplitToken, hasReplIdentity } = getReplitConnectorInfo();
-
-    if (!xReplitToken) {
-      return res.status(400).json({ error: 'Token Replit non disponibile' });
-    }
-
-    // Prima ottieni l'ID della connessione
-    const listUrl = `https://${hostname}/api/v2/connection?connector_names=google-calendar`;
-    const listResponse = await fetch(listUrl, {
-      headers: {
-        Accept: "application/json",
-        X_REPLIT_TOKEN: xReplitToken,
-      },
-    });
-
-    if (!listResponse.ok) {
-      return res.status(400).json({ error: 'Impossibile trovare la connessione' });
-    }
-
-    const data = await listResponse.json();
-    const connection = data.items?.[0];
-
-    if (!connection?.id) {
-      return res.json({ success: true, message: 'Nessuna connessione da rimuovere' });
-    }
-
-    // Elimina la connessione
-    const deleteUrl = `https://${hostname}/api/v2/connections/${connection.id}`;
-    const deleteResponse = await fetch(deleteUrl, {
-      method: 'DELETE',
-      headers: {
-        Accept: "application/json",
-        X_REPLIT_TOKEN: xReplitToken,
-      },
-    });
-
-    if (!deleteResponse.ok) {
-      const errorText = await deleteResponse.text();
-      console.error('❌ Errore eliminazione connessione:', errorText);
-      return res.status(400).json({ 
-        error: 'Impossibile disconnettere',
-        details: errorText 
-      });
-    }
-
-    console.log('✅ Google Calendar disconnesso');
-    res.json({ success: true, message: 'Google Calendar disconnesso' });
-  } catch (error: any) {
-    console.error('❌ Error disconnecting calendar:', error);
-    res.status(500).json({ error: error.message || 'Errore disconnessione' });
-  }
-});
-
-/**
- * GET /api/calendar/reconnect-info
- * Restituisce informazioni per riconnettere Google Calendar
- */
-router.get('/reconnect-info', authenticateFirebase, async (req, res) => {
-  try {
-    res.json({
-      instructions: [
-        'Per connettere o riconnettere Google Calendar con un altro account:',
-        '1. Vai su Replit nella sezione Deployments del progetto',
-        '2. Clicca su "Integrations"',
-        '3. Trova "Google Calendar" e clicca "Connect" o "Reconnect"',
-        '4. Se vuoi cambiare account, prima esegui logout da Google nel browser',
-        '5. Autorizza l\'accesso con il nuovo account desiderato'
-      ],
-      note: 'La disconnessione/riconnessione viene gestita tramite il pannello Replit Integrations'
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
   }
 });
 

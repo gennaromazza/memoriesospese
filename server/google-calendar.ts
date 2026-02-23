@@ -2,24 +2,20 @@
  * Google Calendar Integration - Server-side only
  * Gestisce eventi calendario per sistema booking
  * 
- * FIX TOKEN SCADUTI (Dec 2025):
- * - Rimossa cache locale che causava token stale
- * - Aggiunto margine sicurezza 5 minuti prima della scadenza
- * - Aggiunto retry automatico per errori 401/403
- * - Aggiunto endpoint /api/calendar/status per verifica
+ * SERVICE ACCOUNT AUTH (Feb 2026):
+ * - Usa Google Service Account con JWT (nessuna scadenza token)
+ * - Non richiede più Replit Connector o OAuth refresh
+ * - Il service account deve avere accesso al calendario target
  */
 
 import { google } from "googleapis";
 import { DateTime } from "luxon";
 
-let connectionSettings: any = null;
-let lastTokenFetch: number = 0;
-const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000; // 5 minuti prima della scadenza
-const MIN_FETCH_INTERVAL_MS = 30 * 1000; // Minimo 30 secondi tra fetch
+let cachedAuthClient: any = null;
 
 /**
  * Verifica stato connessione Google Calendar
- * Esportato per endpoint /api/calendar/status
+ * Con Service Account, la connessione non scade mai
  */
 export interface CalendarConnectionStatus {
   connected: boolean;
@@ -28,158 +24,125 @@ export interface CalendarConnectionStatus {
   expiresInMinutes?: number;
   needsReconnection: boolean;
   error?: string;
+  authMethod?: string;
 }
 
 export async function getCalendarConnectionStatus(): Promise<CalendarConnectionStatus> {
   try {
-    const tokenInfo = await fetchFreshToken();
-    
-    const expiresAt = tokenInfo.expires_at ? new Date(tokenInfo.expires_at) : null;
-    const now = new Date();
-    const expiresInMs = expiresAt ? expiresAt.getTime() - now.getTime() : 0;
-    const expiresInMinutes = Math.floor(expiresInMs / 60000);
+    const client = await getServiceAccountAuth();
+    const serviceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL || '';
     
     return {
       connected: true,
-      email: tokenInfo.email || connectionSettings?.settings?.email,
-      expiresAt: expiresAt?.toISOString(),
-      expiresInMinutes: expiresInMinutes > 0 ? expiresInMinutes : 0,
-      needsReconnection: expiresInMinutes <= 0,
+      email: serviceEmail,
+      needsReconnection: false,
+      authMethod: 'service_account',
     };
   } catch (error: any) {
     return {
       connected: false,
-      needsReconnection: true,
+      needsReconnection: false,
       error: error.message,
+      authMethod: 'service_account',
     };
   }
 }
 
 /**
- * Forza refresh del token (invalidando la cache)
+ * Invalida cache auth client (per forzare re-init se necessario)
  */
 export function invalidateTokenCache(): void {
-  connectionSettings = null;
-  lastTokenFetch = 0;
-  console.log("🔄 Google Calendar token cache invalidated");
+  cachedAuthClient = null;
+  console.log("🔄 Google Calendar Service Account auth cache invalidated");
 }
 
 /**
- * Fetch token fresco dal Replit Connector
- * Questa funzione va SEMPRE al connector senza cache
+ * Crea e restituisce un client JWT autenticato con Service Account
+ * Il JWT viene rinnovato automaticamente dalla libreria googleapis
  */
-async function fetchFreshToken(): Promise<{ access_token: string; expires_at?: string; email?: string }> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || "connectors.replit.com";
-  const hasReplIdentity = !!process.env.REPL_IDENTITY;
-  const hasWebRenewal = !!process.env.WEB_REPL_RENEWAL;
-
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? "depl " + process.env.WEB_REPL_RENEWAL
-      : null;
-
-  if (!xReplitToken) {
-    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Token Replit non disponibile. Vai su Impostazioni → Integrazioni → Riconnetti Google Calendar");
+async function getServiceAccountAuth() {
+  if (cachedAuthClient) {
+    return cachedAuthClient;
   }
 
-  const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-calendar`;
+  const serviceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY;
 
-  const response = await fetch(connectorUrl, {
-    headers: {
-      Accept: "application/json",
-      X_REPLIT_TOKEN: xReplitToken,
-    },
+  if (!serviceEmail || !privateKey) {
+    throw new Error(
+      "GOOGLE_CALENDAR_CONFIG_MISSING: Mancano GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL o GOOGLE_CALENDAR_PRIVATE_KEY nei secrets"
+    );
+  }
+
+  let formattedKey = privateKey.trim();
+  
+  if (formattedKey.includes('"private_key"')) {
+    const cleanedLine = formattedKey.replace(/,\s*$/, '');
+    try {
+      const parsed = JSON.parse(`{${cleanedLine}}`);
+      if (parsed.private_key) {
+        formattedKey = parsed.private_key;
+      }
+    } catch {
+      try {
+        const parsed2 = JSON.parse(formattedKey);
+        if (parsed2.private_key) {
+          formattedKey = parsed2.private_key;
+        }
+      } catch {
+        const beginIdx = formattedKey.indexOf('-----BEGIN PRIVATE KEY-----');
+        const endMarker = '-----END PRIVATE KEY-----';
+        const endIdx = formattedKey.lastIndexOf(endMarker);
+        if (beginIdx !== -1 && endIdx !== -1) {
+          formattedKey = formattedKey.substring(beginIdx, endIdx + endMarker.length);
+        }
+      }
+    }
+  }
+  
+  formattedKey = formattedKey.replace(/\\n/g, '\n');
+  
+  if (!formattedKey.includes('-----BEGIN')) {
+    formattedKey = `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----\n`;
+  }
+
+  const auth = new google.auth.JWT({
+    email: serviceEmail,
+    key: formattedKey,
+    scopes: ['https://www.googleapis.com/auth/calendar'],
   });
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Token scaduto. Vai su Impostazioni → Integrazioni → Riconnetti Google Calendar");
-    }
-    throw new Error(`Connector API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  const conn = data.items?.[0];
-
-  if (!conn?.settings) {
-    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Google Calendar non connesso. Vai su Impostazioni → Integrazioni → Connetti Google Calendar");
-  }
-
-  const accessToken = conn.settings.access_token ?? conn.settings.oauth?.credentials?.access_token;
-
-  if (!accessToken) {
-    throw new Error("GOOGLE_CALENDAR_RECONNECTION_NEEDED: Access token mancante. Riconnetti Google Calendar");
-  }
-
-  return {
-    access_token: accessToken,
-    expires_at: conn.settings.expires_at,
-    email: conn.settings.email,
-  };
-}
-
-/**
- * Ottiene access token da Replit Connector
- * FIX: Cache con margine di sicurezza + retry per token scaduti
- */
-async function getAccessToken(): Promise<string> {
-  const now = Date.now();
-  
-  // 1. Verifica cache con margine di sicurezza
-  if (connectionSettings?.settings?.access_token) {
-    const expiresAt = connectionSettings.settings.expires_at;
-    if (expiresAt) {
-      const expiresAtMs = new Date(expiresAt).getTime();
-      const safeExpiresAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
-      
-      // Token ancora valido (con margine sicurezza)
-      if (now < safeExpiresAt && (now - lastTokenFetch) < MIN_FETCH_INTERVAL_MS) {
-        return connectionSettings.settings.access_token;
-      }
-    }
-  }
-
-  // 2. Fetch token fresco
-  console.log("🔐 Google Calendar: fetching fresh token from connector...");
-  
   try {
-    const tokenInfo = await fetchFreshToken();
-    
-    // Aggiorna cache
-    connectionSettings = {
-      settings: {
-        access_token: tokenInfo.access_token,
-        expires_at: tokenInfo.expires_at,
-        email: tokenInfo.email,
-      }
-    };
-    lastTokenFetch = now;
-    
-    console.log("✅ Google Calendar token obtained successfully");
-    return tokenInfo.access_token;
-    
-  } catch (error: any) {
-    // Invalida cache in caso di errore
-    connectionSettings = null;
-    lastTokenFetch = 0;
-    throw error;
+    await auth.authorize();
+    console.log("✅ Google Calendar Service Account autenticato:", serviceEmail);
+  } catch (authError: any) {
+    console.error("❌ Google Calendar Service Account auth failed:", authError.message);
+    throw authError;
   }
+
+  cachedAuthClient = auth;
+  return auth;
 }
 
 /**
- * Crea client Google Calendar con token fresco
- * WARNING: Never cache this client. Always call this function to get fresh client.
+ * Crea client Google Calendar con Service Account
+ * Il client JWT rinnova automaticamente i token - no scadenza
  */
 async function getGoogleCalendarClient() {
-  const accessToken = await getAccessToken();
+  const auth = await getServiceAccountAuth();
+  return google.calendar({ version: "v3", auth });
+}
 
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken,
-  });
-
-  return google.calendar({ version: "v3", auth: oauth2Client });
+/**
+ * Risolve calendarId: se "primary" lo sostituisce con GOOGLE_CALENDAR_ID
+ * Con Service Account, "primary" punta al calendario del SA (vuoto),
+ * quindi va sempre risolto al calendario reale dell'utente
+ */
+function resolveCalendarId(calendarId: string): string {
+  if (calendarId === 'primary' || !calendarId) {
+    return process.env.GOOGLE_CALENDAR_ID || 'primary';
+  }
+  return calendarId;
 }
 
 /**
@@ -200,9 +163,10 @@ export async function getEvents(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
+  const resolvedId = resolveCalendarId(calendarId);
 
   const response = await calendar.events.list({
-    calendarId,
+    calendarId: resolvedId,
     timeMin: timeMin.toISOString(),
     timeMax: timeMax.toISOString(),
     singleEvents: true,
@@ -222,9 +186,10 @@ export async function getEventById(
 ) {
   try {
     const calendar = await getGoogleCalendarClient();
+    const resolvedId = resolveCalendarId(calendarId);
 
     const response = await calendar.events.get({
-      calendarId,
+      calendarId: resolvedId,
       eventId,
     });
 
@@ -249,16 +214,17 @@ export async function checkFreeBusy(
   timeMax: Date,
 ) {
   const calendar = await getGoogleCalendarClient();
+  const resolvedId = resolveCalendarId(calendarId);
 
   const response = await calendar.freebusy.query({
     requestBody: {
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
-      items: [{ id: calendarId }],
+      items: [{ id: resolvedId }],
     },
   });
 
-  const calendarBusy = response.data.calendars?.[calendarId];
+  const calendarBusy = response.data.calendars?.[resolvedId];
   return calendarBusy?.busy || [];
 }
 
@@ -608,8 +574,9 @@ export async function createEvent(
     requestBody.colorId = eventData.colorId;
   }
 
+  const resolvedId = resolveCalendarId(calendarId);
   const response = await calendar.events.insert({
-    calendarId,
+    calendarId: resolvedId,
     requestBody,
   });
 
@@ -634,6 +601,7 @@ export async function updateEvent(
   }>,
 ) {
   const calendar = await getGoogleCalendarClient();
+  const resolvedId = resolveCalendarId(calendarId);
 
   const requestBody: any = {};
 
@@ -679,7 +647,7 @@ export async function updateEvent(
   }
 
   const response = await calendar.events.patch({
-    calendarId,
+    calendarId: resolvedId,
     eventId,
     requestBody,
   });
@@ -695,9 +663,10 @@ export async function deleteEvent(
   eventId: string,
 ) {
   const calendar = await getGoogleCalendarClient();
+  const resolvedId = resolveCalendarId(calendarId);
 
   await calendar.events.delete({
-    calendarId,
+    calendarId: resolvedId,
     eventId,
   });
 
