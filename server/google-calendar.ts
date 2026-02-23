@@ -60,69 +60,72 @@ export function invalidateTokenCache(): void {
  * Crea e restituisce un client JWT autenticato con Service Account
  * Il JWT viene rinnovato automaticamente dalla libreria googleapis
  */
+function parseServiceAccountCredentials(): { email: string; key: string } {
+  const rawEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
+  const rawKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY;
+
+  if (!rawKey) {
+    throw new Error(
+      "GOOGLE_CALENDAR_CONFIG_MISSING: Manca GOOGLE_CALENDAR_PRIVATE_KEY nei secrets"
+    );
+  }
+
+  const trimmedKey = rawKey.trim();
+
+  try {
+    const json = JSON.parse(trimmedKey);
+    if (json.private_key && json.client_email) {
+      console.log("📋 Service Account: credenziali estratte dal JSON completo");
+      return { email: json.client_email, key: json.private_key };
+    }
+  } catch {}
+
+  if (!rawEmail) {
+    throw new Error(
+      "GOOGLE_CALENDAR_CONFIG_MISSING: Manca GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL nei secrets"
+    );
+  }
+
+  let email = rawEmail.trim();
+  if (email.startsWith('"') && email.endsWith('"')) {
+    email = email.slice(1, -1);
+  }
+  const emailMatch = email.match(/[\w.-]+@[\w.-]+\.iam\.gserviceaccount\.com/);
+  if (emailMatch) {
+    email = emailMatch[0];
+  }
+
+  let key = trimmedKey;
+  if (key.includes('"private_key"')) {
+    const cleanedLine = key.replace(/,\s*$/, '');
+    try {
+      const parsed = JSON.parse(`{${cleanedLine}}`);
+      if (parsed.private_key) key = parsed.private_key;
+    } catch {
+      const beginIdx = key.indexOf('-----BEGIN PRIVATE KEY-----');
+      const endMarker = '-----END PRIVATE KEY-----';
+      const endIdx = key.lastIndexOf(endMarker);
+      if (beginIdx !== -1 && endIdx !== -1) {
+        key = key.substring(beginIdx, endIdx + endMarker.length);
+      }
+    }
+  }
+
+  key = key.replace(/\\n/g, '\n');
+
+  if (!key.includes('-----BEGIN')) {
+    key = `-----BEGIN PRIVATE KEY-----\n${key}\n-----END PRIVATE KEY-----\n`;
+  }
+
+  return { email, key };
+}
+
 async function getServiceAccountAuth() {
   if (cachedAuthClient) {
     return cachedAuthClient;
   }
 
-  const rawServiceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY;
-
-  if (!rawServiceEmail || !privateKey) {
-    throw new Error(
-      "GOOGLE_CALENDAR_CONFIG_MISSING: Mancano GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL o GOOGLE_CALENDAR_PRIVATE_KEY nei secrets"
-    );
-  }
-
-  let serviceEmail = rawServiceEmail.trim();
-  if (serviceEmail.includes('"client_email"')) {
-    const cleanedEmail = serviceEmail.replace(/,\s*$/, '');
-    try {
-      const parsed = JSON.parse(`{${cleanedEmail}}`);
-      if (parsed.client_email) {
-        serviceEmail = parsed.client_email;
-      }
-    } catch {
-      const emailMatch = serviceEmail.match(/[\w.-]+@[\w.-]+\.iam\.gserviceaccount\.com/);
-      if (emailMatch) {
-        serviceEmail = emailMatch[0];
-      }
-    }
-  } else if (serviceEmail.startsWith('"') && serviceEmail.endsWith('"')) {
-    serviceEmail = serviceEmail.slice(1, -1);
-  }
-
-  let formattedKey = privateKey.trim();
-  
-  if (formattedKey.includes('"private_key"')) {
-    const cleanedLine = formattedKey.replace(/,\s*$/, '');
-    try {
-      const parsed = JSON.parse(`{${cleanedLine}}`);
-      if (parsed.private_key) {
-        formattedKey = parsed.private_key;
-      }
-    } catch {
-      try {
-        const parsed2 = JSON.parse(formattedKey);
-        if (parsed2.private_key) {
-          formattedKey = parsed2.private_key;
-        }
-      } catch {
-        const beginIdx = formattedKey.indexOf('-----BEGIN PRIVATE KEY-----');
-        const endMarker = '-----END PRIVATE KEY-----';
-        const endIdx = formattedKey.lastIndexOf(endMarker);
-        if (beginIdx !== -1 && endIdx !== -1) {
-          formattedKey = formattedKey.substring(beginIdx, endIdx + endMarker.length);
-        }
-      }
-    }
-  }
-  
-  formattedKey = formattedKey.replace(/\\n/g, '\n');
-  
-  if (!formattedKey.includes('-----BEGIN')) {
-    formattedKey = `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----\n`;
-  }
+  const { email: serviceEmail, key: formattedKey } = parseServiceAccountCredentials();
 
   const auth = new google.auth.JWT({
     email: serviceEmail,
@@ -134,6 +137,7 @@ async function getServiceAccountAuth() {
     await auth.authorize();
     console.log("✅ Google Calendar Service Account autenticato:", serviceEmail);
   } catch (authError: any) {
+    cachedAuthClient = null;
     console.error("❌ Google Calendar Service Account auth failed:", authError.message);
     console.error("  Email utilizzata:", serviceEmail);
     console.error("  Key format valid:", formattedKey.startsWith('-----BEGIN PRIVATE KEY-----'));
