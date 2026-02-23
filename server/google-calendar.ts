@@ -65,13 +65,31 @@ async function getServiceAccountAuth() {
     return cachedAuthClient;
   }
 
-  const serviceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
+  const rawServiceEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY;
 
-  if (!serviceEmail || !privateKey) {
+  if (!rawServiceEmail || !privateKey) {
     throw new Error(
       "GOOGLE_CALENDAR_CONFIG_MISSING: Mancano GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL o GOOGLE_CALENDAR_PRIVATE_KEY nei secrets"
     );
+  }
+
+  let serviceEmail = rawServiceEmail.trim();
+  if (serviceEmail.includes('"client_email"')) {
+    const cleanedEmail = serviceEmail.replace(/,\s*$/, '');
+    try {
+      const parsed = JSON.parse(`{${cleanedEmail}}`);
+      if (parsed.client_email) {
+        serviceEmail = parsed.client_email;
+      }
+    } catch {
+      const emailMatch = serviceEmail.match(/[\w.-]+@[\w.-]+\.iam\.gserviceaccount\.com/);
+      if (emailMatch) {
+        serviceEmail = emailMatch[0];
+      }
+    }
+  } else if (serviceEmail.startsWith('"') && serviceEmail.endsWith('"')) {
+    serviceEmail = serviceEmail.slice(1, -1);
   }
 
   let formattedKey = privateKey.trim();
@@ -117,6 +135,8 @@ async function getServiceAccountAuth() {
     console.log("✅ Google Calendar Service Account autenticato:", serviceEmail);
   } catch (authError: any) {
     console.error("❌ Google Calendar Service Account auth failed:", authError.message);
+    console.error("  Email utilizzata:", serviceEmail);
+    console.error("  Key format valid:", formattedKey.startsWith('-----BEGIN PRIVATE KEY-----'));
     throw authError;
   }
 
