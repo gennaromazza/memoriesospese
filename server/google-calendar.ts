@@ -170,10 +170,41 @@ function resolveCalendarId(calendarId: string): string {
 }
 
 /**
+ * Flag per evitare di ripetere l'inserimento del calendario nella lista del SA.
+ * Quando un utente condivide un calendario con un Service Account, il SA deve
+ * "inserirlo" nella propria calendarList prima di poterlo vedere con calendarList.list().
+ */
+let calendarEnsured = false;
+
+/**
+ * Assicura che il calendario configurato sia nella calendarList del Service Account.
+ * Necessario perché calendari condivisi non appaiono automaticamente nella lista SA.
+ */
+async function ensureCalendarInList(calendar: calendar_v3.Calendar) {
+  if (calendarEnsured) return;
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  if (!calendarId || calendarId === 'primary') { calendarEnsured = true; return; }
+  try {
+    await calendar.calendarList.get({ calendarId });
+  } catch (err: any) {
+    if (err.code === 404) {
+      try {
+        await calendar.calendarList.insert({ requestBody: { id: calendarId } });
+        console.log(`✅ Calendario ${calendarId} aggiunto alla lista del Service Account`);
+      } catch (addErr: any) {
+        console.error(`⚠️ Impossibile aggiungere calendario alla lista SA:`, addErr.message);
+      }
+    }
+  }
+  calendarEnsured = true;
+}
+
+/**
  * Ottiene lista calendari disponibili
  */
 export async function listCalendars() {
   const calendar = await getGoogleCalendarClient();
+  await ensureCalendarInList(calendar);
   const response = await calendar.calendarList.list();
   return response.data.items || [];
 }
@@ -379,7 +410,7 @@ export async function getEventsWithDetailsAllCalendars(
     
     const calendar = await getGoogleCalendarClient();
 
-    // 1. Recupera lista di tutti i calendari
+    // 1. Recupera lista di tutti i calendari (include ensureCalendarInList)
     if (!isProduction) {
       console.log("[Google Calendar V2] 📋 Recupero lista calendari con filtri avanzati...");
     }

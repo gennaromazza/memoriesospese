@@ -6,6 +6,7 @@
 
 import express from 'express';
 import { getEvents, createEvent, updateEvent, getCalendarConnectionStatus, invalidateTokenCache } from './google-calendar.js';
+
 import { db, Timestamp } from './firebase-admin.js';
 import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
@@ -34,7 +35,7 @@ router.get('/status', authenticateFirebase, async (req, res) => {
 
 /**
  * POST /api/calendar/refresh-token
- * Forza refresh del token invalidando la cache
+ * Forza reinizializzazione del client Service Account invalidando la cache
  */
 router.post('/refresh-token', authenticateFirebase, async (req, res) => {
   try {
@@ -42,7 +43,7 @@ router.post('/refresh-token', authenticateFirebase, async (req, res) => {
     const status = await getCalendarConnectionStatus();
     res.json({
       success: true,
-      message: 'Token cache invalidated, fresh token fetched',
+      message: 'Service Account auth cache invalidated, re-initialized',
       status,
     });
   } catch (error: any) {
