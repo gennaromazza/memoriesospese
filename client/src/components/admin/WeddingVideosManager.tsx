@@ -19,9 +19,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WeddingVideosManager() {
   const [videos, setVideos] = useState<WeddingVideo[]>([]);
-  const [galleriesWithVideos, setGalleriesWithVideos] = useState<Gallery[]>([]);
   const [loading, setLoading] = useState(true);
+  const [allGalleries, setAllGalleries] = useState<Gallery[]>([]);
   const [loadingGalleries, setLoadingGalleries] = useState(false);
+  const [gallerySearch, setGallerySearch] = useState('');
+  const [galleryFilter, setGalleryFilter] = useState<'all' | 'with-video' | 'without-video'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<WeddingVideo | null>(null);
   const [saving, setSaving] = useState(false);
@@ -65,17 +67,11 @@ export default function WeddingVideosManager() {
     }
   };
 
-  const loadGalleriesWithVideos = async () => {
+  const loadAllGalleries = async () => {
     setLoadingGalleries(true);
     try {
-      const allGalleries = await GalleryService.getAllGalleriesForAdmin();
-
-      // Filtra solo gallerie con youtubeUrl o youtubeUrls
-      const galleriesWithYoutube = allGalleries.filter(gallery => {
-        return gallery.youtubeUrl || (gallery.youtubeUrls && gallery.youtubeUrls.length > 0);
-      });
-
-      setGalleriesWithVideos(galleriesWithYoutube);
+      const galleries = await GalleryService.getAllGalleriesForAdmin();
+      setAllGalleries(galleries);
     } catch (error) {
       console.error('Errore caricamento gallerie:', error);
       toast({
@@ -88,12 +84,30 @@ export default function WeddingVideosManager() {
     }
   };
 
-  // Carica gallerie quando si passa alla tab
   useEffect(() => {
-    if (activeTab === 'galleries' && galleriesWithVideos.length === 0) {
-      loadGalleriesWithVideos();
+    if (activeTab === 'galleries' && allGalleries.length === 0) {
+      loadAllGalleries();
     }
   }, [activeTab]);
+
+  const hasVideo = (gallery: Gallery) =>
+    !!(gallery.youtubeUrl || (gallery.youtubeUrls && gallery.youtubeUrls.length > 0));
+
+  const filteredGalleries = allGalleries.filter(gallery => {
+    if (galleryFilter === 'with-video' && !hasVideo(gallery)) return false;
+    if (galleryFilter === 'without-video' && hasVideo(gallery)) return false;
+    if (gallerySearch.trim()) {
+      const q = gallerySearch.toLowerCase();
+      return (
+        gallery.name?.toLowerCase().includes(q) ||
+        gallery.code?.toLowerCase().includes(q) ||
+        (gallery as any).clientName?.toLowerCase().includes(q) ||
+        gallery.location?.toLowerCase().includes(q) ||
+        gallery.date?.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   const handleOpenDialog = (video?: WeddingVideo) => {
     if (video) {
@@ -265,7 +279,7 @@ export default function WeddingVideosManager() {
           </TabsTrigger>
           <TabsTrigger value="galleries" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
-            Importa da Gallerie ({galleriesWithVideos.length})
+            Gallerie ({allGalleries.length})
           </TabsTrigger>
         </TabsList>
 
@@ -515,83 +529,126 @@ export default function WeddingVideosManager() {
             <Alert>
               <Youtube className="h-4 w-4" />
               <AlertDescription>
-                Queste gallerie hanno video YouTube. Clicca su "Importa" per creare un nuovo video dalla galleria.
+                Cerca tra tutte le gallerie. Quelle con video YouTube possono essere importate direttamente.
               </AlertDescription>
             </Alert>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Cerca per nome, codice, luogo, data..."
+                  value={gallerySearch}
+                  onChange={(e) => setGallerySearch(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant={galleryFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setGalleryFilter('all')}
+                >
+                  Tutte ({allGalleries.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={galleryFilter === 'with-video' ? 'default' : 'outline'}
+                  onClick={() => setGalleryFilter('with-video')}
+                >
+                  <Youtube className="h-3.5 w-3.5 mr-1" />
+                  Con video ({allGalleries.filter(hasVideo).length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={galleryFilter === 'without-video' ? 'default' : 'outline'}
+                  onClick={() => setGalleryFilter('without-video')}
+                >
+                  Senza video ({allGalleries.filter(g => !hasVideo(g)).length})
+                </Button>
+              </div>
+            </div>
 
             {loadingGalleries ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : galleriesWithVideos.length === 0 ? (
+            ) : filteredGalleries.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <p className="text-muted-foreground">
-                    Nessuna galleria con video YouTube trovata.
+                    {gallerySearch ? 'Nessuna galleria trovata per la ricerca.' : 'Nessuna galleria disponibile.'}
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {galleriesWithVideos.map(gallery => {
-                  // Crea array di tutti gli URL YouTube
-                  const youtubeUrls = [];
+              <div className="text-sm text-muted-foreground mb-2">
+                {filteredGalleries.length} galleri{filteredGalleries.length === 1 ? 'a' : 'e'} trovate
+              </div>
+            )}
+            {!loadingGalleries && filteredGalleries.length > 0 && (
+              <div className="grid grid-cols-1 gap-3">
+                {filteredGalleries.map(gallery => {
+                  const youtubeUrls: string[] = [];
                   if (gallery.youtubeUrl) youtubeUrls.push(gallery.youtubeUrl);
                   if (gallery.youtubeUrls) youtubeUrls.push(...gallery.youtubeUrls);
+                  const galleryHasVideo = youtubeUrls.length > 0;
 
                   return (
-                    <Card key={gallery.id}>
-                      <CardHeader>
+                    <Card key={gallery.id} className={galleryHasVideo ? 'border-green-200 bg-green-50/30' : ''}>
+                      <CardHeader className="py-3 px-4">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">{gallery.name}</CardTitle>
-                            <CardDescription>
-                              {gallery.date} - {gallery.location}
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-base truncate">{gallery.name}</CardTitle>
+                            <CardDescription className="text-xs">
+                              {gallery.date} {gallery.location ? `- ${gallery.location}` : ''}
                             </CardDescription>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant="outline">{gallery.code}</Badge>
-                              <Badge variant="secondary">
-                                {youtubeUrls.length} video YouTube
-                              </Badge>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              <Badge variant="outline" className="text-xs">{gallery.code}</Badge>
+                              {galleryHasVideo && (
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                  <Youtube className="h-3 w-3 mr-1" />
+                                  {youtubeUrls.length} video
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                          {gallery.coverImageDesktop || gallery.coverImageUrl ? (
+                          {(gallery.coverImageDesktop || gallery.coverImageUrl) && (
                             <img
                               src={gallery.coverImageDesktop || gallery.coverImageUrl}
                               alt={gallery.name}
-                              className="w-32 h-20 object-cover rounded ml-4"
+                              className="w-24 h-16 object-cover rounded ml-3 shrink-0"
                             />
-                          ) : null}
+                          )}
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {youtubeUrls.map((url, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                              <div className="flex-1 mr-4">
-                                <p className="text-sm font-medium mb-1">
-                                  Video {index + 1}
-                                </p>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-blue-600 hover:underline truncate block"
+                      {galleryHasVideo && (
+                        <CardContent className="pt-0 px-4 pb-3">
+                          <div className="space-y-1.5">
+                            {youtubeUrls.map((url, index) => (
+                              <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                                <div className="flex-1 mr-3 min-w-0">
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:underline truncate block"
+                                  >
+                                    {url}
+                                  </a>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="shrink-0 h-7 text-xs"
+                                  onClick={() => handleImportFromGallery(gallery, url)}
                                 >
-                                  {url}
-                                </a>
+                                  <Download className="h-3 w-3 mr-1" />
+                                  Importa
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                onClick={() => handleImportFromGallery(gallery, url)}
-                              >
-                                <Download className="h-4 w-4 mr-1" />
-                                Importa
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
+                            ))}
+                          </div>
+                        </CardContent>
+                      )}
                     </Card>
                   );
                 })}
