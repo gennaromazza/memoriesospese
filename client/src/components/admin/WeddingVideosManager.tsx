@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { GalleryService } from '@/lib/galleries';
+import { StorageService } from '@/lib/storage';
 import type { WeddingVideo } from '@shared/schema';
 import type { Gallery } from '@/lib/galleries';
 import { useToast } from '@/hooks/use-toast';
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, Star, Loader2, Eye, ArrowUpDown, Download, Youtube } from 'lucide-react';
+import { Plus, Trash2, Edit, Star, Loader2, Eye, ArrowUpDown, Download, Youtube, Upload, ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,7 +25,9 @@ export default function WeddingVideosManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<WeddingVideo | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const [activeTab, setActiveTab] = useState<'videos' | 'galleries'>('videos');
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Form state
@@ -123,6 +126,25 @@ export default function WeddingVideosManager() {
       });
     }
     setIsDialogOpen(true);
+  };
+
+  const handleThumbnailUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Errore', description: 'Seleziona un file immagine valido', variant: 'destructive' });
+      return;
+    }
+    setUploadingThumbnail(true);
+    try {
+      const result = await StorageService.uploadFile(file, 'video-thumbnails');
+      setFormData(prev => ({ ...prev, thumbnailUrl: result.url }));
+      toast({ title: 'Immagine caricata', description: 'Copertina caricata con successo' });
+    } catch (error: any) {
+      console.error('Errore upload thumbnail:', error);
+      toast({ title: 'Errore upload', description: error.message || 'Impossibile caricare l\'immagine', variant: 'destructive' });
+    } finally {
+      setUploadingThumbnail(false);
+      if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
@@ -376,13 +398,40 @@ export default function WeddingVideosManager() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="thumbnailUrl">URL Immagine Copertina *</Label>
-                <Input
-                  id="thumbnailUrl"
-                  value={formData.thumbnailUrl}
-                  onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                  placeholder="https://..."
-                />
+                <Label>Immagine Copertina *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="thumbnailUrl"
+                    value={formData.thumbnailUrl}
+                    onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
+                    placeholder="URL immagine oppure carica un file..."
+                    className="flex-1"
+                  />
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleThumbnailUpload(file);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    disabled={uploadingThumbnail}
+                    className="shrink-0"
+                  >
+                    {uploadingThumbnail ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    <span className="ml-1.5">{uploadingThumbnail ? 'Caricamento...' : 'Sfoglia'}</span>
+                  </Button>
+                </div>
                 {formData.thumbnailUrl && (
                   <img src={formData.thumbnailUrl} alt="Preview" className="w-full h-40 object-cover rounded-lg mt-2" />
                 )}
