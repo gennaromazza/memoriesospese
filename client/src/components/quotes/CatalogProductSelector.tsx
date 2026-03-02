@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Package, Euro, Image as ImageIcon } from 'lucide-react';
+import { Search, Package, Euro, Image as ImageIcon, X, CheckCircle2 } from 'lucide-react';
 import type { Product } from '@shared/booking-types';
 
 interface CatalogProductSelectorProps {
@@ -269,6 +269,49 @@ export default function CatalogProductSelector({
           })
         )}
       </div>
+
+      {/* Prodotti selezionati - lista immediata */}
+      {selectedProductIds.length > 0 && (
+        <div className="border border-primary/20 rounded-lg bg-primary/5 p-3 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Prodotti selezionati ({selectedProductIds.length})</span>
+          </div>
+          <div className="space-y-1">
+            {selectedProductIds.map((id) => {
+              const product = products.find(p => p.id === id);
+              if (!product) return null;
+              const price = product.prezzoFinale || product.prezzo;
+              return (
+                <div
+                  key={id}
+                  className="flex items-center justify-between bg-white rounded-md px-3 py-2 text-sm border border-primary/10"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate font-medium">{product.nome}</span>
+                    {product.categoria && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {categoryDisplayMap[product.categoria] || product.categoria}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    <span className="font-semibold text-primary">€{price.toFixed(2)}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleProduct(id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      title="Rimuovi"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
