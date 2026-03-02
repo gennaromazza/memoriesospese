@@ -559,6 +559,9 @@ export default function QuoteBuilder({
     shouldUnregister: false
   });
 
+  // Mappa prezzi originali: quando si attiva omaggio, salva il prezzo precedente per ripristinarlo
+  const originalPricesRef = useRef<Record<number, number>>({});
+
   // Auto-expand newly added custom products
   const pendingExpandRef = useRef(false);
   useEffect(() => {
@@ -1469,8 +1472,18 @@ export default function QuoteBuilder({
                                 onCheckedChange={(checked) => {
                                   field.onChange(checked);
                                   if (checked) {
+                                    const currentPrice = form.getValues(`products.${index}.prezzo`);
+                                    if (currentPrice > 0) {
+                                      originalPricesRef.current[index] = currentPrice;
+                                    }
                                     form.setValue(`products.${index}.prezzo`, 0);
                                     form.setValue(`products.${index}.selectable`, false);
+                                  } else {
+                                    const saved = originalPricesRef.current[index];
+                                    if (saved !== undefined && saved > 0) {
+                                      form.setValue(`products.${index}.prezzo`, saved);
+                                      delete originalPricesRef.current[index];
+                                    }
                                   }
                                 }}
                                 data-testid={`switch-omaggio-${index}`}
