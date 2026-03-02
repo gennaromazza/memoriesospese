@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Timestamp } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -540,13 +541,13 @@ export default function CashRegister() {
                       </td>
                       <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm whitespace-nowrap">
                         {mov.jobId ? (
-                          <span className="text-blue-600 font-medium" title={`Job ID: ${mov.jobId}`}>
+                          <Link href={`/admin/jobs/${mov.jobId}`} className="text-blue-600 font-medium hover:underline cursor-pointer" title={`Vai al lavoro`}>
                             💼 Lavoro
-                          </span>
+                          </Link>
                         ) : mov.orderId ? (
-                          <span className="text-orange-600 font-medium" title={`Order ID: ${mov.orderId}`}>
+                          <Link href={`/admin/jobs?orderId=${mov.orderId}`} className="text-orange-600 font-medium hover:underline cursor-pointer" title={`Vai all'ordine`}>
                             🛒 Ordine
-                          </span>
+                          </Link>
                         ) : (
                           <span className="text-muted-foreground italic">Libero</span>
                         )}
