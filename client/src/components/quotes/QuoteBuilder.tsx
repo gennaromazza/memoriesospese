@@ -490,7 +490,8 @@ export default function QuoteBuilder({
             selectable: product.selectable || false,
             numeroFoto: product.numeroFoto || 0,
             categoria: product.categoria || '',
-            immagini: product.immagini || []
+            immagini: product.immagini || [],
+            isOmaggio: product.isOmaggio || false
           });
         }
       });
