@@ -553,15 +553,10 @@ export default function QuoteBuilder({
   });
 
   // Auto-expand newly added custom products
-  const hasInitializedRef = useRef(false);
+  const pendingExpandRef = useRef(false);
   useEffect(() => {
-    if (!hasInitializedRef.current) {
-      // Prima esecuzione: salva il conteggio iniziale senza auto-espandere
-      hasInitializedRef.current = true;
-      prevFieldsCountRef.current = fields.length;
-      return;
-    }
-    if (fields.length > prevFieldsCountRef.current) {
+    if (pendingExpandRef.current) {
+      pendingExpandRef.current = false;
       const newField = fields[fields.length - 1];
       if (newField) {
         setExpandedProducts(prev => new Set([...prev, newField.id]));
@@ -569,6 +564,11 @@ export default function QuoteBuilder({
     }
     prevFieldsCountRef.current = fields.length;
   }, [fields]);
+
+  const appendProduct = useCallback((data: Parameters<typeof append>[0]) => {
+    pendingExpandRef.current = true;
+    append(data);
+  }, [append]);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -1328,7 +1328,7 @@ export default function QuoteBuilder({
                     onValueChange={(value) => {
                       const product = FREQUENT_PRODUCTS.find(p => p.nome === value);
                       if (product) {
-                        append({
+                        appendProduct({
                           nome: product.nome,
                           descrizione: product.descrizione,
                           prezzo: product.prezzo,
@@ -1360,7 +1360,7 @@ export default function QuoteBuilder({
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => append({
+                    onClick={() => appendProduct({
                       nome: '',
                       descrizione: '',
                       prezzo: 0,
@@ -1380,7 +1380,7 @@ export default function QuoteBuilder({
                     size="sm"
                     variant="outline"
                     className="border-rose-300 text-rose-600 hover:bg-rose-50"
-                    onClick={() => append({
+                    onClick={() => appendProduct({
                       nome: '',
                       descrizione: '',
                       prezzo: 0,
