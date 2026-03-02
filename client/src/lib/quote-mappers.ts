@@ -78,6 +78,16 @@ export function mergeQuoteProducts(
   // Custom products already in QuoteProduct format
   // Note: Firestore doesn't accept undefined, so we only set selected when it's true
   const customQuoteProducts = customProducts.map(p => {
+    // Omaggi: sempre selectable=false e selected=true (non devono mai essere deselezionabili)
+    if (p.isOmaggio) {
+      const product: QuoteProduct = {
+        ...p,
+        selectable: false,
+        selected: true,
+        prezzo: 0,
+      };
+      return product;
+    }
     const product: QuoteProduct = {
       ...p,
       selectable: quoteType === 'variabile',

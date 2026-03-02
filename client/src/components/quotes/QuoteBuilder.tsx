@@ -144,15 +144,16 @@ const quoteSchema = z.object({
   (data) => {
     // Valida prodotti custom: se nome è compilato, deve avere anche prezzo > 0 (a meno che sia omaggio)
     const invalidProducts = data.products.filter(p => {
-      const hasName = p.nome.trim();
+      const hasName = !!p.nome.trim();
       const hasPrice = p.prezzo > 0;
       const isOmaggio = p.isOmaggio;
-      if (isOmaggio) return false; // Gli omaggi sono sempre validi con solo il nome
+      // Omaggio: valido solo se ha il nome (il prezzo è sempre 0)
+      if (isOmaggio) return !hasName; // Invalido se omaggio senza nome
       return (hasName && !hasPrice) || (!hasName && hasPrice);
     });
     return invalidProducts.length === 0;
   },
-  { message: 'Prodotti custom: se compili il nome, devi inserire anche un prezzo > 0', path: ['products'] }
+  { message: 'Inserisci un nome per tutti i prodotti (inclusi gli omaggi)', path: ['products'] }
 );
 
 type FormData = z.infer<typeof quoteSchema>;
@@ -262,6 +263,11 @@ function SortableProductCard({
             {isIncomplete && !isOmaggio && (
               <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                 ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
+              </span>
+            )}
+            {isOmaggio && !hasName && !isExpanded && (
+              <span className="text-xs text-rose-600 font-medium">
+                ⚠️ Inserisci nome omaggio
               </span>
             )}
             {!isEmpty && !isIncomplete && (
