@@ -651,8 +651,15 @@ export default function QuotePublicViewPage() {
                       {/* Mobile: Nome e Prezzo affiancati */}
                       <div className="flex-1 min-w-0 sm:hidden">
                         <h3 className="font-bold text-blue-gray text-base font-playfair leading-tight">{product.nome}</h3>
-                        <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
+                        {product.isOmaggio ? (
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mt-1">🎁 In omaggio</span>
+                        ) : (
+                          <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
+                        )}
                         <div className="flex flex-wrap gap-1 mt-2">
+                          {product.isOmaggio && (
+                            <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
+                          )}
                           {product.numeroFoto && (
                             <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
                               📸 {product.numeroFoto} foto
@@ -690,10 +697,16 @@ export default function QuotePublicViewPage() {
                     {/* Desktop: contenuto centrale */}
                     <div className="hidden sm:block flex-1 min-w-0">
                       <h3 className="font-bold text-blue-gray text-lg mb-1 font-playfair">{product.nome}</h3>
+                      {product.isOmaggio && (
+                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mb-1">🎁 In omaggio</span>
+                      )}
                       {product.descrizione && (
                         <p className="text-sm text-dark-sage mt-1 leading-relaxed">{product.descrizione}</p>
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
+                        {product.isOmaggio && (
+                          <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
+                        )}
                         {product.numeroFoto && (
                           <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
                             📸 {product.numeroFoto} foto
@@ -730,7 +743,11 @@ export default function QuotePublicViewPage() {
                     
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
-                      <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
+                      {product.isOmaggio ? (
+                        <p className="font-bold text-xl sm:text-2xl text-rose-500">🎁 Omaggio</p>
+                      ) : (
+                        <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
+                      )}
                     </div>
                   </div>
                   

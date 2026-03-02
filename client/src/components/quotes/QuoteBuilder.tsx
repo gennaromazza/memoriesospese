@@ -110,7 +110,8 @@ const quoteSchema = z.object({
     selectable: z.boolean(),
     numeroFoto: z.number().optional(),
     categoria: z.string().optional(),
-    immagini: z.array(z.string()).optional()
+    immagini: z.array(z.string()).optional(),
+    isOmaggio: z.boolean().optional()
   })),
   discountType: z.enum(['amount', 'percent']).optional(),
   discountValue: z.number().min(0).optional(),
@@ -135,16 +136,18 @@ const quoteSchema = z.object({
 }).refine(
   (data) => {
     // Valida che ci sia almeno un prodotto (catalogo o custom compilato)
-    const hasValidCustomProducts = data.products.some(p => p.nome.trim() && p.prezzo > 0);
+    const hasValidCustomProducts = data.products.some(p => p.nome.trim() && (p.prezzo > 0 || p.isOmaggio));
     return data.catalogProductIds.length > 0 || hasValidCustomProducts;
   },
   { message: 'Aggiungi almeno un prodotto (catalogo o custom)', path: ['products'] }
 ).refine(
   (data) => {
-    // Valida prodotti custom: se nome è compilato, deve avere anche prezzo > 0
+    // Valida prodotti custom: se nome è compilato, deve avere anche prezzo > 0 (a meno che sia omaggio)
     const invalidProducts = data.products.filter(p => {
       const hasName = p.nome.trim();
       const hasPrice = p.prezzo > 0;
+      const isOmaggio = p.isOmaggio;
+      if (isOmaggio) return false; // Gli omaggi sono sempre validi con solo il nome
       return (hasName && !hasPrice) || (!hasName && hasPrice);
     });
     return invalidProducts.length === 0;
@@ -182,6 +185,7 @@ interface SortableProductCardProps {
   onToggleExpand: () => void;
   productName: string;
   productPrice: number;
+  isOmaggio?: boolean;
 }
 
 function SortableProductCard({
@@ -196,7 +200,8 @@ function SortableProductCard({
   isExpanded,
   onToggleExpand,
   productName,
-  productPrice
+  productPrice,
+  isOmaggio
 }: SortableProductCardProps) {
   const {
     attributes,
@@ -246,12 +251,15 @@ function SortableProductCard({
             <Badge variant={isIncomplete ? "destructive" : isEmpty ? "secondary" : "outline"}>
               Prodotto {index + 1}
             </Badge>
+            {isOmaggio && !isExpanded && (
+              <Badge className="bg-rose-100 text-rose-700 border-rose-300 text-xs">🎁 Omaggio</Badge>
+            )}
             {!isExpanded && productName && (
               <span className="text-sm text-muted-foreground truncate max-w-[200px]">
-                {productName} - €{productPrice.toFixed(2)}
+                {productName}{!isOmaggio && ` - €${productPrice.toFixed(2)}`}
               </span>
             )}
-            {isIncomplete && (
+            {isIncomplete && !isOmaggio && (
               <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                 ⚠️ {!hasName ? 'Inserisci nome' : 'Inserisci prezzo'}
               </span>
@@ -296,7 +304,25 @@ function SortableProductCard({
             )}
           </div>
         </div>
-        {isExpanded && <div className="mt-4">{children}</div>}
+        {isExpanded && (
+          <div className="mt-4">
+            {children}
+            <div className="mt-4 flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand();
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid={`button-confirm-product-${index}`}
+              >
+                ✓ Conferma prodotto
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1302,7 +1328,8 @@ export default function QuoteBuilder({
                           selectable: form.watch('type') === 'variabile',
                           numeroFoto: 0,
                           categoria: '',
-                          immagini: []
+                          immagini: [],
+                          isOmaggio: false
                         });
                       }
                       setFrequentProductValue('');
@@ -1333,12 +1360,32 @@ export default function QuoteBuilder({
                       selectable: form.watch('type') === 'variabile',
                       numeroFoto: 0,
                       categoria: '',
-                      immagini: []
+                      immagini: [],
+                      isOmaggio: false
                     })}
                     data-testid="button-add-custom-product"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Vuoto
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-300 text-rose-600 hover:bg-rose-50"
+                    onClick={() => append({
+                      nome: '',
+                      descrizione: '',
+                      prezzo: 0,
+                      selectable: false,
+                      numeroFoto: 0,
+                      categoria: '',
+                      immagini: [],
+                      isOmaggio: true
+                    })}
+                    data-testid="button-add-omaggio-product"
+                  >
+                    🎁 Omaggio
                   </Button>
                 </div>
               </div>
@@ -1356,9 +1403,10 @@ export default function QuoteBuilder({
                     {fields.map((field, index) => {
                       const productName = watchedProducts?.[index]?.nome || '';
                       const productPrice = watchedProducts?.[index]?.prezzo || 0;
+                      const isOmaggioProduct = watchedProducts?.[index]?.isOmaggio || false;
                       const hasName = productName.trim().length > 0;
                       const hasPrice = productPrice > 0;
-                      const isIncomplete = (hasName && !hasPrice) || (!hasName && hasPrice);
+                      const isIncomplete = !isOmaggioProduct && ((hasName && !hasPrice) || (!hasName && hasPrice));
                       const isEmpty = !hasName && !hasPrice;
                       
                       return (
@@ -1392,8 +1440,34 @@ export default function QuoteBuilder({
                           }}
                           productName={productName}
                           productPrice={productPrice}
+                          isOmaggio={isOmaggioProduct}
                         >
                           <div className="space-y-4">
+
+                        {/* Toggle Omaggio */}
+                        <FormField
+                          control={form.control}
+                          name={`products.${index}.isOmaggio`}
+                          render={({ field }) => (
+                            <div className="flex items-center gap-3 p-3 rounded-lg bg-rose-50 border border-rose-200">
+                              <Switch
+                                checked={field.value || false}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    form.setValue(`products.${index}.prezzo`, 0);
+                                    form.setValue(`products.${index}.selectable`, false);
+                                  }
+                                }}
+                                data-testid={`switch-omaggio-${index}`}
+                              />
+                              <div>
+                                <Label className="text-rose-700 font-medium">🎁 Prodotto in omaggio</Label>
+                                <p className="text-xs text-rose-500">Prezzo = €0, visibile nel contratto come "In omaggio"</p>
+                              </div>
+                            </div>
+                          )}
+                        />
 
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
@@ -1419,14 +1493,19 @@ export default function QuoteBuilder({
                             name={`products.${index}.prezzo`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Prezzo € *</FormLabel>
+                                <FormLabel>
+                                  Prezzo €{isOmaggioProduct ? '' : ' *'}
+                                </FormLabel>
                                 <FormControl>
                                   <Input
                                     type="number"
-                                    placeholder="0"
+                                    placeholder={isOmaggioProduct ? "Omaggio (€0)" : "0"}
                                     {...field}
+                                    disabled={isOmaggioProduct}
+                                    value={isOmaggioProduct ? 0 : field.value}
                                     onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
                                     data-testid={`input-product-price-${index}`}
+                                    className={isOmaggioProduct ? "bg-rose-50 text-rose-400" : ""}
                                   />
                                 </FormControl>
                                 <FormMessage />

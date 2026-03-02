@@ -50,6 +50,7 @@ export interface QuoteProduct {
   immagini?: string[];          // URLs immagini prodotto (custom products)
   isBundle?: boolean;           // true = questo prodotto è un bundle
   bundleItems?: QuoteBundleItem[]; // Prodotti inclusi nel bundle
+  isOmaggio?: boolean;          // true = prodotto in omaggio (prezzo = 0, visibile nel contratto)
 }
 
 /**

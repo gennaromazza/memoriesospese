@@ -478,6 +478,9 @@ export default function QuoteSignedPortalPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-playfair font-bold text-gray-900 text-base sm:text-lg mb-1 sm:mb-2">{product.nome}</h4>
+                        {product.isOmaggio && (
+                          <div className="flex items-center gap-1 text-sm font-semibold text-rose-600 mb-2">🎁 In omaggio</div>
+                        )}
                         {product.descrizione && (
                           <p className="text-xs sm:text-sm text-dark-sage mb-2 leading-relaxed whitespace-pre-wrap">{product.descrizione}</p>
                         )}
@@ -485,6 +488,13 @@ export default function QuoteSignedPortalPage() {
                           <div className="flex items-center gap-2 text-xs sm:text-sm text-blue-gray bg-mint/30 px-2 sm:px-3 py-1 rounded-full w-fit">
                             <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                             <span className="font-medium">{product.numeroFoto} foto incluse</span>
+                          </div>
+                        )}
+                        {/* Omaggio indicator */}
+                        {product.isOmaggio && (
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-rose-700 bg-rose-50 px-2 sm:px-3 py-1 rounded-full w-fit mt-2">
+                            <span>🎁</span>
+                            <span className="font-medium">Omaggio</span>
                           </div>
                         )}
                         {/* Bundle indicator and items */}
@@ -512,9 +522,13 @@ export default function QuoteSignedPortalPage() {
                       </div>
                     </div>
                     <div className="text-left sm:text-right sm:ml-4">
-                      <p className="text-xl sm:text-2xl font-bold text-blue-gray">
-                        {formatCurrency(shouldShowTotalAsPrice ? displayTotal : (product.prezzo || 0))}
-                      </p>
+                      {product.isOmaggio ? (
+                        <p className="text-xl sm:text-2xl font-bold text-rose-500">🎁 Omaggio</p>
+                      ) : (
+                        <p className="text-xl sm:text-2xl font-bold text-blue-gray">
+                          {formatCurrency(shouldShowTotalAsPrice ? displayTotal : (product.prezzo || 0))}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ));
