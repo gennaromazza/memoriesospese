@@ -421,7 +421,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       };
     }
 
-    // 5. Fetch clienti info - priorità dati salvati in quote, fallback a Firestore
+    // 5. Fetch clienti info - SEMPRE real-time da Firestore, snapshot solo come ultimo fallback
     let clientiInfo: Array<{
       id: string;
       nome?: string;
@@ -431,59 +431,30 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       indirizzo?: string;
       citta?: string;
       cap?: string;
+      provincia?: string;
     }> = [];
 
-    if (quote.clientiInfo && quote.clientiInfo.length > 0) {
-      // Usa dati salvati in quote, ma arricchisci con dati freschi da Firestore se mancano campi
-      const enrichedClienti = await Promise.all(
-        quote.clientiInfo.map(async (c: any) => {
-          // Se indirizzo mancante, recupera dati freschi dal cliente
-          if (!c.indirizzo && !c.citta && c.id) {
-            try {
-              const clienteDoc = await db.collection("clienti").doc(c.id).get();
-              if (clienteDoc.exists) {
-                const freshData = clienteDoc.data();
-                return {
-                  id: c.id,
-                  nome: c.nome || freshData?.nome,
-                  cognome: c.cognome || freshData?.cognome,
-                  email: c.email || freshData?.email,
-                  telefono: c.telefono || freshData?.cellulare1 || freshData?.cellulare2 || "",
-                  indirizzo: freshData?.via || "",
-                  citta: freshData?.citta || "",
-                  cap: freshData?.cap || "",
-                };
-              }
-            } catch (err) {
-              console.warn("⚠️ Impossibile arricchire dati cliente:", c.id, err);
-            }
-          }
-          // Altrimenti usa dati dallo snapshot
-          return {
-            id: c.id,
-            nome: c.nome,
-            cognome: c.cognome,
-            email: c.email,
-            telefono: c.telefono,
-            indirizzo: c.indirizzo,
-            citta: c.citta,
-            cap: c.cap,
-          };
-        })
-      );
-      clientiInfo = enrichedClienti;
-    } else {
-      // Fallback: fetch da Firestore se quote non ha clientiInfo (backward compatibility)
-      // Prima recupera clientiIds dal job
+    try {
       let clientIds: string[] = [];
+
+      // Prima cerca clientiIds dal job
       if (quote.jobId) {
-        const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
-        if (jobDoc.exists) {
-          clientIds = jobDoc.data()?.clientiIds || [];
+        try {
+          const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
+          if (jobDoc.exists) {
+            clientIds = jobDoc.data()?.clientiIds || [];
+          }
+        } catch (jobError) {
+          console.warn(`⚠️ Job ${quote.jobId} non accessibile per quote ${quote.id}`, jobError);
         }
       }
 
-      // Fallback a quote.clienteId se job non ha clientiIds
+      // Fallback: clientIds dallo snapshot salvato nel preventivo
+      if (clientIds.length === 0 && quote.clientiInfo && quote.clientiInfo.length > 0) {
+        clientIds = quote.clientiInfo.map((c: any) => c.id).filter(Boolean);
+      }
+
+      // Fallback finale: quote.clienteId
       if (clientIds.length === 0 && quote.clienteId) {
         clientIds = [quote.clienteId];
       }
@@ -506,9 +477,27 @@ router.get("/public/:token", async (req: Request, res: Response) => {
               indirizzo: data?.via || "",
               citta: data?.citta || "",
               cap: data?.cap || "",
+              provincia: data?.provincia || "",
             };
           });
       }
+    } catch (firestoreError) {
+      console.warn(`⚠️ Errore Firestore fetch clienti per quote ${quote.id}, uso snapshot`, firestoreError);
+    }
+
+    // Fallback finale: usa snapshot salvato nel preventivo se Firestore non ha restituito nulla
+    if (clientiInfo.length === 0 && quote.clientiInfo && quote.clientiInfo.length > 0) {
+      clientiInfo = quote.clientiInfo.map((c: any) => ({
+        id: c.id,
+        nome: c.nome,
+        cognome: c.cognome,
+        email: c.email,
+        telefono: c.telefono,
+        indirizzo: c.indirizzo,
+        citta: c.citta,
+        cap: c.cap,
+        provincia: c.provincia,
+      }));
     }
 
     // 5b. Fetch appuntamenti clienti dal job (per mostrare orari appuntamento)
