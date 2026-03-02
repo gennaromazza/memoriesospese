@@ -538,25 +538,33 @@ export default function QuoteSignedPortalPage() {
 
               {/* Totali */}
               <div className="space-y-2 sm:space-y-3 pt-2 bg-cream p-4 sm:p-5 rounded-xl border-2 border-beige">
-                {quote.discountValue && (
-                  <>
-                    <div className="flex justify-between items-center text-sm sm:text-base">
-                      <span className="text-dark-sage font-medium">Subtotale</span>
-                      <span className="font-semibold text-gray-800">{formatCurrency(quote.totalBeforeDiscount)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm sm:text-base">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1 bg-terracotta/20 rounded">
-                          <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-terracotta" />
-                        </div>
-                        <span className="text-terracotta font-medium">
-                          Sconto {quote.discountType === 'percent' ? `(${quote.discountValue}%)` : ''}
-                        </span>
+                {quote.discountValue && (() => {
+                  // Per preventivi variabili firmati: usa selectedBeforeDiscount (subtotale prodotti scelti)
+                  // Per preventivi fissi: usa totalBeforeDiscount (originale)
+                  const subtotaleDisplay = quote.type === 'variabile' && quote.selectedBeforeDiscount !== undefined
+                    ? quote.selectedBeforeDiscount
+                    : quote.totalBeforeDiscount;
+                  const scontoDisplay = subtotaleDisplay - displayTotal;
+                  return (
+                    <>
+                      <div className="flex justify-between items-center text-sm sm:text-base">
+                        <span className="text-dark-sage font-medium">Subtotale</span>
+                        <span className="font-semibold text-gray-800">{formatCurrency(subtotaleDisplay)}</span>
                       </div>
-                      <span className="font-semibold text-terracotta">-{formatCurrency(quote.totalBeforeDiscount - quote.totalAfterDiscount)}</span>
-                    </div>
-                  </>
-                )}
+                      <div className="flex justify-between items-center text-sm sm:text-base">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1 bg-terracotta/20 rounded">
+                            <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-terracotta" />
+                          </div>
+                          <span className="text-terracotta font-medium">
+                            Sconto {quote.discountType === 'percent' ? `(${quote.discountValue}%)` : ''}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-terracotta">-{formatCurrency(scontoDisplay)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 <Separator />
                 <div className="flex justify-between items-center text-xl sm:text-2xl font-bold pt-2">
                   <span className="text-gray-800 font-playfair">Totale Contratto</span>

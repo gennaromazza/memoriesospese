@@ -159,6 +159,7 @@ export interface Quote {
   totalBeforeDiscount: number;          // Totale prodotti (catalogo + custom)
   totalAfterDiscount: number;           // Totale finale con sconto applicato
   totaleSelezionato?: number;           // Totale calcolato da scelte cliente (variabile)
+  selectedBeforeDiscount?: number;      // Subtotale prodotti selezionati prima dello sconto (variabile firmato)
   
   // Legacy field (backward compatibility)
   totaleBase?: number;

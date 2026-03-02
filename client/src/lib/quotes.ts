@@ -430,20 +430,30 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       : (quote.totaleBase ?? 0);
     let updatedProducts = quote.products;
     
+    let selectedBeforeDiscount: number | undefined;
+
     if (quote.type === 'variabile' && data.selectedProducts) {
-      // Marca i prodotti selezionati con selected: true e correggi selectable flag
-      updatedProducts = quote.products.map(p => ({
-        ...p,
-        selectable: true, // FIX: Per quote variabili, tutti i prodotti sono selezionabili
-        selected: data.selectedProducts?.includes(p.nome) || false
-      }));
+      // Marca i prodotti selezionati con selected: true, preservando selectable degli omaggi
+      updatedProducts = quote.products.map(p => {
+        // Omaggi: sempre inclusi (selected: true) e non selezionabili dal cliente
+        if (p.isOmaggio) {
+          return { ...p, selectable: false, selected: true, prezzo: 0 };
+        }
+        return {
+          ...p,
+          selectable: true,
+          selected: data.selectedProducts?.includes(p.nome) || false
+        };
+      });
       
-      // Calcola subtotale dei prodotti selezionati
+      // Calcola subtotale dei prodotti selezionati (omaggi: prezzo 0 → non influiscono)
       const subtotaleSelezionato = updatedProducts
-        .filter(p => p.selected)  // Solo prodotti effettivamente selezionati dal cliente
+        .filter(p => p.selected)
         .reduce((sum, p) => sum + p.prezzo, 0);
       
-      // FIX: Applica lo sconto al subtotale selezionato
+      selectedBeforeDiscount = subtotaleSelezionato; // Salva per visualizzazione sconto nel portale
+      
+      // Applica lo sconto al subtotale selezionato
       const { totalAfterDiscount } = calculateQuoteTotals(
         subtotaleSelezionato, 
         quote.discountType, 
@@ -476,6 +486,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       contractClauses: updatedClauses,
       products: updatedProducts,  // Aggiorna products con selected
       totaleSelezionato,
+      ...(selectedBeforeDiscount !== undefined && { selectedBeforeDiscount }),
       updatedAt: Timestamp.now()
     });
     
