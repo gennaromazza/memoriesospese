@@ -409,17 +409,14 @@ router.post('/create-event', authenticateFirebase, async (req, res) => {
     }
     
     // 2. Crea evento su Google Calendar
-    const attendees = (data.notifyCliente && clienteEmail) 
-      ? [clienteEmail] 
-      : undefined;
-    
+    // NOTA: non passare attendees - i Service Account non possono invitare partecipanti
+    // senza Domain-Wide Delegation. La notifica al cliente avviene via Gmail API (step 3).
     const event = await createEvent('primary', {
       summary: data.title,
       description: data.description,
       start: data.isAllDay ? undefined : new Date(data.start),
       end: data.isAllDay ? undefined : new Date(data.end),
       location: data.location,
-      attendees,
       isAllDay: data.isAllDay,
       startDateStr: data.isAllDay ? data.start : undefined,
       endDateStr: data.isAllDay ? data.end : undefined,
