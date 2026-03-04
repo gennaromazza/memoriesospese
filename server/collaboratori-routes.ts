@@ -4,7 +4,7 @@ import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
-import { nowRome } from './utils/timezone.js';
+import { nowRome, formatRomeDateLocale } from './utils/timezone.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import type {
   Collaboratore,
@@ -85,7 +85,7 @@ async function sendCollaboratorAssignmentEmail(
   const compensoFormatted = compenso ? `€${compenso.toLocaleString('it-IT')}` : 'Da definire';
   const jobNome = job?.nomeEvento || 'Lavoro';
   const dataFormatted = job?.eventDate 
-    ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+    ? formatRomeDateLocale(job.eventDate.toDate(), {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
@@ -996,7 +996,7 @@ router.delete('/collaboratori/assignments/:id', authenticateFirebase, async (req
       // Invia email notifica eliminazione pagamenti (fire-and-forget)
       if (collaboratore && totalePagamentiRimossi > 0) {
         const dataJob = job?.eventDate 
-          ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+          ? formatRomeDateLocale(job.eventDate.toDate(), {
               weekday: 'long',
               day: 'numeric',
               month: 'long',
@@ -1073,7 +1073,7 @@ router.patch('/collaboratori/assignments/:id/compenso', authenticateFirebase, as
       
       const jobNome = job?.nomeEvento || 'Lavoro';
       const dataJob = job?.eventDate 
-        ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+        ? formatRomeDateLocale(job.eventDate.toDate(), {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
@@ -1395,7 +1395,7 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
     
     // Invia email notifica pagamento (fire-and-forget)
     const dataJob = job?.eventDate 
-      ? new Date(job.eventDate.toDate()).toLocaleDateString('it-IT', {
+      ? formatRomeDateLocale(job.eventDate.toDate(), {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
@@ -1674,7 +1674,7 @@ async function sendEventReminderEmail(
     try {
       const eventDate = job.eventDate?.toDate?.() || new Date(job.eventDate);
       if (!isNaN(eventDate.getTime())) {
-        dataFormatted = eventDate.toLocaleDateString('it-IT', {
+        dataFormatted = formatRomeDateLocale(eventDate, {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
