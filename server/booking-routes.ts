@@ -981,7 +981,7 @@ router.patch("/v2/:id/approve", async (req, res) => {
         start: slotStart,
         end: slotEnd,
         location: "Studio fotografico",
-        attendees: [bookingData.cliente.email],
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
       });
 
       calendarEventId = calendarEvent.id;
@@ -1236,7 +1236,7 @@ router.patch("/:id/approve", async (req, res) => {
         start: slotStart,
         end: slotEnd,
         location: "Studio fotografico",
-        attendees: [bookingData.cliente.email],
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
       });
 
       calendarEventId = calendarEvent.id;
@@ -2488,13 +2488,13 @@ router.post("/v2/create", async (req, res) => {
       try {
         const { createEvent } = await import("./google-calendar.js");
         
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         const calendarEvent = await createEvent("primary", {
           summary: `Shooting: ${cliente.nome} ${cliente.cognome}`,
           description: `Prenotazione shooting CONFERMATA (Manuale)\n\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp || ""}\n${prodottoNome ? `Prodotto: ${prodottoNome}\n` : ""}${note ? `Note: ${note}` : ""}`,
           start: slotStart,
           end: slotEnd,
           location: "Studio fotografico",
-          attendees: [cliente.email],
         });
 
         await bookingRef.update({ 

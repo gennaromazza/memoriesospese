@@ -2661,13 +2661,13 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         const { createEvent } = await import("./google-calendar.js");
         const dateStr = new Date(eventDate).toISOString().split("T")[0];
 
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         const calendarEvent = await createEvent("primary", {
           summary: `${template.jobType || "Shooting"}: ${nome} ${cognome} - ${nomeEvento}`,
           description: `Preventivo Rapido\n\nCliente: ${nome} ${cognome}\nEmail: ${email}\n${cellulare ? `Tel: ${cellulare}\n` : ""}Evento: ${nomeEvento}\n${eventLocation ? `Location: ${eventLocation}\n` : ""}${noteCliente ? `Note: ${noteCliente}` : ""}`,
           isAllDay: true,
           startDateStr: dateStr,
           location: eventLocation || rituLocation || "",
-          attendees: [email],
         });
 
         if (calendarEvent?.id) {

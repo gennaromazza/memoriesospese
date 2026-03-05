@@ -710,12 +710,12 @@ router.patch(
       console.log(`[POST /v2/approve] ✅ No conflicts detected, proceeding with approval`);
 
       // Step 7: Create Google Calendar event
+      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
       const calendarEvent = await createEvent("primary", {
         summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
         description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
         start: startDateTime,
         end: endDateTime,
-        attendees: [consultation.cliente.email],
       });
 
       const eventId = calendarEvent.id;
@@ -1005,12 +1005,12 @@ router.post(
       }
 
       // Create Google Calendar event for consultation
+      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
       const calendarEvent = await createEvent("primary", {
         summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
         description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
         start: startDateTime,
         end: endDateTime,
-        attendees: [consultation.cliente.email],
       });
 
       const eventId = calendarEvent.id;
