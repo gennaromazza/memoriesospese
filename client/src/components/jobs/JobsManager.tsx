@@ -1330,12 +1330,16 @@ export default function JobsManager() {
                       </Badge>
                     </TableCell>
                     
-                    {/* Collaboratori - con pulsante gestione */}
+                    {/* Collaboratori - visibile solo se ci sono collaboratori attivi (non rifiutati) */}
                     <TableCell className="hidden lg:table-cell text-center" onClick={(e) => e.stopPropagation()}>
                       {(() => {
                         const details = collaboratoriByJob[job.id];
                         const count = details?.count || 0;
                         const nomi = details?.nomi || [];
+                        
+                        // Se nessun collaboratore attivo (tutti rifiutati o nessuno assegnato),
+                        // non mostrare l'icona — il rifiuto si vede solo entrando nel job
+                        if (count === 0) return null;
                         
                         return (
                           <TooltipProvider>
@@ -1344,33 +1348,24 @@ export default function JobsManager() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className={cn(
-                                    "h-7 text-xs gap-1",
-                                    count > 0 ? "border-sage text-sage" : "border-gray-300 text-gray-500"
-                                  )}
+                                  className="h-7 text-xs gap-1 border-sage text-sage"
                                   onClick={() => setCollaboratoriDialogJobId(job.id)}
                                 >
                                   <Users className="w-3 h-3" />
-                                  {count > 0 ? count : '+'}
+                                  {count}
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent side="top" className="max-w-xs">
                                 <div className="text-xs space-y-1">
-                                  {count > 0 ? (
-                                    <>
-                                      <p className="font-semibold">Collaboratori assegnati:</p>
-                                      {nomi.length > 0 ? (
-                                        <ul className="list-disc list-inside">
-                                          {nomi.map((nome, i) => (
-                                            <li key={i}>{nome}</li>
-                                          ))}
-                                        </ul>
-                                      ) : (
-                                        <p className="text-muted-foreground">{count} collaboratore/i</p>
-                                      )}
-                                    </>
+                                  <p className="font-semibold">Collaboratori assegnati:</p>
+                                  {nomi.length > 0 ? (
+                                    <ul className="list-disc list-inside">
+                                      {nomi.map((nome, i) => (
+                                        <li key={i}>{nome}</li>
+                                      ))}
+                                    </ul>
                                   ) : (
-                                    <p>Clicca per assegnare collaboratori</p>
+                                    <p className="text-muted-foreground">{count} collaboratore/i</p>
                                   )}
                                 </div>
                               </TooltipContent>
