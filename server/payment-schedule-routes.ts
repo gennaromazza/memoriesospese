@@ -40,7 +40,9 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
     }
 
     // Calcola totale da preventivo
-    const totale = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+    // IMPORTANTE: per preventivi variabili, totaleSelezionato (selezione cliente) ha priorità
+    // su totalAfterDiscount (che include tutti i prodotti, anche quelli non selezionati)
+    const totale = (quote.totaleSelezionato > 0 ? quote.totaleSelezionato : null) || quote.totalAfterDiscount || 0;
     if (totale <= 0) {
       return res.status(400).json({
         error: 'Totale preventivo non valido',
@@ -188,7 +190,8 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
     }
 
     // Calcola totale automaticamente
-    const totale = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+    // IMPORTANTE: totaleSelezionato (selezione cliente) ha priorità su totalAfterDiscount
+    const totale = (quote.totaleSelezionato > 0 ? quote.totaleSelezionato : null) || quote.totalAfterDiscount || 0;
     if (totale <= 0) {
       return res.status(400).json({
         error: 'Totale preventivo non valido',
@@ -415,7 +418,8 @@ router.post('/generate', authenticateFirebase, async (req: any, res: Response) =
         return res.status(500).json({ error: 'Dati quote non validi' });
       }
 
-      const totaleQuote = quote.totalAfterDiscount || quote.totaleSelezionato || 0;
+      // IMPORTANTE: totaleSelezionato (selezione cliente) ha priorità su totalAfterDiscount
+      const totaleQuote = (quote.totaleSelezionato > 0 ? quote.totaleSelezionato : null) || quote.totalAfterDiscount || 0;
       if (totaleQuote <= 0) {
         return res.status(400).json({
           error: 'Totale preventivo non valido',
