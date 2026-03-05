@@ -808,7 +808,44 @@ router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, a
       console.error('⚠️ Errore fetch job per descrizione:', jobError);
     }
 
-    // Crea CashMovement prima dell'update principale
+    // Prepara dati pagamento aggiornato
+    const updatedPayments = [...schedule.payments];
+    const payment = updatedPayments[paymentIndex];
+
+    // FIX: Somma cumulativa - non sovrascrivere importoPagato
+    const importoGiaVersato = Number(payment.importoPagato) || 0;
+    const nuovoImportoPagato = importoGiaVersato + Number(importoPagato);
+    payment.importoPagato = Math.round(nuovoImportoPagato * 100) / 100;
+    
+    payment.dataPagamento = Timestamp.fromDate(dataPagamento ? toRomeDateTime(dataPagamento).toJSDate() : nowRomeDate());
+    payment.metodoPagamento = metodoPagamento || 'contante';
+    
+    // FIX: Stato pagamento coerente
+    if (payment.importoPagato >= Number(payment.importo)) {
+      payment.stato = 'pagato';
+    } else if (payment.importoPagato > 0) {
+      payment.stato = 'parziale';
+    } else {
+      payment.stato = 'atteso';
+    }
+    
+    if (note) payment.note = note;
+
+    // Ricalcola totali con numeri espliciti
+    const nuovoTotalePagato = updatedPayments.reduce((sum: number, p: any) => sum + (Number(p.importoPagato) || 0), 0);
+    const totaleSchedule = Number(schedule.totale) || 0;
+    const nuovoSaldoResiduo = Math.max(0, totaleSchedule - nuovoTotalePagato);
+
+    // Update Firestore atomico PRIMA di creare CashMovement
+    // (se Firestore fallisce, nessun CashMovement orfano viene creato)
+    await db.collection('paymentSchedules').doc(scheduleId).update({
+      payments: updatedPayments,
+      totalePagato: nuovoTotalePagato,
+      saldoResiduo: nuovoSaldoResiduo,
+      updatedAt: Timestamp.now(),
+    });
+
+    // Crea CashMovement DOPO il successo dell'update principale
     let cashMovementId: string | null = null;
     try {
       const paymentDate = dataPagamento ? toRomeDateTime(dataPagamento).toJSDate() : nowRomeDate();
@@ -836,46 +873,20 @@ router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, a
       const cashMovementRef = await db.collection('cashMovements').add(cashMovementData);
       cashMovementId = cashMovementRef.id;
       console.log(`✅ CashMovement creato: ${cashMovementId}`);
+
+      // Collega cashMovementId al pagamento
+      if (cashMovementId) {
+        const finalPayments = updatedPayments.map((p: any) =>
+          p.id === paymentId ? { ...p, cashMovementId } : p
+        );
+        await db.collection('paymentSchedules').doc(scheduleId).update({
+          payments: finalPayments,
+          updatedAt: Timestamp.now(),
+        });
+      }
     } catch (cashError) {
       console.error('❌ Errore creazione CashMovement:', cashError);
     }
-
-    // Update pagamento con tutti i dati in un singolo update atomico
-    const updatedPayments = [...schedule.payments];
-    const payment = updatedPayments[paymentIndex];
-
-    // FIX: Somma cumulativa - non sovrascrivere importoPagato
-    const importoGiaVersato = Number(payment.importoPagato) || 0;
-    const nuovoImportoPagato = importoGiaVersato + Number(importoPagato);
-    payment.importoPagato = Math.round(nuovoImportoPagato * 100) / 100;
-    
-    payment.dataPagamento = Timestamp.fromDate(dataPagamento ? toRomeDateTime(dataPagamento).toJSDate() : nowRomeDate());
-    payment.metodoPagamento = metodoPagamento || 'contante';
-    
-    // FIX: Stato pagamento coerente
-    if (payment.importoPagato >= Number(payment.importo)) {
-      payment.stato = 'pagato';
-    } else if (payment.importoPagato > 0) {
-      payment.stato = 'parziale';
-    } else {
-      payment.stato = 'atteso';
-    }
-    
-    if (note) payment.note = note;
-    if (cashMovementId) payment.cashMovementId = cashMovementId;
-
-    // Ricalcola totali con numeri espliciti
-    const nuovoTotalePagato = updatedPayments.reduce((sum: number, p: any) => sum + (Number(p.importoPagato) || 0), 0);
-    const totaleSchedule = Number(schedule.totale) || 0;
-    const nuovoSaldoResiduo = Math.max(0, totaleSchedule - nuovoTotalePagato);
-
-    // Update Firestore atomico
-    await db.collection('paymentSchedules').doc(scheduleId).update({
-      payments: updatedPayments,
-      totalePagato: nuovoTotalePagato,
-      saldoResiduo: nuovoSaldoResiduo,
-      updatedAt: Timestamp.now(),
-    });
 
     // Timeline event (opzionale)
     try {

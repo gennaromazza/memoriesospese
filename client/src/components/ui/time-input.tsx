@@ -1,12 +1,5 @@
 import * as React from "react";
 import { Clock, X } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./select";
 import { Button } from "./button";
 import { cn } from "../../lib/utils";
 
@@ -33,13 +26,15 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
       return [parts[0] || "", parts[1] || ""];
     }, [value]);
 
-    const handleHoursChange = (newHours: string) => {
-      const newValue = `${newHours}:${minutes || "00"}`;
+    const handleHoursChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newHours = e.target.value;
+      const newValue = newHours ? `${newHours}:${minutes || "00"}` : "";
       onChange?.({ target: { value: newValue } });
     };
 
-    const handleMinutesChange = (newMinutes: string) => {
-      const newValue = `${hours || "00"}:${newMinutes}`;
+    const handleMinutesChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newMinutes = e.target.value;
+      const newValue = newMinutes ? `${hours || "00"}:${newMinutes}` : "";
       onChange?.({ target: { value: newValue } });
     };
 
@@ -48,6 +43,12 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
     };
 
     const hasValue = hours !== "" || minutes !== "";
+
+    const selectClass = cn(
+      "h-8 border-0 bg-transparent px-1 text-sm focus:outline-none focus:ring-0 cursor-pointer appearance-none",
+      "text-center",
+      disabled && "cursor-not-allowed opacity-50"
+    );
 
     return (
       <div
@@ -61,45 +62,39 @@ const TimeInput = React.forwardRef<HTMLDivElement, TimeInputProps>(
         data-testid={dataTestId}
       >
         <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        <Select
+
+        <select
           value={hours}
-          onValueChange={handleHoursChange}
+          onChange={handleHoursChange}
+          onBlur={onBlur}
           disabled={disabled}
+          className={selectClass}
+          style={{ width: "52px" }}
+          aria-label="Ore"
         >
-          <SelectTrigger
-            className="h-8 w-[60px] border-0 bg-transparent px-2 shadow-none focus:ring-0"
-            onBlur={onBlur}
-          >
-            <SelectValue placeholder="--" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[200px]">
-            {HOURS.map((h) => (
-              <SelectItem key={h} value={h}>
-                {h}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-muted-foreground font-medium">:</span>
-        <Select
+          <option value="">--</option>
+          {HOURS.map((h) => (
+            <option key={h} value={h}>{h}</option>
+          ))}
+        </select>
+
+        <span className="text-muted-foreground font-medium select-none">:</span>
+
+        <select
           value={minutes}
-          onValueChange={handleMinutesChange}
+          onChange={handleMinutesChange}
+          onBlur={onBlur}
           disabled={disabled}
+          className={selectClass}
+          style={{ width: "52px" }}
+          aria-label="Minuti"
         >
-          <SelectTrigger
-            className="h-8 w-[60px] border-0 bg-transparent px-2 shadow-none focus:ring-0"
-            onBlur={onBlur}
-          >
-            <SelectValue placeholder="--" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[200px]">
-            {MINUTES.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">--</option>
+          {MINUTES.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+
         {hasValue && !disabled && (
           <Button
             type="button"

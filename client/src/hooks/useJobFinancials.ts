@@ -92,19 +92,19 @@ export function useJobFinancials(job: Job | null | undefined): JobFinancialsData
     return total + scheduleTotalPagato;
   }, 0);
   
-  // Se non ci sono payment schedules o il totale calcolato è 0, usa il fallback da job.financials
-  // Questo supporta i dati legacy importati che hanno totalePagato nel job ma non payment schedules
+  // Se esistono payment schedules usa SEMPRE i loro dati (anche se totalePagato=0 perché non ci sono versamenti ancora)
+  // Fallback a job.financials SOLO se non esistono schedules (job legacy importati)
   const hasPaymentSchedules = paymentSchedules && paymentSchedules.length > 0;
-  const totalePagato = hasPaymentSchedules && schedulesTotalePagato > 0 
-    ? schedulesTotalePagato 
+  const totalePagato = hasPaymentSchedules
+    ? schedulesTotalePagato
     : (job.financials?.totalePagato || 0);
 
   // 3. Totale costi REAL-TIME da array costi
   const totaleCosti = job.costi?.reduce((sum, c) => sum + c.importo, 0) || 0;
 
-  // 4. Calcoli derivati - Usa saldoResiduo da job.financials se disponibile, altrimenti calcola
-  const saldoResiduo = hasPaymentSchedules && schedulesTotalePagato > 0
-    ? totalePreventivato - totalePagato
+  // 4. Calcoli derivati - usa dati schedule se disponibili, altrimenti job.financials
+  const saldoResiduo = hasPaymentSchedules
+    ? Math.max(0, totalePreventivato - totalePagato)
     : (job.financials?.saldoResiduo ?? (totalePreventivato - totalePagato));
   const margine = totalePreventivato - totaleCosti;
 
