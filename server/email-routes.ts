@@ -4106,51 +4106,118 @@ export function createAdminQuoteSignedNotificationHTML(
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
 
   const formatDate = (date: Date) =>
-    date.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
+    date.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
 
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #2e7d32; text-align: center;">🎉 Nuovo Contratto Firmato!</h2>
-      <div style="background: #f1f8e9; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid #2e7d32;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Il cliente <strong>${clienteName}</strong> ha firmato il preventivo per <strong style="color: #2e7d32;">${nomeEvento}</strong>.
-        </p>
-        <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
-          <tr style="border-bottom: 1px solid #c8e6c9;">
-            <td style="padding: 8px 0;">Cliente:</td>
-            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${clienteName}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #c8e6c9;">
-            <td style="padding: 8px 0;">Evento:</td>
-            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${nomeEvento}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #c8e6c9;">
-            <td style="padding: 8px 0;">Tipo preventivo:</td>
-            <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #c8e6c9;">
-            <td style="padding: 8px 0;">Totale:</td>
-            <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 18px; color: #2e7d32;">${formatCurrency(totalAmount)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0;">Data firma:</td>
-            <td style="padding: 8px 0; text-align: right;">${formatDate(signatureDate)}</td>
-          </tr>
-        </table>
-      </div>
+  const monthNames = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  const d = signatureDate;
+  const formattedDay = d.getDate();
+  const formattedMonth = monthNames[d.getMonth()];
+  const formattedYear = d.getFullYear();
+  const formattedTime = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+  return `<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f0ece4;font-family:Georgia,'Times New Roman',serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0ece4;padding:32px 16px;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#faf8f4;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+      <!-- HEADER HERO -->
+      <tr>
+        <td style="background:linear-gradient(135deg,#6b7f6b 0%,#8b9a8b 50%,#7a8f7a 100%);padding:48px 40px 40px;text-align:center;">
+          <div style="font-size:44px;margin-bottom:12px;">✍️</div>
+          <h1 style="margin:0 0 8px;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:Georgia,serif;">Nuovo Contratto Firmato</h1>
+          <p style="margin:0;color:rgba(255,255,255,0.85);font-size:15px;letter-spacing:0.5px;">${formattedDay} ${formattedMonth} ${formattedYear} · ore ${formattedTime}</p>
+        </td>
+      </tr>
+
+      <!-- NOME EVENTO — highlight card -->
+      <tr>
+        <td style="padding:0 40px;">
+          <div style="background:#fff;border-radius:12px;padding:28px 32px;margin-top:-20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);text-align:center;">
+            <p style="margin:0 0 6px;font-size:12px;color:#9a8f84;text-transform:uppercase;letter-spacing:2px;">Evento</p>
+            <h2 style="margin:0;font-size:24px;color:#3d3530;font-family:Georgia,serif;font-weight:700;">${nomeEvento}</h2>
+          </div>
+        </td>
+      </tr>
+
+      <!-- BODY -->
+      <tr>
+        <td style="padding:28px 40px 0;">
+
+          <!-- Intro -->
+          <p style="margin:0 0 28px;font-size:16px;color:#5a4f48;line-height:1.6;font-family:Arial,sans-serif;">
+            <strong style="color:#3d3530;">${clienteName}</strong> ha appena firmato il preventivo.
+            Un nuovo lavoro è entrato ufficialmente nel tuo portfolio. 🎉
+          </p>
+
+          <!-- Stats grid -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+            <tr>
+              <!-- Cliente -->
+              <td width="50%" style="padding-right:8px;vertical-align:top;">
+                <div style="background:#f5f0e8;border-radius:10px;padding:18px 20px;">
+                  <p style="margin:0 0 4px;font-size:11px;color:#9a8f84;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;">Cliente</p>
+                  <p style="margin:0;font-size:16px;color:#3d3530;font-weight:700;font-family:Georgia,serif;">${clienteName}</p>
+                </div>
+              </td>
+              <!-- Tipo -->
+              <td width="50%" style="padding-left:8px;vertical-align:top;">
+                <div style="background:#f5f0e8;border-radius:10px;padding:18px 20px;">
+                  <p style="margin:0 0 4px;font-size:11px;color:#9a8f84;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;">Tipo</p>
+                  <p style="margin:0;font-size:16px;color:#3d3530;font-weight:700;font-family:Georgia,serif;">${quoteType === 'fisso' ? 'Pacchetto fisso' : 'A consumo'}</p>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Importo — grande e centrale -->
+          <div style="background:linear-gradient(135deg,#6b7f6b,#8b9a8b);border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
+            <p style="margin:0 0 6px;font-size:12px;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:2px;font-family:Arial,sans-serif;">Valore contratto</p>
+            <p style="margin:0;font-size:42px;font-weight:700;color:#ffffff;font-family:Georgia,serif;letter-spacing:-1px;">${formatCurrency(totalAmount)}</p>
+          </div>
+
+        </td>
+      </tr>
+
+      <!-- CTA BUTTON -->
       ${quoteUrl && quoteUrl !== '#' ? `
-        <div style="text-align: center; margin: 20px 0;">
-          <a href="${quoteUrl}" style="display: inline-block; background: #2e7d32; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-            Visualizza Preventivo
-          </a>
-        </div>
+      <tr>
+        <td style="padding:0 40px 32px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td align="center">
+                <a href="${quoteUrl}" style="display:inline-block;background:#c4724a;color:#ffffff;padding:16px 48px;border-radius:50px;text-decoration:none;font-size:15px;font-weight:700;letter-spacing:0.5px;font-family:Arial,sans-serif;box-shadow:0 4px 14px rgba(196,114,74,0.35);">
+                  Apri il Lavoro nel CRM →
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
       ` : ''}
-      <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
-        <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
-        <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
-      </div>
-    </div>
-  `;
+
+      <!-- DIVIDER -->
+      <tr>
+        <td style="padding:0 40px;">
+          <div style="height:1px;background:linear-gradient(to right,transparent,#d4ccc4,transparent);"></div>
+        </td>
+      </tr>
+
+      <!-- FOOTER -->
+      <tr>
+        <td style="padding:24px 40px 32px;text-align:center;">
+          <p style="margin:0 0 4px;font-size:16px;font-weight:700;color:#6b7f6b;font-family:Georgia,serif;letter-spacing:0.5px;">${studio.name}</p>
+          <p style="margin:0;font-size:13px;color:#9a8f84;font-family:Arial,sans-serif;">${studio.email}</p>
+        </td>
+      </tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
 }
 
 function createAccontoCancelledEmailHTML(
