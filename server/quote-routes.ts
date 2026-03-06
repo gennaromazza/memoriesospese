@@ -2879,79 +2879,81 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         }
 
         // Email admin con template professionale
-        try {
-          const adminNotifyEmail = "gennaro.mazzacane@gmail.com";
-          const adminEmailHtml = createAdminQuoteSignedNotificationHTML(
-            `${nome} ${cognome}`,
-            (template.type || "fisso") as "fisso" | "variabile",
-            nomeEvento,
-            totalAfterDiscount,
-            nowRomeDate(),
-            `${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}`,
-            studioInfo || undefined
-          );
-          await sendGmailEmail(
-            adminNotifyEmail,
-            `🎉 Preventivo Rapido FIRMATO: ${nomeEvento} - ${nome} ${cognome}`,
-            adminEmailHtml,
-            undefined,
-            {
-              type: "quick_quote_signed_admin",
-              relatedDocId: quoteId,
-              relatedDocType: "quote",
-              clientName: `${nome} ${cognome}`,
-            }
-          );
-          console.log(`✅ Email notifica firma inviata all'admin (${adminNotifyEmail})`);
-        } catch (adminEmailError) {
-          console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+        if (studioInfo?.email) {
+          try {
+            const adminEmailHtml = createAdminQuoteSignedNotificationHTML(
+              `${nome} ${cognome}`,
+              (template.type || "fisso") as "fisso" | "variabile",
+              nomeEvento,
+              totalAfterDiscount,
+              nowRomeDate(),
+              `${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}`,
+              studioInfo || undefined
+            );
+            await sendGmailEmail(
+              studioInfo.email,
+              `🎉 Preventivo Rapido FIRMATO: ${nomeEvento} - ${nome} ${cognome}`,
+              adminEmailHtml,
+              undefined,
+              {
+                type: "quick_quote_signed_admin",
+                relatedDocId: quoteId,
+                relatedDocType: "quote",
+                clientName: `${nome} ${cognome}`,
+              }
+            );
+            console.log(`✅ Email notifica firma inviata all'admin`);
+          } catch (adminEmailError) {
+            console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+          }
         }
       } else {
         // CASO NON FIRMATO: Solo notifica admin
-        try {
-          const adminNotifyEmail = "gennaro.mazzacane@gmail.com";
-          const eventDateFormatted = eventDate
-            ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
-            : "Data non definita";
-          const adminEmailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: #fff8f0; border-left: 4px solid #e65100; padding: 16px; border-radius: 4px; margin-bottom: 24px;">
-                <h2 style="color: #e65100; margin: 0 0 8px;">📋 Nuovo cliente dal form online</h2>
-                <p style="margin: 0; color: #555;">Ha compilato il preventivo rapido "<strong>${template.nome}</strong>" e non ha ancora firmato.</p>
+        if (studioInfo?.email) {
+          try {
+            const eventDateFormatted = eventDate
+              ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+              : "Data non definita";
+            const adminEmailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #fff8f0; border-left: 4px solid #e65100; padding: 16px; border-radius: 4px; margin-bottom: 24px;">
+                  <h2 style="color: #e65100; margin: 0 0 8px;">📋 Nuovo cliente dal form online</h2>
+                  <p style="margin: 0; color: #555;">Ha compilato il preventivo rapido "<strong>${template.nome}</strong>" e non ha ancora firmato.</p>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                  <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; width: 140px; color: #555;">Cliente</td><td style="padding: 10px 12px; font-size: 16px; font-weight: 600;">${nome} ${cognome}</td></tr>
+                  <tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Email</td><td style="padding: 10px 12px;"><a href="mailto:${email}" style="color:#e65100">${email}</a></td></tr>
+                  <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Telefono</td><td style="padding: 10px 12px;">${cellulare || "Non fornito"}</td></tr>
+                  <tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Evento</td><td style="padding: 10px 12px;">${nomeEvento}</td></tr>
+                  <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Data evento</td><td style="padding: 10px 12px;">${eventDateFormatted}</td></tr>
+                  ${eventLocation ? `<tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Location</td><td style="padding: 10px 12px;">${eventLocation}</td></tr>` : ""}
+                  <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Totale stimato</td><td style="padding: 10px 12px; font-size: 16px; font-weight: 700; color: #e65100;">€${totalAfterDiscount.toFixed(2)}</td></tr>
+                </table>
+                ${noteCliente ? `<div style="background:#f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 20px;"><strong>Note cliente:</strong><br>${noteCliente}</div>` : ""}
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}" style="display: inline-block; background: #e65100; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                    Apri il lavoro nel CRM →
+                  </a>
+                </div>
+                <p style="color: #999; font-size: 12px; text-align: center;">Cliente e lavoro già registrati nel database. Il preventivo attende firma.</p>
               </div>
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; width: 140px; color: #555;">Cliente</td><td style="padding: 10px 12px; font-size: 16px; font-weight: 600;">${nome} ${cognome}</td></tr>
-                <tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Email</td><td style="padding: 10px 12px;"><a href="mailto:${email}" style="color:#e65100">${email}</a></td></tr>
-                <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Telefono</td><td style="padding: 10px 12px;">${cellulare || "Non fornito"}</td></tr>
-                <tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Evento</td><td style="padding: 10px 12px;">${nomeEvento}</td></tr>
-                <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Data evento</td><td style="padding: 10px 12px;">${eventDateFormatted}</td></tr>
-                ${eventLocation ? `<tr><td style="padding: 10px 12px; font-weight: bold; color: #555;">Location</td><td style="padding: 10px 12px;">${eventLocation}</td></tr>` : ""}
-                <tr style="background:#f9f9f9"><td style="padding: 10px 12px; font-weight: bold; color: #555;">Totale stimato</td><td style="padding: 10px 12px; font-size: 16px; font-weight: 700; color: #e65100;">€${totalAfterDiscount.toFixed(2)}</td></tr>
-              </table>
-              ${noteCliente ? `<div style="background:#f5f5f5; padding: 12px; border-radius: 4px; margin-bottom: 20px;"><strong>Note cliente:</strong><br>${noteCliente}</div>` : ""}
-              <div style="text-align: center; margin: 28px 0;">
-                <a href="${baseUrl}/admin/dashboard?tab=lavori&job=${jobId}" style="display: inline-block; background: #e65100; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
-                  Apri il lavoro nel CRM →
-                </a>
-              </div>
-              <p style="color: #999; font-size: 12px; text-align: center;">Cliente e lavoro già registrati nel database. Il preventivo attende firma.</p>
-            </div>
-          `;
-          await sendGmailEmail(
-            adminNotifyEmail,
-            `📋 Nuovo cliente online: ${nome} ${cognome} — ${nomeEvento}`,
-            adminEmailHtml,
-            undefined,
-            {
-              type: "quick_quote_created_admin",
-              relatedDocId: quoteId,
-              relatedDocType: "quote",
-              clientName: `${nome} ${cognome}`,
-            }
-          );
-          console.log(`✅ Email notifica admin inviata a ${adminNotifyEmail} per nuovo preventivo rapido`);
-        } catch (adminEmailError) {
-          console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+            `;
+            await sendGmailEmail(
+              studioInfo.email,
+              `📋 Nuovo cliente online: ${nome} ${cognome} — ${nomeEvento}`,
+              adminEmailHtml,
+              undefined,
+              {
+                type: "quick_quote_created_admin",
+                relatedDocId: quoteId,
+                relatedDocType: "quote",
+                clientName: `${nome} ${cognome}`,
+              }
+            );
+            console.log(`✅ Email notifica admin inviata per nuovo preventivo rapido`);
+          } catch (adminEmailError) {
+            console.warn("⚠️ Email notifica admin non inviata:", adminEmailError);
+          }
         }
       }
     } catch (emailError) {
