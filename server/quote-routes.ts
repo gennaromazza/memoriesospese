@@ -2566,6 +2566,34 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     const templateDoc = templatesSnapshot.docs[0];
     const template = templateDoc.data();
 
+    // 0. Salva submission "pending" prima di qualsiasi altra operazione.
+    //    Se il server crasha a metà, il record rimane pending e l'admin può recuperare i dati.
+    let submissionRef: FirebaseFirestore.DocumentReference | null = null;
+    try {
+      submissionRef = await db.collection("quickQuoteSubmissions").add({
+        token,
+        templateId: templateDoc.id,
+        templateName: template.nome || "",
+        rawData: {
+          nome,
+          cognome,
+          email,
+          cellulare: cellulare || "",
+          nomeEvento,
+          eventDate: eventDate || null,
+          eventLocation: eventLocation || "",
+          dataNonDefinita: dataNonDefinita || false,
+          noteCliente: noteCliente || "",
+          selectedProducts: selectedProducts || [],
+          hasSigned: !!(signerName && signerName.trim()),
+        },
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (preErr) {
+      console.warn("⚠️ quickQuoteSubmissions pre-save fallita (non bloccante):", preErr);
+    }
+
     // 1. Cerca cliente esistente per email, altrimenti crea nuovo
     let clienteId: string;
     const existingClientSnapshot = await db
@@ -2943,6 +2971,17 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       console.warn("⚠️ Notifica admin non salvata:", notifError);
     }
 
+    // Segna la submission come "processed"
+    if (submissionRef) {
+      submissionRef.update({
+        status: "processed",
+        processedAt: FieldValue.serverTimestamp(),
+        jobId,
+        clienteId,
+        quoteId,
+      }).catch((e: unknown) => console.warn("⚠️ Update submission processed fallita:", e));
+    }
+
     return res.json({
       success: true,
       data: {
@@ -2955,6 +2994,42 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("❌ Errore activate quick quote:", error);
+
+    // Rete di sicurezza: prova a inviare email di emergenza all'admin con i dati grezzi
+    // così anche se il server è crashato Gennaro riceve i dati del cliente
+    try {
+      const { nome, cognome, email, cellulare, nomeEvento, eventDate, eventLocation, noteCliente } = req.body;
+      if (nome && cognome && email) {
+        const studioEmail = "gennaro.mazzacane@gmail.com";
+        await sendGmailEmail(
+          studioEmail,
+          `⚠️ DATI NON SALVATI - Preventivo Rapido da ${nome} ${cognome}`,
+          `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+              <div style="background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:16px;margin-bottom:20px;">
+                <h2 style="color:#dc2626;margin:0 0 8px">⚠️ Compilazione non salvata</h2>
+                <p style="margin:0;color:#7f1d1d">Un cliente ha compilato il form Preventivo Rapido ma si è verificato un errore nel salvataggio.<br>
+                <strong>I dati sono stati recuperati e sono riportati sotto — inserisci manualmente il lavoro.</strong></p>
+              </div>
+              <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280;width:140px">Nome</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:600">${nome} ${cognome}</td></tr>
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Email</td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${email}</td></tr>
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Telefono</td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${cellulare || "—"}</td></tr>
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Evento</td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${nomeEvento || "—"}</td></tr>
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Data evento</td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${eventDate || "non definita"}</td></tr>
+                <tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Location</td><td style="padding:8px;border-bottom:1px solid #e5e7eb">${eventLocation || "—"}</td></tr>
+                <tr><td style="padding:8px;color:#6b7280">Note</td><td style="padding:8px">${noteCliente || "—"}</td></tr>
+              </table>
+              <p style="margin-top:20px;color:#6b7280;font-size:12px">Errore tecnico: ${error instanceof Error ? error.message : "Errore sconosciuto"}</p>
+            </div>
+          `
+        );
+        console.log(`📧 Email di emergenza inviata per submission fallita di ${nome} ${cognome}`);
+      }
+    } catch (emailErr) {
+      console.error("❌ Anche l'email di emergenza è fallita:", emailErr);
+    }
+
     return res.status(500).json({
       error: "Errore server",
       message: error instanceof Error ? error.message : "Errore sconosciuto",

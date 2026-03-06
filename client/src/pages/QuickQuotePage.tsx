@@ -107,6 +107,9 @@ export default function QuickQuotePage() {
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState('');
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const SESSION_KEY = `qqs_draft_${token}`;
 
   const { data, isLoading, error } = useQuery<{ success: boolean; data: QuickQuoteData }>({
     queryKey: ['/api/quotes/quick', token],
@@ -145,6 +148,33 @@ export default function QuickQuotePage() {
     if (template?.type === 'fisso') {
       setSelectedProducts(template.defaultProducts.map(p => p.productId || p.nome));
     }
+  }, [template]);
+
+  // Ripristina dati da sessionStorage se disponibili (es. dopo un errore di rete)
+  useEffect(() => {
+    if (!template) return;
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.formData) {
+          form.reset({
+            ...draft.formData,
+            eventDate: draft.formData.eventDate ? new Date(draft.formData.eventDate) : undefined,
+          });
+        }
+        if (draft.selectedProducts) setSelectedProducts(draft.selectedProducts);
+        if (draft.acceptedClauses) setAcceptedClauses(draft.acceptedClauses);
+        if (draft.signerName) setSignerName(draft.signerName);
+        toast({
+          title: 'Dati recuperati',
+          description: 'Abbiamo recuperato i dati inseriti in precedenza. Puoi riprovare ad inviare.',
+        });
+      }
+    } catch {
+      // sessionStorage non disponibile o dati corrotti — ignora
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template]);
 
   useEffect(() => {
@@ -197,12 +227,19 @@ export default function QuickQuotePage() {
         }),
       });
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Errore server');
+        let errMsg = 'Errore del server. I tuoi dati sono stati salvati — riprova tra qualche secondo.';
+        try {
+          const err = await response.json();
+          if (err.message) errMsg = err.message;
+        } catch { /* non JSON */ }
+        throw new Error(errMsg);
       }
       return response.json();
     },
     onSuccess: (result) => {
+      // Pulizia draft ora che è andato a buon fine
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignora */ }
+      setSubmitError(null);
       setStep('success');
       toast({
         title: 'Preventivo inviato!',
@@ -212,20 +249,28 @@ export default function QuickQuotePage() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Errore',
-        description: error.message,
-        variant: 'destructive',
-      });
+      setSubmitError(error.message);
     },
   });
 
   const handleFormSubmit = (formData: QuickQuoteFormData) => {
+    // Salva bozza in sessionStorage PRIMA di andare alla preview
+    // così se il server crasha durante l'invio il cliente può riprovare
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        formData: { ...formData, eventDate: formData.eventDate?.toISOString() },
+        selectedProducts,
+        acceptedClauses,
+        signerName,
+      }));
+    } catch { /* sessionStorage non disponibile — continua comunque */ }
+    setSubmitError(null);
     setStep('preview');
   };
 
   const handleConfirm = () => {
     const formData = form.getValues();
+    setSubmitError(null);
     activateMutation.mutate(formData);
   };
 
@@ -820,6 +865,30 @@ export default function QuickQuotePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Errore invio — visibile e con pulsante Riprova */}
+            {submitError && (
+              <div className="rounded-lg border-2 border-red-300 bg-red-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-red-800 mb-1">Invio non riuscito</p>
+                    <p className="text-sm text-red-700 mb-3">
+                      {submitError} I tuoi dati sono al sicuro — puoi riprovare senza reinserire nulla.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="text-white bg-red-600 hover:bg-red-700"
+                      onClick={handleConfirm}
+                      disabled={activateMutation.isPending}
+                    >
+                      {activateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Riprova invio
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
