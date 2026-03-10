@@ -531,6 +531,10 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
 /* Blog Content Styles */
 .blog-content {
   @apply text-gray-800;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .blog-content h1,
@@ -540,14 +544,44 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
 .blog-content h5,
 .blog-content h6 {
   @apply scroll-mt-24;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .blog-content img {
   @apply mx-auto;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
 }
 
+/* Tabelle: scroll orizzontale su mobile invece di tagliare il contenuto */
 .blog-content table {
   @apply shadow-sm;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.blog-content table thead,
+.blog-content table tbody,
+.blog-content table tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* Blocchi di codice con scroll orizzontale */
+.blog-content pre {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+
+.blog-content code {
+  word-break: break-all;
 }
 
 .blog-content iframe,
@@ -561,9 +595,23 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
   @apply my-6;
 }
 
+/* Tutti gli elementi figli non devono uscire dal contenitore */
+.blog-content * {
+  max-width: 100%;
+}
+
 /* Responsive images */
 @media (max-width: 768px) {
   .blog-content img {
     @apply w-full h-auto;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  .blog-content table thead,
+  .blog-content table tbody,
+  .blog-content table tr {
+    display: table;
+    width: 100%;
   }
 }

@@ -230,27 +230,25 @@ export default function BlogPostPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16 sm:h-20">
             <StudioLogo 
-              imgClassName="h-12 w-auto" 
-              textClassName="text-blue-gray font-playfair font-bold text-2xl"
+              imgClassName="h-9 sm:h-12 w-auto" 
+              textClassName="text-blue-gray font-playfair font-bold text-lg sm:text-2xl"
             />
-            <div className="flex gap-2">
+            <div className="flex gap-1 sm:gap-2">
               <Link href="/blog">
-                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  <span className="relative z-10">Tutti gli Articoli</span>
-                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
+                  <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Tutti gli Articoli</span>
                 </Button>
               </Link>
               <Link href="/">
-                <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                  <span className="relative z-10">Home</span>
-                  <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+                <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
+                  <span>Home</span>
                 </Button>
               </Link>
             </div>
@@ -259,22 +257,23 @@ export default function BlogPostPage() {
       </nav>
 
       {/* Article Content */}
-      <article className="max-w-4xl mx-auto px-4 py-12 pt-24">
+      <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-16 min-w-0">
         {post.coverImage && (
-          <div className="mb-12 rounded-lg overflow-hidden shadow-xl">
+          <div className="mb-8 sm:mb-12 rounded-xl overflow-hidden shadow-lg">
             <img 
               src={post.coverImage} 
               alt={post.title}
               className="w-full h-auto object-cover"
+              style={{ maxHeight: '480px', objectFit: 'cover' }}
               data-testid="img-cover"
             />
           </div>
         )}
 
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="mb-6 sm:mb-8 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             {post.category && (
-              <Badge variant="outline" className="text-terracotta border-terracotta" data-testid="badge-category">
+              <Badge variant="outline" className="text-terracotta border-terracotta text-xs" data-testid="badge-category">
                 {post.category}
               </Badge>
             )}
@@ -285,88 +284,91 @@ export default function BlogPostPage() {
             ))}
           </div>
 
-          <h1 className="font-serif text-4xl md:text-5xl text-dark mb-6" data-testid="text-title">
+          <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-dark mb-4 sm:mb-6 leading-tight break-words" data-testid="text-title">
             {post.title}
           </h1>
 
-          <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground mb-8">
-            <span className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              {post.author}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm text-muted-foreground mb-6 sm:mb-8">
+            <span className="flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate max-w-[120px] sm:max-w-none">{post.author}</span>
             </span>
-            <span className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
+            <span className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
               {formatDate(post.publishedAt)}
             </span>
-            <span className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
               {estimateReadTime(post.content)}
             </span>
           </div>
 
           {post.excerpt && (
-            <p className="text-xl text-muted-foreground italic border-l-4 border-terracotta pl-6 mb-8" data-testid="text-excerpt">
+            <p className="text-base sm:text-xl text-muted-foreground italic border-l-4 border-terracotta pl-4 sm:pl-6 mb-6 sm:mb-8 break-words" data-testid="text-excerpt">
               {post.excerpt}
             </p>
           )}
         </div>
 
         <div 
-          className="blog-content prose prose-lg max-w-none
-            prose-headings:font-playfair prose-headings:text-blue-gray
-            prose-h1:text-4xl prose-h1:mb-6 prose-h1:mt-8
-            prose-h2:text-3xl prose-h2:mb-4 prose-h2:mt-6
-            prose-h3:text-2xl prose-h3:mb-3 prose-h3:mt-5
-            prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4
-            prose-a:text-sage prose-a:font-medium prose-a:no-underline hover:prose-a:underline hover:prose-a:text-dark-sage
+          className="blog-content prose prose-base sm:prose-lg max-w-none
+            prose-headings:font-playfair prose-headings:text-blue-gray prose-headings:break-words
+            prose-h1:text-2xl sm:prose-h1:text-4xl prose-h1:mb-4 prose-h1:mt-6
+            prose-h2:text-xl sm:prose-h2:text-3xl prose-h2:mb-3 prose-h2:mt-5
+            prose-h3:text-lg sm:prose-h3:text-2xl prose-h3:mb-3 prose-h3:mt-4
+            prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-p:break-words
+            prose-a:text-sage prose-a:font-medium prose-a:no-underline hover:prose-a:underline hover:prose-a:text-dark-sage prose-a:break-all
             prose-strong:text-blue-gray prose-strong:font-semibold
             prose-em:text-gray-600 prose-em:italic
-            prose-blockquote:border-l-4 prose-blockquote:border-terracotta prose-blockquote:pl-6 prose-blockquote:py-2 prose-blockquote:italic prose-blockquote:text-gray-600
-            prose-code:bg-beige prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono
-            prose-pre:bg-blue-gray prose-pre:text-white prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto
-            prose-img:rounded-lg prose-img:shadow-lg prose-img:w-full prose-img:h-auto prose-img:my-6
-            prose-figure:my-6
-            prose-figcaption:text-center prose-figcaption:text-sm prose-figcaption:text-gray-500 prose-figcaption:mt-2
-            prose-ul:list-disc prose-ul:ml-6 prose-ul:mb-4
-            prose-ol:list-decimal prose-ol:ml-6 prose-ol:mb-4
-            prose-li:mb-2
-            prose-table:w-full prose-table:border-collapse prose-table:my-6
-            prose-th:bg-beige prose-th:p-3 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-gray-300
-            prose-td:p-3 prose-td:border prose-td:border-gray-300
-            prose-hr:border-sage/30 prose-hr:my-8"
+            prose-blockquote:border-l-4 prose-blockquote:border-terracotta prose-blockquote:pl-4 sm:prose-blockquote:pl-6 prose-blockquote:py-2 prose-blockquote:italic prose-blockquote:text-gray-600
+            prose-code:bg-beige prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs sm:prose-code:text-sm prose-code:font-mono prose-code:break-all
+            prose-pre:bg-blue-gray prose-pre:text-white prose-pre:p-3 sm:prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-pre:text-sm
+            prose-img:rounded-lg prose-img:shadow-md prose-img:w-full prose-img:h-auto prose-img:my-4 sm:prose-img:my-6
+            prose-figure:my-4 sm:prose-figure:my-6
+            prose-figcaption:text-center prose-figcaption:text-xs sm:prose-figcaption:text-sm prose-figcaption:text-gray-500 prose-figcaption:mt-2
+            prose-ul:list-disc prose-ul:ml-4 sm:prose-ul:ml-6 prose-ul:mb-4
+            prose-ol:list-decimal prose-ol:ml-4 sm:prose-ol:ml-6 prose-ol:mb-4
+            prose-li:mb-1 sm:prose-li:mb-2
+            prose-table:border-collapse prose-table:my-4 sm:prose-table:my-6
+            prose-th:bg-beige prose-th:p-2 sm:prose-th:p-3 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-gray-300 prose-th:text-sm
+            prose-td:p-2 sm:prose-td:p-3 prose-td:border prose-td:border-gray-300 prose-td:text-sm
+            prose-hr:border-sage/30 prose-hr:my-6 sm:prose-hr:my-8"
           dangerouslySetInnerHTML={{ __html: post.content }}
           data-testid="content-html"
         />
 
         {/* Condivisione Social */}
-        <div className="mt-12 pt-8 border-t border-gray-200">
-          <h3 className="text-xl font-semibold mb-4">Condividi questo articolo</h3>
-          <div className="flex gap-3">
+        <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-200">
+          <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+            <Share2 className="h-5 w-5 text-sage" />
+            Condividi questo articolo
+          </h3>
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => shareOnSocial('facebook')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <Facebook className="h-4 w-4" />
+              <Facebook className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Facebook
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => shareOnSocial('twitter')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <Twitter className="h-4 w-4" />
+              <Twitter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Twitter
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => shareOnSocial('linkedin')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-xs sm:text-sm"
             >
-              <Linkedin className="h-4 w-4" />
+              <Linkedin className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               LinkedIn
             </Button>
           </div>
@@ -374,9 +376,9 @@ export default function BlogPostPage() {
 
         {/* Articoli Correlati */}
         {relatedPosts.length > 0 && (
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <h3 className="text-2xl font-semibold mb-6">Articoli Correlati</h3>
-            <div className="grid md:grid-cols-3 gap-6">
+          <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-200">
+            <h3 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Articoli Correlati</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
               {relatedPosts.map(relatedPost => (
                 <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`}>
                   <div className="group cursor-pointer">
@@ -384,13 +386,13 @@ export default function BlogPostPage() {
                       <img
                         src={relatedPost.coverImage}
                         alt={relatedPost.title}
-                        className="w-full h-48 object-cover rounded-lg mb-3 group-hover:opacity-90 transition"
+                        className="w-full h-40 sm:h-48 object-cover rounded-lg mb-3 group-hover:opacity-90 transition"
                       />
                     )}
-                    <h4 className="font-semibold text-lg group-hover:text-sage transition">
+                    <h4 className="font-semibold text-base sm:text-lg group-hover:text-sage transition break-words">
                       {relatedPost.title}
                     </h4>
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                    <p className="text-xs sm:text-sm text-gray-600 mt-2 line-clamp-2">
                       {relatedPost.excerpt}
                     </p>
                   </div>
