@@ -1,0 +1,268 @@
+Agisci come un esperto di SEO tecnico, Information Retrieval, e AI Search Optimization (AISO / LLM SEO).
+
+Devi analizzare un'intera piattaforma web composta da:
+- sito pubblico
+- pagine servizi
+- articoli blog
+- pagine di contatto
+- contenuti editoriali
+- struttura React + Firebase
+
+L'obiettivo NON è solo migliorare il SEO classico per Google, ma rendere il sito facilmente comprensibile e citabile anche da sistemi di ricerca basati su intelligenza artificiale come:
+
+- ChatGPT
+- Gemini
+- Perplexity
+- Claude
+- Copilot
+- Bing AI
+- Google SGE / AI Overviews
+
+Quindi devi analizzare il sito come se fosse una fonte informativa che deve essere:
+
+- facilmente leggibile da modelli linguistici
+- semanticamente chiara
+- autorevole
+- citabile come fonte nelle risposte AI.
+
+Non devi limitarti al SEO classico.
+
+---
+
+# 1 ANALISI ARCHITETTURA DEL SITO
+
+Analizza:
+
+- struttura URL
+- gerarchia pagine
+- collegamenti interni
+- struttura del blog
+- profondità dei contenuti
+- coerenza delle categorie
+
+Valuta se il sito è facilmente navigabile e comprensibile da crawler e LLM.
+
+Suggerisci miglioramenti.
+
+---
+
+# 2 ANALISI SEO TECNICO
+
+Verifica:
+
+- meta title
+- meta description
+- canonical
+- robots
+- sitemap
+- hreflang
+- structured data
+- schema.org
+
+Analizza se le pagine hanno:
+
+- titolo semantico chiaro
+- descrizioni informative
+- contenuti indicizzabili
+- struttura heading corretta (H1 H2 H3).
+
+---
+
+# 3 OTTIMIZZAZIONE PER AI SEARCH
+
+Analizza se i contenuti sono ottimizzati per essere compresi dalle AI.
+
+Verifica:
+
+- chiarezza delle definizioni
+- presenza di contenuti informativi
+- paragrafi auto-contenuti
+- spiegazioni chiare
+- linguaggio naturale
+- contenuti citabili
+
+Suggerisci come rendere le pagine più facilmente utilizzabili dalle AI nelle risposte.
+
+---
+
+# 4 ANALISI BLOG
+
+Analizza:
+
+- qualità articoli
+- struttura contenuti
+- lunghezza media
+- presenza di guide
+- presenza di contenuti evergreen
+
+Valuta se gli articoli sono strutturati per essere utilizzati come fonte nelle risposte AI.
+
+Suggerisci miglioramenti come:
+
+- sezioni FAQ
+- paragrafi definizione
+- esempi pratici
+- tabelle informative
+- contenuti strutturati.
+
+---
+
+# 5 STRUCTURED DATA PER AI
+
+Verifica se il sito utilizza correttamente:
+
+- Article
+- BlogPosting
+- Organization
+- Person
+- LocalBusiness
+- FAQPage
+- HowTo
+- BreadcrumbList
+
+Suggerisci quali schema aggiungere per migliorare:
+
+- comprensione da parte dei motori
+- citazioni nelle AI
+- rich results.
+
+---
+
+# 6 AUTHOR AUTHORITY
+
+Analizza se il sito comunica chiaramente:
+
+- chi è l'autore
+- competenza dell'autore
+- esperienza professionale
+- contesto locale
+
+Suggerisci come migliorare l'autorevolezza secondo i principi:
+
+- E-E-A-T (Experience, Expertise, Authoritativeness, Trust).
+
+---
+
+# 7 OTTIMIZZAZIONE PER QUERY CONVERSAZIONALI
+
+Le AI rispondono a domande naturali.
+
+Analizza se il sito risponde bene a domande come:
+
+- "quanto costa un fotografo di matrimonio?"
+- "quando prenotare un fotografo per il matrimonio?"
+- "come scegliere il fotografo di matrimonio?"
+- "quanto dura un servizio fotografico matrimonio?"
+
+Suggerisci contenuti che intercettano queste ricerche conversazionali.
+
+---
+
+# 8 ANALISI SEMANTICA DEI CONTENUTI
+
+Verifica:
+
+- varianti keyword
+- sinonimi
+- contesto semantico
+- cluster tematici
+
+Suggerisci:
+
+- topic cluster
+- pillar pages
+- collegamenti tra articoli.
+
+---
+
+# 9 ANALISI PERFORMANCE AI
+
+Valuta se il sito è facilmente leggibile da LLM:
+
+- HTML pulito
+- markup chiaro
+- contenuti non nascosti
+- testi non generati da JavaScript troppo tardi.
+
+Suggerisci miglioramenti.
+
+---
+
+# 10 ANALISI CONTENUTI CITABILI
+
+Le AI preferiscono citare contenuti che hanno:
+
+- spiegazioni chiare
+- dati concreti
+- esempi
+- definizioni.
+
+Analizza se gli articoli hanno queste caratteristiche.
+
+---
+
+# 11 ANALISI CONTENUTI LOCAL SEO
+
+Dato che il sito riguarda servizi fotografici locali, analizza:
+
+- presenza città
+- presenza zone servite
+- contenuti geolocalizzati
+- citazioni locali.
+
+Suggerisci miglioramenti per essere citato anche nelle AI per ricerche locali.
+
+---
+
+# 12 ANALISI COMPETITIVA
+
+Simula una ricerca AI per query come:
+
+- fotografo matrimonio Napoli
+- fotografo matrimonio Caserta
+- quanto costa un fotografo matrimonio
+
+Valuta se il sito ha contenuti in grado di essere citati.
+
+---
+
+# 13 RISULTATO ATTESO
+
+L'output deve essere diviso in sezioni:
+
+SEZIONE A  
+Analisi generale del sito.
+
+SEZIONE B  
+Problemi SEO tecnici.
+
+SEZIONE C  
+Problemi per AI Search.
+
+SEZIONE D  
+Miglioramenti prioritari.
+
+SEZIONE E  
+Strategia di contenuto per essere citati dalle AI.
+
+SEZIONE F  
+Strategia blog.
+
+SEZIONE G  
+Schema.org consigliati.
+
+SEZIONE H  
+Esempi concreti di miglioramento delle pagine.
+
+---
+
+# IMPORTANTE
+
+Non limitarti al SEO classico.
+
+Ottimizza il sito affinché:
+
+- venga citato nelle risposte AI
+- venga considerato fonte affidabile
+- abbia contenuti semantici comprensibili
+- sia autorevole per il suo settore.

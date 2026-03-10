@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin, AlertCircle } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
 import StudioLogo from "@/components/StudioLogo";
@@ -16,6 +16,7 @@ export default function BlogListPage() {
   const { studioSettings } = useStudio();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(9);
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,7 +26,7 @@ export default function BlogListPage() {
   useSEO({
     title: "Blog | Consigli Matrimonio e Fotografia | Image Studio",
     description: "Il blog di Image Studio: consigli per il matrimonio, storie di coppie, tendenze fotografia, guide per sposi a Napoli e Caserta.",
-    canonical: "/blog",
+    canonical: `${window.location.origin}/blog`,
     keywords: "blog matrimonio, consigli sposi, fotografia matrimonio, storie matrimoni campania",
   });
 
@@ -35,24 +36,27 @@ export default function BlogListPage() {
 
   const loadPosts = async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const postsRef = collection(db, 'blogPosts');
+      // publishedAt != null è ridondante: se status='published' il modello garantisce publishedAt.
+      // Rimuoverlo semplifica l'indice composito richiesto da Firestore.
       const q = query(
         postsRef,
         where('status', '==', BlogPostStatus.PUBLISHED),
-        where('publishedAt', '!=', null),
         orderBy('publishedAt', 'desc')
       );
       const snapshot = await getDocs(q);
 
-      const loadedPosts = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const loadedPosts = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
       })) as BlogPost[];
 
       setPosts(loadedPosts);
     } catch (error) {
       console.error('Errore caricamento blog:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -62,11 +66,12 @@ export default function BlogListPage() {
   const allCategories = ['all', ...new Set(posts.map(p => p.category).filter(Boolean))];
   const allTags = ['all', ...new Set(posts.flatMap(p => p.tags || []))];
 
-  // Filtra posts
+  // Filtra posts — guard su title/excerpt per documenti legacy o importati con campi mancanti
   const filteredPosts = posts.filter(post => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch = searchQuery === '' || 
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+      (post.title || '').toLowerCase().includes(q) ||
+      (post.excerpt || '').toLowerCase().includes(q);
     
     const matchesCategory = selectedCategory === 'all' || post.category === selectedCategory;
     const matchesTag = selectedTag === 'all' || post.tags?.includes(selectedTag);
@@ -85,32 +90,55 @@ export default function BlogListPage() {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedTag]);
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp || !timestamp.seconds) return '';
+  const formatDate = (timestamp: any): string => {
+    if (!timestamp) return '';
     try {
-      const date = new Date(timestamp.seconds * 1000);
-      return date.toLocaleDateString('it-IT', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    } catch (e) {
+      let date: Date;
+      if (timestamp.seconds != null) {
+        date = new Date(timestamp.seconds * 1000);
+      } else if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        date = new Date(timestamp);
+      } else {
+        return '';
+      }
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
       return '';
     }
   };
 
-  const estimateReadTime = (content: string) => {
-    if (!content) return '0 min di lettura';
-    const wordsPerMinute = 200;
-    const words = content.split(/\s+/).length;
-    const minutes = Math.ceil(words / wordsPerMinute);
-    return `${minutes} min di lettura`;
+  // Stima tempo di lettura su testo pulito (HTML strippato).
+  // Per post grandi (content='', contentUrl set) non è possibile calcolare il tempo
+  // senza scaricare il file: in quel caso mostriamo un placeholder.
+  const estimateReadTime = (post: BlogPost): string => {
+    const content = post.content || '';
+    if (!content && post.contentUrl) return 'lettura lunga';
+    if (!content) return '0 min';
+    const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = plainText.split(' ').filter(Boolean).length;
+    return `${Math.ceil(words / 200)} min`;
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6] flex items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-sage" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6] flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <AlertCircle className="h-12 w-12 text-terracotta" />
+        <h2 className="text-xl font-semibold text-blue-gray">Impossibile caricare gli articoli</h2>
+        <p className="text-gray-500">Verifica la connessione e riprova.</p>
+        <Button onClick={loadPosts} className="bg-sage hover:bg-dark-sage text-white">
+          Riprova
+        </Button>
       </div>
     );
   }
@@ -268,7 +296,7 @@ export default function BlogListPage() {
                         </span>
                         <span className="flex items-center gap-1 text-sage">
                           <Clock className="h-4 w-4" />
-                          {estimateReadTime(post.content)}
+                          {estimateReadTime(post)}
                         </span>
                       </CardDescription>
                     </CardHeader>
