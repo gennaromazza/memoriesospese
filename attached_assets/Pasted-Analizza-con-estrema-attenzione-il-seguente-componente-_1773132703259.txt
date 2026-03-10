@@ -1,0 +1,155 @@
+Analizza con estrema attenzione il seguente componente React/TypeScript che gestisce la pagina di dettaglio di un articolo blog.
+
+NON modificare subito il codice in automatico.
+Prima fai una revisione tecnica approfondita, punto per punto, verificando se ciascuna osservazione qui sotto è corretta, parzialmente corretta o da rivedere, spiegando:
+1. perché il punto è reale oppure no,
+2. che impatto ha,
+3. quanto è urgente,
+4. qual è la soluzione migliore,
+5. quali eventuali effetti collaterali o compromessi comporta.
+
+Voglio un’analisi accurata, non superficiale, e solo dopo l’analisi dovrai proporre le modifiche.
+
+Ecco i punti da verificare:
+
+1) Query Firestore per articoli correlati: possibile errore logico sul campo id
+Nel codice viene usata una query simile a:
+where('id', '!=', currentPost.id)
+Bisogna verificare se "id" esiste davvero come campo salvato nei documenti Firestore oppure se viene creato solo lato frontend usando doc.id.
+Se "id" non è un campo presente nel database, questa query è concettualmente sbagliata o comunque fragile.
+Analizza:
+- se la query è valida,
+- se può dare risultati inattesi,
+- se conviene filtrare lato client con doc.id !== currentPost.id,
+- oppure se conviene salvare davvero id nei documenti.
+
+2) Uso di dangerouslySetInnerHTML: possibile rischio XSS
+Il contenuto HTML dell’articolo viene renderizzato con dangerouslySetInnerHTML.
+Verifica il rischio sicurezza nel caso in cui il contenuto provenga da editor HTML, Firebase Storage o input amministrativi.
+Analizza:
+- quanto è concreto il rischio XSS in questo scenario,
+- se sia opportuno usare una sanitizzazione preventiva,
+- se DOMPurify sia la scelta giusta,
+- dove conviene sanitizzare: prima del salvataggio, al recupero, o immediatamente prima del render.
+
+3) Calcolo del tempo di lettura: possibile conteggio errato
+Il tempo di lettura sembra essere calcolato facendo split del contenuto, ma il contenuto è HTML.
+Questo può far contare anche tag HTML e markup.
+Analizza:
+- se il calcolo attuale è impreciso,
+- se conviene rimuovere prima i tag HTML,
+- quale approccio è più robusto per ottenere una stima affidabile del tempo di lettura.
+
+4) Possibile race condition o setState su componente smontato
+La funzione loadPost è asincrona e viene richiamata dentro useEffect al cambio dello slug.
+Verifica se esiste il rischio di:
+- race condition,
+- aggiornamento di stato dopo un cambio rapido di rotta,
+- setState su componente smontato,
+- problemi nel fetch di contentUrl.
+Analizza se sia meglio usare:
+- AbortController,
+- flag isMounted,
+- cleanup dell’effetto,
+- oppure una diversa strutturazione del caricamento.
+
+5) formatDate troppo rigida
+La funzione formatDate sembra gestire solo timestamp con proprietà seconds, tipici di Firestore.
+Verifica se la funzione sia troppo fragile nel caso arrivino:
+- Date native,
+- stringhe ISO,
+- timestamp serializzati in altro formato,
+- dati futuri con struttura diversa.
+Analizza se convenga renderla più tollerante e riutilizzabile.
+
+6) SEO: canonical probabilmente meglio assoluto
+Il canonical viene costruito in forma relativa, ad esempio /blog/slug.
+Analizza:
+- se questo sia sufficiente oppure no,
+- se sia preferibile un URL assoluto completo,
+- se lo stesso principio debba essere applicato anche ai dati schema.org,
+- se usare window.location.href sia corretto o se ci siano casi in cui è meglio un URL canonico esplicito.
+
+7) Schema.org: dateModified uguale a publishedAt
+Nel JSON-LD il campo dateModified sembra valorizzato usando la stessa data di pubblicazione.
+Verifica se sia semanticamente scorretto.
+Analizza:
+- se sia meglio omettere dateModified quando non esiste un updatedAt reale,
+- oppure aggiungere davvero updatedAt nel modello dati,
+- oppure lasciare publishedAt anche in dateModified come fallback.
+
+8) Import inutilizzati
+Verifica se ci siano import non usati, ad esempio Input.
+Analizza:
+- se ci sono altri import inutilizzati,
+- se va fatto cleanup generale,
+- se ci sono anche dipendenze dichiarate ma di fatto superflue.
+
+9) Scalabilità della logica related posts
+Attualmente la logica sembra:
+- caricare i post pubblicati,
+- filtrare lato client per categoria o tag,
+- prendere i primi 3.
+Analizza:
+- se questa soluzione è accettabile con pochi articoli,
+- se diventa inefficiente con molti post,
+- se conviene fare query più mirate, ad esempio per categoria,
+- se i tag richiedano una strategia differente,
+- quale compromesso tra semplicità e performance conviene adottare.
+
+10) Fallback autore
+Nel render viene mostrato post.author, ma se manca il campo l’interfaccia può restare vuota.
+Analizza:
+- se conviene usare sempre un fallback,
+- se il fallback debba essere frontend-only oppure garantito a livello dati,
+- se sia meglio gestirlo nel mapping del documento o direttamente nel render.
+
+11) Ottimizzazione immagini
+Verifica le immagini della cover e degli articoli correlati.
+Analizza:
+- se conviene aggiungere loading="lazy",
+- decoding="async",
+- fallback immagine rotta,
+- gestione dimensioni/layout shift,
+- eventuale ottimizzazione SEO/accessibilità/performance.
+
+12) Social share: label Twitter / X
+Analizza se la condivisione social sia ancora coerente lato UX e naming, visto che il link è quello classico di Twitter/X.
+Non è prioritario, ma valuta se sia meglio aggiornare label e presentazione.
+
+13) Ordine di priorità degli interventi
+Dopo aver analizzato tutti i punti sopra, crea una classifica finale degli interventi in ordine di priorità distinguendo:
+- critici,
+- importanti,
+- migliorativi.
+
+14) Output richiesto
+Voglio che il tuo output sia diviso in questa struttura:
+
+SEZIONE A — Analisi tecnica dettagliata punto per punto
+Per ogni punto:
+- Validità osservazione: corretta / parzialmente corretta / non rilevante
+- Motivo
+- Impatto
+- Priorità
+- Soluzione consigliata
+- Eventuali note o tradeoff
+
+SEZIONE B — Problemi realmente da correggere subito
+Elenco sintetico dei problemi che meritano intervento immediato.
+
+SEZIONE C — Refactor consigliati ma non urgenti
+Elenco dei miglioramenti utili ma non bloccanti.
+
+SEZIONE D — Piano di modifica
+Prima di riscrivere il codice, proponi un piano di intervento ordinato e prudente, spiegando in che sequenza conviene modificare il componente.
+
+SEZIONE E — Solo dopo l’analisi
+Solo dopo aver completato tutta l’analisi, proponi una versione migliorata del componente pronta da incollare, mantenendo inalterato il comportamento funzionale dove possibile, ma correggendo i problemi reali emersi.
+
+Importante:
+- non fare supposizioni frettolose,
+- se un punto dipende da come è strutturato davvero Firestore o BlogPost, dichiaralo chiaramente,
+- sii conservativo prima di cambiare la logica,
+- evita refactor inutili,
+- mantieni il codice leggibile e production-ready.
