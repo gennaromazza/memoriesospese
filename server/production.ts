@@ -7,6 +7,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createSeoMiddleware } from './seo-prerender';
+import { generateDynamicSitemap } from './sitemap-generator';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,18 @@ const buildSubfolder = basePath !== '/'
 const buildPath = path.join(__dirname, '../dist', buildSubfolder);
 
 app.use(createSeoMiddleware());
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const sitemap = await generateDynamicSitemap();
+    res.header('Content-Type', 'application/xml; charset=utf-8');
+    res.header('Cache-Control', 'public, max-age=3600');
+    res.send(sitemap);
+  } catch (error) {
+    console.error('Errore generazione sitemap:', error);
+    res.status(500).send('Errore generazione sitemap');
+  }
+});
 
 app.use(express.static(buildPath));
 
