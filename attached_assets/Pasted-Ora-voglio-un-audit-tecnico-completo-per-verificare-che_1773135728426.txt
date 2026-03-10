@@ -1,0 +1,179 @@
+Ora voglio un audit tecnico completo per verificare che tutte le modifiche SEO e AI discoverability siano davvero attive nel sistema.
+
+Non voglio una descrizione teorica: voglio verifiche concrete sul codice e sull'output HTML generato dal prerender.
+
+Dividi l'audit in queste sezioni.
+
+---
+
+SEZIONE 1 — PRERENDER BLOG PAGE
+
+Verifica la route `/blog` servita dal prerender.
+
+Controlla:
+
+- se viene realmente eseguita la query Firestore per gli ultimi post
+- quanti articoli vengono inclusi
+- se ogni articolo include:
+  - titolo
+  - excerpt
+  - data
+  - link canonico `/blog/slug`
+
+Mostrami l'HTML finale che un crawler riceve (bodyContent).
+
+Deve contenere realmente la lista dei post.
+
+---
+
+SEZIONE 2 — PRERENDER BLOG POST
+
+Prendi un esempio reale di post e verifica cosa vede un crawler.
+
+Controlla nel sorgente HTML:
+
+META TAG
+
+- title
+- description
+- canonical
+- og:title
+- og:description
+- og:image
+- twitter:image
+
+Verifica che `og:image` usi realmente `post.coverImage`.
+
+---
+
+SEZIONE 3 — STRUCTURED DATA
+
+Controlla il `<head>` della pagina prerenderizzata.
+
+Devono esistere:
+
+1️⃣ BlogPosting JSON-LD
+
+Verifica i campi:
+
+- @type = BlogPosting
+- headline
+- image
+- author
+- publisher
+- datePublished
+- dateModified
+- articleSection
+- keywords
+- mainEntityOfPage
+
+2️⃣ BreadcrumbList JSON-LD
+
+Verifica la struttura:
+
+Home → Blog → Post
+
+Mostrami il JSON-LD effettivamente generato.
+
+---
+
+SEZIONE 4 — POST CON contentUrl
+
+Trova un post che usa `contentUrl`.
+
+Verifica:
+
+- cosa riceve un crawler nel body
+- se il fallback testuale è presente
+- quanto contenuto testuale viene restituito
+
+Mostrami l'HTML del fallback.
+
+---
+
+SEZIONE 5 — FAQ STRUCTURED DATA
+
+Verifica il JSON-LD FAQPage nell'homepage.
+
+Controlla che contenga le nuove FAQ:
+
+- quanto costa fotografo matrimonio
+- quando prenotare fotografo
+- come scegliere fotografo
+- quanto dura servizio
+- consegna foto matrimonio
+
+Mostrami il JSON-LD completo.
+
+---
+
+SEZIONE 6 — OG IMAGE TEST
+
+Prendi due post:
+
+1️⃣ uno con coverImage
+2️⃣ uno senza coverImage
+
+Verifica che:
+
+- il primo usi la cover reale
+- il secondo usi il fallback OG_IMAGE
+
+Mostrami i meta tag generati.
+
+---
+
+SEZIONE 7 — llms.txt
+
+Controlla:
+
+- `/llms.txt`
+- `/llms-full.txt`
+
+Verifica che:
+
+- siano accessibili
+- contengano le nuove sezioni Q&A
+- contengano pricing e processo di lavoro.
+
+Mostrami i primi 30-40 righe.
+
+---
+
+SEZIONE 8 — robots.txt
+
+Verifica:
+
+- accessibilità
+- presenza sitemap
+- eventuali regole per AI bots.
+
+Mostrami il contenuto.
+
+---
+
+SEZIONE 9 — SITEMAP
+
+Controlla la sitemap generata.
+
+Verifica che includa:
+
+- homepage
+- blog
+- tutti gli slug dei post
+
+Mostrami alcuni URL generati.
+
+---
+
+SEZIONE 10 — RISULTATO FINALE
+
+Per ogni area dammi una valutazione:
+
+- OK
+- Parzialmente OK
+- Problema rilevato
+
+E crea una tabella finale:
+
+Area | Stato | Problema | Priorità
