@@ -48,10 +48,22 @@ export default function BlogPostPage() {
         setPost(null);
       } else {
         const doc = snapshot.docs[0];
-        const currentPost = {
+        let currentPost = {
           id: doc.id,
           ...doc.data()
         } as BlogPost;
+
+        // Se il contenuto è su Firebase Storage, scaricalo
+        if (currentPost.contentUrl && !currentPost.content) {
+          try {
+            const res = await fetch(currentPost.contentUrl);
+            const content = await res.text();
+            currentPost = { ...currentPost, content };
+          } catch (e) {
+            console.error('Errore caricamento contenuto da Storage:', e);
+          }
+        }
+
         setPost(currentPost);
 
         // Carica articoli correlati (stessa categoria o tag)

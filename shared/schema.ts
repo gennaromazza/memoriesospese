@@ -887,7 +887,8 @@ export interface BlogPost {
   title: string;
   slug: string; // URL-friendly version (es. "sposarsi-costiera-amalfitana")
   excerpt: string; // Short description for preview/SEO
-  content: string; // Full HTML content
+  content: string; // Full HTML content (empty string if stored in contentUrl)
+  contentUrl?: string; // Firebase Storage URL for large posts (>800KB)
   coverImage?: string; // Featured image URL
   status: BlogPostStatus;
   category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)

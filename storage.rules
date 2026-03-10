@@ -70,6 +70,12 @@ service firebase.storage {
       allow write: if isAdmin();
     }
     
+    // Blog content - large HTML posts stored externally
+    match /blog-content/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
     // Temporary uploads cleanup
     match /temp/{allPaths=**} {
       allow read, write: if isSignedIn() && 

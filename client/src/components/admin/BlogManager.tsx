@@ -3,7 +3,8 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy,
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -128,14 +129,24 @@ export default function BlogManager() {
     setEditingPost(null);
   };
 
-  const openDialog = (post?: BlogPost) => {
+  const openDialog = async (post?: BlogPost) => {
     if (post) {
       setEditingPost(post);
+      let content = post.content;
+      // Se il contenuto è su Storage, scaricalo prima di aprire l'editor
+      if (post.contentUrl && !content) {
+        try {
+          const res = await fetch(post.contentUrl);
+          content = await res.text();
+        } catch (e) {
+          console.error('Errore caricamento contenuto da Storage:', e);
+        }
+      }
       setFormData({
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt,
-        content: post.content,
+        content,
         coverImage: post.coverImage || '',
         status: post.status,
         category: post.category || '',
@@ -303,6 +314,23 @@ export default function BlogManager() {
         ...validationResult.data,
         updatedAt: Timestamp.now()
       };
+
+      // Se il contenuto supera 800KB, salvalo su Firebase Storage
+      const CONTENT_SIZE_LIMIT = 800000;
+      const contentBytes = new Blob([formData.content]).size;
+      if (contentBytes > CONTENT_SIZE_LIMIT) {
+        const postId = editingPost?.id || `new-${Date.now()}`;
+        const storageRef = ref(storage, `blog-content/${postId}.html`);
+        await uploadString(storageRef, formData.content, 'raw', { contentType: 'text/html; charset=utf-8' });
+        const downloadUrl = await getDownloadURL(storageRef);
+        postData.contentUrl = downloadUrl;
+        postData.content = '';
+      } else {
+        // Se esisteva un contentUrl (post precedentemente grande ora ridotto), rimuovilo
+        if (editingPost && (editingPost as any).contentUrl) {
+          postData.contentUrl = deleteField();
+        }
+      }
 
       if (editingPost) {
         // Update existing post
