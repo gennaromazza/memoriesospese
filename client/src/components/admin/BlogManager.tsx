@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
 import { db, storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadString, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,18 +17,19 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, CheckSquare, Trash, Upload, ImagePlus } from 'lucide-react';
-import { BlogPost, BlogPostStatus, insertBlogPostSchema, InsertBlogPost } from '@shared/schema';
+import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus } from 'lucide-react';
+import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { compressImage } from '@/lib/imageCompression';
 
-// Helper function to estimate reading time
+const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
+
+// Stima tempo di lettura su testo pulito (HTML strippato)
 const estimateReadTime = (content: string): number => {
-  const wordsPerMinute = 200;
-  const words = content.trim().split(/\s+/).length;
-  return Math.ceil(words / wordsPerMinute);
+  if (!content) return 0;
+  const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = plainText.split(' ').filter(Boolean).length;
+  return Math.ceil(words / 200);
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,6 +66,8 @@ export default function BlogManager() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [uploadingCover, setUploadingCover] = useState(false);
+  // Counter per gestire race condition in openDialog (fetch asincrono da Storage)
+  const openDialogCallRef = useRef(0);
   const { toast } = useToast();
 
   // Form state
@@ -92,12 +95,13 @@ export default function BlogManager() {
   };
 
   const loadPosts = async () => {
+    setLoading(true);
     try {
       const q = query(collection(db, 'blogPosts'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const data = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
       })) as BlogPost[];
       setPosts(data);
     } catch (error) {
@@ -130,28 +134,37 @@ export default function BlogManager() {
   };
 
   const openDialog = async (post?: BlogPost) => {
+    // Incrementa il contatore ad ogni chiamata per invalidare fetch precedenti (race condition)
+    const callId = ++openDialogCallRef.current;
+
     if (post) {
       setEditingPost(post);
-      let content = post.content;
+      let content = post.content || '';
+
       // Se il contenuto è su Storage, scaricalo prima di aprire l'editor
       if (post.contentUrl && !content) {
         try {
           const res = await fetch(post.contentUrl);
-          content = await res.text();
+          const text = await res.text();
+          // Scarta il risultato se nel frattempo è stata aperta un'altra dialog
+          if (callId !== openDialogCallRef.current) return;
+          content = text;
         } catch (e) {
           console.error('Errore caricamento contenuto da Storage:', e);
+          if (callId !== openDialogCallRef.current) return;
         }
       }
+
       setFormData({
-        title: post.title,
-        slug: post.slug,
-        excerpt: post.excerpt,
+        title: post.title || '',
+        slug: post.slug || '',
+        excerpt: post.excerpt || '',
         content,
         coverImage: post.coverImage || '',
         status: post.status,
         category: post.category || '',
         tags: post.tags?.join(', ') || '',
-        author: post.author,
+        author: post.author || FALLBACK_AUTHOR,
         metaTitle: post.metaTitle || '',
         metaDescription: post.metaDescription || ''
       });
@@ -319,45 +332,57 @@ export default function BlogManager() {
       const CONTENT_SIZE_LIMIT = 800000;
       const contentBytes = new Blob([formData.content]).size;
       if (contentBytes > CONTENT_SIZE_LIMIT) {
-        const postId = editingPost?.id || `new-${Date.now()}`;
-        const storageRef = ref(storage, `blog-content/${postId}.html`);
+        // Per i nuovi post pre-genera l'ID Firestore così il path Storage coincide
+        const targetId = editingPost?.id || doc(collection(db, 'blogPosts')).id;
+        const storageRef = ref(storage, `blog-content/${targetId}.html`);
         await uploadString(storageRef, formData.content, 'raw', { contentType: 'text/html; charset=utf-8' });
         const downloadUrl = await getDownloadURL(storageRef);
         postData.contentUrl = downloadUrl;
         postData.content = '';
+        // Salva con l'ID pre-generato se è un nuovo post
+        if (!editingPost) {
+          postData.createdAt = Timestamp.now();
+          if (formData.status === BlogPostStatus.PUBLISHED) {
+            postData.publishedAt = Timestamp.now();
+          }
+          await setDoc(doc(db, 'blogPosts', targetId), postData);
+          toast({ title: "Successo", description: "Post creato con successo" });
+          setDialogOpen(false);
+          resetForm();
+          loadPosts();
+          return;
+        }
       } else {
-        // Se esisteva un contentUrl (post precedentemente grande ora ridotto), rimuovilo
+        // Se esisteva un contentUrl (post precedentemente grande ora ridotto), rimuovi il file da Storage
         if (editingPost && (editingPost as any).contentUrl) {
           postData.contentUrl = deleteField();
+          // Prova a cancellare il file se il path è quello standard (ID-based)
+          try {
+            await deleteObject(ref(storage, `blog-content/${editingPost.id}.html`));
+          } catch {
+            // Il file potrebbe non esistere o avere un nome legacy — non blocca il salvataggio
+          }
         }
       }
 
       if (editingPost) {
-        // Update existing post
-        // Set publishedAt only when publishing for the first time
+        // Imposta publishedAt solo alla prima pubblicazione
         if (formData.status === BlogPostStatus.PUBLISHED && editingPost.status !== BlogPostStatus.PUBLISHED) {
           postData.publishedAt = Timestamp.now();
         }
-        // Clear publishedAt when reverting to draft or archiving
-        if ((formData.status === BlogPostStatus.DRAFT || formData.status === BlogPostStatus.ARCHIVED) && editingPost.publishedAt) {
+        // Rimuovi publishedAt se si torna a bozza o si archivia
+        if ((formData.status === BlogPostStatus.DRAFT || formData.status === BlogPostStatus.ARCHIVED) && (editingPost as any).publishedAt) {
           postData.publishedAt = deleteField();
         }
         await updateDoc(doc(db, 'blogPosts', editingPost.id), postData);
-        toast({
-          title: "Successo",
-          description: "Post aggiornato con successo"
-        });
+        toast({ title: "Successo", description: "Post aggiornato con successo" });
       } else {
-        // Create new post
         postData.createdAt = Timestamp.now();
         if (formData.status === BlogPostStatus.PUBLISHED) {
           postData.publishedAt = Timestamp.now();
         }
         await addDoc(collection(db, 'blogPosts'), postData);
-        toast({
-          title: "Successo",
-          description: "Post creato con successo"
-        });
+        toast({ title: "Successo", description: "Post creato con successo" });
       }
 
       setDialogOpen(false);
@@ -384,6 +409,13 @@ export default function BlogManager() {
     if (!postToDelete) return;
 
     try {
+      // Cancella il file HTML da Storage (path standard: blog-content/{id}.html)
+      try {
+        await deleteObject(ref(storage, `blog-content/${postToDelete}.html`));
+      } catch {
+        // Il file potrebbe non esistere (post piccoli o path legacy)
+      }
+
       await deleteDoc(doc(db, 'blogPosts', postToDelete));
 
       // Reset dello stato
@@ -463,9 +495,12 @@ export default function BlogManager() {
         if (bulkAction === 'publish') {
           chunk.forEach(postId => {
             const postRef = doc(db, 'blogPosts', postId);
+            const existingPost = posts.find(p => p.id === postId);
+            // Imposta publishedAt solo se il post non era già pubblicato (preserva data originale)
+            const alreadyPublished = existingPost?.status === BlogPostStatus.PUBLISHED;
             batch.update(postRef, {
               status: BlogPostStatus.PUBLISHED,
-              publishedAt: Timestamp.now(),
+              ...(alreadyPublished ? {} : { publishedAt: Timestamp.now() }),
               updatedAt: Timestamp.now()
             });
           });
@@ -867,7 +902,9 @@ export default function BlogManager() {
                 onCheckedChange={toggleSelectAll}
               />
               <Label htmlFor="select-all" className="cursor-pointer text-sm">
-                Seleziona tutti ({selectedPosts.size} selezionati)
+                {selectedPosts.size === filteredPosts.length && filteredPosts.length > 0
+                  ? `Deseleziona tutti (${selectedPosts.size})`
+                  : `Seleziona tutti i ${filteredPosts.length} post filtrati`}
               </Label>
             </div>
 
