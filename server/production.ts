@@ -28,7 +28,7 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const sitemap = await generateDynamicSitemap();
     res.header('Content-Type', 'application/xml; charset=utf-8');
-    res.header('Cache-Control', 'public, max-age=3600');
+    res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(sitemap);
   } catch (error) {
     console.error('Errore generazione sitemap:', error);
