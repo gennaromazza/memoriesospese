@@ -26,6 +26,8 @@ interface PageMeta {
   canonical: string;
   ogType?: string;
   keywords?: string;
+  ogImage?: string;
+  jsonLd?: object | object[];
   bodyContent?: string;
 }
 
@@ -163,6 +165,10 @@ function getStaticPageMeta(path: string): PageMeta | null {
   return pages[path] || null;
 }
 
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
   try {
     const snapshot = await db.collection('blogPosts')
@@ -174,25 +180,122 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     if (snapshot.empty) return null;
 
     const post = snapshot.docs[0].data();
-    const publishedDate = post.publishedAt?.seconds
-      ? new Date(post.publishedAt.seconds * 1000).toISOString()
-      : new Date().toISOString();
+
+    const publishedMs = post.publishedAt?.seconds
+      ? post.publishedAt.seconds * 1000
+      : Date.now();
+    const publishedDate = new Date(publishedMs).toISOString();
+
+    const updatedMs = post.updatedAt?.seconds ? post.updatedAt.seconds * 1000 : null;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const dateModified = (updatedMs && updatedMs - publishedMs > TWENTY_FOUR_HOURS)
+      ? new Date(updatedMs).toISOString()
+      : publishedDate;
+
+    const formattedDate = new Date(publishedMs).toLocaleDateString('it-IT', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const authorName: string = post.author || 'Gennaro Mazzacane';
+    const tags: string[] = post.tags || [];
+    const excerpt: string = post.excerpt || '';
+    const articleImage: string = post.coverImage || OG_IMAGE;
+
+    const rawContent: string = post.content || '';
+    const plainText = stripHtmlTags(rawContent).substring(0, 3000);
+    const isLargePost = !!post.contentUrl && !rawContent;
+
+    const bodyText = isLargePost
+      ? (excerpt || post.title)
+      : (plainText || excerpt);
+
+    const blogPostingJsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      '@id': `${BASE_URL}/blog/${slug}`,
+      'headline': post.title,
+      'description': excerpt || post.title,
+      'image': {
+        '@type': 'ImageObject',
+        'url': articleImage,
+        'width': 1200,
+        'height': 630
+      },
+      'author': {
+        '@type': 'Person',
+        '@id': `${BASE_URL}/#photographer`,
+        'name': authorName,
+        'url': `${BASE_URL}/storie`,
+        'jobTitle': 'Fotografo Professionista Matrimoni',
+        'worksFor': {
+          '@type': 'Organization',
+          '@id': `${BASE_URL}/#organization`,
+          'name': 'Image Studio'
+        }
+      },
+      'publisher': {
+        '@type': 'Organization',
+        '@id': `${BASE_URL}/#organization`,
+        'name': 'Image Studio',
+        'logo': {
+          '@type': 'ImageObject',
+          'url': `${BASE_URL}/favicon.png`,
+          'width': 512,
+          'height': 512
+        }
+      },
+      'datePublished': publishedDate,
+      'dateModified': dateModified,
+      'mainEntityOfPage': {
+        '@type': 'WebPage',
+        '@id': `${BASE_URL}/blog/${slug}`
+      },
+      'url': `${BASE_URL}/blog/${slug}`,
+      'inLanguage': 'it-IT',
+      'keywords': tags.join(', ') || 'fotografia, matrimoni, image studio',
+      'articleSection': post.category || 'Fotografia',
+      'isPartOf': {
+        '@type': 'Blog',
+        '@id': `${BASE_URL}/blog`,
+        'name': 'Blog Image Studio',
+        'url': `${BASE_URL}/blog`
+      }
+    };
+
+    const breadcrumbJsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      'itemListElement': [
+        { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': `${BASE_URL}/` },
+        { '@type': 'ListItem', 'position': 2, 'name': 'Blog', 'item': `${BASE_URL}/blog` },
+        { '@type': 'ListItem', 'position': 3, 'name': post.title, 'item': `${BASE_URL}/blog/${slug}` }
+      ]
+    };
 
     return {
       title: `${post.title} | Blog Image Studio`,
-      description: post.excerpt || post.title,
+      description: excerpt || post.title,
       canonical: `${BASE_URL}/blog/${slug}`,
       ogType: 'article',
-      keywords: post.tags?.join(', ') || 'fotografia, matrimoni, blog',
+      ogImage: articleImage,
+      keywords: tags.join(', ') || 'fotografia, matrimoni, blog',
+      jsonLd: [blogPostingJsonLd, breadcrumbJsonLd],
       bodyContent: `
         <article>
           <h1>${post.title}</h1>
-          <time datetime="${publishedDate}">${new Date(publishedDate).toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
-          <p>${post.excerpt || ''}</p>
-          ${post.content ? `<div>${post.content.substring(0, 2000)}</div>` : ''}
+          <p>
+            Di <a href="${BASE_URL}/storie">${authorName}</a> &bull;
+            <time datetime="${publishedDate}">${formattedDate}</time>
+            ${tags.length > 0 ? ` &bull; ${tags.join(', ')}` : ''}
+          </p>
+          ${excerpt ? `<p><strong>${excerpt}</strong></p>` : ''}
+          ${bodyText ? `<p>${bodyText}</p>` : ''}
+          ${isLargePost ? `<p><a href="${BASE_URL}/blog/${slug}">Leggi l'articolo completo</a></p>` : ''}
         </article>
         <nav>
-          <a href="${BASE_URL}/blog">Torna al Blog</a>
+          <a href="${BASE_URL}/blog">← Tutti gli Articoli</a> &nbsp;|&nbsp;
+          <a href="${BASE_URL}/portfolio">Portfolio Image Studio</a> &nbsp;|&nbsp;
+          <a href="${BASE_URL}/consulenze">Consulenza Gratuita</a> &nbsp;|&nbsp;
           <a href="${BASE_URL}/">Home Image Studio</a>
         </nav>
       `
@@ -200,6 +303,66 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
   } catch (error) {
     console.error('Errore caricamento blog post per SEO:', error);
     return null;
+  }
+}
+
+async function getBlogListMeta(): Promise<PageMeta> {
+  try {
+    const snapshot = await db.collection('blogPosts')
+      .where('status', '==', BlogPostStatus.PUBLISHED)
+      .orderBy('publishedAt', 'desc')
+      .limit(10)
+      .get();
+
+    const posts = snapshot.docs.map(doc => doc.data());
+
+    const articlesHtml = posts.length > 0
+      ? `<section>
+          <h2>Articoli Recenti</h2>
+          <ul>
+            ${posts.map(post => {
+              const dateMs = post.publishedAt?.seconds ? post.publishedAt.seconds * 1000 : null;
+              const dateStr = dateMs
+                ? new Date(dateMs).toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' })
+                : '';
+              return `<li>
+                <h3><a href="${BASE_URL}/blog/${post.slug}">${post.title}</a></h3>
+                ${dateStr ? `<time datetime="${new Date(dateMs!).toISOString()}">${dateStr}</time>` : ''}
+                ${post.excerpt ? `<p>${post.excerpt}</p>` : ''}
+              </li>`;
+            }).join('')}
+          </ul>
+        </section>`
+      : '';
+
+    return {
+      title: 'Blog Fotografia Matrimoni | Consigli, Storie e Guide | Image Studio',
+      description: 'Il blog di Image Studio: guide per scegliere il fotografo di matrimonio, consigli su costi e tempistiche, storie di coppie ed eventi fotografati in Campania.',
+      canonical: `${BASE_URL}/blog`,
+      keywords: 'blog matrimonio, consigli sposi, fotografia matrimonio, come scegliere fotografo matrimonio, fotografo matrimonio napoli',
+      bodyContent: `
+        <h1>Blog Image Studio - Consigli, Storie e Guide sulla Fotografia di Matrimonio</h1>
+        <p>Il blog di Image Studio di Gennaro Mazzacane: guide pratiche, consigli professionali, storie di matrimoni ed eventi fotografati in Campania (Napoli, Caserta, Costiera Amalfitana).</p>
+        ${articlesHtml}
+        <nav>
+          <a href="${BASE_URL}/">Home Image Studio</a> &nbsp;|&nbsp;
+          <a href="${BASE_URL}/portfolio">Portfolio Fotografico</a> &nbsp;|&nbsp;
+          <a href="${BASE_URL}/consulenze">Richiedi Consulenza Gratuita</a>
+        </nav>
+      `
+    };
+  } catch (error) {
+    console.error('Errore caricamento lista blog per SEO:', error);
+    return {
+      title: 'Blog | Consigli Matrimonio, Storie e Fotografia | Image Studio',
+      description: 'Il blog di Image Studio: consigli per il matrimonio, storie di coppie, tendenze fotografia, guide per sposi.',
+      canonical: `${BASE_URL}/blog`,
+      keywords: 'blog matrimonio, consigli sposi, fotografia matrimonio consigli',
+      bodyContent: `
+        <h1>Blog Image Studio - Consigli, Storie e Ispirazione</h1>
+        <p>Benvenuti nel blog di Image Studio. Qui troverai consigli per il tuo matrimonio, storie emozionanti di coppie, tendenze nella fotografia e guide utili per organizzare il giorno più bello.</p>
+      `
+    };
   }
 }
 
@@ -256,6 +419,13 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
 
 function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogType = meta.ogType || 'website';
+  const ogImage = meta.ogImage || OG_IMAGE;
+
+  const jsonLdScripts = meta.jsonLd
+    ? (Array.isArray(meta.jsonLd) ? meta.jsonLd : [meta.jsonLd])
+        .map(schema => `<script type="application/ld+json">${JSON.stringify(schema)}</script>`)
+        .join('\n    ')
+    : '';
 
   const seoHead = `
     <title>${meta.title}</title>
@@ -266,13 +436,14 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
     <meta property="og:description" content="${meta.description}" />
     <meta property="og:type" content="${ogType}" />
     <meta property="og:url" content="${meta.canonical}" />
-    <meta property="og:image" content="${OG_IMAGE}" />
+    <meta property="og:image" content="${ogImage}" />
     <meta property="og:locale" content="it_IT" />
     <meta property="og:site_name" content="Image Studio" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${meta.title}" />
     <meta name="twitter:description" content="${meta.description}" />
-    <meta name="twitter:image" content="${OG_IMAGE}" />
+    <meta name="twitter:image" content="${ogImage}" />
+    ${jsonLdScripts}
   `;
 
   let html = indexHtml;
@@ -319,6 +490,8 @@ export function createSeoMiddleware() {
       if (path.startsWith('/blog/') && path !== '/blog') {
         const slug = path.replace('/blog/', '');
         meta = await getBlogPostMeta(slug);
+      } else if (path === '/blog') {
+        meta = await getBlogListMeta();
       } else if (path.startsWith('/portfolio/') && path !== '/portfolio') {
         const category = path.replace('/portfolio/', '');
         meta = getPortfolioCategoryMeta(category);
