@@ -531,10 +531,12 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
 /* Blog Content Styles */
 .blog-content {
   @apply text-gray-800;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-wrap: break-word;
   word-break: break-word;
-  overflow-x: hidden;
-  min-width: 0;
+  box-sizing: border-box;
 }
 
 .blog-content h1,
@@ -595,9 +597,38 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
   @apply my-6;
 }
 
-/* Tutti gli elementi figli non devono uscire dal contenitore */
+/* Tutti gli elementi figli non devono uscire dal contenitore.
+   !important necessario per sovrascrivere stili inline generati da editor (Quill, WordPress) */
 .blog-content * {
-  max-width: 100%;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Elementi di blocco: forza larghezza fluida anche con width inline */
+.blog-content p,
+.blog-content div,
+.blog-content section,
+.blog-content blockquote,
+.blog-content ul,
+.blog-content ol,
+.blog-content li,
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4,
+.blog-content h5,
+.blog-content h6 {
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+/* Span e elementi inline: solo max-width per non rompere il flow */
+.blog-content span,
+.blog-content a,
+.blog-content strong,
+.blog-content em {
+  max-width: 100% !important;
+  display: inline !important;
 }
 
 /* Responsive images */

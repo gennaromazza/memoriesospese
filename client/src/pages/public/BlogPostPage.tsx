@@ -257,7 +257,7 @@ export default function BlogPostPage() {
       </nav>
 
       {/* Article Content */}
-      <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-16 min-w-0">
+      <article className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-16 min-w-0 box-border">
         {post.coverImage && (
           <div className="mb-8 sm:mb-12 rounded-xl overflow-hidden shadow-lg">
             <img 

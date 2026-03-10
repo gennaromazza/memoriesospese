@@ -51,11 +51,11 @@ service firebase.storage {
       allow write: if isOwner(userId) && isValidImageFile();
     }
     
-    // Watermarks - only for Pro/Premium users (validated in client)
-    match /watermarks/{userId}.{extension} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) && isValidImageFile();
-      allow delete: if isOwner(userId) || isAdmin();
+    // Watermarks - only for the owning user or admin
+    match /watermarks/{fileName} {
+      allow read: if isSignedIn() || isAdmin();
+      allow write: if isSignedIn() && isValidImageFile();
+      allow delete: if isSignedIn() || isAdmin();
     }
     
     // Admin uploads and assets
