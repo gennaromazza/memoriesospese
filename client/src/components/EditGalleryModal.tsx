@@ -177,11 +177,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [jobType, setJobType] = useState<string>('none');
   const [jobId, setJobId] = useState<string>('');
   const [originalJobId, setOriginalJobId] = useState<string>('');
+  const [originalJobType, setOriginalJobType] = useState<string>('none');
   const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
   const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
   const [jobSearch, setJobSearch] = useState<string>('');
   const [linkedJobName, setLinkedJobName] = useState<string>('');
   const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
+  const [isSavingJobLink, setIsSavingJobLink] = useState(false);
 
   // Stato per invio password via email
   const [isSendingPassword, setIsSendingPassword] = useState(false);
@@ -371,6 +373,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setJobType(loadedJobType);
       setJobId(loadedJobId);
       setOriginalJobId(loadedJobId);
+      setOriginalJobType(loadedJobType);
       setJobSearch('');
       setLinkedJobName('');
       setJobDropdownOpen(false);
@@ -1802,9 +1805,54 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
             {/* Tipo Evento e Collegamento Lavoro */}
             <div className="border-t pt-4 mt-2">
-              <div className="flex items-center gap-2 mb-3">
-                <Briefcase className="h-4 w-4 text-sage" />
-                <h4 className="text-sm font-semibold text-sage-dark">Tipo Evento & Lavoro Collegato</h4>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-sage" />
+                  <h4 className="text-sm font-semibold text-sage-dark">Tipo Evento & Lavoro Collegato</h4>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isSavingJobLink || !gallery || (jobType === originalJobType && jobId === originalJobId)}
+                  onClick={async () => {
+                    if (!gallery) return;
+                    setIsSavingJobLink(true);
+                    try {
+                      const galleryRef = doc(db, 'galleries', gallery.id);
+                      await updateDoc(galleryRef, {
+                        jobType: jobType !== 'none' ? jobType : null,
+                        jobId: jobId || null,
+                        updatedAt: serverTimestamp()
+                      });
+                      // Sync galleryIds sui job
+                      if (jobId !== originalJobId) {
+                        const syncPromises: Promise<void>[] = [];
+                        if (originalJobId) {
+                          syncPromises.push(updateDoc(doc(db, 'jobs', originalJobId), { galleryIds: arrayRemove(gallery.id), updatedAt: serverTimestamp() }));
+                        }
+                        if (jobId) {
+                          syncPromises.push(updateDoc(doc(db, 'jobs', jobId), { galleryIds: arrayUnion(gallery.id), updatedAt: serverTimestamp() }));
+                        }
+                        if (syncPromises.length > 0) await Promise.all(syncPromises);
+                        setOriginalJobId(jobId);
+                      }
+                      setOriginalJobType(jobType);
+                      toast({ title: "Salvato", description: "Categoria e lavoro aggiornati con successo." });
+                      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+                      queryClient.invalidateQueries({ queryKey: ['galleries'] });
+                    } catch (err) {
+                      console.error('Errore salvataggio job link:', err);
+                      toast({ title: "Errore", description: "Impossibile salvare. Riprova.", variant: "destructive" });
+                    } finally {
+                      setIsSavingJobLink(false);
+                    }
+                  }}
+                  className="h-7 text-xs"
+                >
+                  {isSavingJobLink ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Aggiorna
+                </Button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* Tipo Evento */}
