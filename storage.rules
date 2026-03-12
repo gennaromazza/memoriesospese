@@ -76,6 +76,13 @@ service firebase.storage {
       allow write: if isAdmin();
     }
     
+    // Portfolio direct uploads - admin only write, public read
+    match /portfolio-direct/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidImageFile();
+      allow delete: if isAdmin();
+    }
+    
     // Temporary uploads cleanup
     match /temp/{allPaths=**} {
       allow read, write: if isSignedIn() && 
