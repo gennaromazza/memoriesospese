@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
-import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc, arrayRemove, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -12,7 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2 } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase } from "lucide-react";
+import { getActiveJobTypes } from "@/lib/job-types";
+import type { JobTypeFE } from "@shared/job-types";
+import { getAllJobs } from "@/lib/jobs";
+import type { Job } from "@shared/jobs-types";
 import { PhotoUploadSuccessModal } from "./PhotoUploadSuccessModal";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
@@ -83,6 +87,8 @@ interface GalleryType {
   photoCount?: number;
   specialTheme?: string;
   specialPin?: string;
+  jobType?: string;
+  jobId?: string;
 }
 
 interface EditGalleryModalProps {
@@ -166,7 +172,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Stati per associazione cliente
   const [clienteId, setClienteId] = useState<string>("");
   const [isSavingCliente, setIsSavingCliente] = useState(false);
-  
+
+  // Job Type e collegamento Job
+  const [jobType, setJobType] = useState<string>('none');
+  const [jobId, setJobId] = useState<string>('');
+  const [originalJobId, setOriginalJobId] = useState<string>('');
+  const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
+  const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
+  const [jobSearch, setJobSearch] = useState<string>('');
+  const [linkedJobName, setLinkedJobName] = useState<string>('');
+  const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
+
   // Stato per invio password via email
   const [isSendingPassword, setIsSendingPassword] = useState(false);
   
@@ -350,6 +366,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setClientEmail((gallery as any).clientEmail || "");
       setClientName((gallery as any).clientName || "");
       setClienteId((gallery as any).clienteId || "");
+      const loadedJobType = (gallery as any).jobType || 'none';
+      const loadedJobId = (gallery as any).jobId || '';
+      setJobType(loadedJobType);
+      setJobId(loadedJobId);
+      setOriginalJobId(loadedJobId);
+      setJobSearch('');
+      setLinkedJobName('');
+      setJobDropdownOpen(false);
       
       // Gestione retrocompatibilità: se c'è youtubeUrl singolo, convertilo in array
       const urls: string[] = [];
@@ -543,6 +567,13 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     if (!isOpen) {
       currentGalleryId.current = null;
     }
+  }, [isOpen]);
+
+  // Carica JobTypes e Jobs quando il modal si apre
+  useEffect(() => {
+    if (!isOpen) return;
+    getActiveJobTypes().then(types => setJobTypes(types)).catch(console.error);
+    getAllJobs().then(jobs => setAvailableJobs(jobs)).catch(console.error);
   }, [isOpen]);
 
   // Funzione helper per comprimere immagini
@@ -1164,6 +1195,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         clientEmail: clientEmail.trim() || null,
         clientName: clientName.trim() || null,
         clienteId: clienteId || null,
+        jobType: jobType !== 'none' ? jobType : null,
+        jobId: jobId || null,
         updatedAt: serverTimestamp()
       };
       
@@ -1200,6 +1233,32 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
       await updateDoc(galleryRef, updateData);
+
+      // SINCRONIZZA jobId: aggiorna galleryIds sui job collegati
+      if (jobId !== originalJobId) {
+        const syncPromises: Promise<void>[] = [];
+        if (originalJobId) {
+          syncPromises.push(
+            updateDoc(doc(db, 'jobs', originalJobId), {
+              galleryIds: arrayRemove(gallery.id),
+              updatedAt: serverTimestamp()
+            })
+          );
+        }
+        if (jobId) {
+          syncPromises.push(
+            updateDoc(doc(db, 'jobs', jobId), {
+              galleryIds: arrayUnion(gallery.id),
+              updatedAt: serverTimestamp()
+            })
+          );
+        }
+        if (syncPromises.length > 0) {
+          await Promise.all(syncPromises);
+          console.log(`🔗 jobId sync: ${originalJobId || 'none'} → ${jobId || 'none'} per galleria ${gallery.id}`);
+        }
+        setOriginalJobId(jobId);
+      }
 
       // SALVA PASSWORD E SPECIAL PIN in collection protetta `gallerySecrets`
       // IMPORTANTE: Password e PIN sono MUTUAMENTE ESCLUSIVI
@@ -1740,6 +1799,89 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 }
               }}
             />
+
+            {/* Tipo Evento e Collegamento Lavoro */}
+            <div className="border-t pt-4 mt-2">
+              <div className="flex items-center gap-2 mb-3">
+                <Briefcase className="h-4 w-4 text-sage" />
+                <h4 className="text-sm font-semibold text-sage-dark">Tipo Evento & Lavoro Collegato</h4>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Tipo Evento */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Categoria / Tipo Evento</Label>
+                  <Select value={jobType} onValueChange={setJobType}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Seleziona categoria..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Nessuna categoria —</SelectItem>
+                      {jobTypes.map(t => (
+                        <SelectItem key={t.slug} value={t.slug}>{t.icona ? `${t.icona} ` : ''}{t.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Collega a Job */}
+                <div className="space-y-1 relative">
+                  <Label className="text-xs text-muted-foreground">Collega a Lavoro (Job)</Label>
+                  {jobId ? (
+                    <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-sage/5 text-sm">
+                      <Link2 className="h-3.5 w-3.5 text-sage flex-shrink-0" />
+                      <span className="truncate flex-1">
+                        {availableJobs.find(j => j.id === jobId)?.nomeEvento || `Job ${jobId.slice(0, 8)}…`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setJobId(''); setOriginalJobId(jobId); setJobSearch(''); }}
+                        className="text-muted-foreground hover:text-destructive flex-shrink-0"
+                        title="Rimuovi collegamento"
+                      >
+                        <XIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Cerca per nome evento…"
+                        value={jobSearch}
+                        onChange={e => { setJobSearch(e.target.value); setJobDropdownOpen(true); }}
+                        onFocus={() => setJobDropdownOpen(true)}
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      {jobDropdownOpen && jobSearch.length > 0 && (
+                        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-36 overflow-y-auto rounded-md border bg-white shadow-md">
+                          {availableJobs
+                            .filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase()))
+                            .slice(0, 6)
+                            .map(j => (
+                              <button
+                                key={j.id}
+                                type="button"
+                                className="flex w-full items-start px-3 py-2 text-left text-sm hover:bg-accent"
+                                onClick={() => {
+                                  setJobId(j.id);
+                                  setJobSearch('');
+                                  setJobDropdownOpen(false);
+                                }}
+                              >
+                                <span className="font-medium">{j.nomeEvento}</span>
+                                {j.jobType && <span className="ml-2 text-xs text-muted-foreground">({j.jobType})</span>}
+                              </button>
+                            ))}
+                          {availableJobs.filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase())).length === 0 && (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Il collegamento aggiorna automaticamente il job</p>
+                </div>
+              </div>
+            </div>
 
             {/* Prodotti Associati Section - MULTI-PRODUCT SUPPORT */}
             {(associatedProducts.length > 0 || isLoadingProduct) && (

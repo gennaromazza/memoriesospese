@@ -77,6 +77,7 @@ export interface Gallery {
   
   // Job Integration - Collegamento diretto job
   jobId?: string;
+  jobType?: string; // Categoria evento (slug da jobTypes collection)
   
   // Client Association - Collegamento diretto cliente per notifiche
   clienteId?: string;

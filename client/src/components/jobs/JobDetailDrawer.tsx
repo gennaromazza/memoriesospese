@@ -3,7 +3,9 @@
  * Drawer completo dettagli lavoro con tutte le sezioni
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getJob, getJobTimeline, updateJobStatus, attachPDF } from '@/lib/jobs';
 import { getQuotesForJob } from '@/lib/quotes';
@@ -83,6 +85,26 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
   const { toast } = useToast();
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
+
+  // Gallerie collegate al job
+  const [linkedGalleries, setLinkedGalleries] = useState<Array<{id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string}>>([]);
+  const [loadingGalleries, setLoadingGalleries] = useState(false);
+
+  useEffect(() => {
+    if (!jobId) return;
+    setLoadingGalleries(true);
+    const q = query(collection(db, 'galleries'), where('jobId', '==', jobId));
+    getDocs(q).then(snap => {
+      setLinkedGalleries(snap.docs.map(d => ({
+        id: d.id,
+        name: d.data().name || '',
+        code: d.data().code || '',
+        date: d.data().date,
+        photoCount: d.data().photoCount || 0,
+        jobType: d.data().jobType
+      })));
+    }).catch(console.error).finally(() => setLoadingGalleries(false));
+  }, [jobId]);
   
   // Queries
   const { data: job, isLoading } = useQuery({
@@ -226,11 +248,12 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           
           {/* Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
               <TabsTrigger value="timeline" data-testid="tab-timeline">Timeline</TabsTrigger>
               <TabsTrigger value="preventivi" data-testid="tab-preventivi">Preventivi</TabsTrigger>
               <TabsTrigger value="pagamenti" data-testid="tab-pagamenti">Pagamenti</TabsTrigger>
+              <TabsTrigger value="gallerie" data-testid="tab-gallerie">Gallerie</TabsTrigger>
             </TabsList>
             
             {/* Overview */}
@@ -547,6 +570,56 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                             >
                               {payment.stato}
                             </Badge>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Gallerie */}
+            <TabsContent value="gallerie" className="space-y-3">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-semibold text-gray-700">Gallerie Collegate</h3>
+                <Badge variant="outline">{linkedGalleries.length}</Badge>
+              </div>
+              {loadingGalleries ? (
+                <div className="text-sm text-muted-foreground py-4 text-center">Caricamento gallerie…</div>
+              ) : linkedGalleries.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+                    <p>Nessuna galleria collegata a questo lavoro.</p>
+                    <p className="text-xs mt-1">Collega le gallerie dalla scheda "Modifica Galleria" → campo "Lavoro Collegato".</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {linkedGalleries.map(g => (
+                    <Card key={g.id} className="hover:shadow-sm transition-shadow">
+                      <CardContent className="pt-4 pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-gray-900 truncate">{g.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <code className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">{g.code}</code>
+                              {g.date && <span className="text-xs text-muted-foreground">{g.date}</span>}
+                              {g.jobType && (
+                                <span className="text-[10px] bg-terracotta/10 text-terracotta border border-terracotta/20 rounded px-1.5 py-0.5 font-medium">{g.jobType}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                            <a
+                              href={`/gallery/${g.code}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-sage hover:underline"
+                            >
+                              Apri →
+                            </a>
                           </div>
                         </div>
                       </CardContent>

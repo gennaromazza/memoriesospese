@@ -38,6 +38,8 @@ import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 import JobTypesManager from "@/components/job-types/JobTypesManager";
+import { getActiveJobTypes } from "@/lib/job-types";
+import type { JobTypeFE } from "@shared/job-types";
 import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
@@ -353,6 +355,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
   const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
+  const [galleryJobTypeFilter, setGalleryJobTypeFilter] = useState<string>('all'); // 🏷️ Filtro per categoria evento
+  const [dashboardJobTypes, setDashboardJobTypes] = useState<JobTypeFE[]>([]); // 🏷️ Tipi evento disponibili
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico' | 'videos' | 'quote-templates'>(() => {
@@ -472,6 +476,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     sessionStorage.setItem('activeJobSection', activeJobSection);
   }, [activeJobSection]);
+
+  // Carica JobTypes per il filtro gallerie
+  useEffect(() => {
+    getActiveJobTypes().then(types => setDashboardJobTypes(types)).catch(console.error);
+  }, []);
 
   // Funzione per pulire l'URL (rimuove query params)
   const cleanDeeplinkUrl = useCallback(() => {
@@ -1160,9 +1169,19 @@ export default function AdminDashboard() {
 
     // Filtro tipo galleria
     if (galleryTypeFilter === 'generic') {
-      return !gallery.specialTheme; // Generiche = senza specialTheme
+      if (!!gallery.specialTheme) return false; // Generiche = senza specialTheme
     } else if (galleryTypeFilter === 'special') {
-      return !!gallery.specialTheme; // Special = con specialTheme
+      if (!gallery.specialTheme) return false; // Special = con specialTheme
+    }
+
+    // Filtro per categoria evento (jobType)
+    if (galleryJobTypeFilter !== 'all') {
+      const galleryJobType = (gallery as any).jobType;
+      if (galleryJobTypeFilter === 'none') {
+        if (galleryJobType) return false; // Solo senza categoria
+      } else {
+        if (galleryJobType !== galleryJobTypeFilter) return false;
+      }
     }
 
     return true; // 'all' mostra tutte
@@ -1734,6 +1753,34 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
+                      {/* Filtro Categoria Evento */}
+                      {dashboardJobTypes.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">Categoria:</span>
+                          <button
+                            onClick={() => setGalleryJobTypeFilter('all')}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === 'all' ? 'bg-sage text-white border-sage' : 'bg-white text-gray-600 border-gray-300 hover:border-sage'}`}
+                          >
+                            Tutte
+                          </button>
+                          <button
+                            onClick={() => setGalleryJobTypeFilter('none')}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === 'none' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                          >
+                            Senza cat.
+                          </button>
+                          {dashboardJobTypes.map(jt => (
+                            <button
+                              key={jt.slug}
+                              onClick={() => setGalleryJobTypeFilter(jt.slug)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === jt.slug ? 'bg-terracotta text-white border-terracotta' : 'bg-white text-gray-600 border-gray-300 hover:border-terracotta'}`}
+                            >
+                              {jt.icona ? `${jt.icona} ` : ''}{jt.nome}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Skeleton loader durante il caricamento */}
                       {isLoading ? (
                         <div className="space-y-4">
@@ -1790,6 +1837,15 @@ export default function AdminDashboard() {
                                   <tr key={gallery.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-4 py-4">
                                       <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
+                                      {(gallery as any).jobType && (() => {
+                                        const jt = dashboardJobTypes.find(t => t.slug === (gallery as any).jobType);
+                                        return (
+                                          <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-terracotta/10 text-terracotta border border-terracotta/20">
+                                            {jt?.icona && <span>{jt.icona}</span>}
+                                            {jt?.nome || (gallery as any).jobType}
+                                          </span>
+                                        );
+                                      })()}
                                     </td>
                                     <td className="px-4 py-4">
                                       <code className="text-xs bg-gray-100 px-2 py-1 rounded">{gallery.code}</code>
