@@ -2157,6 +2157,43 @@ router.patch(
           } else {
             console.log("⚠️ Nessuna email cliente trovata per invio conferma firma manuale");
           }
+
+          // Email notifica admin (template professionale)
+          try {
+            const studioInfo = await getStudioContactInfo();
+            const adminEmail = studioInfo?.email || "gennaro.mazzacane@gmail.com";
+            const baseUrl = process.env.REPLIT_DOMAINS
+              ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+              : "http://localhost:5000";
+            const adminDashboardUrl = `${baseUrl}/admin/dashboard?tab=lavori&job=${quote.jobId}`;
+            const quoteTotale = calculateCorrectQuoteTotal(quote);
+
+            const adminEmailHTML = createAdminQuoteSignedNotificationHTML(
+              clientName.trim(),
+              (quote.type || "fisso") as "fisso" | "variabile",
+              jobInfo?.nomeEvento || "Evento",
+              quoteTotale,
+              signedAtDate,
+              adminDashboardUrl,
+              studioInfo || undefined
+            );
+
+            await sendGmailEmail(
+              adminEmail,
+              `🎉 Contratto Firmato! ${clientName.trim()} - ${jobInfo?.nomeEvento || "Evento"}`,
+              adminEmailHTML,
+              undefined,
+              {
+                type: "contract",
+                relatedDocId: id,
+                relatedDocType: "quote",
+                clientName: clientName.trim(),
+              }
+            );
+            console.log(`✅ Email notifica admin firma manuale inviata a ${adminEmail}`);
+          } catch (adminEmailError) {
+            console.error("⚠️ Errore invio email admin firma manuale:", adminEmailError);
+          }
         } catch (emailError) {
           console.error("⚠️ Errore invio email conferma firma manuale:", emailError);
         }
@@ -2375,22 +2412,28 @@ router.post(
       try {
         const studioInfo = await getStudioContactInfo();
         const adminEmail = studioInfo?.email || "gennaro.mazzacane@gmail.com";
-        
-        const adminEmailHTML = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #8b9a7d;">Nuovo Contratto Firmato</h2>
-            <p>Il cliente <strong>${clientName || quote.signature?.clientName || "Cliente"}</strong> ha firmato il preventivo per:</p>
-            <ul>
-              <li><strong>Evento:</strong> ${job?.nomeEvento || "N/A"}</li>
-              <li><strong>Totale:</strong> €${correctTotale.toLocaleString("it-IT")}</li>
-            </ul>
-            <p>Accedi al pannello admin per visualizzare i dettagli.</p>
-          </div>
-        `;
+        const baseUrlAdmin = process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+          : "http://localhost:5000";
+        const adminDashboardUrl = `${baseUrlAdmin}/admin/dashboard?tab=lavori&job=${quote.jobId}`;
+
+        const signedAt = (quote as any).signedAt || quote.signature?.signedAt || nowRomeDate();
+        const signedAtDate = signedAt instanceof Date ? signedAt :
+          (signedAt as any).toDate ? (signedAt as any).toDate() : new Date(signedAt);
+
+        const adminEmailHTML = createAdminQuoteSignedNotificationHTML(
+          clientName || quote.signature?.clientName || "Cliente",
+          (quote.type || "fisso") as "fisso" | "variabile",
+          job?.nomeEvento || "Evento",
+          correctTotale,
+          signedAtDate,
+          adminDashboardUrl,
+          studioInfo || undefined
+        );
 
         await sendGmailEmail(
           adminEmail,
-          `Contratto Firmato - ${clientName || quote.signature?.clientName || "Cliente"} - ${job?.nomeEvento || "Evento"}`,
+          `🎉 Contratto Firmato! ${clientName || quote.signature?.clientName || "Cliente"} - ${job?.nomeEvento || "Evento"}`,
           adminEmailHTML,
           undefined,
           {
