@@ -3,6 +3,8 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, query 
 import { where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { StorageService } from '@/lib/storage';
+import { getActiveJobTypes } from '@/lib/job-types';
+import type { JobTypeFE } from '@shared/job-types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,26 +45,17 @@ interface Photo {
   name: string;
 }
 
-const JOB_TYPES = [
-  { value: 'matrimonio', label: 'Matrimonio' },
-  { value: 'battesimo', label: 'Battesimo' },
-  { value: 'comunione', label: 'Comunione' },
-  { value: 'cresima', label: 'Cresima' },
-  { value: 'evento', label: 'Eventi' },
-  { value: 'ritratto', label: 'Ritratti' },
-  { value: 'famiglia', label: 'Famiglia' },
-  { value: 'altro', label: 'Altro' }
-];
 
 export default function PortfolioManager() {
   const [selections, setSelections] = useState<PortfolioSelection[]>([]);
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedGallery, setSelectedGallery] = useState<string>('');
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
-  const [selectedJobType, setSelectedJobType] = useState<string>('matrimonio');
+  const [selectedJobType, setSelectedJobType] = useState<string>('');
   const [filterJobType, setFilterJobType] = useState<string>('all');
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,7 +68,7 @@ export default function PortfolioManager() {
 
   // --- Caricamento diretto ---
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [uploadJobType, setUploadJobType] = useState<string>('matrimonio');
+  const [uploadJobType, setUploadJobType] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [uploading, setUploading] = useState(false);
   const [addMode, setAddMode] = useState<'gallery' | 'upload'>('gallery');
@@ -85,7 +78,21 @@ export default function PortfolioManager() {
   useEffect(() => {
     loadSelections();
     loadGalleries();
+    loadJobTypes();
   }, []);
+
+  const loadJobTypes = async () => {
+    try {
+      const types = await getActiveJobTypes();
+      setJobTypes(types);
+      if (types.length > 0) {
+        setSelectedJobType(types[0].slug);
+        setUploadJobType(types[0].slug);
+      }
+    } catch (error) {
+      console.error('Errore caricamento tipi lavoro:', error);
+    }
+  };
 
   const loadSelections = async () => {
     try {
@@ -369,8 +376,8 @@ export default function PortfolioManager() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {JOB_TYPES.map(type => (
-                            <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                          {jobTypes.map(type => (
+                            <SelectItem key={type.slug} value={type.slug}>{type.nome}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -464,8 +471,8 @@ export default function PortfolioManager() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {JOB_TYPES.map(type => (
-                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                      {jobTypes.map(type => (
+                        <SelectItem key={type.slug} value={type.slug}>{type.nome}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -550,8 +557,8 @@ export default function PortfolioManager() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le categorie</SelectItem>
-            {JOB_TYPES.map(type => (
-              <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+            {jobTypes.map(type => (
+              <SelectItem key={type.slug} value={type.slug}>{type.nome}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -571,7 +578,7 @@ export default function PortfolioManager() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Grid3x3 className="h-5 w-5" />
-                {JOB_TYPES.find(t => t.value === jobType)?.label || jobType}
+                {jobTypes.find(t => t.slug === jobType)?.nome || jobType}
                 <Badge variant="secondary">{items.length} foto</Badge>
               </CardTitle>
             </CardHeader>
