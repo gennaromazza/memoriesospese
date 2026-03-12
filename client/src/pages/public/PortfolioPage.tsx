@@ -8,6 +8,8 @@ import { ArrowLeft, Loader2, Grid, LayoutGrid } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import { getActiveJobTypes } from "@/lib/job-types";
+import type { JobTypeFE } from "@shared/job-types";
 
 interface PortfolioPhoto {
   id: string;
@@ -22,24 +24,15 @@ interface PortfolioPhoto {
 interface CategorySummary {
   jobType: string;
   label: string;
+  ordine: number;
   count: number;
   coverPhoto: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  'matrimonio': 'Matrimoni',
-  'battesimo': 'Battesimi',
-  'comunione': 'Comunioni',
-  'cresima': 'Cresime',
-  'evento': 'Eventi',
-  'ritratto': 'Ritratti',
-  'famiglia': 'Famiglia',
-  'altro': 'Altri Lavori'
-};
-
 export default function PortfolioPage() {
   const [allPhotos, setAllPhotos] = useState<PortfolioPhoto[]>([]);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -54,53 +47,48 @@ export default function PortfolioPage() {
   });
 
   useEffect(() => {
-    loadPortfolio();
+    loadPortfolioPhotos();
   }, []);
 
-  const loadPortfolio = async () => {
+  const getLabelForSlug = (slug: string, types: JobTypeFE[]): string => {
+    return types.find(t => t.slug === slug)?.nome || slug;
+  };
+
+  const getOrdineForSlug = (slug: string, types: JobTypeFE[]): number => {
+    return types.find(t => t.slug === slug)?.ordine ?? 999;
+  };
+
+  const loadPortfolioPhotos = async () => {
     setLoading(true);
     try {
-      const photosRef = collection(db, 'portfolioSelections');
-      const q = query(photosRef, orderBy('sortOrder', 'asc'));
-      const snapshot = await getDocs(q);
-      
-      const photos = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as PortfolioPhoto[];
+      const [photos, types] = await Promise.all([
+        getDocs(query(collection(db, 'portfolioSelections'), orderBy('sortOrder', 'asc'))).then(
+          snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PortfolioPhoto[]
+        ),
+        getActiveJobTypes()
+      ]);
 
+      setJobTypes(types);
       setAllPhotos(photos);
 
-      // Group by jobType for category view
+      // Raggruppa per jobType
       const grouped = photos.reduce((acc, photo) => {
-        if (!acc[photo.jobType]) {
-          acc[photo.jobType] = [];
-        }
+        if (!acc[photo.jobType]) acc[photo.jobType] = [];
         acc[photo.jobType].push(photo);
         return acc;
       }, {} as Record<string, PortfolioPhoto[]>);
 
-      // Create category summaries
-      const summaries: CategorySummary[] = Object.entries(grouped).map(([jobType, photos]) => {
-        const coverPhoto = photos.find(p => p.featured)?.photoUrl || photos[0]?.photoUrl || '';
-        
-        return {
-          jobType,
-          label: CATEGORY_LABELS[jobType] || jobType,
-          count: photos.length,
-          coverPhoto
-        };
-      });
+      // Crea riepiloghi categoria con nome e ordine da Firestore
+      const summaries: CategorySummary[] = Object.entries(grouped).map(([jobType, photos]) => ({
+        jobType,
+        label: getLabelForSlug(jobType, types),
+        ordine: getOrdineForSlug(jobType, types),
+        count: photos.length,
+        coverPhoto: photos.find(p => p.featured)?.photoUrl || photos[0]?.photoUrl || ''
+      }));
 
-      // Sort categories
-      const categoryOrder = Object.keys(CATEGORY_LABELS);
-      summaries.sort((a, b) => {
-        const indexA = categoryOrder.indexOf(a.jobType);
-        const indexB = categoryOrder.indexOf(b.jobType);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
-      });
+      // Ordina secondo il campo `ordine` di Firestore
+      summaries.sort((a, b) => a.ordine - b.ordine);
 
       setCategories(summaries);
     } catch (error) {
@@ -239,6 +227,7 @@ export default function PortfolioPage() {
                   </Badge>
                   {availableCategories.map(cat => {
                     const count = allPhotos.filter(p => p.jobType === cat).length;
+                    const label = jobTypes.find(t => t.slug === cat)?.nome || cat;
                     return (
                       <Badge
                         key={cat}
@@ -247,7 +236,7 @@ export default function PortfolioPage() {
                         onClick={() => setSelectedCategory(cat)}
                         data-testid={`filter-${cat}`}
                       >
-                        {CATEGORY_LABELS[cat] || cat} ({count})
+                        {label} ({count})
                       </Badge>
                     );
                   })}
