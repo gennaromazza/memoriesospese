@@ -23,6 +23,7 @@ import {
   Clock,
   Sparkles,
   Lock,
+  ChevronRight,
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
@@ -1121,6 +1122,41 @@ export default function PublicHomepage() {
         </div>
       </section>
 
+      {/* SEO Local - Fotografo Aversa */}
+      <section className="py-14 px-4 bg-[#F5EFE6]/50">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-8 bg-white rounded-2xl p-8 shadow-sm border border-[#c4724a]/10">
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-2 text-[#c4724a] text-xs font-semibold uppercase tracking-widest mb-3">
+                <MapPin className="h-4 w-4" />
+                Aversa · Agro Aversano · Campania
+              </div>
+              <h2 className="text-2xl md:text-3xl font-playfair text-[#2C3A2C] mb-3">
+                Fotografo Professionista ad Aversa
+              </h2>
+              <p className="text-gray-600 mb-4 leading-relaxed">
+                Studio fotografico con sede ad Aversa. Matrimoni, battesimi, comunioni e cerimonie
+                nell'agro aversano — senza costi di trasferta per Aversa, Sant'Arpino, Succivo,
+                Casal di Principe, Frignano, Parete, Lusciano, Teverola, Giugliano e tutta la provincia.
+              </p>
+              <Link href="/fotografo-aversa">
+                <Button className="bg-[#c4724a] hover:bg-[#a85d3b] text-white rounded-full px-6">
+                  Scopri i servizi ad Aversa
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+            <div className="hidden md:flex flex-col items-center justify-center text-center bg-[#2C3A2C] rounded-xl px-8 py-6 text-white min-w-[180px]">
+              <span className="text-4xl font-playfair font-bold text-[#c4724a]">500+</span>
+              <span className="text-sm text-white/70 mt-1">Matrimoni documentati</span>
+              <div className="border-t border-white/20 my-3 w-full" />
+              <span className="text-4xl font-playfair font-bold text-[#c4724a]">10+</span>
+              <span className="text-sm text-white/70 mt-1">Anni di esperienza</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Instagram Feed */}
       {studioSettings.socialLinks?.instagram && (
         <section className="py-20 bg-gradient-to-b from-cream/30 to-white relative overflow-hidden">
@@ -1238,6 +1274,12 @@ export default function PublicHomepage() {
           <div>
             <h4 className="font-semibold mb-4">Link Utili</h4>
             <div className="space-y-2">
+              <Link
+                href="/fotografo-aversa"
+                className="block text-[#c4724a] hover:text-white font-medium"
+              >
+                Fotografo ad Aversa
+              </Link>
               <Link
                 href="/portfolio"
                 className="block text-gray-300 hover:text-white"
