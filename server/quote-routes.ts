@@ -2180,7 +2180,7 @@ router.patch(
 
             await sendGmailEmail(
               adminEmail,
-              `🎉 Contratto Firmato! ${clientName.trim()} - ${jobInfo?.nomeEvento || "Evento"}`,
+              `Contratto Firmato - ${clientName.trim()} - ${jobInfo?.nomeEvento || "Evento"}`,
               adminEmailHTML,
               undefined,
               {
@@ -2433,7 +2433,7 @@ router.post(
 
         await sendGmailEmail(
           adminEmail,
-          `🎉 Contratto Firmato! ${clientName || quote.signature?.clientName || "Cliente"} - ${job?.nomeEvento || "Evento"}`,
+          `Contratto Firmato - ${clientName || quote.signature?.clientName || "Cliente"} - ${job?.nomeEvento || "Evento"}`,
           adminEmailHTML,
           undefined,
           {
@@ -2935,7 +2935,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
             );
             await sendGmailEmail(
               studioInfo.email,
-              `🎉 Preventivo Rapido FIRMATO: ${nomeEvento} - ${nome} ${cognome}`,
+              `Preventivo Rapido Firmato: ${nomeEvento} - ${nome} ${cognome}`,
               adminEmailHtml,
               undefined,
               {
@@ -2960,7 +2960,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
             const adminEmailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background: #fff8f0; border-left: 4px solid #e65100; padding: 16px; border-radius: 4px; margin-bottom: 24px;">
-                  <h2 style="color: #e65100; margin: 0 0 8px;">📋 Nuovo cliente dal form online</h2>
+                  <h2 style="color: #e65100; margin: 0 0 8px;">Nuovo cliente dal form online</h2>
                   <p style="margin: 0; color: #555;">Ha compilato il preventivo rapido "<strong>${template.nome}</strong>" e non ha ancora firmato.</p>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -2983,7 +2983,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
             `;
             await sendGmailEmail(
               studioInfo.email,
-              `📋 Nuovo cliente online: ${nome} ${cognome} — ${nomeEvento}`,
+              `Nuovo cliente online: ${nome} ${cognome} — ${nomeEvento}`,
               adminEmailHtml,
               undefined,
               {

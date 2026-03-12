@@ -475,7 +475,8 @@ export default function JobsManager() {
       if (filterType !== 'all' && job.jobType !== filterType) return false;
       
       // Filtro tempo (Prossimi Impegni / Impegni Passati)
-      if (timeFilter !== 'all' && job.eventDate) {
+      // I lead vengono sempre mostrati: non hanno una data confermata
+      if (timeFilter !== 'all' && job.status !== 'lead' && job.eventDate) {
         const eventDate = convertFirestoreTimestamp(job.eventDate);
         if (eventDate && !isNaN(eventDate.getTime())) {
           const eventTime = eventDate.getTime();
@@ -1058,7 +1059,7 @@ export default function JobsManager() {
         </div>
         
         {/* Active Filters Summary */}
-        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from) && (
+        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from || timeFilter !== 'all') && (
           <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             <span>Filtri attivi:</span>
@@ -1070,6 +1071,11 @@ export default function JobsManager() {
             {filterQuoteStatus !== 'firmato' && (
               <Badge variant="secondary">
                 {filterQuoteStatus === 'all' ? 'Tutti prev.' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Non inviato'}
+              </Badge>
+            )}
+            {timeFilter !== 'all' && (
+              <Badge variant="secondary">
+                {timeFilter === 'upcoming' ? 'Prossimi impegni' : 'Impegni passati'}
               </Badge>
             )}
             {filterYear !== 'all' && !customDateRange.from && (

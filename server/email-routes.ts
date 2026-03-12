@@ -4126,7 +4126,6 @@ export function createAdminQuoteSignedNotificationHTML(
       <!-- HEADER HERO -->
       <tr>
         <td style="background:linear-gradient(135deg,#6b7f6b 0%,#8b9a8b 50%,#7a8f7a 100%);padding:48px 40px 40px;text-align:center;">
-          <div style="font-size:44px;margin-bottom:12px;">✍️</div>
           <h1 style="margin:0 0 8px;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:Georgia,serif;">Nuovo Contratto Firmato</h1>
           <p style="margin:0;color:rgba(255,255,255,0.85);font-size:15px;letter-spacing:0.5px;">${formattedDay} ${formattedMonth} ${formattedYear} · ore ${formattedTime}</p>
         </td>
@@ -4149,7 +4148,7 @@ export function createAdminQuoteSignedNotificationHTML(
           <!-- Intro -->
           <p style="margin:0 0 28px;font-size:16px;color:#5a4f48;line-height:1.6;font-family:Arial,sans-serif;">
             <strong style="color:#3d3530;">${clienteName}</strong> ha appena firmato il preventivo.
-            Un nuovo lavoro è entrato ufficialmente nel tuo portfolio. 🎉
+            Un nuovo lavoro è entrato ufficialmente nel tuo portfolio.
           </p>
 
           <!-- Stats grid -->
