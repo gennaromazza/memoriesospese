@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createSeoMiddleware } from './seo-prerender';
 import { generateDynamicSitemap } from './sitemap-generator';
+import { runReminderCheck } from './reminder-routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +53,21 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📁 Serving files from: ${buildPath}`);
   console.log('🔍 SEO prerender middleware attivo per crawler e AI');
   console.log('✅ Ready to handle requests');
+
+  // REMINDER SCHEDULER: Controlla e invia reminder 24h prima ogni ora
+  const runRemindersWithLog = async () => {
+    try {
+      const r = await runReminderCheck();
+      if (r.bookings.sent + r.consultations.sent > 0) {
+        console.log(`⏰ Reminder scheduler: ${r.bookings.sent} booking, ${r.consultations.sent} consulenze inviate`);
+      }
+    } catch (err: any) {
+      console.error('⏰ Reminder scheduler errore:', err.message);
+    }
+  };
+  setTimeout(runRemindersWithLog, 2 * 60 * 1000);
+  setInterval(runRemindersWithLog, 60 * 60 * 1000);
+  console.log('⏰ Reminder scheduler attivo (controllo ogni ora, prima esecuzione tra 2 min)');
 });
 
 export default app;

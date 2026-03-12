@@ -20,7 +20,7 @@ import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
 import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
-import reminderRoutes from './reminder-routes.js';
+import reminderRoutes, { runReminderCheck } from './reminder-routes.js';
 import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
@@ -184,6 +184,7 @@ async function startServer() {
     // Capture worker cleanup for graceful shutdown
     let cancellationWorkerCleanup: (() => void) | null = null;
     let bulkEmailCleanupInterval: NodeJS.Timeout | null = null;
+    let reminderSchedulerInterval: NodeJS.Timeout | null = null;
 
     // Start server
     app.listen(PORT, '0.0.0.0', async () => {
@@ -211,6 +212,22 @@ async function startServer() {
         await cleanupStaleJobs();
       }, 10 * 60 * 1000);
       console.log('⏰ Recurring cleanup worker started (10 min interval)');
+
+      // REMINDER SCHEDULER: Controlla e invia reminder 24h prima ogni ora
+      // Prima esecuzione dopo 2 minuti dal boot (evita cold-start)
+      const runRemindersWithLog = async () => {
+        try {
+          const r = await runReminderCheck();
+          if (r.bookings.sent + r.consultations.sent > 0) {
+            console.log(`⏰ Reminder scheduler: ${r.bookings.sent} booking, ${r.consultations.sent} consulenze inviate`);
+          }
+        } catch (err: any) {
+          console.error('⏰ Reminder scheduler errore:', err.message);
+        }
+      };
+      setTimeout(runRemindersWithLog, 2 * 60 * 1000);
+      reminderSchedulerInterval = setInterval(runRemindersWithLog, 60 * 60 * 1000);
+      console.log('⏰ Reminder scheduler attivo (controllo ogni ora, prima esecuzione tra 2 min)');
     });
 
     // Graceful shutdown: cleanup workers on SIGTERM/SIGINT
@@ -223,6 +240,9 @@ async function startServer() {
       stopBulkEmailDispatcher();
       if (bulkEmailCleanupInterval) {
         clearInterval(bulkEmailCleanupInterval);
+      }
+      if (reminderSchedulerInterval) {
+        clearInterval(reminderSchedulerInterval);
       }
       process.exit(0);
     };
