@@ -108,6 +108,13 @@ export async function generateDynamicSitemap(): Promise<string> {
     <priority>0.85</priority>
   </url>
 
+  <!-- Landing Page Geografica -->
+  <url>
+    <loc>${baseUrl}/fotografo-aversa</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.95</priority>
+  </url>
+
   <!-- Prenota - Campagne Booking -->
   <url>
     <loc>${baseUrl}/prenota</loc>

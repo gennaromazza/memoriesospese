@@ -34,27 +34,56 @@ interface PageMeta {
 function getStaticPageMeta(path: string): PageMeta | null {
   const pages: Record<string, PageMeta> = {
     '/': {
-      title: 'Image Studio | Fotografo Matrimoni Napoli Caserta | Memorie Sospese',
-      description: 'Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali interattive Memorie Sospese. Servizi foto e video a Napoli, Caserta, Aversa, Costiera Amalfitana.',
+      title: 'Fotografo Aversa | Image Studio | Matrimoni, Battesimi ed Eventi in Campania',
+      description: 'Fotografo professionista ad Aversa. Matrimoni, battesimi, comunioni ed eventi in Campania. Gennaro Mazzacane - 10+ anni di esperienza, 500+ matrimoni. Preventivo gratuito.',
       canonical: `${BASE_URL}/`,
-      keywords: 'fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, gallerie foto interattive, memorie sospese, image studio, destination wedding italy',
+      keywords: 'fotografo Aversa, fotografo matrimoni Aversa, fotografo battesimi Aversa, fotografo matrimoni Napoli, fotografo matrimoni Caserta, fotografo professionista Campania, video matrimoni Aversa, memorie sospese, image studio, gallerie foto interattive',
       bodyContent: `
-        <h1>Image Studio - Fotografo Professionista Matrimoni ed Eventi in Campania</h1>
-        <p>Benvenuti in Image Studio, lo studio fotografico di Gennaro Mazzacane specializzato in matrimoni, battesimi, comunioni, cresime ed eventi in Campania. Con oltre 10 anni di esperienza e 500+ matrimoni documentati, offriamo servizi fotografici emozionali a Napoli, Caserta, Aversa, Salerno e Costiera Amalfitana.</p>
+        <h1>Fotografo Aversa - Gennaro Mazzacane | Image Studio</h1>
+        <p>Image Studio è lo studio fotografico di Gennaro Mazzacane con sede ad Aversa (CE), specializzato in matrimoni, battesimi, comunioni, cresime ed eventi in Campania. Con oltre 10 anni di esperienza e 500+ matrimoni documentati, offriamo servizi fotografici emozionali ad Aversa, Napoli, Caserta, Salerno e Costiera Amalfitana.</p>
+        <h2>Fotografo Matrimoni Aversa</h2>
+        <p>Cerchi un fotografo di matrimonio ad Aversa? Image Studio offre un reportage fotografico completo della tua giornata: dai preparativi alla festa serale. Stile emozionale e documentaristico, galleria digitale Memorie Sospese inclusa.</p>
+        <h2>Fotografo Battesimi e Cerimonie Aversa</h2>
+        <p>Servizi fotografici professionali per battesimi, comunioni e cresime ad Aversa e nei comuni limitrofi: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, Giugliano in Campania.</p>
         <h2>I Nostri Servizi</h2>
         <ul>
-          <li>Fotografia Matrimoni - Reportage emozionale completo</li>
+          <li><a href="${BASE_URL}/portfolio/matrimonio">Fotografia Matrimoni Aversa</a> - Reportage emozionale completo</li>
           <li>Video Matrimoni (iMaGe Vision) - Video cinematografici</li>
-          <li>Fotografia Battesimi, Comunioni, Cresime</li>
-          <li>Eventi Aziendali e Privati</li>
+          <li><a href="${BASE_URL}/portfolio/battesimo">Fotografia Battesimi Aversa</a>, Comunioni, Cresime</li>
           <li>Ritratti e Book Fotografici</li>
           <li>Gallerie Digitali "Memorie Sospese" - Gallerie interattive con selezione foto online</li>
         </ul>
-        <h2>Memorie Sospese - Gallerie Digitali Interattive</h2>
-        <p>Memorie Sospese è la nostra piattaforma proprietaria di gallerie fotografiche digitali che permette ai clienti di visualizzare, selezionare e scaricare le foto in alta risoluzione tramite accesso protetto da password.</p>
-        <h2>Aree Servite</h2>
-        <p>Operiamo in tutta la Campania: Napoli, Caserta, Aversa, Salerno, Costiera Amalfitana (Amalfi, Ravello, Positano, Sorrento). Disponibili per destination wedding in tutta Italia e all'estero.</p>
-        <p>Contattaci: info@memoriesospese.it | <a href="${BASE_URL}/prenota">Prenota il tuo servizio</a> | <a href="${BASE_URL}/consulenze">Richiedi una consulenza</a></p>
+        <h2>Aree Servite - Agro Aversano e Campania</h2>
+        <p>Operiamo principalmente ad Aversa e nell'agro aversano: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Orta di Atella, Giugliano in Campania, Napoli, Caserta, Salerno e Costiera Amalfitana.</p>
+        <h2>Quanto costa un fotografo di matrimonio ad Aversa?</h2>
+        <p>Il costo indicativo è tra €2.000 e €3.500 a seconda del pacchetto. Non è previsto costo di trasferta nell'area aversana. <a href="${BASE_URL}/consulenze">Richiedi un preventivo gratuito</a>.</p>
+        <p>Contattaci: info@memoriesospese.it | Tel: +39 334 710 3142 | <a href="${BASE_URL}/prenota">Prenota il tuo servizio</a> | <a href="${BASE_URL}/consulenze">Richiedi una consulenza</a></p>
+      `
+    },
+    '/fotografo-aversa': {
+      title: 'Fotografo Aversa | Matrimoni, Battesimi, Cerimonie | Image Studio',
+      description: 'Fotografo professionista ad Aversa per matrimoni, battesimi e cerimonie. Gennaro Mazzacane di Image Studio: 10+ anni di esperienza, 500+ matrimoni. Servizi nell\'agro aversano senza costi di trasferta.',
+      canonical: `${BASE_URL}/fotografo-aversa`,
+      keywords: 'fotografo Aversa, fotografo matrimoni Aversa, fotografo battesimi Aversa, fotografo cerimonie Aversa, fotografo Sant\'Arpino, fotografo Succivo, fotografo Casal di Principe, fotografo agro aversano',
+      bodyContent: `
+        <h1>Fotografo Aversa - Image Studio | Gennaro Mazzacane</h1>
+        <p>Sei alla ricerca di un fotografo professionista ad Aversa per il tuo matrimonio, battesimo o cerimonia? Image Studio, con sede ad Aversa (CE), è il punto di riferimento per la fotografia professionale nell'agro aversano e in tutta la Campania.</p>
+        <h2>Fotografo di Matrimonio ad Aversa</h2>
+        <p>Gennaro Mazzacane ha documentato oltre 500 matrimoni in tutta la Campania. Specializzato in fotografia matrimoniale emozionale e reportage documentaristico, cattura i momenti autentici della tua giornata speciale con uno stile che unisce eleganza e spontaneità.</p>
+        <h2>Servizi Fotografici ad Aversa</h2>
+        <ul>
+          <li><strong>Fotografia Matrimoni Aversa</strong> - Reportage completo dalla preparazione alla festa</li>
+          <li><strong>Fotografia Battesimi Aversa</strong> - Momenti emozionanti della cerimonia e del ricevimento</li>
+          <li><strong>Fotografia Comunioni e Cresime</strong> - Ricordi preziosi per tutta la famiglia</li>
+          <li><strong>Video Matrimoni (iMaGe Vision)</strong> - Film cinematografici emozionali</li>
+          <li><strong>Gallerie Digitali Memorie Sospese</strong> - Accesso online protetto alle tue foto</li>
+        </ul>
+        <h2>Comuni Serviti nell'Agro Aversano</h2>
+        <p>Fotografo disponibile senza costi di trasferta ad Aversa e nei comuni limitrofi: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Villa di Briano, Orta di Atella, Trentola-Ducenta, Gricignano di Aversa, Cesa, Giugliano in Campania, Marano di Napoli, Qualiano e tutta la provincia di Caserta e Napoli.</p>
+        <h2>Prezzi Fotografo Aversa</h2>
+        <p>I pacchetti fotografici per matrimoni ad Aversa partono da €2.000 fino a €3.500 incluso album fotografico, galleria digitale Memorie Sospese e consegna entro 12 settimane. Nessun costo di trasferta nell'area aversana.</p>
+        <h2>Contatta il Fotografo ad Aversa</h2>
+        <p>Telefono: +39 334 710 3142 | Email: info@memoriesospese.it | <a href="${BASE_URL}/consulenze">Prenota una consulenza gratuita</a> di persona ad Aversa o in videocall.</p>
       `
     },
     '/portfolio': {
