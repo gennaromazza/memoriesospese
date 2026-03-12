@@ -1,15 +1,31 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useSEO } from "@/hooks/useSEO";
-import { Camera, Video, Image, MapPin, Phone, Mail, Star, Check, ChevronRight } from "lucide-react";
+import { useStudio } from "@/context/StudioContext";
+import StudioLogo from "@/components/StudioLogo";
+import Navigation from "@/components/Navigation";
+import { Camera, Video, Image, MapPin, Phone, Mail, Star, Check, ChevronRight, MessageCircle } from "lucide-react";
+
+function buildWhatsAppLink(phone: string, message = "") {
+  const clean = phone.replace(/\D/g, "").replace(/^0039/, "39").replace(/^00/, "");
+  const num = clean.startsWith("39") ? clean : `39${clean}`;
+  const base = `https://wa.me/${num}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
 
 export default function FotografoAversaPage() {
+  const { studioSettings } = useStudio();
+
   useSEO({
     title: "Fotografo Aversa | Matrimoni, Battesimi, Cerimonie | Image Studio",
     description: "Fotografo professionista ad Aversa per matrimoni, battesimi e cerimonie. Gennaro Mazzacane di Image Studio: 10+ anni di esperienza, 500+ matrimoni. Senza costi di trasferta nell'agro aversano.",
     canonical: "/fotografo-aversa",
     keywords: "fotografo Aversa, fotografo matrimoni Aversa, fotografo battesimi Aversa, fotografo cerimonie Aversa, fotografo agro aversano, fotografo Sant'Arpino, fotografo Succivo",
   });
+
+  const phone = studioSettings.phone || "+39 334 710 3142";
+  const email = studioSettings.email || "info@memoriesospese.it";
+  const whatsappLink = buildWhatsAppLink(phone, "Ciao! Ho trovato il vostro sito e vorrei informazioni sui servizi fotografici ad Aversa.");
 
   const comuni = [
     "Aversa", "Sant'Arpino", "Succivo", "Casal di Principe", "Frignano",
@@ -86,8 +102,11 @@ export default function FotografoAversaPage() {
 
   return (
     <div className="min-h-screen bg-white font-sans">
+      {/* Navigation con logo */}
+      <Navigation />
+
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-[#2C3A2C] to-[#4A5E4A] text-white py-24 px-4">
+      <section className="relative bg-gradient-to-br from-[#2C3A2C] to-[#4A5E4A] text-white py-24 px-4 pt-36">
         <div className="max-w-5xl mx-auto text-center">
           <div className="flex items-center justify-center gap-2 mb-4 text-[#c4724a]/80 text-sm font-medium tracking-widest uppercase">
             <MapPin className="h-4 w-4" />
@@ -97,19 +116,22 @@ export default function FotografoAversaPage() {
             Fotografo ad Aversa
           </h1>
           <p className="text-xl md:text-2xl text-white/80 mb-4 max-w-3xl mx-auto">
-            <span className="text-[#c4724a] font-semibold">Gennaro Mazzacane</span> · Image Studio
+            <span className="text-[#c4724a] font-semibold">
+              {studioSettings.name || "Gennaro Mazzacane"}
+            </span>
           </p>
           <p className="text-lg text-white/70 mb-10 max-w-2xl mx-auto">
-            Matrimoni, battesimi e cerimonie nell'agro aversano e in tutta la Campania.
-            Oltre 10 anni di esperienza, 500+ matrimoni documentati.
+            {studioSettings.about
+              ? studioSettings.about.slice(0, 160) + (studioSettings.about.length > 160 ? "..." : "")
+              : "Matrimoni, battesimi e cerimonie nell'agro aversano e in tutta la Campania. Oltre 10 anni di esperienza, 500+ matrimoni documentati."}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/consulenze">
-              <Button className="bg-[#c4724a] hover:bg-[#a85d3b] text-white px-8 py-6 text-lg rounded-full">
-                Consulenza Gratuita
-                <ChevronRight className="ml-2 h-5 w-5" />
+            <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
+              <Button className="bg-[#25D366] hover:bg-[#1ebe58] text-white px-8 py-6 text-lg rounded-full">
+                <MessageCircle className="mr-2 h-5 w-5" />
+                Scrivici su WhatsApp
               </Button>
-            </Link>
+            </a>
             <Link href="/portfolio">
               <Button variant="outline" className="border-white/40 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-full bg-transparent">
                 Guarda il Portfolio
@@ -126,6 +148,16 @@ export default function FotografoAversaPage() {
           </div>
         </div>
       </section>
+
+      {/* CTA Scopri il sito completo */}
+      <div className="bg-[#c4724a]/10 border-b border-[#c4724a]/20 py-4 px-4 text-center">
+        <p className="text-sm text-[#2C3A2C]">
+          Vuoi scoprire tutti i nostri servizi, portfolio e video?{" "}
+          <Link href="/" className="font-semibold text-[#c4724a] hover:underline">
+            Visita il sito completo →
+          </Link>
+        </p>
+      </div>
 
       {/* Servizi */}
       <section className="py-20 px-4 bg-[#F5EFE6]/30">
@@ -187,7 +219,7 @@ export default function FotografoAversaPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/consulenze">
+                <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
                   <Button
                     className={`w-full mt-6 rounded-full ${
                       p.highlight
@@ -197,7 +229,7 @@ export default function FotografoAversaPage() {
                   >
                     Richiedi Preventivo
                   </Button>
-                </Link>
+                </a>
               </div>
             ))}
           </div>
@@ -253,39 +285,60 @@ export default function FotografoAversaPage() {
       {/* CTA Contatti */}
       <section className="py-20 px-4 bg-white">
         <div className="max-w-3xl mx-auto text-center">
+          {/* Logo */}
+          <div className="flex justify-center mb-8">
+            <StudioLogo
+              showLink={false}
+              imgClassName="h-14 w-auto"
+              textClassName="text-3xl font-playfair text-[#2C3A2C]"
+            />
+          </div>
+
           <h2 className="text-3xl md:text-4xl font-playfair text-[#2C3A2C] mb-4">
             Parliamoci
           </h2>
           <p className="text-gray-600 mb-10 text-lg">
-            Raccontaci il tuo evento. Offriamo una consulenza gratuita di persona ad Aversa o in videocall.
+            Raccontaci il tuo evento. Siamo disponibili su WhatsApp, per telefono o email.
           </p>
-          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-10">
+
+          {/* WhatsApp - bottone primario */}
+          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="inline-block mb-6">
+            <Button className="bg-[#25D366] hover:bg-[#1ebe58] text-white px-10 py-6 text-lg rounded-full shadow-lg">
+              <MessageCircle className="mr-2 h-6 w-6" />
+              Scrivici su WhatsApp
+            </Button>
+          </a>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <a
-              href="tel:+393347103142"
+              href={`tel:${phone}`}
               className="flex items-center gap-3 bg-[#F5EFE6] hover:bg-[#ede4d5] transition-colors px-6 py-4 rounded-2xl text-[#2C3A2C] font-medium"
             >
               <Phone className="h-5 w-5 text-[#c4724a]" />
-              +39 334 710 3142
+              {phone}
             </a>
             <a
-              href="mailto:info@memoriesospese.it"
+              href={`mailto:${email}`}
               className="flex items-center gap-3 bg-[#F5EFE6] hover:bg-[#ede4d5] transition-colors px-6 py-4 rounded-2xl text-[#2C3A2C] font-medium"
             >
               <Mail className="h-5 w-5 text-[#c4724a]" />
-              info@memoriesospese.it
+              {email}
             </a>
           </div>
-          <Link href="/consulenze">
-            <Button className="bg-[#c4724a] hover:bg-[#a85d3b] text-white px-10 py-6 text-lg rounded-full">
-              Prenota Consulenza Gratuita
-              <ChevronRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
-          <p className="text-gray-400 text-sm mt-6">
-            <Link href="/" className="hover:text-[#c4724a] transition-colors">
-              ← Torna alla Homepage
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link href="/consulenze">
+              <Button variant="outline" className="border-[#c4724a] text-[#c4724a] hover:bg-[#c4724a]/10 px-8 py-5 rounded-full">
+                Prenota Consulenza Gratuita
+                <ChevronRight className="ml-2 h-5 w-5" />
+              </Button>
             </Link>
-          </p>
+            <Link href="/">
+              <Button variant="ghost" className="text-[#6b7f6b] hover:text-[#2C3A2C] px-8 py-5 rounded-full">
+                Scopri il sito completo →
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
     </div>
