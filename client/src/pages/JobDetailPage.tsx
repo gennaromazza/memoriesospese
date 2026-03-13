@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -60,8 +60,9 @@ import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
 import SendQuoteEmailButton from '@/components/quotes/SendQuoteEmailButton';
 import QuoteEmailStatusBadge from '@/components/quotes/QuoteEmailStatusBadge';
 import JobNotesSection from '@/components/jobs/JobNotesSection';
+import ShareGalleryButton from '@/components/ShareGalleryButton';
 import { db, convertFirestoreTimestamp } from '@/lib/firebase';
-import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy } from 'firebase/firestore';
+import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
@@ -105,10 +106,10 @@ export default function JobDetailPage() {
 
   // Gallerie collegate al job
   const [linkedGalleries, setLinkedGalleries] = useState<Array<{
-    id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string;
+    id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string; active?: boolean;
   }>>([]);
 
-  useEffect(() => {
+  const loadLinkedGalleries = () => {
     if (!jobId) return;
     const q = fbQuery(collection(db, 'galleries'), where('jobId', '==', jobId));
     getDocs(q).then(snap => {
@@ -119,9 +120,34 @@ export default function JobDetailPage() {
         date: d.data().date,
         photoCount: d.data().photoCount || 0,
         jobType: d.data().jobType,
+        active: d.data().active ?? true,
       })));
     }).catch(console.error);
-  }, [jobId]);
+  };
+
+  useEffect(() => { loadLinkedGalleries(); }, [jobId]);
+
+  const toggleLinkedGalleryStatus = async (g: { id: string; name: string; active?: boolean }) => {
+    try {
+      const newActive = !g.active;
+      await updateDoc(doc(db, 'galleries', g.id), { active: newActive });
+      setLinkedGalleries(prev => prev.map(gl => gl.id === g.id ? { ...gl, active: newActive } : gl));
+      toast({ title: newActive ? 'Galleria attivata' : 'Galleria disattivata', description: `"${g.name}" ${newActive ? 'è ora visibile ai clienti' : 'è stata nascosta ai clienti'}.` });
+    } catch {
+      toast({ title: 'Errore', description: 'Impossibile modificare lo stato della galleria.', variant: 'destructive' });
+    }
+  };
+
+  const deleteLinkedGallery = async (g: { id: string; name: string }) => {
+    if (!window.confirm(`Eliminare la galleria "${g.name}"? L'operazione non può essere annullata.`)) return;
+    try {
+      await deleteDoc(doc(db, 'galleries', g.id));
+      setLinkedGalleries(prev => prev.filter(gl => gl.id !== g.id));
+      toast({ title: 'Galleria eliminata', description: `"${g.name}" è stata eliminata.` });
+    } catch {
+      toast({ title: 'Errore', description: 'Impossibile eliminare la galleria.', variant: 'destructive' });
+    }
+  };
 
   // Consultation & Booking state
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -957,33 +983,72 @@ export default function JobDetailPage() {
                   ) : (
                     <div className="space-y-3">
                       {linkedGalleries.map(g => (
-                        <div key={g.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50/50 hover:shadow-sm transition-shadow">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate">{g.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-500">{g.code}</code>
-                              {g.date && <span className="text-xs text-muted-foreground">{g.date}</span>}
-                              {g.jobType && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded border bg-terracotta/10 text-terracotta border-terracotta/20 font-medium">{g.jobType}</span>
-                              )}
-                              <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                        <div key={g.id} className="rounded-lg border border-blue-100 bg-blue-50/50 hover:shadow-sm transition-shadow overflow-hidden">
+                          {/* Info riga */}
+                          <div className="flex items-center gap-3 p-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm truncate">{g.name}</p>
+                                {g.active === false && (
+                                  <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600">Disattivata</Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-500">{g.code}</code>
+                                {g.date && <span className="text-xs text-muted-foreground">{g.date}</span>}
+                                {g.jobType && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded border bg-terracotta/10 text-terracotta border-terracotta/20 font-medium">{g.jobType}</span>
+                                )}
+                                <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <a
-                              href={`/admin/gallery/${g.id}/manage`}
-                              className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+                          {/* Quick actions */}
+                          <div className="border-t border-blue-100 bg-white/60 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+                            {/* Visualizza pubblica */}
+                            <Link to={`/gallery/${g.code}`}>
+                              <Button variant="outline" size="icon" className="h-8 w-8 bg-green-50 hover:bg-green-100 border-green-200" title="Visualizza galleria (bypass admin)">
+                                <Eye className="h-3.5 w-3.5 text-green-600" />
+                              </Button>
+                            </Link>
+                            {/* Condividi */}
+                            <ShareGalleryButton
+                              galleryId={g.id}
+                              galleryCode={g.code}
+                              galleryName={g.name}
+                            />
+                            {/* Gestisci */}
+                            <Link to={`/admin/gallery/${g.id}/manage`}>
+                              <Button variant="outline" size="icon" className="h-8 w-8 bg-blue-50 hover:bg-blue-100 border-blue-200" title="Gestisci galleria">
+                                <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+                              </Button>
+                            </Link>
+                            {/* Attiva/Disattiva */}
+                            <Button
+                              variant={g.active !== false ? "destructive" : "default"}
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => toggleLinkedGalleryStatus(g)}
+                              title={g.active !== false ? 'Disattiva galleria' : 'Attiva galleria'}
                             >
-                              Gestisci →
-                            </a>
-                            <a
-                              href={`/gallery/${g.code}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-muted-foreground hover:underline whitespace-nowrap"
+                              {g.active !== false ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                            {/* Questionario */}
+                            <Link to={`/admin/galleries/${g.id}/questionnaire`}>
+                              <Button variant="outline" size="icon" className="h-8 w-8 bg-purple-50 hover:bg-purple-100 border-purple-200" title="Gestisci questionario">
+                                <HelpCircle className="h-3.5 w-3.5 text-purple-600" />
+                              </Button>
+                            </Link>
+                            {/* Elimina */}
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => deleteLinkedGallery(g)}
+                              title="Elimina galleria"
                             >
-                              Vista cliente
-                            </a>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
                       ))}
