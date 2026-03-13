@@ -1,4 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Cliente } from '@shared/clienti-types';
 import {
   Sheet,
@@ -46,6 +48,26 @@ export default function ClienteDetailDrawer({
   onAction 
 }: ClienteDetailDrawerProps) {
   const storicoRef = useRef<HTMLElement>(null);
+
+  // Gallerie collegate al cliente (query diretta)
+  const [linkedGalleries, setLinkedGalleries] = useState<Array<{
+    id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string;
+  }>>([]);
+
+  useEffect(() => {
+    if (!cliente?.id || !open) return;
+    const q = query(collection(db, 'galleries'), where('clienteId', '==', cliente.id));
+    getDocs(q).then(snap => {
+      setLinkedGalleries(snap.docs.map(d => ({
+        id: d.id,
+        name: d.data().name || '',
+        code: d.data().code || '',
+        date: d.data().date,
+        photoCount: d.data().photoCount || 0,
+        jobType: d.data().jobType,
+      })));
+    }).catch(console.error);
+  }, [cliente?.id, open]);
 
   if (!cliente) return null;
 
@@ -402,6 +424,45 @@ export default function ClienteDetailDrawer({
                 </div>
               )}
             </div>
+          </section>
+
+          <Separator />
+
+          {/* Gallerie Associate */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">Gallerie Associate</h3>
+              <Badge variant="outline">{linkedGalleries.length}</Badge>
+            </div>
+            {linkedGalleries.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">
+                Nessuna galleria collegata a questo cliente. Collega una galleria dalla modale "Modifica Galleria".
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {linkedGalleries.map(g => (
+                  <div key={g.id} className="flex items-center justify-between gap-2 p-3 rounded-lg border border-blue-100 bg-blue-50/50 hover:shadow-sm transition-shadow">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{g.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-500">{g.code}</code>
+                        {g.date && <span className="text-xs text-muted-foreground">{g.date}</span>}
+                        {g.jobType && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border bg-terracotta/10 text-terracotta border-terracotta/20 font-medium">{g.jobType}</span>
+                        )}
+                        <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                      </div>
+                    </div>
+                    <a
+                      href={`/admin/gallery/${g.id}/manage`}
+                      className="flex-shrink-0 text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+                    >
+                      Gestisci →
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           <Separator />

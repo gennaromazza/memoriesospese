@@ -171,6 +171,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   
   // Stati per associazione cliente
   const [clienteId, setClienteId] = useState<string>("");
+  const [originalClienteId, setOriginalClienteId] = useState<string>("");
   const [isSavingCliente, setIsSavingCliente] = useState(false);
 
   // Job Type e collegamento Job
@@ -367,7 +368,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setSpecialTheme(gallery.specialTheme || "none");
       setClientEmail((gallery as any).clientEmail || "");
       setClientName((gallery as any).clientName || "");
-      setClienteId((gallery as any).clienteId || "");
+      const loadedClienteId = (gallery as any).clienteId || "";
+      setClienteId(loadedClienteId);
+      setOriginalClienteId(loadedClienteId);
       const loadedJobType = (gallery as any).jobType || 'none';
       const loadedJobId = (gallery as any).jobId || '';
       setJobType(loadedJobType);
@@ -1237,6 +1240,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
       await updateDoc(galleryRef, updateData);
 
+      // SINCRONIZZA clienteId: aggiorna sourceRefs.galleryIds sui clienti
+      if (clienteId !== originalClienteId) {
+        const clientePromises: Promise<void>[] = [];
+        if (originalClienteId) {
+          clientePromises.push(
+            updateDoc(doc(db, 'clienti', originalClienteId), {
+              'sourceRefs.galleryIds': arrayRemove(gallery.id)
+            })
+          );
+        }
+        if (clienteId) {
+          clientePromises.push(
+            updateDoc(doc(db, 'clienti', clienteId), {
+              'sourceRefs.galleryIds': arrayUnion(gallery.id)
+            })
+          );
+        }
+        if (clientePromises.length > 0) await Promise.all(clientePromises);
+        setOriginalClienteId(clienteId);
+      }
+
       // SINCRONIZZA jobId: aggiorna galleryIds sui job collegati
       if (jobId !== originalJobId) {
         const syncPromises: Promise<void>[] = [];
@@ -1782,6 +1806,27 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     clienteId: newClienteId || null,
                     updatedAt: serverTimestamp()
                   });
+                  // Sync sourceRefs.galleryIds sui clienti
+                  if (newClienteId !== originalClienteId) {
+                    const clientePromises: Promise<void>[] = [];
+                    if (originalClienteId) {
+                      clientePromises.push(
+                        updateDoc(doc(db, 'clienti', originalClienteId), {
+                          'sourceRefs.galleryIds': arrayRemove(gallery.id)
+                        })
+                      );
+                    }
+                    if (newClienteId) {
+                      clientePromises.push(
+                        updateDoc(doc(db, 'clienti', newClienteId), {
+                          'sourceRefs.galleryIds': arrayUnion(gallery.id)
+                        })
+                      );
+                    }
+                    if (clientePromises.length > 0) await Promise.all(clientePromises);
+                    setOriginalClienteId(newClienteId || "");
+                    console.log(`🔗 clienteId sync galleria: ${originalClienteId || 'none'} → ${newClienteId || 'none'}`);
+                  }
                   toast({
                     title: newClienteId ? "Cliente associato" : "Associazione rimossa",
                     description: newClienteId 

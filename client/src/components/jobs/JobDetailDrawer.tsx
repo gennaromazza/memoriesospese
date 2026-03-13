@@ -610,15 +610,21 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-3 flex-shrink-0">
                             <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                            <a
+                              href={`/admin/gallery/${g.id}/manage`}
+                              className="text-xs font-medium text-sage hover:underline"
+                            >
+                              Gestisci →
+                            </a>
                             <a
                               href={`/gallery/${g.code}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-sage hover:underline"
+                              className="text-xs text-muted-foreground hover:underline"
                             >
-                              Apri →
+                              Vista cliente
                             </a>
                           </div>
                         </div>
