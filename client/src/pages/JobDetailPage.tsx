@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Images } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -102,6 +102,26 @@ export default function JobDetailPage() {
   const [isAllDay, setIsAllDay] = useState(false);
   const [durationPreset, setDurationPreset] = useState<'30min' | '1h' | '2h' | '3h' | 'custom'>('1h');
   const [customDurationHours, setCustomDurationHours] = useState('1');
+
+  // Gallerie collegate al job
+  const [linkedGalleries, setLinkedGalleries] = useState<Array<{
+    id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string;
+  }>>([]);
+
+  useEffect(() => {
+    if (!jobId) return;
+    const q = fbQuery(collection(db, 'galleries'), where('jobId', '==', jobId));
+    getDocs(q).then(snap => {
+      setLinkedGalleries(snap.docs.map(d => ({
+        id: d.id,
+        name: d.data().name || '',
+        code: d.data().code || '',
+        date: d.data().date,
+        photoCount: d.data().photoCount || 0,
+        jobType: d.data().jobType,
+      })));
+    }).catch(console.error);
+  }, [jobId]);
 
   // Consultation & Booking state
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -917,6 +937,60 @@ export default function JobDetailPage() {
 
               {/* Note e Personalizzazioni */}
               <JobNotesSection job={job} />
+
+              {/* Gallerie Associate */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20">
+                  <CardTitle className="flex items-center gap-2">
+                    <Images className="h-5 w-5 text-blue-600" />
+                    Gallerie Associate
+                    <Badge variant="outline" className="ml-auto">{linkedGalleries.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {linkedGalleries.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Images className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">Nessuna galleria collegata a questo lavoro.</p>
+                      <p className="text-xs mt-1">Collega una galleria dalla sezione "Gestione Gallerie" → Modifica → Tipo Evento & Lavoro.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {linkedGalleries.map(g => (
+                        <div key={g.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50/50 hover:shadow-sm transition-shadow">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{g.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border text-gray-500">{g.code}</code>
+                              {g.date && <span className="text-xs text-muted-foreground">{g.date}</span>}
+                              {g.jobType && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded border bg-terracotta/10 text-terracotta border-terracotta/20 font-medium">{g.jobType}</span>
+                              )}
+                              <span className="text-xs text-muted-foreground">{g.photoCount} foto</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <a
+                              href={`/admin/gallery/${g.id}/manage`}
+                              className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
+                            >
+                              Gestisci →
+                            </a>
+                            <a
+                              href={`/gallery/${g.code}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-muted-foreground hover:underline whitespace-nowrap"
+                            >
+                              Vista cliente
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Right Column - Secondary Info */}
