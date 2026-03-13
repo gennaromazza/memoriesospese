@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Images } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -942,7 +942,7 @@ export default function JobDetailPage() {
               <Card className="shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20">
                   <CardTitle className="flex items-center gap-2">
-                    <Images className="h-5 w-5 text-blue-600" />
+                    <Image className="h-5 w-5 text-blue-600" />
                     Gallerie Associate
                     <Badge variant="outline" className="ml-auto">{linkedGalleries.length}</Badge>
                   </CardTitle>
@@ -950,7 +950,7 @@ export default function JobDetailPage() {
                 <CardContent className="pt-6">
                   {linkedGalleries.length === 0 ? (
                     <div className="text-center py-6 text-muted-foreground">
-                      <Images className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <Image className="h-8 w-8 mx-auto mb-2 opacity-30" />
                       <p className="text-sm">Nessuna galleria collegata a questo lavoro.</p>
                       <p className="text-xs mt-1">Collega una galleria dalla sezione "Gestione Gallerie" → Modifica → Tipo Evento & Lavoro.</p>
                     </div>
