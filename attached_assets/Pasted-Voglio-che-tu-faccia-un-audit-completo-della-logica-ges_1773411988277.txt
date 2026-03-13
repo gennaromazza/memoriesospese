@@ -1,0 +1,184 @@
+Voglio che tu faccia un audit completo della logica gestionale della mia web app per fotografi, analizzando la struttura generale dell’app, i moduli esistenti, le relazioni tra entità, i collegamenti tra pagine, i flussi operativi e le dipendenze tra dati.
+
+OBIETTIVO:
+Non mi interessa una singola feature isolata. Voglio che tu analizzi la piattaforma come un vero gestionale completo e verifichi se tutte le sezioni sono coerenti tra loro, se i dati sono davvero collegati in modo corretto, e se le relazioni tipiche di un gestionale fotografico sono implementate bene.
+
+DEVI LAVORARE COME UN ARCHITETTO SOFTWARE + QA FUNZIONALE + ANALISTA DI DOMINIO.
+
+---
+
+CONTESTO APPLICATIVO
+
+La piattaforma è un gestionale per fotografi e deve gestire entità e moduli tipici come, ad esempio:
+
+- Clienti
+- Prenotazioni
+- Lavori / Servizi fotografici
+- Gallerie
+- Ordini
+- Appuntamenti / Consulenze
+- Pagamenti
+- Contratti
+- Eventi
+- Task / Attività
+- Timeline del cliente
+- File / Media / Consegne
+- Note interne
+- Collaboratori / operatori
+- Dashboard e statistiche
+
+Non assumere che i collegamenti attuali siano corretti: devi verificarli.
+
+---
+
+COSA DEVI FARE
+
+1. ANALISI DELLE ENTITÀ
+Esamina tutte le entità presenti nel progetto (frontend + backend + database/schema/model).
+Per ogni entità individua:
+- campi principali
+- id
+- foreign key o riferimenti logici
+- relazioni one-to-one, one-to-many, many-to-many
+- campi mancanti per creare collegamenti utili
+- incongruenze nei nomi dei campi
+- duplicazioni o strutture che potrebbero generare dati scollegati
+
+2. ANALISI DELLE RELAZIONI GESTIONALI
+Verifica se i collegamenti tipici di un gestionale fotografico sono presenti e funzionano davvero.
+
+Esempi di controlli da fare:
+- un Cliente ha associati i suoi Lavori?
+- un Cliente ha associate le sue Prenotazioni?
+- un Cliente ha associate le sue Gallerie?
+- una Prenotazione genera o collega un Lavoro?
+- un Lavoro è collegato a Cliente, Evento, Gallery, Ordine, Pagamenti?
+- una Galleria è collegata al Cliente corretto e al Lavoro corretto?
+- un Ordine è collegato a Cliente, Gallery e/o Job?
+- una Consulenza o Appuntamento può generare Prenotazione o Preventivo?
+- i Pagamenti sono associati all’entità giusta?
+- esiste una timeline coerente del cliente che raggruppa tutte le interazioni?
+- i moduli parlano davvero tra loro o sono sezioni isolate?
+
+3. ANALISI UI/UX FUNZIONALE
+Controlla le schede dettaglio delle principali entità.
+Per esempio:
+- nella scheda Cliente, vedo davvero tutto ciò che riguarda quel cliente?
+- nella scheda Lavoro, vedo prenotazione, gallery, ordine, pagamenti, note, task?
+- nella scheda Gallery, posso risalire al cliente e al lavoro?
+- nella scheda Prenotazione, vedo se è stata convertita in lavoro?
+- nella dashboard ci sono dati aggregati coerenti o solo numeri scollegati?
+
+Per ogni vista verifica:
+- dati mostrati
+- dati mancanti
+- link utili mancanti
+- azioni rapide mancanti
+- incoerenze tra dettaglio e lista
+- possibili miglioramenti da gestionale vero
+
+4. ANALISI DEI FLUSSI OPERATIVI
+Ricostruisci i flussi reali dell’app, ad esempio:
+- lead → cliente → consulenza → prenotazione → lavoro → gallery → ordine → pagamento → consegna
+- cliente occasionale → mini sessione → selezione foto → ordine
+- matrimonio → contratto → acconto → evento → gallery → album → saldo finale
+
+Verifica:
+- quali step sono già collegati
+- quali passaggi sono solo visivi ma non relazionali
+- quali flussi si interrompono
+- quali dati vengono persi lungo il processo
+- quali entità dovrebbero essere collegate automaticamente ma non lo sono
+
+5. ANALISI TECNICA DEI COLLEGAMENTI
+Controlla nel codice:
+- query
+- fetch
+- endpoints
+- repository/service layer
+- mapping dei dati
+- hooks/state
+- join logici
+- route params
+- filtri per entità correlate
+- componenti che dovrebbero ricevere dati collegati ma non li ricevono
+
+Individua:
+- query sbagliate o incomplete
+- filtri mancanti
+- fetch che non includono relazioni
+- relazioni simulate nel frontend ma non reali nel backend
+- campi mai valorizzati
+- record orfani
+- logiche duplicate o incoerenti
+
+6. INDIVIDUAZIONE DELLE LACUNE
+Voglio che tu elenchi chiaramente:
+- collegamenti esistenti e corretti
+- collegamenti mancanti
+- collegamenti deboli o parziali
+- entità isolate
+- dati che dovrebbero essere derivati ma non lo sono
+- sezioni che andrebbero unificate
+- problemi architetturali che limitano la crescita del gestionale
+
+7. PROPOSTA DI MODELLO GESTIONALE MIGLIORE
+Dopo l’audit, proponi una struttura migliore e più solida.
+
+Per ogni entità principale, dimmi:
+- a quali altre entità dovrebbe essere collegata
+- con che tipo di relazione
+- quali campi servono
+- quali viste dovrebbero mostrare i collegamenti
+- quali automazioni avrebbe senso introdurre
+
+8. OUTPUT FINALE OBBLIGATORIO
+Voglio un report finale molto chiaro, diviso in sezioni:
+
+A. Mappa attuale delle entità e relazioni
+B. Collegamenti corretti già presenti
+C. Collegamenti mancanti o incoerenti
+D. Flussi gestionali attualmente incompleti
+E. Problemi tecnici trovati nel codice
+F. Miglioramenti consigliati lato database
+G. Miglioramenti consigliati lato backend
+H. Miglioramenti consigliati lato frontend/UI
+I. Priorità operative (alta, media, bassa)
+J. Eventuale piano di implementazione step-by-step
+
+---
+
+REGOLE IMPORTANTI
+
+- Non limitarti a descrivere il codice: ragiona come un vero consulente di architettura gestionale.
+- Non darmi risposte generiche.
+- Se trovi moduli scollegati, dillo esplicitamente.
+- Se trovi collegamenti solo parziali, spiegami cosa manca.
+- Se una scheda dovrebbe mostrare dati relazionati ma non li mostra, evidenzialo.
+- Se mancano foreign key logiche o riferimenti coerenti, proponi come introdurli.
+- Se serve, suggerisci refactor di naming, schema, query e componenti.
+- Non inventare feature inutili: resta nel dominio di un gestionale fotografico professionale.
+- Considera sia l’aspetto tecnico sia quello funzionale/operativo.
+
+---
+
+DOPO IL REPORT
+Se individui problemi chiari e risolvibili, proponi anche un secondo step operativo:
+- modifiche schema
+- nuove query
+- refactor delle schede dettaglio
+- relazioni da introdurre
+- campi da aggiungere
+- viste aggregate da creare
+
+Se possibile, alla fine genera anche una checklist pratica del tipo:
+- [ ] Cliente → mostrare lavori associati
+- [ ] Cliente → mostrare prenotazioni associate
+- [ ] Cliente → mostrare gallerie associate
+- [ ] Prenotazione → link al lavoro generato
+- [ ] Lavoro → link a galleria, ordine, pagamenti
+- [ ] Gallery → riferimento a cliente e job
+ecc.
+
+Prima analizza tutto il progetto esistente, poi produci il report.
+Non iniziare subito a modificare il codice finché non hai completato prima l’audit e la mappa delle relazioni.

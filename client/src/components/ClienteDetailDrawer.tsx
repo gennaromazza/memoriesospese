@@ -276,7 +276,7 @@ export default function ClienteDetailDrawer({
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {cliente.sourceRefs.galleryIds?.length || 0}
+                    {linkedGalleries.length || cliente.sourceRefs.galleryIds?.length || 0}
                   </div>
                   <div className="text-xs text-blue-700/70 dark:text-blue-300/70">
                     Gallerie
