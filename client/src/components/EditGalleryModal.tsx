@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap } from "lucide-react";
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import { getAllJobs } from "@/lib/jobs";
@@ -900,6 +900,75 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setIsLoading(false);
     }
   }, [gallery, toast]);
+
+  // ─── Ricarica prodotti dall'ordine/booking di origine ───────────────────────
+  const handleRefetchProducts = useCallback(async () => {
+    if (!gallery) return;
+    setIsLoadingProduct(true);
+    setAssociatedProducts([]);
+    try {
+      const bookingId = (gallery as any).bookingId;
+      // Priority 1: ricarica da gallery.productRequirements (Firestore fresco)
+      const { getDoc: fsGetDoc, doc: fsDoc } = await import('firebase/firestore');
+      const freshSnap = await fsGetDoc(fsDoc(db, 'galleries', gallery.id));
+      if (freshSnap.exists()) {
+        const freshData = freshSnap.data();
+        if (freshData.productRequirements?.length > 0) {
+          setAssociatedProducts(freshData.productRequirements.map((p: any) => ({
+            prodottoId: p.prodottoId,
+            nome: p.prodottoNome || 'Prodotto Sconosciuto',
+            numeroFoto: p.prodottoNumeroFoto || 0,
+            isCustom: !p.prodottoId
+          })));
+          toast({ title: '✅ Prodotti ricaricati', description: `${freshData.productRequirements.length} prodotti caricati dalla galleria.` });
+          return;
+        }
+      }
+      // Priority 2: cerca dall'ordine via bookingId
+      if (bookingId) {
+        const { collection: col, query: q, where: w, getDocs: gd } = await import('firebase/firestore');
+        const ordersSnap = await gd(q(col(db, 'orders'), w('bookingId', '==', bookingId)));
+        if (!ordersSnap.empty) {
+          const prodotti = ordersSnap.docs[0].data().prodotti || [];
+          setAssociatedProducts(prodotti.map((p: any) => ({
+            nome: p.prodottoNome || 'Prodotto Sconosciuto',
+            numeroFoto: p.prodottoNumeroFoto || 0,
+            isCustom: !p.prodottoId
+          })));
+          toast({ title: '✅ Prodotti ricaricati', description: `${prodotti.length} prodotti caricati dall'ordine collegato.` });
+          return;
+        }
+      }
+      toast({ title: 'Nessun prodotto trovato', description: 'Nessun prodotto trovato nella galleria o nell\'ordine collegato.', variant: 'destructive' });
+    } catch (err) {
+      console.error('Errore ricarica prodotti:', err);
+      toast({ title: 'Errore', description: 'Errore durante il caricamento dei prodotti.', variant: 'destructive' });
+    } finally {
+      setIsLoadingProduct(false);
+    }
+  }, [gallery, db, toast]);
+
+  // ─── Attiva selezione + salva subito in Firestore ────────────────────────────
+  const handleRepairSelection = useCallback(async () => {
+    if (!gallery) return;
+    try {
+      setIsLoading(true);
+      await updateDoc(doc(db, 'galleries', gallery.id), {
+        selectionEnabled: true,
+        updatedAt: serverTimestamp()
+      });
+      setSelectionEnabled(true);
+      toast({
+        title: '✅ Selezione attivata',
+        description: 'La selezione foto è ora attiva per questa galleria. I prodotti erano già configurati correttamente.'
+      });
+    } catch (err) {
+      console.error('Errore attivazione selezione:', err);
+      toast({ title: 'Errore', description: 'Impossibile attivare la selezione.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gallery, db, toast]);
 
   // Carica tutte le gallerie per il dialog Unisci
   const loadAllGalleries = useCallback(async () => {
@@ -1979,6 +2048,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             {/* Prodotti Associati Section - MULTI-PRODUCT SUPPORT */}
             {(associatedProducts.length > 0 || isLoadingProduct) && (
               <div className="border-t pt-4">
+                {/* ⚠️ Banner: prodotti presenti ma selezione disattivata */}
+                {associatedProducts.length > 0 && !selectionEnabled && (
+                  <div className="mb-3 flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-amber-800">Selezione non attiva</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Ci sono {associatedProducts.length} prodotti associati ma la selezione foto è disattivata. La cliente non può selezionare le foto.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleRepairSelection}
+                      disabled={isLoading}
+                      className="flex-shrink-0 bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                    >
+                      {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                      Attiva Selezione
+                    </Button>
+                  </div>
+                )}
                 <div className="bg-sage/10 border border-sage/30 rounded-lg p-4">
                   <div className="flex items-start gap-2">
                     <Info className="w-5 h-5 text-sage mt-0.5" />
@@ -1987,10 +2078,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         <h4 className="font-semibold text-sage-dark">
                           📦 Prodotti Associati {associatedProducts.length > 0 && `(${associatedProducts.length})`}
                         </h4>
-                        {isLoadingProduct && (
+                        {isLoadingProduct ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
                             Caricamento...
                           </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-sage hover:bg-sage/20"
+                            onClick={handleRefetchProducts}
+                            title="Ricarica prodotti dall'ordine di origine"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                       </div>
                       
