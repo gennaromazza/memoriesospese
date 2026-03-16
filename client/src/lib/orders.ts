@@ -477,19 +477,23 @@ export async function createOrder(data: InsertOrder): Promise<string> {
       const gallerySnap = await getDoc(galleryRef);
       if (gallerySnap.exists()) {
         const galleryData = gallerySnap.data();
-        if (galleryData.selectionEnabled) {
-          const newReqs = expandProductsToRequirements(normalizedProdotti);
+        // ✅ VINCOLO AUTO: sempre aggiorna productRequirements se ci sono prodotti,
+        // indipendentemente da selectionEnabled (che viene forzato a true)
+        const newReqs = expandProductsToRequirements(normalizedProdotti);
+        if (newReqs.length > 0) {
           const totalFoto = newReqs.reduce((s: number, r: any) => s + (r.prodottoNumeroFoto || 0), 0);
           const galleryUpdate: any = {
             productRequirements: newReqs,
             requiredPhotoCount: totalFoto,
+            selectionEnabled: true,
+            unlimitedSelection: false,
             updatedAt: serverTimestamp(),
           };
           if (newReqs.length > 1 && !galleryData.photoAssignments) {
             galleryUpdate.photoAssignments = {};
           }
           await updateDoc(galleryRef, galleryUpdate);
-          console.log(`🔗 Galleria ${linkedGalleryId} aggiornata con ${newReqs.length} productRequirements espansi (${totalFoto} foto)`);
+          console.log(`🔗 Galleria ${linkedGalleryId} aggiornata con ${newReqs.length} productRequirements espansi (${totalFoto} foto), selectionEnabled forzato TRUE`);
         }
       }
     } catch (err: any) {

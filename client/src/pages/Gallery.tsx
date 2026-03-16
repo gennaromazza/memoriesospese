@@ -482,7 +482,10 @@ export default function Gallery() {
   const isSelectionMode = galleryData?.selectionEnabled || false;
 
   // 🔥 REFACTORED: Separa correttamente le 3 modalità di selezione
-  const productRequirements = galleryData?.productRequirements;
+  // ✅ DIFENSIVO: normalizza array vuoto [] come undefined (Firestore può restituire [])
+  const productRequirements = (galleryData?.productRequirements?.length ?? 0) > 0
+    ? galleryData!.productRequirements
+    : undefined;
 
   // Modalità 1: Single-product con productRequirements (1 prodotto con N foto)
   const isSingleProductRequirement = (productRequirements?.length === 1);
