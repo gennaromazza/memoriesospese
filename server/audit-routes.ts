@@ -1503,4 +1503,43 @@ router.post('/fix-all-discrepancies', authenticateFirebase, requireAdmin, async 
   }
 });
 
+// ─── DEBUG: Raw gallery data by code ──────────────────────────────────────────
+router.get('/gallery-debug/:code', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { code } = req.params;
+    const snap = await db.collection('galleries').where('code', '==', code).get();
+    if (snap.empty) return res.status(404).json({ error: 'Galleria non trovata' });
+    const doc = snap.docs[0];
+    const data = doc.data();
+    // Fetch linked order if orderId exists
+    let orderData: any = null;
+    if (data.orderId) {
+      const orderSnap = await db.collection('orders').doc(data.orderId).get();
+      if (orderSnap.exists) {
+        const od = orderSnap.data()!;
+        orderData = { id: orderSnap.id, prodotti: od.prodotti, stato: od.stato };
+      }
+    }
+    res.json({
+      id: doc.id,
+      code: data.code,
+      name: data.name,
+      selectionEnabled: data.selectionEnabled,
+      unlimitedSelection: data.unlimitedSelection,
+      requiredPhotoCount: data.requiredPhotoCount,
+      productRequirements: data.productRequirements,
+      productRequirementsLength: Array.isArray(data.productRequirements) ? data.productRequirements.length : null,
+      selectionStatus: data.selectionStatus,
+      jobId: data.jobId,
+      clienteId: data.clienteId,
+      orderId: data.orderId,
+      bookingId: data.bookingId,
+      linkedOrder: orderData,
+      allFields: Object.keys(data).sort(),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
