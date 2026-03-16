@@ -399,6 +399,9 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
               productRequirements: newProductRequirements,
               selectionStatus: 'pending',
               updatedAt: FieldValue.serverTimestamp(),
+              // ✅ VINCOLO AUTO: prodotti presenti → selezione sempre attiva e non libera
+              selectionEnabled: true,
+              unlimitedSelection: false,
             };
             
             // Reset selezioni se c'erano (prodotti cambiati → selezioni invalidate)
@@ -1527,6 +1530,9 @@ router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, r
         const galleryUpdate: any = {
           productRequirements: newProductRequirements,
           updatedAt: FieldValue.serverTimestamp(),
+          // ✅ VINCOLO AUTO: prodotti presenti → selezione sempre attiva e non libera
+          selectionEnabled: true,
+          unlimitedSelection: false,
         };
 
         if (structureChanged && hasSelections) {
@@ -1536,9 +1542,10 @@ router.post('/repair-bundle-galleries', authenticateFirebase, async (req: any, r
           selectionsReset++;
         }
 
-        if (newProductRequirements.length === 1) {
-          galleryUpdate.requiredPhotoCount = newProductRequirements[0].prodottoNumeroFoto || 0;
-        }
+        const totalFoto = newProductRequirements.reduce(
+          (sum: number, r: any) => sum + (r.prodottoNumeroFoto || 0), 0
+        );
+        galleryUpdate.requiredPhotoCount = totalFoto;
 
         await galleryDoc.ref.update(galleryUpdate);
         repaired++;

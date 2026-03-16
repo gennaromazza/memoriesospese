@@ -217,9 +217,11 @@ export default function NewGalleryModal({
       setRequiredPhotoCount(totalPhotos);
       
       // Auto-enable selection if products are selected
-      if (!selectionEnabled && totalPhotos > 0) {
-        setSelectionEnabled(true);
-        console.log("📊 Auto-abilitata selezione con", totalPhotos, "foto richieste da", selectedProductIndices.length, "prodotti");
+      if (totalPhotos > 0) {
+        // ✅ VINCOLO AUTO: prodotti presenti → selezione attiva e NON libera
+        if (!selectionEnabled) setSelectionEnabled(true);
+        setUnlimitedSelection(false);
+        console.log("📊 Auto-abilitata selezione con", totalPhotos, "foto richieste da", selectedProductIndices.length, "prodotti (unlimitedSelection=false)");
       }
     }
   }, [selectedProductIndices, prePopulate?.availableProducts]);

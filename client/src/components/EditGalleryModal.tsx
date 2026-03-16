@@ -397,14 +397,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
       
       // Popola campi Photo Selection Workflow (Task 2)
+      const hasProductRequirements = Array.isArray((gallery as any).productRequirements) && (gallery as any).productRequirements.length > 0;
       const gallerySelectionEnabled = (gallery as any).selectionEnabled || false;
-      setSelectionEnabled(gallerySelectionEnabled);
+      // ✅ VINCOLO AUTO: se ci sono prodotti associati → selezione DEVE essere attiva e NON libera
+      const effectiveSelectionEnabled = hasProductRequirements ? true : gallerySelectionEnabled;
+      setSelectionEnabled(effectiveSelectionEnabled);
       // Selezione libera: se unlimitedSelection è true OPPURE se selezione attiva e requiredPhotoCount <= 0 (legacy)
       const storedUnlimited = (gallery as any).unlimitedSelection === true;
       const storedCount = (gallery as any).requiredPhotoCount || 0;
       // Legacy fix: se selezione attiva ma count è 0 e non ci sono productRequirements, trattala come illimitata
-      const hasProductRequirements = Array.isArray((gallery as any).productRequirements) && (gallery as any).productRequirements.length > 0;
-      const isUnlimited = storedUnlimited || (gallerySelectionEnabled && storedCount <= 0 && !hasProductRequirements);
+      // ✅ VINCOLO AUTO: se ci sono prodotti → mai selezione libera
+      const isUnlimited = hasProductRequirements ? false : (storedUnlimited || (gallerySelectionEnabled && storedCount <= 0 && !hasProductRequirements));
       setUnlimitedSelection(isUnlimited);
       // 🔥 FIX Task 8: NON usare default 50, lascia 0 se undefined (evita sovrascrittura dati)
       setRequiredPhotoCount(storedCount);
@@ -1296,14 +1299,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           prodottoNumeroFoto: product.numeroFoto
         }));
         
-        // Aggiorna anche requiredPhotoCount con la nuova somma dei prodotti
         const newSum = associatedProducts.reduce((sum, p) => sum + (p.numeroFoto || 0), 0);
-        if (selectionEnabled && !unlimitedSelection) {
-          // Se la selezione è abilitata e non illimitata, aggiorna il count
-          updateData.requiredPhotoCount = newSum;
-        }
         
-        console.log('📦 ProductRequirements aggiornati:', updateData.productRequirements, 'Totale foto:', newSum);
+        // ✅ VINCOLO AUTO: prodotti presenti → selezione SEMPRE attiva e NON libera
+        updateData.selectionEnabled = true;
+        updateData.unlimitedSelection = false;
+        updateData.requiredPhotoCount = newSum;
+        // Aggiorna anche lo stato locale per coerenza UI
+        setSelectionEnabled(true);
+        setUnlimitedSelection(false);
+        
+        console.log('📦 ProductRequirements aggiornati:', updateData.productRequirements, 'Totale foto:', newSum, '→ selectionEnabled forzato TRUE');
       }
 
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
