@@ -108,6 +108,9 @@ export default function QuickQuotePage() {
   const [signerName, setSignerName] = useState('');
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // ✅ IDs creati da save-draft (al passaggio alla preview) — usati da activate per non duplicare
+  const [draftJobId, setDraftJobId] = useState<string | null>(null);
+  const [draftClienteId, setDraftClienteId] = useState<string | null>(null);
 
   const SESSION_KEY = `qqs_draft_${token}`;
 
@@ -224,6 +227,9 @@ export default function QuickQuotePage() {
                 .filter((_, i) => acceptedClauses.includes(String(i)))
                 .map(c => c.text)
             : undefined,
+          // ✅ Passa gli ID già creati da save-draft (evita duplicati)
+          existingJobId: draftJobId || undefined,
+          existingClienteId: draftClienteId || undefined,
         }),
       });
       if (!response.ok) {
@@ -255,7 +261,6 @@ export default function QuickQuotePage() {
 
   const handleFormSubmit = (formData: QuickQuoteFormData) => {
     // Salva bozza in sessionStorage PRIMA di andare alla preview
-    // così se il server crasha durante l'invio il cliente può riprovare
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
         formData: { ...formData, eventDate: formData.eventDate?.toISOString() },
@@ -266,6 +271,30 @@ export default function QuickQuotePage() {
     } catch { /* sessionStorage non disponibile — continua comunque */ }
     setSubmitError(null);
     setStep('preview');
+
+    // ✅ Salva cliente + job lead sul server in background appena il cliente vede la preview.
+    // Così anche se non clicca "Conferma", il lead è già visibile nell'admin.
+    // Fire-and-forget: non blocca la UI, non mostra errori al cliente.
+    (async () => {
+      try {
+        const response = await fetch(`/api/quotes/quick/${token}/save-draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            eventDate: formData.eventDate?.toISOString(),
+            existingJobId: draftJobId || undefined,
+          }),
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.jobId) setDraftJobId(result.jobId);
+          if (result.clienteId) setDraftClienteId(result.clienteId);
+        }
+      } catch {
+        // Non mostrare errori al cliente — il flusso principale (activate) funziona ugualmente
+      }
+    })();
   };
 
   const handleConfirm = () => {

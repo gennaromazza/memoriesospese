@@ -2576,6 +2576,9 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       selectedProducts,
       signerName,
       clausesAccepted,
+      // ✅ IDs da save-draft: se presenti, salta la creazione di cliente/job
+      existingJobId,
+      existingClienteId,
     } = req.body;
 
     if (!nome || !cognome || !email) {
@@ -2638,93 +2641,90 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     }
 
     // 1. Cerca cliente esistente per email, altrimenti crea nuovo
+    // ✅ Se save-draft ha già creato cliente/job, li riusa senza duplicati
     let clienteId: string;
-    const existingClientSnapshot = await db
-      .collection("clienti")
-      .where("email", "==", normalizeEmail(email))
-      .limit(1)
-      .get();
+    let jobRef: FirebaseFirestore.DocumentReference;
+    let jobId: string;
 
-    if (!existingClientSnapshot.empty) {
-      clienteId = existingClientSnapshot.docs[0].id;
-      await db.collection("clienti").doc(clienteId).update({
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+    if (existingJobId && existingClienteId) {
+      // ✅ Job e cliente già creati da save-draft — riusa gli ID
+      const existingJobDoc = await db.collection("jobs").doc(existingJobId).get();
+      if (existingJobDoc.exists) {
+        jobId = existingJobId;
+        jobRef = db.collection("jobs").doc(existingJobId);
+        clienteId = existingClienteId;
+        console.log(`✅ activate: riuso job=${jobId} cliente=${clienteId} da save-draft`);
+      } else {
+        // Job non trovato (raro), crea normalmente
+        jobId = existingJobId; // fallback - verrà sovrascritto sotto
+        jobRef = db.collection("jobs").doc(); // placeholder
+        clienteId = existingClienteId;
+      }
     } else {
-      const clienteData: Record<string, any> = {
-        nome: nome.trim(),
-        cognome: cognome.trim(),
-        email: normalizeEmail(email),
-        cellulare1: cellulare?.trim() || "",
-        tags: ["preventivo-rapido"],
-        sourceRefs: {
-          bookingIds: [],
-          orderIds: [],
-          galleryIds: [],
-          jobIds: [],
-        },
-        lifecycle: {
-          firstContactAt: FieldValue.serverTimestamp(),
-          lastInteractionAt: FieldValue.serverTimestamp(),
-          status: "lead",
-        },
-        financials: {
-          totalRevenue: 0,
-          outstandingBalance: 0,
-          totalOrders: 0,
-        },
+      // Flusso normale: cerca/crea cliente e job
+      const existingClientSnapshot = await db
+        .collection("clienti")
+        .where("email", "==", normalizeEmail(email))
+        .limit(1)
+        .get();
+
+      if (!existingClientSnapshot.empty) {
+        clienteId = existingClientSnapshot.docs[0].id;
+        await db.collection("clienti").doc(clienteId).update({
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } else {
+        const clienteData: Record<string, any> = {
+          nome: nome.trim(),
+          cognome: cognome.trim(),
+          email: normalizeEmail(email),
+          cellulare1: cellulare?.trim() || "",
+          tags: ["preventivo-rapido"],
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], jobIds: [] },
+          lifecycle: { firstContactAt: FieldValue.serverTimestamp(), lastInteractionAt: FieldValue.serverTimestamp(), status: "lead" },
+          financials: { totalRevenue: 0, outstandingBalance: 0, totalOrders: 0 },
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        const clienteRef = await db.collection("clienti").add(clienteData);
+        clienteId = clienteRef.id;
+      }
+
+      // 2. Crea Job
+      const isDND = dataNonDefinita === true;
+      const jobData: Record<string, any> = {
+        nomeEvento: nomeEvento.trim(),
+        clientiIds: [clienteId],
+        jobType: template.jobType,
+        dataNonDefinita: isDND,
+        allDay: true,
+        provenance: "preventivo-rapido",
+        orderIds: [], galleryIds: [], quoteIds: [],
+        status: "lead",
+        financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
+        costi: [], pdfs: [], workflowEvents: [],
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+        createdBy: "preventivo-rapido",
+        jobSource: "preventivo-rapido",
       };
-      const clienteRef = await db.collection("clienti").add(clienteData);
-      clienteId = clienteRef.id;
+
+      if (!isDND && eventDate) { jobData.eventDate = new Date(eventDate); }
+      if (eventLocation) jobData.eventLocation = eventLocation.trim();
+      if (rituLocation) jobData.rituLocation = rituLocation.trim();
+      if (rituTime) jobData.rituTime = rituTime.trim();
+      if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
+
+      const newJobRef = await db.collection("jobs").add(jobData);
+      jobRef = newJobRef;
+      jobId = newJobRef.id;
+
+      // Link cliente -> job
+      await db.collection("clienti").doc(clienteId).update({
+        "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
-
-    // 2. Crea Job
-    const isDND = dataNonDefinita === true;
-    const jobData: Record<string, any> = {
-      nomeEvento: nomeEvento.trim(),
-      clientiIds: [clienteId],
-      jobType: template.jobType,
-      dataNonDefinita: isDND,
-      allDay: isDND ? true : true,
-      provenance: "preventivo-rapido",
-      orderIds: [],
-      galleryIds: [],
-      quoteIds: [],
-      status: "lead",
-      financials: {
-        totalePreventivato: 0,
-        totaleOrdini: 0,
-        totalePagato: 0,
-        saldoResiduo: 0,
-      },
-      costi: [],
-      pdfs: [],
-      workflowEvents: [],
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      createdBy: "preventivo-rapido",
-      jobSource: "preventivo-rapido",
-    };
-
-    if (!isDND && eventDate) {
-      jobData.eventDate = new Date(eventDate);
-      jobData.allDay = true;
-    }
-    if (eventLocation) jobData.eventLocation = eventLocation.trim();
-    if (rituLocation) jobData.rituLocation = rituLocation.trim();
-    if (rituTime) jobData.rituTime = rituTime.trim();
-    if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
-
-    const jobRef = await db.collection("jobs").add(jobData);
-    const jobId = jobRef.id;
-
-    // Link cliente -> job
-    await db.collection("clienti").doc(clienteId).update({
-      "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
 
     // 2b. Crea evento Google Calendar (se data disponibile)
     try {
@@ -3085,6 +3085,118 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       error: "Errore server",
       message: error instanceof Error ? error.message : "Errore sconosciuto",
     });
+  }
+});
+
+/**
+ * POST /api/quotes/quick/:token/save-draft
+ * Salva bozza (cliente + job lead) quando il cliente raggiunge la preview.
+ * NON crea il preventivo (quello avviene al confirm).
+ * Idempotente: se il cliente esiste già per email, aggiorna; se il job esiste già (existingJobId) non ne crea uno nuovo.
+ * Pubblico (no auth).
+ */
+router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const {
+      nome, cognome, email, cellulare,
+      nomeEvento, eventDate, eventLocation, rituLocation, rituTime,
+      dataNonDefinita, noteCliente,
+      existingJobId,
+    } = req.body;
+
+    if (!nome || !cognome || !email || !nomeEvento) {
+      return res.status(400).json({ error: "Dati mancanti", message: "Nome, cognome, email e nome evento sono obbligatori." });
+    }
+
+    // Verifica template valido
+    const templatesSnapshot = await db.collection("quoteTemplates")
+      .where("shareableToken", "==", token)
+      .where("attivo", "==", true)
+      .limit(1)
+      .get();
+
+    if (templatesSnapshot.empty) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+
+    const template = templatesSnapshot.docs[0].data();
+
+    // Se il job esiste già (chiamata ripetuta), restituisci gli ID esistenti
+    if (existingJobId) {
+      const existingJob = await db.collection("jobs").doc(existingJobId).get();
+      if (existingJob.exists) {
+        const jobData = existingJob.data()!;
+        const clienteId = jobData.clientiIds?.[0] || null;
+        return res.json({ success: true, jobId: existingJobId, clienteId, isExisting: true });
+      }
+    }
+
+    // 1. Cerca cliente esistente per email, altrimenti crea nuovo
+    let clienteId: string;
+    const existingClientSnapshot = await db.collection("clienti")
+      .where("email", "==", normalizeEmail(email))
+      .limit(1)
+      .get();
+
+    if (!existingClientSnapshot.empty) {
+      clienteId = existingClientSnapshot.docs[0].id;
+      await db.collection("clienti").doc(clienteId).update({ updatedAt: FieldValue.serverTimestamp() });
+    } else {
+      const clienteRef = await db.collection("clienti").add({
+        nome: nome.trim(),
+        cognome: cognome.trim(),
+        email: normalizeEmail(email),
+        cellulare1: cellulare?.trim() || "",
+        tags: ["preventivo-rapido"],
+        sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], jobIds: [] },
+        lifecycle: { firstContactAt: FieldValue.serverTimestamp(), lastInteractionAt: FieldValue.serverTimestamp(), status: "lead" },
+        financials: { totalRevenue: 0, outstandingBalance: 0, totalOrders: 0 },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      clienteId = clienteRef.id;
+    }
+
+    // 2. Crea Job lead
+    const isDND = dataNonDefinita === true;
+    const jobData: Record<string, any> = {
+      nomeEvento: nomeEvento.trim(),
+      clientiIds: [clienteId],
+      jobType: template.jobType,
+      dataNonDefinita: isDND,
+      allDay: true,
+      provenance: "preventivo-rapido",
+      orderIds: [], galleryIds: [], quoteIds: [],
+      status: "lead",
+      financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
+      costi: [], pdfs: [], workflowEvents: [],
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      createdBy: "preventivo-rapido",
+      jobSource: "preventivo-rapido",
+    };
+
+    if (!isDND && eventDate) jobData.eventDate = new Date(eventDate);
+    if (eventLocation) jobData.eventLocation = eventLocation.trim();
+    if (rituLocation) jobData.rituLocation = rituLocation.trim();
+    if (rituTime) jobData.rituTime = rituTime.trim();
+    if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
+
+    const jobRef = await db.collection("jobs").add(jobData);
+    const jobId = jobRef.id;
+
+    // Link cliente -> job
+    await db.collection("clienti").doc(clienteId).update({
+      "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    console.log(`✅ Quick Quote save-draft: cliente=${clienteId} job=${jobId} (${nome} ${cognome} - ${nomeEvento})`);
+    return res.json({ success: true, jobId, clienteId });
+  } catch (error) {
+    console.error("❌ Errore save-draft quick quote:", error);
+    return res.status(500).json({ error: "Errore server", message: error instanceof Error ? error.message : "Errore sconosciuto" });
   }
 });
 
