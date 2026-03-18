@@ -116,6 +116,7 @@ export default function QuickQuotePage() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const SESSION_KEY = `qqs_draft_${token}`;
@@ -201,28 +202,27 @@ export default function QuickQuotePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Codice non valido');
-      // ✅ OTP verificato — vai alla preview e salva bozza in background
-      setStep('preview');
+      // ✅ OTP verificato — salva bozza (sincrono) poi vai alla preview
       const formData = form.getValues();
-      // save-draft fire-and-forget
-      (async () => {
-        try {
-          const r = await fetch(`/api/quotes/quick/${token}/save-draft`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...formData,
-              eventDate: formData.eventDate?.toISOString(),
-              existingJobId: draftJobId || undefined,
-            }),
-          });
-          if (r.ok) {
-            const result = await r.json();
-            if (result.jobId) setDraftJobId(result.jobId);
-            if (result.clienteId) setDraftClienteId(result.clienteId);
-          }
-        } catch { /* silenzioso */ }
-      })();
+      setSavingDraft(true);
+      try {
+        const r = await fetch(`/api/quotes/quick/${token}/save-draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            eventDate: formData.eventDate?.toISOString(),
+            existingJobId: draftJobId || undefined,
+          }),
+        });
+        if (r.ok) {
+          const result = await r.json();
+          if (result.jobId) setDraftJobId(result.jobId);
+          if (result.clienteId) setDraftClienteId(result.clienteId);
+        }
+      } catch { /* silenzioso — non bloccare la preview */ }
+      finally { setSavingDraft(false); }
+      setStep('preview');
     } catch (err: unknown) {
       setOtpError(err instanceof Error ? err.message : 'Codice non valido');
     } finally {
@@ -737,11 +737,13 @@ export default function QuickQuotePage() {
                   <div className="flex flex-col gap-2">
                     <Button
                       onClick={verifyOtp}
-                      disabled={otpVerifying || otpCode.length !== 6}
+                      disabled={otpVerifying || savingDraft || otpCode.length !== 6}
                       className="w-full text-white"
                       style={{ backgroundColor: primaryColor }}
                     >
-                      {otpVerifying ? (
+                      {savingDraft ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparazione anteprima…</>
+                      ) : otpVerifying ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifica in corso…</>
                       ) : (
                         <><CheckCircle2 className="w-4 h-4 mr-2" /> Conferma codice</>

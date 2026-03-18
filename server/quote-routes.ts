@@ -2690,34 +2690,50 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         clienteId = clienteRef.id;
       }
 
-      // 2. Crea Job
+      // 2. Cerca job lead preesistente (stessa logica dedup di save-draft)
+      // Evita di creare un secondo job se save-draft ha già creato il lead
       const isDND = dataNonDefinita === true;
-      const jobData: Record<string, any> = {
-        nomeEvento: nomeEvento.trim(),
-        clientiIds: [clienteId],
-        jobType: template.jobType,
-        dataNonDefinita: isDND,
-        allDay: true,
-        provenance: "preventivo-rapido",
-        orderIds: [], galleryIds: [], quoteIds: [],
-        status: "lead",
-        financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
-        costi: [], pdfs: [], workflowEvents: [],
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-        createdBy: "preventivo-rapido",
-        jobSource: "preventivo-rapido",
-      };
+      const candidateLeads = await db.collection("jobs")
+        .where("clientiIds", "array-contains", clienteId)
+        .where("provenance", "==", "preventivo-rapido")
+        .limit(20)
+        .get();
+      const existingLead = candidateLeads.docs.find(d => {
+        const data = d.data();
+        return data.status === "lead" && data.jobType === template.jobType && (!data.quoteIds || data.quoteIds.length === 0);
+      }) || null;
 
-      if (!isDND && eventDate) { jobData.eventDate = new Date(eventDate); }
-      if (eventLocation) jobData.eventLocation = eventLocation.trim();
-      if (rituLocation) jobData.rituLocation = rituLocation.trim();
-      if (rituTime) jobData.rituTime = rituTime.trim();
-      if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
-
-      const newJobRef = await db.collection("jobs").add(jobData);
-      jobRef = newJobRef;
-      jobId = newJobRef.id;
+      if (existingLead) {
+        jobId = existingLead.id;
+        jobRef = db.collection("jobs").doc(existingLead.id);
+        console.log(`✅ activate: riuso job lead=${jobId} trovato per dedup (no existingJobId fornito)`);
+      } else {
+        // Crea nuovo Job
+        const jobData: Record<string, any> = {
+          nomeEvento: nomeEvento.trim(),
+          clientiIds: [clienteId],
+          jobType: template.jobType,
+          dataNonDefinita: isDND,
+          allDay: true,
+          provenance: "preventivo-rapido",
+          orderIds: [], galleryIds: [], quoteIds: [],
+          status: "lead",
+          financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
+          costi: [], pdfs: [], workflowEvents: [],
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          createdBy: "preventivo-rapido",
+          jobSource: "preventivo-rapido",
+        };
+        if (!isDND && eventDate) { jobData.eventDate = new Date(eventDate); }
+        if (eventLocation) jobData.eventLocation = eventLocation.trim();
+        if (rituLocation) jobData.rituLocation = rituLocation.trim();
+        if (rituTime) jobData.rituTime = rituTime.trim();
+        if (noteCliente) jobData.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
+        const newJobRef = await db.collection("jobs").add(jobData);
+        jobRef = newJobRef;
+        jobId = newJobRef.id;
+      }
 
       // Link cliente -> job
       await db.collection("clienti").doc(clienteId).update({
