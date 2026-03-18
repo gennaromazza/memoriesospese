@@ -3088,6 +3088,147 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
   }
 });
 
+// ─── OTP Store in-memory ────────────────────────────────────────────────────
+// key: `${token}:${normalizedEmail}` — value: { code, expiresAt, attempts }
+const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+
+// Pulizia automatica ogni 15 minuti per evitare memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of otpStore.entries()) {
+    if (val.expiresAt < now) otpStore.delete(key);
+  }
+}, 15 * 60 * 1000);
+
+/**
+ * POST /api/quotes/quick/:token/send-otp
+ * Genera un codice OTP a 6 cifre, lo invia via email e lo memorizza in-memory (TTL 10 min).
+ * Pubblico (no auth).
+ */
+router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { email, nome } = req.body as { email?: string; nome?: string };
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Email non valida" });
+    }
+
+    // Verifica che il template esista e sia attivo
+    const templateSnapshot = await db.collection("quoteTemplates")
+      .where("shareableToken", "==", token)
+      .where("isActive", "==", true)
+      .limit(1)
+      .get();
+    if (templateSnapshot.empty) {
+      return res.status(404).json({ error: "Link non valido o scaduto" });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const otpKey = `${token}:${normalizedEmail}`;
+    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minuti
+
+    otpStore.set(otpKey, { code, expiresAt, attempts: 0 });
+
+    // Carica info studio per branding email
+    const studioInfo = await getStudioContactInfo();
+    const studioName = studioInfo?.studioName || "Image Studio";
+
+    const html = `
+<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f0e8;font-family:Georgia,serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f0e8;padding:32px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr><td style="background:#6b7f6b;padding:28px 32px;text-align:center;">
+          <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:normal;letter-spacing:1px;">${studioName}</h1>
+        </td></tr>
+        <tr><td style="padding:40px 32px;text-align:center;">
+          <p style="margin:0 0 8px;color:#555;font-size:15px;">Ciao ${nome || ""}! Ecco il tuo codice di verifica:</p>
+          <div style="margin:28px auto;display:inline-block;background:#f5f0e8;border:2px dashed #6b7f6b;border-radius:12px;padding:20px 40px;">
+            <span style="font-size:40px;font-weight:bold;letter-spacing:10px;color:#3d4f3d;">${code}</span>
+          </div>
+          <p style="margin:16px 0 0;color:#888;font-size:13px;">Il codice è valido per <strong>10 minuti</strong>.</p>
+          <p style="margin:8px 0 0;color:#aaa;font-size:12px;">Se non hai richiesto tu questo codice, ignora questa email.</p>
+        </td></tr>
+        <tr><td style="background:#f9f6f1;padding:20px 32px;text-align:center;">
+          <p style="margin:0;color:#aaa;font-size:11px;">${studioName} · Verifica identità preventivo</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+    await sendGmailEmail(
+      [email],
+      `${code} — Codice di verifica ${studioName}`,
+      html
+    );
+
+    console.log(`✅ OTP inviato a ${email} (token=${token})`);
+    return res.json({ success: true, message: "Codice inviato" });
+  } catch (error) {
+    console.error("❌ Errore send-otp:", error);
+    return res.status(500).json({ error: "Impossibile inviare l'email. Riprova tra qualche secondo." });
+  }
+});
+
+/**
+ * POST /api/quotes/quick/:token/verify-otp
+ * Verifica il codice OTP inserito dal cliente.
+ * Max 3 tentativi errati → codice invalidato.
+ * Pubblico (no auth).
+ */
+router.post("/quick/:token/verify-otp", async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { email, code } = req.body as { email?: string; code?: string };
+
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email e codice sono obbligatori" });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const otpKey = `${token}:${normalizedEmail}`;
+    const record = otpStore.get(otpKey);
+
+    if (!record) {
+      return res.status(400).json({ error: "Codice scaduto o non trovato. Richiedine uno nuovo." });
+    }
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(otpKey);
+      return res.status(400).json({ error: "Il codice è scaduto. Richiedine uno nuovo." });
+    }
+    if (record.attempts >= 3) {
+      otpStore.delete(otpKey);
+      return res.status(400).json({ error: "Troppi tentativi errati. Richiedine uno nuovo." });
+    }
+
+    if (code.trim() !== record.code) {
+      record.attempts += 1;
+      const rimanenti = 3 - record.attempts;
+      return res.status(400).json({
+        error: rimanenti > 0
+          ? `Codice errato. ${rimanenti} ${rimanenti === 1 ? 'tentativo rimasto' : 'tentativi rimasti'}.`
+          : "Codice errato. Nessun tentativo rimasto.",
+        attemptsLeft: rimanenti,
+      });
+    }
+
+    // ✅ Codice corretto — elimina dall'OTP store e restituisci token di verifica
+    otpStore.delete(otpKey);
+    console.log(`✅ OTP verificato per ${email} (token=${token})`);
+    return res.json({ success: true, verified: true });
+  } catch (error) {
+    console.error("❌ Errore verify-otp:", error);
+    return res.status(500).json({ error: "Errore server. Riprova." });
+  }
+});
+
 /**
  * POST /api/quotes/quick/:token/save-draft
  * Salva bozza (cliente + job lead) quando il cliente raggiunge la preview.

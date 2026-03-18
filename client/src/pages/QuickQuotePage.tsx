@@ -102,7 +102,7 @@ export default function QuickQuotePage() {
   const { toast } = useToast();
   const token = params.token;
 
-  const [step, setStep] = useState<'form' | 'preview' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'otp' | 'preview' | 'success'>('form');
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [acceptedClauses, setAcceptedClauses] = useState<string[]>([]);
   const [signerName, setSignerName] = useState('');
@@ -111,6 +111,12 @@ export default function QuickQuotePage() {
   // ✅ IDs creati da save-draft (al passaggio alla preview) — usati da activate per non duplicare
   const [draftJobId, setDraftJobId] = useState<string | null>(null);
   const [draftClienteId, setDraftClienteId] = useState<string | null>(null);
+  // OTP
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const SESSION_KEY = `qqs_draft_${token}`;
 
@@ -152,6 +158,77 @@ export default function QuickQuotePage() {
       setSelectedProducts(template.defaultProducts.map(p => p.productId || p.nome));
     }
   }, [template]);
+
+  // Countdown resend OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const sendOtp = async (email: string, nome: string) => {
+    setOtpSending(true);
+    setOtpError(null);
+    try {
+      const res = await fetch(`/api/quotes/quick/${token}/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, nome }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Impossibile inviare il codice');
+      setResendCooldown(60); // 60s prima di poter rinviare
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Errore invio codice');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    const email = form.getValues('email');
+    if (!otpCode || otpCode.length !== 6) {
+      setOtpError('Inserisci il codice a 6 cifre ricevuto via email.');
+      return;
+    }
+    setOtpVerifying(true);
+    setOtpError(null);
+    try {
+      const res = await fetch(`/api/quotes/quick/${token}/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Codice non valido');
+      // ✅ OTP verificato — vai alla preview e salva bozza in background
+      setStep('preview');
+      const formData = form.getValues();
+      // save-draft fire-and-forget
+      (async () => {
+        try {
+          const r = await fetch(`/api/quotes/quick/${token}/save-draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...formData,
+              eventDate: formData.eventDate?.toISOString(),
+              existingJobId: draftJobId || undefined,
+            }),
+          });
+          if (r.ok) {
+            const result = await r.json();
+            if (result.jobId) setDraftJobId(result.jobId);
+            if (result.clienteId) setDraftClienteId(result.clienteId);
+          }
+        } catch { /* silenzioso */ }
+      })();
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Codice non valido');
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
 
   // Ripristina dati da sessionStorage se disponibili (es. dopo un errore di rete)
   useEffect(() => {
@@ -270,31 +347,11 @@ export default function QuickQuotePage() {
       }));
     } catch { /* sessionStorage non disponibile — continua comunque */ }
     setSubmitError(null);
-    setStep('preview');
-
-    // ✅ Salva cliente + job lead sul server in background appena il cliente vede la preview.
-    // Così anche se non clicca "Conferma", il lead è già visibile nell'admin.
-    // Fire-and-forget: non blocca la UI, non mostra errori al cliente.
-    (async () => {
-      try {
-        const response = await fetch(`/api/quotes/quick/${token}/save-draft`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...formData,
-            eventDate: formData.eventDate?.toISOString(),
-            existingJobId: draftJobId || undefined,
-          }),
-        });
-        if (response.ok) {
-          const result = await response.json();
-          if (result.jobId) setDraftJobId(result.jobId);
-          if (result.clienteId) setDraftClienteId(result.clienteId);
-        }
-      } catch {
-        // Non mostrare errori al cliente — il flusso principale (activate) funziona ugualmente
-      }
-    })();
+    setOtpCode('');
+    setOtpError(null);
+    // ✅ Invia OTP all'email fornita e vai allo step di verifica
+    setStep('otp');
+    sendOtp(formData.email, formData.nome);
   };
 
   const handleConfirm = () => {
@@ -619,6 +676,103 @@ export default function QuickQuotePage() {
               </CardContent>
             </Card>
           </>
+        )}
+
+        {/* ── Step OTP ──────────────────────────────────────────────── */}
+        {step === 'otp' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Mail className="w-5 h-5" style={{ color: primaryColor }} />
+                Verifica la tua email
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {otpSending ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-gray-500">
+                  <Loader2 className="w-7 h-7 animate-spin" style={{ color: primaryColor }} />
+                  <p className="text-sm">Invio codice in corso…</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center space-y-1">
+                    <p className="text-sm text-gray-700">
+                      Abbiamo inviato un codice a 6 cifre a:
+                    </p>
+                    <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
+                    <p className="text-xs text-gray-500 mt-1">Controlla anche la cartella spam se non lo trovi.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-input">Codice di verifica</Label>
+                    <Input
+                      id="otp-input"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      placeholder="_ _ _ _ _ _"
+                      value={otpCode}
+                      onChange={e => {
+                        setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        setOtpError(null);
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') verifyOtp(); }}
+                      className="text-center text-2xl tracking-[0.4em] font-mono h-14"
+                      autoFocus
+                    />
+                  </div>
+
+                  {otpError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{otpError}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={verifyOtp}
+                      disabled={otpVerifying || otpCode.length !== 6}
+                      className="w-full text-white"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      {otpVerifying ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Verifica in corso…</>
+                      ) : (
+                        <><CheckCircle2 className="w-4 h-4 mr-2" /> Conferma codice</>
+                      )}
+                    </Button>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <button
+                        type="button"
+                        className="text-gray-500 underline text-xs"
+                        onClick={() => { setStep('form'); setOtpError(null); }}
+                      >
+                        ← Modifica email
+                      </button>
+                      <button
+                        type="button"
+                        className={`text-xs ${resendCooldown > 0 ? 'text-gray-400 cursor-not-allowed' : 'underline'}`}
+                        style={resendCooldown === 0 ? { color: primaryColor } : {}}
+                        disabled={resendCooldown > 0 || otpSending}
+                        onClick={() => {
+                          const email = form.getValues('email');
+                          const nome = form.getValues('nome');
+                          setOtpCode('');
+                          setOtpError(null);
+                          sendOtp(email, nome);
+                        }}
+                      >
+                        {resendCooldown > 0 ? `Rinvia tra ${resendCooldown}s` : 'Rinvia codice'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {step === 'preview' && (
