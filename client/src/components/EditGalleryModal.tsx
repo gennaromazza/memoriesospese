@@ -1269,6 +1269,14 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           : null,
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
+        // ✅ Reset reminder se la scadenza cambia (così il nuovo reminder può essere inviato)
+        ...(() => {
+          const origDeadline = (gallery as any)?.selectionDeadline;
+          const origStr = origDeadline?.toDate?.()?.toISOString?.() || null;
+          const newStr = selectionEnabled && selectionDeadline ? new Date(selectionDeadline).toISOString() : null;
+          const deadlineChanged = origStr !== newStr;
+          return deadlineChanged ? { selectionReminderSent: false, selectionReminderSentAt: null } : {};
+        })(),
         // Client info per invio email PIN (opzionale)
         clientEmail: clientEmail.trim() || null,
         clientName: clientName.trim() || null,

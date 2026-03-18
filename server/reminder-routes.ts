@@ -17,6 +17,10 @@ import {
 } from "./email-routes.js";
 import { DateTime } from "luxon";
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import {
+  generateGallerySelectionReminderEmail,
+  generateGallerySelectionReminderSubject
+} from "./email-templates/gallery-selection-reminder.js";
 
 const router = Router();
 
@@ -172,6 +176,7 @@ function createAdminConsultationReminderHTML(
 export async function runReminderCheck(): Promise<{
   bookings: { checked: number; sent: number; skipped: number; errors: string[] };
   consultations: { checked: number; sent: number; skipped: number; errors: string[] };
+  galleries: { checked: number; sent: number; skipped: number; errors: string[] };
 }> {
   console.log("[Reminders] 🚀 Avvio controllo reminder...");
 
@@ -187,6 +192,7 @@ export async function runReminderCheck(): Promise<{
   const results = {
     bookings: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
     consultations: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
+    galleries: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
   };
 
   // ============= BOOKING REMINDERS =============
@@ -331,6 +337,106 @@ export async function runReminderCheck(): Promise<{
       results.consultations.errors.push(`Consultation ${doc.id}: ${error.message}`);
       console.error(`[Reminders] ❌ Errore consultation ${doc.id}:`, error.message);
       await db.collection("consultations").doc(doc.id).update({ reminderSentAt: null, reminderEmailSent: false });
+    }
+  }
+
+  // ============= GALLERY SELECTION DEADLINE REMINDERS =============
+  console.log("[Reminders] 🖼️ Controllo scadenze selezione gallerie...");
+
+  // Query semplice (singola condizione = no indice composito richiesto)
+  // Il filtraggio finestra temporale avviene in memoria, come per bookings/consulenze
+  const galleriesSnapshot = await db.collection("galleries")
+    .where("selectionEnabled", "==", true)
+    .get();
+
+  const minDeadlineMs = nowRome.plus({ hours: minHours }).toMillis();
+  const maxDeadlineMs = nowRome.plus({ hours: maxHours }).toMillis();
+
+  // Filtra in memoria per scadenza nella finestra 20-28h
+  const galleriesInWindow = galleriesSnapshot.docs.filter(doc => {
+    const gallery = doc.data();
+    if (!gallery.selectionDeadline) return false;
+    const deadlineMs = gallery.selectionDeadline.toDate().getTime();
+    return deadlineMs >= minDeadlineMs && deadlineMs <= maxDeadlineMs;
+  });
+
+  results.galleries.checked = galleriesInWindow.length;
+
+  for (const doc of galleriesInWindow) {
+    const gallery = doc.data();
+
+    // Salta se selezione già completata o reminder già inviato
+    if (gallery.selectionReminderSent || gallery.selectionStatus === "completed") {
+      results.galleries.skipped++;
+      continue;
+    }
+
+    // Recupera email cliente: prima dal campo diretto, poi dal documento cliente
+    let clientEmail: string | null = gallery.clientEmail || null;
+    let clientName: string = gallery.clientName || "Cliente";
+
+    if (!clientEmail && gallery.clientId) {
+      try {
+        const clientDoc = await db.collection("clients").doc(gallery.clientId).get();
+        if (clientDoc.exists) {
+          const clientData = clientDoc.data()!;
+          clientEmail = clientData.email || null;
+          if (!gallery.clientName) {
+            clientName = `${clientData.nome || ""} ${clientData.cognome || ""}`.trim() || "Cliente";
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!clientEmail) {
+      console.log(`[Reminders] ⚠️ Gallery ${doc.id} (${gallery.name}) senza email cliente — skip`);
+      results.galleries.skipped++;
+      continue;
+    }
+
+    try {
+      const shouldSend = await db.runTransaction(async (transaction) => {
+        const galleryDoc = await transaction.get(db.collection("galleries").doc(doc.id));
+        if (!galleryDoc.exists || galleryDoc.data()?.selectionReminderSent) return false;
+        transaction.update(db.collection("galleries").doc(doc.id), {
+          selectionReminderSent: true,
+          selectionReminderSentAt: Timestamp.now(),
+        });
+        return true;
+      });
+
+      if (!shouldSend) { results.galleries.skipped++; continue; }
+
+      const deadlineDT = DateTime.fromJSDate(gallery.selectionDeadline.toDate()).setZone("Europe/Rome");
+      const formattedDate = deadlineDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
+      const formattedTime = deadlineDT.toFormat("HH:mm");
+      const galleryCode = gallery.code || doc.id;
+      const galleryUrl = `${process.env.SITE_BASE_URL || "https://imagestudio.it"}/g/${galleryCode}`;
+
+      const emailHTML = generateGallerySelectionReminderEmail({
+        clientName,
+        galleryName: gallery.name || "la tua galleria",
+        galleryUrl,
+        deadlineDate: formattedDate,
+        deadlineTime: formattedTime,
+        photoCount: gallery.photoCount || undefined,
+        studioName: studioInfo.name,
+        studioPhone: studioInfo.phone,
+        studioEmail: studioInfo.email,
+      });
+
+      await sendGmailEmail(
+        clientEmail,
+        generateGallerySelectionReminderSubject(gallery.name || "la tua galleria"),
+        emailHTML
+      );
+
+      results.galleries.sent++;
+      console.log(`[Reminders] ✅ Gallery selection reminder inviato: ${doc.id} (${gallery.name}) → ${clientEmail}`);
+    } catch (error: any) {
+      results.galleries.errors.push(`Gallery ${doc.id}: ${error.message}`);
+      console.error(`[Reminders] ❌ Errore gallery ${doc.id}:`, error.message);
+      await db.collection("galleries").doc(doc.id).update({ selectionReminderSent: false, selectionReminderSentAt: null });
     }
   }
 

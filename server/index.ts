@@ -218,8 +218,8 @@ async function startServer() {
       const runRemindersWithLog = async () => {
         try {
           const r = await runReminderCheck();
-          if (r.bookings.sent + r.consultations.sent > 0) {
-            console.log(`⏰ Reminder scheduler: ${r.bookings.sent} booking, ${r.consultations.sent} consulenze inviate`);
+          if (r.bookings.sent + r.consultations.sent + r.galleries.sent > 0) {
+            console.log(`⏰ Reminder scheduler: ${r.bookings.sent} booking, ${r.consultations.sent} consulenze, ${r.galleries.sent} gallerie inviate`);
           }
         } catch (err: any) {
           console.error('⏰ Reminder scheduler errore:', err.message);
