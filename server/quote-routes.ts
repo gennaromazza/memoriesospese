@@ -2875,14 +2875,44 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       }
     }
 
-    const quoteRef = await db.collection("quotes").add(quoteData);
-    const quoteId = quoteRef.id;
+    // Cerca bozza preesistente per questo job (creata da save-draft)
+    let quoteId: string;
+    const bozzaSnap = await db.collection("quotes")
+      .where("jobId", "==", jobId)
+      .where("status", "==", "bozza")
+      .limit(1)
+      .get();
 
-    // Link quote -> job
-    await jobRef.update({
-      quoteIds: FieldValue.arrayUnion(quoteId),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    if (!bozzaSnap.empty) {
+      // ✅ Aggiorna la bozza esistente invece di crearne una nuova
+      const bozzaDoc = bozzaSnap.docs[0];
+      quoteId = bozzaDoc.id;
+      await bozzaDoc.ref.update({
+        ...quoteData,
+        auditLog: FieldValue.arrayUnion({
+          id: nanoid(),
+          quoteId: bozzaDoc.id,
+          timestamp: nowRomeDate(),
+          adminEmail: "preventivo-rapido",
+          action: "quote_updated",
+          newValue: quoteData.status,
+          reason: "Preventivo attivato dal cliente",
+        }),
+      });
+      // Assicura che il job abbia il quoteId (già dovrebbe averlo)
+      await jobRef.update({
+        quoteIds: FieldValue.arrayUnion(quoteId),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Fallback: crea nuova quote se non esiste bozza
+      const quoteRef = await db.collection("quotes").add(quoteData);
+      quoteId = quoteRef.id;
+      await jobRef.update({
+        quoteIds: FieldValue.arrayUnion(quoteId),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
 
     // Aggiorna job financials con totale preventivato
     if (quoteData.status !== "firmato") {
@@ -3332,9 +3362,59 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
 
     const isDND = dataNonDefinita === true;
 
+    // Helper: crea quote in stato "bozza" dal template — visibile subito nell'admin
+    const templateDocId = templatesSnapshot.docs[0].id;
+    const createBozzaQuote = async (jobId: string, clienteId: string): Promise<string> => {
+      const products = (template.defaultProducts || []).map((p: any) => ({
+        ...p, selectable: template.type === "variabile",
+      }));
+      let subtotale = 0;
+      products.forEach((p: any) => { subtotale += p.prezzo || 0; });
+      const discountType = template.discountType;
+      const discountValue = template.discountValue;
+      let discountAmount = 0;
+      let totalAfterDiscount = subtotale;
+      if (discountType && discountValue && discountValue > 0) {
+        discountAmount = discountType === "percent"
+          ? Math.round(subtotale * (discountValue / 100) * 100) / 100
+          : Math.min(discountValue, subtotale);
+        totalAfterDiscount = Math.max(0, subtotale - discountAmount);
+      }
+      const clausesWithIds = (template.defaultClauses || []).map((c: any) => ({ ...c, id: nanoid(), accepted: false }));
+      const quoteRef = await db.collection("quotes").add({
+        jobId, clienteId,
+        type: template.type,
+        products,
+        contractClauses: clausesWithIds,
+        theme: template.theme || {},
+        totaleBase: subtotale,
+        totalBeforeDiscount: subtotale,
+        totalAfterDiscount,
+        discountType: discountType || null,
+        discountValue: discountValue || null,
+        discountAmount,
+        publicToken: nanoid(32),
+        status: "bozza",
+        templateId: templateDocId,
+        templateName: template.nome || "",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: "preventivo-rapido",
+        revokedTokens: [],
+        auditLog: [{ id: nanoid(), quoteId: "", timestamp: nowRomeDate(), adminEmail: "preventivo-rapido", action: "quote_created", newValue: "bozza", reason: "Bozza da Preventivo Rapido" }],
+      });
+      await db.collection("jobs").doc(jobId).update({
+        quoteIds: FieldValue.arrayUnion(quoteRef.id),
+        "financials.totalePreventivato": totalAfterDiscount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return quoteRef.id;
+    };
+
     if (existingLead) {
       // ✅ Job lead già esistente — aggiorna i dati invece di crearne uno nuovo
       const jobId = existingLead.id;
+      const existingLeadData = existingLead.data();
       const updatePayload: Record<string, any> = {
         nomeEvento: nomeEvento.trim(),
         dataNonDefinita: isDND,
@@ -3346,6 +3426,10 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       if (rituTime) updatePayload.rituTime = rituTime.trim();
       if (noteCliente) updatePayload.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
       await db.collection("jobs").doc(jobId).update(updatePayload);
+      // Crea bozza quote se il job non ne ha ancora una
+      if (!existingLeadData.quoteIds || existingLeadData.quoteIds.length === 0) {
+        await createBozzaQuote(jobId, clienteId);
+      }
       console.log(`✅ Quick Quote save-draft: riusato job lead=${jobId} cliente=${clienteId} (${nome} ${cognome})`);
       return res.json({ success: true, jobId, clienteId, isExisting: true });
     }
@@ -3382,6 +3466,9 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // Crea quote in bozza: visibile subito nell'admin anche prima della firma
+    await createBozzaQuote(jobId, clienteId);
 
     console.log(`✅ Quick Quote save-draft: cliente=${clienteId} job=${jobId} (${nome} ${cognome} - ${nomeEvento})`);
     return res.json({ success: true, jobId, clienteId });
