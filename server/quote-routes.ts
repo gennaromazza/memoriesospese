@@ -2997,87 +2997,8 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
           }
         }
       } else {
-        // CASO NON FIRMATO (inviato): Email riepilogo al cliente + notifica admin
-        if (email) {
-          try {
-            const eventDateFormatted = eventDate
-              ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
-              : "Da definire";
-            const studioNome = studioInfo?.nome || "Image Studio";
-            const studioEmailAddr = studioInfo?.email || "";
-            const studioTel = studioInfo?.telefono || "";
-            const productsHtml = (quoteProducts || []).map((p: any) => `
-              <tr>
-                <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc;">${p.nome || p.name || ""}</td>
-                <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc; text-align:right; font-weight:600; color:#c4724a;">€${(p.prezzo || 0).toFixed(2)}</td>
-              </tr>`).join("");
-            const clientRiepilogoHtml = `
-              <div style="font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e8e0d4;">
-                <div style="background: #2d3b2d; padding: 32px; text-align: center;">
-                  <h1 style="color: #f5f0e8; margin: 0; font-size: 24px; letter-spacing: 2px;">${studioNome.toUpperCase()}</h1>
-                  <p style="color: #b8c9b0; margin: 8px 0 0; font-size: 13px; letter-spacing: 1px;">PREVENTIVO RIEPILOGATIVO</p>
-                </div>
-                <div style="padding: 32px 40px;">
-                  <p style="color: #555; font-size: 16px; margin: 0 0 8px;">Caro/a <strong>${nome} ${cognome}</strong>,</p>
-                  <p style="color: #777; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
-                    Grazie per aver compilato il nostro preventivo online! Di seguito trovi un riepilogo di quello che hai selezionato.
-                    Siamo a tua disposizione per qualsiasi domanda o per perfezionare i dettagli insieme.
-                  </p>
-
-                  <div style="background: #f9f5f0; border-radius: 6px; padding: 20px 24px; margin-bottom: 24px;">
-                    <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Dettagli evento</h3>
-                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
-                      <tr>
-                        <td style="padding:6px 0; color:#888; width:120px;">Evento</td>
-                        <td style="padding:6px 0; font-weight:600; color:#333;">${nomeEvento}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:6px 0; color:#888;">Data</td>
-                        <td style="padding:6px 0; font-weight:600; color:#333;">${eventDateFormatted}</td>
-                      </tr>
-                      ${eventLocation ? `<tr><td style="padding:6px 0; color:#888;">Location</td><td style="padding:6px 0; font-weight:600; color:#333;">${eventLocation}</td></tr>` : ""}
-                    </table>
-                  </div>
-
-                  <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Servizi selezionati</h3>
-                  <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:16px;">
-                    ${productsHtml}
-                    ${discountAmount > 0 ? `<tr style="background:#f9f5f0"><td style="padding:10px 12px; color:#c4724a; font-style:italic;">Sconto</td><td style="padding:10px 12px; text-align:right; color:#c4724a; font-weight:600;">-€${discountAmount.toFixed(2)}</td></tr>` : ""}
-                    <tr style="background:#2d3b2d">
-                      <td style="padding:14px 12px; color:#f5f0e8; font-weight:700; font-size:15px;">TOTALE</td>
-                      <td style="padding:14px 12px; text-align:right; color:#f5f0e8; font-weight:700; font-size:18px;">€${totalAfterDiscount.toFixed(2)}</td>
-                    </tr>
-                  </table>
-
-                  ${noteCliente ? `<div style="background:#fffbf5; border-left:3px solid #c4724a; padding:12px 16px; margin-bottom:24px; font-size:13px; color:#666;"><strong>La tua nota:</strong> ${noteCliente}</div>` : ""}
-
-                  <p style="color:#777; font-size:13px; line-height:1.6; margin:24px 0 0;">
-                    Questo è un preventivo indicativo. Ti contatteremo presto per definire tutti i dettagli e rispondere alle tue domande.
-                    ${studioTel ? `Puoi anche contattarci direttamente al <strong>${studioTel}</strong>.` : ""}
-                  </p>
-                </div>
-                <div style="background:#f5f0e8; padding:20px 40px; text-align:center; border-top:1px solid #e8e0d4;">
-                  <p style="margin:0; color:#888; font-size:12px;">${studioNome}${studioEmailAddr ? ` · <a href="mailto:${studioEmailAddr}" style="color:#c4724a;">${studioEmailAddr}</a>` : ""}</p>
-                </div>
-              </div>`;
-            await sendGmailEmail(
-              email,
-              `Il tuo preventivo - ${nomeEvento}`,
-              clientRiepilogoHtml,
-              undefined,
-              {
-                type: "quick_quote_summary_client",
-                relatedDocId: quoteId,
-                relatedDocType: "quote",
-                clientName: `${nome} ${cognome}`,
-              }
-            );
-            console.log(`✅ Email riepilogo preventivo inviata al cliente: ${email}`);
-          } catch (clientEmailError) {
-            console.warn("⚠️ Email riepilogo al cliente non inviata:", clientEmailError);
-          }
-        }
-
+        // CASO NON FIRMATO (inviato): Solo notifica admin
+        // L'email riepilogo al cliente è già inviata in save-draft, quando vede l'anteprima
         if (studioInfo?.email) {
           try {
             const eventDateFormatted = eventDate
@@ -3442,37 +3363,39 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
 
     const isDND = dataNonDefinita === true;
 
-    // Helper: crea quote in stato "bozza" dal template — visibile subito nell'admin
+    // Calcola totali dal template (usati sia per la bozza quote che per l'email)
     const templateDocId = templatesSnapshot.docs[0].id;
+    const draftProducts = (template.defaultProducts || []).map((p: any) => ({
+      ...p, selectable: template.type === "variabile",
+    }));
+    let draftSubtotale = 0;
+    draftProducts.forEach((p: any) => { draftSubtotale += p.prezzo || 0; });
+    const draftDiscountType = template.discountType;
+    const draftDiscountValue = template.discountValue;
+    let draftDiscountAmount = 0;
+    let draftTotalAfterDiscount = draftSubtotale;
+    if (draftDiscountType && draftDiscountValue && draftDiscountValue > 0) {
+      draftDiscountAmount = draftDiscountType === "percent"
+        ? Math.round(draftSubtotale * (draftDiscountValue / 100) * 100) / 100
+        : Math.min(draftDiscountValue, draftSubtotale);
+      draftTotalAfterDiscount = Math.max(0, draftSubtotale - draftDiscountAmount);
+    }
+
+    // Helper: crea quote in stato "bozza" dal template — visibile subito nell'admin
     const createBozzaQuote = async (jobId: string, clienteId: string): Promise<string> => {
-      const products = (template.defaultProducts || []).map((p: any) => ({
-        ...p, selectable: template.type === "variabile",
-      }));
-      let subtotale = 0;
-      products.forEach((p: any) => { subtotale += p.prezzo || 0; });
-      const discountType = template.discountType;
-      const discountValue = template.discountValue;
-      let discountAmount = 0;
-      let totalAfterDiscount = subtotale;
-      if (discountType && discountValue && discountValue > 0) {
-        discountAmount = discountType === "percent"
-          ? Math.round(subtotale * (discountValue / 100) * 100) / 100
-          : Math.min(discountValue, subtotale);
-        totalAfterDiscount = Math.max(0, subtotale - discountAmount);
-      }
       const clausesWithIds = (template.defaultClauses || []).map((c: any) => ({ ...c, id: nanoid(), accepted: false }));
       const quoteRef = await db.collection("quotes").add({
         jobId, clienteId,
         type: template.type,
-        products,
+        products: draftProducts,
         contractClauses: clausesWithIds,
         theme: template.theme || {},
-        totaleBase: subtotale,
-        totalBeforeDiscount: subtotale,
-        totalAfterDiscount,
-        discountType: discountType || null,
-        discountValue: discountValue || null,
-        discountAmount,
+        totaleBase: draftSubtotale,
+        totalBeforeDiscount: draftSubtotale,
+        totalAfterDiscount: draftTotalAfterDiscount,
+        discountType: draftDiscountType || null,
+        discountValue: draftDiscountValue || null,
+        discountAmount: draftDiscountAmount,
         publicToken: nanoid(32),
         status: "bozza",
         templateId: templateDocId,
@@ -3485,10 +3408,78 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       });
       await db.collection("jobs").doc(jobId).update({
         quoteIds: FieldValue.arrayUnion(quoteRef.id),
-        "financials.totalePreventivato": totalAfterDiscount,
+        "financials.totalePreventivato": draftTotalAfterDiscount,
         updatedAt: FieldValue.serverTimestamp(),
       });
       return quoteRef.id;
+    };
+
+    // Helper: invia email riepilogo al cliente (non bloccante)
+    const sendRiepilogoEmail = async (isNewClient: boolean) => {
+      if (!email) return;
+      try {
+        const studioInfo = await getStudioContactInfo();
+        const studioNome = studioInfo?.nome || "Image Studio";
+        const studioEmailAddr = studioInfo?.email || "";
+        const studioTel = studioInfo?.telefono || "";
+        const eventDateFormatted = eventDate
+          ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
+          : "Da definire";
+        const productsHtml = draftProducts.map((p: any) => `
+          <tr>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc; font-size:14px;">${p.nome || p.name || ""}</td>
+            <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc; text-align:right; font-weight:600; color:#c4724a; font-size:14px;">€${(p.prezzo || 0).toFixed(2)}</td>
+          </tr>`).join("");
+        const html = `
+          <div style="font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e8e0d4;">
+            <div style="background: #2d3b2d; padding: 32px; text-align: center;">
+              <h1 style="color: #f5f0e8; margin: 0; font-size: 24px; letter-spacing: 2px;">${studioNome.toUpperCase()}</h1>
+              <p style="color: #b8c9b0; margin: 8px 0 0; font-size: 13px; letter-spacing: 1px;">PREVENTIVO RIEPILOGATIVO</p>
+            </div>
+            <div style="padding: 32px 40px;">
+              <p style="color: #555; font-size: 16px; margin: 0 0 8px;">Caro/a <strong>${nome} ${cognome}</strong>,</p>
+              <p style="color: #777; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
+                Grazie per aver compilato il nostro preventivo online! Di seguito trovi un riepilogo di quello che hai selezionato.
+                Siamo a tua disposizione per qualsiasi domanda o per perfezionare i dettagli insieme.
+              </p>
+              <div style="background: #f9f5f0; border-radius: 6px; padding: 20px 24px; margin-bottom: 24px;">
+                <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Dettagli evento</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                  <tr><td style="padding:6px 0; color:#888; width:120px;">Evento</td><td style="padding:6px 0; font-weight:600; color:#333;">${nomeEvento}</td></tr>
+                  <tr><td style="padding:6px 0; color:#888;">Data</td><td style="padding:6px 0; font-weight:600; color:#333;">${eventDateFormatted}</td></tr>
+                  ${eventLocation ? `<tr><td style="padding:6px 0; color:#888;">Location</td><td style="padding:6px 0; font-weight:600; color:#333;">${eventLocation}</td></tr>` : ""}
+                </table>
+              </div>
+              <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Servizi selezionati</h3>
+              <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+                ${productsHtml}
+                ${draftDiscountAmount > 0 ? `<tr style="background:#f9f5f0"><td style="padding:10px 12px; color:#c4724a; font-style:italic; font-size:14px;">Sconto</td><td style="padding:10px 12px; text-align:right; color:#c4724a; font-weight:600; font-size:14px;">-€${draftDiscountAmount.toFixed(2)}</td></tr>` : ""}
+                <tr style="background:#2d3b2d">
+                  <td style="padding:14px 12px; color:#f5f0e8; font-weight:700; font-size:15px;">TOTALE</td>
+                  <td style="padding:14px 12px; text-align:right; color:#f5f0e8; font-weight:700; font-size:18px;">€${draftTotalAfterDiscount.toFixed(2)}</td>
+                </tr>
+              </table>
+              ${noteCliente ? `<div style="background:#fffbf5; border-left:3px solid #c4724a; padding:12px 16px; margin-bottom:24px; font-size:13px; color:#666;"><strong>La tua nota:</strong> ${noteCliente}</div>` : ""}
+              <p style="color:#777; font-size:13px; line-height:1.6; margin:24px 0 0;">
+                Questo è un preventivo indicativo. Ti contatteremo presto per definire tutti i dettagli e rispondere alle tue domande.
+                ${studioTel ? `Puoi anche contattarci direttamente al <strong>${studioTel}</strong>.` : ""}
+              </p>
+            </div>
+            <div style="background:#f5f0e8; padding:20px 40px; text-align:center; border-top:1px solid #e8e0d4;">
+              <p style="margin:0; color:#888; font-size:12px;">${studioNome}${studioEmailAddr ? ` · <a href="mailto:${studioEmailAddr}" style="color:#c4724a;">${studioEmailAddr}</a>` : ""}</p>
+            </div>
+          </div>`;
+        await sendGmailEmail(
+          email,
+          `Il tuo preventivo - ${nomeEvento}`,
+          html,
+          undefined,
+          { type: "quick_quote_summary_client", relatedDocType: "quote", clientName: `${nome} ${cognome}` }
+        );
+        console.log(`✅ Email riepilogo preventivo inviata al cliente: ${email}`);
+      } catch (err) {
+        console.warn("⚠️ Email riepilogo al cliente non inviata:", err);
+      }
     };
 
     if (existingLead) {
@@ -3510,6 +3501,8 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       if (!existingLeadData.quoteIds || existingLeadData.quoteIds.length === 0) {
         await createBozzaQuote(jobId, clienteId);
       }
+      // Invia sempre email riepilogo quando il cliente vede l'anteprima
+      sendRiepilogoEmail(false);
       console.log(`✅ Quick Quote save-draft: riusato job lead=${jobId} cliente=${clienteId} (${nome} ${cognome})`);
       return res.json({ success: true, jobId, clienteId, isExisting: true });
     }
@@ -3549,6 +3542,9 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
 
     // Crea quote in bozza: visibile subito nell'admin anche prima della firma
     await createBozzaQuote(jobId, clienteId);
+
+    // Invia email riepilogo al cliente non appena vede l'anteprima
+    sendRiepilogoEmail(true);
 
     console.log(`✅ Quick Quote save-draft: cliente=${clienteId} job=${jobId} (${nome} ${cognome} - ${nomeEvento})`);
     return res.json({ success: true, jobId, clienteId });
