@@ -97,6 +97,7 @@ import {
   ChevronDown,
   ChevronUp,
   Link2,
+  ExternalLink,
 } from "lucide-react";
 import { JobTypeIcon } from "@/lib/job-type-icons";
 import {
@@ -266,6 +267,14 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                         <Link2 className="h-4 w-4 mr-2" />
                         {template.shareableToken ? "Copia Link Rapido" : "Genera Link Rapido"}
                       </DropdownMenuItem>
+                      {template.shareableToken && (
+                        <DropdownMenuItem
+                          onClick={() => window.open(`/preventivo-rapido/${template.shareableToken}`, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Apri Modulo Cliente
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={onDelete}
