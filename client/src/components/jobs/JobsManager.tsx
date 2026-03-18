@@ -1139,6 +1139,8 @@ export default function JobsManager() {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
+                  const rawCreatedAt = convertFirestoreTimestamp((job as any).createdAt);
+                  const createdAtDate = rawCreatedAt && !isNaN(rawCreatedAt.getTime()) ? rawCreatedAt : null;
                   const isSelected = selectedJobs.has(job.id);
                   const jobDate = eventDate ? new Date(eventDate) : new Date(0);
                   const isJobPast = jobDate < startOfToday;
@@ -1286,7 +1288,13 @@ export default function JobsManager() {
                           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
                             Da definire
                           </Badge>
-                          <div className="text-xs text-muted-foreground">In trattativa</div>
+                          {createdAtDate ? (
+                            <div className="text-xs text-muted-foreground">
+                              Compilato il {format(createdAtDate, 'dd MMM yyyy', { locale: it })}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">In trattativa</div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
