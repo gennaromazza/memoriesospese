@@ -3117,7 +3117,7 @@ router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
     // Verifica che il template esista e sia attivo
     const templateSnapshot = await db.collection("quoteTemplates")
       .where("shareableToken", "==", token)
-      .where("isActive", "==", true)
+      .where("attivo", "==", true)
       .limit(1)
       .get();
     if (templateSnapshot.empty) {
