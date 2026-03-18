@@ -3203,7 +3203,8 @@ router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
           <div style="margin:28px auto;display:inline-block;background:#f5f0e8;border:2px dashed #6b7f6b;border-radius:12px;padding:20px 40px;">
             <span style="font-size:40px;font-weight:bold;letter-spacing:10px;color:#3d4f3d;">${code}</span>
           </div>
-          <p style="margin:16px 0 0;color:#888;font-size:13px;">Il codice è valido per <strong>10 minuti</strong>.</p>
+          <p style="margin:12px 0 0;color:#6b7f6b;font-size:13px;font-weight:600;">📋 Tieni premuto il codice per copiarlo, poi incollalo nella pagina con il pulsante "Incolla".</p>
+          <p style="margin:12px 0 0;color:#888;font-size:13px;">Il codice è valido per <strong>10 minuti</strong>.</p>
           <p style="margin:8px 0 0;color:#aaa;font-size:12px;">Se non hai richiesto tu questo codice, ignora questa email.</p>
         </td></tr>
         <tr><td style="background:#f9f6f1;padding:20px 32px;text-align:center;">

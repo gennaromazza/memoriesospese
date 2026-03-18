@@ -39,6 +39,8 @@ import {
   ChevronDown,
   ChevronUp,
   Percent,
+  Clipboard,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateQuoteTotals } from '@shared/quote-utils';
@@ -120,6 +122,8 @@ export default function QuickQuotePage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   // true se lo step OTP è stato ripristinato da sessionStorage (pagina ricaricata)
   const [otpRestoredFromSession, setOtpRestoredFromSession] = useState(false);
+  // feedback pulsante incolla
+  const [pasteFeedback, setPasteFeedback] = useState(false);
 
   const SESSION_KEY = `qqs_draft_${token}`;
 
@@ -728,7 +732,7 @@ export default function QuickQuotePage() {
                           La pagina si è ricaricata, ma il tuo codice è ancora valido. Inserisci quello che hai ricevuto via email:
                         </p>
                         <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
-                        <p className="text-xs text-gray-500 mt-1">Il codice scade dopo 15 minuti. Se è scaduto usa "Rinvia codice".</p>
+                        <p className="text-xs text-gray-500 mt-1">Il codice scade dopo 10 minuti. Se è scaduto usa "Rinvia codice".</p>
                       </>
                     ) : (
                       <>
@@ -743,22 +747,54 @@ export default function QuickQuotePage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="otp-input">Codice di verifica</Label>
-                    <Input
-                      id="otp-input"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      placeholder="_ _ _ _ _ _"
-                      value={otpCode}
-                      onChange={e => {
-                        setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                        setOtpError(null);
-                      }}
-                      onKeyDown={e => { if (e.key === 'Enter') verifyOtp(); }}
-                      className="text-center text-2xl tracking-[0.4em] font-mono h-14"
-                      autoFocus
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="otp-input"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        placeholder="_ _ _ _ _ _"
+                        value={otpCode}
+                        onChange={e => {
+                          setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                          setOtpError(null);
+                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') verifyOtp(); }}
+                        className="text-center text-2xl tracking-[0.4em] font-mono h-14 flex-1"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        title="Incolla dagli appunti"
+                        className={`flex-shrink-0 h-14 w-14 rounded-md border flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
+                          pasteFeedback
+                            ? 'bg-green-50 border-green-400 text-green-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+                        }`}
+                        onClick={async () => {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            const digits = text.replace(/\D/g, '').slice(0, 6);
+                            if (digits) {
+                              setOtpCode(digits);
+                              setOtpError(null);
+                              setPasteFeedback(true);
+                              setTimeout(() => setPasteFeedback(false), 1500);
+                            }
+                          } catch {
+                            // Fallback: focus input so the user can paste manualmente
+                            document.getElementById('otp-input')?.focus();
+                          }
+                        }}
+                      >
+                        {pasteFeedback
+                          ? <ClipboardCheck className="w-5 h-5" />
+                          : <Clipboard className="w-5 h-5" />
+                        }
+                        <span className="leading-none">{pasteFeedback ? 'Ok!' : 'Incolla'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {otpError && (
