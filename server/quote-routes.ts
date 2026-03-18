@@ -3165,7 +3165,7 @@ router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
 
     await sendGmailEmail(
       [email],
-      `${code} — Codice di verifica ${studioName}`,
+      `${code} - Codice di verifica ${studioName}`,
       html
     );
 
