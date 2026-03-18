@@ -783,15 +783,15 @@ export default function QuickQuotePage() {
 
         {step === 'preview' && (
           <>
-            {/* Banner: email inviata */}
+            {/* Banner: link portale inviato via email */}
             <div className="flex items-start gap-3 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(107,127,107,0.12)', border: '1px solid rgba(107,127,107,0.3)' }}>
               <Mail className="w-5 h-5 mt-0.5 shrink-0" style={{ color: primaryColor }} />
               <div>
                 <p className="font-semibold" style={{ color: primaryColor }}>
-                  Abbiamo inviato una copia del preventivo a <span className="underline underline-offset-2">{form.getValues('email')}</span>
+                  Abbiamo inviato il link del tuo preventivo a <span className="underline underline-offset-2">{form.getValues('email')}</span>
                 </p>
                 <p className="mt-0.5 text-gray-600">
-                  Puoi tornare indietro e modificare i dati in qualsiasi momento — ti invieremo un preventivo aggiornato.
+                  Il link rimarrà sempre attivo: potrai aprirlo quando vuoi, esplorare i servizi e firmare quando sei pronto/a.
                 </p>
               </div>
             </div>

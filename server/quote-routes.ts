@@ -2875,17 +2875,22 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       }
     }
 
-    // Cerca bozza preesistente per questo job (creata da save-draft)
+    // Cerca quote preesistente per questo job (creata da save-draft come "inviato")
+    // Il cliente potrebbe averla già aperta → status "visionato", oppure è ancora "inviato"
     let quoteId: string;
-    const bozzaSnap = await db.collection("quotes")
+    const existingQuoteSnap = await db.collection("quotes")
       .where("jobId", "==", jobId)
-      .where("status", "==", "bozza")
-      .limit(1)
+      .where("createdBy", "==", "preventivo-rapido")
+      .limit(5)
       .get();
+    const existingQuoteDoc = existingQuoteSnap.docs.find(d => {
+      const s = d.data().status;
+      return s === "inviato" || s === "visionato" || s === "bozza";
+    }) || null;
 
-    if (!bozzaSnap.empty) {
-      // ✅ Aggiorna la bozza esistente invece di crearne una nuova
-      const bozzaDoc = bozzaSnap.docs[0];
+    if (existingQuoteDoc) {
+      // ✅ Aggiorna la quote esistente invece di crearne una nuova
+      const bozzaDoc = existingQuoteDoc;
       quoteId = bozzaDoc.id;
       await bozzaDoc.ref.update({
         ...quoteData,
@@ -3381,9 +3386,10 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       draftTotalAfterDiscount = Math.max(0, draftSubtotale - draftDiscountAmount);
     }
 
-    // Helper: crea quote in stato "bozza" dal template — visibile subito nell'admin
-    const createBozzaQuote = async (jobId: string, clienteId: string): Promise<string> => {
+    // Helper: crea quote "inviato" dal template — visibile nell'admin e accessibile dal portale cliente
+    const createInitialQuote = async (jobId: string, clienteId: string): Promise<{ quoteId: string; publicToken: string }> => {
       const clausesWithIds = (template.defaultClauses || []).map((c: any) => ({ ...c, id: nanoid(), accepted: false }));
+      const initialPublicToken = nanoid(32);
       const quoteRef = await db.collection("quotes").add({
         jobId, clienteId,
         type: template.type,
@@ -3396,73 +3402,71 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
         discountType: draftDiscountType || null,
         discountValue: draftDiscountValue || null,
         discountAmount: draftDiscountAmount,
-        publicToken: nanoid(32),
-        status: "bozza",
+        publicToken: initialPublicToken,
+        status: "inviato",
         templateId: templateDocId,
         templateName: template.nome || "",
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         createdBy: "preventivo-rapido",
         revokedTokens: [],
-        auditLog: [{ id: nanoid(), quoteId: "", timestamp: nowRomeDate(), adminEmail: "preventivo-rapido", action: "quote_created", newValue: "bozza", reason: "Bozza da Preventivo Rapido" }],
+        auditLog: [{ id: nanoid(), quoteId: "", timestamp: nowRomeDate(), adminEmail: "preventivo-rapido", action: "quote_created", newValue: "inviato", reason: "Creato da Preventivo Rapido" }],
       });
       await db.collection("jobs").doc(jobId).update({
         quoteIds: FieldValue.arrayUnion(quoteRef.id),
         "financials.totalePreventivato": draftTotalAfterDiscount,
         updatedAt: FieldValue.serverTimestamp(),
       });
-      return quoteRef.id;
+      return { quoteId: quoteRef.id, publicToken: initialPublicToken };
     };
 
-    // Helper: invia email riepilogo al cliente (non bloccante)
-    const sendRiepilogoEmail = async (isNewClient: boolean) => {
+    // Helper: invia email con link al portale preventivo (non bloccante)
+    const sendPortalLinkEmail = async (publicToken: string) => {
       if (!email) return;
       try {
         const studioInfo = await getStudioContactInfo();
         const studioNome = studioInfo?.nome || "Image Studio";
         const studioEmailAddr = studioInfo?.email || "";
         const studioTel = studioInfo?.telefono || "";
+        const baseUrl = process.env.REPLIT_DOMAINS
+          ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+          : "http://localhost:5000";
+        const portalLink = `${baseUrl}/quote/${publicToken}`;
         const eventDateFormatted = eventDate
           ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
           : "Da definire";
-        const productsHtml = draftProducts.map((p: any) => `
-          <tr>
-            <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc; font-size:14px;">${p.nome || p.name || ""}</td>
-            <td style="padding:10px 12px; border-bottom:1px solid #f0e8dc; text-align:right; font-weight:600; color:#c4724a; font-size:14px;">€${(p.prezzo || 0).toFixed(2)}</td>
-          </tr>`).join("");
+        const isVariabile = template.type === "variabile";
         const html = `
           <div style="font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e8e0d4;">
             <div style="background: #2d3b2d; padding: 32px; text-align: center;">
               <h1 style="color: #f5f0e8; margin: 0; font-size: 24px; letter-spacing: 2px;">${studioNome.toUpperCase()}</h1>
-              <p style="color: #b8c9b0; margin: 8px 0 0; font-size: 13px; letter-spacing: 1px;">PREVENTIVO RIEPILOGATIVO</p>
+              <p style="color: #b8c9b0; margin: 8px 0 0; font-size: 13px; letter-spacing: 1px;">IL TUO PREVENTIVO PERSONALIZZATO</p>
             </div>
             <div style="padding: 32px 40px;">
               <p style="color: #555; font-size: 16px; margin: 0 0 8px;">Caro/a <strong>${nome} ${cognome}</strong>,</p>
-              <p style="color: #777; font-size: 14px; line-height: 1.6; margin: 0 0 28px;">
-                Grazie per aver compilato il nostro preventivo online! Di seguito trovi un riepilogo di quello che hai selezionato.
-                Siamo a tua disposizione per qualsiasi domanda o per perfezionare i dettagli insieme.
+              <p style="color: #777; font-size: 14px; line-height: 1.7; margin: 0 0 24px;">
+                Grazie per aver compilato il nostro preventivo online per <strong>${nomeEvento}</strong>
+                ${eventDate ? ` del <strong>${eventDateFormatted}</strong>` : ""}.
+                Il tuo preventivo personalizzato è pronto.
               </p>
-              <div style="background: #f9f5f0; border-radius: 6px; padding: 20px 24px; margin-bottom: 24px;">
-                <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Dettagli evento</h3>
-                <table style="width:100%; border-collapse:collapse; font-size:14px;">
-                  <tr><td style="padding:6px 0; color:#888; width:120px;">Evento</td><td style="padding:6px 0; font-weight:600; color:#333;">${nomeEvento}</td></tr>
-                  <tr><td style="padding:6px 0; color:#888;">Data</td><td style="padding:6px 0; font-weight:600; color:#333;">${eventDateFormatted}</td></tr>
-                  ${eventLocation ? `<tr><td style="padding:6px 0; color:#888;">Location</td><td style="padding:6px 0; font-weight:600; color:#333;">${eventLocation}</td></tr>` : ""}
-                </table>
+              ${isVariabile ? `
+              <div style="background: #f9f5f0; border-left: 3px solid #c4724a; padding: 14px 18px; border-radius: 4px; margin-bottom: 24px;">
+                <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.6;">
+                  <strong style="color: #c4724a;">Preventivo personalizzabile:</strong> puoi aprire il preventivo, aggiungere o rimuovere servizi,
+                  e vedere come cambia il totale in tempo reale — prima di firmare.
+                </p>
+              </div>` : ""}
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${portalLink}" style="display: inline-block; background: #2d3b2d; color: #f5f0e8; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; letter-spacing: 0.5px;">
+                  Visualizza il tuo preventivo →
+                </a>
               </div>
-              <h3 style="color: #2d3b2d; margin: 0 0 12px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">Servizi selezionati</h3>
-              <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
-                ${productsHtml}
-                ${draftDiscountAmount > 0 ? `<tr style="background:#f9f5f0"><td style="padding:10px 12px; color:#c4724a; font-style:italic; font-size:14px;">Sconto</td><td style="padding:10px 12px; text-align:right; color:#c4724a; font-weight:600; font-size:14px;">-€${draftDiscountAmount.toFixed(2)}</td></tr>` : ""}
-                <tr style="background:#2d3b2d">
-                  <td style="padding:14px 12px; color:#f5f0e8; font-weight:700; font-size:15px;">TOTALE</td>
-                  <td style="padding:14px 12px; text-align:right; color:#f5f0e8; font-weight:700; font-size:18px;">€${draftTotalAfterDiscount.toFixed(2)}</td>
-                </tr>
-              </table>
-              ${noteCliente ? `<div style="background:#fffbf5; border-left:3px solid #c4724a; padding:12px 16px; margin-bottom:24px; font-size:13px; color:#666;"><strong>La tua nota:</strong> ${noteCliente}</div>` : ""}
-              <p style="color:#777; font-size:13px; line-height:1.6; margin:24px 0 0;">
-                Questo è un preventivo indicativo. Ti contatteremo presto per definire tutti i dettagli e rispondere alle tue domande.
-                ${studioTel ? `Puoi anche contattarci direttamente al <strong>${studioTel}</strong>.` : ""}
+              <p style="color: #999; font-size: 12px; text-align: center; margin: 0 0 24px;">
+                Puoi aprire questo link in qualsiasi momento — rimarrà sempre disponibile.
+              </p>
+              <p style="color: #777; font-size: 13px; line-height: 1.6; margin: 0;">
+                Siamo a tua disposizione per qualsiasi domanda o per perfezionare i dettagli insieme.
+                ${studioTel ? `Puoi contattarci al <strong>${studioTel}</strong>.` : ""}
               </p>
             </div>
             <div style="background:#f5f0e8; padding:20px 40px; text-align:center; border-top:1px solid #e8e0d4;">
@@ -3474,11 +3478,11 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
           `Il tuo preventivo - ${nomeEvento}`,
           html,
           undefined,
-          { type: "quick_quote_summary_client", relatedDocType: "quote", clientName: `${nome} ${cognome}` }
+          { type: "quick_quote_link_client", relatedDocType: "quote", clientName: `${nome} ${cognome}` }
         );
-        console.log(`✅ Email riepilogo preventivo inviata al cliente: ${email}`);
+        console.log(`✅ Email link portale preventivo inviata al cliente: ${email} → ${portalLink}`);
       } catch (err) {
-        console.warn("⚠️ Email riepilogo al cliente non inviata:", err);
+        console.warn("⚠️ Email link portale al cliente non inviata:", err);
       }
     };
 
@@ -3497,12 +3501,20 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       if (rituTime) updatePayload.rituTime = rituTime.trim();
       if (noteCliente) updatePayload.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
       await db.collection("jobs").doc(jobId).update(updatePayload);
-      // Crea bozza quote se il job non ne ha ancora una
-      if (!existingLeadData.quoteIds || existingLeadData.quoteIds.length === 0) {
-        await createBozzaQuote(jobId, clienteId);
+
+      // Ottieni o crea la quote per recuperare il publicToken
+      let portalToken: string;
+      if (existingLeadData.quoteIds && existingLeadData.quoteIds.length > 0) {
+        // Quote già esistente — recupera il token
+        const existingQuoteDoc = await db.collection("quotes").doc(existingLeadData.quoteIds[0]).get();
+        portalToken = existingQuoteDoc.data()?.publicToken || "";
+      } else {
+        // Crea nuova quote
+        const { publicToken } = await createInitialQuote(jobId, clienteId);
+        portalToken = publicToken;
       }
-      // Invia sempre email riepilogo quando il cliente vede l'anteprima
-      sendRiepilogoEmail(false);
+      // Invia sempre email con link al portale quando il cliente vede l'anteprima
+      sendPortalLinkEmail(portalToken);
       console.log(`✅ Quick Quote save-draft: riusato job lead=${jobId} cliente=${clienteId} (${nome} ${cognome})`);
       return res.json({ success: true, jobId, clienteId, isExisting: true });
     }
@@ -3540,11 +3552,9 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // Crea quote in bozza: visibile subito nell'admin anche prima della firma
-    await createBozzaQuote(jobId, clienteId);
-
-    // Invia email riepilogo al cliente non appena vede l'anteprima
-    sendRiepilogoEmail(true);
+    // Crea quote come "inviato" e invia email con link al portale interattivo
+    const { publicToken: newPublicToken } = await createInitialQuote(jobId, clienteId);
+    sendPortalLinkEmail(newPublicToken);
 
     console.log(`✅ Quick Quote save-draft: cliente=${clienteId} job=${jobId} (${nome} ${cognome} - ${nomeEvento})`);
     return res.json({ success: true, jobId, clienteId });
