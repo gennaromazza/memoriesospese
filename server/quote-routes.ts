@@ -3450,6 +3450,197 @@ router.post(
 );
 
 /**
+ * POST /api/quotes/quick/:token/activate-admin
+ * Crea job+preventivo direttamente dal pannello admin (bypass OTP).
+ * Richiede auth admin. Non firma il preventivo — stato "inviato" pronto per compilazione.
+ */
+router.post(
+  "/quick/:token/activate-admin",
+  verifyAdminAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const { token } = req.params;
+      const {
+        nome, cognome, email, cellulare,
+        nomeEvento, eventDate, dataNonDefinita,
+        eventLocation,
+      } = req.body;
+
+      if (!nome || !cognome || !nomeEvento) {
+        return res.status(400).json({ error: "Dati mancanti", message: "Nome, cognome e nome evento obbligatori." });
+      }
+
+      // 1. Verifica template
+      const templatesSnap = await db.collection("quoteTemplates")
+        .where("shareableToken", "==", token)
+        .where("attivo", "==", true)
+        .limit(1)
+        .get();
+      if (templatesSnap.empty) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+      const templateDoc = templatesSnap.docs[0];
+      const template = templateDoc.data();
+
+      // 2. Cerca/crea cliente
+      let clienteId: string;
+      const normalizedEmail = email ? normalizeEmail(email) : null;
+      if (normalizedEmail) {
+        const existingSnap = await db.collection("clienti").where("email", "==", normalizedEmail).limit(1).get();
+        if (!existingSnap.empty) {
+          clienteId = existingSnap.docs[0].id;
+          await db.collection("clienti").doc(clienteId).update({ updatedAt: FieldValue.serverTimestamp() });
+        } else {
+          const ref = await db.collection("clienti").add({
+            nome: nome.trim(), cognome: cognome.trim(),
+            email: normalizedEmail,
+            cellulare1: cellulare?.trim() || "",
+            tags: ["preventivo-rapido"],
+            sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], jobIds: [] },
+            lifecycle: { firstContactAt: FieldValue.serverTimestamp(), lastInteractionAt: FieldValue.serverTimestamp(), status: "lead" },
+            financials: { totalRevenue: 0, outstandingBalance: 0, totalOrders: 0 },
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          clienteId = ref.id;
+        }
+      } else {
+        // Senza email: crea sempre nuovo cliente
+        const ref = await db.collection("clienti").add({
+          nome: nome.trim(), cognome: cognome.trim(),
+          email: "",
+          cellulare1: cellulare?.trim() || "",
+          tags: ["preventivo-rapido"],
+          sourceRefs: { bookingIds: [], orderIds: [], galleryIds: [], jobIds: [] },
+          lifecycle: { firstContactAt: FieldValue.serverTimestamp(), lastInteractionAt: FieldValue.serverTimestamp(), status: "lead" },
+          financials: { totalRevenue: 0, outstandingBalance: 0, totalOrders: 0 },
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        clienteId = ref.id;
+      }
+
+      // 3. Crea Job (con dedup: cerca lead preesistente stesso cliente+template)
+      const isDND = dataNonDefinita === true;
+      const candidateLeads = await db.collection("jobs")
+        .where("clientiIds", "array-contains", clienteId)
+        .where("provenance", "==", "preventivo-rapido")
+        .limit(20)
+        .get();
+      const existingLead = candidateLeads.docs.find(d => {
+        const data = d.data();
+        return data.status === "lead" && data.jobType === template.jobType && (!data.quoteIds || data.quoteIds.length === 0);
+      }) || null;
+
+      let jobId: string;
+      let jobRef: FirebaseFirestore.DocumentReference;
+
+      if (existingLead) {
+        jobId = existingLead.id;
+        jobRef = db.collection("jobs").doc(jobId);
+        await jobRef.update({ nomeEvento: nomeEvento.trim(), updatedAt: FieldValue.serverTimestamp() });
+        console.log(`✅ activate-admin: riuso job lead=${jobId}`);
+      } else {
+        const jobData: Record<string, any> = {
+          nomeEvento: nomeEvento.trim(),
+          clientiIds: [clienteId],
+          jobType: template.jobType,
+          dataNonDefinita: isDND,
+          allDay: true,
+          provenance: "preventivo-rapido",
+          orderIds: [], galleryIds: [], quoteIds: [],
+          status: "lead",
+          financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
+          costi: [], pdfs: [], workflowEvents: [],
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          createdBy: "preventivo-rapido",
+          jobSource: "preventivo-rapido",
+        };
+        if (!isDND && eventDate) jobData.eventDate = new Date(eventDate);
+        if (eventLocation) jobData.eventLocation = eventLocation.trim();
+        const newRef = await db.collection("jobs").add(jobData);
+        jobRef = newRef;
+        jobId = newRef.id;
+        await db.collection("clienti").doc(clienteId).update({
+          "sourceRefs.jobIds": FieldValue.arrayUnion(jobId),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 4. Crea Quote dal template (stato "inviato", non firmato)
+      const products = (template.defaultProducts || []).map((p: any) => ({
+        ...p,
+        selectable: template.type === "variabile",
+      }));
+      let subtotale = 0;
+      products.forEach((p: any) => { subtotale += p.prezzo || 0; });
+
+      const discountType = template.discountType;
+      const discountValue = template.discountValue;
+      let discountAmount = 0;
+      let totalAfterDiscount = subtotale;
+      if (discountType && discountValue && discountValue > 0) {
+        discountAmount = discountType === "percent"
+          ? Math.round(subtotale * (discountValue / 100) * 100) / 100
+          : Math.min(discountValue, subtotale);
+        totalAfterDiscount = Math.max(0, subtotale - discountAmount);
+      }
+
+      const clausesWithIds = (template.defaultClauses || []).map((c: any) => ({
+        ...c, id: nanoid(), accepted: false,
+      }));
+
+      const quoteToken = nanoid(32);
+      const quoteRef = await db.collection("quotes").add({
+        jobId,
+        clienteId,
+        type: template.type,
+        products,
+        contractClauses: clausesWithIds,
+        theme: template.theme || {},
+        totaleBase: subtotale,
+        totalBeforeDiscount: subtotale,
+        totalAfterDiscount,
+        discountType: discountType || null,
+        discountValue: discountValue || null,
+        discountAmount,
+        publicToken: quoteToken,
+        status: "inviato",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: "admin-studio",
+        templateId: templateDoc.id,
+        templateName: template.nome || "",
+        revokedTokens: [],
+        auditLog: [{
+          id: nanoid(),
+          quoteId: "",
+          timestamp: nowRomeDate(),
+          adminEmail: "admin-studio",
+          action: "quote_created",
+          newValue: "inviato",
+          reason: "Compilazione in studio (admin)",
+        }],
+      });
+
+      // Collega quote al job
+      await jobRef.update({
+        quoteIds: FieldValue.arrayUnion(quoteRef.id),
+        "financials.totalePreventivato": totalAfterDiscount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      console.log(`✅ activate-admin: job=${jobId} quote=${quoteRef.id} cliente=${clienteId}`);
+      return res.json({ success: true, jobId, quoteId: quoteRef.id, clienteId });
+    } catch (error) {
+      console.error("❌ Errore activate-admin:", error);
+      return res.status(500).json({ error: "Errore server", message: error instanceof Error ? error.message : "Errore sconosciuto" });
+    }
+  }
+);
+
+/**
  * GET /api/quotes/health
  * Health check per quote API
  */

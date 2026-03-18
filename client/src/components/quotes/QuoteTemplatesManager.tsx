@@ -98,7 +98,11 @@ import {
   ChevronUp,
   Link2,
   ExternalLink,
+  Users,
 } from "lucide-react";
+import { useLocation } from "wouter";
+import { getAuth } from "firebase/auth";
+import { Checkbox } from "@/components/ui/checkbox";
 import { JobTypeIcon } from "@/lib/job-type-icons";
 import {
   DndContext,
@@ -181,6 +185,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   onDelete,
   onToggle,
   onGenerateLink,
+  onCompilainStudio,
 }: {
   template: QuoteTemplate & { id: string };
   jobTypes: any[];
@@ -188,6 +193,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   onDelete: () => void;
   onToggle: (checked: boolean) => void;
   onGenerateLink: () => void;
+  onCompilainStudio: () => void;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -273,6 +279,12 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                         >
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Apri Modulo Cliente
+                        </DropdownMenuItem>
+                      )}
+                      {template.shareableToken && (
+                        <DropdownMenuItem onClick={onCompilainStudio}>
+                          <Users className="h-4 w-4 mr-2" />
+                          Compila in Studio
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
@@ -361,10 +373,14 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
 export default function QuoteTemplatesManager() {
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<(QuoteTemplate & { id: string }) | null>(null);
   const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
+  const [studioModalTemplate, setStudioModalTemplate] = useState<(QuoteTemplate & { id: string }) | null>(null);
+  const [studioForm, setStudioForm] = useState({ nome: '', cognome: '', email: '', cellulare: '', nomeEvento: '', eventDate: '', dataNonDefinita: false });
+  const [studioSubmitting, setStudioSubmitting] = useState(false);
 
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
@@ -432,6 +448,41 @@ export default function QuoteTemplatesManager() {
       });
     }
   }, [toast]);
+
+  const handleCompilainStudio = useCallback(async () => {
+    if (!studioModalTemplate?.shareableToken) return;
+    if (!studioForm.nome.trim() || !studioForm.cognome.trim() || !studioForm.nomeEvento.trim()) {
+      toast({ title: "Dati mancanti", description: "Inserisci nome, cognome e nome evento.", variant: "destructive" });
+      return;
+    }
+    setStudioSubmitting(true);
+    try {
+      const idToken = await getAuth().currentUser?.getIdToken();
+      const res = await fetch(`/api/quotes/quick/${studioModalTemplate.shareableToken}/activate-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({
+          nome: studioForm.nome.trim(),
+          cognome: studioForm.cognome.trim(),
+          email: studioForm.email.trim() || undefined,
+          cellulare: studioForm.cellulare.trim() || undefined,
+          nomeEvento: studioForm.nomeEvento.trim(),
+          eventDate: (!studioForm.dataNonDefinita && studioForm.eventDate) ? new Date(studioForm.eventDate).toISOString() : undefined,
+          dataNonDefinita: studioForm.dataNonDefinita,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Errore server');
+      setStudioModalTemplate(null);
+      setStudioForm({ nome: '', cognome: '', email: '', cellulare: '', nomeEvento: '', eventDate: '', dataNonDefinita: false });
+      toast({ title: "Preventivo creato!", description: "Job e preventivo creati. Apertura in corso..." });
+      navigate(`/admin/jobs/${data.jobId}`);
+    } catch (err: any) {
+      toast({ title: "Errore", description: err.message || "Impossibile creare il preventivo.", variant: "destructive" });
+    } finally {
+      setStudioSubmitting(false);
+    }
+  }, [studioModalTemplate, studioForm, toast, navigate]);
 
   // Drag & Drop sensors
   const sensors = useSensors(
@@ -876,6 +927,10 @@ export default function QuoteTemplatesManager() {
                     })
                   }
                   onGenerateLink={() => handleGenerateLink(template as QuoteTemplate & { id: string })}
+                  onCompilainStudio={() => {
+                    setStudioForm({ nome: '', cognome: '', email: '', cellulare: '', nomeEvento: '', eventDate: '', dataNonDefinita: false });
+                    setStudioModalTemplate(template as QuoteTemplate & { id: string });
+                  }}
                 />
               ))}
             </div>
@@ -1382,6 +1437,104 @@ export default function QuoteTemplatesManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Compila in Studio Modal */}
+      <Dialog open={!!studioModalTemplate} onOpenChange={(open) => { if (!open) setStudioModalTemplate(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-sage-600" />
+              Compila in Studio
+            </DialogTitle>
+            <DialogDescription>
+              Crea subito il preventivo <strong>"{studioModalTemplate?.nome}"</strong> insieme al cliente. Il job e il modulo vengono creati istantaneamente — nessun link, nessun OTP.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Nome *</label>
+                <Input
+                  value={studioForm.nome}
+                  onChange={e => setStudioForm(f => ({ ...f, nome: e.target.value }))}
+                  placeholder="Mario"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Cognome *</label>
+                <Input
+                  value={studioForm.cognome}
+                  onChange={e => setStudioForm(f => ({ ...f, cognome: e.target.value }))}
+                  placeholder="Rossi"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                value={studioForm.email}
+                onChange={e => setStudioForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="mario.rossi@email.com (opzionale)"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Telefono</label>
+              <Input
+                value={studioForm.cellulare}
+                onChange={e => setStudioForm(f => ({ ...f, cellulare: e.target.value }))}
+                placeholder="+39 333 000 0000 (opzionale)"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Nome Evento *</label>
+              <Input
+                value={studioForm.nomeEvento}
+                onChange={e => setStudioForm(f => ({ ...f, nomeEvento: e.target.value }))}
+                placeholder="es. Matrimonio Mario e Anna"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="dataNonDefinita"
+                  checked={studioForm.dataNonDefinita}
+                  onCheckedChange={(checked) => setStudioForm(f => ({ ...f, dataNonDefinita: !!checked, eventDate: '' }))}
+                />
+                <label htmlFor="dataNonDefinita" className="text-sm cursor-pointer">Data da definire</label>
+              </div>
+              {!studioForm.dataNonDefinita && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Data Evento</label>
+                  <Input
+                    type="date"
+                    value={studioForm.eventDate}
+                    onChange={e => setStudioForm(f => ({ ...f, eventDate: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setStudioModalTemplate(null)} disabled={studioSubmitting}>
+              Annulla
+            </Button>
+            <Button
+              className="flex-1 bg-sage-600 hover:bg-sage-700 text-white"
+              onClick={handleCompilainStudio}
+              disabled={studioSubmitting || !studioForm.nome.trim() || !studioForm.cognome.trim() || !studioForm.nomeEvento.trim()}
+            >
+              {studioSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creazione…</> : <><Users className="h-4 w-4 mr-2" /> Crea e Apri Job</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
