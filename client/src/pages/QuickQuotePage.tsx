@@ -648,7 +648,7 @@ export default function QuickQuotePage() {
                   </div>
                   <div>
                     <span className="text-gray-500">Email:</span>
-                    <p className="font-medium">{form.getValues('email')}</p>
+                    <p className="font-medium break-all">{form.getValues('email')}</p>
                   </div>
                   {form.getValues('cellulare') && (
                     <div>
@@ -721,7 +721,7 @@ export default function QuickQuotePage() {
                                 setSelectedProducts(selectedProducts.filter(p => p !== key));
                               }
                             }}
-                            className="mt-1"
+                            className="mt-1 flex-shrink-0"
                           />
                         )}
                         
@@ -729,7 +729,7 @@ export default function QuickQuotePage() {
                           <img
                             src={product.immagini[0]}
                             alt={product.nome}
-                            className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = placeholderUrl;
                             }}
@@ -737,19 +737,19 @@ export default function QuickQuotePage() {
                         )}
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h4 className="font-medium text-gray-900">{product.nome}</h4>
-                              {product.categoria && (
-                                <Badge variant="outline" className="text-xs mt-1">
-                                  {product.categoria}
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="font-bold text-lg whitespace-nowrap" style={{ color: primaryColor }}>
+                          {/* Nome + Prezzo: impilati su mobile piccolo, affiancati su schermi più grandi */}
+                          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-0.5">
+                            <h4 className="font-medium text-gray-900 leading-snug">{product.nome}</h4>
+                            <span className="font-bold text-base flex-shrink-0" style={{ color: primaryColor }}>
                               {formatCurrency(product.prezzo)}
                             </span>
                           </div>
+
+                          {product.categoria && (
+                            <Badge variant="outline" className="text-xs mt-1">
+                              {product.categoria.replace(/_/g, ' ')}
+                            </Badge>
+                          )}
 
                           {product.descrizione && (
                             <div className="mt-1">
@@ -772,7 +772,8 @@ export default function QuickQuotePage() {
                             </div>
                           )}
 
-                          {product.numeroFoto && (
+                          {/* ✅ Fix: usa > 0 per evitare che "0" venga renderizzato come testo */}
+                          {(product.numeroFoto ?? 0) > 0 && (
                             <p className="text-xs text-gray-500 mt-1">
                               {product.numeroFoto} foto incluse
                             </p>
