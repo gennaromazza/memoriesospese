@@ -4,7 +4,7 @@ import type { Cliente } from '@shared/clienti-types';
 import type { Booking, Order } from '@shared/booking-types';
 import type { Job } from '@shared/jobs-types';
 import type { Gallery } from '@/lib/galleries';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -203,22 +203,30 @@ export default function ClienteStorico({ cliente }: ClienteStoricoProps) {
         }
       }
 
-      for (const jobId of cliente.sourceRefs.jobIds || []) {
-        const job = await loadJob(jobId);
-        if (job) {
-          const date = parseDate(job.eventDate);
-          if (date) {
-            allEvents.push({
-              id: jobId,
-              type: 'job',
-              date,
-              title: 'Lavoro',
-              description: job.nomeEvento || 'Servizio fotografico',
-              status: job.status,
-              link: `/admin/jobs/${jobId}`,
-              data: job,
-            });
-          }
+      // Carica i job direttamente da Firestore per avere dati sempre aggiornati
+      // (sourceRefs.jobIds potrebbe essere stale nella cache UI)
+      const jobsSnap = await getDocs(
+        query(collection(db, 'jobs'), where('clientiIds', 'array-contains', cliente.id))
+      );
+      const seenJobIds = new Set<string>();
+      for (const jobDoc of jobsSnap.docs) {
+        if (seenJobIds.has(jobDoc.id)) continue;
+        seenJobIds.add(jobDoc.id);
+        const job = { id: jobDoc.id, ...jobDoc.data() } as Job;
+        // Usa eventDate se disponibile, altrimenti createdAt come fallback
+        // (i lead con "Data da definire" non hanno eventDate)
+        const date = parseDate((job as any).eventDate) ?? parseDate((job as any).createdAt);
+        if (date) {
+          allEvents.push({
+            id: jobDoc.id,
+            type: 'job',
+            date,
+            title: 'Lavoro',
+            description: (job as any).nomeEvento || 'Servizio fotografico',
+            status: (job as any).status,
+            link: `/admin/jobs/${jobDoc.id}`,
+            data: job,
+          });
         }
       }
 
