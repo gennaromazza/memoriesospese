@@ -3299,8 +3299,42 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       clienteId = clienteRef.id;
     }
 
-    // 2. Crea Job lead
+    // 2. Cerca job lead preesistente per stesso cliente + stesso template (deduplicazione)
+    // Evita la proliferazione di job lead quando il cliente compila più volte o viene ricreato dall'admin
+    // Query semplice (array-contains + una equality) per evitare indici compositi mancanti;
+    // il filtro su status/jobType avviene in memoria.
+    const candidateLeadSnapshot = await db.collection("jobs")
+      .where("clientiIds", "array-contains", clienteId)
+      .where("provenance", "==", "preventivo-rapido")
+      .limit(20)
+      .get();
+
+    const existingLead = candidateLeadSnapshot.docs.find(doc => {
+      const d = doc.data();
+      return d.status === "lead" && d.jobType === template.jobType;
+    }) || null;
+
     const isDND = dataNonDefinita === true;
+
+    if (existingLead) {
+      // ✅ Job lead già esistente — aggiorna i dati invece di crearne uno nuovo
+      const jobId = existingLead.id;
+      const updatePayload: Record<string, any> = {
+        nomeEvento: nomeEvento.trim(),
+        dataNonDefinita: isDND,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      if (!isDND && eventDate) updatePayload.eventDate = new Date(eventDate);
+      if (eventLocation) updatePayload.eventLocation = eventLocation.trim();
+      if (rituLocation) updatePayload.rituLocation = rituLocation.trim();
+      if (rituTime) updatePayload.rituTime = rituTime.trim();
+      if (noteCliente) updatePayload.noteInterne = `[Nota cliente] ${noteCliente.trim()}`;
+      await db.collection("jobs").doc(jobId).update(updatePayload);
+      console.log(`✅ Quick Quote save-draft: riusato job lead=${jobId} cliente=${clienteId} (${nome} ${cognome})`);
+      return res.json({ success: true, jobId, clienteId, isExisting: true });
+    }
+
+    // 3. Crea Job lead nuovo
     const jobData: Record<string, any> = {
       nomeEvento: nomeEvento.trim(),
       clientiIds: [clienteId],

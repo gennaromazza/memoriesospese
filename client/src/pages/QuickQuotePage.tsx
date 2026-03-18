@@ -519,6 +519,10 @@ export default function QuickQuotePage() {
                             <FormControl>
                               <Input type="email" placeholder="email@esempio.it" {...field} />
                             </FormControl>
+                            <FormDescription className="flex items-center gap-1 text-xs">
+                              <Mail className="w-3 h-3 flex-shrink-0" />
+                              Ti invieremo un codice di verifica su questa email
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
