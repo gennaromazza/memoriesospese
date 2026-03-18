@@ -118,6 +118,8 @@ export default function QuickQuotePage() {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  // true se lo step OTP è stato ripristinato da sessionStorage (pagina ricaricata)
+  const [otpRestoredFromSession, setOtpRestoredFromSession] = useState(false);
 
   const SESSION_KEY = `qqs_draft_${token}`;
 
@@ -170,6 +172,7 @@ export default function QuickQuotePage() {
   const sendOtp = async (email: string, nome: string) => {
     setOtpSending(true);
     setOtpError(null);
+    setOtpRestoredFromSession(false); // nuovo invio reale → reset messaggio ripristino
     try {
       const res = await fetch(`/api/quotes/quick/${token}/send-otp`, {
         method: 'POST',
@@ -217,8 +220,21 @@ export default function QuickQuotePage() {
         });
         if (r.ok) {
           const result = await r.json();
+          const newJobId = result.jobId || draftJobId;
+          const newClienteId = result.clienteId || draftClienteId;
           if (result.jobId) setDraftJobId(result.jobId);
           if (result.clienteId) setDraftClienteId(result.clienteId);
+          // Salva step + draftIds in sessionStorage per sopravvivere al reload
+          try {
+            const existing = sessionStorage.getItem(SESSION_KEY);
+            const base = existing ? JSON.parse(existing) : {};
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+              ...base,
+              step: 'preview',
+              draftJobId: newJobId,
+              draftClienteId: newClienteId,
+            }));
+          } catch { /* ignora */ }
         }
       } catch { /* silenzioso — non bloccare la preview */ }
       finally { setSavingDraft(false); }
@@ -230,7 +246,7 @@ export default function QuickQuotePage() {
     }
   };
 
-  // Ripristina dati da sessionStorage se disponibili (es. dopo un errore di rete)
+  // Ripristina dati + step da sessionStorage se disponibili (es. dopo reload su mobile)
   useEffect(() => {
     if (!template) return;
     try {
@@ -246,10 +262,15 @@ export default function QuickQuotePage() {
         if (draft.selectedProducts) setSelectedProducts(draft.selectedProducts);
         if (draft.acceptedClauses) setAcceptedClauses(draft.acceptedClauses);
         if (draft.signerName) setSignerName(draft.signerName);
-        toast({
-          title: 'Dati recuperati',
-          description: 'Abbiamo recuperato i dati inseriti in precedenza. Puoi riprovare ad inviare.',
-        });
+        if (draft.draftJobId) setDraftJobId(draft.draftJobId);
+        if (draft.draftClienteId) setDraftClienteId(draft.draftClienteId);
+        // Ripristina lo step senza reinviare automaticamente l'OTP
+        if (draft.step === 'otp') {
+          setStep('otp');
+          setOtpRestoredFromSession(true); // segnala che NON abbiamo inviato un nuovo codice
+        } else if (draft.step === 'preview' && draft.draftJobId) {
+          setStep('preview');
+        }
       }
     } catch {
       // sessionStorage non disponibile o dati corrotti — ignora
@@ -337,9 +358,10 @@ export default function QuickQuotePage() {
   });
 
   const handleFormSubmit = (formData: QuickQuoteFormData) => {
-    // Salva bozza in sessionStorage PRIMA di andare alla preview
+    // Salva dati + step in sessionStorage — così il reload non perde il contesto
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        step: 'otp',
         formData: { ...formData, eventDate: formData.eventDate?.toISOString() },
         selectedProducts,
         acceptedClauses,
@@ -700,11 +722,23 @@ export default function QuickQuotePage() {
               ) : (
                 <>
                   <div className="text-center space-y-1">
-                    <p className="text-sm text-gray-700">
-                      Abbiamo inviato un codice a 6 cifre a:
-                    </p>
-                    <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
-                    <p className="text-xs text-gray-500 mt-1">Controlla anche la cartella spam se non lo trovi.</p>
+                    {otpRestoredFromSession ? (
+                      <>
+                        <p className="text-sm text-gray-700">
+                          La pagina si è ricaricata, ma il tuo codice è ancora valido. Inserisci quello che hai ricevuto via email:
+                        </p>
+                        <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
+                        <p className="text-xs text-gray-500 mt-1">Il codice scade dopo 15 minuti. Se è scaduto usa "Rinvia codice".</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-700">
+                          Abbiamo inviato un codice a 6 cifre a:
+                        </p>
+                        <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
+                        <p className="text-xs text-gray-500 mt-1">Controlla anche la cartella spam se non lo trovi.</p>
+                      </>
+                    )}
                   </div>
 
                   <div className="space-y-2">
