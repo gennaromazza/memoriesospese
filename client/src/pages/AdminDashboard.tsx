@@ -3059,67 +3059,118 @@ export default function AdminDashboard() {
                 onValueChange={(v) => setSettingsSection(v as any)}
                 className="w-full"
               >
-                {/* Settings sub-nav — stile sidebar pill con gruppi */}
-                <div className="mb-6">
-                  {/* Sezione: Configurazione */}
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Configurazione</p>
-                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent mb-3">
-                    <TabsTrigger
-                      value="studio"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
-                      Studio
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="slideshow"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <Play className="h-3.5 w-3.5 flex-shrink-0" />
-                      Slideshow
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="integrations"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <Link2 className="h-3.5 w-3.5 flex-shrink-0" />
-                      Integrazioni
-                    </TabsTrigger>
-                  </TabsList>
+                {/* ── Layout: Sidebar (desktop) + Pill scroll (mobile) + Content ── */}
+                <div className="flex flex-col lg:flex-row gap-6 min-h-[500px]">
 
-                  {/* Sezione: Catalogo */}
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Catalogo</p>
-                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent mb-3">
-                    <TabsTrigger
-                      value="products"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <Package className="h-3.5 w-3.5 flex-shrink-0" />
-                      Prodotti
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="product-categories"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
-                      Categorie
-                    </TabsTrigger>
-                  </TabsList>
+                  {/* ─ Sidebar navigation (desktop only) ─ */}
+                  <aside className="hidden lg:flex flex-col w-52 flex-shrink-0">
+                    <nav className="sticky top-4 rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                      {/* Configurazione */}
+                      <div className="px-3 pt-4 pb-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 px-2 mb-2">Configurazione</p>
+                        {([
+                          { id: 'studio',       icon: Building2, label: 'Studio',       desc: 'Profilo & contatti' },
+                          { id: 'slideshow',    icon: Play,      label: 'Slideshow',    desc: 'Foto homepage' },
+                          { id: 'integrations', icon: Link2,     label: 'Integrazioni', desc: 'Calendar & Gmail' },
+                        ] as const).map(({ id, icon: Icon, label, desc }) => (
+                          <button
+                            key={id}
+                            onClick={() => setSettingsSection(id)}
+                            className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all group mb-0.5 ${
+                              settingsSection === id
+                                ? 'bg-[#6b7f6b] text-white shadow-sm'
+                                : 'text-stone-600 hover:bg-stone-50'
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${settingsSection === id ? 'text-white' : 'text-stone-400 group-hover:text-stone-600'}`} />
+                            <span className="min-w-0">
+                              <span className={`block text-sm font-medium leading-tight ${settingsSection === id ? 'text-white' : 'text-stone-700'}`}>{label}</span>
+                              <span className={`block text-[11px] leading-tight mt-0.5 ${settingsSection === id ? 'text-white/70' : 'text-stone-400'}`}>{desc}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mx-3 border-t border-stone-100" />
+                      {/* Catalogo */}
+                      <div className="px-3 py-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 px-2 mb-2 mt-1">Catalogo</p>
+                        {([
+                          { id: 'products',           icon: Package,    label: 'Prodotti',   desc: 'Listino & bundle' },
+                          { id: 'product-categories', icon: FolderOpen, label: 'Categorie',  desc: 'Organizza prodotti' },
+                        ] as const).map(({ id, icon: Icon, label, desc }) => (
+                          <button
+                            key={id}
+                            onClick={() => setSettingsSection(id)}
+                            className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all group mb-0.5 ${
+                              settingsSection === id
+                                ? 'bg-[#6b7f6b] text-white shadow-sm'
+                                : 'text-stone-600 hover:bg-stone-50'
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${settingsSection === id ? 'text-white' : 'text-stone-400 group-hover:text-stone-600'}`} />
+                            <span className="min-w-0">
+                              <span className={`block text-sm font-medium leading-tight ${settingsSection === id ? 'text-white' : 'text-stone-700'}`}>{label}</span>
+                              <span className={`block text-[11px] leading-tight mt-0.5 ${settingsSection === id ? 'text-white/70' : 'text-stone-400'}`}>{desc}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mx-3 border-t border-stone-100" />
+                      {/* Strumenti */}
+                      <div className="px-3 pt-2 pb-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 px-2 mb-2 mt-1">Strumenti</p>
+                        {([
+                          { id: 'migration', icon: RefreshCw, label: 'Migrazione', desc: 'Import & backup' },
+                        ] as const).map(({ id, icon: Icon, label, desc }) => (
+                          <button
+                            key={id}
+                            onClick={() => setSettingsSection(id)}
+                            className={`w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all group mb-0.5 ${
+                              settingsSection === id
+                                ? 'bg-[#6b7f6b] text-white shadow-sm'
+                                : 'text-stone-600 hover:bg-stone-50'
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${settingsSection === id ? 'text-white' : 'text-stone-400 group-hover:text-stone-600'}`} />
+                            <span className="min-w-0">
+                              <span className={`block text-sm font-medium leading-tight ${settingsSection === id ? 'text-white' : 'text-stone-700'}`}>{label}</span>
+                              <span className={`block text-[11px] leading-tight mt-0.5 ${settingsSection === id ? 'text-white/70' : 'text-stone-400'}`}>{desc}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </nav>
+                  </aside>
 
-                  {/* Sezione: Strumenti */}
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Strumenti</p>
-                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent">
-                    <TabsTrigger
-                      value="migration"
-                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 flex-shrink-0" />
-                      Migrazione Foto
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+                  {/* ─ Mobile: pill scroll nav ─ */}
+                  <div className="lg:hidden flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {([
+                      { id: 'studio',             icon: Building2,  label: 'Studio' },
+                      { id: 'slideshow',           icon: Play,       label: 'Slideshow' },
+                      { id: 'integrations',        icon: Link2,      label: 'Integrazioni' },
+                      { id: 'products',            icon: Package,    label: 'Prodotti' },
+                      { id: 'product-categories',  icon: FolderOpen, label: 'Categorie' },
+                      { id: 'migration',           icon: RefreshCw,  label: 'Migrazione' },
+                    ] as const).map(({ id, icon: Icon, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => setSettingsSection(id)}
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                          settingsSection === id
+                            ? 'bg-[#6b7f6b] text-white shadow-sm'
+                            : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
 
-                <TabsContent value="studio">
+                  {/* ─ Content area ─ */}
+                  <div className="flex-1 min-w-0">
+
+                <TabsContent value="studio" className="mt-0">
                   {isSettingsLoading ? (
                     <div className="space-y-4">
                       {[...Array(5)].map((_, i) => (
@@ -3548,7 +3599,7 @@ export default function AdminDashboard() {
                   )}
                 </TabsContent>
 
-                <TabsContent value="slideshow">
+                <TabsContent value="slideshow" className="mt-0">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <h2 className="text-xl font-semibold text-blue-gray mb-4">
                       Gestione Slideshow Homepage
@@ -3561,25 +3612,25 @@ export default function AdminDashboard() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="products">
+                <TabsContent value="products" className="mt-0">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <ProductsManager />
                   </div>
                 </TabsContent>
 
-                <TabsContent value="product-categories">
+                <TabsContent value="product-categories" className="mt-0">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <ProductCategoriesManager />
                   </div>
                 </TabsContent>
 
-                <TabsContent value="email-logs">
+                <TabsContent value="email-logs" className="mt-0">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <EmailLogsManager />
                   </div>
                 </TabsContent>
 
-                <TabsContent value="migration">
+                <TabsContent value="migration" className="mt-0">
                   <div className="space-y-6">
                     <div className="bg-white shadow sm:rounded-lg p-5 border-2 border-primary/20">
                       <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
@@ -3767,7 +3818,7 @@ export default function AdminDashboard() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="integrations">
+                <TabsContent value="integrations" className="mt-0">
                   <div className="space-y-6">
                     {/* Google Calendar Integration */}
                     <div className="bg-white shadow sm:rounded-lg p-5">
@@ -3810,6 +3861,9 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 </TabsContent>
+
+                  </div>{/* end content area */}
+                </div>{/* end flex layout */}
               </Tabs>
             </TabsContent>
 
