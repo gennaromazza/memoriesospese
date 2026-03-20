@@ -3119,7 +3119,7 @@ router.post("/order-delivered", async (req, res) => {
  */
 function createReviewRequestEmailHTML(
   clienteName: string,
-  reviewUrl: string,
+  trackingUrl: string,
   studioInfo: { name: string; email: string; phone: string; whatsapp?: string }
 ): string {
   const studioName = studioInfo.name || "Image Studio Fotografico";
@@ -3174,7 +3174,7 @@ function createReviewRequestEmailHTML(
             </p>
 
             <!-- CTA Button -->
-            <a href="${reviewUrl}"
+            <a href="${trackingUrl}"
                target="_blank"
                style="display:inline-block;background:#c4724a;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:8px;font-size:15px;font-weight:bold;font-family:Arial,sans-serif;letter-spacing:0.5px;box-shadow:0 3px 10px rgba(196,114,74,0.35);">
               Lascia la tua recensione
@@ -3214,10 +3214,137 @@ function createReviewRequestEmailHTML(
 }
 
 /**
+ * Helper: recupera il log recensione esistente per email (ricerca per recipientEmail)
+ */
+async function findReviewLog(email: string): Promise<{ id: string; data: any } | null> {
+  const normalized = email.toLowerCase().trim();
+  const snap = await db.collection('reviewEmailLogs')
+    .where('recipientEmail', '==', normalized)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, data: snap.docs[0].data() };
+}
+
+/**
+ * Helper: determina se possiamo inviare la review email a questa email
+ * Returns: { canSend, reason, log? }
+ */
+async function checkReviewEmailEligibility(email: string): Promise<{
+  canSend: boolean;
+  reason: 'ok' | 'clicked' | 'recent' | 'no_url';
+  daysUntilResend?: number;
+  lastSentAt?: Date;
+  log?: any;
+}> {
+  const log = await findReviewLog(email);
+  if (!log) return { canSend: true, reason: 'ok' };
+
+  const data = log.data;
+
+  if (data.clicked === true) {
+    return { canSend: false, reason: 'clicked', log: data };
+  }
+
+  const lastSentAt: Date = data.lastSentAt?.toDate ? data.lastSentAt.toDate() : new Date(data.lastSentAt);
+  const daysSince = (Date.now() - lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
+  const RESEND_DAYS = 30;
+
+  if (daysSince < RESEND_DAYS) {
+    const daysUntilResend = Math.ceil(RESEND_DAYS - daysSince);
+    return { canSend: false, reason: 'recent', daysUntilResend, lastSentAt, log: data };
+  }
+
+  return { canSend: true, reason: 'ok', log: data };
+}
+
+/**
+ * Helper: invia la review email e logga in Firestore (upsert per email)
+ */
+async function sendAndLogReviewEmail(
+  recipientEmail: string,
+  clienteName: string,
+  source: 'auto' | 'bulk' | 'manual',
+  req: Request,
+  existingLog?: { id: string; data: any } | null
+): Promise<void> {
+  const studioInfo = await getStudioContactInfo();
+  const reviewUrl = studioInfo.googleReviewUrl;
+  if (!reviewUrl) throw new Error('googleReviewUrl non configurato');
+
+  const normalized = recipientEmail.toLowerCase().trim();
+  const token = Buffer.from(normalized).toString('base64url');
+  const siteUrl = getSiteBaseUrl(req);
+  const trackingUrl = `${siteUrl}/api/email/review-track?e=${token}`;
+
+  const htmlContent = createReviewRequestEmailHTML(clienteName, trackingUrl, studioInfo);
+  const subject = `La tua opinione conta per noi - ${studioInfo.name}`;
+
+  await sendGmailEmail([normalized], subject, htmlContent);
+  console.log(`✅ Email recensione inviata a ${normalized} (${source})`);
+
+  const now = FieldValue.serverTimestamp();
+
+  if (existingLog) {
+    await db.collection('reviewEmailLogs').doc(existingLog.id).update({
+      lastSentAt: now,
+      sentCount: (existingLog.data.sentCount || 1) + 1,
+      source,
+    });
+  } else {
+    await db.collection('reviewEmailLogs').add({
+      recipientEmail: normalized,
+      clienteName,
+      firstSentAt: now,
+      lastSentAt: now,
+      sentCount: 1,
+      clicked: false,
+      source,
+    });
+  }
+}
+
+/**
+ * GET /api/email/review-track
+ * Endpoint pubblico (no auth) - traccia il click sul link recensione e fa redirect a Google
+ */
+router.get("/review-track", async (req: Request, res: Response) => {
+  const { e } = req.query as { e?: string };
+  if (!e) return res.redirect('https://g.page/r/');
+
+  let email: string;
+  try {
+    email = Buffer.from(e, 'base64url').toString('utf-8');
+  } catch {
+    return res.status(400).send('Token non valido');
+  }
+
+  const studioInfo = await getStudioContactInfo();
+  const reviewUrl = studioInfo.googleReviewUrl || 'https://www.google.com/maps';
+
+  try {
+    const log = await findReviewLog(email);
+    if (log) {
+      await db.collection('reviewEmailLogs').doc(log.id).update({
+        clicked: true,
+        clickedAt: FieldValue.serverTimestamp(),
+      });
+      console.log(`🖱️ Click recensione tracciato per ${email}`);
+    }
+  } catch (err) {
+    console.warn('⚠️ Errore tracking click recensione (non bloccante):', err);
+  }
+
+  return res.redirect(reviewUrl);
+});
+
+/**
  * POST /api/email/review-request
  * Invia email di richiesta recensione Google al cliente (trigger automatico su CONSEGNATO)
+ * - Salta se il link e' gia' stato cliccato (recensione probabilmente lasciata)
+ * - Salta se inviata negli ultimi 30 giorni
  */
-router.post("/review-request", async (req, res) => {
+router.post("/review-request", async (req: Request, res: Response) => {
   try {
     const { recipientEmail, clienteName } = req.body;
 
@@ -3226,27 +3353,132 @@ router.post("/review-request", async (req, res) => {
     }
 
     const studioInfo = await getStudioContactInfo();
-    const reviewUrl = studioInfo.googleReviewUrl;
+    if (!studioInfo.googleReviewUrl) {
+      console.warn("⚠️ review-request: googleReviewUrl non configurato — email non inviata");
+      return res.status(200).json({ success: false, skipped: true, reason: 'no_url' });
+    }
 
-    if (!reviewUrl) {
-      console.warn("⚠️ review-request: googleReviewUrl non configurato in settings/studio — email non inviata");
+    const existingLog = await findReviewLog(recipientEmail);
+    const eligibility = await checkReviewEmailEligibility(recipientEmail);
+
+    if (!eligibility.canSend) {
+      console.log(`⏭️ review-request saltata per ${recipientEmail}: ${eligibility.reason}`);
       return res.status(200).json({
         success: false,
         skipped: true,
-        message: "URL recensione non configurato nelle impostazioni studio",
+        reason: eligibility.reason,
+        daysUntilResend: eligibility.daysUntilResend,
       });
     }
 
-    const htmlContent = createReviewRequestEmailHTML(clienteName, reviewUrl, studioInfo);
-    const subject = `La tua opinione conta per noi - ${studioInfo.name}`;
-
-    await sendGmailEmail([recipientEmail], subject, htmlContent);
-    console.log(`✅ Email recensione inviata a ${recipientEmail} per cliente ${clienteName}`);
+    await sendAndLogReviewEmail(recipientEmail, clienteName, 'auto', req, existingLog);
 
     return res.status(200).json({ success: true, recipientEmail });
   } catch (error) {
     console.error("❌ Errore review-request email:", error);
     return res.status(500).json({ error: "Errore invio email recensione" });
+  }
+});
+
+/**
+ * POST /api/email/review-request-bulk
+ * Invia email recensione a tutti i job con status 'consegnato'
+ * - Salta chi ha gia' cliccato il link (recensione lasciata)
+ * - Salta chi ha ricevuto l'email negli ultimi 30 giorni
+ * - Rinvia dopo 30 giorni se non ha cliccato
+ */
+router.post("/review-request-bulk", async (req: Request, res: Response) => {
+  try {
+    const studioInfo = await getStudioContactInfo();
+    if (!studioInfo.googleReviewUrl) {
+      return res.status(400).json({ error: "Configura prima il link recensione Google nelle impostazioni." });
+    }
+
+    const jobsSnap = await db.collection('jobs').where('status', '==', 'consegnato').get();
+    console.log(`📋 Bulk review: trovati ${jobsSnap.size} job consegnati`);
+
+    const results = { sent: 0, skipped_clicked: 0, skipped_recent: 0, skipped_no_email: 0, errors: 0 };
+    const details: any[] = [];
+
+    for (const jobDoc of jobsSnap.docs) {
+      const job = jobDoc.data();
+      const clienteId = (job.clientiIds && job.clientiIds[0]) || job.clienteId;
+      if (!clienteId) { results.skipped_no_email++; continue; }
+
+      try {
+        const clienteSnap = await db.collection('clienti').doc(clienteId).get();
+        if (!clienteSnap.exists) { results.skipped_no_email++; continue; }
+
+        const cliente = clienteSnap.data()!;
+        const email = cliente.email;
+        const nome = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+        if (!email) { results.skipped_no_email++; continue; }
+
+        const existingLog = await findReviewLog(email);
+        const eligibility = existingLog
+          ? await checkReviewEmailEligibility(email)
+          : { canSend: true, reason: 'ok' as const };
+
+        if (!eligibility.canSend) {
+          if (eligibility.reason === 'clicked') {
+            results.skipped_clicked++;
+            details.push({ email, nome, status: 'clicked', jobId: jobDoc.id });
+          } else {
+            results.skipped_recent++;
+            details.push({ email, nome, status: 'recent', daysUntilResend: eligibility.daysUntilResend, jobId: jobDoc.id });
+          }
+          continue;
+        }
+
+        await sendAndLogReviewEmail(email, nome, 'bulk', req, existingLog);
+        results.sent++;
+        details.push({ email, nome, status: 'sent', jobId: jobDoc.id });
+
+      } catch (err: any) {
+        console.error(`❌ Errore bulk review per job ${jobDoc.id}:`, err.message);
+        results.errors++;
+        details.push({ jobId: jobDoc.id, status: 'error', error: err.message });
+      }
+    }
+
+    console.log(`✅ Bulk review completato:`, results);
+    return res.status(200).json({ success: true, results, details });
+
+  } catch (error) {
+    console.error("❌ Errore review-request-bulk:", error);
+    return res.status(500).json({ error: "Errore invio bulk email recensione" });
+  }
+});
+
+/**
+ * GET /api/email/review-request-log
+ * Ritorna il log di tutte le email recensione inviate (solo admin autenticato)
+ */
+router.get("/review-request-log", async (req: Request, res: Response) => {
+  try {
+    const snap = await db.collection('reviewEmailLogs')
+      .orderBy('lastSentAt', 'desc')
+      .get();
+
+    const logs = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        recipientEmail: data.recipientEmail,
+        clienteName: data.clienteName,
+        firstSentAt: data.firstSentAt?.toDate?.()?.toISOString() ?? null,
+        lastSentAt: data.lastSentAt?.toDate?.()?.toISOString() ?? null,
+        sentCount: data.sentCount || 1,
+        clicked: data.clicked || false,
+        clickedAt: data.clickedAt?.toDate?.()?.toISOString() ?? null,
+        source: data.source || 'auto',
+      };
+    });
+
+    return res.status(200).json({ logs });
+  } catch (error) {
+    console.error("❌ Errore review-request-log:", error);
+    return res.status(500).json({ error: "Errore recupero log email recensione" });
   }
 });
 

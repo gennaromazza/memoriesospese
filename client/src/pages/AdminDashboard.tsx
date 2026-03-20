@@ -1,16 +1,46 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, collectionGroup, setDoc, getDoc, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  collectionGroup,
+  setDoc,
+  getDoc,
+  where,
+} from "firebase/firestore";
 import { getAuth, signOut } from "firebase/auth";
 import { db, storage, auth } from "@/lib/firebase";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { createUrl } from "@/lib/basePath";
 import { GalleryService, type Gallery } from "@/lib/galleries";
 import { useQuery } from "@tanstack/react-query";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { formatPasswordRequestsForExcel, exportToExcel } from "@/lib/excelExport";
-import { ref, listAll, deleteObject, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  formatPasswordRequestsForExcel,
+  exportToExcel,
+} from "@/lib/excelExport";
+import {
+  ref,
+  listAll,
+  deleteObject,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
 import EditGalleryModal from "@/components/EditGalleryModal";
@@ -22,14 +52,68 @@ import ProductsManager from "@/components/ProductsManager";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Search, Plus, Edit, Trash, Eye, EyeOff, RefreshCw, Download, Key, ChevronLeft, ChevronRight, Users, Play, Mail, HelpCircle, Settings, Sparkles, Package, Calendar, CalendarCheck, ShoppingBag, Wallet, FolderOpen, Briefcase, FileText, ChevronDown, ChevronRight as ChevronRightIcon, Grid3x3, BookOpen, Upload, Home, Palette, Camera, CheckCircle, List, Link2, AlertCircle, ExternalLink, Database, HardDrive } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Download,
+  Key,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  Play,
+  Mail,
+  HelpCircle,
+  Settings,
+  Sparkles,
+  Package,
+  Calendar,
+  CalendarCheck,
+  ShoppingBag,
+  Wallet,
+  FolderOpen,
+  Briefcase,
+  FileText,
+  ChevronDown,
+  ChevronRight as ChevronRightIcon,
+  Grid3x3,
+  BookOpen,
+  Upload,
+  Home,
+  Palette,
+  Camera,
+  CheckCircle,
+  List,
+  Link2,
+  AlertCircle,
+  ExternalLink,
+  Database,
+  HardDrive,
+} from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
@@ -49,24 +133,33 @@ import GalleryRecoveryTool from "@/components/admin/GalleryRecoveryTool";
 import CalendarioManager from "@/components/admin/CalendarioManager";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useNotifications } from "@/hooks/useNotifications";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { BarChart3, Clock, Globe, Phone } from "lucide-react";
-import { CollaboratoriManager } from '@/components/collaboratori/CollaboratoriManager';
-import PortfolioManager from '@/components/admin/PortfolioManager';
-import BlogManager from '@/components/admin/BlogManager';
-import EmailLogsManager from '@/components/admin/EmailLogsManager';
-import WordPressImporter from "@/components/admin/WordPressImporter";
+import { CollaboratoriManager } from "@/components/collaboratori/CollaboratoriManager";
+import PortfolioManager from "@/components/admin/PortfolioManager";
+import BlogManager from "@/components/admin/BlogManager";
+import EmailLogsManager from "@/components/admin/EmailLogsManager";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import ReminderManager from "@/components/admin/ReminderManager";
+import ReviewEmailManager from "@/components/admin/ReviewEmailManager";
 import TodayJobsSummary from "@/components/admin/TodayJobsSummary";
 import BulkEmailSender from "./BulkEmailSender";
-import QuoteManagementDemo from './admin/QuoteManagementDemo';
-import QuoteTemplatesManager from '@/components/quotes/QuoteTemplatesManager';
+import QuoteTemplatesManager from "@/components/quotes/QuoteTemplatesManager";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
-const StudioAssistant = lazy(() => import('@/components/studio-assistant/StudioAssistant'));
+const StudioAssistant = lazy(
+  () => import("@/components/studio-assistant/StudioAssistant"),
+);
 
-function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['toast'] }) {
+function GoogleCalendarStatus({
+  toast,
+}: {
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
   const [status, setStatus] = useState<{
     connected: boolean;
     accountEmail?: string;
@@ -77,16 +170,20 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
   }>({ connected: false, loading: true });
 
   const checkStatus = async () => {
-    setStatus(prev => ({ ...prev, loading: true }));
+    setStatus((prev) => ({ ...prev, loading: true }));
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) {
-        setStatus({ connected: false, loading: false, error: 'Non autenticato' });
+        setStatus({
+          connected: false,
+          loading: false,
+          error: "Non autenticato",
+        });
         return;
       }
-      
-      const response = await fetch('/api/calendar/connection-status', {
-        headers: { 'Authorization': `Bearer ${token}` }
+
+      const response = await fetch("/api/calendar/connection-status", {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       setStatus({ ...data, loading: false });
@@ -103,7 +200,9 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
     return (
       <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
         <RefreshCw className="h-5 w-5 text-gray-400 animate-spin" />
-        <span className="text-sm text-gray-600">Verifica connessione in corso...</span>
+        <span className="text-sm text-gray-600">
+          Verifica connessione in corso...
+        </span>
       </div>
     );
   }
@@ -159,7 +258,7 @@ function GoogleCalendarStatus({ toast }: { toast: ReturnType<typeof useToast>['t
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
-      
+
       <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
         <p className="text-sm text-blue-800 mb-2">
           <strong>Per connettere Google Calendar:</strong>
@@ -184,7 +283,13 @@ interface PaginationControlsProps {
   onNext: () => void;
 }
 
-function PaginationControls({ currentPage, totalPages, onPageChange, onPrevious, onNext }: PaginationControlsProps) {
+function PaginationControls({
+  currentPage,
+  totalPages,
+  onPageChange,
+  onPrevious,
+  onNext,
+}: PaginationControlsProps) {
   // Non mostrare controlli se c'è solo una pagina
   if (totalPages <= 1) return null;
 
@@ -242,11 +347,7 @@ function PaginationControls({ currentPage, totalPages, onPageChange, onPrevious,
 
           {/* Pagina corrente (se non è la prima o l'ultima) */}
           {currentPage !== 1 && currentPage !== totalPages && (
-            <Button
-              variant="default"
-              size="sm"
-              className="w-8"
-            >
+            <Button variant="default" size="sm" className="w-8">
               {currentPage}
             </Button>
           )}
@@ -352,39 +453,94 @@ interface StudioSettings {
 export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [galleryTypeFilter, setGalleryTypeFilter] = useState<'all' | 'generic' | 'special'>('generic'); // 🎨 Filtro tipo galleria (default: generiche)
-  const [selectionFilter, setSelectionFilter] = useState<'all' | 'approved'>('all'); // 📸 Filtro selezioni approvate
-  const [galleryJobTypeFilter, setGalleryJobTypeFilter] = useState<string>('all'); // 🏷️ Filtro per categoria evento
+  const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(
+    null,
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [galleryTypeFilter, setGalleryTypeFilter] = useState<
+    "all" | "generic" | "special"
+  >("generic"); // 🎨 Filtro tipo galleria (default: generiche)
+  const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
+    "all",
+  ); // 📸 Filtro selezioni approvate
+  const [galleryJobTypeFilter, setGalleryJobTypeFilter] =
+    useState<string>("all"); // 🏷️ Filtro per categoria evento
   const [dashboardJobTypes, setDashboardJobTypes] = useState<JobTypeFE[]>([]); // 🏷️ Tipi evento disponibili
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'galleries' | 'users' | 'clienti' | 'slideshow' | 'requests' | 'email' | 'questionnaire' | 'settings' | 'cassa' | 'bookings' | 'commesse' | 'themes' | 'lavori' | 'consulenze' | 'consulenze-templates' | 'calendario' | 'collaboratori' | 'sitoPublico' | 'videos' | 'quote-templates'>(() => {
-    return (sessionStorage.getItem('activeTab') as any) || 'calendario';
+  const [activeTab, setActiveTab] = useState<
+    | "galleries"
+    | "users"
+    | "clienti"
+    | "slideshow"
+    | "requests"
+    | "email"
+    | "questionnaire"
+    | "settings"
+    | "cassa"
+    | "bookings"
+    | "commesse"
+    | "themes"
+    | "lavori"
+    | "consulenze"
+    | "consulenze-templates"
+    | "calendario"
+    | "collaboratori"
+    | "sitoPublico"
+    | "videos"
+    | "quote-templates"
+  >(() => {
+    return (sessionStorage.getItem("activeTab") as any) || "calendario";
   });
-  const [activeBookingSection, setActiveBookingSection] = useState<'bookings-list' | 'campaigns'>(() => {
-    const stored = sessionStorage.getItem('activeBookingSection') as any;
+  const [activeBookingSection, setActiveBookingSection] = useState<
+    "bookings-list" | "campaigns"
+  >(() => {
+    const stored = sessionStorage.getItem("activeBookingSection") as any;
     // Sanitize legacy values
-    if (!['bookings-list', 'campaigns'].includes(stored)) {
-      return 'bookings-list';
+    if (!["bookings-list", "campaigns"].includes(stored)) {
+      return "bookings-list";
     }
-    return stored || 'bookings-list';
+    return stored || "bookings-list";
   });
-  const [activeConsultationSection, setActiveConsultationSection] = useState<'consulenze' | 'consulenze-templates'>(() => {
-    return (sessionStorage.getItem('activeConsultationSection') as any) || 'consulenze';
+  const [activeConsultationSection, setActiveConsultationSection] = useState<
+    "consulenze" | "consulenze-templates"
+  >(() => {
+    return (
+      (sessionStorage.getItem("activeConsultationSection") as any) ||
+      "consulenze"
+    );
   });
-  const [settingsSection, setSettingsSection] = useState<'studio' | 'slideshow' | 'products' | 'product-categories' | 'migration' | 'email-logs' | 'integrations'>(() => {
-    return (sessionStorage.getItem('settingsSection') as any) || 'studio';
+  const [settingsSection, setSettingsSection] = useState<
+    | "studio"
+    | "slideshow"
+    | "products"
+    | "product-categories"
+    | "migration"
+    | "email-logs"
+    | "integrations"
+  >(() => {
+    return (sessionStorage.getItem("settingsSection") as any) || "studio";
   });
-  const [activeSitoSection, setActiveSitoSection] = useState<'portfolio' | 'blog'>(() => {
-    return (sessionStorage.getItem('activeSitoSection') as any) || 'portfolio';
+  const [activeSitoSection, setActiveSitoSection] = useState<
+    "portfolio" | "blog"
+  >(() => {
+    return (sessionStorage.getItem("activeSitoSection") as any) || "portfolio";
   });
-  const [activeJobSection, setActiveJobSection] = useState<'jobs-list' | 'clienti' | 'job-types' | 'contract-clauses' | 'quote-templates'>(() => {
-    return (sessionStorage.getItem('activeJobSection') as any) || 'jobs-list';
+  const [activeJobSection, setActiveJobSection] = useState<
+    | "jobs-list"
+    | "clienti"
+    | "job-types"
+    | "contract-clauses"
+    | "quote-templates"
+  >(() => {
+    return (sessionStorage.getItem("activeJobSection") as any) || "jobs-list";
   });
-  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
-  const [highlightConsultationId, setHighlightConsultationId] = useState<string | null>(null);
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(
+    null,
+  );
+  const [highlightConsultationId, setHighlightConsultationId] = useState<
+    string | null
+  >(null);
 
   // Stati per la gestione dei Collapsible
   const [galleriesExpanded, setGalleriesExpanded] = useState(true);
@@ -394,7 +550,11 @@ export default function AdminDashboard() {
   const [requestsExpanded, setRequestsExpanded] = useState(true);
 
   // Detect if admin came from a specific gallery
-  const [referrerGallery, setReferrerGallery] = useState<{name: string, code?: string, from: string} | null>(null);
+  const [referrerGallery, setReferrerGallery] = useState<{
+    name: string;
+    code?: string;
+    from: string;
+  } | null>(null);
 
   // Stati per la paginazione delle gallerie
   const [currentGalleryPage, setCurrentGalleryPage] = useState(1);
@@ -404,45 +564,50 @@ export default function AdminDashboard() {
   const [currentRequestPage, setCurrentRequestPage] = useState(1);
   const [requestsPerPage] = useState(10); // Numero di richieste per pagina
   const [studioSettings, setStudioSettings] = useState<StudioSettings>({
-    name: '',
-    slogan: '',
-    address: '',
-    phone: '',
-    email: '',
-    websiteUrl: '',
+    name: "",
+    slogan: "",
+    address: "",
+    phone: "",
+    email: "",
+    websiteUrl: "",
     socialLinks: {
-      facebook: '',
-      instagram: '',
-      twitter: ''
+      facebook: "",
+      instagram: "",
+      twitter: "",
     },
-    about: '',
-    logo: '',
+    about: "",
+    logo: "",
     // Valori predefiniti per i testi personalizzabili
-    heroTitle: 'Catturiamo i momenti più preziosi',
-    heroSubtitle: 'Ogni scatto racconta una storia unica',
-    heroButtonText: 'Trova la tua galleria',
+    heroTitle: "Catturiamo i momenti più preziosi",
+    heroSubtitle: "Ogni scatto racconta una storia unica",
+    heroButtonText: "Trova la tua galleria",
     // Valori predefiniti per la sezione WhatsApp
-    whatsappTitle: 'Contattaci su WhatsApp',
-    whatsappSubtitle: 'Siamo qui per te',
-    whatsappText: 'Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!',
-    whatsappButtonText: 'Scrivici su WhatsApp',
-    whatsapp: '',
-    googleReviewUrl: '',
+    whatsappTitle: "Contattaci su WhatsApp",
+    whatsappSubtitle: "Siamo qui per te",
+    whatsappText:
+      "Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!",
+    whatsappButtonText: "Scrivici su WhatsApp",
+    whatsapp: "",
+    googleReviewUrl: "",
   });
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Hook Firebase Auth per verifica autenticazione asincrona
-  const { user, isLoading: authLoading, isAdmin: isFirebaseAdmin } = useFirebaseAuth();
+  const {
+    user,
+    isLoading: authLoading,
+    isAdmin: isFirebaseAdmin,
+  } = useFirebaseAuth();
 
   // Query React Query per gallerie (solo quando auth è pronto)
   const {
     data: galleries = [],
     isLoading,
-    error: galleriesError
+    error: galleriesError,
   } = useQuery<Gallery[]>({
-    queryKey: ['galleries', 'admin'],
+    queryKey: ["galleries", "admin"],
     queryFn: GalleryService.getAllGalleriesForAdmin,
     enabled: !authLoading && !!user,
     retry: 2,
@@ -451,43 +616,50 @@ export default function AdminDashboard() {
 
   // Hook notifiche per prenotazioni in attesa
   const { data: notifications = [] } = useNotifications();
-  const pendingBookings = notifications.filter(n => n?.type === 'booking' && !n?.isRead);
+  const pendingBookings = notifications.filter(
+    (n) => n?.type === "booking" && !n?.isRead,
+  );
   const hasPendingBookings = pendingBookings.length > 0;
 
   // Persist state changes to sessionStorage
   useEffect(() => {
-    sessionStorage.setItem('activeTab', activeTab);
+    sessionStorage.setItem("activeTab", activeTab);
   }, [activeTab]);
 
   useEffect(() => {
-    sessionStorage.setItem('activeBookingSection', activeBookingSection);
+    sessionStorage.setItem("activeBookingSection", activeBookingSection);
   }, [activeBookingSection]);
 
   useEffect(() => {
-    sessionStorage.setItem('activeConsultationSection', activeConsultationSection);
+    sessionStorage.setItem(
+      "activeConsultationSection",
+      activeConsultationSection,
+    );
   }, [activeConsultationSection]);
 
   useEffect(() => {
-    sessionStorage.setItem('settingsSection', settingsSection);
+    sessionStorage.setItem("settingsSection", settingsSection);
   }, [settingsSection]);
 
   useEffect(() => {
-    sessionStorage.setItem('activeSitoSection', activeSitoSection);
+    sessionStorage.setItem("activeSitoSection", activeSitoSection);
   }, [activeSitoSection]);
 
   useEffect(() => {
-    sessionStorage.setItem('activeJobSection', activeJobSection);
+    sessionStorage.setItem("activeJobSection", activeJobSection);
   }, [activeJobSection]);
 
   // Carica JobTypes per il filtro gallerie
   useEffect(() => {
-    getActiveJobTypes().then(types => setDashboardJobTypes(types)).catch(console.error);
+    getActiveJobTypes()
+      .then((types) => setDashboardJobTypes(types))
+      .catch(console.error);
   }, []);
 
   // Funzione per pulire l'URL (rimuove query params)
   const cleanDeeplinkUrl = useCallback(() => {
     const cleanPath = window.location.pathname;
-    window.history.replaceState({}, '', cleanPath);
+    window.history.replaceState({}, "", cleanPath);
   }, []);
 
   // Callback quando highlight booking è completato
@@ -504,41 +676,41 @@ export default function AdminDashboard() {
 
   // 🔧 Deeplink handler - reagisce a navigate() da wouter usando location tuple
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    const tab = params.get('tab');
-    const section = params.get('section');
-    const booking = params.get('booking');
-    const consultation = params.get('consultation');
-    const gallery = params.get('gallery');
+    const params = new URLSearchParams(location.split("?")[1] || "");
+    const tab = params.get("tab");
+    const section = params.get("section");
+    const booking = params.get("booking");
+    const consultation = params.get("consultation");
+    const gallery = params.get("gallery");
 
     // Se non ci sono parametri, esci subito
     if (!tab && !booking && !consultation && !gallery) return;
 
     const tabMapping: Record<string, string> = {
-      'prenotazioni': 'bookings',
-      'consulenze': 'consulenze',
-      'gallerie': 'galleries',
-      'clienti': 'clienti',
-      'impostazioni': 'settings',
-      'calendario': 'calendario',
-      'assistente': 'assistente'
+      prenotazioni: "bookings",
+      consulenze: "consulenze",
+      gallerie: "galleries",
+      clienti: "clienti",
+      impostazioni: "settings",
+      calendario: "calendario",
+      assistente: "assistente",
     };
 
     const sectionMapping: Record<string, string> = {
-      'bookings': 'bookings-list',
-      'commesse': 'orders',
-      'bookings-list': 'bookings-list',
-      'campaigns': 'campaigns',
-      'orders': 'orders'
+      bookings: "bookings-list",
+      commesse: "orders",
+      "bookings-list": "bookings-list",
+      campaigns: "campaigns",
+      orders: "orders",
     };
 
     // Gestione BOOKING (prenotazioni e selezioni)
     // L'URL verrà pulito da handleBookingHighlightComplete quando l'highlight è fatto
-    if (booking && tab === 'prenotazioni') {
-      setActiveTab('bookings');
-      setActiveBookingSection('bookings-list');
-      sessionStorage.setItem('activeTab', 'bookings');
-      sessionStorage.setItem('activeBookingSection', 'bookings-list');
+    if (booking && tab === "prenotazioni") {
+      setActiveTab("bookings");
+      setActiveBookingSection("bookings-list");
+      sessionStorage.setItem("activeTab", "bookings");
+      sessionStorage.setItem("activeBookingSection", "bookings-list");
       // Imposta highlight - BookingsManager gestirà scroll e highlight
       // quando i dati sono pronti, poi chiamerà onHighlightComplete
       setHighlightBookingId(booking);
@@ -547,17 +719,17 @@ export default function AdminDashboard() {
 
     // Gestione CONSULTATION (consulenze)
     // L'URL verrà pulito da handleConsultationHighlightComplete
-    if (consultation && tab === 'consulenze') {
-      setActiveTab('consulenze');
-      setActiveConsultationSection('consulenze');
-      sessionStorage.setItem('activeTab', 'consulenze');
-      sessionStorage.setItem('activeConsultationSection', 'consulenze');
+    if (consultation && tab === "consulenze") {
+      setActiveTab("consulenze");
+      setActiveConsultationSection("consulenze");
+      sessionStorage.setItem("activeTab", "consulenze");
+      sessionStorage.setItem("activeConsultationSection", "consulenze");
       setHighlightConsultationId(consultation);
       return;
     }
 
     // Gestione GALLERY (gallerie) - redirect diretto
-    if (gallery && tab === 'gallerie') {
+    if (gallery && tab === "gallerie") {
       navigate(`/admin/galleries/${gallery}`);
       return;
     }
@@ -567,13 +739,13 @@ export default function AdminDashboard() {
       const mappedTab = tabMapping[tab] || tab;
       setActiveTab(mappedTab as any);
 
-      if (mappedTab === 'bookings' && section) {
+      if (mappedTab === "bookings" && section) {
         const mappedSection = sectionMapping[section] || section;
         setActiveBookingSection(mappedSection as any);
       }
 
-      if (mappedTab === 'consulenze') {
-        setActiveConsultationSection('consulenze');
+      if (mappedTab === "consulenze") {
+        setActiveConsultationSection("consulenze");
       }
 
       // Pulisci URL dopo cambio tab (nessun highlight da aspettare)
@@ -590,7 +762,7 @@ export default function AdminDashboard() {
 
     // IMPORTANTE: Ora che il loading è completato, se non c'è user significa che NON è autenticato
     // Verifica localStorage (controllo primario per redirect rapido)
-    const localAdminFlag = localStorage.getItem('isAdmin');
+    const localAdminFlag = localStorage.getItem("isAdmin");
     if (!localAdminFlag || !user) {
       // Redirect silenzioso senza errori se non c'è flag localStorage
       if (!localAdminFlag) {
@@ -600,15 +772,16 @@ export default function AdminDashboard() {
 
       // Se c'è flag localStorage ma non c'è user, mostra errore
       if (!user) {
-        console.error('❌ Firebase Auth: utente non autenticato');
+        console.error("❌ Firebase Auth: utente non autenticato");
         toast({
           variant: "destructive",
           title: "Errore di autenticazione",
-          description: "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
+          description:
+            "Devi essere autenticato come admin per accedere a questa sezione. Effettua il logout e riprova.",
         });
         // Redirect al login admin dopo 2 secondi
         setTimeout(() => {
-          localStorage.removeItem('isAdmin');
+          localStorage.removeItem("isAdmin");
           navigate(createUrl("/admin"));
         }, 2000);
         return;
@@ -616,31 +789,31 @@ export default function AdminDashboard() {
     }
 
     // Verifica email admin
-    if (user.email !== 'gennaro.mazzacane@gmail.com') {
-      console.error('❌ Firebase Auth: utente non admin');
+    if (user.email !== "gennaro.mazzacane@gmail.com") {
+      console.error("❌ Firebase Auth: utente non admin");
       toast({
         variant: "destructive",
         title: "Accesso negato",
         description: "Non hai i permessi per accedere a questa sezione.",
       });
       setTimeout(() => {
-        localStorage.removeItem('isAdmin');
+        localStorage.removeItem("isAdmin");
         navigate(createUrl("/admin"));
       }, 2000);
       return;
     }
 
-    console.log('✅ Firebase Auth verificato:', user.email);
+    console.log("✅ Firebase Auth verificato:", user.email);
 
     // Controlla se l'admin proviene da una galleria specifica
-    const referrerData = sessionStorage.getItem('adminReferrerGallery');
+    const referrerData = sessionStorage.getItem("adminReferrerGallery");
     if (referrerData) {
       try {
         const parsed = JSON.parse(referrerData);
         setReferrerGallery(parsed);
       } catch (e) {
         // Rimuovi dati corrotti e continua silenziosamente
-        sessionStorage.removeItem('adminReferrerGallery');
+        sessionStorage.removeItem("adminReferrerGallery");
       }
     }
   }, [authLoading, user, isFirebaseAdmin, navigate, toast]);
@@ -655,22 +828,23 @@ export default function AdminDashboard() {
         const requestsCollection = collection(db, "passwordRequests");
         const requestsSnapshot = await getDocs(requestsCollection);
 
-        const requestsList = requestsSnapshot.docs.map(doc => {
+        const requestsList = requestsSnapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
             ...data,
-            timestamp: data.createdAt?.toDate?.() || new Date()
+            timestamp: data.createdAt?.toDate?.() || new Date(),
           };
         });
 
         // Sort by creation date, newest first
-        requestsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        requestsList.sort(
+          (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+        );
 
         setPasswordRequests(requestsList);
-
       } catch (error) {
-        console.error('Errore caricamento richieste password:', error);
+        console.error("Errore caricamento richieste password:", error);
       }
 
       // Carica impostazioni studio
@@ -680,18 +854,25 @@ export default function AdminDashboard() {
         const settingsSnapshot = await getDoc(settingsDoc);
 
         if (settingsSnapshot.exists()) {
-          const settingsData = settingsSnapshot.data() as Partial<StudioSettings>;
+          const settingsData =
+            settingsSnapshot.data() as Partial<StudioSettings>;
           // Merge con i valori di default per garantire che tutti i campi siano presenti
-          setStudioSettings(prev => ({
+          setStudioSettings((prev) => ({
             ...prev,
-            ...Object.entries(settingsData).reduce((acc, [key, value]) => ({
-              ...acc,
-              [key]: value ?? prev[key as keyof StudioSettings]
-            }), {})
+            ...Object.entries(settingsData).reduce(
+              (acc, [key, value]) => ({
+                ...acc,
+                [key]: value ?? prev[key as keyof StudioSettings],
+              }),
+              {},
+            ),
           }));
         }
       } catch (error) {
-        console.error('Errore nel caricamento delle impostazioni studio:', error);
+        console.error(
+          "Errore nel caricamento delle impostazioni studio:",
+          error,
+        );
       } finally {
         setIsSettingsLoading(false);
       }
@@ -707,20 +888,20 @@ export default function AdminDashboard() {
   const handleSettingsChange = (
     field: string,
     value: string,
-    nestedField?: string
+    nestedField?: string,
   ) => {
     if (nestedField) {
-      setStudioSettings(prev => ({
+      setStudioSettings((prev) => ({
         ...prev,
         [field]: {
-          ...prev[field as keyof StudioSettings] as object,
-          [nestedField]: value
-        }
+          ...(prev[field as keyof StudioSettings] as object),
+          [nestedField]: value,
+        },
       }));
     } else {
-      setStudioSettings(prev => ({
+      setStudioSettings((prev) => ({
         ...prev,
-        [field]: value
+        [field]: value,
       }));
     }
   };
@@ -731,11 +912,11 @@ export default function AdminDashboard() {
 
     const file = e.target.files[0];
     // Accetta solo immagini
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       toast({
         title: "Tipo di file non supportato",
         description: "Seleziona un'immagine (PNG, JPG o SVG)",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -751,21 +932,21 @@ export default function AdminDashboard() {
       const downloadUrl = await getDownloadURL(logoRef);
 
       // Aggiorna lo stato delle impostazioni
-      setStudioSettings(prev => ({
+      setStudioSettings((prev) => ({
         ...prev,
-        logo: downloadUrl
+        logo: downloadUrl,
       }));
 
       toast({
         title: "Logo caricato",
-        description: "Il logo è stato caricato con successo."
+        description: "Il logo è stato caricato con successo.",
       });
     } catch (error) {
-
       toast({
         title: "Errore",
-        description: "Si è verificato un errore durante il caricamento del logo.",
-        variant: "destructive"
+        description:
+          "Si è verificato un errore durante il caricamento del logo.",
+        variant: "destructive",
       });
     }
   };
@@ -776,15 +957,14 @@ export default function AdminDashboard() {
       // Esegui logout da Firebase
       await signOut(auth);
       // Rimuovi il flag di amministratore
-      localStorage.removeItem('isAdmin');
+      localStorage.removeItem("isAdmin");
       // Reindirizza alla pagina di login usando il percorso assoluto
       navigate(createUrl("/admin"));
     } catch (error) {
-
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante il logout.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -797,14 +977,15 @@ export default function AdminDashboard() {
 
       toast({
         title: "Impostazioni salvate",
-        description: "Le impostazioni dello studio sono state salvate con successo."
+        description:
+          "Le impostazioni dello studio sono state salvate con successo.",
       });
     } catch (error) {
-
       toast({
         title: "Errore",
-        description: "Si è verificato un errore nel salvataggio delle impostazioni.",
-        variant: "destructive"
+        description:
+          "Si è verificato un errore nel salvataggio delle impostazioni.",
+        variant: "destructive",
       });
     }
   };
@@ -816,7 +997,7 @@ export default function AdminDashboard() {
   const closeModal = () => {
     setIsModalOpen(false);
     // Refresh the gallery list via React Query
-    queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+    queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
   };
 
   const openEditModal = (gallery: GalleryItem) => {
@@ -828,16 +1009,16 @@ export default function AdminDashboard() {
     setIsEditModalOpen(false);
     setSelectedGallery(null);
     // Refresh the gallery list via React Query
-    queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+    queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
   };
 
   // Handler: Apri booking specifico e scroll + highlight
   const handleOpenBooking = (bookingId: string) => {
     setHighlightBookingId(bookingId);
-    setActiveTab('bookings');
-    setActiveBookingSection('bookings-list');
-    sessionStorage.setItem('activeTab', 'bookings');
-    sessionStorage.setItem('activeBookingSection', 'bookings-list');
+    setActiveTab("bookings");
+    setActiveBookingSection("bookings-list");
+    sessionStorage.setItem("activeTab", "bookings");
+    sessionStorage.setItem("activeBookingSection", "bookings-list");
   };
 
   // Handler: Apri gestione selezioni foto
@@ -849,16 +1030,17 @@ export default function AdminDashboard() {
   const getCurrentUser = () => auth.currentUser;
   const isCurrentUserAdmin = () => {
     const user = getCurrentUser();
-    return user?.email === 'gennaro.mazzacane@gmail.com';
+    return user?.email === "gennaro.mazzacane@gmail.com";
   };
 
   // Error handling per gallerie (React Query)
   useEffect(() => {
     if (galleriesError) {
-      console.error('Errore caricamento gallerie:', galleriesError);
+      console.error("Errore caricamento gallerie:", galleriesError);
       toast({
         title: "Errore",
-        description: "Si è verificato un errore nel caricamento delle gallerie.",
+        description:
+          "Si è verificato un errore nel caricamento delle gallerie.",
         variant: "destructive",
       });
     }
@@ -876,8 +1058,8 @@ export default function AdminDashboard() {
       await deleteDoc(requestRef);
 
       // Aggiorna lo stato rimuovendo la richiesta eliminata
-      setPasswordRequests(prevRequests =>
-        prevRequests.filter(request => request.id !== requestId)
+      setPasswordRequests((prevRequests) =>
+        prevRequests.filter((request) => request.id !== requestId),
       );
 
       toast({
@@ -885,11 +1067,10 @@ export default function AdminDashboard() {
         description: "La richiesta è stata eliminata con successo.",
       });
     } catch (error) {
-
       toast({
         title: "Errore",
         description: "Si è verificato un errore durante l'eliminazione.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -901,7 +1082,7 @@ export default function AdminDashboard() {
         toast({
           title: "Nessun dato da esportare",
           description: "Non ci sono richieste di password da esportare.",
-          variant: "destructive"
+          variant: "destructive",
         });
         return;
       }
@@ -911,7 +1092,7 @@ export default function AdminDashboard() {
 
       // Genera nome file con data corrente
       const today = new Date();
-      const dateStr = today.toISOString().split('T')[0]; // formato YYYY-MM-DD
+      const dateStr = today.toISOString().split("T")[0]; // formato YYYY-MM-DD
       const fileName = `richieste_password_${dateStr}.xlsx`;
 
       // Esporta in Excel
@@ -922,53 +1103,55 @@ export default function AdminDashboard() {
         description: `Le richieste sono state esportate in ${fileName}`,
       });
     } catch (error) {
-
       toast({
         title: "Errore",
-        description: "Si è verificato un errore durante l'esportazione delle richieste.",
-        variant: "destructive"
+        description:
+          "Si è verificato un errore durante l'esportazione delle richieste.",
+        variant: "destructive",
       });
     }
   };
 
   const toggleGalleryStatus = async (gallery: GalleryItem) => {
     try {
-
-
       const galleryRef = doc(db, "galleries", gallery.id);
       const newActiveStatus = !gallery.active;
 
       await updateDoc(galleryRef, {
         active: newActiveStatus,
-        updatedAt: new Date() // Track when the status was changed
+        updatedAt: new Date(), // Track when the status was changed
       });
 
       // Update local state via React Query
-      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+      queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
 
       toast({
         title: newActiveStatus ? "Galleria attivata" : "Galleria disattivata",
-        description: `La galleria "${gallery.name}" è stata ${newActiveStatus ? "attivata" : "disattivata"} con successo.`
+        description: `La galleria "${gallery.name}" è stata ${newActiveStatus ? "attivata" : "disattivata"} con successo.`,
       });
     } catch (error) {
-
       toast({
         title: "Errore",
-        description: "Non è stato possibile modificare lo stato della galleria.",
+        description:
+          "Non è stato possibile modificare lo stato della galleria.",
         variant: "destructive",
       });
     }
   };
 
-
   const deleteGallery = async (gallery: GalleryItem) => {
-    if (!window.confirm(`Sei sicuro di voler eliminare la galleria "${gallery.name}"? Questa operazione rimuoverà TUTTE le foto e non può essere annullata.`)) {
+    if (
+      !window.confirm(
+        `Sei sicuro di voler eliminare la galleria "${gallery.name}"? Questa operazione rimuoverà TUTTE le foto e non può essere annullata.`,
+      )
+    ) {
       return;
     }
 
     toast({
       title: "Eliminazione in corso",
-      description: "L'eliminazione della galleria potrebbe richiedere alcuni minuti...",
+      description:
+        "L'eliminazione della galleria potrebbe richiedere alcuni minuti...",
     });
 
     try {
@@ -978,17 +1161,17 @@ export default function AdminDashboard() {
         `gallery-photos/${gallery.code}`,
         `galleries/${gallery.id}`,
         `galleries/${gallery.code}`,
-        `galleries/covers/${gallery.code}_cover`
+        `galleries/covers/${gallery.code}_cover`,
       ];
 
       // Funzione helper per aggiungere un delay
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: number) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
 
       // 1. Elimina tutti i file dallo Storage in modo più controllato
       for (const path of storagePaths) {
         try {
           const storageRef = ref(storage, path);
-
 
           const listResult = await listAll(storageRef);
           if (listResult.items.length > 0) {
@@ -1005,24 +1188,16 @@ export default function AdminDashboard() {
               const deletePromises = chunk.map(async (itemRef) => {
                 try {
                   await deleteObject(itemRef);
-
-                } catch (deleteError) {
-
-                }
+                } catch (deleteError) {}
               });
 
               await Promise.all(deletePromises);
 
-
               // Piccolo ritardo tra i gruppi per evitare throttling
               await delay(500);
             }
-
-
           }
-        } catch (error) {
-
-        }
+        } catch (error) {}
       }
 
       // Piccolo ritardo prima di procedere con le operazioni sul database
@@ -1030,8 +1205,14 @@ export default function AdminDashboard() {
 
       // 2. Elimina documenti dalle collezioni
       const collections = [
-        { ref: collection(db, "galleries", gallery.id, "photos"), name: "photos" },
-        { ref: collection(db, "galleries", gallery.id, "chapters"), name: "chapters" }
+        {
+          ref: collection(db, "galleries", gallery.id, "photos"),
+          name: "photos",
+        },
+        {
+          ref: collection(db, "galleries", gallery.id, "chapters"),
+          name: "chapters",
+        },
       ];
 
       for (const col of collections) {
@@ -1049,19 +1230,14 @@ export default function AdminDashboard() {
 
             // Elabora un gruppo alla volta
             for (const chunk of chunks) {
-              const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+              const deletePromises = chunk.map((doc) => deleteDoc(doc.ref));
               await Promise.all(deletePromises);
-
 
               // Piccolo ritardo tra i gruppi
               await delay(500);
             }
-
-
           }
-        } catch (error) {
-
-        }
+        } catch (error) {}
       }
 
       // Piccolo ritardo prima di procedere
@@ -1084,28 +1260,28 @@ export default function AdminDashboard() {
 
           // Elabora un gruppo alla volta
           for (const chunk of chunks) {
-            const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+            const deletePromises = chunk.map((doc) => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
-
 
             // Piccolo ritardo tra i gruppi
             await delay(500);
           }
-
-
         }
-      } catch (error) {
-
-      }
+      } catch (error) {}
 
       // 3b. CASCADE DELETE: Elimina documenti dalla collezione top-level 'photos'
       try {
         const photosRef = collection(db, "photos");
-        const photosQuery = query(photosRef, where("galleryId", "==", gallery.id));
+        const photosQuery = query(
+          photosRef,
+          where("galleryId", "==", gallery.id),
+        );
         const photosSnapshot = await getDocs(photosQuery);
 
         if (photosSnapshot.docs.length > 0) {
-          console.log(`🗑️ Eliminando ${photosSnapshot.docs.length} foto dalla collezione photos`);
+          console.log(
+            `🗑️ Eliminando ${photosSnapshot.docs.length} foto dalla collezione photos`,
+          );
           const chunkSize = 20;
           const chunks = [];
 
@@ -1114,14 +1290,19 @@ export default function AdminDashboard() {
           }
 
           for (const chunk of chunks) {
-            const deletePromises = chunk.map(doc => deleteDoc(doc.ref));
+            const deletePromises = chunk.map((doc) => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
             await delay(500);
           }
-          console.log(`✅ Eliminate ${photosSnapshot.docs.length} foto dalla collezione photos`);
+          console.log(
+            `✅ Eliminate ${photosSnapshot.docs.length} foto dalla collezione photos`,
+          );
         }
       } catch (error) {
-        console.error('Errore eliminazione foto dalla collezione photos:', error);
+        console.error(
+          "Errore eliminazione foto dalla collezione photos:",
+          error,
+        );
       }
 
       // Piccolo ritardo prima di eliminare il documento principale
@@ -1131,55 +1312,53 @@ export default function AdminDashboard() {
       await deleteDoc(doc(db, "galleries", gallery.id));
 
       // 5. Aggiorna lo stato locale via React Query
-      queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+      queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
 
       toast({
         title: "Galleria eliminata",
-        description: `La galleria "${gallery.name}" e tutte le sue foto sono state eliminate con successo.`
+        description: `La galleria "${gallery.name}" e tutte le sue foto sono state eliminate con successo.`,
       });
     } catch (error) {
-
       toast({
         title: "Errore",
-        description: "Non è stato possibile eliminare completamente la galleria. Alcune risorse potrebbero essere rimaste.",
+        description:
+          "Non è stato possibile eliminare completamente la galleria. Alcune risorse potrebbero essere rimaste.",
         variant: "destructive",
       });
     }
   };
 
-
   // Filtra le gallerie in base alla query di ricerca E tipo (generiche/special)
-  const filteredGalleries = galleries.filter(gallery => {
+  const filteredGalleries = galleries.filter((gallery) => {
     // Escludi gallerie senza dati essenziali (documenti vuoti in Firebase)
     if (!gallery.name && !gallery.code) return false;
-    
+
     // Filtro ricerca testuale
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = (
-        (gallery.name?.toLowerCase() || '').includes(query) ||
-        (gallery.code?.toLowerCase() || '').includes(query) ||
-        (gallery.date?.toLowerCase() || '').includes(query)
-      );
+      const matchesSearch =
+        (gallery.name?.toLowerCase() || "").includes(query) ||
+        (gallery.code?.toLowerCase() || "").includes(query) ||
+        (gallery.date?.toLowerCase() || "").includes(query);
       if (!matchesSearch) return false;
     }
 
     // Filtro selezioni approvate
-    if (selectionFilter === 'approved') {
-      if (gallery.selectionStatus !== 'completed') return false;
+    if (selectionFilter === "approved") {
+      if (gallery.selectionStatus !== "completed") return false;
     }
 
     // Filtro tipo galleria
-    if (galleryTypeFilter === 'generic') {
+    if (galleryTypeFilter === "generic") {
       if (!!gallery.specialTheme) return false; // Generiche = senza specialTheme
-    } else if (galleryTypeFilter === 'special') {
+    } else if (galleryTypeFilter === "special") {
       if (!gallery.specialTheme) return false; // Special = con specialTheme
     }
 
     // Filtro per categoria evento (jobType)
-    if (galleryJobTypeFilter !== 'all') {
+    if (galleryJobTypeFilter !== "all") {
       const galleryJobType = (gallery as any).jobType;
-      if (galleryJobTypeFilter === 'none') {
+      if (galleryJobTypeFilter === "none") {
         if (galleryJobType) return false; // Solo senza categoria
       } else {
         if (galleryJobType !== galleryJobTypeFilter) return false;
@@ -1192,11 +1371,17 @@ export default function AdminDashboard() {
   // Calcola gli indici per la paginazione delle gallerie
   const indexOfLastGallery = currentGalleryPage * galleriesPerPage;
   const indexOfFirstGallery = indexOfLastGallery - galleriesPerPage;
-  const currentGalleries = filteredGalleries.slice(indexOfFirstGallery, indexOfLastGallery);
-  const totalGalleryPages = Math.ceil(filteredGalleries.length / galleriesPerPage);
+  const currentGalleries = filteredGalleries.slice(
+    indexOfFirstGallery,
+    indexOfLastGallery,
+  );
+  const totalGalleryPages = Math.ceil(
+    filteredGalleries.length / galleriesPerPage,
+  );
 
   // Gestione del cambio pagina per le gallerie
-  const paginateGalleries = (pageNumber: number) => setCurrentGalleryPage(pageNumber);
+  const paginateGalleries = (pageNumber: number) =>
+    setCurrentGalleryPage(pageNumber);
 
   // Funzioni per navigare tra le pagine delle gallerie
   const goToNextGalleryPage = () => {
@@ -1214,11 +1399,17 @@ export default function AdminDashboard() {
   // Calcola gli indici per la paginazione delle richieste password
   const indexOfLastRequest = currentRequestPage * requestsPerPage;
   const indexOfFirstRequest = indexOfLastRequest - requestsPerPage;
-  const currentRequests = passwordRequests.slice(indexOfFirstRequest, indexOfLastRequest);
-  const totalRequestPages = Math.ceil(passwordRequests.length / requestsPerPage);
+  const currentRequests = passwordRequests.slice(
+    indexOfFirstRequest,
+    indexOfLastRequest,
+  );
+  const totalRequestPages = Math.ceil(
+    passwordRequests.length / requestsPerPage,
+  );
 
   // Gestione del cambio pagina per le richieste
-  const paginateRequests = (pageNumber: number) => setCurrentRequestPage(pageNumber);
+  const paginateRequests = (pageNumber: number) =>
+    setCurrentRequestPage(pageNumber);
 
   // Funzioni per navigare tra le pagine delle richieste
   const goToNextRequestPage = () => {
@@ -1234,7 +1425,7 @@ export default function AdminDashboard() {
   };
 
   // Verifica se l'utente è autenticato
-  if (!localStorage.getItem('isAdmin')) {
+  if (!localStorage.getItem("isAdmin")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-off-white">
         <div className="text-center">
@@ -1267,7 +1458,9 @@ export default function AdminDashboard() {
                     setSettingsSection(options.settingsSection as any);
                   }
                   if (options?.consultationSection) {
-                    setActiveConsultationSection(options.consultationSection as any);
+                    setActiveConsultationSection(
+                      options.consultationSection as any,
+                    );
                   }
                   if (options?.bookingSection) {
                     setActiveBookingSection(options.bookingSection as any);
@@ -1281,15 +1474,35 @@ export default function AdminDashboard() {
                 }}
               />
               <Link href={createUrl("/")}>
-                <Button variant="outline" size="sm" className="h-8 sm:h-9 px-2 sm:px-3 flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 px-2 sm:px-3 flex items-center gap-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                    />
                   </svg>
                   <span className="text-xs sm:text-sm">Home</span>
                 </Button>
               </Link>
               <NotificationBell />
-              <Button variant="destructive" size="sm" onClick={handleLogout} className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleLogout}
+                className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm"
+              >
                 Logout
               </Button>
             </div>
@@ -1303,12 +1516,28 @@ export default function AdminDashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
                 <span className="text-sm font-medium">
-                  Sei arrivato dalla galleria: <strong>{referrerGallery.name}</strong>
+                  Sei arrivato dalla galleria:{" "}
+                  <strong>{referrerGallery.name}</strong>
                 </span>
                 {referrerGallery.code && (
                   <Link to={createUrl(`/gallery/${referrerGallery.code}`)}>
@@ -1317,8 +1546,18 @@ export default function AdminDashboard() {
                       size="sm"
                       className="text-white hover:text-gray-200 ml-2"
                     >
-                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      <svg
+                        className="h-4 w-4 mr-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                        />
                       </svg>
                       Torna alla galleria
                     </Button>
@@ -1327,14 +1566,24 @@ export default function AdminDashboard() {
               </div>
               <button
                 onClick={() => {
-                  sessionStorage.removeItem('adminReferrerGallery');
+                  sessionStorage.removeItem("adminReferrerGallery");
                   setReferrerGallery(null);
                 }}
                 className="text-white hover:text-gray-200 transition"
                 aria-label="Chiudi banner"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -1356,8 +1605,8 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <p className="font-bold text-sm sm:text-base">
-                    {pendingBookings.length === 1 
-                      ? 'Hai 1 nuova prenotazione da approvare!' 
+                    {pendingBookings.length === 1
+                      ? "Hai 1 nuova prenotazione da approvare!"
                       : `Hai ${pendingBookings.length} nuove prenotazioni da approvare!`}
                   </p>
                   <p className="text-xs sm:text-sm opacity-90">
@@ -1369,8 +1618,8 @@ export default function AdminDashboard() {
                 onClick={() => {
                   const firstPending = pendingBookings[0];
                   if (firstPending?.resourceId) {
-                    setActiveTab('bookings');
-                    setActiveBookingSection('bookings-list');
+                    setActiveTab("bookings");
+                    setActiveBookingSection("bookings-list");
                     setHighlightBookingId(firstPending.resourceId);
                   }
                 }}
@@ -1389,16 +1638,26 @@ export default function AdminDashboard() {
 
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <Tabs defaultValue="calendario" value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <Tabs
+            defaultValue="calendario"
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as any)}
+          >
             <TabsList className="mb-4 sm:mb-6 flex flex-wrap justify-start gap-0.5 sm:gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto touch-manipulation">
               {/* Calendario Tab - prima di tutto */}
-              <TabsTrigger value="calendario" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+              <TabsTrigger
+                value="calendario"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+              >
                 <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Calendario</span>
               </TabsTrigger>
 
               {/* Studio Assistant Tab */}
-              <TabsTrigger value="assistente" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+              <TabsTrigger
+                value="assistente"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+              >
                 <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Assistente</span>
               </TabsTrigger>
@@ -1410,7 +1669,14 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant={activeTab === 'galleries' || activeTab === 'questionnaire' || activeTab === 'themes' || activeTab === 'requests' ? 'default' : 'ghost'}
+                    variant={
+                      activeTab === "galleries" ||
+                      activeTab === "questionnaire" ||
+                      activeTab === "themes" ||
+                      activeTab === "requests"
+                        ? "default"
+                        : "ghost"
+                    }
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
@@ -1419,19 +1685,21 @@ export default function AdminDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => setActiveTab('galleries')}>
+                  <DropdownMenuItem onClick={() => setActiveTab("galleries")}>
                     <Eye className="h-4 w-4 mr-2" />
                     Gallerie Eventi
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('questionnaire')}>
+                  <DropdownMenuItem
+                    onClick={() => setActiveTab("questionnaire")}
+                  >
                     <HelpCircle className="h-4 w-4 mr-2" />
                     Questionari
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('themes')}>
+                  <DropdownMenuItem onClick={() => setActiveTab("themes")}>
                     <Sparkles className="h-4 w-4 mr-2" />
                     Temi Stagionali
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab('requests')}>
+                  <DropdownMenuItem onClick={() => setActiveTab("requests")}>
                     <Key className="h-4 w-4 mr-2" />
                     Richieste Password
                   </DropdownMenuItem>
@@ -1442,19 +1710,30 @@ export default function AdminDashboard() {
               <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
 
               {/* Booking System: Prenotazioni con sub-tabs interne */}
-              <TabsTrigger value="bookings" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-bookings">
+              <TabsTrigger
+                value="bookings"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+                data-testid="tab-bookings"
+              >
                 <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Prenotazioni</span>
               </TabsTrigger>
 
               {/* Jobs System: Lavori Fotografici */}
-              <TabsTrigger value="lavori" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+              <TabsTrigger
+                value="lavori"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+              >
                 <Briefcase className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Lavori</span>
               </TabsTrigger>
 
               {/* Financial Management: Cassa */}
-              <TabsTrigger value="cassa" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-cassa">
+              <TabsTrigger
+                value="cassa"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+                data-testid="tab-cassa"
+              >
                 <Wallet className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Cassa</span>
               </TabsTrigger>
@@ -1463,7 +1742,7 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant={activeTab === 'consulenze' ? 'default' : 'ghost'}
+                    variant={activeTab === "consulenze" ? "default" : "ghost"}
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
@@ -1472,17 +1751,21 @@ export default function AdminDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('consulenze');
-                    setActiveConsultationSection('consulenze');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("consulenze");
+                      setActiveConsultationSection("consulenze");
+                    }}
+                  >
                     <CalendarCheck className="h-4 w-4 mr-2" />
                     Richieste Info
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('consulenze');
-                    setActiveConsultationSection('consulenze-templates');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("consulenze");
+                      setActiveConsultationSection("consulenze-templates");
+                    }}
+                  >
                     <FileText className="h-4 w-4 mr-2" />
                     Template Richieste
                   </DropdownMenuItem>
@@ -1496,7 +1779,7 @@ export default function AdminDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant={activeTab === 'settings' ? 'default' : 'ghost'}
+                    variant={activeTab === "settings" ? "default" : "ghost"}
                     className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
                   >
                     <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
@@ -1505,56 +1788,78 @@ export default function AdminDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsSection('studio');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSection("studio");
+                    }}
+                  >
                     <Settings className="h-4 w-4 mr-2" />
                     Impostazioni Studio
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsSection('slideshow');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSection("slideshow");
+                    }}
+                  >
                     <Play className="h-4 w-4 mr-2" />
                     Slideshow Homepage
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsSection('products');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSection("products");
+                    }}
+                  >
                     <Package className="h-4 w-4 mr-2" />
                     Catalogo Prodotti
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsSection('product-categories');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSection("product-categories");
+                    }}
+                  >
                     <FolderOpen className="h-4 w-4 mr-2" />
                     Categorie Prodotti
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/product-stats" className="flex items-center">
+                    <Link
+                      href="/admin/product-stats"
+                      className="flex items-center"
+                    >
                       <BarChart3 className="h-4 w-4 mr-2" />
                       Statistiche Prodotti
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    setActiveTab('settings');
-                    setSettingsSection('email-logs');
-                  }}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSection("email-logs");
+                    }}
+                  >
                     <Mail className="h-4 w-4 mr-2" />
                     Storico Email
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/admin/audit', '_blank')}>
+                  <DropdownMenuItem
+                    onClick={() => window.open("/admin/audit", "_blank")}
+                  >
                     <Search className="h-4 w-4 mr-2" />
                     Audit Sistema
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/admin/backup', '_blank')}>
+                  <DropdownMenuItem
+                    onClick={() => window.open("/admin/backup", "_blank")}
+                  >
                     <HardDrive className="h-4 w-4 mr-2" />
                     Gestione Backup
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/admin/phone-migration', '_blank')} data-testid="menu-phone-migration">
+                  <DropdownMenuItem
+                    onClick={() =>
+                      window.open("/admin/phone-migration", "_blank")
+                    }
+                    data-testid="menu-phone-migration"
+                  >
                     <Phone className="h-4 w-4 mr-2" />
                     Migrazione Telefoni
                   </DropdownMenuItem>
@@ -1565,25 +1870,39 @@ export default function AdminDashboard() {
               <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
 
               {/* Collaboratori Tab */}
-              <TabsTrigger value="collaboratori" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+              <TabsTrigger
+                value="collaboratori"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+              >
                 <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Collaboratori</span>
               </TabsTrigger>
 
               {/* Email Massivo Tab */}
-              <TabsTrigger value="bulkEmail" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-bulk-email">
+              <TabsTrigger
+                value="bulkEmail"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+                data-testid="tab-bulk-email"
+              >
                 <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Email Massivo</span>
               </TabsTrigger>
 
               {/* Sito Pubblico Tab */}
-              <TabsTrigger value="sitoPublico" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]" data-testid="tab-sito-pubblico">
+              <TabsTrigger
+                value="sitoPublico"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+                data-testid="tab-sito-pubblico"
+              >
                 <Globe className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Sito Pubblico</span>
               </TabsTrigger>
 
               {/* Video Tab */}
-              <TabsTrigger value="videos" className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]">
+              <TabsTrigger
+                value="videos"
+                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+              >
                 <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
                 <span>Video</span>
               </TabsTrigger>
@@ -1594,7 +1913,7 @@ export default function AdminDashboard() {
               <div className="space-y-6">
                 {/* Riepilogo Lavori del Giorno */}
                 <TodayJobsSummary />
-                
+
                 {/* Calendario e Promemoria */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   <div className="lg:col-span-3">
@@ -1609,19 +1928,21 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Assistente Studio - Vista Completa (Lazy loaded) */}
             <TabsContent value="assistente">
-              <Suspense fallback={
-                <Card>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-48" />
-                    <Skeleton className="h-4 w-64 mt-2" />
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Skeleton className="h-24 w-full" />
-                    <Skeleton className="h-24 w-full" />
-                    <Skeleton className="h-24 w-full" />
-                  </CardContent>
-                </Card>
-              }>
+              <Suspense
+                fallback={
+                  <Card>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-48" />
+                      <Skeleton className="h-4 w-64 mt-2" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                    </CardContent>
+                  </Card>
+                }
+              >
                 <StudioAssistant mode="full" showHeader={true} />
               </Suspense>
             </TabsContent>
@@ -1630,24 +1951,45 @@ export default function AdminDashboard() {
             <TabsContent value="galleries">
               <div className="space-y-4">
                 {/* Header con statistiche - Collapsibile */}
-                <Collapsible open={galleriesExpanded} onOpenChange={setGalleriesExpanded}>
+                <Collapsible
+                  open={galleriesExpanded}
+                  onOpenChange={setGalleriesExpanded}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="p-0 h-auto">
-                          {galleriesExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0 h-auto"
+                        >
+                          {galleriesExpanded ? (
+                            <ChevronDown className="h-5 w-5" />
+                          ) : (
+                            <ChevronRightIcon className="h-5 w-5" />
+                          )}
                         </Button>
                       </CollapsibleTrigger>
                       <div>
-                        <h2 className="text-2xl font-bold text-blue-gray">📸 Gestione Gallerie</h2>
+                        <h2 className="text-2xl font-bold text-blue-gray">
+                          📸 Gestione Gallerie
+                        </h2>
                         <p className="text-sm text-muted-foreground">
                           {referrerGallery && (
                             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-2">
-                              <span>🔗 Collegato da: {referrerGallery.name}</span>
-                              {referrerGallery.code && <code className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">{referrerGallery.code}</code>}
+                              <span>
+                                🔗 Collegato da: {referrerGallery.name}
+                              </span>
+                              {referrerGallery.code && (
+                                <code className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">
+                                  {referrerGallery.code}
+                                </code>
+                              )}
                               <button
                                 onClick={() => {
-                                  sessionStorage.removeItem('adminReferrerGallery');
+                                  sessionStorage.removeItem(
+                                    "adminReferrerGallery",
+                                  );
                                   setReferrerGallery(null);
                                 }}
                                 className="ml-1 hover:text-blue-900"
@@ -1667,7 +2009,9 @@ export default function AdminDashboard() {
                     <div className="bg-white shadow sm:rounded-lg p-5">
                       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                         <div className="w-full sm:w-auto">
-                          <h3 className="text-xl font-semibold text-blue-gray mb-2">Gallerie Eventi</h3>
+                          <h3 className="text-xl font-semibold text-blue-gray mb-2">
+                            Gallerie Eventi
+                          </h3>
                           <p className="text-sm text-muted-foreground">
                             Crea, modifica e gestisci le gallerie fotografiche.
                           </p>
@@ -1682,8 +2026,12 @@ export default function AdminDashboard() {
                               onChange={(e) => setSearchQuery(e.target.value)}
                             />
                           </div>
-                          <Button onClick={openModal} className="whitespace-nowrap">
-                            <Plus className="mr-2 h-4 w-4" /> Nuova Galleria Evento
+                          <Button
+                            onClick={openModal}
+                            className="whitespace-nowrap"
+                          >
+                            <Plus className="mr-2 h-4 w-4" /> Nuova Galleria
+                            Evento
                           </Button>
                         </div>
                       </div>
@@ -1692,32 +2040,50 @@ export default function AdminDashboard() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                         {/* Filtro Tipo Galleria */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">Tipo Galleria</label>
+                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Tipo Galleria
+                          </label>
                           <div className="flex flex-wrap gap-2">
                             <Button
-                              variant={galleryTypeFilter === 'generic' ? 'default' : 'outline'}
+                              variant={
+                                galleryTypeFilter === "generic"
+                                  ? "default"
+                                  : "outline"
+                              }
                               size="sm"
-                              onClick={() => setGalleryTypeFilter('generic')}
+                              onClick={() => setGalleryTypeFilter("generic")}
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-generic-galleries"
                             >
                               <Home className="h-4 w-4" />
-                              <span className="text-xs sm:text-sm">Generiche</span>
+                              <span className="text-xs sm:text-sm">
+                                Generiche
+                              </span>
                             </Button>
                             <Button
-                              variant={galleryTypeFilter === 'special' ? 'default' : 'outline'}
+                              variant={
+                                galleryTypeFilter === "special"
+                                  ? "default"
+                                  : "outline"
+                              }
                               size="sm"
-                              onClick={() => setGalleryTypeFilter('special')}
+                              onClick={() => setGalleryTypeFilter("special")}
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-special-galleries"
                             >
                               <Palette className="h-4 w-4" />
-                              <span className="text-xs sm:text-sm">Tematiche</span>
+                              <span className="text-xs sm:text-sm">
+                                Tematiche
+                              </span>
                             </Button>
                             <Button
-                              variant={galleryTypeFilter === 'all' ? 'default' : 'outline'}
+                              variant={
+                                galleryTypeFilter === "all"
+                                  ? "default"
+                                  : "outline"
+                              }
                               size="sm"
-                              onClick={() => setGalleryTypeFilter('all')}
+                              onClick={() => setGalleryTypeFilter("all")}
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-all-galleries"
                             >
@@ -1729,12 +2095,18 @@ export default function AdminDashboard() {
 
                         {/* Filtro Selezioni */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">Selezioni Foto</label>
+                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Selezioni Foto
+                          </label>
                           <div className="flex flex-wrap gap-2">
                             <Button
-                              variant={selectionFilter === 'all' ? 'default' : 'outline'}
+                              variant={
+                                selectionFilter === "all"
+                                  ? "default"
+                                  : "outline"
+                              }
                               size="sm"
-                              onClick={() => setSelectionFilter('all')}
+                              onClick={() => setSelectionFilter("all")}
                               className="flex-1 sm:flex-initial min-w-[100px] flex items-center justify-center gap-2 transition-all"
                               data-testid="filter-all-selections"
                             >
@@ -1742,14 +2114,20 @@ export default function AdminDashboard() {
                               <span className="text-xs sm:text-sm">Tutte</span>
                             </Button>
                             <Button
-                              variant={selectionFilter === 'approved' ? 'default' : 'outline'}
+                              variant={
+                                selectionFilter === "approved"
+                                  ? "default"
+                                  : "outline"
+                              }
                               size="sm"
-                              onClick={() => setSelectionFilter('approved')}
+                              onClick={() => setSelectionFilter("approved")}
                               className="flex-1 sm:flex-initial min-w-[140px] flex items-center justify-center gap-2 transition-all bg-green-50 hover:bg-green-100 border-green-200"
                               data-testid="filter-approved-selections"
                             >
                               <CheckCircle className="h-4 w-4" />
-                              <span className="text-xs sm:text-sm">Approvate</span>
+                              <span className="text-xs sm:text-sm">
+                                Approvate
+                              </span>
                             </Button>
                           </div>
                         </div>
@@ -1758,26 +2136,29 @@ export default function AdminDashboard() {
                       {/* Filtro Categoria Evento */}
                       {dashboardJobTypes.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">Categoria:</span>
+                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">
+                            Categoria:
+                          </span>
                           <button
-                            onClick={() => setGalleryJobTypeFilter('all')}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === 'all' ? 'bg-sage text-white border-sage' : 'bg-white text-gray-600 border-gray-300 hover:border-sage'}`}
+                            onClick={() => setGalleryJobTypeFilter("all")}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "all" ? "bg-sage text-white border-sage" : "bg-white text-gray-600 border-gray-300 hover:border-sage"}`}
                           >
                             Tutte
                           </button>
                           <button
-                            onClick={() => setGalleryJobTypeFilter('none')}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === 'none' ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                            onClick={() => setGalleryJobTypeFilter("none")}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "none" ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"}`}
                           >
                             Senza cat.
                           </button>
-                          {dashboardJobTypes.map(jt => (
+                          {dashboardJobTypes.map((jt) => (
                             <button
                               key={jt.slug}
                               onClick={() => setGalleryJobTypeFilter(jt.slug)}
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === jt.slug ? 'bg-terracotta text-white border-terracotta' : 'bg-white text-gray-600 border-gray-300 hover:border-terracotta'}`}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === jt.slug ? "bg-terracotta text-white border-terracotta" : "bg-white text-gray-600 border-gray-300 hover:border-terracotta"}`}
                             >
-                              {jt.icona ? `${jt.icona} ` : ''}{jt.nome}
+                              {jt.icona ? `${jt.icona} ` : ""}
+                              {jt.nome}
                             </button>
                           ))}
                         </div>
@@ -1795,13 +2176,16 @@ export default function AdminDashboard() {
                         </div>
                       ) : galleries.length === 0 ? (
                         <div className="p-8 text-center">
-                          <p className="text-gray-500">Nessuna galleria eventi trovata.</p>
+                          <p className="text-gray-500">
+                            Nessuna galleria eventi trovata.
+                          </p>
                           <Button
                             onClick={openModal}
                             variant="outline"
                             className="mt-4"
                           >
-                            <Plus className="mr-2 h-4 w-4" /> Crea la tua prima galleria evento
+                            <Plus className="mr-2 h-4 w-4" /> Crea la tua prima
+                            galleria evento
                           </Button>
                         </div>
                       ) : (
@@ -1811,55 +2195,96 @@ export default function AdminDashboard() {
                             <table className="min-w-full divide-y divide-gray-200">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Nome
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Codice
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Data
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Foto
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Selezione
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Stato
                                   </th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  <th
+                                    scope="col"
+                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
                                     Azioni
                                   </th>
                                 </tr>
                               </thead>
                               <tbody className="bg-white divide-y divide-gray-200">
                                 {currentGalleries.map((gallery) => (
-                                  <tr key={gallery.id} className="hover:bg-gray-50 transition-colors">
+                                  <tr
+                                    key={gallery.id}
+                                    className="hover:bg-gray-50 transition-colors"
+                                  >
                                     <td className="px-4 py-4">
-                                      <div className="text-sm font-medium text-gray-900">{gallery.name}</div>
-                                      {(gallery as any).jobType && (() => {
-                                        const jt = dashboardJobTypes.find(t => t.slug === (gallery as any).jobType);
-                                        return (
-                                          <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-terracotta/10 text-terracotta border border-terracotta/20">
-                                            {jt?.icona && <span>{jt.icona}</span>}
-                                            {jt?.nome || (gallery as any).jobType}
-                                          </span>
-                                        );
-                                      })()}
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {gallery.name}
+                                      </div>
+                                      {(gallery as any).jobType &&
+                                        (() => {
+                                          const jt = dashboardJobTypes.find(
+                                            (t) =>
+                                              t.slug ===
+                                              (gallery as any).jobType,
+                                          );
+                                          return (
+                                            <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-terracotta/10 text-terracotta border border-terracotta/20">
+                                              {jt?.icona && (
+                                                <span>{jt.icona}</span>
+                                              )}
+                                              {jt?.nome ||
+                                                (gallery as any).jobType}
+                                            </span>
+                                          );
+                                        })()}
                                     </td>
                                     <td className="px-4 py-4">
-                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">{gallery.code}</code>
+                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                        {gallery.code}
+                                      </code>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      <div className="text-sm text-gray-500">{gallery.date}</div>
+                                      <div className="text-sm text-gray-500">
+                                        {gallery.date}
+                                      </div>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className="text-sm font-semibold text-gray-700">{gallery.photoCount || 0}</span>
+                                      <span className="text-sm font-semibold text-gray-700">
+                                        {gallery.photoCount || 0}
+                                      </span>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      {gallery.selectionStatus === 'completed' ? (
+                                      {gallery.selectionStatus ===
+                                      "completed" ? (
                                         <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                                           ✅ Completata
                                         </span>
@@ -1874,15 +2299,25 @@ export default function AdminDashboard() {
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                        gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                      }`}>
-                                        {gallery.active ? 'Attiva' : 'Disattivata'}
+                                      <span
+                                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                          gallery.active
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-red-100 text-red-800"
+                                        }`}
+                                      >
+                                        {gallery.active
+                                          ? "Attiva"
+                                          : "Disattivata"}
                                       </span>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                       <div className="flex gap-1">
-                                        <Link to={createUrl(`/gallery/${gallery.code}`)}>
+                                        <Link
+                                          to={createUrl(
+                                            `/gallery/${gallery.code}`,
+                                          )}
+                                        >
                                           <Button
                                             variant="outline"
                                             size="icon"
@@ -1898,7 +2333,11 @@ export default function AdminDashboard() {
                                           galleryName={gallery.name}
                                         />
                                         {isCurrentUserAdmin() && (
-                                          <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)}>
+                                          <Link
+                                            to={createUrl(
+                                              `/admin/gallery/${gallery.id}/manage`,
+                                            )}
+                                          >
                                             <Button
                                               variant="outline"
                                               size="icon"
@@ -1911,15 +2350,33 @@ export default function AdminDashboard() {
                                           </Link>
                                         )}
                                         <Button
-                                          variant={gallery.active ? "destructive" : "default"}
+                                          variant={
+                                            gallery.active
+                                              ? "destructive"
+                                              : "default"
+                                          }
                                           size="icon"
                                           className="h-9 w-9 transition-colors"
-                                          onClick={() => toggleGalleryStatus(gallery)}
-                                          title={gallery.active ? "Disattiva galleria" : "Attiva galleria"}
+                                          onClick={() =>
+                                            toggleGalleryStatus(gallery)
+                                          }
+                                          title={
+                                            gallery.active
+                                              ? "Disattiva galleria"
+                                              : "Attiva galleria"
+                                          }
                                         >
-                                          {gallery.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                          {gallery.active ? (
+                                            <EyeOff className="h-4 w-4" />
+                                          ) : (
+                                            <Eye className="h-4 w-4" />
+                                          )}
                                         </Button>
-                                        <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                        <Link
+                                          to={createUrl(
+                                            `/admin/galleries/${gallery.id}/questionnaire`,
+                                          )}
+                                        >
                                           <Button
                                             variant="outline"
                                             size="icon"
@@ -1949,16 +2406,27 @@ export default function AdminDashboard() {
                           {/* Vista Mobile/Tablet - Card */}
                           <div className="lg:hidden space-y-4">
                             {currentGalleries.map((gallery) => (
-                              <div key={gallery.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                              <div
+                                key={gallery.id}
+                                className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                              >
                                 <div className="flex items-start justify-between mb-3">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="text-base font-semibold text-gray-900 truncate">{gallery.name}</h3>
+                                    <h3 className="text-base font-semibold text-gray-900 truncate">
+                                      {gallery.name}
+                                    </h3>
                                     <div className="flex items-center gap-2 mt-1">
-                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">{gallery.code}</code>
-                                      <span className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${
-                                        gallery.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                      }`}>
-                                        {gallery.active ? '✓ Attiva' : '✕ Off'}
+                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                        {gallery.code}
+                                      </code>
+                                      <span
+                                        className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${
+                                          gallery.active
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-red-100 text-red-800"
+                                        }`}
+                                      >
+                                        {gallery.active ? "✓ Attiva" : "✕ Off"}
                                       </span>
                                     </div>
                                   </div>
@@ -1967,15 +2435,21 @@ export default function AdminDashboard() {
                                 <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                                   <div>
                                     <span className="text-gray-500">Data:</span>
-                                    <p className="font-medium text-gray-900">{gallery.date}</p>
+                                    <p className="font-medium text-gray-900">
+                                      {gallery.date}
+                                    </p>
                                   </div>
                                   <div>
                                     <span className="text-gray-500">Foto:</span>
-                                    <p className="font-semibold text-gray-900">{gallery.photoCount || 0}</p>
+                                    <p className="font-semibold text-gray-900">
+                                      {gallery.photoCount || 0}
+                                    </p>
                                   </div>
                                   <div className="col-span-2">
-                                    <span className="text-gray-500 block mb-1">Selezione:</span>
-                                    {gallery.selectionStatus === 'completed' ? (
+                                    <span className="text-gray-500 block mb-1">
+                                      Selezione:
+                                    </span>
+                                    {gallery.selectionStatus === "completed" ? (
                                       <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-green-100 text-green-800">
                                         ✅ Completata
                                       </span>
@@ -1992,7 +2466,11 @@ export default function AdminDashboard() {
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
-                                  <Link to={createUrl(`/gallery/${gallery.code}`)} target="_blank" className="flex-1 min-w-[120px]">
+                                  <Link
+                                    to={createUrl(`/gallery/${gallery.code}`)}
+                                    target="_blank"
+                                    className="flex-1 min-w-[120px]"
+                                  >
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -2003,7 +2481,12 @@ export default function AdminDashboard() {
                                     </Button>
                                   </Link>
                                   {isCurrentUserAdmin() && (
-                                    <Link to={createUrl(`/admin/gallery/${gallery.id}/manage`)} className="flex-1 min-w-[120px]">
+                                    <Link
+                                      to={createUrl(
+                                        `/admin/gallery/${gallery.id}/manage`,
+                                      )}
+                                      className="flex-1 min-w-[120px]"
+                                    >
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -2024,29 +2507,46 @@ export default function AdminDashboard() {
                                     className="flex-1 min-w-[100px]"
                                   />
                                   <Button
-                                    variant={gallery.active ? "destructive" : "default"}
+                                    variant={
+                                      gallery.active ? "destructive" : "default"
+                                    }
                                     size="sm"
                                     className="flex-1 min-w-[100px]"
                                     onClick={() => toggleGalleryStatus(gallery)}
                                   >
-                                    {gallery.active ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
-                                    {gallery.active ? 'Disattiva' : 'Attiva'}
+                                    {gallery.active ? (
+                                      <EyeOff className="h-4 w-4 mr-1" />
+                                    ) : (
+                                      <Eye className="h-4 w-4 mr-1" />
+                                    )}
+                                    {gallery.active ? "Disattiva" : "Attiva"}
                                   </Button>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                      <Button variant="outline" size="sm" className="flex-1 min-w-[80px]">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1 min-w-[80px]"
+                                      >
                                         Altro
                                         <ChevronRight className="h-4 w-4 ml-1" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem asChild>
-                                        <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                        <Link
+                                          to={createUrl(
+                                            `/admin/galleries/${gallery.id}/questionnaire`,
+                                          )}
+                                        >
                                           <HelpCircle className="h-4 w-4 mr-2" />
                                           Questionario
                                         </Link>
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => deleteGallery(gallery)} className="text-red-600">
+                                      <DropdownMenuItem
+                                        onClick={() => deleteGallery(gallery)}
+                                        className="text-red-600"
+                                      >
                                         <Trash className="h-4 w-4 mr-2" />
                                         Elimina
                                       </DropdownMenuItem>
@@ -2077,9 +2577,12 @@ export default function AdminDashboard() {
             <TabsContent value="questionnaire">
               <div className="bg-white shadow sm:rounded-lg p-5">
                 <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Gestione Questionari</h2>
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
+                    Gestione Questionari
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Crea e gestisci questionari per sposi con generazione link sicuri e export ChatGPT.
+                    Crea e gestisci questionari per sposi con generazione link
+                    sicuri e export ChatGPT.
                   </p>
                 </div>
                 <QuestionnaireManager />
@@ -2090,25 +2593,39 @@ export default function AdminDashboard() {
             <TabsContent value="themes">
               <div className="bg-white shadow sm:rounded-lg p-5">
                 <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-blue-gray mb-2">Temi Stagionali</h2>
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
+                    Temi Stagionali
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    Visualizza i temi disponibili e le gallerie associate. I temi possono essere assegnati durante la creazione di una galleria.
+                    Visualizza i temi disponibili e le gallerie associate. I
+                    temi possono essere assegnati durante la creazione di una
+                    galleria.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {getAllThemes().map((theme) => {
-                    const galleriesWithTheme = galleries.filter(g => g.specialTheme === theme.id);
+                    const galleriesWithTheme = galleries.filter(
+                      (g) => g.specialTheme === theme.id,
+                    );
 
                     return (
-                      <Card key={theme.id} className="border-2" style={{ borderColor: theme.colors.primary + '30' }}>
+                      <Card
+                        key={theme.id}
+                        className="border-2"
+                        style={{ borderColor: theme.colors.primary + "30" }}
+                      >
                         <CardHeader className="pb-3">
                           <div className="flex items-center gap-3">
                             <span className="text-3xl">{theme.icon}</span>
                             <div>
-                              <CardTitle className="text-lg">{theme.name}</CardTitle>
+                              <CardTitle className="text-lg">
+                                {theme.name}
+                              </CardTitle>
                               {theme.description && (
-                                <CardDescription className="text-xs mt-1">{theme.description}</CardDescription>
+                                <CardDescription className="text-xs mt-1">
+                                  {theme.description}
+                                </CardDescription>
                               )}
                             </div>
                           </div>
@@ -2119,25 +2636,35 @@ export default function AdminDashboard() {
                               className="w-4 h-4 rounded-full border"
                               style={{ backgroundColor: theme.colors.primary }}
                             />
-                            <span className="text-xs text-muted-foreground">Colore principale</span>
+                            <span className="text-xs text-muted-foreground">
+                              Colore principale
+                            </span>
                           </div>
 
                           <div className="pt-2 border-t">
                             <p className="text-xs font-medium text-muted-foreground mb-2">
-                              Gallerie con questo tema: {galleriesWithTheme.length}
+                              Gallerie con questo tema:{" "}
+                              {galleriesWithTheme.length}
                             </p>
                             {galleriesWithTheme.length > 0 && (
                               <div className="space-y-1">
-                                {galleriesWithTheme.slice(0, 3).map(gallery => (
-                                  <div key={gallery.id} className="text-xs bg-muted p-2 rounded flex items-center justify-between">
-                                    <span className="font-medium truncate">{gallery.name}</span>
-                                    {gallery.hasSpecialPin && (
-                                      <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono">
-                                        PIN protetto
+                                {galleriesWithTheme
+                                  .slice(0, 3)
+                                  .map((gallery) => (
+                                    <div
+                                      key={gallery.id}
+                                      className="text-xs bg-muted p-2 rounded flex items-center justify-between"
+                                    >
+                                      <span className="font-medium truncate">
+                                        {gallery.name}
                                       </span>
-                                    )}
-                                  </div>
-                                ))}
+                                      {gallery.hasSpecialPin && (
+                                        <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono">
+                                          PIN protetto
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
                                 {galleriesWithTheme.length > 3 && (
                                   <p className="text-xs text-muted-foreground pt-1">
                                     +{galleriesWithTheme.length - 3} altre...
@@ -2153,12 +2680,17 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Come usare i temi stagionali</h3>
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    Come usare i temi stagionali
+                  </h3>
                   <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
                     <li>Crea una nuova galleria dal tab "Gallerie"</li>
                     <li>Seleziona un tema stagionale dal dropdown</li>
                     <li>Assegna un PIN univoco per l'accesso</li>
-                    <li>La galleria sarà accessibile tramite la sezione "Gallerie Speciali" in homepage</li>
+                    <li>
+                      La galleria sarà accessibile tramite la sezione "Gallerie
+                      Speciali" in homepage
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -2167,16 +2699,29 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Richieste Password */}
             <TabsContent value="requests">
               <div className="space-y-4">
-                <Collapsible open={requestsExpanded} onOpenChange={setRequestsExpanded}>
+                <Collapsible
+                  open={requestsExpanded}
+                  onOpenChange={setRequestsExpanded}
+                >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="p-0 h-auto">
-                          {requestsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-0 h-auto"
+                        >
+                          {requestsExpanded ? (
+                            <ChevronDown className="h-5 w-5" />
+                          ) : (
+                            <ChevronRightIcon className="h-5 w-5" />
+                          )}
                         </Button>
                       </CollapsibleTrigger>
                       <div>
-                        <h2 className="text-2xl font-bold text-blue-gray">🔑 Richieste Password</h2>
+                        <h2 className="text-2xl font-bold text-blue-gray">
+                          🔑 Richieste Password
+                        </h2>
                         <p className="text-sm text-muted-foreground">
                           {passwordRequests.length} richieste totali
                         </p>
@@ -2195,26 +2740,43 @@ export default function AdminDashboard() {
                     <div className="bg-white shadow sm:rounded-lg p-5">
                       {passwordRequests.length === 0 ? (
                         <div className="p-8 text-center">
-                          <p className="text-gray-500">Nessuna richiesta di password ricevuta.</p>
+                          <p className="text-gray-500">
+                            Nessuna richiesta di password ricevuta.
+                          </p>
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                               <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                   Data
                                 </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                   Nome
                                 </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                   Email
                                 </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                   Galleria
                                 </th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
                                   Azioni
                                 </th>
                               </tr>
@@ -2233,7 +2795,9 @@ export default function AdminDashboard() {
                                     </div>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{request.email}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {request.email}
+                                    </div>
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
@@ -2244,7 +2808,9 @@ export default function AdminDashboard() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => deletePasswordRequest(request.id)}
+                                      onClick={() =>
+                                        deletePasswordRequest(request.id)
+                                      }
                                       className="text-red-600 hover:text-red-900"
                                     >
                                       <Trash className="h-4 w-4 mr-1" />
@@ -2261,8 +2827,14 @@ export default function AdminDashboard() {
                             currentPage={currentRequestPage}
                             totalPages={totalRequestPages}
                             onPageChange={setCurrentRequestPage}
-                            onPrevious={() => setCurrentRequestPage(p => Math.max(1, p - 1))}
-                            onNext={() => setCurrentRequestPage(p => Math.min(totalRequestPages, p + 1))}
+                            onPrevious={() =>
+                              setCurrentRequestPage((p) => Math.max(1, p - 1))
+                            }
+                            onNext={() =>
+                              setCurrentRequestPage((p) =>
+                                Math.min(totalRequestPages, p + 1),
+                              )
+                            }
                           />
                         </div>
                       )}
@@ -2275,17 +2847,35 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Prenotazioni con Sub-Tabs */}
             <TabsContent value="bookings">
               <div className="space-y-6">
-                <Collapsible open={bookingsExpanded} onOpenChange={setBookingsExpanded}>
-                  <Tabs value={activeBookingSection} onValueChange={(value: any) => setActiveBookingSection(value)}>
+                <Collapsible
+                  open={bookingsExpanded}
+                  onOpenChange={setBookingsExpanded}
+                >
+                  <Tabs
+                    value={activeBookingSection}
+                    onValueChange={(value: any) =>
+                      setActiveBookingSection(value)
+                    }
+                  >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="p-0 h-auto">
-                            {bookingsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-0 h-auto"
+                          >
+                            {bookingsExpanded ? (
+                              <ChevronDown className="h-5 w-5" />
+                            ) : (
+                              <ChevronRightIcon className="h-5 w-5" />
+                            )}
                           </Button>
                         </CollapsibleTrigger>
                         <div>
-                          <h2 className="text-2xl font-bold text-blue-gray">📅 Gestione Prenotazioni</h2>
+                          <h2 className="text-2xl font-bold text-blue-gray">
+                            📅 Gestione Prenotazioni
+                          </h2>
                           <p className="text-sm text-muted-foreground">
                             Gestisci prenotazioni e campagne
                           </p>
@@ -2294,11 +2884,17 @@ export default function AdminDashboard() {
                     </div>
 
                     <TabsList className="grid w-full grid-cols-2 gap-1 mb-4">
-                      <TabsTrigger value="bookings-list" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                      <TabsTrigger
+                        value="bookings-list"
+                        className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                      >
                         <CalendarCheck className="h-4 w-4 flex-shrink-0" />
                         Prenotazioni
                       </TabsTrigger>
-                      <TabsTrigger value="campaigns" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                      <TabsTrigger
+                        value="campaigns"
+                        className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                      >
                         <Calendar className="h-4 w-4 flex-shrink-0" />
                         Campagne
                       </TabsTrigger>
@@ -2321,7 +2917,11 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Lavori */}
             <TabsContent value="lavori">
-              <Tabs value={activeJobSection} onValueChange={(v) => setActiveJobSection(v as any)} className="w-full">
+              <Tabs
+                value={activeJobSection}
+                onValueChange={(v) => setActiveJobSection(v as any)}
+                className="w-full"
+              >
                 <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 gap-1 mb-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
@@ -2332,10 +2932,16 @@ export default function AdminDashboard() {
                   <TabsTrigger value="job-types" data-testid="subtab-job-types">
                     Tipi di Lavoro
                   </TabsTrigger>
-                  <TabsTrigger value="contract-clauses" data-testid="subtab-contract-clauses">
+                  <TabsTrigger
+                    value="contract-clauses"
+                    data-testid="subtab-contract-clauses"
+                  >
                     Clausole Contrattuali
                   </TabsTrigger>
-                  <TabsTrigger value="quote-templates" className="data-[state=active]:bg-sage data-[state=active]:text-white">
+                  <TabsTrigger
+                    value="quote-templates"
+                    className="data-[state=active]:bg-sage data-[state=active]:text-white"
+                  >
                     <FileText className="w-4 h-4 mr-2" />
                     Template Preventivi
                   </TabsTrigger>
@@ -2349,16 +2955,29 @@ export default function AdminDashboard() {
 
                 <TabsContent value="clienti">
                   <div className="space-y-4">
-                    <Collapsible open={clientiExpanded} onOpenChange={setClientiExpanded}>
+                    <Collapsible
+                      open={clientiExpanded}
+                      onOpenChange={setClientiExpanded}
+                    >
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="p-0 h-auto">
-                              {clientiExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRightIcon className="h-5 w-5" />}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="p-0 h-auto"
+                            >
+                              {clientiExpanded ? (
+                                <ChevronDown className="h-5 w-5" />
+                              ) : (
+                                <ChevronRightIcon className="h-5 w-5" />
+                              )}
                             </Button>
                           </CollapsibleTrigger>
                           <div>
-                            <h2 className="text-2xl font-bold text-blue-gray">👥 Gestione Clienti</h2>
+                            <h2 className="text-2xl font-bold text-blue-gray">
+                              👥 Gestione Clienti
+                            </h2>
                             <p className="text-sm text-muted-foreground">
                               Gestisci i clienti dello studio
                             </p>
@@ -2398,13 +3017,23 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Richieste Info con Sub-Tabs */}
             <TabsContent value="consulenze">
-              <Tabs value={activeConsultationSection} onValueChange={(v) => setActiveConsultationSection(v as any)} className="w-full">
+              <Tabs
+                value={activeConsultationSection}
+                onValueChange={(v) => setActiveConsultationSection(v as any)}
+                className="w-full"
+              >
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger value="consulenze" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="consulenze"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <CalendarCheck className="h-4 w-4 flex-shrink-0" />
                     Richieste Info
                   </TabsTrigger>
-                  <TabsTrigger value="consulenze-templates" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="consulenze-templates"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <FileText className="h-4 w-4 flex-shrink-0" />
                     Template Richieste
                   </TabsTrigger>
@@ -2425,29 +3054,51 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Impostazioni con Sub-Tabs */}
             <TabsContent value="settings">
-              <Tabs value={settingsSection} onValueChange={(v) => setSettingsSection(v as any)} className="w-full">
+              <Tabs
+                value={settingsSection}
+                onValueChange={(v) => setSettingsSection(v as any)}
+                className="w-full"
+              >
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger value="studio" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="studio"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <Settings className="h-4 w-4 flex-shrink-0" />
                     Impostazioni Studio
                   </TabsTrigger>
-                  <TabsTrigger value="slideshow" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="slideshow"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <Play className="h-4 w-4 flex-shrink-0" />
                     Slideshow Homepage
                   </TabsTrigger>
-                  <TabsTrigger value="products" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="products"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <Package className="h-4 w-4 flex-shrink-0" />
                     Catalogo Prodotti
                   </TabsTrigger>
-                  <TabsTrigger value="product-categories" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="product-categories"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <FolderOpen className="h-4 w-4 flex-shrink-0" />
                     Categorie Prodotti
                   </TabsTrigger>
-                  <TabsTrigger value="migration" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="migration"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <RefreshCw className="h-4 w-4 flex-shrink-0" />
                     Migrazione Foto
                   </TabsTrigger>
-                  <TabsTrigger value="integrations" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2">
+                  <TabsTrigger
+                    value="integrations"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                  >
                     <Link2 className="h-4 w-4 flex-shrink-0" />
                     Integrazioni
                   </TabsTrigger>
@@ -2457,7 +3108,9 @@ export default function AdminDashboard() {
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <div className="flex justify-between items-center mb-6">
                       <div>
-                        <h2 className="text-xl font-semibold text-blue-gray mb-2">Impostazioni studio</h2>
+                        <h2 className="text-xl font-semibold text-blue-gray mb-2">
+                          Impostazioni studio
+                        </h2>
                         <p className="text-sm text-muted-foreground">
                           Modifica le informazioni del tuo studio fotografico.
                         </p>
@@ -2479,11 +3132,15 @@ export default function AdminDashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-4">
                             <div className="space-y-2">
-                              <Label htmlFor="studio-name">Nome dello Studio</Label>
+                              <Label htmlFor="studio-name">
+                                Nome dello Studio
+                              </Label>
                               <Input
                                 id="studio-name"
                                 value={studioSettings.name}
-                                onChange={(e) => handleSettingsChange('name', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange("name", e.target.value)
+                                }
                                 placeholder="Nome del tuo studio fotografico"
                               />
                             </div>
@@ -2493,7 +3150,9 @@ export default function AdminDashboard() {
                               <Input
                                 id="studio-slogan"
                                 value={studioSettings.slogan}
-                                onChange={(e) => handleSettingsChange('slogan', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange("slogan", e.target.value)
+                                }
                                 placeholder="Slogan del tuo studio"
                               />
                             </div>
@@ -2503,7 +3162,12 @@ export default function AdminDashboard() {
                               <Input
                                 id="studio-address"
                                 value={studioSettings.address}
-                                onChange={(e) => handleSettingsChange('address', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "address",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Indirizzo fisico dello studio"
                               />
                             </div>
@@ -2513,7 +3177,9 @@ export default function AdminDashboard() {
                               <Input
                                 id="studio-phone"
                                 value={studioSettings.phone}
-                                onChange={(e) => handleSettingsChange('phone', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange("phone", e.target.value)
+                                }
                                 placeholder="Numero di telefono"
                               />
                             </div>
@@ -2522,8 +3188,13 @@ export default function AdminDashboard() {
                               <Label htmlFor="studio-whatsapp">WhatsApp</Label>
                               <Input
                                 id="studio-whatsapp"
-                                value={studioSettings.whatsapp || ''}
-                                onChange={(e) => handleSettingsChange('whatsapp', e.target.value)}
+                                value={studioSettings.whatsapp || ""}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "whatsapp",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Numero WhatsApp per contatti clienti"
                               />
                             </div>
@@ -2533,27 +3204,43 @@ export default function AdminDashboard() {
                               <Input
                                 id="studio-email"
                                 value={studioSettings.email}
-                                onChange={(e) => handleSettingsChange('email', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange("email", e.target.value)
+                                }
                                 placeholder="Indirizzo email"
                               />
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="studio-partita-iva">Partita IVA (per ricevute)</Label>
+                              <Label htmlFor="studio-partita-iva">
+                                Partita IVA (per ricevute)
+                              </Label>
                               <Input
                                 id="studio-partita-iva"
-                                value={studioSettings.partitaIVA || ''}
-                                onChange={(e) => handleSettingsChange('partitaIVA', e.target.value)}
+                                value={studioSettings.partitaIVA || ""}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "partitaIVA",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="IT12345678901"
                               />
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="studio-codice-fiscale">Codice Fiscale (per ricevute)</Label>
+                              <Label htmlFor="studio-codice-fiscale">
+                                Codice Fiscale (per ricevute)
+                              </Label>
                               <Input
                                 id="studio-codice-fiscale"
-                                value={studioSettings.codiceFiscale || ''}
-                                onChange={(e) => handleSettingsChange('codiceFiscale', e.target.value)}
+                                value={studioSettings.codiceFiscale || ""}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "codiceFiscale",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="RSSMRA80A01H501Z"
                                 type="email"
                               />
@@ -2564,26 +3251,46 @@ export default function AdminDashboard() {
                               <Input
                                 id="studio-website"
                                 value={studioSettings.websiteUrl}
-                                onChange={(e) => handleSettingsChange('websiteUrl', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "websiteUrl",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="URL del sito web"
                                 type="url"
                               />
                             </div>
 
                             <div className="space-y-2 col-span-2">
-                              <Label htmlFor="studio-review-url">Link Recensione Google</Label>
+                              <Label htmlFor="studio-review-url">
+                                Link Recensione Google
+                              </Label>
                               <Input
                                 id="studio-review-url"
-                                value={studioSettings.googleReviewUrl || ''}
-                                onChange={(e) => handleSettingsChange('googleReviewUrl', e.target.value)}
+                                value={studioSettings.googleReviewUrl || ""}
+                                onChange={(e) =>
+                                  handleSettingsChange(
+                                    "googleReviewUrl",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="https://g.page/r/..."
                                 type="url"
                               />
                               <p className="text-xs text-muted-foreground">
-                                Inserisci il link diretto alla pagina recensioni Google del tuo studio. Quando un job o una prenotazione passa a "Consegnato", il cliente riceve automaticamente un'email con questo link.
+                                Inserisci il link diretto alla pagina recensioni
+                                Google del tuo studio. Quando un job o una
+                                prenotazione passa a "Consegnato", il cliente
+                                riceve automaticamente un'email con questo link.
                               </p>
                             </div>
                           </div>
+
+                          {/* Campagna recensioni Google */}
+                          {studioSettings.googleReviewUrl && (
+                            <ReviewEmailManager />
+                          )}
 
                           <div className="space-y-4">
                             <div>
@@ -2596,8 +3303,8 @@ export default function AdminDashboard() {
                                       alt="Logo dello studio"
                                       className="h-24 w-auto object-contain rounded-md"
                                       onError={(e) => {
-                                        console.error('Logo loading error:', e);
-                                        e.currentTarget.style.display = 'none';
+                                        console.error("Logo loading error:", e);
+                                        e.currentTarget.style.display = "none";
                                       }}
                                     />
                                   </div>
@@ -2607,7 +3314,9 @@ export default function AdminDashboard() {
                                   htmlFor="logo-upload"
                                   className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
                                 >
-                                  {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                                  {studioSettings.logo
+                                    ? "Cambia logo"
+                                    : "Carica logo"}
                                 </Label>
                                 <Input
                                   id="logo-upload"
@@ -2620,11 +3329,15 @@ export default function AdminDashboard() {
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor="studio-about">Descrizione Studio</Label>
+                              <Label htmlFor="studio-about">
+                                Descrizione Studio
+                              </Label>
                               <Textarea
                                 id="studio-about"
                                 value={studioSettings.about}
-                                onChange={(e) => handleSettingsChange('about', e.target.value)}
+                                onChange={(e) =>
+                                  handleSettingsChange("about", e.target.value)
+                                }
                                 placeholder="Descrizione del tuo studio fotografico"
                                 rows={4}
                               />
@@ -2634,21 +3347,41 @@ export default function AdminDashboard() {
                               <Label>Social Media</Label>
 
                               <div className="space-y-2">
-                                <Label htmlFor="social-instagram">Instagram (solo username)</Label>
+                                <Label htmlFor="social-instagram">
+                                  Instagram (solo username)
+                                </Label>
                                 <Input
                                   id="social-instagram"
-                                  value={studioSettings.socialLinks.instagram || ''}
-                                  onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'instagram')}
+                                  value={
+                                    studioSettings.socialLinks.instagram || ""
+                                  }
+                                  onChange={(e) =>
+                                    handleSettingsChange(
+                                      "socialLinks",
+                                      e.target.value,
+                                      "instagram",
+                                    )
+                                  }
                                   placeholder="username (senza @)"
                                 />
                               </div>
 
                               <div className="space-y-2">
-                                <Label htmlFor="social-facebook">Facebook (solo username)</Label>
+                                <Label htmlFor="social-facebook">
+                                  Facebook (solo username)
+                                </Label>
                                 <Input
                                   id="social-facebook"
-                                  value={studioSettings.socialLinks.facebook || ''}
-                                  onChange={(e) => handleSettingsChange('socialLinks', e.target.value, 'facebook')}
+                                  value={
+                                    studioSettings.socialLinks.facebook || ""
+                                  }
+                                  onChange={(e) =>
+                                    handleSettingsChange(
+                                      "socialLinks",
+                                      e.target.value,
+                                      "facebook",
+                                    )
+                                  }
                                   placeholder="username o ID pagina"
                                 />
                               </div>
@@ -2657,38 +3390,61 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium mb-4">Testi personalizzabili</h3>
+                          <h3 className="text-lg font-medium mb-4">
+                            Testi personalizzabili
+                          </h3>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                               <h4 className="font-medium mb-3">Sezione Hero</h4>
                               <div className="space-y-3">
                                 <div className="space-y-2">
-                                  <Label htmlFor="hero-title">Titolo principale</Label>
+                                  <Label htmlFor="hero-title">
+                                    Titolo principale
+                                  </Label>
                                   <Input
                                     id="hero-title"
-                                    value={studioSettings.heroTitle || ''}
-                                    onChange={(e) => handleSettingsChange('heroTitle', e.target.value)}
+                                    value={studioSettings.heroTitle || ""}
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "heroTitle",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Titolo principale della pagina"
                                   />
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="hero-subtitle">Sottotitolo</Label>
+                                  <Label htmlFor="hero-subtitle">
+                                    Sottotitolo
+                                  </Label>
                                   <Input
                                     id="hero-subtitle"
-                                    value={studioSettings.heroSubtitle || ''}
-                                    onChange={(e) => handleSettingsChange('heroSubtitle', e.target.value)}
+                                    value={studioSettings.heroSubtitle || ""}
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "heroSubtitle",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Sottotitolo della pagina"
                                   />
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="hero-button">Testo pulsante</Label>
+                                  <Label htmlFor="hero-button">
+                                    Testo pulsante
+                                  </Label>
                                   <Input
                                     id="hero-button"
-                                    value={studioSettings.heroButtonText || ''}
-                                    onChange={(e) => handleSettingsChange('heroButtonText', e.target.value)}
+                                    value={studioSettings.heroButtonText || ""}
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "heroButtonText",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Testo del pulsante principale"
                                   />
                                 </div>
@@ -2696,45 +3452,77 @@ export default function AdminDashboard() {
                             </div>
 
                             <div>
-                              <h4 className="font-medium mb-3">Sezione WhatsApp</h4>
+                              <h4 className="font-medium mb-3">
+                                Sezione WhatsApp
+                              </h4>
                               <div className="space-y-3">
                                 <div className="space-y-2">
                                   <Label htmlFor="whatsapp-title">Titolo</Label>
                                   <Input
                                     id="whatsapp-title"
-                                    value={studioSettings.whatsappTitle || ''}
-                                    onChange={(e) => handleSettingsChange('whatsappTitle', e.target.value)}
+                                    value={studioSettings.whatsappTitle || ""}
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "whatsappTitle",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Titolo sezione WhatsApp"
                                   />
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-subtitle">Sottotitolo</Label>
+                                  <Label htmlFor="whatsapp-subtitle">
+                                    Sottotitolo
+                                  </Label>
                                   <Input
                                     id="whatsapp-subtitle"
-                                    value={studioSettings.whatsappSubtitle || ''}
-                                    onChange={(e) => handleSettingsChange('whatsappSubtitle', e.target.value)}
+                                    value={
+                                      studioSettings.whatsappSubtitle || ""
+                                    }
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "whatsappSubtitle",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Sottotitolo sezione WhatsApp"
                                   />
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-text">Testo descrittivo</Label>
+                                  <Label htmlFor="whatsapp-text">
+                                    Testo descrittivo
+                                  </Label>
                                   <Textarea
                                     id="whatsapp-text"
-                                    value={studioSettings.whatsappText || ''}
-                                    onChange={(e) => handleSettingsChange('whatsappText', e.target.value)}
+                                    value={studioSettings.whatsappText || ""}
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "whatsappText",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Testo descrittivo della sezione"
                                     rows={2}
                                   />
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-button">Testo pulsante</Label>
+                                  <Label htmlFor="whatsapp-button">
+                                    Testo pulsante
+                                  </Label>
                                   <Input
                                     id="whatsapp-button"
-                                    value={studioSettings.whatsappButtonText || ''}
-                                    onChange={(e) => handleSettingsChange('whatsappButtonText', e.target.value)}
+                                    value={
+                                      studioSettings.whatsappButtonText || ""
+                                    }
+                                    onChange={(e) =>
+                                      handleSettingsChange(
+                                        "whatsappButtonText",
+                                        e.target.value,
+                                      )
+                                    }
                                     placeholder="Testo del pulsante WhatsApp"
                                   />
                                 </div>
@@ -2749,9 +3537,12 @@ export default function AdminDashboard() {
 
                 <TabsContent value="slideshow">
                   <div className="bg-white shadow sm:rounded-lg p-5">
-                    <h2 className="text-xl font-semibold text-blue-gray mb-4">Gestione Slideshow Homepage</h2>
+                    <h2 className="text-xl font-semibold text-blue-gray mb-4">
+                      Gestione Slideshow Homepage
+                    </h2>
                     <p className="text-sm text-muted-foreground mb-6">
-                      Seleziona le foto da mostrare nella slideshow della homepage.
+                      Seleziona le foto da mostrare nella slideshow della
+                      homepage.
                     </p>
                     <SlideshowManager />
                   </div>
@@ -2783,19 +3574,21 @@ export default function AdminDashboard() {
                         Backup e Ripristino Sistema
                       </h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Esporta un backup completo di tutti i dati (clienti, lavori, gallerie, impostazioni) per protezione da disastri.
+                        Esporta un backup completo di tutti i dati (clienti,
+                        lavori, gallerie, impostazioni) per protezione da
+                        disastri.
                       </p>
                       <div className="flex flex-wrap gap-3">
-                        <Button 
-                          onClick={() => window.open('/admin/backup', '_blank')}
+                        <Button
+                          onClick={() => window.open("/admin/backup", "_blank")}
                           className="flex items-center gap-2"
                           data-testid="button-backup-manager"
                         >
                           <HardDrive className="h-4 w-4" />
                           Gestione Backup
                         </Button>
-                        <Button 
-                          onClick={() => window.open('/admin/audit', '_blank')}
+                        <Button
+                          onClick={() => window.open("/admin/audit", "_blank")}
                           variant="outline"
                           className="flex items-center gap-2"
                           data-testid="button-audit-system"
@@ -2807,20 +3600,27 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="bg-white shadow sm:rounded-lg p-5">
-                      <h3 className="text-lg font-semibold mb-2">Importa da Vecchio Gestionale</h3>
+                      <h3 className="text-lg font-semibold mb-2">
+                        Importa da Vecchio Gestionale
+                      </h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Importa lavori, ordini e preventivi dal vecchio sistema con mappatura automatica dei clienti esistenti.
+                        Importa lavori, ordini e preventivi dal vecchio sistema
+                        con mappatura automatica dei clienti esistenti.
                       </p>
-                      <Button 
-                        onClick={() => window.open('/admin/legacy-import', '_blank')}
+                      <Button
+                        onClick={() =>
+                          window.open("/admin/legacy-import", "_blank")
+                        }
                         className="flex items-center gap-2"
                         data-testid="button-legacy-import"
                       >
                         <Upload className="h-4 w-4" />
                         Apri Importatore Legacy
                       </Button>
-                      <Button 
-                        onClick={() => window.open('/admin/legacy-analyzer', '_blank')}
+                      <Button
+                        onClick={() =>
+                          window.open("/admin/legacy-analyzer", "_blank")
+                        }
                         className="flex items-center gap-2"
                         variant="outline"
                         data-testid="button-legacy-analyzer"
@@ -2829,45 +3629,65 @@ export default function AdminDashboard() {
                         Analizza Jobs Legacy
                       </Button>
                     </div>
-                    
+
                     <SyncClientJobRefs />
-                    
+
                     <PhotosMigration />
-                    
+
                     <GalleryRecoveryTool />
-                    
+
                     {/* Migrazione Secrets Gallerie */}
                     <div className="bg-white shadow sm:rounded-lg p-5">
-                      <h3 className="text-lg font-semibold mb-2">Migrazione Secrets Gallerie</h3>
+                      <h3 className="text-lg font-semibold mb-2">
+                        Migrazione Secrets Gallerie
+                      </h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Migra password e PIN delle gallerie dalla collection pubblica alla collection protetta (gallerySecrets).
-                        Questa operazione è sicura e può essere eseguita più volte.
+                        Migra password e PIN delle gallerie dalla collection
+                        pubblica alla collection protetta (gallerySecrets).
+                        Questa operazione è sicura e può essere eseguita più
+                        volte.
                       </p>
                       <div className="flex flex-wrap gap-3">
-                        <Button 
+                        <Button
                           variant="outline"
                           onClick={async () => {
                             try {
-                              const token = await auth.currentUser?.getIdToken();
+                              const token =
+                                await auth.currentUser?.getIdToken();
                               if (!token) {
-                                toast({ title: "Errore", description: "Devi essere autenticato", variant: "destructive" });
+                                toast({
+                                  title: "Errore",
+                                  description: "Devi essere autenticato",
+                                  variant: "destructive",
+                                });
                                 return;
                               }
-                              const response = await fetch('/api/email/admin/check-legacy-secrets', {
-                                headers: { 'Authorization': `Bearer ${token}` }
-                              });
+                              const response = await fetch(
+                                "/api/email/admin/check-legacy-secrets",
+                                {
+                                  headers: { Authorization: `Bearer ${token}` },
+                                },
+                              );
                               const data = await response.json();
                               if (data.success) {
-                                toast({ 
-                                  title: `Controllo completato`, 
-                                  description: `Trovate ${data.legacyCount} gallerie con secrets legacy su ${data.totalGalleries} totali.${data.legacyGalleries?.length > 0 ? ' Gallerie: ' + data.legacyGalleries.map((g: any) => g.name).join(', ') : ''}`,
-                                  duration: 10000
+                                toast({
+                                  title: `Controllo completato`,
+                                  description: `Trovate ${data.legacyCount} gallerie con secrets legacy su ${data.totalGalleries} totali.${data.legacyGalleries?.length > 0 ? " Gallerie: " + data.legacyGalleries.map((g: any) => g.name).join(", ") : ""}`,
+                                  duration: 10000,
                                 });
                               } else {
-                                toast({ title: "Errore", description: data.error, variant: "destructive" });
+                                toast({
+                                  title: "Errore",
+                                  description: data.error,
+                                  variant: "destructive",
+                                });
                               }
                             } catch (error: any) {
-                              toast({ title: "Errore", description: error.message, variant: "destructive" });
+                              toast({
+                                title: "Errore",
+                                description: error.message,
+                                variant: "destructive",
+                              });
                             }
                           }}
                           className="flex items-center gap-2"
@@ -2876,32 +3696,51 @@ export default function AdminDashboard() {
                           <Eye className="h-4 w-4" />
                           Controlla Secrets Legacy
                         </Button>
-                        <Button 
+                        <Button
                           onClick={async () => {
                             try {
-                              const token = await auth.currentUser?.getIdToken();
+                              const token =
+                                await auth.currentUser?.getIdToken();
                               if (!token) {
-                                toast({ title: "Errore", description: "Devi essere autenticato", variant: "destructive" });
+                                toast({
+                                  title: "Errore",
+                                  description: "Devi essere autenticato",
+                                  variant: "destructive",
+                                });
                                 return;
                               }
-                              toast({ title: "Migrazione in corso...", description: "Attendere..." });
-                              const response = await fetch('/api/email/admin/migrate-legacy-secrets', {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${token}` }
+                              toast({
+                                title: "Migrazione in corso...",
+                                description: "Attendere...",
                               });
+                              const response = await fetch(
+                                "/api/email/admin/migrate-legacy-secrets",
+                                {
+                                  method: "POST",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                },
+                              );
                               const data = await response.json();
                               if (data.success) {
                                 const r = data.results;
-                                toast({ 
-                                  title: "Migrazione completata", 
+                                toast({
+                                  title: "Migrazione completata",
                                   description: `Migrate: ${r.migrated} | Già migrate: ${r.alreadyMigrated} | Password legacy: ${r.withLegacyPassword} | PIN legacy: ${r.withLegacyPin}`,
-                                  duration: 10000
+                                  duration: 10000,
                                 });
                               } else {
-                                toast({ title: "Errore", description: data.error, variant: "destructive" });
+                                toast({
+                                  title: "Errore",
+                                  description: data.error,
+                                  variant: "destructive",
+                                });
                               }
                             } catch (error: any) {
-                              toast({ title: "Errore", description: error.message, variant: "destructive" });
+                              toast({
+                                title: "Errore",
+                                description: error.message,
+                                variant: "destructive",
+                              });
                             }
                           }}
                           className="flex items-center gap-2 bg-terracotta hover:bg-terracotta/90"
@@ -2922,13 +3761,16 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3 mb-4">
                         <Calendar className="h-6 w-6 text-blue-600" />
                         <div>
-                          <h3 className="text-lg font-semibold">Google Calendar</h3>
+                          <h3 className="text-lg font-semibold">
+                            Google Calendar
+                          </h3>
                           <p className="text-sm text-muted-foreground">
-                            Sincronizzazione calendario per prenotazioni, consulenze e lavori
+                            Sincronizzazione calendario per prenotazioni,
+                            consulenze e lavori
                           </p>
                         </div>
                       </div>
-                      
+
                       <GoogleCalendarStatus toast={toast} />
                     </div>
 
@@ -2939,15 +3781,17 @@ export default function AdminDashboard() {
                         <div>
                           <h3 className="text-lg font-semibold">Gmail</h3>
                           <p className="text-sm text-muted-foreground">
-                            Invio email automatiche (conferme, promemoria, notifiche)
+                            Invio email automatiche (conferme, promemoria,
+                            notifiche)
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
                         <CheckCircle className="h-5 w-5 text-green-600" />
                         <span className="text-sm text-green-800">
-                          Gmail connesso tramite <strong>image.studio.fotografico@gmail.com</strong>
+                          Gmail connesso tramite{" "}
+                          <strong>image.studio.fotografico@gmail.com</strong>
                         </span>
                       </div>
                     </div>
@@ -2968,13 +3812,25 @@ export default function AdminDashboard() {
 
             {/* Contenuto Tab Sito Pubblico */}
             <TabsContent value="sitoPublico">
-              <Tabs value={activeSitoSection} onValueChange={(v) => setActiveSitoSection(v as any)} className="w-full">
+              <Tabs
+                value={activeSitoSection}
+                onValueChange={(v) => setActiveSitoSection(v as any)}
+                className="w-full"
+              >
                 <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger value="portfolio" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-portfolio">
+                  <TabsTrigger
+                    value="portfolio"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                    data-testid="subtab-portfolio"
+                  >
                     <Grid3x3 className="h-4 w-4 flex-shrink-0" />
                     Portfolio Pubblico
                   </TabsTrigger>
-                  <TabsTrigger value="blog" className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2" data-testid="subtab-blog">
+                  <TabsTrigger
+                    value="blog"
+                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
+                    data-testid="subtab-blog"
+                  >
                     <FileText className="h-4 w-4 flex-shrink-0" />
                     Blog
                   </TabsTrigger>
@@ -2998,7 +3854,6 @@ export default function AdminDashboard() {
             <TabsContent value="videos">
               <WeddingVideosManager />
             </TabsContent>
-
           </Tabs>
         </div>
       </main>
@@ -3009,7 +3864,7 @@ export default function AdminDashboard() {
         onClose={closeModal}
         onGalleryCreated={(galleryId, galleryCode) => {
           // Ricarichiamo le gallerie dopo la creazione via React Query
-          queryClient.invalidateQueries({ queryKey: ['galleries', 'admin'] });
+          queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
           // Navigate to gallery management page for photo upload
           navigate(`/admin/gallery/${galleryId}/manage`);
         }}
