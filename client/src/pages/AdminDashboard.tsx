@@ -138,7 +138,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { BarChart3, Clock, Globe, Phone } from "lucide-react";
+import { BarChart3, Clock, Globe, Phone, Star, MapPin, CreditCard, Share2, Monitor, Building2, Instagram, Facebook } from "lucide-react";
 import { CollaboratoriManager } from "@/components/collaboratori/CollaboratoriManager";
 import PortfolioManager from "@/components/admin/PortfolioManager";
 import BlogManager from "@/components/admin/BlogManager";
@@ -3059,480 +3059,493 @@ export default function AdminDashboard() {
                 onValueChange={(v) => setSettingsSection(v as any)}
                 className="w-full"
               >
-                <TabsList className="mb-4 flex flex-wrap justify-start gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-                  <TabsTrigger
-                    value="studio"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4 flex-shrink-0" />
-                    Impostazioni Studio
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="slideshow"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <Play className="h-4 w-4 flex-shrink-0" />
-                    Slideshow Homepage
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="products"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <Package className="h-4 w-4 flex-shrink-0" />
-                    Catalogo Prodotti
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="product-categories"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <FolderOpen className="h-4 w-4 flex-shrink-0" />
-                    Categorie Prodotti
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="migration"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4 flex-shrink-0" />
-                    Migrazione Foto
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="integrations"
-                    className="flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap flex items-center gap-2"
-                  >
-                    <Link2 className="h-4 w-4 flex-shrink-0" />
-                    Integrazioni
-                  </TabsTrigger>
-                </TabsList>
+                {/* Settings sub-nav — stile sidebar pill con gruppi */}
+                <div className="mb-6">
+                  {/* Sezione: Configurazione */}
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Configurazione</p>
+                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent mb-3">
+                    <TabsTrigger
+                      value="studio"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                      Studio
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="slideshow"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <Play className="h-3.5 w-3.5 flex-shrink-0" />
+                      Slideshow
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="integrations"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <Link2 className="h-3.5 w-3.5 flex-shrink-0" />
+                      Integrazioni
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Sezione: Catalogo */}
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Catalogo</p>
+                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent mb-3">
+                    <TabsTrigger
+                      value="products"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <Package className="h-3.5 w-3.5 flex-shrink-0" />
+                      Prodotti
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="product-categories"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
+                      Categorie
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Sezione: Strumenti */}
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 px-1 mb-1.5">Strumenti</p>
+                  <TabsList className="flex flex-wrap gap-1 h-auto p-0 bg-transparent">
+                    <TabsTrigger
+                      value="migration"
+                      className="flex-shrink-0 px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-2 rounded-lg border border-transparent data-[state=active]:bg-[#6b7f6b] data-[state=active]:text-white data-[state=active]:border-[#6b7f6b] data-[state=inactive]:bg-stone-100 data-[state=inactive]:text-stone-600 data-[state=inactive]:hover:bg-stone-200 transition-all"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 flex-shrink-0" />
+                      Migrazione Foto
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
                 <TabsContent value="studio">
-                  <div className="bg-white shadow sm:rounded-lg p-5">
-                    <div className="flex justify-between items-center mb-6">
-                      <div>
-                        <h2 className="text-xl font-semibold text-blue-gray mb-2">
-                          Impostazioni studio
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                          Modifica le informazioni del tuo studio fotografico.
-                        </p>
-                      </div>
-
-                      <Button onClick={saveStudioSettings}>
-                        Salva impostazioni
-                      </Button>
+                  {isSettingsLoading ? (
+                    <div className="space-y-4">
+                      {[...Array(5)].map((_, i) => (
+                        <Skeleton key={i} className="h-32 w-full rounded-xl" />
+                      ))}
                     </div>
+                  ) : (
+                    <div className="space-y-5">
 
-                    {isSettingsLoading ? (
-                      <div className="space-y-4">
-                        {[...Array(6)].map((_, i) => (
-                          <Skeleton key={i} className="h-10 w-full" />
-                        ))}
+                      {/* ── Page header con CTA primario ── */}
+                      <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-[#6b7f6b]/10 to-[#f5f0e8]/60 border border-[#6b7f6b]/20 px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#6b7f6b] text-white shadow-sm">
+                            <Building2 className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h2 className="text-base font-semibold text-stone-800 leading-tight">Impostazioni Studio</h2>
+                            <p className="text-xs text-stone-500 mt-0.5">Profilo, recapiti e presenza online del tuo studio</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={saveStudioSettings}
+                          className="bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white shadow-sm gap-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Salva modifiche
+                        </Button>
                       </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                      {/* ── SEZIONE 1: Identità dello Studio ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#6b7f6b]/15">
+                            <Camera className="h-3.5 w-3.5 text-[#6b7f6b]" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Identità dello Studio</h3>
+                            <p className="text-xs text-stone-400">Nome, slogan, logo e descrizione pubblica</p>
+                          </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                          {/* Colonna sinistra */}
                           <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-name">
-                                Nome dello Studio
-                              </Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="studio-name" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Nome dello Studio</Label>
                               <Input
                                 id="studio-name"
                                 value={studioSettings.name}
-                                onChange={(e) =>
-                                  handleSettingsChange("name", e.target.value)
-                                }
-                                placeholder="Nome del tuo studio fotografico"
+                                onChange={(e) => handleSettingsChange("name", e.target.value)}
+                                placeholder="es. Image Studio Photography"
+                                className="border-stone-200 focus:border-[#6b7f6b] focus:ring-[#6b7f6b]/20"
                               />
                             </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-slogan">Slogan</Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="studio-slogan" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Slogan</Label>
                               <Input
                                 id="studio-slogan"
                                 value={studioSettings.slogan}
-                                onChange={(e) =>
-                                  handleSettingsChange("slogan", e.target.value)
-                                }
-                                placeholder="Slogan del tuo studio"
+                                onChange={(e) => handleSettingsChange("slogan", e.target.value)}
+                                placeholder="es. Catturiamo i tuoi momenti più belli"
+                                className="border-stone-200 focus:border-[#6b7f6b] focus:ring-[#6b7f6b]/20"
                               />
                             </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-address">Indirizzo</Label>
-                              <Input
-                                id="studio-address"
-                                value={studioSettings.address}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "address",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Indirizzo fisico dello studio"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-phone">Telefono</Label>
-                              <Input
-                                id="studio-phone"
-                                value={studioSettings.phone}
-                                onChange={(e) =>
-                                  handleSettingsChange("phone", e.target.value)
-                                }
-                                placeholder="Numero di telefono"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-whatsapp">WhatsApp</Label>
-                              <Input
-                                id="studio-whatsapp"
-                                value={studioSettings.whatsapp || ""}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "whatsapp",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Numero WhatsApp per contatti clienti"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-email">Email</Label>
-                              <Input
-                                id="studio-email"
-                                value={studioSettings.email}
-                                onChange={(e) =>
-                                  handleSettingsChange("email", e.target.value)
-                                }
-                                placeholder="Indirizzo email"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-partita-iva">
-                                Partita IVA (per ricevute)
-                              </Label>
-                              <Input
-                                id="studio-partita-iva"
-                                value={studioSettings.partitaIVA || ""}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "partitaIVA",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="IT12345678901"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-codice-fiscale">
-                                Codice Fiscale (per ricevute)
-                              </Label>
-                              <Input
-                                id="studio-codice-fiscale"
-                                value={studioSettings.codiceFiscale || ""}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "codiceFiscale",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="RSSMRA80A01H501Z"
-                                type="email"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-website">Sito Web</Label>
-                              <Input
-                                id="studio-website"
-                                value={studioSettings.websiteUrl}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "websiteUrl",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="URL del sito web"
-                                type="url"
-                              />
-                            </div>
-
-                            <div className="space-y-2 col-span-2">
-                              <Label htmlFor="studio-review-url">
-                                Link Recensione Google
-                              </Label>
-                              <Input
-                                id="studio-review-url"
-                                value={studioSettings.googleReviewUrl || ""}
-                                onChange={(e) =>
-                                  handleSettingsChange(
-                                    "googleReviewUrl",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="https://g.page/r/..."
-                                type="url"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Inserisci il link diretto alla pagina recensioni
-                                Google del tuo studio. Quando un job o una
-                                prenotazione passa a "Consegnato", il cliente
-                                riceve automaticamente un'email con questo link.
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Campagna recensioni Google */}
-                          {studioSettings.googleReviewUrl && (
-                            <ReviewEmailManager />
-                          )}
-
-                          <div className="space-y-4">
-                            <div>
-                              <Label>Logo</Label>
-                              <div className="mt-2">
-                                {studioSettings.logo ? (
-                                  <div className="mb-2">
-                                    <img
-                                      src={studioSettings.logo}
-                                      alt="Logo dello studio"
-                                      className="h-24 w-auto object-contain rounded-md"
-                                      onError={(e) => {
-                                        console.error("Logo loading error:", e);
-                                        e.currentTarget.style.display = "none";
-                                      }}
-                                    />
-                                  </div>
-                                ) : null}
-
-                                <Label
-                                  htmlFor="logo-upload"
-                                  className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                                >
-                                  {studioSettings.logo
-                                    ? "Cambia logo"
-                                    : "Carica logo"}
-                                </Label>
-                                <Input
-                                  id="logo-upload"
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={handleLogoUpload}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="studio-about">
-                                Descrizione Studio
-                              </Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="studio-about" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Descrizione</Label>
                               <Textarea
                                 id="studio-about"
                                 value={studioSettings.about}
-                                onChange={(e) =>
-                                  handleSettingsChange("about", e.target.value)
-                                }
-                                placeholder="Descrizione del tuo studio fotografico"
+                                onChange={(e) => handleSettingsChange("about", e.target.value)}
+                                placeholder="Racconta la storia e la filosofia del tuo studio..."
                                 rows={4}
+                                className="border-stone-200 focus:border-[#6b7f6b] focus:ring-[#6b7f6b]/20 resize-none"
                               />
                             </div>
+                          </div>
+                          {/* Colonna destra: Logo */}
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-medium text-stone-600 uppercase tracking-wide">Logo dello Studio</Label>
+                            <div className="mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 p-6 text-center gap-3 hover:border-[#6b7f6b]/40 transition-colors">
+                              {studioSettings.logo ? (
+                                <>
+                                  <img
+                                    src={studioSettings.logo}
+                                    alt="Logo dello studio"
+                                    className="h-24 w-auto object-contain rounded-lg shadow-sm"
+                                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                                  />
+                                  <p className="text-xs text-stone-400">Logo attuale</p>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-stone-200">
+                                    <Camera className="h-6 w-6 text-stone-400" />
+                                  </div>
+                                  <p className="text-sm text-stone-500">Nessun logo caricato</p>
+                                  <p className="text-xs text-stone-400">PNG, JPG o SVG consigliati</p>
+                                </>
+                              )}
+                              <Label
+                                htmlFor="logo-upload"
+                                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[#6b7f6b] text-[#6b7f6b] text-sm font-medium hover:bg-[#6b7f6b] hover:text-white transition-colors"
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                {studioSettings.logo ? "Cambia logo" : "Carica logo"}
+                              </Label>
+                              <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                            <div className="space-y-4">
-                              <Label>Social Media</Label>
+                      {/* ── SEZIONE 2: Recapiti ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
+                            <Phone className="h-3.5 w-3.5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Recapiti</h3>
+                            <p className="text-xs text-stone-400">Come ti contattano i clienti</p>
+                          </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-email" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Email</Label>
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                              <Input
+                                id="studio-email"
+                                value={studioSettings.email}
+                                onChange={(e) => handleSettingsChange("email", e.target.value)}
+                                placeholder="studio@email.com"
+                                className="pl-9 border-stone-200 focus:border-blue-400 focus:ring-blue-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-phone" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Telefono</Label>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                              <Input
+                                id="studio-phone"
+                                value={studioSettings.phone}
+                                onChange={(e) => handleSettingsChange("phone", e.target.value)}
+                                placeholder="+39 081 000 0000"
+                                className="pl-9 border-stone-200 focus:border-blue-400 focus:ring-blue-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-whatsapp" className="text-xs font-medium text-stone-600 uppercase tracking-wide">WhatsApp</Label>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-green-500" />
+                              <Input
+                                id="studio-whatsapp"
+                                value={studioSettings.whatsapp || ""}
+                                onChange={(e) => handleSettingsChange("whatsapp", e.target.value)}
+                                placeholder="+39 340 000 0000"
+                                className="pl-9 border-stone-200 focus:border-green-400 focus:ring-green-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <Label htmlFor="studio-address" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Indirizzo</Label>
+                            <div className="relative">
+                              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                              <Input
+                                id="studio-address"
+                                value={studioSettings.address}
+                                onChange={(e) => handleSettingsChange("address", e.target.value)}
+                                placeholder="Via Roma 1, 81031 Aversa (CE)"
+                                className="pl-9 border-stone-200 focus:border-blue-400 focus:ring-blue-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-website" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Sito Web</Label>
+                            <div className="relative">
+                              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                              <Input
+                                id="studio-website"
+                                value={studioSettings.websiteUrl}
+                                onChange={(e) => handleSettingsChange("websiteUrl", e.target.value)}
+                                placeholder="https://www.tuostudio.it"
+                                type="url"
+                                className="pl-9 border-stone-200 focus:border-blue-400 focus:ring-blue-100"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor="social-instagram">
-                                  Instagram (solo username)
-                                </Label>
+                      {/* ── SEZIONE 3: Dati Fiscali ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50">
+                            <CreditCard className="h-3.5 w-3.5 text-amber-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Dati Fiscali</h3>
+                            <p className="text-xs text-stone-400">Utilizzati nelle ricevute e nei documenti ufficiali</p>
+                          </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-partita-iva" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Partita IVA</Label>
+                            <Input
+                              id="studio-partita-iva"
+                              value={studioSettings.partitaIVA || ""}
+                              onChange={(e) => handleSettingsChange("partitaIVA", e.target.value)}
+                              placeholder="IT12345678901"
+                              className="font-mono border-stone-200 focus:border-amber-400 focus:ring-amber-100"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-codice-fiscale" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Codice Fiscale</Label>
+                            <Input
+                              id="studio-codice-fiscale"
+                              value={studioSettings.codiceFiscale || ""}
+                              onChange={(e) => handleSettingsChange("codiceFiscale", e.target.value)}
+                              placeholder="RSSMRA80A01H501Z"
+                              className="font-mono border-stone-200 focus:border-amber-400 focus:ring-amber-100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── SEZIONE 4: Social & Recensioni ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-50">
+                            <Share2 className="h-3.5 w-3.5 text-purple-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Social &amp; Recensioni</h3>
+                            <p className="text-xs text-stone-400">Profili social e link recensione Google per email automatiche</p>
+                          </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="social-instagram" className="text-xs font-medium text-stone-600 uppercase tracking-wide flex items-center gap-1.5">
+                              <Instagram className="h-3 w-3" /> Instagram
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">@</span>
+                              <Input
+                                id="social-instagram"
+                                value={studioSettings.socialLinks.instagram || ""}
+                                onChange={(e) => handleSettingsChange("socialLinks", e.target.value, "instagram")}
+                                placeholder="username"
+                                className="pl-7 border-stone-200 focus:border-purple-400 focus:ring-purple-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="social-facebook" className="text-xs font-medium text-stone-600 uppercase tracking-wide flex items-center gap-1.5">
+                              <Facebook className="h-3 w-3" /> Facebook
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">@</span>
+                              <Input
+                                id="social-facebook"
+                                value={studioSettings.socialLinks.facebook || ""}
+                                onChange={(e) => handleSettingsChange("socialLinks", e.target.value, "facebook")}
+                                placeholder="username o ID pagina"
+                                className="pl-7 border-stone-200 focus:border-purple-400 focus:ring-purple-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                            <Label htmlFor="studio-review-url" className="text-xs font-medium text-stone-600 uppercase tracking-wide flex items-center gap-1.5">
+                              <Star className="h-3 w-3 text-yellow-500" /> Recensione Google
+                            </Label>
+                            <Input
+                              id="studio-review-url"
+                              value={studioSettings.googleReviewUrl || ""}
+                              onChange={(e) => handleSettingsChange("googleReviewUrl", e.target.value)}
+                              placeholder="https://g.page/r/..."
+                              type="url"
+                              className="border-stone-200 focus:border-yellow-400 focus:ring-yellow-100"
+                            />
+                            <p className="text-[11px] text-stone-400 leading-snug">
+                              Inviato automaticamente al cliente quando il job passa a "Consegnato"
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── SEZIONE 5: Campagna Recensioni (condizionale) ── */}
+                      {studioSettings.googleReviewUrl && (
+                        <div className="rounded-xl border border-yellow-200 bg-yellow-50/40 shadow-sm overflow-hidden">
+                          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-yellow-200">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100">
+                              <Star className="h-3.5 w-3.5 text-yellow-600" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-stone-700">Campagna Recensioni</h3>
+                              <p className="text-xs text-stone-400">Invia email di richiesta recensione a tutti i clienti con job consegnato</p>
+                            </div>
+                          </div>
+                          <div className="p-5">
+                            <ReviewEmailManager />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── SEZIONE 6: Testi Homepage ── */}
+                      <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-5 py-3.5 bg-stone-50 border-b border-stone-200">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#c4724a]/10">
+                            <Monitor className="h-3.5 w-3.5 text-[#c4724a]" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-stone-700">Testi Homepage</h3>
+                            <p className="text-xs text-stone-400">Personalizza i testi della sezione hero e del pulsante WhatsApp</p>
+                          </div>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Hero */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="h-px flex-1 bg-stone-100" />
+                              <span className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">Sezione Hero</span>
+                              <div className="h-px flex-1 bg-stone-100" />
+                            </div>
+                            <div className="space-y-3">
+                              <div className="space-y-1.5">
+                                <Label htmlFor="hero-title" className="text-xs font-medium text-stone-600">Titolo principale</Label>
                                 <Input
-                                  id="social-instagram"
-                                  value={
-                                    studioSettings.socialLinks.instagram || ""
-                                  }
-                                  onChange={(e) =>
-                                    handleSettingsChange(
-                                      "socialLinks",
-                                      e.target.value,
-                                      "instagram",
-                                    )
-                                  }
-                                  placeholder="username (senza @)"
+                                  id="hero-title"
+                                  value={studioSettings.heroTitle || ""}
+                                  onChange={(e) => handleSettingsChange("heroTitle", e.target.value)}
+                                  placeholder="Fotografo di matrimoni ad Aversa"
+                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
                                 />
                               </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor="social-facebook">
-                                  Facebook (solo username)
-                                </Label>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="hero-subtitle" className="text-xs font-medium text-stone-600">Sottotitolo</Label>
                                 <Input
-                                  id="social-facebook"
-                                  value={
-                                    studioSettings.socialLinks.facebook || ""
-                                  }
-                                  onChange={(e) =>
-                                    handleSettingsChange(
-                                      "socialLinks",
-                                      e.target.value,
-                                      "facebook",
-                                    )
-                                  }
-                                  placeholder="username o ID pagina"
+                                  id="hero-subtitle"
+                                  value={studioSettings.heroSubtitle || ""}
+                                  onChange={(e) => handleSettingsChange("heroSubtitle", e.target.value)}
+                                  placeholder="Raccontiamo la tua storia con emozione"
+                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="hero-button" className="text-xs font-medium text-stone-600">Testo pulsante</Label>
+                                <Input
+                                  id="hero-button"
+                                  value={studioSettings.heroButtonText || ""}
+                                  onChange={(e) => handleSettingsChange("heroButtonText", e.target.value)}
+                                  placeholder="Prenota il tuo shooting"
+                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
                                 />
                               </div>
                             </div>
                           </div>
-                        </div>
-
-                        <div className="border-t pt-6 mt-6">
-                          <h3 className="text-lg font-medium mb-4">
-                            Testi personalizzabili
-                          </h3>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <h4 className="font-medium mb-3">Sezione Hero</h4>
-                              <div className="space-y-3">
-                                <div className="space-y-2">
-                                  <Label htmlFor="hero-title">
-                                    Titolo principale
-                                  </Label>
-                                  <Input
-                                    id="hero-title"
-                                    value={studioSettings.heroTitle || ""}
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "heroTitle",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Titolo principale della pagina"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="hero-subtitle">
-                                    Sottotitolo
-                                  </Label>
-                                  <Input
-                                    id="hero-subtitle"
-                                    value={studioSettings.heroSubtitle || ""}
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "heroSubtitle",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Sottotitolo della pagina"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="hero-button">
-                                    Testo pulsante
-                                  </Label>
-                                  <Input
-                                    id="hero-button"
-                                    value={studioSettings.heroButtonText || ""}
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "heroButtonText",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Testo del pulsante principale"
-                                  />
-                                </div>
-                              </div>
+                          {/* WhatsApp */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="h-px flex-1 bg-stone-100" />
+                              <span className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">Sezione WhatsApp</span>
+                              <div className="h-px flex-1 bg-stone-100" />
                             </div>
-
-                            <div>
-                              <h4 className="font-medium mb-3">
-                                Sezione WhatsApp
-                              </h4>
-                              <div className="space-y-3">
-                                <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-title">Titolo</Label>
-                                  <Input
-                                    id="whatsapp-title"
-                                    value={studioSettings.whatsappTitle || ""}
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "whatsappTitle",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Titolo sezione WhatsApp"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-subtitle">
-                                    Sottotitolo
-                                  </Label>
-                                  <Input
-                                    id="whatsapp-subtitle"
-                                    value={
-                                      studioSettings.whatsappSubtitle || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "whatsappSubtitle",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Sottotitolo sezione WhatsApp"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-text">
-                                    Testo descrittivo
-                                  </Label>
-                                  <Textarea
-                                    id="whatsapp-text"
-                                    value={studioSettings.whatsappText || ""}
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "whatsappText",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Testo descrittivo della sezione"
-                                    rows={2}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label htmlFor="whatsapp-button">
-                                    Testo pulsante
-                                  </Label>
-                                  <Input
-                                    id="whatsapp-button"
-                                    value={
-                                      studioSettings.whatsappButtonText || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleSettingsChange(
-                                        "whatsappButtonText",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Testo del pulsante WhatsApp"
-                                  />
-                                </div>
+                            <div className="space-y-3">
+                              <div className="space-y-1.5">
+                                <Label htmlFor="whatsapp-title" className="text-xs font-medium text-stone-600">Titolo</Label>
+                                <Input
+                                  id="whatsapp-title"
+                                  value={studioSettings.whatsappTitle || ""}
+                                  onChange={(e) => handleSettingsChange("whatsappTitle", e.target.value)}
+                                  placeholder="Contattaci su WhatsApp"
+                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="whatsapp-subtitle" className="text-xs font-medium text-stone-600">Sottotitolo</Label>
+                                <Input
+                                  id="whatsapp-subtitle"
+                                  value={studioSettings.whatsappSubtitle || ""}
+                                  onChange={(e) => handleSettingsChange("whatsappSubtitle", e.target.value)}
+                                  placeholder="Rispondiamo in pochi minuti"
+                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="whatsapp-text" className="text-xs font-medium text-stone-600">Testo descrittivo</Label>
+                                <Textarea
+                                  id="whatsapp-text"
+                                  value={studioSettings.whatsappText || ""}
+                                  onChange={(e) => handleSettingsChange("whatsappText", e.target.value)}
+                                  placeholder="Scrivici per info, disponibilità e preventivi..."
+                                  rows={2}
+                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100 resize-none"
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="whatsapp-button" className="text-xs font-medium text-stone-600">Testo pulsante</Label>
+                                <Input
+                                  id="whatsapp-button"
+                                  value={studioSettings.whatsappButtonText || ""}
+                                  onChange={(e) => handleSettingsChange("whatsappButtonText", e.target.value)}
+                                  placeholder="Scrivici su WhatsApp"
+                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
+                                />
                               </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
+
+                      {/* ── Footer CTA ── */}
+                      <div className="flex justify-end pt-2 pb-4">
+                        <Button
+                          onClick={saveStudioSettings}
+                          size="lg"
+                          className="bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white shadow-sm gap-2 px-8"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Salva tutte le modifiche
+                        </Button>
+                      </div>
+
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="slideshow">
