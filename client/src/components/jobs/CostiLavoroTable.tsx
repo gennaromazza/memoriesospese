@@ -18,6 +18,15 @@ interface CostiLavoroTableProps {
   isAdmin?: boolean;
 }
 
+function safeToDate(val: any): Date {
+  if (!val) return new Date();
+  if (typeof val.toDate === 'function') return val.toDate();
+  if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+  if (val._seconds !== undefined) return new Date(val._seconds * 1000);
+  if (val instanceof Date) return val;
+  return new Date();
+}
+
 const TIPO_COSTO_OPTIONS = [
   { value: 'materiale', label: 'Materiale' },
   { value: 'fornitore', label: 'Fornitore' },
@@ -120,7 +129,7 @@ export default function CostiLavoroTable({
                     </TableCell>
                     <TableCell className="font-mono">€{costo.importo.toFixed(2)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {format(costo.data.toDate(), 'dd/MM/yyyy', { locale: it })}
+                      {format(safeToDate(costo.data), 'dd/MM/yyyy', { locale: it })}
                     </TableCell>
                     {isAdmin && (
                       <TableCell>
