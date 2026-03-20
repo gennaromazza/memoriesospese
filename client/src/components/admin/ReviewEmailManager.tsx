@@ -2,7 +2,7 @@
  * REVIEW EMAIL MANAGER
  * Gestione campagna email recensioni Google:
  * - Invio bulk a tutti i job consegnati
- * - Log di tutte le email inviate
+ * - Log di tutte le email inviate in modale
  * - Tracking click (indica recensione probabilmente lasciata)
  * - Dedup: no reinvio se cliccato o < 30 giorni
  */
@@ -22,6 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Send,
@@ -32,8 +38,7 @@ import {
   CheckCircle2,
   XCircle,
   SkipForward,
-  ChevronDown,
-  ChevronUp,
+  List,
 } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -93,21 +98,15 @@ function getStatusBadge(log: ReviewLog) {
   );
 }
 
-function getSourceLabel(source: string) {
-  if (source === "bulk") return "Invio massivo";
-  if (source === "manual") return "Manuale";
-  return "Automatica";
-}
-
 export default function ReviewEmailManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [lastBulkResult, setLastBulkResult] = useState<BulkResult | null>(null);
-  const [logExpanded, setLogExpanded] = useState(true);
+  const [logModalOpen, setLogModalOpen] = useState(false);
 
-  const { data: logData, isLoading: logLoading, refetch } = useQuery<{ logs: ReviewLog[] }>({
+  const { data: logData, isLoading: logLoading } = useQuery<{ logs: ReviewLog[] }>({
     queryKey: ["/api/email/review-request-log"],
     queryFn: async () => {
       const token = await auth.currentUser?.getIdToken();
@@ -158,7 +157,6 @@ export default function ReviewEmailManager() {
   const pendingCount = logs.filter(
     (l) => !l.clicked && l.lastSentAt && differenceInDays(new Date(), new Date(l.lastSentAt)) >= RESEND_DAYS
   ).length;
-
   const clickedCount = logs.filter((l) => l.clicked).length;
   const recentCount = logs.filter(
     (l) => !l.clicked && l.lastSentAt && differenceInDays(new Date(), new Date(l.lastSentAt)) < RESEND_DAYS
@@ -166,7 +164,7 @@ export default function ReviewEmailManager() {
 
   return (
     <div className="space-y-5 mt-6 pt-5 border-t border-gray-200">
-      {/* Header + Stats */}
+      {/* Header + CTA */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -192,29 +190,38 @@ export default function ReviewEmailManager() {
         </Button>
       </div>
 
-      {/* Stats chips */}
-      {logs.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">
-            <Send className="h-3 w-3" />
-            {logs.length} email totali
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
-            <MousePointerClick className="h-3 w-3" />
-            {clickedCount} link cliccati
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
-            <Clock className="h-3 w-3" />
-            {recentCount} inviate di recente
-          </span>
-          {pendingCount > 0 && (
-            <span className="inline-flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
-              <RefreshCw className="h-3 w-3" />
-              {pendingCount} pronte per reinvio
+      {/* Stats chips + bottone storico */}
+      <div className="flex flex-wrap items-center gap-2">
+        {logs.length > 0 && (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">
+              <Send className="h-3 w-3" />
+              {logs.length} email totali
             </span>
-          )}
-        </div>
-      )}
+            <span className="inline-flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full">
+              <MousePointerClick className="h-3 w-3" />
+              {clickedCount} link cliccati
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
+              <Clock className="h-3 w-3" />
+              {recentCount} inviate di recente
+            </span>
+            {pendingCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">
+                <RefreshCw className="h-3 w-3" />
+                {pendingCount} pronte per reinvio
+              </span>
+            )}
+          </>
+        )}
+        <button
+          onClick={() => setLogModalOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-[#6b7f6b] hover:text-[#4a5e4a] font-medium underline underline-offset-2 transition-colors ml-auto"
+        >
+          <List className="h-3.5 w-3.5" />
+          Storico email inviate ({logs.length})
+        </button>
+      </div>
 
       {/* Ultimo risultato bulk */}
       {lastBulkResult && (
@@ -249,38 +256,57 @@ export default function ReviewEmailManager() {
         </div>
       )}
 
-      {/* Log table */}
-      <div>
-        <button
-          onClick={() => setLogExpanded(!logExpanded)}
-          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-        >
-          {logExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          Storico email inviate ({logs.length})
-        </button>
+      {/* ── Modale storico ── */}
+      <Dialog open={logModalOpen} onOpenChange={setLogModalOpen}>
+        <DialogContent className="max-w-3xl w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Star className="h-4 w-4 text-amber-500" />
+              Storico email recensioni ({logs.length})
+            </DialogTitle>
+          </DialogHeader>
 
-        {logExpanded && (
-          <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+          {/* Stats riepilogo dentro il modale */}
+          {logs.length > 0 && (
+            <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
+              <span className="inline-flex items-center gap-1.5 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                <MousePointerClick className="h-3 w-3" />
+                {clickedCount} cliccati
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                <Clock className="h-3 w-3" />
+                {recentCount} recenti
+              </span>
+              {pendingCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                  <RefreshCw className="h-3 w-3" />
+                  {pendingCount} da reinviare
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="overflow-y-auto max-h-[60vh]">
             {logLoading ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2" />
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
                 Caricamento...
               </div>
             ) : logs.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
+              <div className="py-12 text-center text-sm text-muted-foreground">
                 Nessuna email di recensione inviata ancora.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead>
+                  <thead className="sticky top-0 z-10">
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Cliente</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Email</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Primo invio</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Ultimo invio</th>
-                      <th className="px-3 py-2 text-center font-medium text-gray-500">N.</th>
-                      <th className="px-3 py-2 text-left font-medium text-gray-500">Stato</th>
+                      <th className="px-3 py-2.5 text-left font-medium text-gray-500">Cliente</th>
+                      <th className="px-3 py-2.5 text-left font-medium text-gray-500">Email</th>
+                      <th className="px-3 py-2.5 text-left font-medium text-gray-500">Primo invio</th>
+                      <th className="px-3 py-2.5 text-left font-medium text-gray-500">Ultimo invio</th>
+                      <th className="px-3 py-2.5 text-center font-medium text-gray-500">N.</th>
+                      <th className="px-3 py-2.5 text-left font-medium text-gray-500">Stato</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -288,29 +314,33 @@ export default function ReviewEmailManager() {
                       <tr
                         key={log.id}
                         className={`border-b border-gray-100 last:border-0 ${
-                          log.clicked ? "bg-green-50/40" : ""
-                        } ${idx % 2 === 0 && !log.clicked ? "bg-white" : !log.clicked ? "bg-gray-50/50" : ""}`}
+                          log.clicked
+                            ? "bg-green-50/40"
+                            : idx % 2 === 0
+                            ? "bg-white"
+                            : "bg-gray-50/50"
+                        }`}
                       >
-                        <td className="px-3 py-2 font-medium text-gray-700">
+                        <td className="px-3 py-2.5 font-medium text-gray-700">
                           {log.clienteName || "—"}
                         </td>
-                        <td className="px-3 py-2 text-gray-500">{log.recipientEmail}</td>
-                        <td className="px-3 py-2 text-gray-500">
+                        <td className="px-3 py-2.5 text-gray-500">{log.recipientEmail}</td>
+                        <td className="px-3 py-2.5 text-gray-500">
                           {log.firstSentAt
                             ? format(new Date(log.firstSentAt), "dd/MM/yyyy", { locale: it })
                             : "—"}
                         </td>
-                        <td className="px-3 py-2 text-gray-500">
+                        <td className="px-3 py-2.5 text-gray-500">
                           {log.lastSentAt
                             ? `${format(new Date(log.lastSentAt), "dd/MM/yyyy", { locale: it })} (${formatDistanceToNow(new Date(log.lastSentAt), { locale: it, addSuffix: true })})`
                             : "—"}
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2.5 text-center">
                           <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-200 text-gray-600 font-semibold text-xs">
                             {log.sentCount}
                           </span>
                         </td>
-                        <td className="px-3 py-2">{getStatusBadge(log)}</td>
+                        <td className="px-3 py-2.5">{getStatusBadge(log)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -318,8 +348,8 @@ export default function ReviewEmailManager() {
               </div>
             )}
           </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
