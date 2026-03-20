@@ -18,6 +18,7 @@ export interface StudioSettings {
   };
   about: string;
   logo?: string;
+  whatsapp?: string;
   // Testi personalizzabili della Hero Section
   heroTitle: string;
   heroSubtitle: string;
@@ -45,9 +46,10 @@ const defaultSettings: StudioSettings = {
   },
   about: '',
   logo: '',
+  whatsapp: '',
   // Valori predefiniti per i testi della Hero Section
-  heroTitle: 'I momenti più belli del loro giorno speciale',
-  heroSubtitle: 'Rivivi le emozioni condivise al matrimonio attraverso immagini professionali, facilmente accessibili con la password ricevuta dagli sposi.',
+  heroTitle: 'Catturiamo i momenti più preziosi',
+  heroSubtitle: 'Ogni scatto racconta una storia unica',
   heroButtonText: 'Trova la tua galleria',
   // Valori predefiniti per i testi della sezione WhatsApp
   whatsappTitle: 'Contattaci su WhatsApp',

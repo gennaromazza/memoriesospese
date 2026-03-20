@@ -580,7 +580,7 @@ export default function AdminDashboard() {
     // Valori predefiniti per i testi personalizzabili
     heroTitle: "Catturiamo i momenti più preziosi",
     heroSubtitle: "Ogni scatto racconta una storia unica",
-    heroButtonText: "Trova la tua galleria",
+    heroButtonText: "Prenota il tuo shooting",
     // Valori predefiniti per la sezione WhatsApp
     whatsappTitle: "Contattaci su WhatsApp",
     whatsappSubtitle: "Siamo qui per te",
@@ -3437,6 +3437,21 @@ export default function AdminDashboard() {
                                 onChange={(e) => handleSettingsChange("socialLinks", e.target.value, "facebook")}
                                 placeholder="username o ID pagina"
                                 className="pl-7 border-stone-200 focus:border-purple-400 focus:ring-purple-100"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="social-twitter" className="text-xs font-medium text-stone-600 uppercase tracking-wide flex items-center gap-1.5">
+                              <span className="font-bold text-xs">𝕏</span> Twitter / X
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">@</span>
+                              <Input
+                                id="social-twitter"
+                                value={studioSettings.socialLinks.twitter || ""}
+                                onChange={(e) => handleSettingsChange("socialLinks", e.target.value, "twitter")}
+                                placeholder="username"
+                                className="pl-7 border-stone-200 focus:border-sky-400 focus:ring-sky-100"
                               />
                             </div>
                           </div>

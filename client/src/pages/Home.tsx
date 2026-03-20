@@ -1398,8 +1398,8 @@ export default function Home() {
 
               <a
                 href={
-                  studioSettings.phone
-                    ? `https://wa.me/${formatPhoneForWhatsApp(studioSettings.phone)}`
+                  (studioSettings.whatsapp || studioSettings.phone)
+                    ? `https://wa.me/${formatPhoneForWhatsApp(studioSettings.whatsapp || studioSettings.phone)}`
                     : "https://wa.me/393491234567"
                 }
                 target="_blank"
