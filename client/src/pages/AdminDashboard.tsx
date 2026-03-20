@@ -346,6 +346,7 @@ interface StudioSettings {
   partitaIVA?: string;
   codiceFiscale?: string;
   whatsapp?: string;
+  googleReviewUrl?: string;
 }
 
 export default function AdminDashboard() {
@@ -425,7 +426,8 @@ export default function AdminDashboard() {
     whatsappSubtitle: 'Siamo qui per te',
     whatsappText: 'Hai domande sulle nostre gallerie o vuoi prenotare un servizio? Scrivici su WhatsApp!',
     whatsappButtonText: 'Scrivici su WhatsApp',
-    whatsapp: ''
+    whatsapp: '',
+    googleReviewUrl: '',
   });
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -2566,6 +2568,20 @@ export default function AdminDashboard() {
                                 placeholder="URL del sito web"
                                 type="url"
                               />
+                            </div>
+
+                            <div className="space-y-2 col-span-2">
+                              <Label htmlFor="studio-review-url">Link Recensione Google</Label>
+                              <Input
+                                id="studio-review-url"
+                                value={studioSettings.googleReviewUrl || ''}
+                                onChange={(e) => handleSettingsChange('googleReviewUrl', e.target.value)}
+                                placeholder="https://g.page/r/..."
+                                type="url"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Inserisci il link diretto alla pagina recensioni Google del tuo studio. Quando un job o una prenotazione passa a "Consegnato", il cliente riceve automaticamente un'email con questo link.
+                              </p>
                             </div>
                           </div>
 

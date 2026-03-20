@@ -736,6 +736,15 @@ async function sendWorkflowStateEmail(
       case 'consegnato':
         endpoint = '/api/email/order-delivered';
         payload.prodottoNome = dati.prodottoNome || 'Il tuo ordine';
+        // Invia anche l'email di richiesta recensione (fire-and-forget, non blocca)
+        fetch('/api/email/review-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientEmail: dati.clienteEmail,
+            clienteName: dati.clienteNome,
+          }),
+        }).catch((err) => console.warn('⚠️ Review request email non inviata:', err));
         break;
 
       default:

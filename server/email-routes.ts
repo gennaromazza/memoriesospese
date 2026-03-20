@@ -179,6 +179,7 @@ export async function getStudioContactInfo(): Promise<{
   phone: string;
   address: string;
   whatsapp: string;
+  googleReviewUrl?: string;
 }> {
   try {
     const studioDoc = await getFirestoreDocument("settings/studio");
@@ -189,7 +190,8 @@ export async function getStudioContactInfo(): Promise<{
         email: studioDoc.fields.email?.stringValue || "image.studio.fotografico@gmail.com",
         phone: studioDoc.fields.phone?.stringValue || "+39 334 7103142",
         address: studioDoc.fields.address?.stringValue || "",
-        whatsapp: studioDoc.fields.whatsapp?.stringValue || "+39 327 4656179"
+        whatsapp: studioDoc.fields.whatsapp?.stringValue || "+39 327 4656179",
+        googleReviewUrl: studioDoc.fields.googleReviewUrl?.stringValue || undefined,
       };
     }
   } catch (error) {
@@ -202,7 +204,7 @@ export async function getStudioContactInfo(): Promise<{
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: "",
-    whatsapp: "+39 327 4656179"
+    whatsapp: "+39 327 4656179",
   };
 }
 
@@ -3109,6 +3111,142 @@ router.post("/order-delivered", async (req, res) => {
     res.status(500).json({
       error: "Errore invio email ordine consegnato"
     });
+  }
+});
+
+/**
+ * Template HTML per email richiesta recensione Google
+ */
+function createReviewRequestEmailHTML(
+  clienteName: string,
+  reviewUrl: string,
+  studioInfo: { name: string; email: string; phone: string; whatsapp?: string }
+): string {
+  const studioName = studioInfo.name || "Image Studio Fotografico";
+  const studioPhone = studioInfo.phone || "";
+  const studioEmail = studioInfo.email || "";
+
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>La tua opinione conta</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f0e8;font-family:Georgia,'Times New Roman',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f0e8;padding:36px 0;">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.09);max-width:100%;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#3d4f3d;padding:32px 40px;text-align:center;">
+            <p style="margin:0 0 4px;color:#a8bfa8;font-size:12px;letter-spacing:3px;text-transform:uppercase;font-family:Arial,sans-serif;">FOTOGRAFIA PROFESSIONALE</p>
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:normal;letter-spacing:1px;">${studioName}</h1>
+          </td>
+        </tr>
+
+        <!-- Decorative stripe -->
+        <tr>
+          <td style="background:#c4724a;height:4px;"></td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:44px 48px 36px;text-align:center;">
+
+            <!-- Stars (caratteri Unicode, non emoji) -->
+            <div style="margin-bottom:24px;">
+              <span style="font-size:36px;color:#c4724a;letter-spacing:6px;">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+            </div>
+
+            <h2 style="margin:0 0 16px;color:#3d4f3d;font-size:24px;font-weight:normal;line-height:1.3;">
+              Caro/a ${clienteName},
+            </h2>
+
+            <p style="margin:0 0 20px;color:#5a5a5a;font-size:15px;line-height:1.7;font-family:Arial,sans-serif;">
+              E' stato un onore documentare il tuo momento speciale.<br/>
+              Se sei rimasto soddisfatto del servizio, ci farebbe davvero piacere leggere la tua esperienza: bastano pochi secondi e per noi significa moltissimo.
+            </p>
+
+            <p style="margin:0 0 32px;color:#7a7a7a;font-size:14px;line-height:1.6;font-family:Arial,sans-serif;">
+              La tua recensione aiuta altre famiglie e coppie a scegliere con fiducia il proprio fotografo.
+            </p>
+
+            <!-- CTA Button -->
+            <a href="${reviewUrl}"
+               target="_blank"
+               style="display:inline-block;background:#c4724a;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:8px;font-size:15px;font-weight:bold;font-family:Arial,sans-serif;letter-spacing:0.5px;box-shadow:0 3px 10px rgba(196,114,74,0.35);">
+              Lascia la tua recensione
+            </a>
+
+            <p style="margin:28px 0 0;color:#aaa;font-size:12px;font-family:Arial,sans-serif;">
+              Il link apre direttamente Google Maps dove potrai lasciare la tua valutazione.
+            </p>
+
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr>
+          <td style="padding:0 48px;">
+            <div style="border-top:1px solid #e8e2d9;"></div>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:24px 48px 32px;text-align:center;">
+            <p style="margin:0 0 6px;color:#3d4f3d;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">${studioName}</p>
+            ${studioPhone ? `<p style="margin:0 0 4px;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioPhone}</p>` : ''}
+            ${studioEmail ? `<p style="margin:0;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioEmail}</p>` : ''}
+            <p style="margin:12px 0 0;color:#bbb;font-size:11px;font-family:Arial,sans-serif;">
+              Questa email e' stata inviata automaticamente al termine del tuo servizio fotografico.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * POST /api/email/review-request
+ * Invia email di richiesta recensione Google al cliente (trigger automatico su CONSEGNATO)
+ */
+router.post("/review-request", async (req, res) => {
+  try {
+    const { recipientEmail, clienteName } = req.body;
+
+    if (!recipientEmail || !clienteName) {
+      return res.status(400).json({ error: "Parametri mancanti: recipientEmail e clienteName obbligatori" });
+    }
+
+    const studioInfo = await getStudioContactInfo();
+    const reviewUrl = studioInfo.googleReviewUrl;
+
+    if (!reviewUrl) {
+      console.warn("⚠️ review-request: googleReviewUrl non configurato in settings/studio — email non inviata");
+      return res.status(200).json({
+        success: false,
+        skipped: true,
+        message: "URL recensione non configurato nelle impostazioni studio",
+      });
+    }
+
+    const htmlContent = createReviewRequestEmailHTML(clienteName, reviewUrl, studioInfo);
+    const subject = `La tua opinione conta per noi - ${studioInfo.name}`;
+
+    await sendGmailEmail([recipientEmail], subject, htmlContent);
+    console.log(`✅ Email recensione inviata a ${recipientEmail} per cliente ${clienteName}`);
+
+    return res.status(200).json({ success: true, recipientEmail });
+  } catch (error) {
+    console.error("❌ Errore review-request email:", error);
+    return res.status(500).json({ error: "Errore invio email recensione" });
   }
 });
 
