@@ -374,7 +374,7 @@ export async function updateJobStatus(
               fetch('/api/email/review-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ recipientEmail: clienteEmail, clienteName: clienteNome }),
+                body: JSON.stringify({ recipientEmail: clienteEmail, clienteName: clienteNome, jobId }),
               }).catch((err) => console.warn('⚠️ Review request email non inviata:', err));
             }
           }

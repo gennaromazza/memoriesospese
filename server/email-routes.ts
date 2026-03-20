@@ -7,7 +7,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { google } from "googleapis";
 import { db } from './firebase-admin.js';
 import { DateTime } from 'luxon';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { nowRomeDate } from './utils/timezone.js';
@@ -3361,7 +3361,7 @@ router.get("/review-track", async (req: Request, res: Response) => {
  */
 router.post("/review-request", async (req: Request, res: Response) => {
   try {
-    const { recipientEmail, clienteName } = req.body;
+    const { recipientEmail, clienteName, jobId } = req.body;
 
     if (!recipientEmail || !clienteName) {
       return res.status(400).json({ error: "Parametri mancanti: recipientEmail e clienteName obbligatori" });
@@ -3386,6 +3386,22 @@ router.post("/review-request", async (req: Request, res: Response) => {
     }
 
     await sendAndLogReviewEmail(recipientEmail, clienteName, 'auto', req, existingLog);
+
+    // Aggiunge evento timeline al job (non bloccante)
+    if (jobId) {
+      const timelineEvent = {
+        id: `review_${Date.now()}`,
+        jobId,
+        tipo: 'email_recensione_inviata',
+        descrizione: `Email richiesta recensione Google inviata a ${recipientEmail}`,
+        data: Timestamp.now(),
+        metadata: { recipientEmail, clienteName },
+      };
+      db.collection('jobs').doc(jobId).update({
+        workflowEvents: FieldValue.arrayUnion(timelineEvent),
+      }).catch((err: any) => console.warn('⚠️ Timeline event recensione non salvato:', err));
+    }
+
     return res.status(200).json({ success: true, recipientEmail });
   } catch (error) {
     console.error("❌ Errore review-request email:", error);

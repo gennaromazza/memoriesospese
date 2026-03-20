@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -1219,8 +1219,10 @@ export default function JobDetailPage() {
                         eventDate = new Date();
                       }
                       const tipoEvento = event.tipo as string;
-                      const Icon = tipoEvento === 'consulenza_inviata' || tipoEvento === 'quote_sent' || tipoEvento === 'preventivo_inviato'
-                        ? Send 
+                      const Icon = tipoEvento === 'email_recensione_inviata'
+                        ? Star
+                        : tipoEvento === 'consulenza_inviata' || tipoEvento === 'quote_sent' || tipoEvento === 'preventivo_inviato'
+                        ? Send
                         : tipoEvento === 'appuntamento_creato' || tipoEvento === 'calendar_event'
                         ? CalendarIcon
                         : CheckCircle;
@@ -1228,7 +1230,7 @@ export default function JobDetailPage() {
                       return (
                         <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex-shrink-0 mt-0.5">
-                            <Icon className="h-4 w-4 text-primary" />
+                            <Icon className={`h-4 w-4 ${tipoEvento === 'email_recensione_inviata' ? 'text-yellow-500' : 'text-primary'}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground">

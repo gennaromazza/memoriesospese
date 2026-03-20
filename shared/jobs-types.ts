@@ -224,8 +224,9 @@ export interface JobTimelineEvent {
     | 'galleria_creata'
     | 'pdf_caricato'
     | 'nota_aggiunta'
-    | 'consulenza_inviata'      // Richiesta consulenza visione file inviata
-    | 'appuntamento_creato';     // Appuntamento calendario creato
+    | 'consulenza_inviata'          // Richiesta consulenza visione file inviata
+    | 'appuntamento_creato'        // Appuntamento calendario creato
+    | 'email_recensione_inviata';  // Email richiesta recensione Google inviata
   descrizione: string;
   data: Timestamp;
   userId?: string;              // UID admin che ha eseguito l'azione
