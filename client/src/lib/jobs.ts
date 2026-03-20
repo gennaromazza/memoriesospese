@@ -359,7 +359,31 @@ export async function updateJobStatus(
     });
     
     console.log('✅ Status aggiornato:', jobId, newStatus);
-    
+
+    // Email richiesta recensione Google (fire-and-forget, non bloccante)
+    if (newStatus === 'consegnato' && currentJob && currentJob.status !== 'consegnato') {
+      try {
+        const clienteId = (currentJob.clientiIds && currentJob.clientiIds[0]) || currentJob.clienteId;
+        if (clienteId) {
+          const clienteSnap = await getDoc(doc(db, 'clienti', clienteId));
+          if (clienteSnap.exists()) {
+            const clienteData = clienteSnap.data();
+            const clienteEmail = clienteData.email;
+            const clienteNome = `${clienteData.nome || ''} ${clienteData.cognome || ''}`.trim();
+            if (clienteEmail) {
+              fetch('/api/email/review-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recipientEmail: clienteEmail, clienteName: clienteNome }),
+              }).catch((err) => console.warn('⚠️ Review request email non inviata:', err));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Lookup cliente per review request fallito (non bloccante):', err);
+      }
+    }
+
     // Sincronizzazione Google Calendar in base allo status
     // - Stati attivi: crea/aggiorna evento (titolo, colore, descrizione)
     // - Annullato: elimina evento Calendar
