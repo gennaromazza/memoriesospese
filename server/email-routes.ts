@@ -3480,6 +3480,38 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/email/review-status  [RICHIEDE AUTH ADMIN]
+ * Stato email recensione per una specifica email cliente
+ */
+router.get("/review-status", async (req: Request, res: Response) => {
+  if (!(await requireAdminAuth(req, res))) return;
+  try {
+    const email = (req.query.email as string || '').toLowerCase().trim();
+    if (!email) return res.status(400).json({ error: 'email obbligatoria' });
+
+    const snap = await db.collection('reviewEmailLogs')
+      .where('recipientEmail', '==', email)
+      .limit(1)
+      .get();
+
+    if (snap.empty) return res.status(200).json({ found: false });
+
+    const data = snap.docs[0].data();
+    return res.status(200).json({
+      found: true,
+      firstSentAt: data.firstSentAt?.toDate?.()?.toISOString() ?? null,
+      lastSentAt: data.lastSentAt?.toDate?.()?.toISOString() ?? null,
+      sentCount: data.sentCount || 1,
+      clicked: data.clicked || false,
+      clickedAt: data.clickedAt?.toDate?.()?.toISOString() ?? null,
+    });
+  } catch (error) {
+    console.error("❌ Errore review-status:", error);
+    return res.status(500).json({ error: "Errore recupero stato recensione" });
+  }
+});
+
+/**
  * GET /api/email/review-request-log  [RICHIEDE AUTH ADMIN]
  * Storico email recensione inviate
  */

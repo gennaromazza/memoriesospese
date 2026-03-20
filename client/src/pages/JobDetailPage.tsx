@@ -242,6 +242,25 @@ export default function JobDetailPage() {
     .map(q => q.data as Cliente);
   const clientiLoading = clientiQueries.some(q => q.isLoading);
 
+  // Stato email recensione per il cliente principale (per badge in timeline)
+  const primoClienteEmail = clienti[0]?.email;
+  const { data: reviewStatus } = useQuery<{
+    found: boolean;
+    firstSentAt?: string | null;
+    lastSentAt?: string | null;
+    sentCount?: number;
+    clicked?: boolean;
+    clickedAt?: string | null;
+  }>({
+    queryKey: ['review-status', primoClienteEmail],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/email/review-status?email=${encodeURIComponent(primoClienteEmail!)}`);
+      return res.json();
+    },
+    enabled: !!primoClienteEmail && job?.status === 'consegnato',
+    staleTime: 60_000,
+  });
+
   const { data: jobType } = useQuery({
     queryKey: ['jobType', job?.jobType],
     queryFn: () => getJobTypeBySlug(job!.jobType),
@@ -1227,6 +1246,10 @@ export default function JobDetailPage() {
                         ? CalendarIcon
                         : CheckCircle;
 
+                      // Badge recensione: mostrato sull'evento status_change→consegnato
+                      const isConsegnatoEvent = tipoEvento === 'status_change' &&
+                        (event.descrizione || '').toLowerCase().includes('consegnato');
+
                       return (
                         <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                           <div className="flex-shrink-0 mt-0.5">
@@ -1239,6 +1262,29 @@ export default function JobDetailPage() {
                             <p className="text-xs text-muted-foreground mt-1">
                               {format(eventDate, 'dd MMMM yyyy • HH:mm', { locale: it })}
                             </p>
+                            {isConsegnatoEvent && reviewStatus?.found && (
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 text-xs bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-full px-2 py-0.5">
+                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                  Email recensione inviata
+                                  {reviewStatus.sentCount && reviewStatus.sentCount > 1
+                                    ? ` (×${reviewStatus.sentCount})`
+                                    : ''}
+                                </span>
+                                {reviewStatus.clicked && (
+                                  <span className="inline-flex items-center gap-1 text-xs bg-green-50 border border-green-200 text-green-700 rounded-full px-2 py-0.5">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Link cliccato
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {isConsegnatoEvent && reviewStatus && !reviewStatus.found && (
+                              <span className="inline-flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                                <Star className="h-3 w-3" />
+                                Email recensione non inviata
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
