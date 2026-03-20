@@ -8,6 +8,7 @@ import { google } from "googleapis";
 import { db } from './firebase-admin.js';
 import { DateTime } from 'luxon';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { nowRomeDate } from './utils/timezone.js';
 
@@ -3213,8 +3214,26 @@ function createReviewRequestEmailHTML(
 </html>`;
 }
 
+/** Helper auth admin: verifica Bearer token Firebase, ritorna 401 se non valido */
+async function requireAdminAuth(req: Request, res: Response): Promise<boolean> {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Non autenticato' });
+    return false;
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.replace('Bearer ', '').trim());
+    return true;
+  } catch {
+    res.status(401).json({ error: 'Token non valido' });
+    return false;
+  }
+}
+
+const REVIEW_RESEND_DAYS = 30;
+
 /**
- * Helper: recupera il log recensione esistente per email (ricerca per recipientEmail)
+ * Helper: recupera il log recensione esistente per email (1 lettura Firestore)
  */
 async function findReviewLog(email: string): Promise<{ id: string; data: any } | null> {
   const normalized = email.toLowerCase().trim();
@@ -3227,35 +3246,27 @@ async function findReviewLog(email: string): Promise<{ id: string; data: any } |
 }
 
 /**
- * Helper: determina se possiamo inviare la review email a questa email
- * Returns: { canSend, reason, log? }
+ * Helper PURO (no Firestore): determina l'eleggibilita' dall'esistente log gia' caricato.
+ * Elimina la necessita' di una seconda lettura Firestore.
  */
-async function checkReviewEmailEligibility(email: string): Promise<{
+function computeEligibility(existingLog: { id: string; data: any } | null): {
   canSend: boolean;
-  reason: 'ok' | 'clicked' | 'recent' | 'no_url';
+  reason: 'ok' | 'clicked' | 'recent';
   daysUntilResend?: number;
-  lastSentAt?: Date;
-  log?: any;
-}> {
-  const log = await findReviewLog(email);
-  if (!log) return { canSend: true, reason: 'ok' };
+} {
+  if (!existingLog) return { canSend: true, reason: 'ok' };
 
-  const data = log.data;
-
-  if (data.clicked === true) {
-    return { canSend: false, reason: 'clicked', log: data };
-  }
+  const data = existingLog.data;
+  if (data.clicked === true) return { canSend: false, reason: 'clicked' };
 
   const lastSentAt: Date = data.lastSentAt?.toDate ? data.lastSentAt.toDate() : new Date(data.lastSentAt);
   const daysSince = (Date.now() - lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
-  const RESEND_DAYS = 30;
 
-  if (daysSince < RESEND_DAYS) {
-    const daysUntilResend = Math.ceil(RESEND_DAYS - daysSince);
-    return { canSend: false, reason: 'recent', daysUntilResend, lastSentAt, log: data };
+  if (daysSince < REVIEW_RESEND_DAYS) {
+    return { canSend: false, reason: 'recent', daysUntilResend: Math.ceil(REVIEW_RESEND_DAYS - daysSince) };
   }
 
-  return { canSend: true, reason: 'ok', log: data };
+  return { canSend: true, reason: 'ok' };
 }
 
 /**
@@ -3266,7 +3277,7 @@ async function sendAndLogReviewEmail(
   clienteName: string,
   source: 'auto' | 'bulk' | 'manual',
   req: Request,
-  existingLog?: { id: string; data: any } | null
+  existingLog: { id: string; data: any } | null
 ): Promise<void> {
   const studioInfo = await getStudioContactInfo();
   const reviewUrl = studioInfo.googleReviewUrl;
@@ -3290,6 +3301,7 @@ async function sendAndLogReviewEmail(
       lastSentAt: now,
       sentCount: (existingLog.data.sentCount || 1) + 1,
       source,
+      clicked: false, // reset click se si rinvia dopo 30gg
     });
   } else {
     await db.collection('reviewEmailLogs').add({
@@ -3306,21 +3318,24 @@ async function sendAndLogReviewEmail(
 
 /**
  * GET /api/email/review-track
- * Endpoint pubblico (no auth) - traccia il click sul link recensione e fa redirect a Google
+ * Endpoint PUBBLICO (no auth) - traccia click + redirect a Google
+ * Bug fix: fallback a reviewUrl da Firestore invece di URL parziale
  */
 router.get("/review-track", async (req: Request, res: Response) => {
+  // Recupera reviewUrl subito per poterlo usare anche come fallback
+  const studioInfo = await getStudioContactInfo().catch(() => null);
+  const reviewUrl = studioInfo?.googleReviewUrl || 'https://www.google.com/maps/search/fotografo';
+
   const { e } = req.query as { e?: string };
-  if (!e) return res.redirect('https://g.page/r/');
+  if (!e) return res.redirect(reviewUrl); // Bug fix: redirect corretto senza ?e=
 
   let email: string;
   try {
-    email = Buffer.from(e, 'base64url').toString('utf-8');
+    email = Buffer.from(e as string, 'base64url').toString('utf-8');
+    if (!email || !email.includes('@')) throw new Error('email non valida');
   } catch {
-    return res.status(400).send('Token non valido');
+    return res.redirect(reviewUrl); // fallback graceful
   }
-
-  const studioInfo = await getStudioContactInfo();
-  const reviewUrl = studioInfo.googleReviewUrl || 'https://www.google.com/maps';
 
   try {
     const log = await findReviewLog(email);
@@ -3340,9 +3355,9 @@ router.get("/review-track", async (req: Request, res: Response) => {
 
 /**
  * POST /api/email/review-request
- * Invia email di richiesta recensione Google al cliente (trigger automatico su CONSEGNATO)
- * - Salta se il link e' gia' stato cliccato (recensione probabilmente lasciata)
- * - Salta se inviata negli ultimi 30 giorni
+ * Invia email recensione (trigger automatico su CONSEGNATO)
+ * - 1 sola lettura Firestore (findReviewLog) + computeEligibility pura
+ * - Salta se link cliccato o inviata < 30gg
  */
 router.post("/review-request", async (req: Request, res: Response) => {
   try {
@@ -3358,21 +3373,19 @@ router.post("/review-request", async (req: Request, res: Response) => {
       return res.status(200).json({ success: false, skipped: true, reason: 'no_url' });
     }
 
+    // 1 sola lettura Firestore
     const existingLog = await findReviewLog(recipientEmail);
-    const eligibility = await checkReviewEmailEligibility(recipientEmail);
+    const eligibility = computeEligibility(existingLog); // pura, no Firestore
 
     if (!eligibility.canSend) {
       console.log(`⏭️ review-request saltata per ${recipientEmail}: ${eligibility.reason}`);
       return res.status(200).json({
-        success: false,
-        skipped: true,
-        reason: eligibility.reason,
-        daysUntilResend: eligibility.daysUntilResend,
+        success: false, skipped: true,
+        reason: eligibility.reason, daysUntilResend: eligibility.daysUntilResend,
       });
     }
 
     await sendAndLogReviewEmail(recipientEmail, clienteName, 'auto', req, existingLog);
-
     return res.status(200).json({ success: true, recipientEmail });
   } catch (error) {
     console.error("❌ Errore review-request email:", error);
@@ -3381,13 +3394,14 @@ router.post("/review-request", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/email/review-request-bulk
- * Invia email recensione a tutti i job con status 'consegnato'
- * - Salta chi ha gia' cliccato il link (recensione lasciata)
- * - Salta chi ha ricevuto l'email negli ultimi 30 giorni
- * - Rinvia dopo 30 giorni se non ha cliccato
+ * POST /api/email/review-request-bulk  [RICHIEDE AUTH ADMIN]
+ * Invia email recensione a tutti i job 'consegnato'
+ * - 1 sola lettura Firestore per email + eligibility pura
+ * - Salta cliccati + recenti, rinvia dopo 30gg
  */
 router.post("/review-request-bulk", async (req: Request, res: Response) => {
+  if (!(await requireAdminAuth(req, res))) return;
+
   try {
     const studioInfo = await getStudioContactInfo();
     if (!studioInfo.googleReviewUrl) {
@@ -3414,10 +3428,9 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
         const nome = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
         if (!email) { results.skipped_no_email++; continue; }
 
+        // 1 lettura Firestore per email, poi eligibility pura (nessuna seconda lettura)
         const existingLog = await findReviewLog(email);
-        const eligibility = existingLog
-          ? await checkReviewEmailEligibility(email)
-          : { canSend: true, reason: 'ok' as const };
+        const eligibility = computeEligibility(existingLog);
 
         if (!eligibility.canSend) {
           if (eligibility.reason === 'clicked') {
@@ -3451,10 +3464,12 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/email/review-request-log
- * Ritorna il log di tutte le email recensione inviate (solo admin autenticato)
+ * GET /api/email/review-request-log  [RICHIEDE AUTH ADMIN]
+ * Storico email recensione inviate
  */
 router.get("/review-request-log", async (req: Request, res: Response) => {
+  if (!(await requireAdminAuth(req, res))) return;
+
   try {
     const snap = await db.collection('reviewEmailLogs')
       .orderBy('lastSentAt', 'desc')
