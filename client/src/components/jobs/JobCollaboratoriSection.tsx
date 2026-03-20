@@ -65,6 +65,15 @@ import type {
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
+function safeToDate(val: any): Date {
+  if (!val) return new Date();
+  if (typeof val.toDate === 'function') return val.toDate();
+  if (val.seconds !== undefined) return new Date(val.seconds * 1000);
+  if (val._seconds !== undefined) return new Date(val._seconds * 1000);
+  if (val instanceof Date) return val;
+  return new Date();
+}
+
 const RUOLI_LABELS: Record<CollaboratoreRole, string> = {
   fotografo_secondario: '📷 Fotografo Secondario',
   videomaker: '🎥 Videomaker',
@@ -423,68 +432,53 @@ export function JobCollaboratoriSection({ jobId }: Props) {
           </p>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Collaboratore</TableHead>
-                  <TableHead>Ruolo</TableHead>
-                  <TableHead>Prodotti/Mansioni</TableHead>
-                  <TableHead>Compenso</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead>Pagamento</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assignments.map((assignment) => (
-                  <TableRow key={assignment.id}>
-                    <TableCell className="font-medium">
-                      {getCollaboratoreNome(assignment.collaboratoreId)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {RUOLI_LABELS[assignment.ruoloInJob]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {(assignment.prodottiAssegnati?.length || 0) > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {assignment.prodottiAssegnati?.map((p, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                <Package className="w-3 h-3 mr-1" />
-                                {p.label}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {(assignment.mansioniAssegnate?.length || 0) > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {assignment.mansioniAssegnate?.map((m, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
-                                <ClipboardList className="w-3 h-3 mr-1" />
-                                {m}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+            {/* ── MOBILE: card per ogni collaboratore ── */}
+            <div className="space-y-3 md:hidden">
+              {assignments.map((assignment) => {
+                const pagato = assignment.pagamenti?.reduce((s, p) => s + p.importo, 0) ?? 0;
+                const residuo = assignment.saldoResiduo ?? assignment.compenso;
+                return (
+                  <div key={assignment.id} className="border rounded-lg p-4 space-y-3 bg-white">
+                    {/* Header: nome + stato + azioni */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-sm">{getCollaboratoreNome(assignment.collaboratoreId)}</p>
+                        <Badge variant="outline" className="text-xs mt-0.5">
+                          {RUOLI_LABELS[assignment.ruoloInJob]}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge variant={STATUS_LABELS[assignment.status].variant} className="text-xs">
+                          {STATUS_LABELS[assignment.status].label}
+                        </Badge>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => handleOpenProductsTasksModal(assignment)}
-                          title="Gestisci prodotti e mansioni"
-                          data-testid={`button-products-tasks-${assignment.id}`}
+                          onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
+                          className="h-7 w-7 p-0"
+                          data-testid={`button-copy-dashboard-link-${assignment.id}`}
                         >
-                          <Pencil className="w-3 h-3 mr-1" />
-                          Modifica
+                          <Link2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveAssignment(assignment.id)}
+                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          disabled={removeAssignmentMutation.isPending}
+                          data-testid={`button-remove-assignment-${assignment.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
+                    </div>
+
+                    {/* Compenso */}
+                    <div className="flex items-center justify-between border-t pt-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Compenso</p>
                         <div className="flex items-center gap-1">
-                          <span className="font-semibold">
+                          <span className="font-bold text-sm">
                             {assignment.compenso > 0 ? `€${assignment.compenso}` : 'Da definire'}
                           </span>
                           <Button
@@ -492,102 +486,243 @@ export function JobCollaboratoriSection({ jobId }: Props) {
                             variant="ghost"
                             className="h-6 w-6 p-0"
                             onClick={() => handleOpenEditCompensoModal(assignment)}
-                            title="Modifica compenso"
                             data-testid={`button-edit-compenso-${assignment.id}`}
                           >
                             <Pencil className="w-3 h-3" />
                           </Button>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {assignment.tipoPagamento === 'orario' &&
-                            `${assignment.oreStimate}h x €${
-                              assignment.compenso / (assignment.oreStimate || 1)
-                            }/h`}
-                          {assignment.tipoPagamento === 'giornaliero' &&
-                            `${assignment.giorniStimati}gg x €${
-                              assignment.compenso / (assignment.giorniStimati || 1)
-                            }/gg`}
+                        <p className="text-xs text-muted-foreground">
+                          {assignment.tipoPagamento === 'orario' && `${assignment.oreStimate}h • Orario`}
+                          {assignment.tipoPagamento === 'giornaliero' && `${assignment.giorniStimati}gg • Giornaliero`}
                           {assignment.tipoPagamento === 'forfait' && 'Forfait'}
-                        </div>
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_LABELS[assignment.status].variant}>
-                        {STATUS_LABELS[assignment.status].label}
-                      </Badge>
-                      {assignment.dataRisposta && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {format(assignment.dataRisposta.toDate(), 'dd/MM/yyyy', {
-                            locale: it,
-                          })}
-                        </div>
-                      )}
-                      {assignment.noteRifiuto && (
-                        <div className="text-xs text-red-600 mt-1">
-                          "{assignment.noteRifiuto}"
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-2">
-                        <div className="text-sm">
-                          <div className="font-semibold text-green-600">
-                            Pagato: €{assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0).toFixed(2) || '0.00'}
+                      <div className="text-right">
+                        <p className="text-xs text-green-600 font-semibold">Pagato: €{pagato.toFixed(2)}</p>
+                        {assignment.compenso > 0 && (
+                          <p className="text-xs text-orange-600 font-semibold">Residuo: €{residuo.toFixed(2)}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ultimi pagamenti */}
+                    {assignment.pagamenti && assignment.pagamenti.length > 0 && (
+                      <div className="text-xs text-muted-foreground space-y-0.5 bg-gray-50 rounded p-2">
+                        {assignment.pagamenti.slice(0, 2).map((pag) => (
+                          <div key={pag.id} className="flex justify-between">
+                            <span>{format(safeToDate(pag.data), 'dd/MM/yy', { locale: it })} ({pag.metodo})</span>
+                            <span className="font-medium">€{pag.importo}</span>
                           </div>
-                          {assignment.compenso > 0 && (
-                            <div className="font-semibold text-orange-600">
-                              Residuo: €{(assignment.saldoResiduo ?? assignment.compenso).toFixed(2)}
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Prodotti/Mansioni */}
+                    {((assignment.prodottiAssegnati?.length || 0) > 0 || (assignment.mansioniAssegnate?.length || 0) > 0) && (
+                      <div className="flex flex-wrap gap-1 border-t pt-2">
+                        {assignment.prodottiAssegnati?.map((p, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            <Package className="w-3 h-3 mr-1" />{p.label}
+                          </Badge>
+                        ))}
+                        {assignment.mansioniAssegnate?.map((m, idx) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
+                            <ClipboardList className="w-3 h-3 mr-1" />{m}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Azioni */}
+                    <div className="flex gap-2 border-t pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs h-8"
+                        onClick={() => handleOpenPaymentModal(assignment)}
+                        data-testid={`button-registra-pagamento-${assignment.id}`}
+                      >
+                        <CreditCard className="w-3 h-3 mr-1" />
+                        {assignment.status === 'accepted' ? 'Registra Pagamento' : 'Registra Acconto'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-8 px-3"
+                        onClick={() => handleOpenProductsTasksModal(assignment)}
+                        data-testid={`button-products-tasks-${assignment.id}`}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Mansioni
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── DESKTOP: tabella ── */}
+            <div className="hidden md:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Collaboratore</TableHead>
+                    <TableHead>Ruolo</TableHead>
+                    <TableHead>Prodotti/Mansioni</TableHead>
+                    <TableHead>Compenso</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignments.map((assignment) => (
+                    <TableRow key={assignment.id}>
+                      <TableCell className="font-medium">
+                        {getCollaboratoreNome(assignment.collaboratoreId)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {RUOLI_LABELS[assignment.ruoloInJob]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {(assignment.prodottiAssegnati?.length || 0) > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {assignment.prodottiAssegnati?.map((p, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  <Package className="w-3 h-3 mr-1" />
+                                  {p.label}
+                                </Badge>
+                              ))}
                             </div>
                           )}
+                          {(assignment.mansioniAssegnate?.length || 0) > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {assignment.mansioniAssegnate?.map((m, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">
+                                  <ClipboardList className="w-3 h-3 mr-1" />
+                                  {m}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => handleOpenProductsTasksModal(assignment)}
+                            title="Gestisci prodotti e mansioni"
+                            data-testid={`button-products-tasks-${assignment.id}`}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" />
+                            Modifica
+                          </Button>
                         </div>
-                        {assignment.pagamenti && assignment.pagamenti.length > 0 && (
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            {assignment.pagamenti.slice(0, 2).map((pag) => (
-                              <div key={pag.id}>
-                                {format(pag.data.toDate(), 'dd/MM/yy', { locale: it })} - €{pag.importo} ({pag.metodo})
-                              </div>
-                            ))}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold">
+                              {assignment.compenso > 0 ? `€${assignment.compenso}` : 'Da definire'}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleOpenEditCompensoModal(assignment)}
+                              title="Modifica compenso"
+                              data-testid={`button-edit-compenso-${assignment.id}`}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {assignment.tipoPagamento === 'orario' &&
+                              `${assignment.oreStimate}h x €${assignment.compenso / (assignment.oreStimate || 1)}/h`}
+                            {assignment.tipoPagamento === 'giornaliero' &&
+                              `${assignment.giorniStimati}gg x €${assignment.compenso / (assignment.giorniStimati || 1)}/gg`}
+                            {assignment.tipoPagamento === 'forfait' && 'Forfait'}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={STATUS_LABELS[assignment.status].variant}>
+                          {STATUS_LABELS[assignment.status].label}
+                        </Badge>
+                        {assignment.dataRisposta && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {format(safeToDate(assignment.dataRisposta), 'dd/MM/yyyy', { locale: it })}
                           </div>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenPaymentModal(assignment)}
-                          data-testid={`button-registra-pagamento-${assignment.id}`}
-                        >
-                          <CreditCard className="w-3 h-3 mr-1" />
-                          {assignment.status === 'accepted' ? 'Registra Pag' : 'Acconto'}
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
-                          title="Copia link dashboard"
-                          data-testid={`button-copy-dashboard-link-${assignment.id}`}
-                        >
-                          <Link2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleRemoveAssignment(assignment.id)}
-                          title="Rimuovi collaboratore"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          disabled={removeAssignmentMutation.isPending}
-                          data-testid={`button-remove-assignment-${assignment.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        {assignment.noteRifiuto && (
+                          <div className="text-xs text-red-600 mt-1">
+                            "{assignment.noteRifiuto}"
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <div className="font-semibold text-green-600">
+                              Pagato: €{assignment.pagamenti?.reduce((sum, p) => sum + p.importo, 0).toFixed(2) || '0.00'}
+                            </div>
+                            {assignment.compenso > 0 && (
+                              <div className="font-semibold text-orange-600">
+                                Residuo: €{(assignment.saldoResiduo ?? assignment.compenso).toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                          {assignment.pagamenti && assignment.pagamenti.length > 0 && (
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {assignment.pagamenti.slice(0, 2).map((pag) => (
+                                <div key={pag.id}>
+                                  {format(safeToDate(pag.data), 'dd/MM/yy', { locale: it })} - €{pag.importo} ({pag.metodo})
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenPaymentModal(assignment)}
+                            data-testid={`button-registra-pagamento-${assignment.id}`}
+                          >
+                            <CreditCard className="w-3 h-3 mr-1" />
+                            {assignment.status === 'accepted' ? 'Registra Pag' : 'Acconto'}
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCopyDashboardLink(assignment.collaboratoreId)}
+                            title="Copia link dashboard"
+                            data-testid={`button-copy-dashboard-link-${assignment.id}`}
+                          >
+                            <Link2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveAssignment(assignment.id)}
+                            title="Rimuovi collaboratore"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            disabled={removeAssignmentMutation.isPending}
+                            data-testid={`button-remove-assignment-${assignment.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
             <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
               <div className="flex justify-between font-semibold">
