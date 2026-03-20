@@ -229,8 +229,13 @@ export default function JobDetailPage() {
     enabled: !!jobId
   });
 
+  // Merge clientiIds con il legacy clienteId (evitando duplicati)
+  const allClienteIds = job
+    ? [...new Set([...(job.clientiIds || []), ...(job.clienteId ? [job.clienteId] : [])])]
+    : [];
+
   const clientiQueries = useQueries({
-    queries: (job?.clientiIds || []).map(clienteId => ({
+    queries: allClienteIds.map(clienteId => ({
       queryKey: ['clienti', clienteId],
       queryFn: () => getClienteById(clienteId),
       enabled: !!job
@@ -254,11 +259,14 @@ export default function JobDetailPage() {
   }>({
     queryKey: ['review-status', primoClienteEmail],
     queryFn: async () => {
+      console.log('[ReviewStatus] Querying for email:', primoClienteEmail);
       const res = await apiRequest('GET', `/api/email/review-status?email=${encodeURIComponent(primoClienteEmail!)}`);
-      return res.json();
+      const data = await res.json();
+      console.log('[ReviewStatus] Result:', data);
+      return data;
     },
-    enabled: !!primoClienteEmail && job?.status === 'consegnato',
-    staleTime: 60_000,
+    enabled: !!primoClienteEmail,
+    staleTime: 5 * 60_000,
   });
 
   const { data: jobType } = useQuery({

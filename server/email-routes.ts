@@ -3486,13 +3486,21 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
 router.get("/review-status", async (req: Request, res: Response) => {
   if (!(await requireAdminAuth(req, res))) return;
   try {
-    const email = (req.query.email as string || '').toLowerCase().trim();
-    if (!email) return res.status(400).json({ error: 'email obbligatoria' });
+    const emailRaw = (req.query.email as string || '').trim();
+    if (!emailRaw) return res.status(400).json({ error: 'email obbligatoria' });
+    const emailLower = emailRaw.toLowerCase();
 
-    const snap = await db.collection('reviewEmailLogs')
-      .where('recipientEmail', '==', email)
+    // Prova prima con email originale, poi con lowercase (Firestore è case-sensitive)
+    let snap = await db.collection('reviewEmailLogs')
+      .where('recipientEmail', '==', emailRaw)
       .limit(1)
       .get();
+    if (snap.empty && emailLower !== emailRaw) {
+      snap = await db.collection('reviewEmailLogs')
+        .where('recipientEmail', '==', emailLower)
+        .limit(1)
+        .get();
+    }
 
     if (snap.empty) return res.status(200).json({ found: false });
 
