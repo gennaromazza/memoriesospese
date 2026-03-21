@@ -122,6 +122,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverImageDesktopPosition, setCoverImageDesktopPosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
   const [coverImageMobilePosition, setCoverImageMobilePosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
   const [headerTheme, setHeaderTheme] = useState<string>('classico');
+  const [showThemePickerDialog, setShowThemePickerDialog] = useState(false);
   const [showCoverPickerFor, setShowCoverPickerFor] = useState<'desktop' | 'mobile' | null>(null);
   const [showCoverPositionEditorFor, setShowCoverPositionEditorFor] = useState<'desktop' | 'mobile' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -2581,72 +2582,36 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
             </div>
 
-            {/* ─── Stile Overlay Copertina ─── */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-gray-500" />
-                <Label className="font-medium">Stile overlay copertina</Label>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {GALLERY_HEADER_THEMES.map(theme => (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setHeaderTheme(theme.id)}
-                    className={`relative overflow-hidden rounded-lg border-2 text-left transition-all h-20 ${
-                      headerTheme === theme.id
-                        ? 'border-[#6b7f6b] ring-2 ring-[#6b7f6b]/30'
-                        : 'border-gray-200 hover:border-gray-400'
-                    }`}
-                    title={theme.descrizione}
-                  >
-                    {/* Mini preview con swatches */}
-                    <div className="absolute inset-0 flex">
-                      {theme.previewColors.map((c, i) => (
-                        <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
-                      ))}
-                    </div>
-                    {/* Overlay scuro per leggibilità nome */}
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 100%)' }} />
-                    {/* Nome tema */}
-                    <div className="absolute bottom-0 left-0 right-0 px-2 pb-1.5">
-                      <p className="text-white text-xs font-medium drop-shadow-md">{theme.nome}</p>
-                    </div>
-                    {/* Check selezionato */}
-                    {headerTheme === theme.id && (
-                      <div className="absolute top-1.5 right-1.5 bg-[#6b7f6b] rounded-full p-0.5">
-                        <Check className="h-3 w-3 text-white" />
+            {/* ─── Stile Overlay Copertina — bottone compatto ─── */}
+            {(() => {
+              const currentTheme = GALLERY_HEADER_THEMES.find(t => t.id === headerTheme) || GALLERY_HEADER_THEMES[0];
+              return (
+                <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg border bg-gray-50">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Palette className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2 min-w-0">
+                      {/* Swatches mini */}
+                      <div className="flex rounded overflow-hidden border border-white/50 shadow-sm flex-shrink-0" style={{ width: 36, height: 20 }}>
+                        {currentTheme.previewColors.map((c, i) => (
+                          <div key={i} className="flex-1" style={{ backgroundColor: c }} />
+                        ))}
                       </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Preview live dell'overlay */}
-              {(() => {
-                const theme = GALLERY_HEADER_THEMES.find(t => t.id === headerTheme) || GALLERY_HEADER_THEMES[0];
-                return (
-                  <div
-                    className="rounded-lg overflow-hidden border h-32 relative"
-                    style={{ backgroundColor: theme.previewColors[0] || '#1a1a1a' }}
-                  >
-                    {/* Sfondo con sfumatura dei colori del tema */}
-                    <div className="absolute inset-0 flex">
-                      {theme.previewColors.map((c, i) => (
-                        <div key={i} className="flex-1 h-full opacity-70" style={{ backgroundColor: c }} />
-                      ))}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{currentTheme.nome}</p>
+                        <p className="text-xs text-gray-400 truncate hidden sm:block">{currentTheme.descrizione}</p>
+                      </div>
                     </div>
-                    <GalleryHeaderOverlay
-                      name={name || 'Sposi Esempio'}
-                      date={date ? new Date(date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '15 giugno 2025'}
-                      location={location || 'Villa dei Fiori'}
-                      themeId={theme.id}
-                    />
                   </div>
-                );
-              })()}
-              <p className="text-xs text-gray-400">{GALLERY_HEADER_THEMES.find(t => t.id === headerTheme)?.descrizione}</p>
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowThemePickerDialog(true)}
+                    className="flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-md border border-[#6b7f6b] text-[#6b7f6b] hover:bg-[#6b7f6b]/10 transition-colors whitespace-nowrap"
+                  >
+                    Cambia stile
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* ─── Cover Desktop ─── */}
             <div className="space-y-2">
@@ -3075,6 +3040,130 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* ═══════════════════════════════════════════════
+        DIALOG: SELETTORE STILE OVERLAY COPERTINA
+        ═══════════════════════════════════════════════ */}
+    <Dialog open={showThemePickerDialog} onOpenChange={setShowThemePickerDialog}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col z-[110]" aria-describedby="theme-picker-desc">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Palette className="h-4 w-4" /> Scegli lo stile della copertina
+          </DialogTitle>
+          <DialogDescription id="theme-picker-desc">
+            Seleziona un template visivo per l'overlay con nome e data. La preview mostra l'effetto con la tua foto di copertina.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Colonna sinistra: griglia temi */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Seleziona un tema</p>
+              <div className="grid grid-cols-2 gap-2">
+                {GALLERY_HEADER_THEMES.map(theme => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setHeaderTheme(theme.id)}
+                    className={`relative overflow-hidden rounded-lg border-2 text-left transition-all h-24 ${
+                      headerTheme === theme.id
+                        ? 'border-[#6b7f6b] ring-2 ring-[#6b7f6b]/30'
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    {/* Swatches */}
+                    <div className="absolute inset-0 flex">
+                      {theme.previewColors.map((c, i) => (
+                        <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.05) 100%)' }} />
+                    <div className="absolute bottom-0 left-0 right-0 px-2 pb-2">
+                      <p className="text-white text-xs font-semibold drop-shadow-md">{theme.nome}</p>
+                      <p className="text-white/60 text-[10px] leading-tight mt-0.5 line-clamp-2">{theme.descrizione}</p>
+                    </div>
+                    {headerTheme === theme.id && (
+                      <div className="absolute top-2 right-2 bg-[#6b7f6b] rounded-full p-0.5 shadow">
+                        <Check className="h-3 w-3 text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Colonna destra: preview con foto vera */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Anteprima effetto reale</p>
+              {(() => {
+                const previewImage = coverImageDesktopUrl || coverImageMobileUrl || coverImageUrl;
+                const theme = GALLERY_HEADER_THEMES.find(t => t.id === headerTheme) || GALLERY_HEADER_THEMES[0];
+                const previewDate = date
+                  ? new Date(date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : '15 giugno 2025';
+
+                return (
+                  <div className="sticky top-0 space-y-3">
+                    {/* Preview principale */}
+                    <div className="rounded-lg overflow-hidden border shadow-sm relative aspect-video bg-gray-900">
+                      {previewImage ? (
+                        <img
+                          src={previewImage}
+                          alt="Copertina"
+                          className="absolute inset-0 w-full h-full object-cover"
+                          style={{ objectPosition: `${coverImageDesktopPosition.x}% ${coverImageDesktopPosition.y}%` }}
+                        />
+                      ) : (
+                        /* Placeholder se non c'è foto */
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-900">
+                          <div className="text-center text-gray-500">
+                            <Monitor className="h-8 w-8 mx-auto mb-1 opacity-40" />
+                            <p className="text-xs opacity-60">Nessuna copertina impostata</p>
+                          </div>
+                        </div>
+                      )}
+                      <GalleryHeaderOverlay
+                        name={name || 'Sposi Esempio'}
+                        date={previewDate}
+                        location={location || ''}
+                        themeId={theme.id}
+                      />
+                    </div>
+                    {/* Badge tema attivo */}
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-gray-50 border">
+                      <div className="flex rounded overflow-hidden flex-shrink-0" style={{ width: 28, height: 16 }}>
+                        {theme.previewColors.map((c, i) => (
+                          <div key={i} className="flex-1" style={{ backgroundColor: c }} />
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700">{theme.nome}</p>
+                        <p className="text-[11px] text-gray-400">{theme.descrizione}</p>
+                      </div>
+                    </div>
+                    {!previewImage && (
+                      <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                        Imposta una foto di copertina per vedere l'anteprima completa con la tua foto.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowThemePickerDialog(false)}>Annulla</Button>
+          <Button onClick={() => setShowThemePickerDialog(false)} className="bg-[#6b7f6b] hover:bg-[#5a6b5a]">
+            <Check className="h-4 w-4 mr-1.5" /> Applica stile
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* ═══════════════════════════════════════════════
         DIALOG: SELEZIONA FOTO DALLA GALLERIA
