@@ -32,7 +32,9 @@ import {
   X,
   Loader2,
   ImagePlus,
-  Check
+  Check,
+  Move,
+  Crosshair
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Gallery, Chapter } from '@/lib/galleries';
@@ -206,6 +208,153 @@ const PhotoGridItem = memo(({
 });
 PhotoGridItem.displayName = 'PhotoGridItem';
 
+/** Editor di riposizionamento della copertina capitolo */
+const CoverPositionEditor = memo(({
+  photo,
+  initialPosition,
+  chapterTitle,
+  onSave,
+  onCancel,
+  isSaving
+}: {
+  photo: Photo;
+  initialPosition: { x: number; y: number };
+  chapterTitle: string;
+  onSave: (pos: { x: number; y: number }) => void;
+  onCancel: () => void;
+  isSaving?: boolean;
+}) => {
+  const [position, setPosition] = useState(initialPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  const updatePosition = useCallback((clientX: number, clientY: number) => {
+    const container = imageContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+    setPosition({ x: Math.round(x), y: Math.round(y) });
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    updatePosition(e.clientX, e.clientY);
+  }, [updatePosition]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    updatePosition(e.clientX, e.clientY);
+  }, [isDragging, updatePosition]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    const onUp = () => setIsDragging(false);
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500 flex items-center gap-2">
+        <Crosshair className="w-4 h-4 text-sage" />
+        Clicca o trascina sull'immagine per spostare il punto di fuoco. La preview mostra come apparirà la card del capitolo.
+      </p>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+        {/* Editor immagine con punto di fuoco */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            Immagine originale — trascina per posizionare
+          </p>
+          <div
+            ref={imageContainerRef}
+            className="relative w-full rounded-xl overflow-hidden border-2 border-sage/30 select-none"
+            style={{ aspectRatio: '3/2', cursor: isDragging ? 'grabbing' : 'crosshair' }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
+            <img
+              src={photo.url}
+              alt={photo.name}
+              className="w-full h-full object-cover pointer-events-none"
+              draggable={false}
+            />
+            {/* Overlay scuro semi-trasparente */}
+            <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+            {/* Crosshair */}
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              {/* Cerchio esterno */}
+              <div className="w-10 h-10 rounded-full border-2 border-white/80 shadow-lg flex items-center justify-center backdrop-blur-[1px]">
+                <div className="w-2 h-2 rounded-full bg-white shadow-sm" />
+              </div>
+              {/* Linee crosshair */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/60 -translate-x-1/2 pointer-events-none" style={{ height: '40px', top: '50%', transform: 'translate(-50%, -50%)' }} />
+              <div className="absolute top-1/2 left-0 right-0 h-px bg-white/60 -translate-y-1/2 pointer-events-none" style={{ width: '40px', left: '50%', transform: 'translate(-50%, -50%)' }} />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 text-center">
+            Punto: {Math.round(position.x)}% × {Math.round(position.y)}%
+          </p>
+        </div>
+
+        {/* Preview card capitolo */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            Preview card capitolo
+          </p>
+          <div
+            className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200"
+            style={{ aspectRatio: '3/4', maxWidth: '200px', margin: '0 auto' }}
+          >
+            <img
+              src={photo.url}
+              alt="Preview"
+              className="w-full h-full object-cover pointer-events-none"
+              style={{ objectPosition: `${position.x}% ${position.y}%` }}
+              draggable={false}
+            />
+            {/* Gradient overlay come in gallery */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+              <p className="font-semibold text-sm line-clamp-2">{chapterTitle}</p>
+              <p className="text-xs text-white/70 mt-0.5">Anteprima</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 text-center">Aspect ratio 3:4</p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2 border-t">
+        <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+          Indietro
+        </Button>
+        <Button
+          onClick={() => onSave(position)}
+          disabled={isSaving}
+          className="bg-sage hover:bg-sage/90"
+        >
+          {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
+          Salva posizione
+        </Button>
+      </div>
+    </div>
+  );
+});
+CoverPositionEditor.displayName = 'CoverPositionEditor';
+
 export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -220,6 +369,8 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [newChapterDescription, setNewChapterDescription] = useState('');
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
+  // Position editor
+  const [positionEditorPhoto, setPositionEditorPhoto] = useState<Photo | null>(null);
   
   // Drag-to-select state
   const gridRef = useRef<HTMLDivElement>(null);
@@ -491,15 +642,29 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
 
   const handleSelectCoverPhoto = (photo: Photo) => {
     if (!coverChapter) return;
-    updateChapterMutation.mutate({
-      chapterId: coverChapter.id,
-      updates: {
-        coverPhotoId: photo.id,
-        coverPhotoUrl: photo.url
+    // Apri l'editor di posizionamento
+    setPositionEditorPhoto(photo);
+  };
+
+  const handleSaveCoverPosition = (position: { x: number; y: number }) => {
+    if (!coverChapter || !positionEditorPhoto) return;
+    updateChapterMutation.mutate(
+      {
+        chapterId: coverChapter.id,
+        updates: {
+          coverPhotoId: positionEditorPhoto.id,
+          coverPhotoUrl: positionEditorPhoto.url,
+          coverPhotoPosition: position
+        }
+      },
+      {
+        onSuccess: () => {
+          setPositionEditorPhoto(null);
+          setShowCoverDialog(false);
+          setCoverChapter(null);
+        }
       }
-    });
-    setShowCoverDialog(false);
-    setCoverChapter(null);
+    );
   };
 
   const coverPhotos = useMemo(() => {
@@ -851,67 +1016,103 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
       
       <Dialog open={showCoverDialog} onOpenChange={(open) => {
         setShowCoverDialog(open);
-        if (!open) setCoverChapter(null);
+        if (!open) {
+          setCoverChapter(null);
+          setPositionEditorPhoto(null);
+        }
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className={positionEditorPhoto ? "max-w-3xl" : "max-w-2xl"}>
           <DialogHeader>
-            <DialogTitle>Imposta Copertina Capitolo</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {positionEditorPhoto ? (
+                <>
+                  <Crosshair className="w-5 h-5 text-sage" />
+                  Posiziona la copertina — {coverChapter?.titolo}
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="w-5 h-5" />
+                  Scegli foto copertina — {coverChapter?.titolo}
+                </>
+              )}
+            </DialogTitle>
             <DialogDescription>
-              Seleziona una foto da usare come miniatura per "{coverChapter?.titolo}"
+              {positionEditorPhoto
+                ? 'Trascina il mirino sull\'immagine per centrare il punto di interesse nella card del capitolo.'
+                : 'Seleziona una foto del capitolo da usare come copertina, poi potrai riposizionarla.'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            {coverPhotos.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Nessuna foto in questo capitolo</p>
-                <p className="text-sm">Aggiungi foto al capitolo per poter selezionare una copertina</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto">
-                {coverPhotos.map(photo => (
-                  <div
-                    key={photo.id}
-                    onClick={() => handleSelectCoverPhoto(photo)}
-                    className={cn(
-                      "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group",
-                      coverChapter?.coverPhotoId === photo.id
-                        ? "border-sage ring-2 ring-sage/50"
-                        : "border-gray-200 hover:border-sage/50"
-                    )}
-                    data-testid={`cover-photo-${photo.id}`}
-                  >
-                    <img
-                      src={photo.url}
-                      alt={photo.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    {coverChapter?.coverPhotoId === photo.id && (
-                      <div className="absolute top-2 right-2 bg-sage text-white rounded-full p-1">
-                        <Check className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                      <span className="opacity-0 group-hover:opacity-100 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
-                        Seleziona
-                      </span>
-                    </div>
+          {positionEditorPhoto ? (
+            <CoverPositionEditor
+              photo={positionEditorPhoto}
+              initialPosition={coverChapter?.coverPhotoPosition ?? { x: 50, y: 50 }}
+              chapterTitle={coverChapter?.titolo ?? ''}
+              onSave={handleSaveCoverPosition}
+              onCancel={() => setPositionEditorPhoto(null)}
+              isSaving={updateChapterMutation.isPending}
+            />
+          ) : (
+            <>
+              <div className="py-4">
+                {coverPhotos.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p>Nessuna foto in questo capitolo</p>
+                    <p className="text-sm">Aggiungi foto al capitolo per poter selezionare una copertina</p>
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto">
+                    {coverPhotos.map(photo => (
+                      <div
+                        key={photo.id}
+                        onClick={() => handleSelectCoverPhoto(photo)}
+                        className={cn(
+                          "relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group",
+                          coverChapter?.coverPhotoId === photo.id
+                            ? "border-sage ring-2 ring-sage/50"
+                            : "border-gray-200 hover:border-sage/50"
+                        )}
+                        data-testid={`cover-photo-${photo.id}`}
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.name}
+                          className="w-full h-full object-cover"
+                          style={
+                            coverChapter?.coverPhotoId === photo.id && coverChapter?.coverPhotoPosition
+                              ? { objectPosition: `${coverChapter.coverPhotoPosition.x}% ${coverChapter.coverPhotoPosition.y}%` }
+                              : {}
+                          }
+                          loading="lazy"
+                        />
+                        {coverChapter?.coverPhotoId === photo.id && (
+                          <div className="absolute top-2 right-2 bg-sage text-white rounded-full p-1">
+                            <Check className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded flex items-center gap-1.5">
+                            <Move className="w-3.5 h-3.5" />
+                            {coverChapter?.coverPhotoId === photo.id ? 'Riposiziona' : 'Seleziona'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowCoverDialog(false);
-              setCoverChapter(null);
-            }}>
-              Annulla
-            </Button>
-          </DialogFooter>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowCoverDialog(false);
+                  setCoverChapter(null);
+                }}>
+                  Annulla
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </Card>

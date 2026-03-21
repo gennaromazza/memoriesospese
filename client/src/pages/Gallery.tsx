@@ -3553,6 +3553,7 @@ export default function Gallery() {
                               const isExpanded = !collapsedChapters[group.chapter.id];
                               const selectedInChapter = group.photos.filter(p => selectedPhotoIds.includes(p.id)).length;
                               const coverUrl = group.chapter.coverPhotoUrl || group.photos[0]?.url;
+                              const coverPos = group.chapter.coverPhotoPosition;
                               
                               return (
                                 <button
@@ -3568,6 +3569,7 @@ export default function Gallery() {
                                       src={coverUrl}
                                       alt={group.chapter.titolo}
                                       className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                      style={coverPos ? { objectPosition: `${coverPos.x}% ${coverPos.y}%` } : undefined}
                                       loading="lazy"
                                     />
                                   ) : (

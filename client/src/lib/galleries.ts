@@ -99,6 +99,7 @@ export interface Chapter {
   ordine: number;
   coverPhotoId?: string;
   coverPhotoUrl?: string; // URL miniatura capitolo per visualizzazione card
+  coverPhotoPosition?: { x: number; y: number }; // Posizione fuoco immagine (0-100, default 50/50)
   createdAt?: any;
   updatedAt?: any;
 }
