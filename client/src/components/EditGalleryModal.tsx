@@ -3320,8 +3320,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       const imageUrl = isDesktop ? coverImageDesktopUrl : coverImageMobileUrl;
       const position = isDesktop ? coverImageDesktopPosition : coverImageMobilePosition;
       const setPosition = isDesktop ? setCoverImageDesktopPosition : setCoverImageMobilePosition;
-      const aspectRatio = isDesktop ? '16/9' : '9/16';
+      const previewAspectRatio = isDesktop ? '16/9' : '9/16';
       const previewLabel = isDesktop ? 'Anteprima desktop (16:9)' : 'Anteprima mobile (9:16)';
+      const editorAspectClass = isDesktop ? 'aspect-video' : 'aspect-[9/16]';
 
       return (
         <Dialog open={true} onOpenChange={(open) => { if (!open) setShowCoverPositionEditorFor(null); }}>
@@ -3335,33 +3336,71 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 Clicca o trascina il mirino per scegliere il punto di fuoco dell'immagine
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Editor con mirino */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-600">Immagine originale — trascina il mirino</p>
-                <GalleryCoverFocalEditor
-                  imageUrl={imageUrl}
-                  position={position}
-                  onPositionChange={setPosition}
-                />
-                <p className="text-xs text-gray-400 text-center">{position.x.toFixed(0)}% × {position.y.toFixed(0)}%</p>
-              </div>
-              {/* Preview con aspect ratio corretto */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-600">{previewLabel}</p>
-                <div
-                  className="w-full overflow-hidden rounded-lg border bg-gray-100"
-                  style={{ aspectRatio }}
-                >
-                  <img
-                    src={imageUrl}
-                    alt="Anteprima posizione"
-                    className="w-full h-full object-cover"
-                    style={{ objectPosition: `${position.x}% ${position.y}%` }}
+            {isDesktop ? (
+              /* ── Desktop: layout 2 colonne affiancate ── */
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-600">Trascina il mirino per scegliere il fuoco</p>
+                  <GalleryCoverFocalEditor
+                    imageUrl={imageUrl}
+                    position={position}
+                    onPositionChange={setPosition}
+                    aspectClass={editorAspectClass}
                   />
+                  <p className="text-xs text-gray-400 text-center">{position.x.toFixed(0)}% × {position.y.toFixed(0)}%</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-600">{previewLabel}</p>
+                  <div
+                    className="w-full overflow-hidden rounded-lg border bg-gray-100"
+                    style={{ aspectRatio: previewAspectRatio }}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt="Anteprima posizione"
+                      className="w-full h-full object-cover"
+                      style={{ objectPosition: `${position.x}% ${position.y}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* ── Mobile: layout singola colonna, editor portrait centrato ── */
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-xs font-medium text-gray-600 self-start">Trascina il mirino per scegliere il fuoco</p>
+                <div className="flex gap-4 w-full justify-center">
+                  {/* Editor portrait: larghezza limitata per non occupare tutta la colonna */}
+                  <div className="space-y-1 flex flex-col items-center" style={{ width: '45%' }}>
+                    <p className="text-xs text-gray-500 font-medium">Editor (9:16)</p>
+                    <GalleryCoverFocalEditor
+                      imageUrl={imageUrl}
+                      position={position}
+                      onPositionChange={setPosition}
+                      aspectClass={editorAspectClass}
+                    />
+                    <p className="text-xs text-gray-400">{position.x.toFixed(0)}% × {position.y.toFixed(0)}%</p>
+                  </div>
+                  {/* Preview portrait */}
+                  <div className="space-y-1 flex flex-col items-center" style={{ width: '45%' }}>
+                    <p className="text-xs text-gray-500 font-medium">{previewLabel}</p>
+                    <div
+                      className="w-full overflow-hidden rounded-lg border bg-gray-100"
+                      style={{ aspectRatio: previewAspectRatio }}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt="Anteprima posizione"
+                        className="w-full h-full object-cover"
+                        style={{ objectPosition: `${position.x}% ${position.y}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  L'immagine viene ritagliata in verticale (9:16) per adattarsi agli schermi mobile
+                </p>
+              </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCoverPositionEditorFor(null)}>Annulla</Button>
               <Button onClick={() => setShowCoverPositionEditorFor(null)} className="bg-[#6b7f6b] hover:bg-[#5a6b5a]">
@@ -3379,10 +3418,11 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 /* ─────────────────────────────────────────────────────────────────────
    SUB-COMPONENTE: Editor fuoco immagine copertina galleria
 ───────────────────────────────────────────────────────────────────── */
-const GalleryCoverFocalEditor = ({ imageUrl, position, onPositionChange }: {
+const GalleryCoverFocalEditor = ({ imageUrl, position, onPositionChange, aspectClass = 'aspect-video' }: {
   imageUrl: string;
   position: { x: number; y: number };
   onPositionChange: (pos: { x: number; y: number }) => void;
+  aspectClass?: string;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
@@ -3410,7 +3450,7 @@ const GalleryCoverFocalEditor = ({ imageUrl, position, onPositionChange }: {
   return (
     <div
       ref={containerRef}
-      className="relative w-full aspect-video overflow-hidden rounded-lg border cursor-crosshair select-none bg-gray-100"
+      className={`relative w-full ${aspectClass} overflow-hidden rounded-lg border cursor-crosshair select-none bg-gray-100`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
