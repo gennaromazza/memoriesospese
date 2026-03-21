@@ -456,15 +456,27 @@ export default function AdminDashboard() {
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(
     null,
   );
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState<string>(
+    () => sessionStorage.getItem("gallerySearchQuery") || "",
+  );
   const [galleryTypeFilter, setGalleryTypeFilter] = useState<
     "all" | "generic" | "special"
-  >("generic"); // 🎨 Filtro tipo galleria (default: generiche)
+  >(
+    () =>
+      (sessionStorage.getItem("galleryTypeFilter") as
+        | "all"
+        | "generic"
+        | "special") || "generic",
+  );
   const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
-    "all",
-  ); // 📸 Filtro selezioni approvate
-  const [galleryJobTypeFilter, setGalleryJobTypeFilter] =
-    useState<string>("all"); // 🏷️ Filtro per categoria evento
+    () =>
+      (sessionStorage.getItem("gallerySelectionFilter") as
+        | "all"
+        | "approved") || "all",
+  );
+  const [galleryJobTypeFilter, setGalleryJobTypeFilter] = useState<string>(
+    () => sessionStorage.getItem("galleryJobTypeFilter") || "all",
+  );
   const [dashboardJobTypes, setDashboardJobTypes] = useState<JobTypeFE[]>([]); // 🏷️ Tipi evento disponibili
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
@@ -648,6 +660,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     sessionStorage.setItem("activeJobSection", activeJobSection);
   }, [activeJobSection]);
+
+  useEffect(() => {
+    sessionStorage.setItem("gallerySearchQuery", searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    sessionStorage.setItem("galleryTypeFilter", galleryTypeFilter);
+  }, [galleryTypeFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem("gallerySelectionFilter", selectionFilter);
+  }, [selectionFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem("galleryJobTypeFilter", galleryJobTypeFilter);
+  }, [galleryJobTypeFilter]);
 
   // Carica JobTypes per il filtro gallerie
   useEffect(() => {
