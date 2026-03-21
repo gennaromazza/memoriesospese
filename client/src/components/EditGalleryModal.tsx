@@ -1596,7 +1596,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
