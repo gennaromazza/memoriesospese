@@ -1840,6 +1840,7 @@ export default function Gallery() {
           coverImageDesktop={galleryData.coverImageDesktop}
           coverImageMobilePosition={(galleryData as any).coverImageMobilePosition}
           coverImageDesktopPosition={(galleryData as any).coverImageDesktopPosition}
+          headerTheme={(galleryData as any).headerTheme}
           galleryId={id}
           galleryCode={galleryData.code}
         />

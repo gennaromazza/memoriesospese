@@ -11,6 +11,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import GalleryHeaderOverlay from './GalleryHeaderOverlay';
+import type { GalleryHeaderThemeId } from '@/lib/gallery-header-themes';
 
 interface GalleryHeaderProps {
   name: string;
@@ -22,6 +24,7 @@ interface GalleryHeaderProps {
   coverImageDesktop?: string;
   coverImageMobilePosition?: { x: number; y: number };
   coverImageDesktopPosition?: { x: number; y: number };
+  headerTheme?: GalleryHeaderThemeId | string | null;
   galleryId?: string;
   galleryCode?: string;
 }
@@ -43,6 +46,7 @@ export default function GalleryHeader({
   coverImageDesktop,
   coverImageMobilePosition,
   coverImageDesktopPosition,
+  headerTheme,
   galleryId,
   galleryCode
 }: GalleryHeaderProps) {
@@ -182,55 +186,13 @@ export default function GalleryHeader({
                 }}
                 onClick={() => setIsImageDialogOpen(true)}
               />
-              {/* Overlay elegante con nome galleria */}
-              <div
-                className="absolute inset-0 pointer-events-none flex flex-col justify-end"
-                style={{ background: 'linear-gradient(to bottom, transparent 25%, rgba(10,8,6,0.12) 55%, rgba(10,8,6,0.72) 100%)' }}
-              >
-                <div className="flex flex-col items-center pb-7 sm:pb-10 px-6 w-full">
-
-                  {/* Etichetta decorativa superiore */}
-                  <div className="flex items-center gap-3 mb-3 sm:mb-4 w-full justify-center">
-                    <div className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.45))' }} />
-                    <span className="text-white/55 text-[9px] sm:text-[10px] tracking-[0.35em] uppercase font-light select-none" style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '0.35em' }}>
-                      Galleria Fotografica
-                    </span>
-                    <div className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.45))' }} />
-                  </div>
-
-                  {/* Nome principale */}
-                  <h1
-                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white font-playfair text-center leading-tight tracking-wide"
-                    style={{ textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.4)' }}
-                  >
-                    {name}
-                  </h1>
-
-                  {/* Separatore decorativo con diamante */}
-                  <div className="flex items-center gap-2 sm:gap-3 my-3 sm:my-4">
-                    <div className="h-px w-8 sm:w-12" style={{ background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.6))' }} />
-                    <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-70">
-                      <rect x="3" y="0" width="4" height="4" rx="0.5" fill="white" transform="rotate(45 5 5)" />
-                    </svg>
-                    <div className="h-px w-8 sm:w-12" style={{ background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.6))' }} />
-                  </div>
-
-                  {/* Data e location */}
-                  <div
-                    className="text-white/82 text-sm sm:text-base text-center leading-relaxed"
-                    style={{ textShadow: '0 1px 8px rgba(0,0,0,0.5)', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', letterSpacing: '0.03em' }}
-                  >
-                    <span>{formatDate(date)}</span>
-                    {location && (
-                      <>
-                        <span className="mx-2 text-white/40 not-italic" style={{ fontStyle: 'normal' }}>·</span>
-                        <span>{location}</span>
-                      </>
-                    )}
-                  </div>
-
-                </div>
-              </div>
+              {/* Overlay — delegato a GalleryHeaderOverlay (template-driven) */}
+              <GalleryHeaderOverlay
+                name={name}
+                date={formatDate(date)}
+                location={location}
+                themeId={headerTheme}
+              />
             </div>
           </div>
         </div>

@@ -36,6 +36,7 @@ export interface Gallery {
   coverImageDesktop?: string; // Cover image per desktop (16:9)
   coverImageMobilePosition?: { x: number; y: number }; // Punto di fuoco (0-100) per mobile
   coverImageDesktopPosition?: { x: number; y: number }; // Punto di fuoco (0-100) per desktop
+  headerTheme?: string; // ID del template overlay copertina (es. 'classico', 'dorato', ...)
   youtubeUrl?: string;
   youtubeUrls?: string[]; // Multiple YouTube URLs
   photoCount: number;

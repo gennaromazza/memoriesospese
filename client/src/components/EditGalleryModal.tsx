@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal, Palette } from "lucide-react";
+import { GALLERY_HEADER_THEMES } from '@/lib/gallery-header-themes';
+import GalleryHeaderOverlay from './gallery/GalleryHeaderOverlay';
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import { getAllJobs } from "@/lib/jobs";
@@ -119,6 +121,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
   const [coverImageDesktopPosition, setCoverImageDesktopPosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
   const [coverImageMobilePosition, setCoverImageMobilePosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
+  const [headerTheme, setHeaderTheme] = useState<string>('classico');
   const [showCoverPickerFor, setShowCoverPickerFor] = useState<'desktop' | 'mobile' | null>(null);
   const [showCoverPositionEditorFor, setShowCoverPositionEditorFor] = useState<'desktop' | 'mobile' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -401,6 +404,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
       setCoverImageDesktopPosition((gallery as any).coverImageDesktopPosition || { x: 50, y: 50 });
       setCoverImageMobilePosition((gallery as any).coverImageMobilePosition || { x: 50, y: 50 });
+      setHeaderTheme((gallery as any).headerTheme || 'classico');
       
       // Popola campi Photo Selection Workflow (Task 2)
       const hasProductRequirements = Array.isArray((gallery as any).productRequirements) && (gallery as any).productRequirements.length > 0;
@@ -1266,6 +1270,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         coverImageDesktop: coverImageDesktopUrl || null,
         coverImageMobilePosition: coverImageMobileUrl ? coverImageMobilePosition : null,
         coverImageDesktopPosition: coverImageDesktopUrl ? coverImageDesktopPosition : null,
+        headerTheme: headerTheme || 'classico',
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         // Photo Selection Workflow fields (Task 2)
@@ -2574,6 +2579,73 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 )}
               </div>
               <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
+            </div>
+
+            {/* ─── Stile Overlay Copertina ─── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-gray-500" />
+                <Label className="font-medium">Stile overlay copertina</Label>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {GALLERY_HEADER_THEMES.map(theme => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setHeaderTheme(theme.id)}
+                    className={`relative overflow-hidden rounded-lg border-2 text-left transition-all h-20 ${
+                      headerTheme === theme.id
+                        ? 'border-[#6b7f6b] ring-2 ring-[#6b7f6b]/30'
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                    title={theme.descrizione}
+                  >
+                    {/* Mini preview con swatches */}
+                    <div className="absolute inset-0 flex">
+                      {theme.previewColors.map((c, i) => (
+                        <div key={i} className="flex-1 h-full" style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                    {/* Overlay scuro per leggibilità nome */}
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 100%)' }} />
+                    {/* Nome tema */}
+                    <div className="absolute bottom-0 left-0 right-0 px-2 pb-1.5">
+                      <p className="text-white text-xs font-medium drop-shadow-md">{theme.nome}</p>
+                    </div>
+                    {/* Check selezionato */}
+                    {headerTheme === theme.id && (
+                      <div className="absolute top-1.5 right-1.5 bg-[#6b7f6b] rounded-full p-0.5">
+                        <Check className="h-3 w-3 text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Preview live dell'overlay */}
+              {(() => {
+                const theme = GALLERY_HEADER_THEMES.find(t => t.id === headerTheme) || GALLERY_HEADER_THEMES[0];
+                return (
+                  <div
+                    className="rounded-lg overflow-hidden border h-32 relative"
+                    style={{ backgroundColor: theme.previewColors[0] || '#1a1a1a' }}
+                  >
+                    {/* Sfondo con sfumatura dei colori del tema */}
+                    <div className="absolute inset-0 flex">
+                      {theme.previewColors.map((c, i) => (
+                        <div key={i} className="flex-1 h-full opacity-70" style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                    <GalleryHeaderOverlay
+                      name={name || 'Sposi Esempio'}
+                      date={date ? new Date(date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '15 giugno 2025'}
+                      location={location || 'Villa dei Fiori'}
+                      themeId={theme.id}
+                    />
+                  </div>
+                );
+              })()}
+              <p className="text-xs text-gray-400">{GALLERY_HEADER_THEMES.find(t => t.id === headerTheme)?.descrizione}</p>
             </div>
 
             {/* ─── Cover Desktop ─── */}
