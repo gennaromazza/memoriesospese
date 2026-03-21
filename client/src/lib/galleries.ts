@@ -593,6 +593,9 @@ export class GalleryService {
         coverImageUrl: galleryData.coverImageUrl || '',
         coverImageMobile: galleryData.coverImageMobile || '',
         coverImageDesktop: galleryData.coverImageDesktop || '',
+        coverImageMobilePosition: galleryData.coverImageMobilePosition || undefined,
+        coverImageDesktopPosition: galleryData.coverImageDesktopPosition || undefined,
+        headerTheme: galleryData.headerTheme || undefined,
         youtubeUrl: galleryData.youtubeUrl || '',
         youtubeUrls: galleryData.youtubeUrls || [],
         photoCount: galleryData.photoCount || 0,
@@ -617,6 +620,9 @@ export class GalleryService {
         productRequirements: galleryData.productRequirements,
         photoAssignments: galleryData.photoAssignments,
         bookingId: galleryData.bookingId,
+        jobId: galleryData.jobId,
+        jobType: galleryData.jobType,
+        clienteId: galleryData.clienteId,
         hasPassword: galleryData.hasPassword === true || !!galleryData.password, // SICURO: solo boolean, mai esporre la password
         // 📚 Capitoli
         chaptersEnabled: galleryData.chaptersEnabled || false,

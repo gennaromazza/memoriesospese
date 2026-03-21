@@ -16,6 +16,9 @@ export interface GalleryData {
   coverImageUrl?: string;
   coverImageMobile?: string;
   coverImageDesktop?: string;
+  coverImageMobilePosition?: { x: number; y: number };
+  coverImageDesktopPosition?: { x: number; y: number };
+  headerTheme?: string;
   youtubeUrl?: string;
   youtubeUrls?: string[];
   photoCount?: number;
@@ -478,6 +481,9 @@ export function useGalleryData(galleryCode: string) {
           coverImageUrl: galleryData.coverImageUrl || "",
           coverImageMobile: galleryData.coverImageMobile || "",
           coverImageDesktop: galleryData.coverImageDesktop || "",
+          coverImageMobilePosition: galleryData.coverImageMobilePosition || undefined,
+          coverImageDesktopPosition: galleryData.coverImageDesktopPosition || undefined,
+          headerTheme: galleryData.headerTheme || undefined,
           youtubeUrl: galleryData.youtubeUrl || "",
           youtubeUrls: galleryData.youtubeUrls || [],
           code: galleryData.code || galleryCode,
