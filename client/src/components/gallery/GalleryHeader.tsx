@@ -182,35 +182,86 @@ export default function GalleryHeader({
                 }}
                 onClick={() => setIsImageDialogOpen(true)}
               />
-              {/* Overlay con nome galleria - solo su desktop */}
-              <div className="hidden sm:flex absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70 flex-col items-center justify-end p-4 sm:p-6 pointer-events-none">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white font-playfair text-center drop-shadow-md leading-tight">
-                  {name}
-                </h1>
-                <div className="mt-2 text-white/90 flex flex-wrap justify-center items-center gap-2 text-base sm:text-lg drop-shadow-md">
-                  <span>{formatDate(date)}</span>
-                  {location && (
-                    <>
-                      <span className="hidden sm:inline">•</span>
-                      <span>{location}</span>
-                    </>
-                  )}
+              {/* Overlay elegante con nome galleria */}
+              <div
+                className="absolute inset-0 pointer-events-none flex flex-col justify-end"
+                style={{ background: 'linear-gradient(to bottom, transparent 25%, rgba(10,8,6,0.12) 55%, rgba(10,8,6,0.72) 100%)' }}
+              >
+                <div className="flex flex-col items-center pb-7 sm:pb-10 px-6 w-full">
+
+                  {/* Etichetta decorativa superiore */}
+                  <div className="flex items-center gap-3 mb-3 sm:mb-4 w-full justify-center">
+                    <div className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.45))' }} />
+                    <span className="text-white/55 text-[9px] sm:text-[10px] tracking-[0.35em] uppercase font-light select-none" style={{ fontFamily: "'Playfair Display', serif", letterSpacing: '0.35em' }}>
+                      Galleria Fotografica
+                    </span>
+                    <div className="h-px flex-1 max-w-[60px] sm:max-w-[90px]" style={{ background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.45))' }} />
+                  </div>
+
+                  {/* Nome principale */}
+                  <h1
+                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white font-playfair text-center leading-tight tracking-wide"
+                    style={{ textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.4)' }}
+                  >
+                    {name}
+                  </h1>
+
+                  {/* Separatore decorativo con diamante */}
+                  <div className="flex items-center gap-2 sm:gap-3 my-3 sm:my-4">
+                    <div className="h-px w-8 sm:w-12" style={{ background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.6))' }} />
+                    <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-70">
+                      <rect x="3" y="0" width="4" height="4" rx="0.5" fill="white" transform="rotate(45 5 5)" />
+                    </svg>
+                    <div className="h-px w-8 sm:w-12" style={{ background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.6))' }} />
+                  </div>
+
+                  {/* Data e location */}
+                  <div
+                    className="text-white/82 text-sm sm:text-base text-center leading-relaxed"
+                    style={{ textShadow: '0 1px 8px rgba(0,0,0,0.5)', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', letterSpacing: '0.03em' }}
+                  >
+                    <span>{formatDate(date)}</span>
+                    {location && (
+                      <>
+                        <span className="mx-2 text-white/40 not-italic" style={{ fontStyle: 'normal' }}>·</span>
+                        <span>{location}</span>
+                      </>
+                    )}
+                  </div>
+
                 </div>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 py-2">
           <div className="text-center mb-4 sm:mb-6">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-gray font-playfair leading-tight mb-2">
+            {/* Etichetta decorativa */}
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="h-px w-12 bg-[#6b7f6b]/30" />
+              <span className="text-[#6b7f6b]/60 text-[9px] tracking-[0.35em] uppercase font-light select-none" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Galleria Fotografica
+              </span>
+              <div className="h-px w-12 bg-[#6b7f6b]/30" />
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-gray font-playfair leading-tight mb-3 tracking-wide">
               {name}
             </h1>
-            <div className="text-sm sm:text-base text-blue-gray/70 flex justify-center items-center flex-wrap gap-2">
+
+            {/* Separatore diamante */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <div className="h-px w-8 bg-[#6b7f6b]/25" />
+              <div className="w-1.5 h-1.5 bg-[#6b7f6b]/40 rotate-45" />
+              <div className="h-px w-8 bg-[#6b7f6b]/25" />
+            </div>
+
+            <div className="text-sm sm:text-base text-blue-gray/60 italic" style={{ fontFamily: "'Playfair Display', serif" }}>
               <span>{formatDate(date)}</span>
               {location && (
                 <>
-                  <span>•</span>
+                  <span className="mx-2 text-blue-gray/35 not-italic">·</span>
                   <span>{location}</span>
                 </>
               )}
