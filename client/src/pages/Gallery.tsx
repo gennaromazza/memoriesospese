@@ -1838,6 +1838,8 @@ export default function Gallery() {
           coverImageUrl={galleryData.coverImageUrl}
           coverImageMobile={galleryData.coverImageMobile}
           coverImageDesktop={galleryData.coverImageDesktop}
+          coverImageMobilePosition={(galleryData as any).coverImageMobilePosition}
+          coverImageDesktopPosition={(galleryData as any).coverImageDesktopPosition}
           galleryId={id}
           galleryCode={galleryData.code}
         />

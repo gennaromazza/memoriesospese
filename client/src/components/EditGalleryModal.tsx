@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
-import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap } from "lucide-react";
+import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal } from "lucide-react";
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import { getAllJobs } from "@/lib/jobs";
@@ -117,6 +117,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImageMobileUrl, setCoverImageMobileUrl] = useState("");
   const [coverImageDesktopUrl, setCoverImageDesktopUrl] = useState("");
+  const [coverImageDesktopPosition, setCoverImageDesktopPosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
+  const [coverImageMobilePosition, setCoverImageMobilePosition] = useState<{x: number, y: number}>({ x: 50, y: 50 });
+  const [showCoverPickerFor, setShowCoverPickerFor] = useState<'desktop' | 'mobile' | null>(null);
+  const [showCoverPositionEditorFor, setShowCoverPositionEditorFor] = useState<'desktop' | 'mobile' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingPin, setIsCheckingPin] = useState(false); // Loading state per validazione PIN
   
@@ -395,6 +399,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setCoverImageUrl(gallery.coverImageUrl || "");
       setCoverImageMobileUrl(gallery.coverImageMobile || "");
       setCoverImageDesktopUrl(gallery.coverImageDesktop || "");
+      setCoverImageDesktopPosition((gallery as any).coverImageDesktopPosition || { x: 50, y: 50 });
+      setCoverImageMobilePosition((gallery as any).coverImageMobilePosition || { x: 50, y: 50 });
       
       // Popola campi Photo Selection Workflow (Task 2)
       const hasProductRequirements = Array.isArray((gallery as any).productRequirements) && (gallery as any).productRequirements.length > 0;
@@ -1258,6 +1264,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         coverImageUrl: legacyCoverUrl, // Retrocompatibilità
         coverImageMobile: coverImageMobileUrl || null,
         coverImageDesktop: coverImageDesktopUrl || null,
+        coverImageMobilePosition: coverImageMobileUrl ? coverImageMobilePosition : null,
+        coverImageDesktopPosition: coverImageDesktopUrl ? coverImageDesktopPosition : null,
         youtubeUrls: youtubeUrls.length > 0 ? youtubeUrls : null,
         hasChapters: false,
         // Photo Selection Workflow fields (Task 2)
@@ -2568,45 +2576,119 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               <p className="text-xs text-gray-500">Aggiungi più video YouTube che saranno mostrati in uno slider nella galleria</p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="coverImageDesktop">Immagine Copertina Desktop (16:9)</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="coverImageDesktop"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleDesktopCoverChange}
-                  />
-                  {coverImageDesktopUrl && (
-                    <img 
-                      src={coverImageDesktopUrl} 
-                      alt="Anteprima desktop" 
-                      className="h-16 w-28 object-cover rounded"
-                    />
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Per dispositivi desktop e tablet</p>
+            {/* ─── Cover Desktop ─── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Monitor className="h-4 w-4 text-gray-500" />
+                <Label className="font-medium">Copertina Desktop (16:9)</Label>
               </div>
-
-              <div>
-                <Label htmlFor="coverImageMobile">Immagine Copertina Mobile (9:16)</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="coverImageMobile"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleMobileCoverChange}
-                  />
-                  {coverImageMobileUrl && (
-                    <img 
-                      src={coverImageMobileUrl} 
-                      alt="Anteprima mobile" 
-                      className="h-16 w-9 object-cover rounded"
+              <div className="flex gap-3 items-start">
+                {coverImageDesktopUrl ? (
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={coverImageDesktopUrl}
+                      alt="Anteprima desktop"
+                      className="w-40 h-[90px] object-cover rounded-lg border"
+                      style={{ objectPosition: `${coverImageDesktopPosition.x}% ${coverImageDesktopPosition.y}%` }}
                     />
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setCoverImageDesktopUrl("")}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-40 h-[90px] bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
+                    <Monitor className="h-6 w-6 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleDesktopCoverChange} />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition-colors">
+                        <UploadCloud className="h-3.5 w-3.5" /> Carica file
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCoverPickerFor('desktop')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+                    >
+                      <GalleryHorizontal className="h-3.5 w-3.5" /> Dalla galleria
+                    </button>
+                    {coverImageDesktopUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCoverPositionEditorFor('desktop')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-[#6b7f6b] text-[#6b7f6b] bg-white hover:bg-[#6b7f6b]/10 transition-colors"
+                      >
+                        <Crosshair className="h-3.5 w-3.5" /> Modifica posizione
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">Formato 16:9 — per desktop e tablet</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Per dispositivi mobili</p>
+              </div>
+            </div>
+
+            {/* ─── Cover Mobile ─── */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-gray-500" />
+                <Label className="font-medium">Copertina Mobile (9:16)</Label>
+              </div>
+              <div className="flex gap-3 items-start">
+                {coverImageMobileUrl ? (
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={coverImageMobileUrl}
+                      alt="Anteprima mobile"
+                      className="w-16 h-[90px] object-cover rounded-lg border"
+                      style={{ objectPosition: `${coverImageMobilePosition.x}% ${coverImageMobilePosition.y}%` }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCoverImageMobileUrl("")}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-16 h-[90px] bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
+                    <Smartphone className="h-5 w-5 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleMobileCoverChange} />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition-colors">
+                        <UploadCloud className="h-3.5 w-3.5" /> Carica file
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCoverPickerFor('mobile')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+                    >
+                      <GalleryHorizontal className="h-3.5 w-3.5" /> Dalla galleria
+                    </button>
+                    {coverImageMobileUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCoverPositionEditorFor('mobile')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-[#6b7f6b] text-[#6b7f6b] bg-white hover:bg-[#6b7f6b]/10 transition-colors"
+                      >
+                        <Crosshair className="h-3.5 w-3.5" /> Modifica posizione
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400">Formato 9:16 — per smartphone</p>
+                </div>
               </div>
             </div>
 
@@ -2921,6 +3003,272 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* ═══════════════════════════════════════════════
+        DIALOG: SELEZIONA FOTO DALLA GALLERIA
+        ═══════════════════════════════════════════════ */}
+    <Dialog open={showCoverPickerFor !== null} onOpenChange={(open) => { if (!open) setShowCoverPickerFor(null); }}>
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col z-[110]" aria-describedby="cover-picker-desc">
+        <DialogHeader>
+          <DialogTitle>
+            {showCoverPickerFor === 'desktop' ? (
+              <span className="flex items-center gap-2"><Monitor className="h-4 w-4" /> Scegli foto copertina Desktop</span>
+            ) : (
+              <span className="flex items-center gap-2"><Smartphone className="h-4 w-4" /> Scegli foto copertina Mobile</span>
+            )}
+          </DialogTitle>
+          <DialogDescription id="cover-picker-desc">
+            Scegli una foto dalla galleria da usare come copertina
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {photos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-2">
+              <GalleryHorizontal className="h-10 w-10 opacity-40" />
+              <p className="text-sm">Nessuna foto nella galleria</p>
+              <p className="text-xs">Carica prima alcune foto nella galleria</p>
+            </div>
+          ) : (() => {
+            const chapters: any[] = (gallery as any)?.chapters || [];
+            const hasChapters = chapters.length > 0;
+
+            if (hasChapters) {
+              const grouped: { [chapterId: string]: typeof photos } = { __uncategorized: [] };
+              chapters.forEach((ch: any) => { grouped[ch.id] = []; });
+
+              photos.forEach(photo => {
+                const photoAny = photo as any;
+                const chId = photoAny.chapterId || '__uncategorized';
+                if (grouped[chId]) {
+                  grouped[chId].push(photo);
+                } else {
+                  grouped['__uncategorized'].push(photo);
+                }
+              });
+
+              return (
+                <div className="space-y-4 pr-1">
+                  {chapters.map((ch: any) => {
+                    const chPhotos = grouped[ch.id] || [];
+                    if (chPhotos.length === 0) return null;
+                    return (
+                      <div key={ch.id}>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">{ch.titolo}</p>
+                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+                          {chPhotos.map(photo => (
+                            <button
+                              key={photo.id}
+                              type="button"
+                              onClick={() => {
+                                if (showCoverPickerFor === 'desktop') {
+                                  setCoverImageDesktopUrl(photo.url);
+                                  setCoverImageDesktopPosition({ x: 50, y: 50 });
+                                } else {
+                                  setCoverImageMobileUrl(photo.url);
+                                  setCoverImageMobilePosition({ x: 50, y: 50 });
+                                }
+                                setShowCoverPickerFor(null);
+                                setShowCoverPositionEditorFor(showCoverPickerFor);
+                              }}
+                              className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
+                            >
+                              <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {grouped['__uncategorized'].length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">Senza capitolo</p>
+                      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+                        {grouped['__uncategorized'].map(photo => (
+                          <button
+                            key={photo.id}
+                            type="button"
+                            onClick={() => {
+                              if (showCoverPickerFor === 'desktop') {
+                                setCoverImageDesktopUrl(photo.url);
+                                setCoverImageDesktopPosition({ x: 50, y: 50 });
+                              } else {
+                                setCoverImageMobileUrl(photo.url);
+                                setCoverImageMobilePosition({ x: 50, y: 50 });
+                              }
+                              setShowCoverPickerFor(null);
+                              setShowCoverPositionEditorFor(showCoverPickerFor);
+                            }}
+                            className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
+                          >
+                            <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 pr-1">
+                {photos.map(photo => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => {
+                      if (showCoverPickerFor === 'desktop') {
+                        setCoverImageDesktopUrl(photo.url);
+                        setCoverImageDesktopPosition({ x: 50, y: 50 });
+                      } else {
+                        setCoverImageMobileUrl(photo.url);
+                        setCoverImageMobilePosition({ x: 50, y: 50 });
+                      }
+                      setShowCoverPickerFor(null);
+                      setShowCoverPositionEditorFor(showCoverPickerFor);
+                    }}
+                    className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
+                  >
+                    <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCoverPickerFor(null)}>Annulla</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* ═══════════════════════════════════════════════
+        DIALOG: EDITOR POSIZIONE COPERTINA
+        ═══════════════════════════════════════════════ */}
+    {showCoverPositionEditorFor !== null && (() => {
+      const isDesktop = showCoverPositionEditorFor === 'desktop';
+      const imageUrl = isDesktop ? coverImageDesktopUrl : coverImageMobileUrl;
+      const position = isDesktop ? coverImageDesktopPosition : coverImageMobilePosition;
+      const setPosition = isDesktop ? setCoverImageDesktopPosition : setCoverImageMobilePosition;
+      const aspectRatio = isDesktop ? '16/9' : '9/16';
+      const previewLabel = isDesktop ? 'Anteprima desktop (16:9)' : 'Anteprima mobile (9:16)';
+
+      return (
+        <Dialog open={true} onOpenChange={(open) => { if (!open) setShowCoverPositionEditorFor(null); }}>
+          <DialogContent className="max-w-2xl z-[110]" aria-describedby="cover-pos-desc">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Crosshair className="h-4 w-4" />
+                {isDesktop ? 'Posizione copertina Desktop' : 'Posizione copertina Mobile'}
+              </DialogTitle>
+              <DialogDescription id="cover-pos-desc">
+                Clicca o trascina il mirino per scegliere il punto di fuoco dell'immagine
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Editor con mirino */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-600">Immagine originale — trascina il mirino</p>
+                <GalleryCoverFocalEditor
+                  imageUrl={imageUrl}
+                  position={position}
+                  onPositionChange={setPosition}
+                />
+                <p className="text-xs text-gray-400 text-center">{position.x.toFixed(0)}% × {position.y.toFixed(0)}%</p>
+              </div>
+              {/* Preview con aspect ratio corretto */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-600">{previewLabel}</p>
+                <div
+                  className="w-full overflow-hidden rounded-lg border bg-gray-100"
+                  style={{ aspectRatio }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt="Anteprima posizione"
+                    className="w-full h-full object-cover"
+                    style={{ objectPosition: `${position.x}% ${position.y}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCoverPositionEditorFor(null)}>Annulla</Button>
+              <Button onClick={() => setShowCoverPositionEditorFor(null)} className="bg-[#6b7f6b] hover:bg-[#5a6b5a]">
+                <Check className="h-4 w-4 mr-1.5" /> Salva posizione
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      );
+    })()}
     </>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   SUB-COMPONENTE: Editor fuoco immagine copertina galleria
+───────────────────────────────────────────────────────────────────── */
+const GalleryCoverFocalEditor = ({ imageUrl, position, onPositionChange }: {
+  imageUrl: string;
+  position: { x: number; y: number };
+  onPositionChange: (pos: { x: number; y: number }) => void;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  const calcPosition = (e: React.MouseEvent | MouseEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    onPositionChange({ x: Math.round(x), y: Math.round(y) });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    calcPosition(e);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    calcPosition(e);
+  };
+
+  const handleMouseUp = () => { isDragging.current = false; };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full aspect-video overflow-hidden rounded-lg border cursor-crosshair select-none bg-gray-100"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      <img
+        src={imageUrl}
+        alt="Editor posizione"
+        className="w-full h-full object-cover pointer-events-none"
+      />
+      {/* Mirino */}
+      <div
+        className="absolute w-8 h-8 pointer-events-none"
+        style={{ left: `${position.x}%`, top: `${position.y}%`, transform: 'translate(-50%, -50%)' }}
+      >
+        <div className="absolute inset-0 rounded-full border-2 border-white shadow-lg bg-black/20" />
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white -translate-y-1/2 shadow-sm" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white -translate-x-1/2 shadow-sm" />
+      </div>
+    </div>
+  );
+};

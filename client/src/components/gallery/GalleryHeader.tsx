@@ -20,6 +20,8 @@ interface GalleryHeaderProps {
   coverImageUrl?: string;
   coverImageMobile?: string;
   coverImageDesktop?: string;
+  coverImageMobilePosition?: { x: number; y: number };
+  coverImageDesktopPosition?: { x: number; y: number };
   galleryId?: string;
   galleryCode?: string;
 }
@@ -39,6 +41,8 @@ export default function GalleryHeader({
   coverImageUrl,
   coverImageMobile,
   coverImageDesktop,
+  coverImageMobilePosition,
+  coverImageDesktopPosition,
   galleryId,
   galleryCode
 }: GalleryHeaderProps) {
@@ -63,6 +67,14 @@ export default function GalleryHeader({
   const displayImage = isMobile 
     ? (coverImageMobile || coverImageDesktop || coverImageUrl)
     : (coverImageDesktop || coverImageUrl);
+
+  // Calcola objectPosition per l'immagine attiva
+  const activePosition = isMobile
+    ? (coverImageMobilePosition || coverImageDesktopPosition)
+    : (coverImageDesktopPosition || coverImageMobilePosition);
+  const objectPositionStyle = activePosition
+    ? `${activePosition.x}% ${activePosition.y}%`
+    : '50% 50%';
 
   // Aggiungi classe al body per navbar trasparente su mobile quando c'è cover image
   useEffect(() => {
@@ -165,7 +177,8 @@ export default function GalleryHeader({
                   left: '50%',
                   transform: 'translate(-50%, -50%)',
                   maxHeight: '100%',
-                  maxWidth: '100%'
+                  maxWidth: '100%',
+                  objectPosition: objectPositionStyle
                 }}
                 onClick={() => setIsImageDialogOpen(true)}
               />

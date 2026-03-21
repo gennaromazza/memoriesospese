@@ -34,6 +34,8 @@ export interface Gallery {
   coverImageUrl?: string;
   coverImageMobile?: string; // Cover image per mobile (9:16)
   coverImageDesktop?: string; // Cover image per desktop (16:9)
+  coverImageMobilePosition?: { x: number; y: number }; // Punto di fuoco (0-100) per mobile
+  coverImageDesktopPosition?: { x: number; y: number }; // Punto di fuoco (0-100) per desktop
   youtubeUrl?: string;
   youtubeUrls?: string[]; // Multiple YouTube URLs
   photoCount: number;
