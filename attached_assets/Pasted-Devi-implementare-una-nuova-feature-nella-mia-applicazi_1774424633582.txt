@@ -1,0 +1,183 @@
+Devi implementare una nuova feature nella mia applicazione esistente, SENZA riscrivere la UI da zero e SENZA rompere il flusso attuale.
+
+CONTESTO
+La mia app ha già un sistema funzionante in cui il cliente seleziona servizi variabili/modulari all’interno di un preventivo o configuratore. Attualmente i servizi vengono selezionati manualmente e il totale viene aggiornato. Quello che manca è una logica automatica di benefici inclusi (prima chiamati “omaggi”, ma NON voglio più usare questa parola).
+
+OBIETTIVO
+Quando il cliente seleziona determinati servizi, oppure raggiunge determinate soglie, il sistema deve:
+1. mostrare i benefici potenzialmente ottenibili
+2. mostrare in tempo reale quali benefici sono già stati attivati
+3. mostrare feedback dinamici su cosa manca per attivare un determinato beneficio
+4. attivare automaticamente uno o più benefici inclusi quando le regole sono soddisfatte
+
+IMPORTANTE
+I benefit non devono essere gestiti solo come “finalmente attivi”, ma anche come elementi visibili prima dell’attivazione.
+
+Quindi ogni benefit deve poter avere almeno questi stati:
+- locked / non ancora attivo
+- preview / visibile come ottenibile
+- unlocked / attivato automaticamente
+
+ESEMPIO UX
+All’inizio il cliente vede tutti i servizi selezionabili.
+In parallelo, il sistema può mostrare alcuni benefit raggiungibili, ad esempio:
+- “Gallery digitale (valore 150€)”
+- “Aggiungi Cinema e Scatta per attivarla”
+oppure
+- “Ti manca 1 servizio per attivare la Conservazione Estesa”
+
+Quando poi il cliente completa la combinazione, il messaggio cambia automaticamente in:
+- “Gallery digitale – inclusa per voi”
+oppure
+- “Conservazione estesa – attivata”
+
+QUINDI SERVE UNA LOGICA CHE GESTISCA:
+1. servizi selezionati dal cliente
+2. benefit configurabili
+3. regole di attivazione
+4. stato di avanzamento verso ogni benefit
+5. messaggi di feedback dinamici
+
+RICHIESTA FUNZIONALE
+Implementa un sistema di regole automatiche per attivare benefici inclusi in base a:
+1. combinazioni specifiche di servizi selezionati
+2. soglie minime di numero servizi selezionati
+3. eventuale estendibilità futura per altre condizioni
+
+Il sistema deve anche calcolare, per ogni benefit NON ancora attivo:
+- quali servizi mancano
+- oppure quanti servizi mancano
+- e produrre un feedback UI leggibile
+
+ESEMPI DI LOGICA
+Esempio 1:
+Se il cliente seleziona:
+- Servizio fotografico
+- Cinema
+- Scatta
+allora si attiva automaticamente:
+- Gallery digitale inclusa
+
+Se ha selezionato solo “Servizio fotografico” + “Cinema”, il sistema deve mostrare:
+- Gallery digitale (valore 150€)
+- Manca: Scatta
+oppure
+- Aggiungi Scatta per attivare la Gallery digitale
+
+Esempio 2:
+Se il cliente seleziona almeno 5 servizi aggiuntivi, allora si attiva:
+- Conservazione estesa file per 24 mesi aggiuntivi
+
+Se ha selezionato 3 o 4 servizi, il sistema deve mostrare:
+- Conservazione estesa file
+- Ti mancano 2 servizi
+oppure
+- Aggiungi ancora 2 servizi per attivarla
+
+MODELLO CONCETTUALE
+Serve distinguere chiaramente:
+- servizi selezionabili dal cliente
+- benefici inclusi attivati automaticamente
+- regole che legano servizi e benefici
+- stato di avanzamento di ciascun beneficio
+
+Il sistema deve essere pensato in modo configurabile, ad esempio con strutture tipo:
+- services
+- benefits
+- rules
+
+Le regole devono poter definire almeno:
+- id regola
+- servizi richiesti (array opzionale)
+- quantità minima servizi (opzionale)
+- benefit da sbloccare/attivare
+- priorità o ordinamento se utile
+- attiva/disattiva se utile
+
+Per ogni benefit il sistema deve poter calcolare almeno:
+- isUnlocked
+- missingServiceIds oppure missingCount
+- progress status
+- feedbackMessage
+
+COMPORTAMENTO UI
+Quando una regola è soddisfatta:
+- il benefit deve apparire automaticamente nell’interfaccia come attivato
+- il benefit deve essere marcato come incluso / attivato / incluso per voi
+- non deve risultare come selezionato manualmente dal cliente
+- deve essere visivamente distinto dai servizi a pagamento
+
+Quando una regola NON è ancora soddisfatta:
+- il benefit può comunque essere mostrato come ottenibile / sbloccabile
+- il sistema deve mostrare cosa manca per attivarlo
+- il feedback deve aggiornarsi in tempo reale mentre il cliente seleziona i servizi
+
+ESEMPI DI FEEDBACK UI
+- “Aggiungi Scatta per attivare la Gallery digitale”
+- “Ti manca 1 servizio per attivare la Conservazione estesa”
+- “Hai sbloccato la Gallery digitale”
+- “Gallery digitale – inclusa per voi”
+
+TOTALE ECONOMICO
+- I servizi selezionati dal cliente continuano a concorrere al totale come già fanno oggi
+- I benefit automatici NON devono aumentare il totale
+- Il sistema può mostrare il valore teorico del benefit a scopo marketing, ma senza sommarlo al prezzo finale
+- Verifica che il totale finale resti corretto in ogni combinazione
+
+PERSISTENZA DATI
+Integra questa logica nel sistema esistente in modo coerente.
+Se il configuratore salva dati su database / Firestore / stato persistente:
+- salva i servizi scelti normalmente
+- salva anche i benefit attivati automaticamente, oppure rendili ricalcolabili in modo deterministicamente consistente
+- evita inconsistenze tra frontend e backend
+- la fonte di verità della logica deve essere una sola
+
+ARCHITETTURA RICHIESTA
+Voglio una soluzione pulita con:
+1. layer/config centrale delle regole
+2. funzione pura di calcolo dei benefit attivati
+3. funzione pura di calcolo dello stato preview / locked / unlocked di ciascun benefit
+4. calcolo dei messaggi dinamici di feedback
+5. integrazione con stato già esistente del configuratore
+6. aggiornamento UI automatico
+7. nessuna logica sparsa e duplicata nei componenti
+
+IMPLEMENTAZIONE RICHIESTA
+Fai questi passaggi:
+1. Analizza la codebase attuale e individua dove vengono definiti i servizi e dove viene calcolato il totale
+2. Individua il punto corretto in cui agganciare la nuova logica
+3. Crea un modello chiaro per benefits e rules
+4. Implementa una funzione centralizzata per calcolare:
+   - benefit attivi
+   - benefit non attivi ma previewabili
+   - messaggi dinamici su cosa manca
+5. Integra il risultato nel flusso esistente senza rompere compatibilità
+6. Aggiorna la UI per mostrare sia i benefit attivati sia quelli quasi sbloccati
+7. Verifica che il totale economico non venga alterato impropriamente
+8. Aggiungi commenti solo dove servono davvero
+9. Evita refactor inutili fuori scope
+
+CASI DA TESTARE
+Testa almeno questi casi:
+- nessun servizio selezionato => nessun benefit attivo, ma benefit previewabili se previsti
+- selezione parziale => benefit non attivo ma con feedback corretto
+- selezione combinazione completa => benefit attivo
+- selezione per soglia minima => benefit attivo
+- più regole contemporaneamente => tutti i benefit compatibili attivi
+- rimozione di un servizio => il benefit dipendente si disattiva correttamente
+- il totale prezzo non cambia per i benefit automatici
+- nessun duplicato di benefit se più regole sbloccano lo stesso elemento
+- i messaggi UI aggiornano correttamente lo stato “cosa manca”
+
+OUTPUT CHE VOGLIO DA TE
+1. Implementazione completa del codice
+2. Elenco file modificati
+3. Spiegazione sintetica della logica inserita
+4. Eventuali TODO residui se trovi punti della codebase da completare
+5. Nessuna invenzione: se qualche parte non è chiara, deducila dalla codebase reale prima di cambiare struttura
+
+IMPORTANTE
+- Non cambiare i nomi marketing già visibili in modo arbitrario, salvo il termine “omaggio”, che va sostituito con wording più premium tipo “incluso”, “attivato”, “incluso per voi” o equivalente coerente con la UI esistente
+- Non introdurre librerie nuove se non strettamente necessario
+- Non creare un sistema teorico scollegato: devi integrarlo davvero nel mio codice esistente
+- Preferisci una soluzione semplice, robusta, estendibile e pronta per produzione

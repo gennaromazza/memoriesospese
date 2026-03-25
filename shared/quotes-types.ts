@@ -5,6 +5,7 @@
 
 import { Timestamp } from 'firebase/firestore';
 import { JobType } from './jobs-types';
+import type { BenefitRule } from './quote-benefits';
 
 /**
  * Tipo preventivo
@@ -192,6 +193,9 @@ export interface Quote {
   
   // Payment schedules linkage (for atomic cascade deletes)
   paymentScheduleIds?: string[];    // IDs degli scadenzari pagamenti collegati
+
+  // Regole benefit inclusi automatici (solo preventivi variabili)
+  benefitRules?: BenefitRule[];
   
   // Dati job per portale pubblico
   jobInfo?: {

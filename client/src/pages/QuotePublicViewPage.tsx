@@ -15,12 +15,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Lock, Unlock } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import { computeBenefitStates } from '@shared/quote-benefits';
+import type { BenefitState } from '@shared/quote-benefits';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -225,6 +227,17 @@ export default function QuotePublicViewPage() {
   }, [quote, selectedProducts]);
 
   const totale = totals.totalAfterDiscount;
+
+  // Calcola stati dei benefit inclusi (solo preventivi variabili con regole configurate)
+  const benefitStates = useMemo<BenefitState[]>(() => {
+    if (!quote || quote.type !== 'variabile' || !quote.benefitRules || quote.benefitRules.length === 0) {
+      return [];
+    }
+    const allSelectableNames = (quote.products ?? [])
+      .filter(p => p.selectable)
+      .map(p => p.nome);
+    return computeBenefitStates(quote.benefitRules, selectedProducts, allSelectableNames);
+  }, [quote, selectedProducts]);
 
   // Theme colors with fallback
   const primaryColor = quote?.theme?.primaryColor ?? '#8B9A8B';
@@ -781,6 +794,81 @@ export default function QuotePublicViewPage() {
                 </div>
               );
             })}
+
+            {/* Pannello Benefici Inclusi - visibile solo per preventivi variabili con regole */}
+            {benefitStates.length > 0 && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Gift className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-sm font-semibold text-blue-gray">Benefici inclusi sbloccabili</h4>
+                  </div>
+                  {benefitStates.map(bs => (
+                    <div
+                      key={bs.rule.id}
+                      className={`rounded-xl border p-4 transition-all ${
+                        bs.isUnlocked
+                          ? 'border-emerald-300 bg-emerald-50'
+                          : bs.status === 'preview'
+                          ? 'border-amber-200 bg-amber-50/50'
+                          : 'border-gray-200 bg-gray-50/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-0.5 flex-shrink-0 rounded-full p-1.5 ${
+                          bs.isUnlocked ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {bs.isUnlocked
+                            ? <Unlock className="w-3.5 h-3.5" />
+                            : <Lock className="w-3.5 h-3.5" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className={`font-semibold text-sm ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
+                              {bs.rule.name}
+                            </span>
+                            {bs.rule.valueEur && bs.rule.valueEur > 0 && (
+                              <Badge variant="outline" className="text-xs text-gray-500 border-gray-300">
+                                valore {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(bs.rule.valueEur)}
+                              </Badge>
+                            )}
+                            {bs.isUnlocked && (
+                              <Badge className="text-xs bg-emerald-600 text-white border-0">
+                                ✓ Attivato
+                              </Badge>
+                            )}
+                          </div>
+                          {bs.rule.description && (
+                            <p className="text-xs text-muted-foreground mb-1.5">{bs.rule.description}</p>
+                          )}
+                          <p className={`text-xs font-medium ${
+                            bs.isUnlocked ? 'text-emerald-600' : 'text-amber-600'
+                          }`}>
+                            {bs.feedbackMessage}
+                          </p>
+                          {/* Barra progresso per minSelectableCount */}
+                          {!bs.isUnlocked && bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0 && (
+                            <div className="mt-2">
+                              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                                <span>{bs.currentCount} / {bs.rule.minSelectableCount} servizi</span>
+                              </div>
+                              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(100, (bs.currentCount / bs.rule.minSelectableCount) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <Separator className="my-4" />
 
