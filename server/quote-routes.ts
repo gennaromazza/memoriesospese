@@ -535,6 +535,29 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       }
     }
 
+    // 6a. Benefit rules: se il preventivo non ha benefit propri ma ha un templateId,
+    //     carica i benefit dal template aggiornato (fallback per preventivi creati prima
+    //     della configurazione dei benefit sul template).
+    let resolvedBenefitRules = quote.benefitRules || [];
+    if (resolvedBenefitRules.length === 0 && quote.templateId) {
+      try {
+        const templateDoc = await db
+          .collection("quoteTemplates")
+          .doc(quote.templateId)
+          .get();
+
+        if (templateDoc.exists) {
+          const templateData = templateDoc.data();
+          if (templateData?.benefitRules && Array.isArray(templateData.benefitRules)) {
+            resolvedBenefitRules = templateData.benefitRules;
+            console.log(`📋 [Public Quote] Benefit rules caricati dal template ${quote.templateId}: ${resolvedBenefitRules.length} regole`);
+          }
+        }
+      } catch (templateErr) {
+        console.warn("⚠️ Impossibile recuperare benefit rules dal template:", templateErr);
+      }
+    }
+
     // 6. Prepara dati sicuri (redact internal fields + serialize timestamps)
     const safeQuote = {
       id: quote.id,
@@ -556,8 +579,8 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       status: quote.status,
       expiresAt: serializeTimestamp(quote.expiresAt),
       templateName: quote.templateName,
-      // Benefit rules: necessarie per mostrare omaggi sbloccabili nella vista cliente
-      benefitRules: quote.benefitRules || [],
+      // Benefit rules: dal preventivo stesso, o dal template aggiornato come fallback
+      benefitRules: resolvedBenefitRules,
     };
 
     // 7. Return dati per preview cliente
