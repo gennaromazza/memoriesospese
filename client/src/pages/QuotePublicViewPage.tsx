@@ -643,7 +643,7 @@ export default function QuotePublicViewPage() {
                   {isOmaggioUnlocked && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
-                      <span className="text-sm font-semibold text-emerald-700">In omaggio per voi</span>
+                      <span className="text-sm font-semibold text-emerald-700">Servizio Incluso</span>
                       <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">INCLUSO</Badge>
                     </div>
                   )}
@@ -698,7 +698,7 @@ export default function QuotePublicViewPage() {
                       <div className="flex-1 min-w-0 sm:hidden">
                         <h3 className={`font-bold text-base font-playfair leading-tight ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
                         {isOmaggioUnlocked ? (
-                          <p className="font-bold text-base text-emerald-600 mt-1">🎁 In omaggio per voi</p>
+                          <p className="font-bold text-base text-emerald-600 mt-1">✓ Servizio Incluso</p>
                         ) : product.isOmaggio ? (
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mt-1">🎁 In omaggio</span>
                         ) : (
@@ -792,7 +792,7 @@ export default function QuotePublicViewPage() {
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
                       {isOmaggioUnlocked ? (
-                        <p className="font-bold text-xl sm:text-2xl text-emerald-600">🎁 In omaggio</p>
+                        <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
                       ) : product.isOmaggio ? (
                         <p className="font-bold text-xl sm:text-2xl text-rose-500">🎁 Omaggio</p>
                       ) : (
