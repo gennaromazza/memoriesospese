@@ -617,10 +617,11 @@ export default function QuoteTemplatesManager() {
   }, [form]);
 
   // Watch values for totals using useWatch for better performance
+  // NOTA: customProducts NON usa useWatch perché useFieldArray è già attivo sullo
+  // stesso campo — avere due subscriber sullo stesso campo causa render in cascata.
+  // Usiamo direttamente `fields` di useFieldArray per i valori correnti.
   const catalogProductIds =
     useWatch({ control: form.control, name: "catalogProductIds" }) || [];
-  const customProducts =
-    useWatch({ control: form.control, name: "customProducts" }) || [];
   const discountType = useWatch({
     control: form.control,
     name: "discountType",
@@ -629,13 +630,13 @@ export default function QuoteTemplatesManager() {
     useWatch({ control: form.control, name: "discountValue" }) || 0;
   const quoteType = useWatch({ control: form.control, name: "type" });
 
-  // Calculate totals
+  // Calculate totals — usa fields (da useFieldArray) invece di useWatch per customProducts
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
     const product = catalogProducts.find((p) => p.id === id);
     return sum + (product?.prezzoFinale || product?.prezzo || 0);
   }, 0);
 
-  const totaleCustom = customProducts
+  const totaleCustom = fields
     .filter((p) => p.nome?.trim())
     .reduce((sum, p) => sum + (p.prezzo || 0), 0);
 
@@ -1249,7 +1250,7 @@ export default function QuoteTemplatesManager() {
                     const p = catalogProducts.find((cp: any) => cp.id === id);
                     return p?.nome ?? "";
                   }).filter(Boolean),
-                  ...customProducts.filter((p: any) => p.nome?.trim()).map((p: any) => p.nome),
+                  ...fields.filter((p) => p.nome?.trim()).map((p) => p.nome),
                 ];
 
                 const addBenefitRule = () => {
