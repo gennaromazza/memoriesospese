@@ -325,6 +325,7 @@ export interface AcceptQuoteData {
     imageDataUrl?: string;      // Data URL firma canvas (opzionale - solo legacy)
     clientName: string;
   };
-  selectedProducts?: string[];  // IDs prodotti selezionati (solo variabile)
-  clausesAccepted: string[];    // IDs clausole accettate
+  selectedProducts?: string[];             // Nomi prodotti selezionati (solo variabile)
+  unlockedBenefitProductNames?: string[];  // Nomi prodotti omaggio sbloccati via benefit rules
+  clausesAccepted: string[];               // IDs clausole accettate
 }

@@ -153,12 +153,18 @@ export default function QuotePublicViewPage() {
       if (!quote) throw new Error('Quote non trovato');
       if (!signerName.trim()) throw new Error('Inserisci il tuo nome per firmare');
 
+      // Prodotti omaggio sbloccati dai benefit rules al momento della firma
+      const unlockedBenefitNames = Array.from(omaggioByProductName.entries())
+        .filter(([, bs]) => bs.isUnlocked)
+        .map(([name]) => name);
+
       await acceptQuote({
         quoteId: quote.id,
         signature: {
           clientName: signerName.trim()
         },
         selectedProducts: quote.type === 'variabile' ? selectedProducts : undefined,
+        unlockedBenefitProductNames: unlockedBenefitNames.length > 0 ? unlockedBenefitNames : undefined,
         clausesAccepted: acceptedClauses
       });
     },

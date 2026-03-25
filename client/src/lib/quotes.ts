@@ -432,11 +432,16 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     let selectedBeforeDiscount: number | undefined;
 
     if (quote.type === 'variabile' && data.selectedProducts) {
+      const benefitUnlockedNames = new Set(data.unlockedBenefitProductNames ?? []);
       // Marca i prodotti selezionati con selected: true, preservando selectable degli omaggi
       updatedProducts = quote.products.map(p => {
-        // Omaggi: sempre inclusi (selected: true) e non selezionabili dal cliente
+        // Omaggi fissi (admin-set): sempre inclusi a €0
         if (p.isOmaggio) {
           return { ...p, selectable: false, selected: true, prezzo: 0 };
+        }
+        // Omaggi sbloccati via benefit rules: inclusi a €0, marcati nel contratto
+        if (benefitUnlockedNames.has(p.nome)) {
+          return { ...p, selectable: false, selected: true, prezzo: 0, isServizioIncluso: true };
         }
         return {
           ...p,
@@ -445,7 +450,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
         };
       });
       
-      // Calcola subtotale dei prodotti selezionati (omaggi: prezzo 0 → non influiscono)
+      // Calcola subtotale dei prodotti selezionati (omaggi e servizi inclusi: prezzo 0 → non influiscono)
       const subtotaleSelezionato = updatedProducts
         .filter(p => p.selected)
         .reduce((sum, p) => sum + p.prezzo, 0);
@@ -486,6 +491,7 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
       products: updatedProducts,  // Aggiorna products con selected
       totaleSelezionato,
       ...(selectedBeforeDiscount !== undefined && { selectedBeforeDiscount }),
+      ...(data.unlockedBenefitProductNames?.length ? { unlockedBenefitProductNames: data.unlockedBenefitProductNames } : {}),
       updatedAt: Timestamp.now()
     });
     

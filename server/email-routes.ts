@@ -4237,7 +4237,8 @@ export function createQuoteSignedEmailHTML(
   portalLink: string,
   nextPayment?: { importo: number; dataScadenza: Date; descrizione: string },
   payments?: Array<{ importo: number; dataScadenza: Date; descrizione: string }>,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
+  includedServices?: string[]
 ): string {
   const studio = studioInfo || { 
     name: "Image Studio", 
@@ -4290,6 +4291,21 @@ export function createQuoteSignedEmailHTML(
             </tr>
           </table>
         </div>
+
+        ${includedServices && includedServices.length > 0 ? `
+        <div style="background: #d1fae5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <h4 style="color: #065f46; margin-top: 0; margin-bottom: 12px;">🎁 Servizi Inclusi nel Contratto</h4>
+          ${includedServices.map(name => `
+          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span style="color: #059669; font-size: 16px; margin-right: 8px;">✓</span>
+            <span style="color: #065f46; font-weight: bold;">${name}</span>
+            <span style="margin-left: 8px; background: #059669; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold;">INCLUSO</span>
+          </div>`).join('')}
+          <p style="margin: 12px 0 0 0; font-size: 12px; color: #065f46; font-style: italic;">
+            I servizi inclusi sono già compresi nell'offerta e non comportano costi aggiuntivi.
+          </p>
+        </div>
+        ` : ''}
 
         ${nextPayment ? `
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">

@@ -1553,6 +1553,7 @@ router.post(
         nextPaymentData,
         undefined,
         studioInfo,
+        (quote as any).unlockedBenefitProductNames || undefined,
       );
 
       const subject = `Preventivo Firmato - ${quote.jobInfo?.nomeEvento || "Evento"}`;
@@ -1648,6 +1649,7 @@ router.post(
         undefined,
         undefined,
         studioInfo,
+        (quote as any).unlockedBenefitProductNames || undefined,
       );
 
       const subject = ` CONTRATTO FIRMATO! ${clienteName} - ${quote.jobInfo?.nomeEvento || "Evento"}`;
@@ -2171,7 +2173,8 @@ router.patch(
               portalUrl,
               undefined, // nextPayment
               undefined, // payments
-              studioInfo
+              studioInfo,
+              (quote as any).unlockedBenefitProductNames || undefined,
             );
 
             await sendGmailEmail(
@@ -2420,7 +2423,8 @@ router.post(
             portalUrl,
             undefined, // nextPayment
             undefined, // payments
-            studioInfo
+            studioInfo,
+            (quote as any).unlockedBenefitProductNames || undefined,
           );
 
           await sendGmailEmail(
@@ -2987,7 +2991,8 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
               portalLink,
               undefined,
               undefined,
-              studioInfo || undefined
+              studioInfo || undefined,
+              undefined, // preventivo rapido: nessun benefit
             );
             await sendGmailEmail(
               email,
