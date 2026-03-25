@@ -93,6 +93,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { BenefitRule } from '@shared/quote-benefits';
 import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
+import ProductOrderEditor, { type OrderableProduct } from './ProductOrderEditor';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType, JobTypeFE } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
@@ -370,6 +371,7 @@ export default function QuoteBuilder({
   const prevFieldsCountRef = useRef<number>(0);
   const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
   const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
+  const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -552,6 +554,14 @@ export default function QuoteBuilder({
     setBenefitRules(migrateBenefitRules(existingQuote.benefitRules ?? []));
     setExpandedBenefitRules(new Set());
 
+    // Inizializza l'ordine prodotti dall'ordine salvato nel preventivo
+    if (Array.isArray(existingQuote.products)) {
+      const initialOrderKeys = existingQuote.products.map((p: any) =>
+        p.catalogProductId ? `cat:${p.catalogProductId}` : `cust:${p.nome?.trim() || ''}`
+      ).filter((k: string) => k !== 'cust:');
+      setProductOrderKeys(initialOrderKeys);
+    }
+
     toast({
       title: 'Preventivo caricato',
       description: 'Modifica i campi e salva per aggiornare'
@@ -643,6 +653,18 @@ export default function QuoteBuilder({
   
   // Watch products for performance optimization in render loop
   const watchedProducts = useWatch({ control: form.control, name: 'products' });
+
+  // Merged product list per ProductOrderEditor (catalog + custom products)
+  const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
+    const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
+      const p = catalogProducts?.find((cp: any) => cp.id === id);
+      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true };
+    });
+    const cust: OrderableProduct[] = (watchedProducts || [])
+      .filter((f: any) => f.nome?.trim())
+      .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0 }));
+    return [...cat, ...cust];
+  }, [catalogProductIds, watchedProducts, catalogProducts]);
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
@@ -858,12 +880,26 @@ export default function QuoteBuilder({
         };
 
         // Merge catalog + custom products
-        const mergedProducts = cleanObject(mergeQuoteProducts(
+        let mergedProducts = cleanObject(mergeQuoteProducts(
           data.catalogProductIds,
           data.products.filter(p => p.nome.trim()),
           catalogProducts,
           data.type
         ));
+
+        // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
+        if (productOrderKeys.length > 0) {
+          const productMap = new Map<string, any>(
+            (mergedProducts as any[]).map((p: any) => {
+              const k = p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`;
+              return [k, p];
+            })
+          );
+          const sorted: any[] = productOrderKeys.map(k => productMap.get(k)).filter(Boolean);
+          // Aggiungi eventuali prodotti non presenti nella lista ordine
+          productMap.forEach((p: any, k: string) => { if (!productOrderKeys.includes(k)) sorted.push(p); });
+          mergedProducts = sorted;
+        }
 
         const subtotale = mergedProducts.reduce((sum: number, p: any) => sum + p.prezzo, 0);
 
@@ -922,12 +958,26 @@ export default function QuoteBuilder({
 
       // Altrimenti crea nuovo preventivo (logica esistente)
       // Merge catalog + custom products
-      const mergedProducts = mergeQuoteProducts(
+      let mergedProductsNew = mergeQuoteProducts(
         data.catalogProductIds,
         data.products.filter(p => p.nome.trim()), // Solo custom con nome
         catalogProducts,
         data.type
       );
+
+      // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
+      if (productOrderKeys.length > 0) {
+        const productMapNew = new Map(
+          mergedProductsNew.map((p: any) => {
+            const k = p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`;
+            return [k, p];
+          })
+        );
+        const sortedNew = productOrderKeys.map(k => productMapNew.get(k)).filter(Boolean) as typeof mergedProductsNew;
+        productMapNew.forEach((p: any, k: string) => { if (!productOrderKeys.includes(k)) sortedNew.push(p); });
+        mergedProductsNew = sortedNew;
+      }
+      const mergedProducts = mergedProductsNew;
 
       // Prepara clausole: priorità template Firestore → fallback DEFAULT_CLAUSES
       let contractClauses;
@@ -1748,6 +1798,29 @@ export default function QuoteBuilder({
                 </SortableContext>
               </DndContext>
             </div>
+
+            {/* Sezione Ordine Prodotti - visibile quando ci sono 2+ prodotti */}
+            {mergedForOrderEditor.length > 1 && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-sage-800">
+                      Ordine di visualizzazione prodotti
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Trascina per definire l'ordine in cui i prodotti appariranno nel preventivo.
+                  </p>
+                  <ProductOrderEditor
+                    products={mergedForOrderEditor}
+                    orderKeys={productOrderKeys}
+                    onOrderChange={setProductOrderKeys}
+                  />
+                </div>
+              </>
+            )}
 
             <Separator />
 

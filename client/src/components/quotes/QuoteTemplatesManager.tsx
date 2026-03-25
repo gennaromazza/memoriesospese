@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, memo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -106,6 +106,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import type { BenefitRule } from "@shared/quote-benefits";
+import ProductOrderEditor, { type OrderableProduct } from "./ProductOrderEditor";
 import { computeBenefitStates, migrateBenefitRules } from "@shared/quote-benefits";
 import { useLocation } from "wouter";
 import { getAuth } from "firebase/auth";
@@ -393,6 +394,9 @@ export default function QuoteTemplatesManager() {
   const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
   const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
 
+  // Product order state — tracks the display order chosen by the admin
+  const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
+
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
     queryKey: ["quote-templates"],
@@ -580,6 +584,12 @@ export default function QuoteTemplatesManager() {
     setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
     setExpandedBenefitRules(new Set());
 
+    // Inizializza l'ordine prodotti dall'ordine salvato nel template
+    const initialOrderKeys = template.defaultProducts.map((p: any) =>
+      p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`
+    ).filter((k: string) => k !== 'cust:');
+    setProductOrderKeys(initialOrderKeys);
+
     // Store template for update mutation (to preserve defaultClauses)
     setCurrentTemplate(template);
     setEditModalOpen(true);
@@ -613,6 +623,7 @@ export default function QuoteTemplatesManager() {
     setCurrentTemplate(null);
     setBenefitRules([]);
     setExpandedBenefitRules(new Set());
+    setProductOrderKeys([]);
     setCreateModalOpen(true);
   }, [form]);
 
@@ -629,6 +640,19 @@ export default function QuoteTemplatesManager() {
   const discountValue =
     useWatch({ control: form.control, name: "discountValue" }) || 0;
   const quoteType = useWatch({ control: form.control, name: "type" });
+
+  // Merged product list for ProductOrderEditor (catalog + custom)
+  // Usa fields (da useFieldArray) per i custom products, catalogProductIds per i catalog
+  const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
+    const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
+      const p = catalogProducts.find((cp) => cp.id === id);
+      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true };
+    });
+    const cust: OrderableProduct[] = fields
+      .filter((f) => f.nome?.trim())
+      .map((f) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0 }));
+    return [...cat, ...cust];
+  }, [catalogProductIds, fields, catalogProducts]);
 
   // Calculate totals — usa fields (da useFieldArray) invece di useWatch per customProducts
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
@@ -672,7 +696,22 @@ export default function QuoteTemplatesManager() {
           categoria: p.categoria,
         }));
 
-      const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+      // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
+      const catalogMap = new Map(
+        data.catalogProductIds.map((id) => [`cat:${id}`, catalogQuoteProducts.find((_, i) => data.catalogProductIds[i] === id)!])
+      );
+      const customMap = new Map(
+        data.customProducts.filter((p) => p.nome.trim()).map((p, i) => [`cust:${p.nome.trim()}`, customQuoteProducts[i]])
+      );
+      let allProducts: QuoteProduct[];
+      if (productOrderKeys.length > 0) {
+        const merged = new Map([...catalogMap, ...customMap]);
+        allProducts = productOrderKeys.map((k) => merged.get(k)).filter((p): p is QuoteProduct => !!p);
+        // Aggiungi eventuali prodotti non presenti nella lista ordine
+        merged.forEach((p, k) => { if (!productOrderKeys.includes(k)) allProducts.push(p); });
+      } else {
+        allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+      }
 
       // Valida sconto PRIMA di salvare
       if (data.discountType !== undefined && data.discountValue !== undefined) {
@@ -758,7 +797,21 @@ export default function QuoteTemplatesManager() {
           categoria: p.categoria,
         }));
 
-      const allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+      // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
+      const catalogMap2 = new Map(
+        data.catalogProductIds.map((id) => [`cat:${id}`, catalogQuoteProducts.find((_, i) => data.catalogProductIds[i] === id)!])
+      );
+      const customMap2 = new Map(
+        data.customProducts.filter((p) => p.nome.trim()).map((p, i) => [`cust:${p.nome.trim()}`, customQuoteProducts[i]])
+      );
+      let allProducts: QuoteProduct[];
+      if (productOrderKeys.length > 0) {
+        const merged2 = new Map([...catalogMap2, ...customMap2]);
+        allProducts = productOrderKeys.map((k) => merged2.get(k)).filter((p): p is QuoteProduct => !!p);
+        merged2.forEach((p, k) => { if (!productOrderKeys.includes(k)) allProducts.push(p); });
+      } else {
+        allProducts = [...catalogQuoteProducts, ...customQuoteProducts];
+      }
 
       // Valida sconto PRIMA di salvare
       if (data.discountType !== undefined && data.discountValue !== undefined) {
@@ -1242,6 +1295,24 @@ export default function QuoteTemplatesManager() {
                   ))}
                 </div>
               </div>
+
+              {/* Sezione Ordine Prodotti */}
+              {mergedForOrderEditor.length > 1 && (
+                <div className="border rounded-lg p-4 bg-sage-50/30">
+                  <h3 className="text-sm font-semibold text-sage-800 mb-3 flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-sage-500" />
+                    Ordine di visualizzazione prodotti
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Trascina per definire l'ordine in cui i prodotti appariranno nel preventivo.
+                  </p>
+                  <ProductOrderEditor
+                    products={mergedForOrderEditor}
+                    orderKeys={productOrderKeys}
+                    onOrderChange={setProductOrderKeys}
+                  />
+                </div>
+              )}
 
               {/* Sezione Benefici Inclusi - solo template variabili */}
               {quoteType === "variabile" && (() => {
