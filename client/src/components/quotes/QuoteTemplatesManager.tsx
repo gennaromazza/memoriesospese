@@ -148,7 +148,10 @@ const templateSchema = z
         categoria: z.string().optional(),
       }),
     ),
-    discountType: z.enum(["amount", "percent"]).optional(),
+    discountType: z.preprocess(
+      (val) => (val === "" ? undefined : val),
+      z.enum(["amount", "percent"]).optional()
+    ),
     discountValue: z.number().min(0).optional(),
     theme: z.object({
       primaryColor: z.string(),
