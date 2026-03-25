@@ -331,7 +331,78 @@ export default function QuotePublicViewPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+
+      {/* Widget benefici sticky - appare nella parte bassa dello schermo mentre il cliente sceglie */}
+      {benefitStates.length > 0 && quote?.type === 'variabile' && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
+          <div className="max-w-4xl mx-auto px-4 pb-4 pointer-events-auto">
+            <div className="rounded-2xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-50 to-white border-b border-emerald-100">
+                <Gift className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                  Omaggi sbloccabili
+                </span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {benefitStates.filter(b => b.isUnlocked).length}/{benefitStates.length} sbloccati
+                </span>
+              </div>
+              {/* Lista benefici compatta */}
+              <div className="divide-y divide-gray-100">
+                {benefitStates.map(bs => (
+                  <div key={bs.rule.id} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                    bs.isUnlocked ? 'bg-emerald-50/60' : 'bg-white'
+                  }`}>
+                    <div className={`flex-shrink-0 rounded-full p-1 ${
+                      bs.isUnlocked ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {bs.isUnlocked
+                        ? <Unlock className="w-3 h-3" />
+                        : <Lock className="w-3 h-3" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-semibold truncate ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
+                        {(bs.rule.benefitProductNames ?? []).length > 0
+                          ? bs.rule.benefitProductNames.join(' + ')
+                          : 'Omaggio'
+                        }
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate leading-tight">
+                        {bs.isUnlocked
+                          ? '✓ In omaggio per voi'
+                          : bs.feedbackMessage
+                        }
+                      </p>
+                    </div>
+                    {/* Progress bar per minSelectableCount */}
+                    {!bs.isUnlocked && bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0 && (
+                      <div className="flex-shrink-0 w-16">
+                        <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
+                          <span>{bs.currentCount}/{bs.rule.minSelectableCount}</span>
+                        </div>
+                        <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(100, (bs.currentCount / bs.rule.minSelectableCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {bs.isUnlocked && (
+                      <Badge className="flex-shrink-0 text-xs bg-emerald-600 text-white border-0 h-5 px-1.5">
+                        ✓
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`max-w-4xl mx-auto space-y-6 ${benefitStates.length > 0 && quote?.type === 'variabile' ? 'pb-36' : ''}`}>
         {/* Header con stile October Mist */}
         <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
           {/* Logo Studio - piccolo in alto */}
@@ -608,6 +679,23 @@ export default function QuotePublicViewPage() {
             <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Banner omaggi sbloccabili */}
+            {benefitStates.length > 0 && quote.type === 'variabile' && (
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                <Gift className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-emerald-800">
+                  <span className="font-semibold">
+                    {benefitStates.filter(b => b.isUnlocked).length === benefitStates.length
+                      ? '🎉 Hai sbloccato tutti gli omaggi!'
+                      : `Hai ${benefitStates.length} ${benefitStates.length === 1 ? 'omaggio' : 'omaggi'} sbloccabil${benefitStates.length === 1 ? 'e' : 'i'}.`
+                    }
+                  </span>
+                  {benefitStates.filter(b => b.isUnlocked).length < benefitStates.length && (
+                    <span className="ml-1">Seleziona i servizi per sbloccarl{benefitStates.length === 1 ? 'o' : 'i'} — il riquadro in fondo si aggiorna in tempo reale.</span>
+                  )}
+                </div>
+              </div>
+            )}
             {(quote.products ?? []).map((product, idx) => {
               const isExpanded = expandedDescriptions.has(idx);
               const hasLongDescription = product.descrizione && product.descrizione.length > 120;
