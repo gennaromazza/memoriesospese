@@ -83,6 +83,13 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
     
+    // Product catalog images - admin write, public read
+    match /products/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidImageFile();
+      allow delete: if isAdmin();
+    }
+
     // Temporary uploads cleanup
     match /temp/{allPaths=**} {
       allow read, write: if isSignedIn() && 
