@@ -9,7 +9,6 @@ import { getActiveProductCategories } from '@/lib/product-categories';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -18,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Package, Euro, Image as ImageIcon, X, CheckCircle2 } from 'lucide-react';
+import { Search, Package, Euro, Image as ImageIcon, X, CheckCircle2, Check } from 'lucide-react';
 import type { Product } from '@shared/booking-types';
 
 interface CatalogProductSelectorProps {
@@ -199,15 +198,19 @@ export default function CatalogProductSelector({
                       </div>
                     )}
 
-            {/* Checkbox overlay */}
-                    <div className="absolute top-2 right-2">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleProduct(product.id)}
-                        className="bg-white border-2"
-                        onClick={(e) => e.stopPropagation()}
-                        data-testid={`checkbox-product-${product.id}`}
-                      />
+            {/* Selezione overlay - indicatore visivo puro (niente stato Radix interno) */}
+                    <div
+                      className="absolute top-2 right-2"
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`checkbox-product-${product.id}`}
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        isSelected
+                          ? 'bg-primary border-primary'
+                          : 'bg-white border-gray-300'
+                      }`}>
+                        {isSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                      </div>
                     </div>
 
                     {/* Category badge */}

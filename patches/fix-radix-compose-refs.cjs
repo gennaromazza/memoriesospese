@@ -3,7 +3,7 @@ const path = require('path');
 
 const filePath = path.join(__dirname, '..', 'node_modules', '@radix-ui', 'react-compose-refs', 'dist', 'index.mjs');
 
-const patchedContent = `// packages/react/compose-refs/src/compose-refs.tsx - PATCHED
+const patchedContent = `// packages/react/compose-refs/src/compose-refs.tsx - PATCHED-V2
 import * as React from "react";
 
 function setRef(ref, value) {
@@ -39,14 +39,13 @@ function composeRefs(...refs) {
   };
 }
 
-// PATCHED: Use useRef to store refs and avoid infinite loop
+// PATCHED: Aggiorna il ref in modo sincrono durante il render (NON in useEffect)
+// Questo evita il warning "useEffect without deps" e il conseguente loop di render.
+// L'aggiornamento sincrono di un ref non causa re-render, è il pattern corretto.
 function useComposedRefs(...refs) {
   const refsRef = React.useRef(refs);
-  
-  // Update refs on each render but don't trigger re-render
-  React.useEffect(() => {
-    refsRef.current = refs;
-  });
+  // Aggiornamento sincrono — sicuro perché aggiorna solo un ref, non lo stato
+  refsRef.current = refs;
   
   return React.useCallback((node) => {
     return composeRefs(...refsRef.current)(node);
@@ -62,11 +61,11 @@ export {
 try {
   if (fs.existsSync(filePath)) {
     const currentContent = fs.readFileSync(filePath, 'utf8');
-    if (!currentContent.includes('PATCHED')) {
+    if (!currentContent.includes('PATCHED-V2')) {
       fs.writeFileSync(filePath, patchedContent);
-      console.log('✅ Patched @radix-ui/react-compose-refs to fix Maximum update depth bug');
+      console.log('✅ Patched @radix-ui/react-compose-refs V2 (sync ref update, no useEffect loop)');
     } else {
-      console.log('ℹ️ @radix-ui/react-compose-refs already patched');
+      console.log('ℹ️ @radix-ui/react-compose-refs already at V2');
     }
   } else {
     console.log('⚠️ @radix-ui/react-compose-refs not found, skipping patch');
