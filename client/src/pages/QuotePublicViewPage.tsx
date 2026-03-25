@@ -255,11 +255,18 @@ export default function QuotePublicViewPage() {
   }, [quote, selectedProducts]);
 
   // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
+  // IMPORTANTE: un prodotto può comparire in più regole. Si usa lo stato PIÙ FAVOREVOLE:
+  // se almeno una regola che contiene questo prodotto è sbloccata, il prodotto risulta sbloccato.
   const omaggioByProductName = useMemo(() => {
     const map = new Map<string, BenefitState>();
     for (const bs of benefitStates) {
       for (const name of (bs.rule.benefitProductNames ?? [])) {
-        map.set(name, bs);
+        const existing = map.get(name);
+        // Sovrascrive solo se: il prodotto non è ancora nella mappa,
+        // OPPURE la nuova regola è sbloccata e quella esistente non lo è
+        if (!existing || (!existing.isUnlocked && bs.isUnlocked)) {
+          map.set(name, bs);
+        }
       }
     }
     return map;
