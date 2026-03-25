@@ -753,10 +753,21 @@ export default function QuoteBuilder({
 
     setSelectedTemplateId(templateId);
     form.setValue('type', template.type);
-    form.setValue('products', template.defaultProducts.map(p => ({
-      ...p,
-      selectable: template.type === 'variabile'
-    })));
+
+    // Separa prodotti catalogo (hanno productId) da prodotti custom
+    const catalogIds = template.defaultProducts
+      .filter(p => p.productId)
+      .map(p => p.productId!);
+    const customProds = template.defaultProducts
+      .filter(p => !p.productId)
+      .map(p => ({
+        ...p,
+        selectable: template.type === 'variabile',
+      }));
+    form.setValue('catalogProductIds', catalogIds);
+    form.setValue('products', customProds.length > 0 ? customProds : [{
+      nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
+    }]);
     form.setValue('theme', template.theme);
     
     // Carica anche lo sconto dal template

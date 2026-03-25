@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Lock, Unlock } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Lock } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
@@ -239,6 +239,17 @@ export default function QuotePublicViewPage() {
     return computeBenefitStates(migrateBenefitRules(quote.benefitRules), selectedProducts, allSelectableNames);
   }, [quote, selectedProducts]);
 
+  // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
+  const omaggioByProductName = useMemo(() => {
+    const map = new Map<string, BenefitState>();
+    for (const bs of benefitStates) {
+      for (const name of (bs.rule.benefitProductNames ?? [])) {
+        map.set(name, bs);
+      }
+    }
+    return map;
+  }, [benefitStates]);
+
   // Theme colors with fallback
   const primaryColor = quote?.theme?.primaryColor ?? '#8B9A8B';
   const secondaryColor = quote?.theme?.secondaryColor ?? '#C8D4C8';
@@ -332,77 +343,7 @@ export default function QuotePublicViewPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 py-8">
 
-      {/* Widget benefici sticky - appare nella parte bassa dello schermo mentre il cliente sceglie */}
-      {benefitStates.length > 0 && quote?.type === 'variabile' && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
-          <div className="max-w-4xl mx-auto px-4 pb-4 pointer-events-auto">
-            <div className="rounded-2xl border border-emerald-200 bg-white/95 backdrop-blur-sm shadow-xl overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-50 to-white border-b border-emerald-100">
-                <Gift className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                  Omaggi sbloccabili
-                </span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {benefitStates.filter(b => b.isUnlocked).length}/{benefitStates.length} sbloccati
-                </span>
-              </div>
-              {/* Lista benefici compatta */}
-              <div className="divide-y divide-gray-100">
-                {benefitStates.map(bs => (
-                  <div key={bs.rule.id} className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
-                    bs.isUnlocked ? 'bg-emerald-50/60' : 'bg-white'
-                  }`}>
-                    <div className={`flex-shrink-0 rounded-full p-1 ${
-                      bs.isUnlocked ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {bs.isUnlocked
-                        ? <Unlock className="w-3 h-3" />
-                        : <Lock className="w-3 h-3" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-semibold truncate ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
-                        {(bs.rule.benefitProductNames ?? []).length > 0
-                          ? bs.rule.benefitProductNames.join(' + ')
-                          : 'Omaggio'
-                        }
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate leading-tight">
-                        {bs.isUnlocked
-                          ? '✓ In omaggio per voi'
-                          : bs.feedbackMessage
-                        }
-                      </p>
-                    </div>
-                    {/* Progress bar per minSelectableCount */}
-                    {!bs.isUnlocked && bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0 && (
-                      <div className="flex-shrink-0 w-16">
-                        <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
-                          <span>{bs.currentCount}/{bs.rule.minSelectableCount}</span>
-                        </div>
-                        <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-amber-400 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, (bs.currentCount / bs.rule.minSelectableCount) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {bs.isUnlocked && (
-                      <Badge className="flex-shrink-0 text-xs bg-emerald-600 text-white border-0 h-5 px-1.5">
-                        ✓
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className={`max-w-4xl mx-auto space-y-6 ${benefitStates.length > 0 && quote?.type === 'variabile' ? 'pb-36' : ''}`}>
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Header con stile October Mist */}
         <Card className="overflow-hidden border-sage/20 shadow-lg bg-gradient-to-br from-off-white to-light-mint">
           {/* Logo Studio - piccolo in alto */}
@@ -673,39 +614,129 @@ export default function QuotePublicViewPage() {
           </Card>
         )}
 
+        {/* Card guida omaggi — solo per preventivi variabili con benefit configurati */}
+        {benefitStates.length > 0 && quote.type === 'variabile' && (
+          <Card className="border-emerald-200 shadow-sm bg-gradient-to-br from-emerald-50/80 to-white">
+            <CardContent className="pt-5 pb-4 px-5 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Gift className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span className="font-semibold text-emerald-800 text-base font-playfair">
+                  {benefitStates.every(b => b.isUnlocked)
+                    ? '🎉 Avete sbloccato tutti gli omaggi!'
+                    : 'Omaggi che potete sbloccare'}
+                </span>
+              </div>
+              {!benefitStates.every(b => b.isUnlocked) && (
+                <p className="text-sm text-emerald-700">
+                  Selezionando certi servizi ricevete altri prodotti <strong>completamente in omaggio</strong>.
+                </p>
+              )}
+              <div className="space-y-2 pt-1">
+                {benefitStates.map(bs => {
+                  const omaggio = (bs.rule.benefitProductNames ?? []).join(' + ') || 'omaggio';
+                  const required = bs.rule.requiredProductNames ?? [];
+                  const minCount = bs.rule.minSelectableCount;
+                  const parts: string[] = [];
+                  if (required.length === 1) parts.push(`scegliete "${required[0]}"`);
+                  else if (required.length >= 2) {
+                    const last = required[required.length - 1];
+                    const rest = required.slice(0, -1);
+                    parts.push(`scegliete ${rest.map(n => `"${n}"`).join(', ')} e "${last}"`);
+                  }
+                  if (minCount && minCount > 0) parts.push(`scegliete almeno ${minCount} servizi`);
+                  const conditionText = parts.join(' e ');
+                  return (
+                    <div key={bs.rule.id} className={`rounded-xl border px-4 py-3 transition-all duration-300 ${
+                      bs.isUnlocked
+                        ? 'border-emerald-300 bg-emerald-50'
+                        : bs.status === 'preview'
+                        ? 'border-amber-200 bg-amber-50/40'
+                        : 'border-emerald-100 bg-white'
+                    }`}>
+                      <div className="flex items-start gap-3">
+                        <span className="text-xl mt-0.5 flex-shrink-0">{bs.isUnlocked ? '🎁' : '🔒'}</span>
+                        <div className="flex-1 min-w-0">
+                          {bs.isUnlocked ? (
+                            <p className="text-sm font-semibold text-emerald-700">
+                              {omaggio} — incluso in omaggio per voi!
+                            </p>
+                          ) : (
+                            <p className="text-sm text-gray-700">
+                              {conditionText
+                                ? <>Se <strong>{conditionText}</strong>, ricevete <strong>{omaggio}</strong> in omaggio</>
+                                : <>Ricevete <strong>{omaggio}</strong> in omaggio</>
+                              }
+                            </p>
+                          )}
+                          {!bs.isUnlocked && minCount && minCount > 0 && bs.currentCount > 0 && (
+                            <div className="mt-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.min(100, (bs.currentCount / minCount) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-amber-600 font-medium flex-shrink-0">
+                                  {bs.currentCount}/{minCount}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Prodotti */}
         <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/20">
           <CardHeader>
             <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Banner omaggi sbloccabili */}
-            {benefitStates.length > 0 && quote.type === 'variabile' && (
-              <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-                <Gift className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-emerald-800">
-                  <span className="font-semibold">
-                    {benefitStates.filter(b => b.isUnlocked).length === benefitStates.length
-                      ? '🎉 Hai sbloccato tutti gli omaggi!'
-                      : `Hai ${benefitStates.length} ${benefitStates.length === 1 ? 'omaggio' : 'omaggi'} sbloccabil${benefitStates.length === 1 ? 'e' : 'i'}.`
-                    }
-                  </span>
-                  {benefitStates.filter(b => b.isUnlocked).length < benefitStates.length && (
-                    <span className="ml-1">Seleziona i servizi per sbloccarl{benefitStates.length === 1 ? 'o' : 'i'} — il riquadro in fondo si aggiorna in tempo reale.</span>
-                  )}
-                </div>
-              </div>
-            )}
             {(quote.products ?? []).map((product, idx) => {
               const isExpanded = expandedDescriptions.has(idx);
               const hasLongDescription = product.descrizione && product.descrizione.length > 120;
-              
+
+              // Stato omaggio per questo prodotto
+              const benefitEntry = omaggioByProductName.get(product.nome);
+              const isOmaggioProduct = benefitEntry !== undefined;
+              const isOmaggioUnlocked = benefitEntry?.isUnlocked === true;
+              const isOmaggioLocked = isOmaggioProduct && !isOmaggioUnlocked;
+              // Mostra checkbox solo se selezionabile E non è un prodotto omaggio
+              const showCheckbox = quote.type === 'variabile' && product.selectable && !isOmaggioProduct;
+
               return (
-                <div key={idx} className="p-4 border border-mint/30 rounded-xl bg-white hover:border-sage/50 hover:shadow-lg transition-all">
+                <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
+                  isOmaggioUnlocked
+                    ? 'border-emerald-300 bg-emerald-50/50 shadow-sm'
+                    : isOmaggioLocked
+                    ? 'border-dashed border-emerald-200 bg-white/60 opacity-80'
+                    : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
+                }`}>
+                  {/* Badge stato omaggio — sopra la card */}
+                  {isOmaggioUnlocked && (
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
+                      <span className="text-base">🎁</span>
+                      <span className="text-sm font-semibold text-emerald-700">In omaggio per voi</span>
+                      <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">INCLUSO</Badge>
+                    </div>
+                  )}
+                  {isOmaggioLocked && (
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-100">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                      <span className="text-xs text-emerald-600">{benefitEntry?.feedbackMessage ?? 'Omaggio sbloccabile'}</span>
+                    </div>
+                  )}
                   {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
                   <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                    {/* Checkbox per preventivi variabili */}
-                    {quote.type === 'variabile' && product.selectable && (
+                    {/* Checkbox mobile */}
+                    {showCheckbox && (
                       <div className="sm:hidden flex items-center gap-2 mb-2">
                         <Checkbox
                           checked={selectedProducts.includes(product.nome)}
@@ -723,7 +754,7 @@ export default function QuotePublicViewPage() {
                     )}
                     
                     {/* Desktop checkbox */}
-                    {quote.type === 'variabile' && product.selectable && (
+                    {showCheckbox && (
                       <Checkbox
                         checked={selectedProducts.includes(product.nome)}
                         onCheckedChange={(checked) => {
@@ -751,14 +782,18 @@ export default function QuotePublicViewPage() {
 
                       {/* Mobile: Nome e Prezzo affiancati */}
                       <div className="flex-1 min-w-0 sm:hidden">
-                        <h3 className="font-bold text-blue-gray text-base font-playfair leading-tight">{product.nome}</h3>
-                        {product.isOmaggio ? (
+                        <h3 className={`font-bold text-base font-playfair leading-tight ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
+                        {isOmaggioUnlocked ? (
+                          <p className="font-bold text-base text-emerald-600 mt-1">🎁 In omaggio per voi</p>
+                        ) : isOmaggioLocked ? (
+                          <p className="text-sm text-emerald-500 mt-1 line-through opacity-60">{formatCurrency(product.prezzo)}</p>
+                        ) : product.isOmaggio ? (
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mt-1">🎁 In omaggio</span>
                         ) : (
                           <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
                         )}
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {product.isOmaggio && (
+                          {product.isOmaggio && !isOmaggioProduct && (
                             <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
                           )}
                           {product.numeroFoto && (
@@ -797,15 +832,15 @@ export default function QuotePublicViewPage() {
 
                     {/* Desktop: contenuto centrale */}
                     <div className="hidden sm:block flex-1 min-w-0">
-                      <h3 className="font-bold text-blue-gray text-lg mb-1 font-playfair">{product.nome}</h3>
-                      {product.isOmaggio && (
+                      <h3 className={`font-bold text-lg mb-1 font-playfair ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
+                      {product.isOmaggio && !isOmaggioProduct && (
                         <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mb-1">🎁 In omaggio</span>
                       )}
                       {product.descrizione && (
                         <p className="text-sm text-dark-sage mt-1 leading-relaxed">{product.descrizione}</p>
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
-                        {product.isOmaggio && (
+                        {product.isOmaggio && !isOmaggioProduct && (
                           <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
                         )}
                         {product.numeroFoto && (
@@ -844,7 +879,11 @@ export default function QuotePublicViewPage() {
                     
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
-                      {product.isOmaggio ? (
+                      {isOmaggioUnlocked ? (
+                        <p className="font-bold text-xl sm:text-2xl text-emerald-600">🎁 In omaggio</p>
+                      ) : isOmaggioLocked ? (
+                        <p className="font-bold text-xl sm:text-2xl text-emerald-300 line-through">{formatCurrency(product.prezzo)}</p>
+                      ) : product.isOmaggio ? (
                         <p className="font-bold text-xl sm:text-2xl text-rose-500">🎁 Omaggio</p>
                       ) : (
                         <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
@@ -883,73 +922,6 @@ export default function QuotePublicViewPage() {
               );
             })}
 
-            {/* Pannello Benefici Inclusi - visibile solo per preventivi variabili con regole */}
-            {benefitStates.length > 0 && (
-              <>
-                <Separator className="my-4" />
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Gift className="w-4 h-4 text-emerald-600" />
-                    <h4 className="text-sm font-semibold text-blue-gray">Benefici inclusi sbloccabili</h4>
-                  </div>
-                  {benefitStates.map(bs => (
-                    <div
-                      key={bs.rule.id}
-                      className={`rounded-xl border p-4 transition-all ${
-                        bs.isUnlocked
-                          ? 'border-emerald-300 bg-emerald-50'
-                          : bs.status === 'preview'
-                          ? 'border-amber-200 bg-amber-50/50'
-                          : 'border-gray-200 bg-gray-50/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 flex-shrink-0 rounded-full p-1.5 ${
-                          bs.isUnlocked ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                        }`}>
-                          {bs.isUnlocked
-                            ? <Unlock className="w-3.5 h-3.5" />
-                            : <Lock className="w-3.5 h-3.5" />
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className={`font-semibold text-sm ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
-                              {(bs.rule.benefitProductNames ?? []).length > 0
-                                ? bs.rule.benefitProductNames.join(' + ')
-                                : 'Prodotti in omaggio'
-                              }
-                            </span>
-                            <Badge variant="outline" className={`text-xs border-0 ${bs.isUnlocked ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                              {bs.isUnlocked ? '✓ IN OMAGGIO PER VOI' : 'OMAGGIO SBLOCCABILE'}
-                            </Badge>
-                          </div>
-                          <p className={`text-xs font-medium ${
-                            bs.isUnlocked ? 'text-emerald-600' : 'text-amber-600'
-                          }`}>
-                            {bs.feedbackMessage}
-                          </p>
-                          {/* Barra progresso per minSelectableCount */}
-                          {!bs.isUnlocked && bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0 && (
-                            <div className="mt-2">
-                              <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                                <span>{bs.currentCount} / {bs.rule.minSelectableCount} servizi</span>
-                              </div>
-                              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-amber-400 rounded-full transition-all duration-300"
-                                  style={{ width: `${Math.min(100, (bs.currentCount / bs.rule.minSelectableCount) * 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
 
             <Separator className="my-4" />
 
