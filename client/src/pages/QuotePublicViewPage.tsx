@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Lock } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
@@ -186,6 +186,29 @@ export default function QuotePublicViewPage() {
   const allRequiredAccepted = requiredClauses.every(c => acceptedClauses.includes(c.id));
   const canSign = signerName.trim().length > 0 && allRequiredAccepted && !acceptMutation.isPending;
 
+  // Calcola stati dei benefit inclusi (solo preventivi variabili con regole configurate)
+  // DEVE essere prima di totals per poter escludere gli omaggi sbloccati dal totale
+  const benefitStates = useMemo<BenefitState[]>(() => {
+    if (!quote || quote.type !== 'variabile' || !quote.benefitRules || quote.benefitRules.length === 0) {
+      return [];
+    }
+    const allSelectableNames = (quote.products ?? [])
+      .filter(p => p.selectable)
+      .map(p => p.nome);
+    return computeBenefitStates(migrateBenefitRules(quote.benefitRules), selectedProducts, allSelectableNames);
+  }, [quote, selectedProducts]);
+
+  // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
+  const omaggioByProductName = useMemo(() => {
+    const map = new Map<string, BenefitState>();
+    for (const bs of benefitStates) {
+      for (const name of (bs.rule.benefitProductNames ?? [])) {
+        map.set(name, bs);
+      }
+    }
+    return map;
+  }, [benefitStates]);
+
   // Calculate totals with discount
   const totals = useMemo(() => {
     if (!quote) {
@@ -210,13 +233,14 @@ export default function QuotePublicViewPage() {
     }
     
     // Variable quote (non firmato): calculate subtotal based on selected products
-    // Per preventivi variabili NON firmati, il totale dipende da cosa seleziona il cliente
+    // Gli omaggi sbloccati non contribuiscono al totale (sono gratis)
     const subtotale = (quote.products ?? [])
       .filter(p => {
-        // Se il prodotto è selezionabile, includi solo se il cliente l'ha selezionato
-        if (p.selectable) {
-          return selectedProducts.includes(p.nome);
-        }
+        // Prodotto omaggio sbloccato → escludi dal totale (è in omaggio, costo €0)
+        const bs = omaggioByProductName.get(p.nome);
+        if (bs?.isUnlocked) return false;
+        // Prodotto selezionabile → includi solo se il cliente l'ha selezionato
+        if (p.selectable) return selectedProducts.includes(p.nome);
         // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
         return true;
       })
@@ -224,31 +248,9 @@ export default function QuotePublicViewPage() {
     
     // Apply discount to selected subtotal
     return calculateQuoteTotals(subtotale, quote.discountType, quote.discountValue);
-  }, [quote, selectedProducts]);
+  }, [quote, selectedProducts, omaggioByProductName]);
 
   const totale = totals.totalAfterDiscount;
-
-  // Calcola stati dei benefit inclusi (solo preventivi variabili con regole configurate)
-  const benefitStates = useMemo<BenefitState[]>(() => {
-    if (!quote || quote.type !== 'variabile' || !quote.benefitRules || quote.benefitRules.length === 0) {
-      return [];
-    }
-    const allSelectableNames = (quote.products ?? [])
-      .filter(p => p.selectable)
-      .map(p => p.nome);
-    return computeBenefitStates(migrateBenefitRules(quote.benefitRules), selectedProducts, allSelectableNames);
-  }, [quote, selectedProducts]);
-
-  // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
-  const omaggioByProductName = useMemo(() => {
-    const map = new Map<string, BenefitState>();
-    for (const bs of benefitStates) {
-      for (const name of (bs.rule.benefitProductNames ?? [])) {
-        map.set(name, bs);
-      }
-    }
-    return map;
-  }, [benefitStates]);
 
   // Theme colors with fallback
   const primaryColor = quote?.theme?.primaryColor ?? '#8B9A8B';
@@ -628,30 +630,21 @@ export default function QuotePublicViewPage() {
               const benefitEntry = omaggioByProductName.get(product.nome);
               const isOmaggioProduct = benefitEntry !== undefined;
               const isOmaggioUnlocked = benefitEntry?.isUnlocked === true;
-              const isOmaggioLocked = isOmaggioProduct && !isOmaggioUnlocked;
-              // Mostra checkbox solo se selezionabile E non è un prodotto omaggio
+              // Mostra checkbox solo se selezionabile E non è un prodotto omaggio (gli omaggi non si selezionano)
               const showCheckbox = quote.type === 'variabile' && product.selectable && !isOmaggioProduct;
 
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
                   isOmaggioUnlocked
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-sm'
-                    : isOmaggioLocked
-                    ? 'border-dashed border-emerald-200 bg-white/60 opacity-80'
                     : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
                 }`}>
-                  {/* Badge stato omaggio — sopra la card */}
+                  {/* Banner verde appare SOLO quando l'omaggio viene sbloccato */}
                   {isOmaggioUnlocked && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
                       <span className="text-sm font-semibold text-emerald-700">In omaggio per voi</span>
                       <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">INCLUSO</Badge>
-                    </div>
-                  )}
-                  {isOmaggioLocked && (
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-100">
-                      <Lock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                      <span className="text-xs text-emerald-600">{benefitEntry?.feedbackMessage ?? 'Omaggio sbloccabile'}</span>
                     </div>
                   )}
                   {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
@@ -706,8 +699,6 @@ export default function QuotePublicViewPage() {
                         <h3 className={`font-bold text-base font-playfair leading-tight ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
                         {isOmaggioUnlocked ? (
                           <p className="font-bold text-base text-emerald-600 mt-1">🎁 In omaggio per voi</p>
-                        ) : isOmaggioLocked ? (
-                          <p className="text-sm text-emerald-500 mt-1 line-through opacity-60">{formatCurrency(product.prezzo)}</p>
                         ) : product.isOmaggio ? (
                           <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mt-1">🎁 In omaggio</span>
                         ) : (
@@ -802,8 +793,6 @@ export default function QuotePublicViewPage() {
                     <div className="hidden sm:block text-right flex-shrink-0">
                       {isOmaggioUnlocked ? (
                         <p className="font-bold text-xl sm:text-2xl text-emerald-600">🎁 In omaggio</p>
-                      ) : isOmaggioLocked ? (
-                        <p className="font-bold text-xl sm:text-2xl text-emerald-300 line-through">{formatCurrency(product.prezzo)}</p>
                       ) : product.isOmaggio ? (
                         <p className="font-bold text-xl sm:text-2xl text-rose-500">🎁 Omaggio</p>
                       ) : (
