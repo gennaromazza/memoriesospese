@@ -778,7 +778,12 @@ export default function QuotePublicViewPage() {
                       <div className="flex-1 min-w-0 sm:hidden">
                         <h3 className={`font-bold text-base font-playfair leading-tight ${isServizioIncluso ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
                         {isServizioIncluso ? (
-                          <p className="font-bold text-base text-emerald-600 mt-1">✓ Servizio Incluso</p>
+                          <div className="mt-1">
+                            <p className="font-bold text-base text-emerald-600">✓ Servizio Incluso</p>
+                            {isOmaggioUnlocked && product.prezzo > 0 && (
+                              <p className="text-xs text-gray-400 line-through">{formatCurrency(product.prezzo)}</p>
+                            )}
+                          </div>
                         ) : (
                           <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
                         )}
@@ -861,7 +866,12 @@ export default function QuotePublicViewPage() {
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
                       {isServizioIncluso ? (
-                        <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
+                        <div>
+                          <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
+                          {isOmaggioUnlocked && product.prezzo > 0 && (
+                            <p className="text-sm text-gray-400 line-through mt-0.5">{formatCurrency(product.prezzo)}</p>
+                          )}
+                        </div>
                       ) : (
                         <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
                       )}
