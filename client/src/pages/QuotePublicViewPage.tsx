@@ -74,27 +74,24 @@ export default function QuotePublicViewPage() {
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [showBenefitGuide, setShowBenefitGuide] = useState(false);
-  // Auto-seleziona tutti i prodotti necessari per sbloccare i benefit
-  const autoFillForBenefits = () => {
+  // Auto-seleziona i prodotti trigger necessari per sbloccare UNA specifica regola benefit
+  // I prodotti benefit stessi NON vengono aggiunti — il cliente li sceglie liberamente
+  const autoFillForRule = (bs: BenefitState) => {
     if (!quote) return;
-    const rules = migrateBenefitRules(quote.benefitRules ?? []);
     const allSelectableNames = (quote.products ?? []).filter(p => p.selectable).map(p => p.nome);
     const neededNames = new Set<string>(selectedProducts);
-    
-    for (const rule of rules) {
-      if (!rule.enabled) continue;
-      // Aggiungi tutti i requiredProductNames
-      for (const name of (rule.requiredProductNames ?? [])) {
-        neededNames.add(name);
-      }
-      // Se ha minSelectableCount, seleziona i primi N selezionabili
-      if (rule.minSelectableCount && rule.minSelectableCount > 0) {
-        let count = neededNames.size;
-        for (const name of allSelectableNames) {
-          if (count >= rule.minSelectableCount) break;
-          neededNames.add(name);
-          count++;
-        }
+
+    // Aggiungi tutti i prodotti trigger richiesti per questa regola
+    for (const name of (bs.rule.requiredProductNames ?? [])) {
+      neededNames.add(name);
+    }
+    // Se ha minSelectableCount, aggiungi abbastanza prodotti selezionabili
+    if (bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0) {
+      const currentCount = Array.from(neededNames).filter(n => allSelectableNames.includes(n)).length;
+      let count = currentCount;
+      for (const name of allSelectableNames) {
+        if (count >= bs.rule.minSelectableCount) break;
+        if (!neededNames.has(name)) { neededNames.add(name); count++; }
       }
     }
     setSelectedProducts(Array.from(neededNames));
@@ -179,9 +176,10 @@ export default function QuotePublicViewPage() {
       if (!quote) throw new Error('Quote non trovato');
       if (!signerName.trim()) throw new Error('Inserisci il tuo nome per firmare');
 
-      // Prodotti omaggio sbloccati dai benefit rules al momento della firma
+      // Prodotti benefit sbloccati E selezionati dal cliente al momento della firma
+      // (sbloccato ma non selezionato = non è nel carrello)
       const unlockedBenefitNames = Array.from(omaggioByProductName.entries())
-        .filter(([, bs]) => bs.isUnlocked)
+        .filter(([name, bs]) => bs.isUnlocked && selectedProducts.includes(name))
         .map(([name]) => name);
 
       await acceptQuote({
@@ -265,13 +263,13 @@ export default function QuotePublicViewPage() {
     }
     
     // Variable quote (non firmato): calculate subtotal based on selected products
-    // Gli omaggi sbloccati non contribuiscono al totale (sono gratis)
+    // Gli omaggi sbloccati (selezionati + regola attiva) non contribuiscono al totale
     const subtotale = (quote.products ?? [])
       .filter(p => {
-        // Prodotto omaggio sbloccato → escludi dal totale (è in omaggio, costo €0)
+        // Prodotto benefit selezionato con regola sbloccata → GRATIS, escludi dal totale
         const bs = omaggioByProductName.get(p.nome);
-        if (bs?.isUnlocked) return false;
-        // Prodotto selezionabile → includi solo se il cliente l'ha selezionato
+        if (bs?.isUnlocked && selectedProducts.includes(p.nome)) return false;
+        // Prodotto selezionabile → includi solo se il cliente l'ha selezionato (anche benefit a prezzo pieno)
         if (p.selectable) return selectedProducts.includes(p.nome);
         // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
         return true;
@@ -674,10 +672,11 @@ export default function QuotePublicViewPage() {
 
               // Stato omaggio per questo prodotto
               const benefitEntry = omaggioByProductName.get(product.nome);
-              const isOmaggioProduct = benefitEntry !== undefined;
-              const isOmaggioUnlocked = benefitEntry?.isUnlocked === true;
-              // Mostra checkbox solo se selezionabile E non è un prodotto omaggio (gli omaggi non si selezionano)
-              const showCheckbox = quote.type === 'variabile' && product.selectable && !isOmaggioProduct;
+              // isOmaggioUnlocked = regola sbloccata E il cliente ha selezionato questo prodotto
+              // (il cliente può selezionarlo anche senza benefit → prezzo pieno)
+              const isOmaggioUnlocked = benefitEntry?.isUnlocked === true && selectedProducts.includes(product.nome);
+              // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
+              const showCheckbox = quote.type === 'variabile' && product.selectable;
 
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
@@ -1100,10 +1099,10 @@ export default function QuotePublicViewPage() {
 
                   {/* Condizioni visuali */}
                   <div className="space-y-1.5">
-                    {/* Prodotti richiesti */}
+                    {/* Prodotti trigger richiesti */}
                     {reqNames.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 items-center">
-                        <span className="text-xs text-dark-sage font-medium">Seleziona:</span>
+                        <span className="text-xs text-dark-sage font-medium">Includi nel preventivo:</span>
                         {reqNames.map(name => {
                           const selected = selectedProducts.includes(name);
                           return (
@@ -1125,13 +1124,13 @@ export default function QuotePublicViewPage() {
                     {/* Minimo selezionabili */}
                     {minCount && minCount > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-dark-sage font-medium">Seleziona almeno:</span>
+                        <span className="text-xs text-dark-sage font-medium">Minimo:</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           bs.currentCount >= minCount
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {bs.currentCount}/{minCount} servizi
+                          {bs.currentCount}/{minCount} servizi selezionati
                         </span>
                         {/* Barra progresso */}
                         <div className="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
@@ -1145,31 +1144,34 @@ export default function QuotePublicViewPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Pulsante autocompila per questa singola regola */}
+                  {!isUnlocked && (reqNames.length > 0 || (minCount && minCount > 0)) && (
+                    <button
+                      onClick={() => autoFillForRule(bs)}
+                      className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-all"
+                      data-testid={`button-autofill-rule-${i}`}
+                    >
+                      <Zap className="w-3 h-3" />
+                      Seleziona i servizi necessari per questo omaggio
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* CTA auto-fill */}
-          {benefitStates.some(bs => !bs.isUnlocked) && (
-            <div className="mt-4 pt-4 border-t border-dashed border-amber-200">
-              <Button
-                onClick={autoFillForBenefits}
-                className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold"
-                data-testid="button-autofill-benefits"
-              >
-                <Zap className="w-4 h-4" />
-                Autocompila selezioni per sbloccare tutto
-              </Button>
-              <p className="text-xs text-center text-dark-sage mt-2 opacity-70">
-                Selezionerà automaticamente i servizi necessari — puoi modificarli in seguito
-              </p>
-            </div>
-          )}
+          {/* Nota esplicativa */}
+          <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
+            <p className="text-xs text-center text-dark-sage opacity-70">
+              I servizi trigger vengono aggiunti alla selezione — puoi sempre modificarli.
+              I prodotti in omaggio li scegli tu: se la regola è attiva, il costo diventa €0.
+            </p>
+          </div>
 
           {/* Tutto già sbloccato */}
-          {benefitStates.every(bs => bs.isUnlocked) && (
-            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+          {benefitStates.length > 0 && benefitStates.every(bs => bs.isUnlocked) && (
+            <div className="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
               <p className="text-sm font-semibold text-emerald-700">
                 🎉 Ottimo! Hai sbloccato tutti i Servizi Inclusi.
               </p>
