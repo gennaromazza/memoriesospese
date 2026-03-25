@@ -556,6 +556,8 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       status: quote.status,
       expiresAt: serializeTimestamp(quote.expiresAt),
       templateName: quote.templateName,
+      // Benefit rules: necessarie per mostrare omaggi sbloccabili nella vista cliente
+      benefitRules: quote.benefitRules || [],
     };
 
     // 7. Return dati per preview cliente
