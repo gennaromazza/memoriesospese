@@ -239,6 +239,38 @@ export default function QuotePublicViewPage() {
     return map;
   }, [benefitStates]);
 
+  // Auto-seleziona i prodotti benefit quando la loro regola si sblocca.
+  // La dipendenza è una stringa stabile degli ID delle regole sbloccate,
+  // così l'effetto non si riesegue ogni volta che selectedProducts cambia.
+  const unlockedRuleKey = benefitStates
+    .filter(bs => bs.isUnlocked)
+    .map(bs => bs.rule.id)
+    .sort()
+    .join(',');
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!unlockedRuleKey) return; // Nessuna regola sbloccata
+    const toAdd: string[] = [];
+    for (const bs of benefitStates) {
+      if (bs.isUnlocked) {
+        for (const name of (bs.rule.benefitProductNames ?? [])) {
+          // Aggiunge solo se non già presente
+          toAdd.push(name);
+        }
+      }
+    }
+    if (toAdd.length === 0) return;
+    setSelectedProducts(prev => {
+      const set = new Set(prev);
+      toAdd.forEach(n => set.add(n));
+      // Nessun cambiamento → stessa referenza per evitare re-render
+      if (set.size === prev.length && toAdd.every(n => prev.includes(n))) return prev;
+      return Array.from(set);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlockedRuleKey]);
+
   // Calculate totals with discount
   const totals = useMemo(() => {
     if (!quote) {
@@ -672,18 +704,14 @@ export default function QuotePublicViewPage() {
 
               // Stato omaggio per questo prodotto
               const benefitEntry = omaggioByProductName.get(product.nome);
-              // isRuleUnlocked: la regola benefit è soddisfatta (visual styling immediato)
-              const isRuleUnlocked = benefitEntry?.isUnlocked === true;
-              // isOmaggioUnlocked: regola sbloccata E prodotto selezionato → usato per il totale (prezzo = €0)
-              const isOmaggioUnlocked = isRuleUnlocked && selectedProducts.includes(product.nome);
+              // isOmaggioUnlocked: regola sbloccata E prodotto selezionato (auto-selezionato via useEffect)
+              const isOmaggioUnlocked = benefitEntry?.isUnlocked === true && selectedProducts.includes(product.nome);
               // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
               const showCheckbox = quote.type === 'variabile' && product.selectable;
-              // isBenefitSelected: il prodotto benefit è spuntato dal cliente
-              const isBenefitSelected = showCheckbox && selectedProducts.includes(product.nome);
 
-              // isServizioIncluso per lo STILE VISIVO: cambia subito quando la regola si sblocca
-              // (anche se il cliente non ha ancora spuntato il checkbox del prodotto)
-              const isServizioIncluso = product.isOmaggio || isRuleUnlocked;
+              // Un prodotto è "Servizio Incluso" se: admin l'ha marcato isOmaggio (fisso)
+              // OPPURE la regola benefit è sbloccata e il prodotto è selezionato (auto o manuale)
+              const isServizioIncluso = product.isOmaggio || isOmaggioUnlocked;
 
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
@@ -696,11 +724,7 @@ export default function QuotePublicViewPage() {
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
                       <span className="text-sm font-semibold text-emerald-700">Servizio Incluso</span>
-                      {product.isOmaggio || isBenefitSelected ? (
-                        <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">✓ INCLUSO</Badge>
-                      ) : (
-                        <Badge className="ml-auto text-xs bg-emerald-100 text-emerald-700 border border-emerald-300">🔓 SBLOCCATO — aggiungi</Badge>
-                      )}
+                      <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">✓ INCLUSO</Badge>
                     </div>
                   )}
                   {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
@@ -753,10 +777,8 @@ export default function QuotePublicViewPage() {
                       {/* Mobile: Nome e Prezzo affiancati */}
                       <div className="flex-1 min-w-0 sm:hidden">
                         <h3 className={`font-bold text-base font-playfair leading-tight ${isServizioIncluso ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
-                        {product.isOmaggio || isBenefitSelected ? (
+                        {isServizioIncluso ? (
                           <p className="font-bold text-base text-emerald-600 mt-1">✓ Servizio Incluso</p>
-                        ) : isRuleUnlocked ? (
-                          <p className="font-bold text-base text-emerald-500 mt-1">€0 · Aggiungilo qui sopra ☝</p>
                         ) : (
                           <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
                         )}
@@ -838,13 +860,8 @@ export default function QuotePublicViewPage() {
                     
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
-                      {product.isOmaggio || isBenefitSelected ? (
+                      {isServizioIncluso ? (
                         <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
-                      ) : isRuleUnlocked ? (
-                        <div className="text-right">
-                          <p className="font-bold text-xl sm:text-2xl text-emerald-500">€0</p>
-                          <p className="text-xs text-emerald-600 mt-1">Spunta per aggiungerlo</p>
-                        </div>
                       ) : (
                         <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
                       )}
