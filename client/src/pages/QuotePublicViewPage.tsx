@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Sparkles, Zap, Lock, Unlock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
@@ -72,9 +73,34 @@ export default function QuotePublicViewPage() {
   const [signerName, setSignerName] = useState('');
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
-  // Removed signatureRef - now using text-based signature
-  
-  // Toggle description expansion
+  const [showBenefitGuide, setShowBenefitGuide] = useState(false);
+  // Auto-seleziona tutti i prodotti necessari per sbloccare i benefit
+  const autoFillForBenefits = () => {
+    if (!quote) return;
+    const rules = migrateBenefitRules(quote.benefitRules ?? []);
+    const allSelectableNames = (quote.products ?? []).filter(p => p.selectable).map(p => p.nome);
+    const neededNames = new Set<string>(selectedProducts);
+    
+    for (const rule of rules) {
+      if (!rule.enabled) continue;
+      // Aggiungi tutti i requiredProductNames
+      for (const name of (rule.requiredProductNames ?? [])) {
+        neededNames.add(name);
+      }
+      // Se ha minSelectableCount, seleziona i primi N selezionabili
+      if (rule.minSelectableCount && rule.minSelectableCount > 0) {
+        let count = neededNames.size;
+        for (const name of allSelectableNames) {
+          if (count >= rule.minSelectableCount) break;
+          neededNames.add(name);
+          count++;
+        }
+      }
+    }
+    setSelectedProducts(Array.from(neededNames));
+    setShowBenefitGuide(false);
+  };
+
   const toggleDescription = (idx: number) => {
     setExpandedDescriptions(prev => {
       const next = new Set(prev);
@@ -625,7 +651,21 @@ export default function QuotePublicViewPage() {
         {/* Prodotti */}
         <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/20">
           <CardHeader>
-            <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
+              {/* Tab informativo benefit — visibile solo se ci sono regole benefit */}
+              {quote.type === 'variabile' && benefitStates.length > 0 && quote.status !== 'firmato' && (
+                <button
+                  onClick={() => setShowBenefitGuide(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-sm"
+                  data-testid="button-benefit-guide"
+                >
+                  <Gift className="w-3.5 h-3.5" />
+                  Servizi Inclusi
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                </button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {(quote.products ?? []).map((product, idx) => {
@@ -1006,6 +1046,137 @@ export default function QuotePublicViewPage() {
           </div>
         )}
       </div>
+
+      {/* ───────────────────────────────────────
+          MODALE GUIDA BENEFIT
+          ─────────────────────────────────────── */}
+      <Dialog open={showBenefitGuide} onOpenChange={setShowBenefitGuide}>
+        <DialogContent className="max-w-lg w-[95vw] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-playfair text-xl text-blue-gray">
+              <Gift className="w-5 h-5 text-amber-500" />
+              Come ottenere i Servizi Inclusi
+            </DialogTitle>
+            <DialogDescription className="text-sm text-dark-sage">
+              Seleziona i servizi indicati e il relativo omaggio si sblocca automaticamente — senza costi aggiuntivi.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2">
+            {benefitStates.map((bs, i) => {
+              const giftNames = bs.rule.benefitProductNames ?? [];
+              const reqNames = bs.rule.requiredProductNames ?? [];
+              const minCount = bs.rule.minSelectableCount;
+              const isUnlocked = bs.isUnlocked;
+
+              return (
+                <div
+                  key={i}
+                  className={`rounded-xl border p-4 transition-all ${
+                    isUnlocked
+                      ? 'border-emerald-300 bg-emerald-50'
+                      : 'border-amber-200 bg-amber-50/60'
+                  }`}
+                >
+                  {/* Header: status + gift name */}
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      {isUnlocked
+                        ? <Unlock className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        : <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      }
+                      <span className="font-semibold text-sm">
+                        {giftNames.join(', ')}
+                      </span>
+                    </div>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      isUnlocked
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-amber-200 text-amber-800'
+                    }`}>
+                      {isUnlocked ? '✓ SBLOCCATO' : 'DA SBLOCCARE'}
+                    </span>
+                  </div>
+
+                  {/* Condizioni visuali */}
+                  <div className="space-y-1.5">
+                    {/* Prodotti richiesti */}
+                    {reqNames.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-xs text-dark-sage font-medium">Seleziona:</span>
+                        {reqNames.map(name => {
+                          const selected = selectedProducts.includes(name);
+                          return (
+                            <span
+                              key={name}
+                              className={`text-xs px-2 py-0.5 rounded-full border font-medium flex items-center gap-1 ${
+                                selected
+                                  ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                                  : 'bg-white border-amber-300 text-amber-700'
+                              }`}
+                            >
+                              {selected ? '✓' : '○'} {name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Minimo selezionabili */}
+                    {minCount && minCount > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-dark-sage font-medium">Seleziona almeno:</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          bs.currentCount >= minCount
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {bs.currentCount}/{minCount} servizi
+                        </span>
+                        {/* Barra progresso */}
+                        <div className="flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              bs.currentCount >= minCount ? 'bg-emerald-500' : 'bg-amber-400'
+                            }`}
+                            style={{ width: `${Math.min(100, (bs.currentCount / minCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* CTA auto-fill */}
+          {benefitStates.some(bs => !bs.isUnlocked) && (
+            <div className="mt-4 pt-4 border-t border-dashed border-amber-200">
+              <Button
+                onClick={autoFillForBenefits}
+                className="w-full gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+                data-testid="button-autofill-benefits"
+              >
+                <Zap className="w-4 h-4" />
+                Autocompila selezioni per sbloccare tutto
+              </Button>
+              <p className="text-xs text-center text-dark-sage mt-2 opacity-70">
+                Selezionerà automaticamente i servizi necessari — puoi modificarli in seguito
+              </p>
+            </div>
+          )}
+
+          {/* Tutto già sbloccato */}
+          {benefitStates.every(bs => bs.isUnlocked) && (
+            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+              <p className="text-sm font-semibold text-emerald-700">
+                🎉 Ottimo! Hai sbloccato tutti i Servizi Inclusi.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
