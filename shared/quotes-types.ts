@@ -286,6 +286,9 @@ export interface QuoteTemplate {
   
   // Preventivo Rapido - token condivisibile per link pubblico
   shareableToken?: string;
+
+  // Regole benefit inclusi (solo template variabili)
+  benefitRules?: BenefitRule[];
   
   // Stato
   attivo: boolean;
@@ -310,6 +313,7 @@ export interface InsertQuoteTemplate {
   discountValue?: number;
   ordine?: number;
   attivo?: boolean;
+  benefitRules?: BenefitRule[];
 }
 
 /**

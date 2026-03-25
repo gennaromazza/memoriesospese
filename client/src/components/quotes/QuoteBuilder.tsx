@@ -747,6 +747,10 @@ export default function QuoteBuilder({
       form.setValue('discountType', undefined);
       form.setValue('discountValue', undefined);
     }
+
+    // Carica i benefit rules dal template (solo per template variabili)
+    setBenefitRules((template as any).benefitRules ?? []);
+    setExpandedBenefitRules(new Set());
   };
 
   // Upload immagine prodotto custom

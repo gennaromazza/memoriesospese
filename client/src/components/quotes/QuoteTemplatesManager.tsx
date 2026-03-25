@@ -99,7 +99,14 @@ import {
   Link2,
   ExternalLink,
   Users,
+  Gift,
+  Lock,
+  Unlock,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import type { BenefitRule } from "@shared/quote-benefits";
+import { computeBenefitStates } from "@shared/quote-benefits";
 import { useLocation } from "wouter";
 import { getAuth } from "firebase/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -382,6 +389,10 @@ export default function QuoteTemplatesManager() {
   const [studioForm, setStudioForm] = useState({ nome: '', cognome: '', email: '', cellulare: '', nomeEvento: '', eventDate: '', dataNonDefinita: false });
   const [studioSubmitting, setStudioSubmitting] = useState(false);
 
+  // Benefit rules state (gestito fuori da react-hook-form come in QuoteBuilder)
+  const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
+  const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
+
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
     queryKey: ["quote-templates"],
@@ -565,6 +576,10 @@ export default function QuoteTemplatesManager() {
       attivo: template.attivo,
     });
 
+    // Carica benefit rules dal template
+    setBenefitRules(template.benefitRules ?? []);
+    setExpandedBenefitRules(new Set());
+
     // Store template for update mutation (to preserve defaultClauses)
     setCurrentTemplate(template);
     setEditModalOpen(true);
@@ -596,6 +611,8 @@ export default function QuoteTemplatesManager() {
       discountValue: undefined,
     });
     setCurrentTemplate(null);
+    setBenefitRules([]);
+    setExpandedBenefitRules(new Set());
     setCreateModalOpen(true);
   }, [form]);
 
@@ -610,6 +627,7 @@ export default function QuoteTemplatesManager() {
   });
   const discountValue =
     useWatch({ control: form.control, name: "discountValue" }) || 0;
+  const quoteType = useWatch({ control: form.control, name: "type" });
 
   // Calculate totals
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
@@ -692,6 +710,11 @@ export default function QuoteTemplatesManager() {
         templateData.discountValue = data.discountValue;
       }
 
+      // Include benefit rules only for variabile templates
+      if (data.type === "variabile" && benefitRules.length > 0) {
+        templateData.benefitRules = benefitRules;
+      }
+
       return createQuoteTemplate(templateData, user!.uid);
     },
     onSuccess: () => {
@@ -770,6 +793,13 @@ export default function QuoteTemplatesManager() {
       } else {
         updateData.discountType = deleteField();
         updateData.discountValue = deleteField();
+      }
+
+      // Include benefit rules only for variabile templates
+      if (data.type === "variabile" && benefitRules.length > 0) {
+        updateData.benefitRules = benefitRules;
+      } else {
+        updateData.benefitRules = deleteField();
       }
 
       await updateQuoteTemplate(id, updateData);
@@ -1211,6 +1241,236 @@ export default function QuoteTemplatesManager() {
                   ))}
                 </div>
               </div>
+
+              {/* Sezione Benefici Inclusi - solo template variabili */}
+              {quoteType === "variabile" && (() => {
+                const allSelectableNames: string[] = [
+                  ...catalogProductIds.map((id: string) => {
+                    const p = catalogProducts.find((cp: any) => cp.id === id);
+                    return p?.nome ?? "";
+                  }).filter(Boolean),
+                  ...customProducts.filter((p: any) => p.nome?.trim()).map((p: any) => p.nome),
+                ];
+
+                const addBenefitRule = () => {
+                  const newRule: BenefitRule = {
+                    id: nanoid(),
+                    name: "",
+                    description: "",
+                    valueEur: undefined,
+                    enabled: true,
+                    requiredProductNames: [],
+                    minSelectableCount: undefined,
+                  };
+                  setBenefitRules(prev => [...prev, newRule]);
+                  setExpandedBenefitRules(prev => new Set([...prev, newRule.id]));
+                };
+
+                const updateRule = (id: string, patch: Partial<BenefitRule>) => {
+                  setBenefitRules(prev =>
+                    prev.map(r => r.id === id ? { ...r, ...patch } : r)
+                  );
+                };
+
+                const removeRule = (id: string) => {
+                  setBenefitRules(prev => prev.filter(r => r.id !== id));
+                };
+
+                const toggleRuleExpand = (id: string) => {
+                  setExpandedBenefitRules(prev => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id); else next.add(id);
+                    return next;
+                  });
+                };
+
+                const previewStates = benefitRules.length > 0
+                  ? computeBenefitStates(benefitRules, [], allSelectableNames)
+                  : [];
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <Gift className="w-5 h-5 text-emerald-600" />
+                          3. Benefici Inclusi Automatici
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Si attivano automaticamente quando il cliente seleziona determinate combinazioni di servizi.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={addBenefitRule}
+                        className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                        <Plus className="w-4 h-4" />
+                        Aggiungi benefit
+                      </Button>
+                    </div>
+
+                    {benefitRules.length === 0 && (
+                      <Card className="border-dashed border-emerald-200 bg-emerald-50/40">
+                        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                          <Gift className="w-8 h-8 mx-auto mb-2 text-emerald-300" />
+                          Nessun benefit configurato. Aggiungine uno per mostrare ai clienti cosa possono sbloccare.
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <div className="space-y-3">
+                      {benefitRules.map(rule => {
+                        const isExpanded = expandedBenefitRules.has(rule.id);
+                        const preview = previewStates.find(s => s.rule.id === rule.id);
+                        return (
+                          <Card key={rule.id} className={`border transition-colors ${rule.enabled ? "border-emerald-200 bg-emerald-50/30" : "border-gray-200 bg-gray-50 opacity-60"}`}>
+                            <CardHeader className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <button type="button" onClick={() => toggleRuleExpand(rule.id)}
+                                  className="flex-1 flex items-center gap-3 text-left min-w-0">
+                                  {isExpanded
+                                    ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                  }
+                                  <span className="font-medium truncate text-sm">
+                                    {rule.name || <span className="text-muted-foreground italic">Benefit senza nome</span>}
+                                  </span>
+                                  {rule.valueEur && rule.valueEur > 0 && (
+                                    <Badge variant="outline" className="flex-shrink-0 text-xs text-emerald-700 border-emerald-300 bg-emerald-50">
+                                      valore €{rule.valueEur}
+                                    </Badge>
+                                  )}
+                                </button>
+                                <Switch
+                                  checked={rule.enabled}
+                                  onCheckedChange={(v) => updateRule(rule.id, { enabled: v })}
+                                  aria-label="Attiva benefit"
+                                />
+                                <Button type="button" variant="ghost" size="sm"
+                                  onClick={() => removeRule(rule.id)}
+                                  className="text-destructive hover:bg-destructive/10 flex-shrink-0 h-7 w-7 p-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </CardHeader>
+
+                            {isExpanded && (
+                              <CardContent className="px-4 pb-4 space-y-4 border-t border-emerald-100 pt-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Nome benefit *</Label>
+                                    <Input
+                                      placeholder="Es. Gallery digitale"
+                                      value={rule.name}
+                                      onChange={e => updateRule(rule.id, { name: e.target.value })}
+                                    />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">Valore (€, solo marketing)</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      placeholder="Es. 150"
+                                      value={rule.valueEur ?? ""}
+                                      onChange={e => updateRule(rule.id, {
+                                        valueEur: e.target.value ? parseFloat(e.target.value) : undefined
+                                      })}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Non viene sommato al totale</p>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-medium">Descrizione (opzionale)</Label>
+                                  <Input
+                                    placeholder="Es. Accesso galleria digitale privata per 24 mesi"
+                                    value={rule.description ?? ""}
+                                    onChange={e => updateRule(rule.id, { description: e.target.value })}
+                                  />
+                                </div>
+
+                                <div className="border border-emerald-200 rounded-lg p-3 space-y-3 bg-white">
+                                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                                    Condizioni di attivazione
+                                  </p>
+
+                                  <div className="space-y-2">
+                                    <Label className="text-xs font-medium">Prodotti specifici richiesti</Label>
+                                    {allSelectableNames.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2">
+                                        {allSelectableNames.map(name => {
+                                          const isRequired = (rule.requiredProductNames ?? []).includes(name);
+                                          return (
+                                            <button
+                                              key={name}
+                                              type="button"
+                                              onClick={() => {
+                                                const current = rule.requiredProductNames ?? [];
+                                                updateRule(rule.id, {
+                                                  requiredProductNames: isRequired
+                                                    ? current.filter(n => n !== name)
+                                                    : [...current, name]
+                                                });
+                                              }}
+                                              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                                                isRequired
+                                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                                  : "bg-white text-gray-600 border-gray-300 hover:border-emerald-400"
+                                              }`}
+                                            >
+                                              {name}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic">
+                                        Aggiungi prodotti al template per selezionarli qui.
+                                      </p>
+                                    )}
+                                    {(rule.requiredProductNames ?? []).length > 0 && (
+                                      <p className="text-xs text-emerald-700">
+                                        Richiesti: {rule.requiredProductNames!.join(", ")}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <Separator className="my-1" />
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium">OPPURE: numero minimo servizi selezionati</Label>
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="Es. 5"
+                                        className="w-28"
+                                        value={rule.minSelectableCount ?? ""}
+                                        onChange={e => updateRule(rule.id, {
+                                          minSelectableCount: e.target.value ? parseInt(e.target.value) : undefined
+                                        })}
+                                      />
+                                      <span className="text-xs text-muted-foreground">servizi selezionati</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Si attiva quando il cliente seleziona almeno N servizi (qualsiasi combinazione).
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {rule.name && preview && (
+                                  <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
+                                    <span className="font-medium">Anteprima messaggio (0 servizi selezionati):</span>{" "}
+                                    {preview.feedbackMessage}
+                                  </div>
+                                )}
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Sconto */}
               <Card className="bg-orange-50 border-orange-200">
