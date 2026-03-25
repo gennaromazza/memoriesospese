@@ -1733,7 +1733,7 @@ export default function QuoteBuilder({
               const addBenefitRule = () => {
                 const newRule: BenefitRule = {
                   id: nanoid(),
-                  benefitProductName: '',
+                  benefitProductNames: [],
                   enabled: true,
                   requiredProductNames: [],
                   minSelectableCount: undefined,
@@ -1807,11 +1807,16 @@ export default function QuoteBuilder({
                                   : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                 }
                                 <span className="font-medium truncate text-sm">
-                                  {rule.benefitProductName
-                                    ? <><span className="text-emerald-700">OMAGGIO:</span> {rule.benefitProductName}</>
-                                    : <span className="text-muted-foreground italic">Prodotto non impostato</span>
+                                  {(rule.benefitProductNames ?? []).length > 0
+                                    ? <><span className="text-emerald-700">OMAGGIO:</span> {rule.benefitProductNames.join(', ')}</>
+                                    : <span className="text-muted-foreground italic">Nessun prodotto selezionato</span>
                                   }
                                 </span>
+                                {(rule.benefitProductNames ?? []).length > 0 && (
+                                  <Badge className="flex-shrink-0 text-xs bg-emerald-100 text-emerald-700 border-0">
+                                    {rule.benefitProductNames.length} {rule.benefitProductNames.length === 1 ? 'omaggio' : 'omaggi'}
+                                  </Badge>
+                                )}
                                 {(rule.requiredProductNames ?? []).length > 0 && (
                                   <Badge variant="outline" className="flex-shrink-0 text-xs text-gray-500 border-gray-300">
                                     {(rule.requiredProductNames ?? []).length} trigger
@@ -1834,40 +1839,45 @@ export default function QuoteBuilder({
                           {isExpanded && (
                             <CardContent className="px-4 pb-4 space-y-4 border-t border-emerald-100 pt-4">
 
-                              {/* Prodotto in omaggio */}
+                              {/* Prodotti in omaggio */}
                               <div className="border border-emerald-300 rounded-lg p-3 space-y-2 bg-emerald-50/50">
                                 <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide flex items-center gap-1.5">
                                   <Gift className="w-3.5 h-3.5" />
-                                  Prodotto in omaggio
+                                  Prodotti in omaggio
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  Seleziona quale prodotto del preventivo diventa <strong>gratuito</strong> quando si verificano le condizioni.
+                                  Seleziona uno o più prodotti del preventivo che diventano <strong>in omaggio</strong> quando si verificano le condizioni. Puoi selezionarne quanti vuoi.
                                 </p>
                                 {allSelectableNames.length > 0 ? (
                                   <div className="flex flex-wrap gap-2">
                                     {allSelectableNames.map(name => {
-                                      const isTheBenefit = rule.benefitProductName === name;
+                                      const isSelected = (rule.benefitProductNames ?? []).includes(name);
                                       return (
                                         <button
                                           key={name}
                                           type="button"
-                                          onClick={() => updateRule(rule.id, {
-                                            benefitProductName: isTheBenefit ? '' : name
-                                          })}
+                                          onClick={() => {
+                                            const current = rule.benefitProductNames ?? [];
+                                            updateRule(rule.id, {
+                                              benefitProductNames: isSelected
+                                                ? current.filter(n => n !== name)
+                                                : [...current, name]
+                                            });
+                                          }}
                                           className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
-                                            isTheBenefit
+                                            isSelected
                                               ? 'bg-emerald-600 text-white border-emerald-600'
                                               : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'
                                           }`}
                                         >
-                                          {isTheBenefit && '✓ '}{name}
+                                          {isSelected && '✓ '}{name}
                                         </button>
                                       );
                                     })}
                                   </div>
                                 ) : (
                                   <p className="text-xs text-muted-foreground italic">
-                                    Aggiungi prodotti al preventivo per selezionarne uno come omaggio.
+                                    Aggiungi prodotti al preventivo per selezionarne come omaggi.
                                   </p>
                                 )}
                               </div>
@@ -1880,11 +1890,12 @@ export default function QuoteBuilder({
 
                                 <div className="space-y-2">
                                   <Label className="text-xs font-medium">Prodotti trigger richiesti (tutti)</Label>
-                                  {allSelectableNames.filter(n => n !== rule.benefitProductName).length > 0 ? (
+                                  {allSelectableNames.filter(n => !(rule.benefitProductNames ?? []).includes(n)).length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
                                       {allSelectableNames
-                                        .filter(name => name !== rule.benefitProductName)
+                                        .filter(name => !(rule.benefitProductNames ?? []).includes(name))
                                         .map(name => {
+
                                           const isRequired = (rule.requiredProductNames ?? []).includes(name);
                                           return (
                                             <button
@@ -1946,7 +1957,7 @@ export default function QuoteBuilder({
                                 </div>
                               </div>
 
-                              {rule.benefitProductName && preview && (
+                              {(rule.benefitProductNames ?? []).length > 0 && preview && (
                                 <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
                                   <span className="font-medium">Anteprima messaggio (0 servizi selezionati):</span>{' '}
                                   {preview.feedbackMessage}

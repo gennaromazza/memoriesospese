@@ -2,7 +2,7 @@
  * QUOTE BENEFITS ENGINE
  * Logica pura per calcolo benefici inclusi in base ai prodotti selezionati.
  *
- * Il "benefit" è un prodotto specifico del preventivo che diventa GRATUITO
+ * Il "benefit" è uno o più prodotti specifici del preventivo che diventano IN OMAGGIO
  * quando il cliente seleziona certe combinazioni di altri prodotti.
  *
  * Tutte le funzioni sono pure (nessun side-effect).
@@ -13,11 +13,11 @@ export type BenefitStatus = 'locked' | 'preview' | 'unlocked';
 
 /**
  * Regola benefit configurata dall'admin.
- * Definisce quale prodotto diventa gratuito e in base a quali condizioni.
+ * Definisce quali prodotti diventano in omaggio e in base a quali condizioni.
  */
 export interface BenefitRule {
   id: string;
-  benefitProductName: string;       // Nome del prodotto che diventa GRATUITO (in omaggio)
+  benefitProductNames: string[];    // Nomi dei prodotti che diventano IN OMAGGIO
   enabled: boolean;
 
   requiredProductNames?: string[];  // Nomi esatti dei prodotti trigger richiesti (tutti)
@@ -88,8 +88,9 @@ export function computeBenefitStates(
         status = 'locked';
       }
 
+      const benefitLabel = formatBenefitNames(rule.benefitProductNames);
       const feedbackMessage = isUnlocked
-        ? `${rule.benefitProductName} — incluso in omaggio per voi`
+        ? `${benefitLabel} — inclusi in omaggio per voi`
         : buildMissingMessage(rule, missingProductNames, missingCount);
 
       return {
@@ -104,25 +105,34 @@ export function computeBenefitStates(
     });
 }
 
+/** Formatta un array di nomi prodotto in una stringa leggibile */
+function formatBenefitNames(names: string[]): string {
+  if (!names || names.length === 0) return 'il beneficio';
+  if (names.length === 1) return names[0];
+  const last = names[names.length - 1];
+  const rest = names.slice(0, -1);
+  return `${rest.join(', ')} e ${last}`;
+}
+
 function buildMissingMessage(
   rule: BenefitRule,
   missingProducts: string[],
   missingCount: number
 ): string {
-  const benefitName = rule.benefitProductName || 'il beneficio';
+  const benefitLabel = formatBenefitNames(rule.benefitProductNames);
   const parts: string[] = [];
 
   if (missingProducts.length === 1) {
-    parts.push(`Aggiungi "${missingProducts[0]}" per ricevere ${benefitName} in omaggio`);
+    parts.push(`Aggiungi "${missingProducts[0]}" per ricevere ${benefitLabel} in omaggio`);
   } else if (missingProducts.length > 1) {
-    parts.push(`Aggiungi ${missingProducts.map(n => `"${n}"`).join(' e ')} per ricevere ${benefitName} in omaggio`);
+    parts.push(`Aggiungi ${missingProducts.map(n => `"${n}"`).join(' e ')} per ricevere ${benefitLabel} in omaggio`);
   }
 
   if (missingCount === 1) {
-    parts.push(`Ti manca 1 servizio per ricevere ${benefitName} in omaggio`);
+    parts.push(`Ti manca 1 servizio per ricevere ${benefitLabel} in omaggio`);
   } else if (missingCount > 1) {
-    parts.push(`Ti mancano ${missingCount} servizi per ricevere ${benefitName} in omaggio`);
+    parts.push(`Ti mancano ${missingCount} servizi per ricevere ${benefitLabel} in omaggio`);
   }
 
-  return parts.join(' · ') || `Seleziona i servizi per ricevere ${benefitName} in omaggio`;
+  return parts.join(' · ') || `Seleziona i servizi per ricevere ${benefitLabel} in omaggio`;
 }

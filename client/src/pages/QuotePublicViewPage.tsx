@@ -827,10 +827,13 @@ export default function QuotePublicViewPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className={`font-semibold text-sm ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
-                              {bs.rule.benefitProductName || 'Prodotto in omaggio'}
+                              {(bs.rule.benefitProductNames ?? []).length > 0
+                                ? bs.rule.benefitProductNames.join(' + ')
+                                : 'Prodotti in omaggio'
+                              }
                             </span>
                             <Badge variant="outline" className={`text-xs border-0 ${bs.isUnlocked ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                              {bs.isUnlocked ? '✓ INCLUSO GRATUITAMENTE' : 'OMAGGIO SBLOCCABILE'}
+                              {bs.isUnlocked ? '✓ IN OMAGGIO PER VOI' : 'OMAGGIO SBLOCCABILE'}
                             </Badge>
                           </div>
                           <p className={`text-xs font-medium ${
