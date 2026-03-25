@@ -35,18 +35,29 @@ const router = Router();
  * Per quote fisse, lo sconto è già applicato in totalAfterDiscount/totaleSelezionato.
  */
 function calculateCorrectQuoteTotal(quote: Quote): number {
-  // 1. Priorità a totalAfterDiscount se presente (valore corretto con sconto)
+  // REGOLA CRITICA: per preventivi variabili, totaleSelezionato (scelta del cliente)
+  // ha SEMPRE priorità su totalAfterDiscount (che include TUTTI i prodotti, anche non selezionati).
+  // Per preventivi fissi/a consumo, totalAfterDiscount è il valore corretto post-sconto.
+  
+  const isVariabile = quote.type === 'variabile';
+  
+  // 1. Quote variabili: totaleSelezionato ha la priorità assoluta
+  if (isVariabile && quote.totaleSelezionato !== undefined && quote.totaleSelezionato !== null && quote.totaleSelezionato > 0) {
+    return quote.totaleSelezionato;
+  }
+  
+  // 2. totalAfterDiscount: valore corretto per quote fisso/a consumo (sconto già applicato)
+  //    Per variabili lo usiamo solo come fallback se totaleSelezionato non è presente
   if (quote.totalAfterDiscount !== undefined && quote.totalAfterDiscount !== null && quote.totalAfterDiscount > 0) {
     return quote.totalAfterDiscount;
   }
   
-  // 2. Per quote firmate, usa totaleSelezionato se presente
-  // Questo è il valore salvato al momento della firma (ora calcolato correttamente)
+  // 3. totaleSelezionato come fallback finale (quote variabili senza totalAfterDiscount)
   if (quote.totaleSelezionato !== undefined && quote.totaleSelezionato !== null && quote.totaleSelezionato > 0) {
     return quote.totaleSelezionato;
   }
   
-  // 3. Ricalcola da totaleBase/totalBeforeDiscount se ci sono metadati sconto (quote legacy)
+  // 4. Ricalcola da totaleBase/totalBeforeDiscount se ci sono metadati sconto (quote legacy)
   const baseTotal = quote.totalBeforeDiscount ?? quote.totaleBase;
   if (quote.discountValue && quote.discountValue > 0 && baseTotal && baseTotal > 0) {
     if (quote.discountType === 'percent') {
@@ -54,11 +65,10 @@ function calculateCorrectQuoteTotal(quote: Quote): number {
     } else if (quote.discountType === 'amount') {
       return Math.max(0, baseTotal - quote.discountValue);
     }
-    // Se discountValue esiste ma discountType non è definito, assumiamo 'amount' (fisso)
     return Math.max(0, baseTotal - quote.discountValue);
   }
   
-  // 4. Fallback a totaleBase (per quote senza sconto)
+  // 5. Fallback a totaleBase (per quote senza sconto)
   return quote.totaleBase ?? quote.totalBeforeDiscount ?? 0;
 }
 
