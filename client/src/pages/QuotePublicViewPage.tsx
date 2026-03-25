@@ -678,14 +678,17 @@ export default function QuotePublicViewPage() {
               // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
               const showCheckbox = quote.type === 'variabile' && product.selectable;
 
+              // Un prodotto è "incluso" se: admin l'ha marcato isOmaggio (fisso) OPPURE il cliente ha sbloccato il benefit rule (dinamico)
+              const isServizioIncluso = product.isOmaggio || isOmaggioUnlocked;
+
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
-                  isOmaggioUnlocked
+                  isServizioIncluso
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-sm'
                     : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
                 }`}>
-                  {/* Banner verde appare SOLO quando l'omaggio viene sbloccato */}
-                  {isOmaggioUnlocked && (
+                  {/* Banner verde: omaggio fisso admin O benefit sbloccato dal cliente */}
+                  {isServizioIncluso && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
                       <span className="text-sm font-semibold text-emerald-700">Servizio Incluso</span>
@@ -741,18 +744,13 @@ export default function QuotePublicViewPage() {
 
                       {/* Mobile: Nome e Prezzo affiancati */}
                       <div className="flex-1 min-w-0 sm:hidden">
-                        <h3 className={`font-bold text-base font-playfair leading-tight ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
-                        {isOmaggioUnlocked ? (
+                        <h3 className={`font-bold text-base font-playfair leading-tight ${isServizioIncluso ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
+                        {isServizioIncluso ? (
                           <p className="font-bold text-base text-emerald-600 mt-1">✓ Servizio Incluso</p>
-                        ) : product.isOmaggio ? (
-                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mt-1">🎁 In omaggio</span>
                         ) : (
                           <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
                         )}
                         <div className="flex flex-wrap gap-1 mt-2">
-                          {product.isOmaggio && !isOmaggioProduct && (
-                            <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
-                          )}
                           {product.numeroFoto && (
                             <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
                               📸 {product.numeroFoto} foto
@@ -789,17 +787,11 @@ export default function QuotePublicViewPage() {
 
                     {/* Desktop: contenuto centrale */}
                     <div className="hidden sm:block flex-1 min-w-0">
-                      <h3 className={`font-bold text-lg mb-1 font-playfair ${isOmaggioUnlocked ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
-                      {product.isOmaggio && !isOmaggioProduct && (
-                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-rose-600 mb-1">🎁 In omaggio</span>
-                      )}
+                      <h3 className={`font-bold text-lg mb-1 font-playfair ${isServizioIncluso ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
                       {product.descrizione && (
                         <p className="text-sm text-dark-sage mt-1 leading-relaxed">{product.descrizione}</p>
                       )}
                       <div className="flex flex-wrap gap-2 mt-3">
-                        {product.isOmaggio && !isOmaggioProduct && (
-                          <Badge className="text-xs bg-rose-100 text-rose-700 border-rose-300">🎁 Omaggio</Badge>
-                        )}
                         {product.numeroFoto && (
                           <Badge variant="outline" className="text-xs bg-mint/20 border-mint text-blue-gray">
                             📸 {product.numeroFoto} foto
@@ -836,10 +828,8 @@ export default function QuotePublicViewPage() {
                     
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
-                      {isOmaggioUnlocked ? (
+                      {isServizioIncluso ? (
                         <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
-                      ) : product.isOmaggio ? (
-                        <p className="font-bold text-xl sm:text-2xl text-rose-500">🎁 Omaggio</p>
                       ) : (
                         <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
                       )}
