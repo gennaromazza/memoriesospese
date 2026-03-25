@@ -1733,9 +1733,7 @@ export default function QuoteBuilder({
               const addBenefitRule = () => {
                 const newRule: BenefitRule = {
                   id: nanoid(),
-                  name: '',
-                  description: '',
-                  valueEur: undefined,
+                  benefitProductName: '',
                   enabled: true,
                   requiredProductNames: [],
                   minSelectableCount: undefined,
@@ -1809,11 +1807,14 @@ export default function QuoteBuilder({
                                   : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                 }
                                 <span className="font-medium truncate text-sm">
-                                  {rule.name || <span className="text-muted-foreground italic">Benefit senza nome</span>}
+                                  {rule.benefitProductName
+                                    ? <><span className="text-emerald-700">OMAGGIO:</span> {rule.benefitProductName}</>
+                                    : <span className="text-muted-foreground italic">Prodotto non impostato</span>
+                                  }
                                 </span>
-                                {rule.valueEur && rule.valueEur > 0 && (
-                                  <Badge variant="outline" className="flex-shrink-0 text-xs text-emerald-700 border-emerald-300 bg-emerald-50">
-                                    valore €{rule.valueEur}
+                                {(rule.requiredProductNames ?? []).length > 0 && (
+                                  <Badge variant="outline" className="flex-shrink-0 text-xs text-gray-500 border-gray-300">
+                                    {(rule.requiredProductNames ?? []).length} trigger
                                   </Badge>
                                 )}
                               </button>
@@ -1832,91 +1833,98 @@ export default function QuoteBuilder({
 
                           {isExpanded && (
                             <CardContent className="px-4 pb-4 space-y-4 border-t border-emerald-100 pt-4">
-                              {/* Nome */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-medium">Nome benefit *</Label>
-                                  <Input
-                                    placeholder="Es. Gallery digitale"
-                                    value={rule.name}
-                                    onChange={e => updateRule(rule.id, { name: e.target.value })}
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-medium">Valore (€, solo marketing)</Label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    placeholder="Es. 150"
-                                    value={rule.valueEur ?? ''}
-                                    onChange={e => updateRule(rule.id, {
-                                      valueEur: e.target.value ? parseFloat(e.target.value) : undefined
-                                    })}
-                                  />
-                                  <p className="text-xs text-muted-foreground">Non viene sommato al totale</p>
-                                </div>
-                              </div>
 
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-medium">Descrizione (opzionale)</Label>
-                                <Input
-                                  placeholder="Es. Accesso galleria digitale privata per 24 mesi"
-                                  value={rule.description ?? ''}
-                                  onChange={e => updateRule(rule.id, { description: e.target.value })}
-                                />
+                              {/* Prodotto in omaggio */}
+                              <div className="border border-emerald-300 rounded-lg p-3 space-y-2 bg-emerald-50/50">
+                                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide flex items-center gap-1.5">
+                                  <Gift className="w-3.5 h-3.5" />
+                                  Prodotto in omaggio
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Seleziona quale prodotto del preventivo diventa <strong>gratuito</strong> quando si verificano le condizioni.
+                                </p>
+                                {allSelectableNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {allSelectableNames.map(name => {
+                                      const isTheBenefit = rule.benefitProductName === name;
+                                      return (
+                                        <button
+                                          key={name}
+                                          type="button"
+                                          onClick={() => updateRule(rule.id, {
+                                            benefitProductName: isTheBenefit ? '' : name
+                                          })}
+                                          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                            isTheBenefit
+                                              ? 'bg-emerald-600 text-white border-emerald-600'
+                                              : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50'
+                                          }`}
+                                        >
+                                          {isTheBenefit && '✓ '}{name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic">
+                                    Aggiungi prodotti al preventivo per selezionarne uno come omaggio.
+                                  </p>
+                                )}
                               </div>
 
                               {/* Condizioni di attivazione */}
-                              <div className="border border-emerald-200 rounded-lg p-3 space-y-3 bg-white">
-                                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                              <div className="border border-gray-200 rounded-lg p-3 space-y-3 bg-white">
+                                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                                   Condizioni di attivazione
                                 </p>
 
-                                {/* Prodotti richiesti */}
                                 <div className="space-y-2">
-                                  <Label className="text-xs font-medium">Prodotti specifici richiesti</Label>
-                                  {allSelectableNames.length > 0 ? (
+                                  <Label className="text-xs font-medium">Prodotti trigger richiesti (tutti)</Label>
+                                  {allSelectableNames.filter(n => n !== rule.benefitProductName).length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
-                                      {allSelectableNames.map(name => {
-                                        const isRequired = (rule.requiredProductNames ?? []).includes(name);
-                                        return (
-                                          <button
-                                            key={name}
-                                            type="button"
-                                            onClick={() => {
-                                              const current = rule.requiredProductNames ?? [];
-                                              updateRule(rule.id, {
-                                                requiredProductNames: isRequired
-                                                  ? current.filter(n => n !== name)
-                                                  : [...current, name]
-                                              });
-                                            }}
-                                            className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                                              isRequired
-                                                ? 'bg-emerald-600 text-white border-emerald-600'
-                                                : 'bg-white text-gray-600 border-gray-300 hover:border-emerald-400'
-                                            }`}
-                                          >
-                                            {name}
-                                          </button>
-                                        );
-                                      })}
+                                      {allSelectableNames
+                                        .filter(name => name !== rule.benefitProductName)
+                                        .map(name => {
+                                          const isRequired = (rule.requiredProductNames ?? []).includes(name);
+                                          return (
+                                            <button
+                                              key={name}
+                                              type="button"
+                                              onClick={() => {
+                                                const current = rule.requiredProductNames ?? [];
+                                                updateRule(rule.id, {
+                                                  requiredProductNames: isRequired
+                                                    ? current.filter(n => n !== name)
+                                                    : [...current, name]
+                                                });
+                                              }}
+                                              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                                                isRequired
+                                                  ? 'bg-blue-600 text-white border-blue-600'
+                                                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                                              }`}
+                                            >
+                                              {name}
+                                            </button>
+                                          );
+                                        })}
                                     </div>
                                   ) : (
                                     <p className="text-xs text-muted-foreground italic">
-                                      Aggiungi prodotti al preventivo per selezionarli qui.
+                                      {allSelectableNames.length === 0
+                                        ? 'Aggiungi prodotti al preventivo per impostare i trigger.'
+                                        : 'Aggiungi altri prodotti oltre all\'omaggio.'}
                                     </p>
                                   )}
                                   {(rule.requiredProductNames ?? []).length > 0 && (
-                                    <p className="text-xs text-emerald-700">
-                                      Richiesti: {rule.requiredProductNames!.join(', ')}
+                                    <p className="text-xs text-blue-700">
+                                      Trigger: {rule.requiredProductNames!.join(', ')}
                                     </p>
                                   )}
                                 </div>
 
                                 <Separator className="my-1" />
 
-                                {/* Numero minimo */}
                                 <div className="space-y-1.5">
                                   <Label className="text-xs font-medium">OPPURE: numero minimo servizi selezionati</Label>
                                   <div className="flex items-center gap-2">
@@ -1938,8 +1946,7 @@ export default function QuoteBuilder({
                                 </div>
                               </div>
 
-                              {/* Preview messaggio */}
-                              {rule.name && preview && (
+                              {rule.benefitProductName && preview && (
                                 <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
                                   <span className="font-medium">Anteprima messaggio (0 servizi selezionati):</span>{' '}
                                   {preview.feedbackMessage}

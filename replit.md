@@ -58,7 +58,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Data Import:** Excel-based import system for clients and jobs, supporting structured field parsing, Firebase Storage integration, and automatic job type creation.
 - **Cascade Delete System:** Proper cleanup of associated data (job references, photos) upon deletion of quotes, orders, or galleries.
 - **System Audit Tools:** Automated admin-only audit system for data integrity, workflow consistency, and calendar sync issues, including an Orphaned Photos Manager.
-- **Quote Benefits System:** Per-quote configurable benefit rules (`shared/quote-benefits.ts`) with pure `computeBenefitStates()` function; states: locked/preview/unlocked; admin UI in QuoteBuilder (sezione 3, variabile quotes only); client-facing live panel in QuotePublicViewPage with progress bar and dynamic feedback messages; benefits never affect totals.
+- **Quote Benefits System:** Per-quote configurable benefit rules (`shared/quote-benefits.ts`) with pure `computeBenefitStates()` function; states: locked/preview/unlocked; admin UI in QuoteBuilder and QuoteTemplatesManager (sezione 3, variabile quotes only); client-facing live panel in QuotePublicViewPage with progress bar and dynamic feedback messages; benefits never affect totals. Each `BenefitRule` specifies a `benefitProductName` (the product that becomes FREE/OMAGGIO) and optional trigger conditions (`requiredProductNames[]` and/or `minSelectableCount`).
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting

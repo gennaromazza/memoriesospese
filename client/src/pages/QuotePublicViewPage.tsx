@@ -827,22 +827,12 @@ export default function QuotePublicViewPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className={`font-semibold text-sm ${bs.isUnlocked ? 'text-emerald-700' : 'text-gray-600'}`}>
-                              {bs.rule.name}
+                              {bs.rule.benefitProductName || 'Prodotto in omaggio'}
                             </span>
-                            {bs.rule.valueEur && bs.rule.valueEur > 0 && (
-                              <Badge variant="outline" className="text-xs text-gray-500 border-gray-300">
-                                valore {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(bs.rule.valueEur)}
-                              </Badge>
-                            )}
-                            {bs.isUnlocked && (
-                              <Badge className="text-xs bg-emerald-600 text-white border-0">
-                                ✓ Attivato
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className={`text-xs border-0 ${bs.isUnlocked ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                              {bs.isUnlocked ? '✓ INCLUSO GRATUITAMENTE' : 'OMAGGIO SBLOCCABILE'}
+                            </Badge>
                           </div>
-                          {bs.rule.description && (
-                            <p className="text-xs text-muted-foreground mb-1.5">{bs.rule.description}</p>
-                          )}
                           <p className={`text-xs font-medium ${
                             bs.isUnlocked ? 'text-emerald-600' : 'text-amber-600'
                           }`}>
