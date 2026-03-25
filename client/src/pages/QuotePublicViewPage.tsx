@@ -672,14 +672,18 @@ export default function QuotePublicViewPage() {
 
               // Stato omaggio per questo prodotto
               const benefitEntry = omaggioByProductName.get(product.nome);
-              // isOmaggioUnlocked = regola sbloccata E il cliente ha selezionato questo prodotto
-              // (il cliente può selezionarlo anche senza benefit → prezzo pieno)
-              const isOmaggioUnlocked = benefitEntry?.isUnlocked === true && selectedProducts.includes(product.nome);
+              // isRuleUnlocked: la regola benefit è soddisfatta (visual styling immediato)
+              const isRuleUnlocked = benefitEntry?.isUnlocked === true;
+              // isOmaggioUnlocked: regola sbloccata E prodotto selezionato → usato per il totale (prezzo = €0)
+              const isOmaggioUnlocked = isRuleUnlocked && selectedProducts.includes(product.nome);
               // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
               const showCheckbox = quote.type === 'variabile' && product.selectable;
+              // isBenefitSelected: il prodotto benefit è spuntato dal cliente
+              const isBenefitSelected = showCheckbox && selectedProducts.includes(product.nome);
 
-              // Un prodotto è "incluso" se: admin l'ha marcato isOmaggio (fisso) OPPURE il cliente ha sbloccato il benefit rule (dinamico)
-              const isServizioIncluso = product.isOmaggio || isOmaggioUnlocked;
+              // isServizioIncluso per lo STILE VISIVO: cambia subito quando la regola si sblocca
+              // (anche se il cliente non ha ancora spuntato il checkbox del prodotto)
+              const isServizioIncluso = product.isOmaggio || isRuleUnlocked;
 
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
@@ -692,7 +696,11 @@ export default function QuotePublicViewPage() {
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
                       <span className="text-sm font-semibold text-emerald-700">Servizio Incluso</span>
-                      <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">INCLUSO</Badge>
+                      {product.isOmaggio || isBenefitSelected ? (
+                        <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">✓ INCLUSO</Badge>
+                      ) : (
+                        <Badge className="ml-auto text-xs bg-emerald-100 text-emerald-700 border border-emerald-300">🔓 SBLOCCATO — aggiungi</Badge>
+                      )}
                     </div>
                   )}
                   {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
@@ -745,8 +753,10 @@ export default function QuotePublicViewPage() {
                       {/* Mobile: Nome e Prezzo affiancati */}
                       <div className="flex-1 min-w-0 sm:hidden">
                         <h3 className={`font-bold text-base font-playfair leading-tight ${isServizioIncluso ? 'text-emerald-800' : 'text-blue-gray'}`}>{product.nome}</h3>
-                        {isServizioIncluso ? (
+                        {product.isOmaggio || isBenefitSelected ? (
                           <p className="font-bold text-base text-emerald-600 mt-1">✓ Servizio Incluso</p>
+                        ) : isRuleUnlocked ? (
+                          <p className="font-bold text-base text-emerald-500 mt-1">€0 · Aggiungilo qui sopra ☝</p>
                         ) : (
                           <p className="font-bold text-lg text-blue-gray mt-1">{formatCurrency(product.prezzo)}</p>
                         )}
@@ -828,8 +838,13 @@ export default function QuotePublicViewPage() {
                     
                     {/* Desktop: prezzo a destra */}
                     <div className="hidden sm:block text-right flex-shrink-0">
-                      {isServizioIncluso ? (
+                      {product.isOmaggio || isBenefitSelected ? (
                         <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
+                      ) : isRuleUnlocked ? (
+                        <div className="text-right">
+                          <p className="font-bold text-xl sm:text-2xl text-emerald-500">€0</p>
+                          <p className="text-xs text-emerald-600 mt-1">Spunta per aggiungerlo</p>
+                        </div>
                       ) : (
                         <p className="font-bold text-xl sm:text-2xl text-blue-gray">{formatCurrency(product.prezzo)}</p>
                       )}
