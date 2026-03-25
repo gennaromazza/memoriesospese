@@ -558,6 +558,26 @@ export default function QuoteBuilder({
     });
   }, [existingQuote, editQuoteId, form, toast]);
 
+  // Fallback benefit rules: se il preventivo non ha benefitRules propri ma ha un templateId,
+  // carica i benefit dal template aggiornato (utile se i benefit sono stati aggiunti
+  // al template DOPO la creazione del preventivo).
+  useEffect(() => {
+    if (!existingQuote || !editQuoteId) return;
+    if (!existingQuote.templateId) return;
+    if ((existingQuote.benefitRules ?? []).length > 0) return; // ha già benefit propri
+    if (templates.length === 0) return; // template non ancora caricati
+    
+    const matchingTemplate = templates.find((t: any) => t.id === existingQuote.templateId);
+    const templateBenefits = (matchingTemplate as any)?.benefitRules ?? [];
+    if (templateBenefits.length > 0) {
+      setBenefitRules(prev => {
+        // Non sovrascrivere se nel frattempo l'utente ha già aggiunto benefit manualmente
+        if (prev.length > 0) return prev;
+        return migrateBenefitRules(templateBenefits);
+      });
+    }
+  }, [existingQuote, editQuoteId, templates]);
+
   // Handler cambio template clausole
   const handleClauseTemplateChange = (templateId: string) => {
     setSelectedClauseTemplateId(templateId);
