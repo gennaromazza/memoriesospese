@@ -12,6 +12,28 @@
 export type BenefitStatus = 'locked' | 'preview' | 'unlocked';
 
 /**
+ * Migra le regole benefit dal vecchio formato (benefitProductName: string)
+ * al nuovo formato (benefitProductNames: string[]).
+ * Chiamare ovunque si caricano dati da Firestore.
+ */
+export function migrateBenefitRules(rules: any[]): BenefitRule[] {
+  if (!Array.isArray(rules)) return [];
+  return rules.map(rule => {
+    // Se ha già il nuovo formato, usalo così com'è
+    if (Array.isArray(rule.benefitProductNames)) return rule as BenefitRule;
+    // Migra dal vecchio formato: benefitProductName (string) → benefitProductNames (string[])
+    const legacyName: string = rule.benefitProductName ?? '';
+    return {
+      id: rule.id,
+      benefitProductNames: legacyName ? [legacyName] : [],
+      enabled: rule.enabled ?? true,
+      requiredProductNames: rule.requiredProductNames ?? [],
+      minSelectableCount: rule.minSelectableCount,
+    } as BenefitRule;
+  });
+}
+
+/**
  * Regola benefit configurata dall'admin.
  * Definisce quali prodotti diventano in omaggio e in base a quali condizioni.
  */

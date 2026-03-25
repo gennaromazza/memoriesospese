@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { acceptQuote } from '@/lib/quotes';
 import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
-import { computeBenefitStates } from '@shared/quote-benefits';
+import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
 import type { BenefitState } from '@shared/quote-benefits';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -236,7 +236,7 @@ export default function QuotePublicViewPage() {
     const allSelectableNames = (quote.products ?? [])
       .filter(p => p.selectable)
       .map(p => p.nome);
-    return computeBenefitStates(quote.benefitRules, selectedProducts, allSelectableNames);
+    return computeBenefitStates(migrateBenefitRules(quote.benefitRules), selectedProducts, allSelectableNames);
   }, [quote, selectedProducts]);
 
   // Theme colors with fallback

@@ -92,7 +92,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { QuoteType, QuoteProduct } from '@shared/quotes-types';
 import type { BenefitRule } from '@shared/quote-benefits';
-import { computeBenefitStates } from '@shared/quote-benefits';
+import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
 import type { JobType as JobTypeSlug, Job } from '@shared/jobs-types';
 import type { JobType, JobTypeFE } from '@shared/job-types';
 import { DEFAULT_CLAUSES } from '@shared/contract-clause-types';
@@ -549,7 +549,7 @@ export default function QuoteBuilder({
     setSelectedTemplateId(existingQuote.templateId ?? '');
     setExpandedProducts(new Set());
     setUploadingImages({});
-    setBenefitRules(existingQuote.benefitRules ?? []);
+    setBenefitRules(migrateBenefitRules(existingQuote.benefitRules ?? []));
     setExpandedBenefitRules(new Set());
 
     toast({
@@ -749,7 +749,7 @@ export default function QuoteBuilder({
     }
 
     // Carica i benefit rules dal template (solo per template variabili)
-    setBenefitRules((template as any).benefitRules ?? []);
+    setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
     setExpandedBenefitRules(new Set());
   };
 

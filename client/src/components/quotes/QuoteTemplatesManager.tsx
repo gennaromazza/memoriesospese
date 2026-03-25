@@ -106,7 +106,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import type { BenefitRule } from "@shared/quote-benefits";
-import { computeBenefitStates } from "@shared/quote-benefits";
+import { computeBenefitStates, migrateBenefitRules } from "@shared/quote-benefits";
 import { useLocation } from "wouter";
 import { getAuth } from "firebase/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -577,7 +577,7 @@ export default function QuoteTemplatesManager() {
     });
 
     // Carica benefit rules dal template
-    setBenefitRules(template.benefitRules ?? []);
+    setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
     setExpandedBenefitRules(new Set());
 
     // Store template for update mutation (to preserve defaultClauses)
