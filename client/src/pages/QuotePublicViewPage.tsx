@@ -130,13 +130,39 @@ export default function QuotePublicViewPage() {
   const appuntamentiClienti = portalData?.appuntamentiClienti || [];
   const jobTypeInfo = portalData?.jobTypeInfo;
 
-  // Initialize selected products for variabile quotes (only already selected, not selectable)
+  // Initialize selected products for variabile quotes.
+  // Rimuove i prodotti benefit che non hanno la regola soddisfatta con i trigger pre-selezionati,
+  // così al caricamento non compaiono "checkati a prezzo pieno" in modo contraddittorio.
   useEffect(() => {
     if (quote?.type === 'variabile' && quote.products) {
-      const preselected = quote.products
+      const allPreselected = quote.products
         .filter(p => p.selected === true)
         .map(p => p.nome);
-      setSelectedProducts(preselected);
+
+      const allSelectableNames = quote.products.filter(p => p.selectable).map(p => p.nome);
+      const rules = migrateBenefitRules(quote.benefitRules ?? []);
+      const initStates = computeBenefitStates(rules, allPreselected, allSelectableNames);
+
+      // Nomi di tutti i prodotti benefit (in qualsiasi regola)
+      const allBenefitNames = new Set<string>(
+        rules.flatMap(r => r.benefitProductNames ?? [])
+      );
+
+      // Stato per nome benefitProduct → isUnlocked
+      const benefitUnlockedMap = new Map<string, boolean>();
+      for (const bs of initStates) {
+        for (const name of (bs.rule.benefitProductNames ?? [])) {
+          benefitUnlockedMap.set(name, bs.isUnlocked);
+        }
+      }
+
+      // Mantieni solo i prodotti che NON sono benefit, oppure che sono benefit con regola attiva
+      const cleanSelected = allPreselected.filter(name => {
+        if (!allBenefitNames.has(name)) return true; // prodotto normale → tienilo
+        return benefitUnlockedMap.get(name) === true; // benefit → solo se regola attiva
+      });
+
+      setSelectedProducts(cleanSelected);
     }
   }, [quote]);
 
