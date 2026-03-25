@@ -190,7 +190,6 @@ export default function CatalogProductSelector({
                         alt={product.nome}
                         className="w-full h-full object-cover"
                         loading="lazy"
-                        onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -218,7 +217,6 @@ export default function CatalogProductSelector({
                       <Badge
                         variant="secondary"
                         className="absolute bottom-2 left-2 text-xs"
-                        onClick={(e) => e.stopPropagation()}
                       >
                         {categoryName}
                       </Badge>
