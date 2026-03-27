@@ -17,7 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
@@ -66,6 +66,7 @@ export default function BlogManager() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [showHtmlSource, setShowHtmlSource] = useState(false);
   // Counter per gestire race condition in openDialog (fetch asincrono da Storage)
   const openDialogCallRef = useRef(0);
   const { toast } = useToast();
@@ -136,6 +137,7 @@ export default function BlogManager() {
   const openDialog = async (post?: BlogPost) => {
     // Incrementa il contatore ad ogni chiamata per invalidare fetch precedenti (race condition)
     const callId = ++openDialogCallRef.current;
+    setShowHtmlSource(false); // Reset vista HTML ad ogni apertura del dialog
 
     if (post) {
       setEditingPost(post);
@@ -638,38 +640,61 @@ export default function BlogManager() {
                   </div>
 
                   <div className="col-span-2">
-                    <Label>Contenuto *</Label>
-                    <div className="border rounded-md">
-                      <ReactQuill
-                        theme="snow"
-                        value={formData.content}
-                        onChange={(value) => {
-                          setFormData(prev => ({ ...prev, content: value }));
-                        }}
-                        modules={{
-                          toolbar: [
-                            [{ 'header': [1, 2, 3, false] }],
-                            ['bold', 'italic', 'underline', 'strike'],
-                            ['link', 'image', 'video'],
-                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                            ['blockquote', 'code-block'],
-                            [{ 'align': [] }],
-                            [{ 'color': [] }, { 'background': [] }],
-                            ['clean']
-                          ]
-                        }}
-                        formats={[
-                          'header',
-                          'bold', 'italic', 'underline', 'strike',
-                          'link', 'image', 'video',
-                          'list',
-                          'blockquote', 'code-block',
-                          'align',
-                          'color', 'background'
-                        ]}
-                        style={{ minHeight: '300px' }}
-                      />
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Contenuto *</Label>
+                      <button
+                        type="button"
+                        onClick={() => setShowHtmlSource(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border transition-colors ${showHtmlSource ? 'bg-sage-700 text-white border-sage-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                        title={showHtmlSource ? 'Torna alla vista visuale' : 'Modifica sorgente HTML'}
+                      >
+                        <Code className="h-3.5 w-3.5" />
+                        {showHtmlSource ? 'Vista Visuale' : 'Sorgente HTML'}
+                      </button>
                     </div>
+
+                    {showHtmlSource ? (
+                      <textarea
+                        className="w-full font-mono text-xs border rounded-md p-3 bg-gray-950 text-green-400 resize-y focus:outline-none focus:ring-2 focus:ring-sage-500"
+                        style={{ minHeight: '360px' }}
+                        value={formData.content}
+                        onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                        placeholder="Incolla qui il tuo HTML..."
+                        spellCheck={false}
+                      />
+                    ) : (
+                      <div className="border rounded-md">
+                        <ReactQuill
+                          theme="snow"
+                          value={formData.content}
+                          onChange={(value) => {
+                            setFormData(prev => ({ ...prev, content: value }));
+                          }}
+                          modules={{
+                            toolbar: [
+                              [{ 'header': [1, 2, 3, false] }],
+                              ['bold', 'italic', 'underline', 'strike'],
+                              ['link', 'image', 'video'],
+                              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                              ['blockquote', 'code-block'],
+                              [{ 'align': [] }],
+                              [{ 'color': [] }, { 'background': [] }],
+                              ['clean']
+                            ]
+                          }}
+                          formats={[
+                            'header',
+                            'bold', 'italic', 'underline', 'strike',
+                            'link', 'image', 'video',
+                            'list',
+                            'blockquote', 'code-block',
+                            'align',
+                            'color', 'background'
+                          ]}
+                          style={{ minHeight: '300px' }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>
