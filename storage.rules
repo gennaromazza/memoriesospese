@@ -75,6 +75,13 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Blog cover images - admin only write, public read
+    match /blog-covers/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidImageFile();
+      allow delete: if isAdmin();
+    }
     
     // Portfolio direct uploads - admin only write, public read
     match /portfolio-direct/{allPaths=**} {

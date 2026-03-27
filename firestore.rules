@@ -401,8 +401,11 @@ service cloud.firestore {
       // Tutti gli altri update richiedono autenticazione admin
       allow update: if isAdmin() || 
         // Clienti (anche anonimi) possono firmare: solo campi specifici per workflow firma
+        // selectedBeforeDiscount e unlockedBenefitProductNames: aggiunti per preventivi variabili con benefit
         (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'signature', 'signedAt', 'contractClauses', 'products', 'totaleSelezionato', 'viewedAt', 'updatedAt']) &&
+          .hasOnly(['status', 'signature', 'signedAt', 'contractClauses', 'products',
+                    'totaleSelezionato', 'selectedBeforeDiscount', 'unlockedBenefitProductNames',
+                    'viewedAt', 'updatedAt']) &&
          request.resource.data.status in ['visionato', 'firmato']);
       allow delete: if isAdmin(); // Only admin can delete quotes
     }
