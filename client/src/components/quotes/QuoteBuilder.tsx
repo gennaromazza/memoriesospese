@@ -45,6 +45,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
@@ -71,6 +72,8 @@ import {
   Unlock,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import {
@@ -717,6 +720,23 @@ export default function QuoteBuilder({
     mergedForOrderEditor.forEach(p => { if (p.sezione) seen.add(p.sezione); });
     return Array.from(seen).sort();
   }, [mergedForOrderEditor]);
+
+  // Rileva prodotti catalogo con prezzo cambiato rispetto al preventivo salvato
+  const priceMismatches = useMemo(() => {
+    if (!editQuoteId || !existingQuote || !catalogProducts.length) return [];
+    const result: { nome: string; oldPrice: number; newPrice: number }[] = [];
+    (existingQuote.products || []).forEach((p: any) => {
+      const pid = p.catalogProductId || p.productId;
+      if (!pid) return;
+      const current = catalogProducts.find((cp: any) => cp.id === pid);
+      if (!current) return;
+      const currentPrice = current.prezzoFinale ?? current.prezzo ?? 0;
+      if (Math.round(p.prezzo * 100) !== Math.round(currentPrice * 100)) {
+        result.push({ nome: p.nome || current.nome || pid, oldPrice: p.prezzo, newPrice: currentPrice });
+      }
+    });
+    return result;
+  }, [editQuoteId, existingQuote, catalogProducts]);
 
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
@@ -1475,6 +1495,36 @@ export default function QuoteBuilder({
             {/* Sezione 1: Catalogo Prodotti */}
             <div>
               <h3 className="text-lg font-semibold mb-4">1. Prodotti dal Catalogo</h3>
+
+              {/* Avviso prezzi disallineati dal catalogo */}
+              {priceMismatches.length > 0 && (
+                <Alert className="mb-4 border-amber-300 bg-amber-50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-semibold">Prezzi cambiati nel catalogo</span>
+                        <span className="text-sm ml-1">— il preventivo salvato ha prezzi diversi da quelli attuali:</span>
+                        <ul className="mt-1 space-y-0.5">
+                          {priceMismatches.map((m, i) => (
+                            <li key={i} className="text-sm">
+                              <span className="font-medium">{m.nome}</span>:{' '}
+                              <span className="line-through text-amber-600">{m.oldPrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+                              {' → '}
+                              <span className="font-semibold text-emerald-700">{m.newPrice.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-amber-700 whitespace-nowrap mt-0.5">
+                        <RefreshCw className="h-3 w-3" />
+                        Salva per aggiornare
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <Card>
                 <CardContent className="pt-6">
                   <FormField
