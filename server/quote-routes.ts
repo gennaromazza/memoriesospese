@@ -582,9 +582,12 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       // Benefit rules: dal preventivo stesso, o dal template aggiornato come fallback
       benefitRules: resolvedBenefitRules,
       // Per preventivi firmati: includi data firma e nome firmante (portale post-firma)
+      // Espone solo clientName (non ip/userAgent) per privacy
       ...(quote.status === 'firmato' && {
         signedAt: serializeTimestamp(quote.signedAt),
-        signatureClientName: quote.signature?.clientName ?? null,
+        signature: quote.signature
+          ? { clientName: quote.signature.clientName ?? null }
+          : null,
       }),
     };
 
