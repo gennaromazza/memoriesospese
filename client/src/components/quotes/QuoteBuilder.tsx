@@ -376,6 +376,8 @@ export default function QuoteBuilder({
   const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
   const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
+  // Sezioni per i prodotti da catalogo (non hanno form field proprio)
+  const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -565,6 +567,18 @@ export default function QuoteBuilder({
         p.catalogProductId ? `cat:${p.catalogProductId}` : `cust:${p.nome?.trim() || ''}`
       ).filter((k: string) => k !== 'cust:');
       setProductOrderKeys(initialOrderKeys);
+
+      // Carica le sezioni salvate per i prodotti da catalogo
+      const initialCatalogSections: Record<string, string> = {};
+      existingQuote.products.forEach((p: any) => {
+        const productId = p.productId || p.catalogProductId;
+        if (productId && p.sezione) {
+          initialCatalogSections[productId] = p.sezione;
+        }
+      });
+      if (Object.keys(initialCatalogSections).length > 0) {
+        setCatalogProductSections(initialCatalogSections);
+      }
     }
 
     toast({
@@ -626,6 +640,26 @@ export default function QuoteBuilder({
     append(data);
   }, [append]);
 
+  // Gestisce il cambio di sezione da ProductOrderEditor (sia per prodotti catalogo che custom)
+  const handleSectionChange = useCallback((key: string, sezione: string) => {
+    if (key.startsWith('cat:')) {
+      const productId = key.slice(4);
+      setCatalogProductSections(prev => {
+        const next = { ...prev };
+        if (sezione) next[productId] = sezione;
+        else delete next[productId];
+        return next;
+      });
+    } else if (key.startsWith('cust:')) {
+      const nomeTrimmed = key.slice(5);
+      const products = form.getValues('products');
+      const idx = (products || []).findIndex((p: any) => p.nome?.trim() === nomeTrimmed);
+      if (idx >= 0) {
+        form.setValue(`products.${idx}.sezione` as any, sezione, { shouldDirty: true });
+      }
+    }
+  }, [form]);
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -663,13 +697,20 @@ export default function QuoteBuilder({
   const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
     const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
       const p = catalogProducts?.find((cp: any) => cp.id === id);
-      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true };
+      const sezione = catalogProductSections[id];
+      return {
+        key: `cat:${id}`,
+        nome: p?.nome || id,
+        prezzo: p?.prezzoFinale || p?.prezzo || 0,
+        isFromCatalog: true,
+        sezione: sezione || undefined
+      };
     });
     const cust: OrderableProduct[] = (watchedProducts || [])
       .filter((f: any) => f.nome?.trim())
       .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: f.sezione || undefined }));
     return [...cat, ...cust];
-  }, [catalogProductIds, watchedProducts, catalogProducts]);
+  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections]);
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
@@ -892,6 +933,16 @@ export default function QuoteBuilder({
           data.type
         ));
 
+        // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
+        if (Object.keys(catalogProductSections).length > 0) {
+          mergedProducts = (mergedProducts as any[]).map((p: any) => {
+            if (p.productId && catalogProductSections[p.productId]) {
+              return { ...p, sezione: catalogProductSections[p.productId] };
+            }
+            return p;
+          });
+        }
+
         // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
         if (productOrderKeys.length > 0) {
           const productMap = new Map<string, any>(
@@ -969,6 +1020,16 @@ export default function QuoteBuilder({
         catalogProducts,
         data.type
       );
+
+      // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
+      if (Object.keys(catalogProductSections).length > 0) {
+        mergedProductsNew = mergedProductsNew.map((p: any) => {
+          if (p.productId && catalogProductSections[p.productId]) {
+            return { ...p, sezione: catalogProductSections[p.productId] };
+          }
+          return p;
+        });
+      }
 
       // Applica l'ordine prodotti scelto dall'admin tramite ProductOrderEditor
       if (productOrderKeys.length > 0) {
@@ -1863,6 +1924,7 @@ export default function QuoteBuilder({
                     products={mergedForOrderEditor}
                     orderKeys={productOrderKeys}
                     onOrderChange={setProductOrderKeys}
+                    onSectionChange={quoteType === 'variabile' ? handleSectionChange : undefined}
                   />
                 </div>
               </>
