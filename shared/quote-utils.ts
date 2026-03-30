@@ -6,7 +6,7 @@
 /**
  * Coerce sicura a number - gestisce stringhe, null, undefined, NaN
  */
-function toNum(v: unknown): number {
+export function toNum(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return isNaN(n) ? 0 : n;

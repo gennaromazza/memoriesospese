@@ -53,7 +53,7 @@ import placeholderUrl from "@assets/generated_images/Custom_product_placeholder_
 import { useToast } from "@/hooks/use-toast";
 import { acceptQuote } from "@/lib/quotes";
 import type { Quote, QuoteProduct, QuoteClause } from "@shared/quotes-types";
-import { calculateQuoteTotals } from "@shared/quote-utils";
+import { calculateQuoteTotals, toNum } from "@shared/quote-utils";
 import {
   computeBenefitStates,
   migrateBenefitRules,
@@ -569,10 +569,10 @@ export default function QuotePublicViewPage() {
       for (const bs of newlyUnlocked) {
         const giftNames = bs.rule.benefitProductNames ?? [];
         const giftLabel = giftNames.join(", ") || "il servizio";
-        // FIX Bug #7: Number() per coercizione sicura dei prezzi da Firestore
+        // FIX Bug #7: toNum() per coercizione sicura dei prezzi da Firestore (protezione NaN)
         const giftValue = giftNames.reduce((sum, name) => {
           const p = quote?.products?.find((pr) => pr.nome === name);
-          return sum + Number(p?.prezzo ?? 0);
+          return sum + toNum(p?.prezzo);
         }, 0);
 
         toast({
@@ -618,7 +618,7 @@ export default function QuotePublicViewPage() {
       .reduce((sum, [name]) => {
         const p = quote.products?.find((pr) => pr.nome === name);
         if (!p || p.isOmaggio === true) return sum; // già gratuito per admin, non conta come benefit
-        return sum + Number(p.prezzo ?? 0);
+        return sum + toNum(p.prezzo);
       }, 0);
   }, [quote, omaggioByProductName, selectedProducts]);
 
@@ -670,8 +670,8 @@ export default function QuotePublicViewPage() {
         // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
         return true;
       })
-      // FIX Bug #3: Number() per coercizione sicura (Firestore può restituire stringhe)
-      .reduce((sum, p) => sum + Number(p.prezzo ?? 0), 0);
+      // FIX Bug #3: toNum() per coercizione sicura con protezione NaN (Firestore può restituire stringhe)
+      .reduce((sum, p) => sum + toNum(p.prezzo), 0);
 
     // Apply discount to selected subtotal
     return calculateQuoteTotals(
