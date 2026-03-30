@@ -280,6 +280,30 @@ export default function QuotePublicViewPage() {
     return map;
   }, [benefitStates]);
 
+  // Raggruppa prodotti per sezione mantenendo l'ordine di prima apparizione.
+  // Prodotti senza sezione → gruppo con sezione null (mostrato senza header).
+  const productSections = useMemo(() => {
+    const products = quote?.products ?? [];
+    const sections: Array<{ sezione: string | null; items: Array<{ product: typeof products[0]; idx: number }> }> = [];
+    const sectionMap = new Map<string | null, typeof sections[0]>();
+    products.forEach((product, idx) => {
+      const key = product.sezione?.trim() || null;
+      if (!sectionMap.has(key)) {
+        const group: typeof sections[0] = { sezione: key, items: [] };
+        sections.push(group);
+        sectionMap.set(key, group);
+      }
+      sectionMap.get(key)!.items.push({ product, idx });
+    });
+    return sections;
+  }, [quote?.products]);
+
+  // true se almeno una sezione ha un nome (mostra header di sezione)
+  const hasSections = useMemo(
+    () => productSections.some(s => s.sezione !== null),
+    [productSections]
+  );
+
   // Auto-seleziona i prodotti benefit quando la loro regola si sblocca.
   // La dipendenza è una stringa stabile degli ID delle regole sbloccate,
   // così l'effetto non si riesegue ogni volta che selectedProducts cambia.
@@ -904,10 +928,27 @@ export default function QuotePublicViewPage() {
               );
             })()}
           </CardHeader>
-          <CardContent className="space-y-4">
-            {(quote.products ?? []).map((product, idx) => {
-              const isExpanded = expandedDescriptions.has(idx);
-              const hasLongDescription = product.descrizione && product.descrizione.length > 120;
+          <CardContent className="space-y-3">
+            {productSections.map(({ sezione, items }) => {
+              const sectionHasBenefits = quote.type === 'variabile' && items.some(({ product: p }) => {
+                const be = omaggioByProductName.get(p.nome);
+                return be?.isUnlocked === true;
+              });
+              return (
+                <div key={sezione ?? '__no_section__'} className="space-y-4">
+                  {hasSections && sezione && (
+                    <div className="flex items-center gap-3 mt-6 mb-3 first:mt-0">
+                      <div className="h-px flex-1 bg-sage/20" />
+                      <h3 className="font-playfair text-xs font-bold text-sage/80 uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5">
+                        {sectionHasBenefits && <span>🎁</span>}
+                        {sezione}
+                      </h3>
+                      <div className="h-px flex-1 bg-sage/20" />
+                    </div>
+                  )}
+                  {items.map(({ product, idx }) => {
+                    const isExpanded = expandedDescriptions.has(idx);
+                    const hasLongDescription = product.descrizione && product.descrizione.length > 120;
 
               // Stato benefit per questo prodotto
               const benefitEntry = omaggioByProductName.get(product.nome);
@@ -1137,6 +1178,9 @@ export default function QuotePublicViewPage() {
                       )}
                     </div>
                   )}
+                </div>
+                  );
+                })}
                 </div>
               );
             })}

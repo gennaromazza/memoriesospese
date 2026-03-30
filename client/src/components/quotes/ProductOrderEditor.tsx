@@ -30,6 +30,7 @@ export interface OrderableProduct {
   prezzo: number;
   isOmaggio?: boolean;
   isFromCatalog?: boolean;
+  sezione?: string;
 }
 
 interface SortableRowProps {
@@ -176,9 +177,23 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map(p => p.key)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
-            {items.map((product, index) => (
-              <SortableRow key={product.key} product={product} index={index} />
-            ))}
+            {items.map((product, index) => {
+              const prevSezione = index > 0 ? items[index - 1].sezione : undefined;
+              const currSezione = product.sezione?.trim() || undefined;
+              const isNewSection = currSezione && currSezione !== prevSezione;
+              return (
+                <div key={product.key}>
+                  {isNewSection && (
+                    <div className="flex items-center gap-2 pt-2 pb-1">
+                      <div className="h-px flex-1 bg-sage/20" />
+                      <span className="text-xs font-semibold text-sage uppercase tracking-wide px-2">{currSezione}</span>
+                      <div className="h-px flex-1 bg-sage/20" />
+                    </div>
+                  )}
+                  <SortableRow product={product} index={index} />
+                </div>
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>

@@ -52,6 +52,7 @@ export interface QuoteProduct {
   isBundle?: boolean;           // true = questo prodotto è un bundle
   bundleItems?: QuoteBundleItem[]; // Prodotti inclusi nel bundle
   isOmaggio?: boolean;          // true = prodotto in omaggio (prezzo = 0, visibile nel contratto)
+  sezione?: string;             // Raggruppamento visivo (es. "Servizi Principali", "Luxury Touch")
 }
 
 /**

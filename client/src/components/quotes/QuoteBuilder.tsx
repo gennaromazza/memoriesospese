@@ -118,6 +118,7 @@ const quoteSchema = z.object({
     selectable: z.boolean(),
     numeroFoto: z.number().optional(),
     categoria: z.string().optional(),
+    sezione: z.string().optional(),
     immagini: z.array(z.string()).optional(),
     isOmaggio: z.boolean().optional()
   })),
@@ -504,6 +505,7 @@ export default function QuoteBuilder({
             selectable: product.selectable || false,
             numeroFoto: product.numeroFoto || 0,
             categoria: product.categoria || '',
+            sezione: product.sezione || '',
             immagini: product.immagini || [],
             isOmaggio: product.isOmaggio || false
           });
@@ -665,7 +667,7 @@ export default function QuoteBuilder({
     });
     const cust: OrderableProduct[] = (watchedProducts || [])
       .filter((f: any) => f.nome?.trim())
-      .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0 }));
+      .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: f.sezione || undefined }));
     return [...cat, ...cust];
   }, [catalogProductIds, watchedProducts, catalogProducts]);
   const discountType = form.watch('discountType');
@@ -1702,6 +1704,47 @@ export default function QuoteBuilder({
                             )}
                           />
                         </div>
+
+                        {/* Sezione (solo preventivi variabili) */}
+                        {quoteType === 'variabile' && (() => {
+                          const usedSections = (watchedProducts || [])
+                            .map((p: any) => p?.sezione?.trim())
+                            .filter((s: any): s is string => !!s);
+                          const uniqueSections = [...new Set(usedSections)];
+                          return (
+                            <FormField
+                              control={form.control}
+                              name={`products.${index}.sezione`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="flex items-center gap-1.5">
+                                    <span>Sezione</span>
+                                    <span className="text-xs text-muted-foreground font-normal">(opzionale — raggruppa prodotti nel portale cliente)</span>
+                                  </FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input
+                                        placeholder="es. Servizi Principali, Esperienze Esclusive, Luxury Touch"
+                                        {...field}
+                                        value={field.value || ''}
+                                        list={`sezione-suggestions-${index}`}
+                                        data-testid={`input-product-sezione-${index}`}
+                                      />
+                                      {uniqueSections.length > 0 && (
+                                        <datalist id={`sezione-suggestions-${index}`}>
+                                          {uniqueSections.map(s => (
+                                            <option key={s} value={s} />
+                                          ))}
+                                        </datalist>
+                                      )}
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          );
+                        })()}
 
                         {/* Upload Immagine Prodotto */}
                         <FormField
