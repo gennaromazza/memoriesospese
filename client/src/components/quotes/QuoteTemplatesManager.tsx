@@ -225,7 +225,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
   };
 
   const jobType = jobTypes.find((jt) => jt.slug === template.jobType);
-  const subtotale = template.defaultProducts.reduce((sum, p) => sum + p.prezzo, 0);
+  const subtotale = template.defaultProducts.reduce((sum, p) => sum + (Number(p.prezzo) || 0), 0);
   const { totalAfterDiscount, discountAmount } = calculateQuoteTotals(
     subtotale,
     template.discountType,
@@ -584,7 +584,7 @@ export default function QuoteTemplatesManager() {
               },
             ],
       discountType: template.discountType,
-      discountValue: template.discountValue,
+      discountValue: template.discountValue !== undefined ? Number(template.discountValue) : undefined,
       theme: template.theme,
       attivo: template.attivo,
     });
@@ -655,7 +655,7 @@ export default function QuoteTemplatesManager() {
     name: "discountType",
   });
   const discountValue =
-    useWatch({ control: form.control, name: "discountValue" }) || 0;
+    Number(useWatch({ control: form.control, name: "discountValue" })) || 0;
   const quoteType = useWatch({ control: form.control, name: "type" });
 
   // Gestisce cambio sezione da ProductOrderEditor (catalogo e custom)
