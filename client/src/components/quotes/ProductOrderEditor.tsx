@@ -177,23 +177,29 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map(p => p.key)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
-            {items.map((product, index) => {
-              const prevSezione = index > 0 ? items[index - 1].sezione : undefined;
-              const currSezione = product.sezione?.trim() || undefined;
-              const isNewSection = currSezione && currSezione !== prevSezione;
-              return (
-                <div key={product.key}>
-                  {isNewSection && (
-                    <div className="flex items-center gap-2 pt-2 pb-1">
-                      <div className="h-px flex-1 bg-sage/20" />
-                      <span className="text-xs font-semibold text-sage uppercase tracking-wide px-2">{currSezione}</span>
-                      <div className="h-px flex-1 bg-sage/20" />
-                    </div>
-                  )}
-                  <SortableRow product={product} index={index} />
-                </div>
-              );
-            })}
+            {(() => {
+              // Mostra l'header di sezione solo alla PRIMA comparsa di ogni sezione (non per adiacenza).
+              // Questo evita header duplicati per la stessa sezione e corrisponde alla logica di raggruppamento
+              // del portale cliente (null-group prima, poi sezioni named in ordine di prima apparizione).
+              const seenSections = new Set<string>();
+              return items.map((product, index) => {
+                const currSezione = product.sezione?.trim() || undefined;
+                const isFirstOccurrence = !!currSezione && !seenSections.has(currSezione);
+                if (isFirstOccurrence) seenSections.add(currSezione!);
+                return (
+                  <div key={product.key}>
+                    {isFirstOccurrence && (
+                      <div className="flex items-center gap-2 pt-2 pb-1">
+                        <div className="h-px flex-1 bg-sage/20" />
+                        <span className="text-xs font-semibold text-sage uppercase tracking-wide px-2">{currSezione}</span>
+                        <div className="h-px flex-1 bg-sage/20" />
+                      </div>
+                    )}
+                    <SortableRow product={product} index={index} />
+                  </div>
+                );
+              });
+            })()}
           </div>
         </SortableContext>
       </DndContext>

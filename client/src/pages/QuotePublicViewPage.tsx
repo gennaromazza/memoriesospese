@@ -280,21 +280,32 @@ export default function QuotePublicViewPage() {
     return map;
   }, [benefitStates]);
 
-  // Raggruppa prodotti per sezione mantenendo l'ordine di prima apparizione.
-  // Prodotti senza sezione → gruppo con sezione null (mostrato senza header).
+  // Raggruppa prodotti per sezione.
+  // Il gruppo null (senza sezione) è sempre il PRIMO, poi le sezioni named in ordine di prima apparizione.
   const productSections = useMemo(() => {
     const products = quote?.products ?? [];
-    const sections: Array<{ sezione: string | null; items: Array<{ product: typeof products[0]; idx: number }> }> = [];
-    const sectionMap = new Map<string | null, typeof sections[0]>();
+    type SectionGroup = { sezione: string | null; items: Array<{ product: typeof products[0]; idx: number }> };
+    const sections: SectionGroup[] = [];
+    const sectionMap = new Map<string | null, SectionGroup>();
+
+    // Primo passaggio: costruisci tutti i gruppi (mantenendo l'ordine di prima apparizione)
     products.forEach((product, idx) => {
       const key = product.sezione?.trim() || null;
       if (!sectionMap.has(key)) {
-        const group: typeof sections[0] = { sezione: key, items: [] };
+        const group: SectionGroup = { sezione: key, items: [] };
         sections.push(group);
         sectionMap.set(key, group);
       }
       sectionMap.get(key)!.items.push({ product, idx });
     });
+
+    // Assicura che il gruppo null sia sempre primo
+    const nullIdx = sections.findIndex(s => s.sezione === null);
+    if (nullIdx > 0) {
+      const [nullGroup] = sections.splice(nullIdx, 1);
+      sections.unshift(nullGroup);
+    }
+
     return sections;
   }, [quote?.products]);
 
@@ -930,9 +941,11 @@ export default function QuotePublicViewPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {productSections.map(({ sezione, items }) => {
-              const sectionHasBenefits = quote.type === 'variabile' && items.some(({ product: p }) => {
+              // Mostra 🎁 solo se TUTTI i prodotti della sezione sono "Servizi Inclusi"
+              // (isOmaggio admin-impostato oppure benefit sbloccato)
+              const sectionHasBenefits = quote.type === 'variabile' && items.length > 0 && items.every(({ product: p }) => {
                 const be = omaggioByProductName.get(p.nome);
-                return be?.isUnlocked === true;
+                return p.isOmaggio || (be?.isUnlocked === true);
               });
               return (
                 <div key={sezione ?? '__no_section__'} className="space-y-4">
