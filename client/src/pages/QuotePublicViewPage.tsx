@@ -468,6 +468,10 @@ export default function QuotePublicViewPage() {
     .sort()
     .join(",");
 
+  // Chiave stabile di tutti gli ID regole configurate (anche bloccate) — usata come dep del toast
+  // Sostituisce benefitStates.length: cattura aggiunta/rimozione regole, stabile tra re-render
+  const allBenefitRulesKey = benefitStates.map((b) => b.rule.id).join(",");
+
   // FIX Bug #2 + #3: Gestione unificata aggiunta/rimozione prodotti benefit al cambio del lock.
   // Usa benefitStatesRef per evitare closure stale (benefitStates NON è in deps).
   // Quando una regola si sblocca → aggiunge i prodotti benefit a selectedProducts.
@@ -495,9 +499,16 @@ export default function QuotePublicViewPage() {
             if (!set.has(n)) { set.add(n); changed = true; }
           }
         } else if (!currentUnlockedIds.has(ruleId) && prevUnlockedIds.has(ruleId)) {
-          // Regola appena bloccata → rimuovi prodotti benefit
+          // Regola appena bloccata → rimuovi prodotti benefit SOLO SE nessun'altra regola li sblocca ancora
+          // (un prodotto può apparire in più regole — usa lo stato più favorevole, come omaggioByProductName)
           for (const n of benefitNames) {
-            if (set.has(n)) { set.delete(n); changed = true; }
+            const stillUnlockedByOther = currentStates.some(
+              (otherBs) =>
+                otherBs.rule.id !== ruleId &&
+                otherBs.isUnlocked &&
+                (otherBs.rule.benefitProductNames ?? []).includes(n),
+            );
+            if (set.has(n) && !stillUnlockedByOther) { set.delete(n); changed = true; }
           }
         }
       }
@@ -592,20 +603,22 @@ export default function QuotePublicViewPage() {
       // FIX Bug #8: cleanup dei timer se il componente smonta prima che scadano
       return () => timers.forEach(clearTimeout);
     }
-    // FIX Bug #4 deps: sostituisce benefitStates.length con la chiave degli ID regole
+    // FIX Bug #4 deps: allBenefitRulesKey sostituisce benefitStates.length
     // (stabile tra re-render, cattura aggiunta/rimozione di regole ma non flicker inutili)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlockedRuleKey, quote?.type, quote?.status, benefitStates.map((b) => b.rule.id).join(",")]);
+  }, [unlockedRuleKey, quote?.type, quote?.status, allBenefitRulesKey]);
 
   // Calcola il valore monetario dei benefit sbloccati e selezionati
   const unlockedBenefitTotalValue = useMemo(() => {
     if (!quote?.products) return 0;
     // FIX Bug #5+#6: Number() per coercizione sicura; filtra solo i veri omaggio (isUnlocked)
+    // Esclude anche i prodotti con p.isOmaggio=true (già gratuiti per scelta admin, non contano come risparmio da benefit)
     return Array.from(omaggioByProductName.entries())
       .filter(([name, bs]) => bs.isUnlocked && selectedProducts.includes(name))
       .reduce((sum, [name]) => {
         const p = quote.products?.find((pr) => pr.nome === name);
-        return sum + Number(p?.prezzo ?? 0);
+        if (!p || p.isOmaggio === true) return sum; // già gratuito per admin, non conta come benefit
+        return sum + Number(p.prezzo ?? 0);
       }, 0);
   }, [quote, omaggioByProductName, selectedProducts]);
 
@@ -644,9 +657,11 @@ export default function QuotePublicViewPage() {
     }
 
     // Variable quote (non firmato): calculate subtotal based on selected products
-    // Gli omaggi sbloccati (selezionati + regola attiva) non contribuiscono al totale
+    // Gli omaggi sbloccati (selezionati + regola attiva) e i prodotti con isOmaggio=true non contribuiscono al totale
     const subtotale = (quote.products ?? [])
       .filter((p) => {
+        // Prodotto marcato dall'admin come omaggio → prezzo zero, escludi dal totale
+        if (p.isOmaggio === true) return false;
         // Prodotto benefit selezionato con regola sbloccata → GRATIS, escludi dal totale
         const bs = omaggioByProductName.get(p.nome);
         if (bs?.isUnlocked && selectedProducts.includes(p.nome)) return false;
