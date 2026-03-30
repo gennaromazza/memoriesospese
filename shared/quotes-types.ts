@@ -257,6 +257,8 @@ export interface InsertQuote {
     cap: string;
     citta: string;
   }>;
+  // Regole benefit inclusi automatici (solo preventivi variabili)
+  benefitRules?: BenefitRule[];
 }
 
 /**

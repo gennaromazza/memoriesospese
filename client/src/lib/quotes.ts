@@ -195,6 +195,7 @@ export async function createQuote(
         }
       }), // Solo se definito
       ...(data.clientiInfo && data.clientiInfo.length > 0 && { clientiInfo: data.clientiInfo }), // Solo se definito
+      ...(data.benefitRules && data.benefitRules.length > 0 && { benefitRules: data.benefitRules }), // Solo se definito
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId

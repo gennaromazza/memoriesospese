@@ -60,3 +60,7 @@ integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]
 [userenv.shared]
 SITE_URL = "https://imagestudiofotografico.com"
 GOOGLE_CALENDAR_ID = "gennaro.mazzacane@gmail.com"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
