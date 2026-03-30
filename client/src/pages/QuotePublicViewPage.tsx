@@ -249,28 +249,35 @@ export default function QuotePublicViewPage() {
     }
   });
 
-  // Scadenza preventivo: converte expiresAt in Date (dal server arriva come stringa ISO o numero)
+  // Scadenza preventivo: converte expiresAt in Date
+  // Dal server arriva come stringa ISO (via serializeTimestamp); gestisce anche Timestamp e oggetti _seconds
   const expiresAtDate = useMemo<Date | null>(() => {
-    const raw = (quote as any)?.expiresAt;
+    const raw = quote?.expiresAt;
     if (!raw) return null;
     try {
-      const d = raw.toDate ? raw.toDate() : new Date(typeof raw === 'object' && raw._seconds ? raw._seconds * 1000 : raw);
+      const d = (raw as { toDate?: () => Date }).toDate
+        ? (raw as { toDate: () => Date }).toDate()
+        : new Date(
+            typeof raw === 'object' && '_seconds' in raw
+              ? (raw as { _seconds: number })._seconds * 1000
+              : (raw as unknown as string | number)
+          );
       return isNaN(d.getTime()) ? null : d;
     } catch { return null; }
-  }, [(quote as any)?.expiresAt]);
+  }, [quote?.expiresAt]);
 
-  // Countdown verso la scadenza (hook chiamato sempre — usa placeholder lontano se no scadenza)
-  const expiryCountdown = useCountdown(expiresAtDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+  // Countdown verso la scadenza (null = nessun intervallo attivo)
+  const expiryCountdown = useCountdown(expiresAtDate);
   const isExpired = expiresAtDate ? expiryCountdown.isOver : false;
 
-  // Urgency level: neutral (>7g) → amber (3–7g) → orange (1–3g) → red (<24h o scaduto)
+  // Urgency level: neutral (>7g) → amber (3–7g incluso 7) → orange (≤3g) → red (<24h o scaduto)
   const expiryUrgency = useMemo<'neutral' | 'amber' | 'orange' | 'red'>(() => {
     if (!expiresAtDate) return 'neutral';
     if (isExpired) return 'red';
     const totalHours = expiryCountdown.days * 24 + expiryCountdown.hours;
     if (totalHours < 24) return 'red';
-    if (expiryCountdown.days < 3) return 'orange';
-    if (expiryCountdown.days < 7) return 'amber';
+    if (expiryCountdown.days <= 3) return 'orange';
+    if (expiryCountdown.days <= 7) return 'amber';
     return 'neutral';
   }, [expiresAtDate, isExpired, expiryCountdown.days, expiryCountdown.hours]);
 
@@ -505,7 +512,7 @@ export default function QuotePublicViewPage() {
   // Piano pagamenti indicativo (solo pre-firma, solo se autoGenerate=true)
   const indicativePaymentPlan = useMemo<PaymentSchedulePreview | null>(() => {
     if (!quote || quote.status === 'firmato') return null;
-    const cfg = (quote as any).paymentScheduleConfig;
+    const cfg = quote.paymentScheduleConfig;
     if (!cfg?.autoGenerate) return null;
     if (totale <= 0) return null;
     try {
@@ -938,7 +945,7 @@ export default function QuotePublicViewPage() {
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="font-playfair text-blue-gray">Prodotti e Servizi</CardTitle>
               {/* Tab informativo benefit — visibile solo se ci sono regole benefit */}
-              {quote.type === 'variabile' && benefitStates.length > 0 && quote.status !== 'firmato' && (
+              {quote.type === 'variabile' && benefitStates.length > 0 && (
                 <button
                   onClick={() => setShowBenefitGuide(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all shadow-sm"
@@ -951,8 +958,8 @@ export default function QuotePublicViewPage() {
               )}
             </div>
 
-            {/* Banner progressivo benefit — visibile solo su preventivi variabili non firmati con regole */}
-            {quote.type === 'variabile' && benefitStates.length > 0 && quote.status !== 'firmato' && (() => {
+            {/* Banner progressivo benefit — visibile solo su preventivi variabili con regole */}
+            {quote.type === 'variabile' && benefitStates.length > 0 && (() => {
               const allUnlocked = benefitStates.every(bs => bs.isUnlocked);
 
               if (allUnlocked) {

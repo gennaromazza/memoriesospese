@@ -10,17 +10,17 @@ interface CountdownData {
   isOver: boolean;
 }
 
-export function useCountdown(targetDate: Date): CountdownData {
-  const [countdown, setCountdown] = useState<CountdownData>({
-    total: 0,
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    isOver: false
-  });
+const ZEROED: CountdownData = { total: 0, days: 0, hours: 0, minutes: 0, seconds: 0, isOver: false };
+
+export function useCountdown(targetDate: Date | null): CountdownData {
+  const [countdown, setCountdown] = useState<CountdownData>(ZEROED);
 
   useEffect(() => {
+    if (!targetDate) {
+      setCountdown(ZEROED);
+      return;
+    }
+
     const calculateCountdown = () => {
       const now = new Date().getTime();
       const target = targetDate.getTime();
