@@ -864,7 +864,16 @@ export default function QuoteBuilder({
       nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
     }]);
     form.setValue('theme', template.theme);
-    
+
+    // Ripristina le sezioni dei prodotti catalogo dal template
+    const templateCatalogSections: Record<string, string> = {};
+    template.defaultProducts.forEach(p => {
+      if (p.productId && (p as any).sezione) {
+        templateCatalogSections[p.productId] = (p as any).sezione;
+      }
+    });
+    setCatalogProductSections(templateCatalogSections);
+
     // Carica anche lo sconto dal template
     if ((template as any).discountType) {
       form.setValue('discountType', (template as any).discountType);
