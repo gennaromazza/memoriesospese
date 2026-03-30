@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Sparkles, Zap, Lock, Unlock, PartyPopper } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Sparkles, Zap, Lock, Unlock, PartyPopper, CreditCard, Timer, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +24,9 @@ import type { Quote, QuoteProduct, QuoteClause } from '@shared/quotes-types';
 import { calculateQuoteTotals } from '@shared/quote-utils';
 import { computeBenefitStates, migrateBenefitRules } from '@shared/quote-benefits';
 import type { BenefitState } from '@shared/quote-benefits';
+import { calculatePaymentSchedule, formatDueDate } from '@shared/payment-schedule-utils';
+import type { PaymentSchedulePreview } from '@shared/payment-schedule-utils';
+import { useCountdown } from '@/hooks/useCountdown';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -75,6 +78,7 @@ export default function QuotePublicViewPage() {
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [showBenefitGuide, setShowBenefitGuide] = useState(false);
   const [animatingBenefits, setAnimatingBenefits] = useState<Set<string>>(new Set());
+  const [paymentPlanCollapsed, setPaymentPlanCollapsed] = useState(true);
   const prevUnlockedRuleKeyRef = useRef<string | null>(null);
   const benefitInitializedRef = useRef<boolean>(false);
   // Auto-seleziona i prodotti trigger necessari per sbloccare UNA specifica regola benefit
@@ -245,10 +249,35 @@ export default function QuotePublicViewPage() {
     }
   });
 
+  // Scadenza preventivo: converte expiresAt in Date (dal server arriva come stringa ISO o numero)
+  const expiresAtDate = useMemo<Date | null>(() => {
+    const raw = (quote as any)?.expiresAt;
+    if (!raw) return null;
+    try {
+      const d = raw.toDate ? raw.toDate() : new Date(typeof raw === 'object' && raw._seconds ? raw._seconds * 1000 : raw);
+      return isNaN(d.getTime()) ? null : d;
+    } catch { return null; }
+  }, [(quote as any)?.expiresAt]);
+
+  // Countdown verso la scadenza (hook chiamato sempre — usa placeholder lontano se no scadenza)
+  const expiryCountdown = useCountdown(expiresAtDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+  const isExpired = expiresAtDate ? expiryCountdown.isOver : false;
+
+  // Urgency level: neutral (>7g) → amber (3–7g) → orange (1–3g) → red (<24h o scaduto)
+  const expiryUrgency = useMemo<'neutral' | 'amber' | 'orange' | 'red'>(() => {
+    if (!expiresAtDate) return 'neutral';
+    if (isExpired) return 'red';
+    const totalHours = expiryCountdown.days * 24 + expiryCountdown.hours;
+    if (totalHours < 24) return 'red';
+    if (expiryCountdown.days < 3) return 'orange';
+    if (expiryCountdown.days < 7) return 'amber';
+    return 'neutral';
+  }, [expiresAtDate, isExpired, expiryCountdown.days, expiryCountdown.hours]);
+
   // Validation
   const requiredClauses = quote?.contractClauses?.filter(c => c.required) || [];
   const allRequiredAccepted = requiredClauses.every(c => acceptedClauses.includes(c.id));
-  const canSign = signerName.trim().length > 0 && allRequiredAccepted && !acceptMutation.isPending;
+  const canSign = signerName.trim().length > 0 && allRequiredAccepted && !acceptMutation.isPending && !isExpired;
 
   // Calcola stati dei benefit inclusi (solo preventivi variabili con regole configurate)
   // DEVE essere prima di totals per poter escludere gli omaggi sbloccati dal totale
@@ -473,6 +502,18 @@ export default function QuotePublicViewPage() {
 
   const totale = totals.totalAfterDiscount;
 
+  // Piano pagamenti indicativo (solo pre-firma, solo se autoGenerate=true)
+  const indicativePaymentPlan = useMemo<PaymentSchedulePreview | null>(() => {
+    if (!quote || quote.status === 'firmato') return null;
+    const cfg = (quote as any).paymentScheduleConfig;
+    if (!cfg?.autoGenerate) return null;
+    if (totale <= 0) return null;
+    try {
+      const eventDate = jobInfo?.eventDate ? new Date(jobInfo.eventDate) : undefined;
+      return calculatePaymentSchedule(totale, cfg, eventDate);
+    } catch { return null; }
+  }, [quote, totale, jobInfo?.eventDate]);
+
   // Theme colors with fallback
   const primaryColor = quote?.theme?.primaryColor ?? '#8B9A8B';
   const secondaryColor = quote?.theme?.secondaryColor ?? '#C8D4C8';
@@ -620,6 +661,60 @@ export default function QuotePublicViewPage() {
             </div>
           </CardHeader>
         </Card>
+
+        {/* Banner scadenza — visibile solo se expiresAt è impostato (già nel path non-firmato grazie all'early return) */}
+        {expiresAtDate && (() => {
+          const urgencyStyles = {
+            neutral: { container: 'bg-gray-50 border-gray-200', icon: 'text-gray-500', text: 'text-gray-700', accent: 'text-gray-600' },
+            amber:   { container: 'bg-amber-50 border-amber-200', icon: 'text-amber-500', text: 'text-amber-800', accent: 'text-amber-700' },
+            orange:  { container: 'bg-orange-50 border-orange-200', icon: 'text-orange-500', text: 'text-orange-800', accent: 'text-orange-700' },
+            red:     { container: 'bg-red-50 border-red-300', icon: 'text-red-500', text: 'text-red-800', accent: 'text-red-700' },
+          }[expiryUrgency];
+
+          const benefitMention = unlockedBenefitTotalValue > 0
+            ? ` — hai sbloccato ${formatCurrency(unlockedBenefitTotalValue)} di servizi inclusi`
+            : '';
+
+          let message: string;
+          let subMessage: string | null = null;
+          if (isExpired) {
+            message = 'Proposta scaduta';
+            subMessage = 'Il periodo di validità di questa proposta è terminato. Contatta lo studio per aggiornarla.';
+          } else if (expiryUrgency === 'red') {
+            const h = expiryCountdown.hours;
+            message = `Manca${h !== 1 ? 'no' : ''} ${h} or${h !== 1 ? 'e' : 'a'} — ultima possibilità per confermare${benefitMention}`;
+          } else if (expiryUrgency === 'orange') {
+            const d = expiryCountdown.days;
+            message = `Manca${d !== 1 ? 'no' : ''} ${d} giorn${d !== 1 ? 'i' : 'o'} — non perdere questa proposta${benefitMention}`;
+          } else if (expiryUrgency === 'amber') {
+            const d = expiryCountdown.days;
+            message = `Hai ${d} giorn${d !== 1 ? 'i' : 'o'} per confermare questa proposta`;
+          } else {
+            message = `Proposta valida fino al ${formatDueDate(expiresAtDate)}`;
+          }
+
+          return (
+            <div
+              className={`rounded-xl border px-5 py-4 flex items-start gap-4 ${urgencyStyles.container}`}
+              data-testid="expiry-banner"
+              data-urgency={expiryUrgency}
+            >
+              <Timer className={`w-5 h-5 mt-0.5 flex-shrink-0 ${urgencyStyles.icon}`} />
+              <div className="flex-1 min-w-0">
+                <p className={`font-semibold text-sm ${urgencyStyles.text}`}>{message}</p>
+                {subMessage && (
+                  <p className={`text-xs mt-1 ${urgencyStyles.accent}`}>{subMessage}</p>
+                )}
+                {!isExpired && unlockedBenefitTotalValue > 0 && (
+                  <p className={`text-xs mt-1 flex items-center gap-1 ${urgencyStyles.accent}`}>
+                    <Gift className="w-3.5 h-3.5" />
+                    {formatCurrency(unlockedBenefitTotalValue)} di servizi inclusi ti aspettano — firma per non perderli
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Riepilogo Evento */}
         {jobInfo && (
@@ -1246,6 +1341,86 @@ export default function QuotePublicViewPage() {
           </CardContent>
         </Card>
 
+        {/* Piano pagamenti indicativo — visibile solo pre-firma con autoGenerate=true */}
+        {indicativePaymentPlan && (
+          <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/10">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2 font-playfair text-blue-gray text-lg">
+                  <CreditCard className="w-5 h-5 text-sage" />
+                  Come funzionerebbero i pagamenti
+                </CardTitle>
+                {/* Toggle per mobile */}
+                <button
+                  className="sm:hidden flex items-center gap-1 text-xs text-sage font-medium"
+                  onClick={() => setPaymentPlanCollapsed(p => !p)}
+                  aria-expanded={!paymentPlanCollapsed}
+                  data-testid="button-toggle-payment-plan"
+                >
+                  {paymentPlanCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                  {paymentPlanCollapsed ? 'Mostra' : 'Nascondi'}
+                </button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Basato sui servizi selezionati — aggiornato in tempo reale
+              </p>
+            </CardHeader>
+
+            <CardContent className={`space-y-4 ${paymentPlanCollapsed ? 'hidden sm:block' : ''}`}>
+              {/* Timeline rate */}
+              <div className="relative">
+                {/* Linea verticale */}
+                <div className="absolute left-5 top-5 bottom-5 w-px bg-sage/20 hidden sm:block" />
+
+                <div className="space-y-3">
+                  {indicativePaymentPlan.payments.map((payment, idx) => {
+                    const isFirst = idx === 0;
+                    const isLast = idx === indicativePaymentPlan.payments.length - 1;
+                    const iconBg = payment.tipo === 'acconto'
+                      ? 'bg-sage text-white'
+                      : payment.tipo === 'saldo'
+                        ? 'bg-blue-gray text-white'
+                        : 'bg-mint/50 text-blue-gray';
+
+                    return (
+                      <div key={idx} className="flex items-start gap-4 relative">
+                        {/* Numero/Icona step */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold z-10 ${iconBg}`}>
+                          {idx + 1}
+                        </div>
+                        {/* Contenuto */}
+                        <div className={`flex-1 rounded-xl border px-4 py-3 ${
+                          isFirst ? 'border-sage/30 bg-sage/5' :
+                          isLast ? 'border-blue-gray/20 bg-blue-gray/5' :
+                          'border-mint/30 bg-white'
+                        }`}>
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div>
+                              <p className="font-semibold text-blue-gray text-sm">{payment.descrizione}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Entro il {formatDueDate(payment.dataScadenza)}
+                              </p>
+                            </div>
+                            <span className="font-bold text-lg text-blue-gray" style={{ color: primaryColor }}>
+                              {formatCurrency(payment.importo)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Nota legale discreta */}
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-2 border-t border-sage/10">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                Piano indicativo — gli importi e le scadenze esatte verranno confermati alla firma del contratto.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Clausole Contrattuali */}
         {quote.contractClauses && quote.contractClauses.length > 0 && (
           <Card>
@@ -1345,6 +1520,16 @@ export default function QuotePublicViewPage() {
               </p>
             </div>
 
+            {/* Alert scadenza — blocca firma se preventivo scaduto */}
+            {isExpired && (
+              <Alert variant="destructive" data-testid="alert-expired">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Il periodo di validità di questa proposta è terminato. Contatta lo studio per aggiornarla.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Submit */}
             <Button
               onClick={() => acceptMutation.mutate()}
@@ -1366,7 +1551,7 @@ export default function QuotePublicViewPage() {
               )}
             </Button>
 
-            {!canSign && (
+            {!canSign && !isExpired && (
               <p className="text-sm text-muted-foreground text-center">
                 {!signerName.trim() && 'Inserisci il tuo nome. '}
                 {!allRequiredAccepted && 'Accetta tutte le clausole obbligatorie.'}

@@ -583,6 +583,8 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       benefitRules: resolvedBenefitRules,
       // Per preventivi firmati: includi data firma e nome firmante (portale post-firma)
       // Espone solo clientName (non ip/userAgent) per privacy
+      // Piano pagamenti indicativo (configurazione per anteprima pre-firma nel portale)
+      paymentScheduleConfig: quote.paymentScheduleConfig ?? null,
       ...(quote.status === 'firmato' && {
         signedAt: serializeTimestamp(quote.signedAt),
         signature: quote.signature
