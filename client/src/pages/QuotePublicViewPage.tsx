@@ -270,14 +270,15 @@ export default function QuotePublicViewPage() {
   const expiryCountdown = useCountdown(expiresAtDate);
   const isExpired = expiresAtDate ? expiryCountdown.isOver : false;
 
-  // Urgency level: neutral (>7g) → amber (3–7g incluso 7) → orange (≤3g) → red (<24h o scaduto)
+  // Urgency level basato su ore totali rimanenti (preciso, non floor-dei-giorni):
+  // >168h neutral, 72–168h amber, 24–72h orange, <24h red
   const expiryUrgency = useMemo<'neutral' | 'amber' | 'orange' | 'red'>(() => {
     if (!expiresAtDate) return 'neutral';
     if (isExpired) return 'red';
     const totalHours = expiryCountdown.days * 24 + expiryCountdown.hours;
     if (totalHours < 24) return 'red';
-    if (expiryCountdown.days <= 3) return 'orange';
-    if (expiryCountdown.days <= 7) return 'amber';
+    if (totalHours <= 72) return 'orange';
+    if (totalHours <= 168) return 'amber';
     return 'neutral';
   }, [expiresAtDate, isExpired, expiryCountdown.days, expiryCountdown.hours]);
 
