@@ -1405,13 +1405,21 @@ export default function QuoteTemplatesManager() {
                                   }
                                   <span className="font-medium truncate text-sm">
                                     {(rule.benefitProductNames ?? []).length > 0
-                                      ? <><span className="text-emerald-700">OMAGGIO:</span> {rule.benefitProductNames.join(', ')}</>
+                                      ? <><span className="text-emerald-700">INCLUSO:</span> {rule.benefitProductNames.join(', ')}</>
                                       : <span className="text-muted-foreground italic">Nessun prodotto selezionato</span>
                                     }
                                   </span>
                                   {(rule.benefitProductNames ?? []).length > 0 && (
                                     <Badge className="flex-shrink-0 text-xs bg-emerald-100 text-emerald-700 border-0">
-                                      {rule.benefitProductNames.length} {rule.benefitProductNames.length === 1 ? 'omaggio' : 'omaggi'}
+                                      {rule.benefitProductNames.length} {rule.benefitProductNames.length === 1 ? 'servizio incluso' : 'servizi inclusi'}
+                                    </Badge>
+                                  )}
+                                  {/* Warning: regola senza condizioni → sempre sbloccata */}
+                                  {(rule.benefitProductNames ?? []).length > 0 &&
+                                    (rule.requiredProductNames ?? []).length === 0 &&
+                                    !rule.minSelectableCount && (
+                                    <Badge className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-300">
+                                      ⚠ Sempre attivo
                                     </Badge>
                                   )}
                                   {(rule.requiredProductNames ?? []).length > 0 && (
@@ -1436,14 +1444,14 @@ export default function QuoteTemplatesManager() {
                             {isExpanded && (
                               <CardContent className="px-4 pb-4 space-y-4 border-t border-emerald-100 pt-4">
 
-                                {/* Prodotti in omaggio */}
+                                {/* Servizi Inclusi */}
                                 <div className="border border-emerald-300 rounded-lg p-3 space-y-2 bg-emerald-50/50">
                                   <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide flex items-center gap-1.5">
                                     <Gift className="w-3.5 h-3.5" />
-                                    Prodotti in omaggio
+                                    Servizi Inclusi
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Seleziona uno o più prodotti del template che diventano <strong>in omaggio</strong> quando si verificano le condizioni. Puoi selezionarne quanti vuoi.
+                                    Seleziona uno o più prodotti del template che diventano <strong>Servizi Inclusi</strong> (€0) quando si verificano le condizioni. Puoi selezionarne quanti vuoi.
                                   </p>
                                   {allSelectableNames.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
@@ -1474,7 +1482,7 @@ export default function QuoteTemplatesManager() {
                                     </div>
                                   ) : (
                                     <p className="text-xs text-muted-foreground italic">
-                                      Aggiungi prodotti al template per selezionarne come omaggi.
+                                      Aggiungi prodotti al template per selezionarne come Servizi Inclusi.
                                     </p>
                                   )}
                                 </div>
@@ -1520,7 +1528,7 @@ export default function QuoteTemplatesManager() {
                                       <p className="text-xs text-muted-foreground italic">
                                         {allSelectableNames.length === 0
                                           ? "Aggiungi prodotti al template per impostare i trigger."
-                                          : "Aggiungi altri prodotti al template oltre agli omaggi."}
+                                          : "Aggiungi altri prodotti al template oltre ai Servizi Inclusi."}
                                       </p>
                                     )}
                                     {(rule.requiredProductNames ?? []).length > 0 && (

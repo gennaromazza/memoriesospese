@@ -2,8 +2,8 @@
  * QUOTE BENEFITS ENGINE
  * Logica pura per calcolo benefici inclusi in base ai prodotti selezionati.
  *
- * Il "benefit" è uno o più prodotti specifici del preventivo che diventano IN OMAGGIO
- * quando il cliente seleziona certe combinazioni di altri prodotti.
+ * Il "benefit" è uno o più prodotti specifici del preventivo che diventano
+ * SERVIZIO INCLUSO quando il cliente seleziona certe combinazioni di altri prodotti.
  *
  * Tutte le funzioni sono pure (nessun side-effect).
  * La fonte di verità è il campo `benefitRules` sul documento Quote in Firestore.
@@ -35,11 +35,11 @@ export function migrateBenefitRules(rules: any[]): BenefitRule[] {
 
 /**
  * Regola benefit configurata dall'admin.
- * Definisce quali prodotti diventano in omaggio e in base a quali condizioni.
+ * Definisce quali prodotti diventano Servizi Inclusi e in base a quali condizioni.
  */
 export interface BenefitRule {
   id: string;
-  benefitProductNames: string[];    // Nomi dei prodotti che diventano IN OMAGGIO
+  benefitProductNames: string[];    // Nomi dei prodotti che diventano Servizi Inclusi
   enabled: boolean;
 
   requiredProductNames?: string[];  // Nomi esatti dei prodotti trigger richiesti (tutti)
@@ -56,13 +56,17 @@ export interface BenefitState {
 
   missingProductNames: string[];  // Prodotti trigger ancora da selezionare
   missingCount: number;           // Quanti prodotti mancano (per minSelectableCount)
-  currentCount: number;           // Quanti prodotti selezionabili sono già selezionati
+  currentCount: number;           // Quanti prodotti selezionabili NON-benefit sono già selezionati
 
   feedbackMessage: string;        // Messaggio UI dinamico
 }
 
 /**
  * Calcola lo stato di ogni benefit in base ai prodotti selezionati.
+ *
+ * NOTA: i prodotti benefit stessi sono ESCLUSI dal conteggio `selectedSelectableCount`
+ * usato per la soglia `minSelectableCount`. Questo evita il circolo vizioso dove
+ * un benefit auto-selezionato contribuisce a mantenere sbloccata la propria regola.
  *
  * @param rules                     Regole configurate dall'admin (da `quote.benefitRules`)
  * @param selectedProductNames      Nomi dei prodotti selezionati dal cliente
@@ -75,8 +79,16 @@ export function computeBenefitStates(
 ): BenefitState[] {
   const selectedSet = new Set(selectedProductNames);
 
+  // Raccoglie tutti i nomi di prodotti benefit da TUTTE le regole attive.
+  // Questi vengono esclusi dal conteggio dei trigger per evitare il circolo vizioso:
+  // un benefit auto-selezionato non deve contribuire a sbloccare se stesso.
+  const allBenefitNames = new Set<string>(
+    rules.filter(r => r.enabled).flatMap(r => r.benefitProductNames ?? [])
+  );
+
+  // Conta i prodotti selezionabili selezionati, ESCLUDENDO i prodotti benefit
   const selectedSelectableCount = selectedProductNames.filter(name =>
-    allSelectableProductNames.includes(name)
+    allSelectableProductNames.includes(name) && !allBenefitNames.has(name)
   ).length;
 
   return rules
@@ -112,7 +124,7 @@ export function computeBenefitStates(
 
       const benefitLabel = formatBenefitNames(rule.benefitProductNames);
       const feedbackMessage = isUnlocked
-        ? `${benefitLabel} — inclusi in omaggio per voi`
+        ? `${benefitLabel} — inclusi come Servizio Incluso`
         : buildMissingMessage(rule, missingProductNames, missingCount);
 
       return {
@@ -129,7 +141,7 @@ export function computeBenefitStates(
 
 /** Formatta un array di nomi prodotto in una stringa leggibile */
 function formatBenefitNames(names: string[]): string {
-  if (!names || names.length === 0) return 'il beneficio';
+  if (!names || names.length === 0) return 'il servizio';
   if (names.length === 1) return names[0];
   const last = names[names.length - 1];
   const rest = names.slice(0, -1);
@@ -145,16 +157,16 @@ function buildMissingMessage(
   const parts: string[] = [];
 
   if (missingProducts.length === 1) {
-    parts.push(`Aggiungi "${missingProducts[0]}" per ricevere ${benefitLabel} in omaggio`);
+    parts.push(`Aggiungi "${missingProducts[0]}" per sbloccare ${benefitLabel} come Servizio Incluso`);
   } else if (missingProducts.length > 1) {
-    parts.push(`Aggiungi ${missingProducts.map(n => `"${n}"`).join(' e ')} per ricevere ${benefitLabel} in omaggio`);
+    parts.push(`Aggiungi ${missingProducts.map(n => `"${n}"`).join(' e ')} per sbloccare ${benefitLabel} come Servizio Incluso`);
   }
 
   if (missingCount === 1) {
-    parts.push(`Ti manca 1 servizio per ricevere ${benefitLabel} in omaggio`);
+    parts.push(`Ti manca 1 servizio per sbloccare ${benefitLabel}`);
   } else if (missingCount > 1) {
-    parts.push(`Ti mancano ${missingCount} servizi per ricevere ${benefitLabel} in omaggio`);
+    parts.push(`Ti mancano ${missingCount} servizi per sbloccare ${benefitLabel}`);
   }
 
-  return parts.join(' · ') || `Seleziona i servizi per ricevere ${benefitLabel} in omaggio`;
+  return parts.join(' · ') || `Seleziona i servizi per sbloccare ${benefitLabel}`;
 }

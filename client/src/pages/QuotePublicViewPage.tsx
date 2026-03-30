@@ -149,10 +149,15 @@ export default function QuotePublicViewPage() {
       );
 
       // Stato per nome benefitProduct → isUnlocked
+      // FIX: usa lo stato più favorevole — se il prodotto appare in più regole,
+      // una sola regola sbloccata è sufficiente per mantenerlo selezionato.
+      // Non sovrascrivere con false se già true (stesso comportamento di omaggioByProductName).
       const benefitUnlockedMap = new Map<string, boolean>();
       for (const bs of initStates) {
         for (const name of (bs.rule.benefitProductNames ?? [])) {
-          benefitUnlockedMap.set(name, bs.isUnlocked);
+          if (!benefitUnlockedMap.get(name)) {
+            benefitUnlockedMap.set(name, bs.isUnlocked);
+          }
         }
       }
 
@@ -735,10 +740,12 @@ export default function QuotePublicViewPage() {
               const isExpanded = expandedDescriptions.has(idx);
               const hasLongDescription = product.descrizione && product.descrizione.length > 120;
 
-              // Stato omaggio per questo prodotto
+              // Stato benefit per questo prodotto
               const benefitEntry = omaggioByProductName.get(product.nome);
               // isOmaggioUnlocked: regola sbloccata E prodotto selezionato (auto-selezionato via useEffect)
               const isOmaggioUnlocked = benefitEntry?.isUnlocked === true && selectedProducts.includes(product.nome);
+              // isBenefitAvailableButDeselected: regola sbloccata ma l'utente ha deselezionato manualmente il benefit
+              const isBenefitAvailableButDeselected = benefitEntry?.isUnlocked === true && !selectedProducts.includes(product.nome) && product.selectable;
               // Tutti i prodotti selezionabili hanno checkbox, inclusi i prodotti benefit
               const showCheckbox = quote.type === 'variabile' && product.selectable;
 
@@ -750,14 +757,29 @@ export default function QuotePublicViewPage() {
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
                   isServizioIncluso
                     ? 'border-emerald-300 bg-emerald-50/50 shadow-sm'
-                    : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
+                    : isBenefitAvailableButDeselected
+                      ? 'border-amber-200 bg-amber-50/30 hover:shadow-sm'
+                      : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
                 }`}>
-                  {/* Banner verde: omaggio fisso admin O benefit sbloccato dal cliente */}
+                  {/* Banner verde: servizio incluso fisso admin O benefit sbloccato e selezionato */}
                   {isServizioIncluso && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
                       <span className="text-base">🎁</span>
                       <span className="text-sm font-semibold text-emerald-700">Servizio Incluso</span>
                       <Badge className="ml-auto text-xs bg-emerald-600 text-white border-0">✓ INCLUSO</Badge>
+                    </div>
+                  )}
+                  {/* Banner ambra: benefit disponibile (regola sbloccata) ma deselezionato manualmente */}
+                  {isBenefitAvailableButDeselected && !isServizioIncluso && (
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-amber-200">
+                      <span className="text-base">🎁</span>
+                      <span className="text-sm font-semibold text-amber-700">Servizio Incluso disponibile</span>
+                      <button
+                        onClick={() => setSelectedProducts(prev => [...prev, product.nome])}
+                        className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-800 hover:bg-amber-200 transition-colors"
+                      >
+                        + Aggiungi (incluso)
+                      </button>
                     </div>
                   )}
                   {/* Layout responsive: verticale su mobile, orizzontale su desktop */}
@@ -1122,7 +1144,7 @@ export default function QuotePublicViewPage() {
               Come ottenere i Servizi Inclusi
             </DialogTitle>
             <DialogDescription className="text-sm text-dark-sage">
-              Seleziona i servizi indicati e il relativo omaggio si sblocca automaticamente — senza costi aggiuntivi.
+              Seleziona i servizi indicati e il relativo Servizio Incluso si sblocca automaticamente — senza costi aggiuntivi.
             </DialogDescription>
           </DialogHeader>
 
@@ -1218,7 +1240,7 @@ export default function QuotePublicViewPage() {
                       data-testid={`button-autofill-rule-${i}`}
                     >
                       <Zap className="w-3 h-3" />
-                      Seleziona i servizi necessari per questo omaggio
+                      Seleziona i servizi per sbloccare questo Servizio Incluso
                     </button>
                   )}
                 </div>
@@ -1230,7 +1252,7 @@ export default function QuotePublicViewPage() {
           <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
             <p className="text-xs text-center text-dark-sage opacity-70">
               I servizi trigger vengono aggiunti alla selezione — puoi sempre modificarli.
-              I prodotti in omaggio li scegli tu: se la regola è attiva, il costo diventa €0.
+              I Servizi Inclusi li scegli tu: se la regola è attiva, il costo diventa €0.
             </p>
           </div>
 

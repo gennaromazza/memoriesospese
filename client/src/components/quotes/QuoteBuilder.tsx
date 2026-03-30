@@ -1929,6 +1929,14 @@ export default function QuoteBuilder({
                                     {(rule.requiredProductNames ?? []).length} trigger
                                   </Badge>
                                 )}
+                                {/* Warning: regola senza condizioni → sempre sbloccata */}
+                                {(rule.benefitProductNames ?? []).length > 0 &&
+                                  (rule.requiredProductNames ?? []).length === 0 &&
+                                  !rule.minSelectableCount && (
+                                  <Badge className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-300">
+                                    ⚠ Sempre attivo
+                                  </Badge>
+                                )}
                               </button>
                               <Switch
                                 checked={rule.enabled}
