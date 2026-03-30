@@ -510,15 +510,44 @@ export default function QuotePublicViewPage() {
 
   const totale = totals.totalAfterDiscount;
 
-  // Piano pagamenti indicativo (solo pre-firma, solo se autoGenerate=true)
+  // Piano pagamenti indicativo (solo pre-firma, indipendente da autoGenerate)
   const indicativePaymentPlan = useMemo<PaymentSchedulePreview | null>(() => {
     if (!quote || quote.status === 'firmato') return null;
-    const cfg = quote.paymentScheduleConfig;
-    if (!cfg?.autoGenerate) return null;
     if (totale <= 0) return null;
+    const cfg = quote.paymentScheduleConfig;
+    const eventDate = jobInfo?.eventDate ? new Date(jobInfo.eventDate) : undefined;
+
+    // Helper: piano di default (30% acconto alla firma + 70% saldo alla data evento o +60gg)
+    const buildFallbackPlan = (): PaymentSchedulePreview => {
+      const accontoImporto = Math.round(totale * 0.30 * 100) / 100;
+      const saldoImporto = Math.round((totale - accontoImporto) * 100) / 100;
+      const accontoDate = new Date(); // Acconto alla firma (oggi)
+      const saldoDate = eventDate ? new Date(eventDate) : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 60);
+        return d;
+      })();
+      return {
+        payments: [
+          { tipo: 'acconto', importo: accontoImporto, dataScadenza: accontoDate, descrizione: 'Acconto iniziale – 30%' },
+          { tipo: 'saldo', importo: saldoImporto, dataScadenza: saldoDate, descrizione: 'Saldo finale' },
+        ],
+        totale,
+        totaleAcconto: accontoImporto,
+        totaleSaldo: saldoImporto,
+      };
+    };
+
+    // Se c'è una configurazione con i campi essenziali, tentarla; se fallisce, usare il piano di default
+    if (cfg && cfg.numberOfPayments && cfg.accontoType) {
+      try {
+        return calculatePaymentSchedule(totale, cfg, eventDate);
+      } catch { /* fallback sotto */ }
+    }
+
+    // Piano di default
     try {
-      const eventDate = jobInfo?.eventDate ? new Date(jobInfo.eventDate) : undefined;
-      return calculatePaymentSchedule(totale, cfg, eventDate);
+      return buildFallbackPlan();
     } catch { return null; }
   }, [quote, totale, jobInfo?.eventDate]);
 
@@ -1054,12 +1083,12 @@ export default function QuotePublicViewPage() {
                 <div key={sezione ?? '__no_section__'} className="space-y-4">
                   {hasSections && sezione && (
                     <div className="flex items-center gap-3 mt-6 mb-3 first:mt-0">
-                      <div className="h-px flex-1 bg-sage/20" />
-                      <h3 className="font-playfair text-xs font-bold text-sage/80 uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5">
+                      <div className="h-px flex-1 bg-sage/50" />
+                      <h3 className="font-playfair text-sm font-bold text-sage uppercase tracking-widest whitespace-nowrap flex items-center gap-1.5">
                         {sectionHasBenefits && <span>🎁</span>}
                         {sezione}
                       </h3>
-                      <div className="h-px flex-1 bg-sage/20" />
+                      <div className="h-px flex-1 bg-sage/50" />
                     </div>
                   )}
                   {items.map(({ product, idx }) => {
@@ -1349,7 +1378,7 @@ export default function QuotePublicViewPage() {
           </CardContent>
         </Card>
 
-        {/* Piano pagamenti indicativo — visibile solo pre-firma con autoGenerate=true */}
+        {/* Piano pagamenti indicativo — visibile sempre pre-firma (indipendente da autoGenerate) */}
         {indicativePaymentPlan && (
           <Card className="border-sage/20 bg-gradient-to-br from-white to-light-mint/10">
             <CardHeader className="pb-3">
