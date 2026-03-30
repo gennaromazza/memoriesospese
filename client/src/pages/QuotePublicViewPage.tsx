@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Sparkles, Zap, Lock, Unlock } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Trash2, MapPin, Calendar as CalendarIcon, Clock, User, Mail, Phone, Home, Globe, ChevronDown, ChevronUp, ExternalLink, Gift, Sparkles, Zap, Lock, Unlock, PartyPopper } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import { useToast } from '@/hooks/use-toast';
@@ -74,6 +74,9 @@ export default function QuotePublicViewPage() {
   const [studioLogo, setStudioLogo] = useState<string | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   const [showBenefitGuide, setShowBenefitGuide] = useState(false);
+  const [animatingBenefits, setAnimatingBenefits] = useState<Set<string>>(new Set());
+  const prevUnlockedRuleKeyRef = useRef<string | null>(null);
+  const benefitInitializedRef = useRef<boolean>(false);
   // Auto-seleziona i prodotti trigger necessari per sbloccare UNA specifica regola benefit
   // I prodotti benefit stessi NON vengono aggiunti — il cliente li sceglie liberamente
   const autoFillForRule = (bs: BenefitState) => {
@@ -308,6 +311,89 @@ export default function QuotePublicViewPage() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlockedRuleKey]);
+
+  // Toast + animazione quando si sblocca una nuova regola benefit
+  useEffect(() => {
+    // Solo per preventivi variabili non firmati con regole benefit attive.
+    // Se quote non è ancora caricato (null/undefined), non aggiornare lo stato iniziale:
+    // aspettiamo che i dati reali siano disponibili prima di fare snapshot.
+    if (!quote || quote.type !== 'variabile' || quote.status === 'firmato' || benefitStates.length === 0) {
+      // Se quote è già caricato ma non applicabile (fisso/firmato), considera inizializzato
+      if (quote !== undefined) {
+        benefitInitializedRef.current = true;
+        prevUnlockedRuleKeyRef.current = unlockedRuleKey;
+      }
+      return;
+    }
+
+    const prev = prevUnlockedRuleKeyRef.current;
+
+    // Prima esecuzione con dati reali disponibili: salva snapshot iniziale senza toast
+    if (!benefitInitializedRef.current) {
+      benefitInitializedRef.current = true;
+      prevUnlockedRuleKeyRef.current = unlockedRuleKey;
+      return;
+    }
+
+    if (prev === unlockedRuleKey) return; // Nessun cambiamento
+
+    const prevSet = new Set(prev ? prev.split(',') : []);
+    const currentSet = new Set(unlockedRuleKey ? unlockedRuleKey.split(',') : []);
+
+    // Trova le regole appena sbloccate (non presenti prima)
+    const newlyUnlocked = benefitStates.filter(
+      bs => bs.isUnlocked && !prevSet.has(bs.rule.id) && currentSet.has(bs.rule.id)
+    );
+
+    if (newlyUnlocked.length > 0) {
+      // Mostra toast per ogni regola appena sbloccata
+      for (const bs of newlyUnlocked) {
+        const giftNames = bs.rule.benefitProductNames ?? [];
+        const giftLabel = giftNames.join(', ') || 'il servizio';
+        const giftValue = giftNames.reduce((sum, name) => {
+          const p = quote?.products?.find(pr => pr.nome === name);
+          return sum + (p?.prezzo ?? 0);
+        }, 0);
+
+        toast({
+          title: `🎁 ${giftLabel} è ora incluso nel tuo preventivo.`,
+          description: giftValue > 0
+            ? `Valore: ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(giftValue)} — senza costi aggiuntivi.`
+            : 'Senza costi aggiuntivi.',
+          className: 'border-emerald-300 bg-emerald-50 text-emerald-900',
+        });
+
+        // Avvia animazione sui card dei prodotti benefit appena sbloccati
+        setAnimatingBenefits(prev => {
+          const next = new Set(prev);
+          giftNames.forEach(n => next.add(n));
+          return next;
+        });
+        // Rimuovi l'animazione dopo 1200ms
+        setTimeout(() => {
+          setAnimatingBenefits(prev => {
+            const next = new Set(prev);
+            giftNames.forEach(n => next.delete(n));
+            return next;
+          });
+        }, 1200);
+      }
+    }
+
+    prevUnlockedRuleKeyRef.current = unlockedRuleKey;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlockedRuleKey, quote?.type, quote?.status, benefitStates.length]);
+
+  // Calcola il valore monetario dei benefit sbloccati e selezionati
+  const unlockedBenefitTotalValue = useMemo(() => {
+    if (!quote?.products) return 0;
+    return Array.from(omaggioByProductName.entries())
+      .filter(([name, bs]) => bs.isUnlocked && selectedProducts.includes(name))
+      .reduce((sum, [name]) => {
+        const p = quote.products?.find(pr => pr.nome === name);
+        return sum + (p?.prezzo ?? 0);
+      }, 0);
+  }, [quote, omaggioByProductName, selectedProducts]);
 
   // Calculate totals with discount
   const totals = useMemo(() => {
@@ -734,6 +820,89 @@ export default function QuotePublicViewPage() {
                 </button>
               )}
             </div>
+
+            {/* Banner progressivo benefit — visibile solo su preventivi variabili non firmati con regole */}
+            {quote.type === 'variabile' && benefitStates.length > 0 && quote.status !== 'firmato' && (() => {
+              const allUnlocked = benefitStates.every(bs => bs.isUnlocked);
+
+              if (allUnlocked) {
+                return (
+                  <div
+                    className="mt-3 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200"
+                    data-testid="benefit-banner-all-unlocked"
+                  >
+                    <PartyPopper className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-emerald-700">
+                      Hai ottenuto tutti i Servizi Inclusi — ottima scelta.
+                    </span>
+                  </div>
+                );
+              }
+
+              // Regola più vicina allo sblocco = quella con meno prodotti/selezioni mancanti
+              const closest = benefitStates
+                .filter(bs => !bs.isUnlocked)
+                .sort((a, b) => {
+                  const totalMissingA = a.missingProductNames.length + a.missingCount;
+                  const totalMissingB = b.missingProductNames.length + b.missingCount;
+                  return totalMissingA - totalMissingB;
+                })[0];
+
+              if (!closest) return null;
+
+              const giftNames = closest.rule.benefitProductNames ?? [];
+              const giftValue = giftNames.reduce((sum, name) => {
+                const p = quote.products?.find(pr => pr.nome === name);
+                return sum + (p?.prezzo ?? 0);
+              }, 0);
+              const giftLabel = giftNames.join(', ') || 'il servizio';
+
+              const totalMissing = closest.missingProductNames.length + closest.missingCount;
+              const totalRequired = (closest.rule.requiredProductNames?.length ?? 0) + (closest.rule.minSelectableCount ?? 0);
+              const progressDone = totalRequired - totalMissing;
+              const progressPct = totalRequired > 0 ? Math.min(100, (progressDone / totalRequired) * 100) : 0;
+
+              const missingText = totalMissing === 1
+                ? 'Aggiungi ancora 1 servizio'
+                : `Aggiungi ancora ${totalMissing} servizi`;
+
+              return (
+                <div
+                  className="mt-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200"
+                  data-testid="benefit-banner-progress"
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <Gift className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-800 leading-snug">
+                      <span className="font-semibold">{missingText}</span>
+                      {' '}e ricevi{' '}
+                      <span className="font-semibold">{giftLabel}</span>
+                      {giftValue > 0 && (
+                        <span className="text-amber-700">
+                          {' '}(valore{' '}
+                          {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(giftValue)}
+                          )
+                        </span>
+                      )}
+                      {' '}— senza costi aggiuntivi.
+                    </p>
+                  </div>
+                  {totalRequired > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-amber-200/60 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-1.5 rounded-full bg-amber-500 transition-all duration-500"
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-amber-700 font-medium flex-shrink-0">
+                        {progressDone}/{totalRequired}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </CardHeader>
           <CardContent className="space-y-4">
             {(quote.products ?? []).map((product, idx) => {
@@ -753,6 +922,8 @@ export default function QuotePublicViewPage() {
               // OPPURE la regola benefit è sbloccata e il prodotto è selezionato (auto o manuale)
               const isServizioIncluso = product.isOmaggio || isOmaggioUnlocked;
 
+              const isAnimating = animatingBenefits.has(product.nome);
+
               return (
                 <div key={idx} className={`p-4 border rounded-xl transition-all duration-300 ${
                   isServizioIncluso
@@ -760,7 +931,7 @@ export default function QuotePublicViewPage() {
                     : isBenefitAvailableButDeselected
                       ? 'border-amber-200 bg-amber-50/30 hover:shadow-sm'
                       : 'border-mint/30 bg-white hover:border-sage/50 hover:shadow-lg'
-                }`}>
+                }${isAnimating ? ' benefit-unlock-pulse' : ''}`}>
                   {/* Banner verde: servizio incluso fisso admin O benefit sbloccato e selezionato */}
                   {isServizioIncluso && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200">
@@ -983,6 +1154,22 @@ export default function QuotePublicViewPage() {
                   </span>
                   <span>-{formatCurrency(totals.discountAmount)}</span>
                 </div>
+              </div>
+            )}
+
+            {/* Servizi Inclusi — visibile solo quando almeno un benefit è sbloccato e selezionato */}
+            {unlockedBenefitTotalValue > 0 && (
+              <div className="flex justify-between items-center text-sm mb-3" data-testid="benefit-total-row">
+                <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                  <Gift className="w-3.5 h-3.5" />
+                  Servizi Inclusi
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="line-through text-muted-foreground">
+                    {formatCurrency(unlockedBenefitTotalValue)}
+                  </span>
+                  <span className="font-bold text-emerald-600">€0</span>
+                </span>
               </div>
             )}
 
