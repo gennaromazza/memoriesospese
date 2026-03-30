@@ -1007,7 +1007,10 @@ export default function QuotePublicViewPage() {
                           <div className="mt-1">
                             <p className="font-bold text-base text-emerald-600">✓ Servizio Incluso</p>
                             {isOmaggioUnlocked && product.prezzo > 0 && (
-                              <p className="text-xs text-gray-400 line-through">{formatCurrency(product.prezzo)}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs text-gray-400 line-through">{formatCurrency(product.prezzo)}</p>
+                                <p className="text-xs font-bold text-emerald-600">€ 0,00</p>
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -1095,7 +1098,10 @@ export default function QuotePublicViewPage() {
                         <div>
                           <p className="font-bold text-xl sm:text-2xl text-emerald-600">✓ Servizio Incluso</p>
                           {isOmaggioUnlocked && product.prezzo > 0 && (
-                            <p className="text-sm text-gray-400 line-through mt-0.5">{formatCurrency(product.prezzo)}</p>
+                            <div className="flex items-center justify-end gap-2 mt-0.5">
+                              <p className="text-sm text-gray-400 line-through">{formatCurrency(product.prezzo)}</p>
+                              <p className="text-sm font-bold text-emerald-600">€ 0,00</p>
+                            </div>
                           )}
                         </div>
                       ) : (
