@@ -144,6 +144,7 @@ const templateSchema = z
         nome: z.string(),
         descrizione: z.string(),
         prezzo: z.number().min(0),
+        sezione: z.string().optional(),
         numeroFoto: z.number().optional(),
         categoria: z.string().optional(),
       }),
@@ -400,6 +401,9 @@ export default function QuoteTemplatesManager() {
   // Product order state — tracks the display order chosen by the admin
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
 
+  // Sections for catalog products (managed outside form — same pattern as QuoteBuilder)
+  const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
+
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
     queryKey: ["quote-templates"],
@@ -551,6 +555,7 @@ export default function QuoteTemplatesManager() {
         nome: p.nome,
         descrizione: p.descrizione || "",
         prezzo: p.prezzo,
+        sezione: (p as any).sezione || "",
         numeroFoto: p.numeroFoto || 0,
         categoria: p.categoria || "",
       }));
@@ -573,6 +578,7 @@ export default function QuoteTemplatesManager() {
                 nome: "",
                 descrizione: "",
                 prezzo: 0,
+                sezione: "",
                 numeroFoto: 0,
                 categoria: "",
               },
@@ -582,6 +588,13 @@ export default function QuoteTemplatesManager() {
       theme: template.theme,
       attivo: template.attivo,
     });
+
+    // Ripristina sezioni dei prodotti catalogo dal template salvato
+    const initialCatalogSections: Record<string, string> = {};
+    template.defaultProducts
+      .filter((p) => p.productId && (p as any).sezione)
+      .forEach((p) => { initialCatalogSections[p.productId!] = (p as any).sezione; });
+    setCatalogProductSections(initialCatalogSections);
 
     // Carica benefit rules dal template
     setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
@@ -627,6 +640,7 @@ export default function QuoteTemplatesManager() {
     setBenefitRules([]);
     setExpandedBenefitRules(new Set());
     setProductOrderKeys([]);
+    setCatalogProductSections({});
     setCreateModalOpen(true);
   }, [form]);
 
@@ -644,18 +658,41 @@ export default function QuoteTemplatesManager() {
     useWatch({ control: form.control, name: "discountValue" }) || 0;
   const quoteType = useWatch({ control: form.control, name: "type" });
 
+  // Gestisce cambio sezione da ProductOrderEditor (catalogo e custom)
+  const handleSectionChange = useCallback((key: string, sezione: string) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogProductSections(prev => ({ ...prev, [id]: sezione.trim() }));
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('customProducts');
+      const idx = products.findIndex((p: any) => p.nome.trim() === nome);
+      if (idx >= 0) {
+        form.setValue(`customProducts.${idx}.sezione`, sezione.trim());
+      }
+    }
+  }, [form]);
+
   // Merged product list for ProductOrderEditor (catalog + custom)
   // Usa fields (da useFieldArray) per i custom products, catalogProductIds per i catalog
   const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
     const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
       const p = catalogProducts.find((cp) => cp.id === id);
-      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true };
+      const sezione = catalogProductSections[id];
+      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true, sezione: sezione || undefined };
     });
     const cust: OrderableProduct[] = fields
       .filter((f) => f.nome?.trim())
-      .map((f) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0 }));
+      .map((f) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: (f as any).sezione || undefined }));
     return [...cat, ...cust];
-  }, [catalogProductIds, fields, catalogProducts]);
+  }, [catalogProductIds, fields, catalogProducts, catalogProductSections]);
+
+  // Lista sezioni usate (per autocomplete)
+  const sectionSuggestions = useMemo<string[]>(() => {
+    const seen = new Set<string>();
+    mergedForOrderEditor.forEach(p => { if (p.sezione) seen.add(p.sezione); });
+    return Array.from(seen).sort();
+  }, [mergedForOrderEditor]);
 
   // Calculate totals — usa fields (da useFieldArray) invece di useWatch per customProducts
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
@@ -684,7 +721,10 @@ export default function QuoteTemplatesManager() {
         (id) => {
           const product = catalogProducts.find((p) => p.id === id);
           if (!product) throw new Error(`Prodotto ${id} non trovato`);
-          return catalogProductToQuoteProduct(product, data.type);
+          const qp = catalogProductToQuoteProduct(product, data.type);
+          const sezione = catalogProductSections[id];
+          if (sezione) (qp as any).sezione = sezione;
+          return qp;
         },
       );
 
@@ -697,6 +737,7 @@ export default function QuoteTemplatesManager() {
           selectable: data.type === "variabile",
           numeroFoto: p.numeroFoto,
           categoria: p.categoria,
+          ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
         }));
 
       // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
@@ -785,7 +826,10 @@ export default function QuoteTemplatesManager() {
         (prodId) => {
           const product = catalogProducts.find((p) => p.id === prodId);
           if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
-          return catalogProductToQuoteProduct(product, data.type);
+          const qp2 = catalogProductToQuoteProduct(product, data.type);
+          const sezione2 = catalogProductSections[prodId];
+          if (sezione2) (qp2 as any).sezione = sezione2;
+          return qp2;
         },
       );
 
@@ -798,6 +842,7 @@ export default function QuoteTemplatesManager() {
           selectable: data.type === "variabile",
           numeroFoto: p.numeroFoto,
           categoria: p.categoria,
+          ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
         }));
 
       // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
@@ -1033,6 +1078,7 @@ export default function QuoteTemplatesManager() {
             setCreateModalOpen(false);
             setEditModalOpen(false);
             setCurrentTemplate(null);
+            setCatalogProductSections({});
             form.reset();
           }
         }}
@@ -1313,6 +1359,8 @@ export default function QuoteTemplatesManager() {
                     products={mergedForOrderEditor}
                     orderKeys={productOrderKeys}
                     onOrderChange={setProductOrderKeys}
+                    onSectionChange={handleSectionChange}
+                    sectionSuggestions={sectionSuggestions}
                   />
                 </div>
               )}
