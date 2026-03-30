@@ -1992,7 +1992,7 @@ export default function QuoteBuilder({
                                   </div>
                                 ) : (
                                   <p className="text-xs text-muted-foreground italic">
-                                    Aggiungi prodotti al preventivo per selezionarne come omaggi.
+                                    Aggiungi prodotti al preventivo per selezionarne come Servizi Inclusi.
                                   </p>
                                 )}
                               </div>
