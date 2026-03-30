@@ -59,10 +59,7 @@ import {
   migrateBenefitRules,
 } from "@shared/quote-benefits";
 import type { BenefitState } from "@shared/quote-benefits";
-import {
-  calculatePaymentSchedule,
-  formatDueDate,
-} from "@shared/payment-schedule-utils";
+import { formatDueDate } from "@shared/payment-schedule-utils";
 import type { PaymentSchedulePreview } from "@shared/payment-schedule-utils";
 import { useCountdown } from "@/hooks/useCountdown";
 import { db } from "@/lib/firebase";
@@ -629,7 +626,6 @@ export default function QuotePublicViewPage() {
   const indicativePaymentPlan = useMemo<PaymentSchedulePreview | null>(() => {
     if (!quote || quote.status === "firmato") return null;
     if (totale <= 0) return null;
-    const cfg = quote.paymentScheduleConfig;
     const eventDate = jobInfo?.eventDate
       ? new Date(jobInfo.eventDate)
       : undefined;
@@ -696,16 +692,7 @@ export default function QuotePublicViewPage() {
       };
     };
 
-    // Se c'è una configurazione con i campi essenziali, tentarla; se fallisce, usare il piano di default
-    if (cfg && cfg.numberOfPayments && cfg.accontoType) {
-      try {
-        return calculatePaymentSchedule(totale, cfg, eventDate);
-      } catch {
-        /* fallback sotto */
-      }
-    }
-
-    // Piano di default
+    // Piano indicativo standard dello studio (4 rate fisse, sempre)
     try {
       return buildFallbackPlan();
     } catch {
