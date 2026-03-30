@@ -59,6 +59,7 @@ import {
   migrateBenefitRules,
 } from "@shared/quote-benefits";
 import type { BenefitState } from "@shared/quote-benefits";
+import DOMPurify from "dompurify";
 import { formatDueDate } from "@shared/payment-schedule-utils";
 import type { PaymentSchedulePreview } from "@shared/payment-schedule-utils";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -120,34 +121,39 @@ export default function QuotePublicViewPage() {
   const [paymentPlanCollapsed, setPaymentPlanCollapsed] = useState(true);
   const prevUnlockedRuleKeyRef = useRef<string | null>(null);
   const benefitInitializedRef = useRef<boolean>(false);
+  // Ref stabile per benefitStates: evita closure stale negli useEffect con deps stabili
+  const benefitStatesRef = useRef<BenefitState[]>([]);
   // Auto-seleziona i prodotti trigger necessari per sbloccare UNA specifica regola benefit
   // I prodotti benefit stessi NON vengono aggiunti — il cliente li sceglie liberamente
+  // FIX: usa updater funzionale per evitare closure stale su selectedProducts
   const autoFillForRule = (bs: BenefitState) => {
     if (!quote) return;
     const allSelectableNames = (quote.products ?? [])
       .filter((p) => p.selectable)
       .map((p) => p.nome);
-    const neededNames = new Set<string>(selectedProducts);
+    setSelectedProducts((prev) => {
+      const neededNames = new Set<string>(prev);
 
-    // Aggiungi tutti i prodotti trigger richiesti per questa regola
-    for (const name of bs.rule.requiredProductNames ?? []) {
-      neededNames.add(name);
-    }
-    // Se ha minSelectableCount, aggiungi abbastanza prodotti selezionabili
-    if (bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0) {
-      const currentCount = Array.from(neededNames).filter((n) =>
-        allSelectableNames.includes(n),
-      ).length;
-      let count = currentCount;
-      for (const name of allSelectableNames) {
-        if (count >= bs.rule.minSelectableCount) break;
-        if (!neededNames.has(name)) {
-          neededNames.add(name);
-          count++;
+      // Aggiungi tutti i prodotti trigger richiesti per questa regola
+      for (const name of bs.rule.requiredProductNames ?? []) {
+        neededNames.add(name);
+      }
+      // Se ha minSelectableCount, aggiungi abbastanza prodotti selezionabili
+      if (bs.rule.minSelectableCount && bs.rule.minSelectableCount > 0) {
+        const currentCount = Array.from(neededNames).filter((n) =>
+          allSelectableNames.includes(n),
+        ).length;
+        let count = currentCount;
+        for (const name of allSelectableNames) {
+          if (count >= bs.rule.minSelectableCount) break;
+          if (!neededNames.has(name)) {
+            neededNames.add(name);
+            count++;
+          }
         }
       }
-    }
-    setSelectedProducts(Array.from(neededNames));
+      return Array.from(neededNames);
+    });
     setShowBenefitGuide(false);
   };
 
@@ -230,6 +236,17 @@ export default function QuotePublicViewPage() {
       });
 
       setSelectedProducts(cleanSelected);
+
+      // FIX Bug #1: Pre-sincronizza le ref del toast-effect con la chiave calcolata
+      // sui prodotti puliti, così il toast non vede un falso "sblocco" al caricamento.
+      const initBenefitStates = computeBenefitStates(rules, cleanSelected, allSelectableNames);
+      const initUnlockedKey = initBenefitStates
+        .filter((bs) => bs.isUnlocked)
+        .map((bs) => bs.rule.id)
+        .sort()
+        .join(",");
+      prevUnlockedRuleKeyRef.current = initUnlockedKey;
+      benefitInitializedRef.current = true;
     }
   }, [quote]);
 
@@ -383,6 +400,9 @@ export default function QuotePublicViewPage() {
     );
   }, [quote, selectedProducts]);
 
+  // Aggiorna ref stabile per evitare closure stale negli useEffect con deps stabili
+  benefitStatesRef.current = benefitStates;
+
   // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
   // IMPORTANTE: un prodotto può comparire in più regole. Si usa lo stato PIÙ FAVOREVOLE:
   // se almeno una regola che contiene questo prodotto è sbloccata, il prodotto risulta sbloccato.
@@ -439,7 +459,7 @@ export default function QuotePublicViewPage() {
     [productSections],
   );
 
-  // Auto-seleziona i prodotti benefit quando la loro regola si sblocca.
+  // Chiave stabile degli ID delle regole sbloccate
   // La dipendenza è una stringa stabile degli ID delle regole sbloccate,
   // così l'effetto non si riesegue ogni volta che selectedProducts cambia.
   const unlockedRuleKey = benefitStates
@@ -448,28 +468,42 @@ export default function QuotePublicViewPage() {
     .sort()
     .join(",");
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // FIX Bug #2 + #3: Gestione unificata aggiunta/rimozione prodotti benefit al cambio del lock.
+  // Usa benefitStatesRef per evitare closure stale (benefitStates NON è in deps).
+  // Quando una regola si sblocca → aggiunge i prodotti benefit a selectedProducts.
+  // Quando una regola si blocca → rimuove i prodotti benefit da selectedProducts.
+  const prevUnlockedRuleKeyForAutoRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!unlockedRuleKey) return; // Nessuna regola sbloccata
-    const toAdd: string[] = [];
-    for (const bs of benefitStates) {
-      if (bs.isUnlocked) {
-        for (const name of bs.rule.benefitProductNames ?? []) {
-          // Aggiunge solo se non già presente
-          toAdd.push(name);
-        }
-      }
-    }
-    if (toAdd.length === 0) return;
+    const currentStates = benefitStatesRef.current;
+    const currentUnlockedIds = new Set(unlockedRuleKey ? unlockedRuleKey.split(",") : []);
+    const prevUnlockedIds = new Set(
+      prevUnlockedRuleKeyForAutoRef.current
+        ? prevUnlockedRuleKeyForAutoRef.current.split(",")
+        : [],
+    );
+    prevUnlockedRuleKeyForAutoRef.current = unlockedRuleKey;
+
     setSelectedProducts((prev) => {
       const set = new Set(prev);
-      toAdd.forEach((n) => set.add(n));
-      // Nessun cambiamento → stessa referenza per evitare re-render
-      if (set.size === prev.length && toAdd.every((n) => prev.includes(n)))
-        return prev;
-      return Array.from(set);
+      let changed = false;
+      for (const bs of currentStates) {
+        const ruleId = bs.rule.id;
+        const benefitNames = bs.rule.benefitProductNames ?? [];
+        if (currentUnlockedIds.has(ruleId) && !prevUnlockedIds.has(ruleId)) {
+          // Regola appena sbloccata → aggiungi prodotti benefit
+          for (const n of benefitNames) {
+            if (!set.has(n)) { set.add(n); changed = true; }
+          }
+        } else if (!currentUnlockedIds.has(ruleId) && prevUnlockedIds.has(ruleId)) {
+          // Regola appena bloccata → rimuovi prodotti benefit
+          for (const n of benefitNames) {
+            if (set.has(n)) { set.delete(n); changed = true; }
+          }
+        }
+      }
+      return changed ? Array.from(set) : prev;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlockedRuleKey]);
 
   // Toast + animazione quando si sblocca una nuova regola benefit
@@ -508,19 +542,26 @@ export default function QuotePublicViewPage() {
     );
 
     // Trova le regole appena sbloccate (non presenti prima)
-    const newlyUnlocked = benefitStates.filter(
+    // FIX Bug #3: usa benefitStatesRef (sempre aggiornata) per evitare closure stale
+    const newlyUnlocked = benefitStatesRef.current.filter(
       (bs) =>
         bs.isUnlocked && !prevSet.has(bs.rule.id) && currentSet.has(bs.rule.id),
     );
 
+    // Aggiorna sempre il ref PRIMA di ogni possibile return
+    prevUnlockedRuleKeyRef.current = unlockedRuleKey;
+
     if (newlyUnlocked.length > 0) {
+      // FIX Bug #8: salva i timer per pulizia nel cleanup dell'effetto
+      const timers: ReturnType<typeof setTimeout>[] = [];
       // Mostra toast per ogni regola appena sbloccata
       for (const bs of newlyUnlocked) {
         const giftNames = bs.rule.benefitProductNames ?? [];
         const giftLabel = giftNames.join(", ") || "il servizio";
+        // FIX Bug #7: Number() per coercizione sicura dei prezzi da Firestore
         const giftValue = giftNames.reduce((sum, name) => {
           const p = quote?.products?.find((pr) => pr.nome === name);
-          return sum + (p?.prezzo ?? 0);
+          return sum + Number(p?.prezzo ?? 0);
         }, 0);
 
         toast({
@@ -538,29 +579,33 @@ export default function QuotePublicViewPage() {
           giftNames.forEach((n) => next.add(n));
           return next;
         });
-        // Rimuovi l'animazione dopo 1200ms
-        setTimeout(() => {
+        // Rimuovi l'animazione dopo 1200ms — timer registrato per cleanup
+        const tid = setTimeout(() => {
           setAnimatingBenefits((prev) => {
             const next = new Set(prev);
             giftNames.forEach((n) => next.delete(n));
             return next;
           });
         }, 1200);
+        timers.push(tid);
       }
+      // FIX Bug #8: cleanup dei timer se il componente smonta prima che scadano
+      return () => timers.forEach(clearTimeout);
     }
-
-    prevUnlockedRuleKeyRef.current = unlockedRuleKey;
+    // FIX Bug #4 deps: sostituisce benefitStates.length con la chiave degli ID regole
+    // (stabile tra re-render, cattura aggiunta/rimozione di regole ma non flicker inutili)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlockedRuleKey, quote?.type, quote?.status, benefitStates.length]);
+  }, [unlockedRuleKey, quote?.type, quote?.status, benefitStates.map((b) => b.rule.id).join(",")]);
 
   // Calcola il valore monetario dei benefit sbloccati e selezionati
   const unlockedBenefitTotalValue = useMemo(() => {
     if (!quote?.products) return 0;
+    // FIX Bug #5+#6: Number() per coercizione sicura; filtra solo i veri omaggio (isUnlocked)
     return Array.from(omaggioByProductName.entries())
       .filter(([name, bs]) => bs.isUnlocked && selectedProducts.includes(name))
       .reduce((sum, [name]) => {
         const p = quote.products?.find((pr) => pr.nome === name);
-        return sum + (p?.prezzo ?? 0);
+        return sum + Number(p?.prezzo ?? 0);
       }, 0);
   }, [quote, omaggioByProductName, selectedProducts]);
 
@@ -610,7 +655,8 @@ export default function QuotePublicViewPage() {
         // Prodotti non selezionabili sono sempre inclusi (prodotti fissi/obbligatori)
         return true;
       })
-      .reduce((sum, p) => sum + p.prezzo, 0);
+      // FIX Bug #3: Number() per coercizione sicura (Firestore può restituire stringhe)
+      .reduce((sum, p) => sum + Number(p.prezzo ?? 0), 0);
 
     // Apply discount to selected subtotal
     return calculateQuoteTotals(
@@ -1859,7 +1905,7 @@ export default function QuotePublicViewPage() {
                     <div className="flex items-center gap-2">
                       <p
                         className="text-sm"
-                        dangerouslySetInnerHTML={{ __html: clause.text }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(clause.text ?? "") }}
                       />
                       {clause.required && (
                         <Badge variant="destructive" className="text-xs">
