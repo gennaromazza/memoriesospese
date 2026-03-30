@@ -1,0 +1,56 @@
+🔴 Bug #1 — Toast "sblocco benefit" sparato al caricamento iniziale
+Dove: useEffect del toast (dipendenza [unlockedRuleKey, ...]) + useEffect di inizializzazione selectedProducts.
+Cosa succede:
+
+Quote carica → benefitStates.length === 0 → il toast-effect salva prevUnlockedRuleKeyRef.current = ""
+L'effect di inizializzazione chiama setSelectedProducts(cleanSelected) con i prodotti pre-selezionati
+unlockedRuleKey cambia da "" a "rule1,rule2" → il toast-effect si riesegue
+Trova le regole "appena sbloccate" e mostra il toast come se il cliente avesse appena guadagnato un benefit, mentre erano già sbloccati fin dall'inizio
+
+Fix: nell'useEffect di inizializzazione, dopo aver calcolato cleanSelected, aggiornare subito prevUnlockedRuleKeyRef con la chiave corrispondente, oppure posticipare l'inizializzazione del ref al frame successivo.
+
+🔴 Bug #2 — XSS tramite dangerouslySetInnerHTML
+Dove:
+tsx<p
+  className="text-sm"
+  dangerouslySetInnerHTML={{ __html: clause.text }}
+/>
+Cosa succede: Se clause.text arriva dal server senza sanitizzazione (es. uno studio malintenzionato o un database compromesso), un attaccante può iniettare script arbitrari nel browser del cliente. È una pagina pubblica accessibile senza autenticazione — superficie d'attacco massima.
+Fix: sanitizzare il testo lato server o usare una libreria come DOMPurify prima del render.
+
+🟠 Bug #3 — Closure stale su benefitStates nell'effect di auto-selezione
+Dove:
+tsxuseEffect(() => {
+  // ...
+  for (const bs of benefitStates) { // ← letto dalla closure
+    if (bs.isUnlocked) { /* ... */ }
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [unlockedRuleKey]); // ← benefitStates mancante
+Cosa succede: se unlockedRuleKey non cambia (stesse regole sbloccate) ma benefitStates cambia internamente (es. i benefitProductNames di una regola vengono aggiornati), l'effect usa i dati vecchi e non auto-seleziona i prodotti corretti.
+
+🟠 Bug #4 — benefitStates.length come dipendenza invece dell'array
+Dove:
+tsx}, [unlockedRuleKey, quote?.type, quote?.status, benefitStates.length]);
+Cosa succede: se due regole si scambiano stato di lock/unlock contemporaneamente (una si sblocca, una si blocca), la lunghezza dell'array rimane identica e il toast-effect non viene rieseguito, perdendo l'evento di sblocco.
+
+🟡 Bug #5 — Memory leak: setTimeout senza cleanup
+Dove:
+tsxsetTimeout(() => {
+  setAnimatingBenefits((prev) => {
+    const next = new Set(prev);
+    giftNames.forEach((n) => next.delete(n));
+    return next;
+  });
+}, 1200);
+Cosa succede: se il componente viene smontato entro 1200ms (es. navigazione rapida dopo la firma), il setTimeout chiama setAnimatingBenefits su un componente non più montato. In React 18 non è più un errore esplicito ma è comunque un leak.
+Fix:
+tsxconst timerId = setTimeout(...);
+return () => clearTimeout(timerId); // nel cleanup dell'useEffect
+
+🟡 Bug #6 — autoFillForRule usa closure stale su selectedProducts
+Dove:
+tsxconst autoFillForRule = (bs: BenefitState) => {
+  const neededNames = new Set<string>(selectedProducts); // ← snapshot al momento del render
+La funzione non è memoizzata con useCallback, quindi cattura selectedProducts al momento dell'ultimo render prima del click. In scenari di aggiornamenti rapidi in cascata, potrebbe sovrascrivere selezioni recenti.
+Fix: passare a un updater funzionale: setSelectedProducts(prev => { const neededNames = new Set(prev); ... }).
