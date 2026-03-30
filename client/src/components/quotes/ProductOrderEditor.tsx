@@ -42,9 +42,10 @@ interface SortableRowProps {
   product: OrderableProduct;
   index: number;
   onSectionChange?: (key: string, sezione: string) => void;
+  sectionSuggestions?: string[];
 }
 
-function SortableRow({ product, index, onSectionChange }: SortableRowProps) {
+function SortableRow({ product, index, onSectionChange, sectionSuggestions }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -102,16 +103,24 @@ function SortableRow({ product, index, onSectionChange }: SortableRowProps) {
       {/* Sezione badge / editor — shown only when onSectionChange is provided */}
       {onSectionChange && (
         editing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditing(false); setDraft(product.sezione || ''); } }}
-            placeholder="Sezione..."
-            className="w-28 text-xs border border-sage/40 rounded px-2 py-0.5 focus:outline-none focus:border-sage flex-shrink-0"
-          />
+          <>
+            <input
+              ref={inputRef}
+              type="text"
+              list={`sezione-options-${product.key}`}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditing(false); setDraft(product.sezione || ''); } }}
+              placeholder="Sezione..."
+              className="w-28 text-xs border border-sage/40 rounded px-2 py-0.5 focus:outline-none focus:border-sage flex-shrink-0"
+            />
+            {sectionSuggestions && sectionSuggestions.length > 0 && (
+              <datalist id={`sezione-options-${product.key}`}>
+                {sectionSuggestions.map(s => <option key={s} value={s} />)}
+              </datalist>
+            )}
+          </>
         ) : (
           <button
             type="button"
@@ -175,9 +184,11 @@ interface ProductOrderEditorProps {
   onOrderChange: (orderedKeys: string[]) => void;
   /** Se fornito, ogni riga mostra un badge sezione cliccabile per modificarla inline */
   onSectionChange?: (key: string, sezione: string) => void;
+  /** Suggerimenti sezione per l'autocomplete inline (sezioni già usate nel preventivo) */
+  sectionSuggestions?: string[];
 }
 
-export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange }: ProductOrderEditorProps) {
+export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions }: ProductOrderEditorProps) {
   const buildItems = (prods: OrderableProduct[], keys?: string[]): OrderableProduct[] => {
     if (!keys || keys.length === 0) return prods;
     const map = new Map(prods.map(p => [p.key, p]));
@@ -268,7 +279,7 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
                       <div className="h-px flex-1 bg-sage/20" />
                     </div>
                   )}
-                  <SortableRow product={product} index={index} onSectionChange={onSectionChange} />
+                  <SortableRow product={product} index={index} onSectionChange={onSectionChange} sectionSuggestions={sectionSuggestions} />
                 </div>
               );
             })}

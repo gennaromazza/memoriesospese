@@ -461,11 +461,13 @@ export default function QuoteBuilder({
     }
   });
 
-  // Reset state quando dialog si chiude o jobType cambia
+  // Reset state quando dialog si chiude
   useEffect(() => {
     if (!open) {
       setSelectedClauseTemplateId('');
       form.setValue('clauseTemplateId', '');
+      setCatalogProductSections({});
+      setProductOrderKeys([]);
     }
   }, [open, form]);
 
@@ -568,7 +570,7 @@ export default function QuoteBuilder({
       ).filter((k: string) => k !== 'cust:');
       setProductOrderKeys(initialOrderKeys);
 
-      // Carica le sezioni salvate per i prodotti da catalogo
+      // Carica le sezioni salvate per i prodotti da catalogo (reset esplicito per evitare stale data)
       const initialCatalogSections: Record<string, string> = {};
       existingQuote.products.forEach((p: any) => {
         const productId = p.productId || p.catalogProductId;
@@ -576,9 +578,7 @@ export default function QuoteBuilder({
           initialCatalogSections[productId] = p.sezione;
         }
       });
-      if (Object.keys(initialCatalogSections).length > 0) {
-        setCatalogProductSections(initialCatalogSections);
-      }
+      setCatalogProductSections(initialCatalogSections); // sempre reset, anche se vuoto
     }
 
     toast({
@@ -711,6 +711,13 @@ export default function QuoteBuilder({
       .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: f.sezione || undefined }));
     return [...cat, ...cust];
   }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections]);
+  // Lista sezioni già usate nel preventivo corrente (per autocomplete)
+  const sectionSuggestions = useMemo<string[]>(() => {
+    const seen = new Set<string>();
+    mergedForOrderEditor.forEach(p => { if (p.sezione) seen.add(p.sezione); });
+    return Array.from(seen).sort();
+  }, [mergedForOrderEditor]);
+
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
@@ -1200,6 +1207,8 @@ export default function QuoteBuilder({
           rateIntervalDays: 30
         }
       });
+      setCatalogProductSections({});
+      setProductOrderKeys([]);
       onClose();
     },
     onError: (error: any) => {
@@ -1768,10 +1777,8 @@ export default function QuoteBuilder({
 
                         {/* Sezione (solo preventivi variabili) */}
                         {quoteType === 'variabile' && (() => {
-                          const usedSections = (watchedProducts || [])
-                            .map((p: any) => p?.sezione?.trim())
-                            .filter((s: any): s is string => !!s);
-                          const uniqueSections = [...new Set(usedSections)];
+                          // Usa sectionSuggestions che include sezioni sia da prodotti custom che da catalogo
+                          const uniqueSections = sectionSuggestions;
                           return (
                             <FormField
                               control={form.control}
@@ -1925,6 +1932,7 @@ export default function QuoteBuilder({
                     orderKeys={productOrderKeys}
                     onOrderChange={setProductOrderKeys}
                     onSectionChange={quoteType === 'variabile' ? handleSectionChange : undefined}
+                    sectionSuggestions={quoteType === 'variabile' ? sectionSuggestions : undefined}
                   />
                 </div>
               </>
