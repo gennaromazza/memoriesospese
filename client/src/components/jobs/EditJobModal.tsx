@@ -556,7 +556,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                             <SelectValue placeholder={loadingJobTypes ? 'Caricamento...' : 'Seleziona tipo...'} />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" className="z-[11000]">
                           {jobTypes.map((type) => (
                             <SelectItem
                               key={type.id}
@@ -592,7 +592,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                             <SelectValue placeholder={loadingProvenances ? 'Caricamento...' : 'Seleziona...'} />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
+                        <SelectContent position="popper" className="z-[11000]">
                           {provenances.map((prov) => (
                             <SelectItem
                               key={prov.id}

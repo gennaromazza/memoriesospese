@@ -441,7 +441,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                           <SelectValue placeholder={loadingJobTypes ? 'Caricamento...' : 'Seleziona tipo...'} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="z-[11000]">
                         {jobTypes
                           .filter(jt => jt.attivo)
                           .sort((a, b) => a.ordine - b.ordine)
@@ -477,7 +477,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
                           <SelectValue placeholder={loadingProvenances ? 'Caricamento...' : 'Seleziona...'} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent position="popper" className="z-[11000]">
                         {provenances
                           .filter(p => p.attivo)
                           .sort((a, b) => a.ordine - b.ordine)
