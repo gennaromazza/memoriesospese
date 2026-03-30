@@ -2843,12 +2843,12 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     }
 
     const discountType = template.discountType;
-    const discountValue = template.discountValue;
+    const discountValue = template.discountValue !== undefined ? Number(template.discountValue) || 0 : 0;
     let totalBeforeDiscount = subtotale;
     let totalAfterDiscount = subtotale;
     let discountAmount = 0;
 
-    if (discountType && discountValue && discountValue > 0) {
+    if (discountType && discountValue > 0) {
       if (discountType === "percent") {
         discountAmount = Math.round(subtotale * (discountValue / 100) * 100) / 100;
       } else {

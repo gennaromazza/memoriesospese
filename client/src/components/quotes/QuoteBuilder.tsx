@@ -535,7 +535,7 @@ export default function QuoteBuilder({
     
     if (existingQuote.discountType) {
       form.setValue('discountType', existingQuote.discountType);
-      form.setValue('discountValue', existingQuote.discountValue || 0);
+      form.setValue('discountValue', existingQuote.discountValue !== undefined ? Number(existingQuote.discountValue) || 0 : 0);
     }
 
     if (existingQuote.theme) {
@@ -874,10 +874,12 @@ export default function QuoteBuilder({
     });
     setCatalogProductSections(templateCatalogSections);
 
-    // Carica anche lo sconto dal template
-    if ((template as any).discountType) {
-      form.setValue('discountType', (template as any).discountType);
-      form.setValue('discountValue', (template as any).discountValue || 0);
+    // Carica anche lo sconto dal template (coercizione a number per sicurezza)
+    const tmplDiscountType = (template as any).discountType;
+    const tmplDiscountValue = (template as any).discountValue;
+    if (tmplDiscountType) {
+      form.setValue('discountType', tmplDiscountType);
+      form.setValue('discountValue', tmplDiscountValue !== undefined ? Number(tmplDiscountValue) || 0 : 0);
     } else {
       form.setValue('discountType', undefined);
       form.setValue('discountValue', undefined);
