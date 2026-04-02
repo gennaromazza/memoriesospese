@@ -22,6 +22,7 @@ export interface Cliente {
   cellulare1?: string; // Telefono principale
   cellulare2?: string; // Telefono secondario (opzionale)
   whatsapp?: string; // Numero WhatsApp (può coincidere con cellulare1)
+  instagram?: string; // Handle Instagram (senza @)
   
   // Indirizzo
   via?: string;
@@ -77,6 +78,7 @@ export interface InsertCliente {
   cellulare1?: string;
   cellulare2?: string;
   whatsapp?: string;
+  instagram?: string;
   
   // Indirizzo opzionale
   via?: string;
@@ -103,6 +105,7 @@ export interface UpdateCliente {
   cellulare1?: string;
   cellulare2?: string;
   whatsapp?: string;
+  instagram?: string;
   
   via?: string;
   citta?: string;

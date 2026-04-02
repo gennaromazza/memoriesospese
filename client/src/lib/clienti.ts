@@ -70,6 +70,7 @@ export async function createCliente(data: InsertCliente): Promise<string> {
     cellulare1: data.cellulare1,
     cellulare2: data.cellulare2,
     whatsapp: data.whatsapp,
+    instagram: data.instagram,
     via: data.via,
     citta: data.citta,
     cap: data.cap,
