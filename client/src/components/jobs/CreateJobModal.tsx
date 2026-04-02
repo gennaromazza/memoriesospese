@@ -166,6 +166,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
 
   // Auto-check calendar conflicts quando data/orari cambiano
   useEffect(() => {
+    if (!open) return;
     if (!eventDate) return;
     
     // Se non è tutto il giorno, aspetta che siano impostati gli orari
@@ -202,8 +203,8 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
           setDetectedConflicts([]);
         }
       } catch (error) {
-        console.error('[Conflict Check] Error:', error);
-        // Silent fail - non bloccare il form
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[Conflict Check] Error:', msg);
       } finally {
         setCheckingConflicts(false);
       }
@@ -212,7 +213,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
     // Debounce check per evitare troppi requests
     const timer = setTimeout(checkConflicts, 500);
     return () => clearTimeout(timer);
-  }, [eventDate, allDay, startTime, endTime]);
+  }, [open, eventDate, allDay, startTime, endTime]);
 
   // Pre-popola data e cliente iniziali quando il modal si apre
   useEffect(() => {

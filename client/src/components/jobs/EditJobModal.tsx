@@ -251,6 +251,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
   }, [eventDate]);
 
   useEffect(() => {
+    if (!open) return;
     if (!eventDate || dataNonDefinita) {
       setDetectedConflicts([]);
       return;
@@ -286,7 +287,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
           setDetectedConflicts([]);
         }
       } catch (error) {
-        console.error('[Conflict Check] Error:', error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[Conflict Check] Error:', msg);
       } finally {
         setCheckingConflicts(false);
       }
@@ -294,7 +296,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
 
     const timer = setTimeout(checkConflicts, 500);
     return () => clearTimeout(timer);
-  }, [eventDate, allDay, startTime, endTime, dataNonDefinita, job.id]);
+  }, [open, eventDate, allDay, startTime, endTime, dataNonDefinita, job.id]);
 
   // Multi-client handlers
   const handleAddCliente = (cliente: Cliente | null) => {

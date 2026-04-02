@@ -31,6 +31,10 @@ export class ErrorBoundary extends Component<Props, State> {
     };
   }
 
+  componentDidMount() {
+    sessionStorage.removeItem('eb_force_reload');
+  }
+
   static getDerivedStateFromError(error: Error): State {
     return {
       hasError: true,
@@ -57,9 +61,38 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // Callback personalizzata se fornita
     this.props.onError?.(error, errorInfo);
+
+    // Se è un errore interno di React (dispatcher null — tipico di HMR stale module),
+    // forziamo un reload completo della pagina per recuperare moduli freschi.
+    // Il flag in sessionStorage evita loop infiniti.
+    const isReactDispatcherError = error instanceof TypeError && (
+      error.message.includes('useContext') ||
+      error.message.includes('dispatcher') ||
+      error.message.includes('.current is null') ||
+      error.message.includes('Failed to fetch dynamically imported module') ||
+      error.message.includes('Importing a module script failed')
+    );
+    if (isReactDispatcherError && !sessionStorage.getItem('eb_force_reload')) {
+      sessionStorage.setItem('eb_force_reload', '1');
+      window.location.reload();
+    }
   }
 
   private handleReload = () => {
+    const error = this.state.error;
+    const isModuleError = error && error instanceof TypeError && (
+      error.message.includes('useContext') ||
+      error.message.includes('dispatcher') ||
+      error.message.includes('.current is null') ||
+      error.message.includes('Failed to fetch dynamically imported module') ||
+      error.message.includes('Importing a module script failed')
+    );
+    if (isModuleError) {
+      sessionStorage.removeItem('eb_force_reload');
+      window.location.reload();
+      return;
+    }
+    sessionStorage.removeItem('eb_force_reload');
     this.setState({
       hasError: false,
       error: null,
