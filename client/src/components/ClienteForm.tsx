@@ -85,7 +85,7 @@ export default function ClienteForm({
       cellulare1: data.cellulare1 ? formatPhoneForWhatsApp(data.cellulare1) || data.cellulare1 : undefined,
       cellulare2: data.cellulare2 ? formatPhoneForWhatsApp(data.cellulare2) || data.cellulare2 : undefined,
       whatsapp: data.whatsapp ? formatPhoneForWhatsApp(data.whatsapp) || data.whatsapp : undefined,
-      instagram: data.instagram ? data.instagram.trim().replace(/^@+/, '') : undefined,
+      instagram: data.instagram?.trim().replace(/^@+/, '').trim() || undefined,
     };
     onSubmit(formattedData);
   };
