@@ -20,7 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Save, X, Instagram } from 'lucide-react';
+import { Save, X, Instagram, ExternalLink, Info } from 'lucide-react';
+import { useWatch } from 'react-hook-form';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
 const clienteSchema = z.object({
@@ -76,6 +82,9 @@ export default function ClienteForm({
       status: cliente?.lifecycle?.status || 'lead',
     },
   });
+
+  const instagramRaw = useWatch({ control: form.control, name: 'instagram' });
+  const instagramHandle = instagramRaw?.trim().replace(/^@+/, '').trim() || '';
 
   const handleSubmit = (data: ClienteFormData) => {
     // Formatta automaticamente i numeri di telefono per WhatsApp
@@ -231,6 +240,27 @@ export default function ClienteForm({
                 </div>
               </FormControl>
               <FormMessage />
+              {instagramHandle && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <a
+                    href={`https://www.instagram.com/${instagramHandle}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-pink-500 hover:text-pink-600 underline underline-offset-2"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    instagram.com/{instagramHandle}
+                  </a>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[220px] text-xs">
+                      Clicca il link per verificare il profilo. Se l'handle è sbagliato, Instagram mostrerà "Utente non trovato".
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
             </FormItem>
           )}
         />
