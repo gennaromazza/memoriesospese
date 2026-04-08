@@ -131,6 +131,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Stati per Photo Selection Workflow (Task 2)
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
+  const [selectionMode, setSelectionMode] = useState<'like' | 'dislike'>('like'); // Modalità selezione inversa
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(50);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [selectionDeadlineEnforced, setSelectionDeadlineEnforced] = useState(true);
@@ -423,6 +424,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // 🔥 FIX Task 8: NON usare default 50, lascia 0 se undefined (evita sovrascrittura dati)
       setRequiredPhotoCount(storedCount);
       setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
+      setSelectionMode((gallery as any).selectionMode === 'dislike' ? 'dislike' : 'like');
       setSelectionStatus((gallery as any).selectionStatus || 'pending');
       setSelectedPhotoIds((gallery as any).selectedPhotoIds || []);
       
@@ -1283,6 +1285,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           : null,
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
+        selectionMode: selectionEnabled ? selectionMode : 'like',
         // ✅ Reset reminder se la scadenza cambia (così il nuovo reminder può essere inviato)
         ...(() => {
           const origDeadline = (gallery as any)?.selectionDeadline;
@@ -1596,7 +1599,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
   // Controlla se un file è già stato caricato
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -2397,6 +2400,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       </Label>
                       <p className="text-xs text-gray-600 mt-1">
                         Il cliente può selezionare quante foto desidera senza limiti. Al termine, cliccherà "Ho finito" per confermare.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Modalità selezione inversa (Non mi piace) */}
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="selectionModeDislike"
+                      checked={selectionMode === 'dislike'}
+                      onChange={(e) => setSelectionMode(e.target.checked ? 'dislike' : 'like')}
+                      className="mt-1 h-4 w-4 text-orange-600 focus:ring-orange-500 border-orange-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="selectionModeDislike" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
+                        Modalità selezione inversa
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          Non mi piace
+                        </span>
+                      </Label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Il cliente segna le foto da <strong>escludere</strong> — la selezione finale conterrà tutte le altre. Ideale quando quasi tutte le foto sono buone.
                       </p>
                     </div>
                   </div>
