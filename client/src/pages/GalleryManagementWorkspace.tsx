@@ -7,7 +7,7 @@ import { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRoute, useLocation } from 'wouter';
 import { useDropzone } from 'react-dropzone';
-import { GalleryService, type Gallery } from '@/lib/galleries';
+import { GalleryService, type Gallery, type SelectionSnapshot } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -67,6 +67,86 @@ const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any;
   );
 });
 PhotoCard.displayName = 'PhotoCard';
+
+// SnapshotsSection - Revisioni precedenti collapsibile
+function SnapshotsSection({
+  snapshots,
+  onRestore,
+}: {
+  snapshots: SelectionSnapshot[];
+  onRestore: (snapshot: SelectionSnapshot) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  const sortedSnapshots = [...snapshots].reverse();
+
+  const formatDate = (createdAt: any) => {
+    if (!createdAt) return '—';
+    if (typeof createdAt === 'string') {
+      return new Date(createdAt).toLocaleString('it-IT');
+    }
+    if (createdAt?.toDate) {
+      return createdAt.toDate().toLocaleString('it-IT');
+    }
+    if (createdAt?.seconds) {
+      return new Date(createdAt.seconds * 1000).toLocaleString('it-IT');
+    }
+    return '—';
+  };
+
+  return (
+    <div className="border-2 border-gray-200 rounded-lg overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        onClick={() => setOpen(prev => !prev)}
+      >
+        <span className="font-semibold text-blue-gray flex items-center gap-2">
+          🕐 Revisioni Precedenti
+          <span className="text-sm font-normal text-gray-500">({snapshots.length})</span>
+        </span>
+        <span className="text-gray-500 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-100">
+          {sortedSnapshots.map((snap) => (
+            <div key={snap.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800">{snap.label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{formatDate(snap.createdAt)}</p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {snap.photoAssignments
+                    ? `${Object.keys(snap.photoAssignments).length} foto assegnate`
+                    : `${snap.selectedPhotoIds?.length || 0} foto selezionate`}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={restoringId === snap.id}
+                onClick={async () => {
+                  setRestoringId(snap.id);
+                  try {
+                    await onRestore(snap);
+                  } finally {
+                    setRestoringId(null);
+                  }
+                }}
+              >
+                {restoringId === snap.id ? (
+                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Ripristino...</>
+                ) : (
+                  'Ripristina'
+                )}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface GalleryManagementWorkspaceProps {
   galleryIdProp?: string;
@@ -1348,6 +1428,36 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* 📸 Revisioni Precedenti (Snapshots) */}
+                {gallery.selectionSnapshots && gallery.selectionSnapshots.length > 0 && (
+                  <SnapshotsSection
+                    snapshots={gallery.selectionSnapshots}
+                    onRestore={async (snapshot) => {
+                      try {
+                        await GalleryService.updateGallery(galleryId!, {
+                          selectedPhotoIds: snapshot.selectedPhotoIds,
+                          photoAssignments: snapshot.photoAssignments || {},
+                          selectionNotes: snapshot.selectionNotes || '',
+                          selectionStatus: 'completed',
+                        } as any);
+                        queryClient.removeQueries({ queryKey: ['gallery', galleryId] });
+                        await queryClient.refetchQueries({ queryKey: ['gallery', galleryId] });
+                        toast({
+                          title: '✅ Selezione ripristinata',
+                          description: `La selezione "${snapshot.label}" è stata ripristinata come corrente.`,
+                        });
+                      } catch (err) {
+                        console.error('Errore ripristino snapshot:', err);
+                        toast({
+                          title: 'Errore',
+                          description: 'Impossibile ripristinare la selezione.',
+                          variant: 'destructive',
+                        });
+                      }
+                    }}
+                  />
                 )}
               </CardContent>
 

@@ -92,6 +92,20 @@ export interface Gallery {
   chaptersEnabled?: boolean;
   chapters?: Chapter[];
   chaptersOrder?: string[]; // Array ordinato di chapter IDs
+
+  // Selection Snapshots - Cronologia selezioni confermate
+  selectionSnapshots?: SelectionSnapshot[];
+}
+
+// Selection Snapshot Interface - Snapshot di una selezione confermata
+export interface SelectionSnapshot {
+  id: string;              // Date.now().toString()
+  createdAt: any;          // Firestore Timestamp
+  label: string;           // "Revisione N" (auto-incrementato)
+  photoAssignments?: Record<string, string[]>;
+  selectedPhotoIds: string[];
+  selectionNotes?: string;
+  createdBy: 'client' | 'admin';
 }
 
 // Chapter Interface - Capitolo galleria

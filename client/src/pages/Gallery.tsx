@@ -1110,6 +1110,24 @@ export default function Gallery() {
           )
         : null;
 
+      // 📸 Snapshot: se la selezione era già completata, salva uno snapshot prima di sovrascrivere
+      const existingSnapshots = galleryData.selectionSnapshots || [];
+      if (galleryData.selectionStatus === 'completed') {
+        const snapshotIndex = existingSnapshots.length + 1;
+        const snapshot = {
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          label: `Revisione ${snapshotIndex}`,
+          photoAssignments: galleryData.photoAssignments || null,
+          selectedPhotoIds: galleryData.selectedPhotoIds || [],
+          selectionNotes: galleryData.selectionNotes || '',
+          createdBy: 'client' as const,
+        };
+        await GalleryService.updateGallery(galleryData.id, {
+          selectionSnapshots: [...existingSnapshots, snapshot],
+        } as any);
+      }
+
       const updateData: any = {
         selectedPhotoIds, // Legacy fallback
         selectionStatus: "completed",
@@ -1217,6 +1235,24 @@ export default function Gallery() {
 
       if (!galleryData?.id) {
         throw new Error("Gallery ID non disponibile");
+      }
+
+      // 📸 Snapshot: se la selezione era già completata, salva uno snapshot prima di sovrascrivere
+      const existingSnapshots = galleryData.selectionSnapshots || [];
+      if (galleryData.selectionStatus === 'completed') {
+        const snapshotIndex = existingSnapshots.length + 1;
+        const snapshot = {
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          label: `Revisione ${snapshotIndex}`,
+          photoAssignments: galleryData.photoAssignments || null,
+          selectedPhotoIds: galleryData.selectedPhotoIds || [],
+          selectionNotes: galleryData.selectionNotes || '',
+          createdBy: 'client' as const,
+        };
+        await GalleryService.updateGallery(galleryData.id, {
+          selectionSnapshots: [...existingSnapshots, snapshot],
+        } as any);
       }
 
       const updateData: any = {
