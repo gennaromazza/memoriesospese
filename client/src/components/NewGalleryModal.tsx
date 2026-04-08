@@ -144,6 +144,7 @@ export default function NewGalleryModal({
   const [clienteIdInitialized, setClienteIdInitialized] = useState<string | null>(null); // Track which booking initialized clienteId
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
+  const [selectionMode, setSelectionMode] = useState<'like' | 'dislike'>('like'); // Modalità selezione
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(0);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [product, setProduct] = useState<Product | null>(null);
@@ -193,6 +194,7 @@ export default function NewGalleryModal({
     
     setIsCustomProduct(false);
     setUnlimitedSelection(false);
+    setSelectionMode('like');
     setRequiredPhotoCount(0);
     setProduct(null);
     console.log("🔄 Reset completo stato per nuovo booking");
@@ -465,6 +467,9 @@ export default function NewGalleryModal({
 
       // Add photo selection fields if selection is enabled
       if (selectionEnabled) {
+        if (selectionMode === 'dislike') {
+          galleryData.selectionMode = 'dislike';
+        }
         // 🆕 Selezione Libera (senza limite) - ha priorità su tutto
         if (unlimitedSelection) {
           galleryData.unlimitedSelection = true;
@@ -1246,6 +1251,28 @@ export default function NewGalleryModal({
                       </Label>
                       <p className="text-xs text-gray-600 mt-1">
                         Il cliente può selezionare quante foto desidera, senza un numero fisso. Perfetto per gallerie di consultazione o selezioni flessibili.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Modalità selezione inversa (Non mi piace) */}
+                  <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="selectionModeDislike"
+                      checked={selectionMode === 'dislike'}
+                      onChange={(e) => setSelectionMode(e.target.checked ? 'dislike' : 'like')}
+                      className="mt-1 h-4 w-4 text-orange-600 focus:ring-orange-500 border-orange-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="selectionModeDislike" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
+                        Modalità selezione inversa
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                          Non mi piace
+                        </span>
+                      </Label>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Il cliente segna le foto da <strong>escludere</strong> — la selezione finale conterrà tutte le altre. Ideale quando quasi tutte le foto sono buone.
                       </p>
                     </div>
                   </div>
