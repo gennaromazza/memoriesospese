@@ -1496,10 +1496,29 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
                       try {
                         // Reset diretto via Firestore per massima affidabilità
-                        const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+                        const { doc, updateDoc, serverTimestamp, arrayUnion } = await import('firebase/firestore');
                         const { db } = await import('@/lib/firebase');
                         
                         const galleryRef = doc(db, 'galleries', galleryId!);
+
+                        // 📸 Salva snapshot della selezione corrente PRIMA di resettare
+                        if (gallery.selectionStatus === 'completed' && gallery.selectedPhotoIds && gallery.selectedPhotoIds.length > 0) {
+                          const existingSnapshots = (gallery as any).selectionSnapshots || [];
+                          const snapshotIndex = existingSnapshots.length + 1;
+                          const snapshot = {
+                            id: Date.now().toString(),
+                            createdAt: new Date().toISOString(),
+                            label: `Revisione ${snapshotIndex}`,
+                            photoAssignments: gallery.photoAssignments || null,
+                            selectedPhotoIds: gallery.selectedPhotoIds,
+                            selectionNotes: gallery.selectionNotes || '',
+                            createdBy: 'admin' as const,
+                          };
+                          await updateDoc(galleryRef, {
+                            selectionSnapshots: arrayUnion(snapshot),
+                          });
+                        }
+
                         await updateDoc(galleryRef, {
                           selectedPhotoIds: [],
                           photoAssignments: {},
