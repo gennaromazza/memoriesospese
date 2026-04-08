@@ -510,6 +510,30 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     },
   });
 
+  // Mutation per aggiornare selectionMode (like/dislike)
+  const updateSelectionModeMutation = useMutation({
+    mutationFn: async (newMode: 'like' | 'dislike') => {
+      if (!galleryId) throw new Error('Missing galleryId');
+      await GalleryService.updateGallery(galleryId, { selectionMode: newMode });
+    },
+    onSuccess: (_, newMode) => {
+      toast({
+        title: newMode === 'dislike' ? '🔄 Modalità "Non mi piace" attivata' : '✅ Modalità normale attivata',
+        description: newMode === 'dislike'
+          ? 'Il cliente segnerà le foto da ESCLUDERE. Le rimanenti verranno salvate.'
+          : 'Il cliente selezionerà le foto che preferisce.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+    },
+    onError: (error) => {
+      toast({
+        title: '❌ Errore',
+        description: error instanceof Error ? error.message : 'Errore sconosciuto',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Mutation per inviare notifica email galleria pronta
   const notifyClientMutation = useMutation({
     mutationFn: async () => {
@@ -1544,6 +1568,51 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                       </>
                     )}
                   </div>
+
+                  {/* Modalità Selezione Inversa (Non mi piace) */}
+                  {gallery.selectionEnabled && gallery.selectionStatus !== 'completed' && (
+                    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-orange-800 mb-2 flex items-center gap-2">
+                        <span className="text-xl">🔄</span>
+                        Modalità selezione inversa (Non mi piace)
+                      </h4>
+                      <p className="text-sm text-gray-700 mb-3">
+                        Quando quasi tutte le foto sono belle, è più veloce per il cliente escludere le poche che non vanno bene, invece di selezionare tutte le buone.
+                        In questa modalità il cliente segna le foto da <strong>ESCLUDERE</strong> — tutte le altre verranno salvate automaticamente.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => {
+                            const newMode = gallery.selectionMode === 'dislike' ? 'like' : 'dislike';
+                            updateSelectionModeMutation.mutate(newMode);
+                          }}
+                          disabled={updateSelectionModeMutation.isPending}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 ${
+                            gallery.selectionMode === 'dislike' ? 'bg-orange-500' : 'bg-gray-300'
+                          }`}
+                          data-testid="toggle-selection-mode"
+                          role="switch"
+                          aria-checked={gallery.selectionMode === 'dislike'}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              gallery.selectionMode === 'dislike' ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm font-medium text-gray-700">
+                          {gallery.selectionMode === 'dislike' ? (
+                            <span className="text-orange-700">✗ Modalità "Non mi piace" attiva</span>
+                          ) : (
+                            <span className="text-gray-500">Modalità normale (seleziona le preferite)</span>
+                          )}
+                        </span>
+                        {updateSelectionModeMutation.isPending && (
+                          <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Admin Unlock Selection (Task 20) */}
                   {gallery.selectionEnabled && isDeadlinePassed && gallery.selectionDeadlineEnforced && (

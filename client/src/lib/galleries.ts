@@ -57,6 +57,7 @@ export interface Gallery {
   
   // Photo Selection Mode
   selectionEnabled?: boolean;
+  selectionMode?: 'like' | 'dislike'; // 'like' = seleziona le buone (default), 'dislike' = segna le da escludere
   unlimitedSelection?: boolean; // Selezione libera senza limite foto
   requiredPhotoCount?: number;
   selectionStatus?: 'pending' | 'completed';
@@ -624,6 +625,7 @@ export class GalleryService {
         specialTheme: galleryData.specialTheme,
         hasSpecialPin: !!galleryData.specialPin, // SICURO: solo boolean, mai esporre il PIN
         selectionEnabled: galleryData.selectionEnabled || false,
+        selectionMode: galleryData.selectionMode || 'like',
         unlimitedSelection: galleryData.unlimitedSelection === true,
         requiredPhotoCount: galleryData.requiredPhotoCount,
         selectionStatus: galleryData.selectionStatus || 'pending',

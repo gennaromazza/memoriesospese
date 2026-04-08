@@ -84,7 +84,9 @@ const PhotoCard = memo(({
   isSelected = false,
   isSelectionMode = false,
   assignedProducts = [],
-  isUnlimitedCompleted = false
+  isUnlimitedCompleted = false,
+  isDisliked = false,
+  isDislikeMode = false,
 }: { 
   photo: Photo, 
   index: number, 
@@ -92,7 +94,9 @@ const PhotoCard = memo(({
   isSelected?: boolean,
   isSelectionMode?: boolean,
   assignedProducts?: string[],
-  isUnlimitedCompleted?: boolean
+  isUnlimitedCompleted?: boolean,
+  isDisliked?: boolean,
+  isDislikeMode?: boolean,
 }) => {
   const handleClick = useCallback(() => onClick(index), [onClick, index]);
   
@@ -105,7 +109,9 @@ const PhotoCard = memo(({
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
           showBorder 
             ? 'ring-4 ring-sage ring-offset-2 shadow-xl' 
-            : ''
+            : isDisliked
+              ? 'ring-4 ring-red-500 ring-offset-2'
+              : ''
         }`}
         onClick={handleClick}
       >
@@ -113,7 +119,7 @@ const PhotoCard = memo(({
           src={photo.url}
           alt={photo.name || `Foto ${index + 1}`}
           className={`w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200 ${
-            showBorder ? 'brightness-105' : ''
+            showBorder ? 'brightness-105' : isDisliked ? 'opacity-60' : ''
           }`}
           loading="lazy"
           decoding="async"
@@ -128,8 +134,23 @@ const PhotoCard = memo(({
           }}
         />
         
-        {/* Badge SELEZIONATA - visibile quando foto è selezionata in modalità selezione attiva */}
-        {isSelected && isSelectionMode && (
+        {/* Overlay rosso per foto escluse in modalità dislike */}
+        {isDisliked && isDislikeMode && (
+          <>
+            <div className="absolute inset-0 bg-red-500/30 z-10" />
+            <div className="absolute top-2 right-2 z-20">
+              <span className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                ESCLUSA
+              </span>
+            </div>
+          </>
+        )}
+        
+        {/* Badge SELEZIONATA - visibile quando foto è selezionata in modalità selezione attiva (non dislike) */}
+        {isSelected && isSelectionMode && !isDislikeMode && (
           <div className="absolute top-2 right-2 z-10">
             <span className="bg-sage text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -178,6 +199,8 @@ const PhotoCard = memo(({
          prevProps.isSelected === nextProps.isSelected &&
          prevProps.isSelectionMode === nextProps.isSelectionMode &&
          prevProps.isUnlimitedCompleted === nextProps.isUnlimitedCompleted &&
+         prevProps.isDisliked === nextProps.isDisliked &&
+         prevProps.isDislikeMode === nextProps.isDislikeMode &&
          JSON.stringify(prevProps.assignedProducts) === JSON.stringify(nextProps.assignedProducts);
 });
 
@@ -480,6 +503,12 @@ export default function Gallery() {
 
   // Check se gallery è in selection mode
   const isSelectionMode = galleryData?.selectionEnabled || false;
+
+  // Modalità "Non mi piace" (dislike mode)
+  const isDislikeMode = isSelectionMode && galleryData?.selectionMode === 'dislike';
+
+  // Stato per foto escluse in modalità dislike
+  const [dislikedPhotoIds, setDislikedPhotoIds] = useState<Set<string>>(new Set());
 
   // 🔥 REFACTORED: Separa correttamente le 3 modalità di selezione
   // ✅ DIFENSIVO: normalizza array vuoto [] come undefined (Firestore può restituire [])
@@ -945,6 +974,22 @@ export default function Gallery() {
         return;
       }
 
+      // Modalità "Non mi piace": toggle tra le foto escluse
+      if (isDislikeMode) {
+        setDislikedPhotoIds((prev) => {
+          const newSet = new Set(prev);
+          if (newSet.has(photoId)) {
+            newSet.delete(photoId);
+            console.log("✅ Foto ripristinata dal dislike:", photoId);
+          } else {
+            newSet.add(photoId);
+            console.log("✗ Foto marcata come esclusa:", photoId);
+          }
+          return newSet;
+        });
+        return;
+      }
+
       // Legacy single-product mode
       setSelectedPhotoIdsLegacy((prev: string[]) => {
         const isSelected = prev.includes(photoId);
@@ -978,7 +1023,7 @@ export default function Gallery() {
         }
       });
     },
-    [isDeadlinePassed, selectionStatus, requiredPhotoCount, isUnlimitedSelection, galleryData?.productRequirements, toast],
+    [isDeadlinePassed, selectionStatus, requiredPhotoCount, isUnlimitedSelection, isDislikeMode, galleryData?.productRequirements, toast],
   );
 
   // Reset all selections
@@ -991,6 +1036,7 @@ export default function Gallery() {
     // Reset tutti gli stati di selezione
     setSelectedPhotoIdsLegacy([]);
     setPhotoAssignments({});
+    setDislikedPhotoIds(new Set());
     setHasShownCompletionToast(false);
     setShowResetDialog(false);
     
@@ -1036,8 +1082,11 @@ export default function Gallery() {
       return;
     }
 
-    // Multi-Product Validation
-    if (isMultiProductMode && productRequirements) {
+    // In modalità dislike, non è necessaria nessuna validazione del numero di foto
+    // Il cliente può escludere 0 o più foto, non c'è un minimo
+
+    // Multi-Product Validation (solo se NON siamo in modalità dislike)
+    if (!isDislikeMode && isMultiProductMode && productRequirements) {
       // Calcola progresso per ogni prodotto
       const productProgress = productRequirements.map((prod, idx) => {
         const assignedCount = Object.values(photoAssignments).filter(
@@ -1079,8 +1128,8 @@ export default function Gallery() {
 
       console.log('✅ Validazione multi-prodotto superata - tutti i prodotti hanno le foto richieste');
     }
-    // Legacy Single-Product Validation
-    else if (requiredPhotoCount > 0) {
+    // Legacy Single-Product Validation (solo se NON siamo in modalità dislike)
+    else if (!isDislikeMode && requiredPhotoCount > 0) {
       // FIX BUG 4: Permettere >= invece di ==
       if (selectedPhotoIds.length < requiredPhotoCount) {
         toast({
@@ -1128,8 +1177,13 @@ export default function Gallery() {
         } as any);
       }
 
+      // In modalità dislike: la selezione positiva sono tutte le foto NON escluse
+      const finalSelectedPhotoIds = isDislikeMode
+        ? photos.map(p => p.id).filter(photoId => !dislikedPhotoIds.has(photoId))
+        : selectedPhotoIds;
+
       const updateData: any = {
-        selectedPhotoIds, // Legacy fallback
+        selectedPhotoIds: finalSelectedPhotoIds,
         selectionStatus: "completed",
         selectionNotes: selectionNotes.trim(), // 📝 Salva sempre note cliente (anche se vuote per permettere cancellazione)
       };
@@ -1172,7 +1226,7 @@ export default function Gallery() {
               galleryId: id,
               galleryName: galleryData?.name || "Galleria",
               clienteName: user.displayName || user.email || "Cliente",
-              photoCount: selectedPhotoIds.length,
+              photoCount: finalSelectedPhotoIds.length,
               workspaceUrl: `${window.location.origin}/admin/gallery/${id}/manage`,
               productAssignments // NEW: multi-product support
             }),
@@ -1184,9 +1238,11 @@ export default function Gallery() {
 
       toast({
         title: "✅ Selezione confermata!",
-        description: isMultiProductMode
-          ? "Le tue foto sono state assegnate ai prodotti. Riceverai presto il tuo album!"
-          : `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
+        description: isDislikeMode
+          ? `Hai escluso ${dislikedPhotoIds.size} foto. Salviamo le ${finalSelectedPhotoIds.length} restanti. Riceverai presto il tuo album!`
+          : isMultiProductMode
+            ? "Le tue foto sono state assegnate ai prodotti. Riceverai presto il tuo album!"
+            : `Le tue ${requiredPhotoCount} foto sono state confermate. Riceverai presto il tuo album!`,
       });
 
       // Refresh gallery data
@@ -1215,6 +1271,9 @@ export default function Gallery() {
     galleryData,
     toast,
     refreshGallery,
+    isDislikeMode,
+    dislikedPhotoIds,
+    photos,
   ]);
 
   // 📝 Conferma selezione con note (per Selezione Libera)
@@ -2499,11 +2558,19 @@ export default function Gallery() {
                             </AlertDialogContent>
                           </AlertDialog>
 
-                          <h3 className={`text-2xl font-playfair mb-3 ${isUnlimitedSelection ? 'text-terracotta' : 'text-blue-gray'}`}>
-                            {isUnlimitedSelection ? '🧡 Selezione Libera 🧡' : '✨ Modalità Selezione Foto ✨'}
+                          <h3 className={`text-2xl font-playfair mb-3 ${isDislikeMode ? 'text-red-700' : isUnlimitedSelection ? 'text-terracotta' : 'text-blue-gray'}`}>
+                            {isDislikeMode ? '✗ Modalità "Non mi piace" ✗' : isUnlimitedSelection ? '🧡 Selezione Libera 🧡' : '✨ Modalità Selezione Foto ✨'}
                           </h3>
                           <p className="text-lg text-gray-700 mb-4">
-                            {isUnlimitedSelection ? (
+                            {isDislikeMode ? (
+                              <>
+                                Segna le foto che{" "}
+                                <strong className="text-red-600">
+                                  NON vuoi includere
+                                </strong>{" "}
+                                — salveremo automaticamente tutte le altre!
+                              </>
+                            ) : isUnlimitedSelection ? (
                               <>
                                 Seleziona liberamente{" "}
                                 <strong className="text-terracotta">
@@ -2522,8 +2589,33 @@ export default function Gallery() {
                             )}
                           </p>
 
-                          {/* Istruzioni chiare - diverse per unlimited, single-product, multi-product */}
-                          {isUnlimitedSelection ? (
+                          {/* Istruzioni chiare - diverse per dislike, unlimited, single-product, multi-product */}
+                          {isDislikeMode ? (
+                            // Modalità "Non mi piace": istruzioni dedicate
+                            <div className="bg-red-50 rounded-lg p-4 mb-4 border border-red-200">
+                              <p className="font-semibold text-red-700 mb-2">
+                                ✗ Come escludere le foto:
+                              </p>
+                              <ol className="text-left text-sm text-gray-700 space-y-1.5 list-decimal list-inside">
+                                <li>
+                                  <strong>Scorri le foto</strong> della galleria
+                                </li>
+                                <li>
+                                  <strong>Clicca sulla foto</strong> che NON vuoi tenere
+                                </li>
+                                <li>
+                                  Vedrai un <strong className="text-red-600">overlay rosso ✗</strong> — la foto è esclusa
+                                </li>
+                                <li>
+                                  <strong>Clicca di nuovo</strong> per includere di nuovo la foto
+                                </li>
+                                <li>
+                                  Quando hai finito, clicca{" "}
+                                  <strong>"Conferma esclusioni"</strong> in fondo alla pagina
+                                </li>
+                              </ol>
+                            </div>
+                          ) : isUnlimitedSelection ? (
                             // Selezione libera: istruzioni dedicate
                             <div className="bg-terracotta/10 rounded-lg p-4 mb-4 border border-terracotta/30">
                               <p className="font-semibold text-terracotta mb-2">
@@ -2660,8 +2752,21 @@ export default function Gallery() {
                             </div>
                           )}
 
-                          {/* 🎨 UX Enhancement #4: Progress Bar - Nascosta per selezione libera */}
-                          {isUnlimitedSelection ? (
+                          {/* 🎨 UX Enhancement #4: Progress Bar / Counter */}
+                          {isDislikeMode ? (
+                            // Modalità dislike: mostra contatore foto escluse
+                            <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                              <div className="flex items-center justify-center gap-3">
+                                <span className="text-red-500 text-2xl">✗</span>
+                                <div className="text-center">
+                                  <p className="text-sm text-red-600 font-medium">Foto escluse</p>
+                                  <p className="text-3xl font-bold text-red-600">{dislikedPhotoIds.size} / {photos.length}</p>
+                                  <p className="text-xs text-gray-500 mt-1">Verranno salvate {photos.length - dislikedPhotoIds.size} foto</p>
+                                </div>
+                                <span className="text-red-500 text-2xl">✗</span>
+                              </div>
+                            </div>
+                          ) : isUnlimitedSelection ? (
                             // Selezione libera: mostra solo contatore senza progress bar
                             <div className="mb-4 p-4 bg-terracotta/10 border-2 border-terracotta/30 rounded-xl">
                               <div className="flex items-center justify-center gap-3">
@@ -3701,6 +3806,8 @@ export default function Gallery() {
                                           isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                           assignedProducts={photoAssignments[photo.id] || []}
                                           isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
+                                          isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
+                                          isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
                                           onClick={() => openLightbox(globalIndex)}
                                         />
                                         {!isSelectionMode && (
@@ -3734,6 +3841,8 @@ export default function Gallery() {
                                 isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                 assignedProducts={photoAssignments[photo.id] || []}
                                 isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
+                                isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
+                                isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
                                 onClick={() => openLightbox(index)}
                               />
                               {!isSelectionMode && (
@@ -3858,9 +3967,23 @@ export default function Gallery() {
                                 </div>
                               </div>
                             ) : (
-                              /* Vista Single-Product (Legacy) o Selezione Libera */
+                              /* Vista Single-Product (Legacy), Selezione Libera, o Dislike */
                               <div className="mb-4">
-                                {isUnlimitedSelection ? (
+                                {isDislikeMode ? (
+                                  <>
+                                    <div className="text-3xl font-bold text-red-600 mb-2">
+                                      {dislikedPhotoIds.size} foto escluse
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                      {dislikedPhotoIds.size > 0
+                                        ? `Verranno salvate ${photos.length - dislikedPhotoIds.size} foto su ${photos.length}.`
+                                        : "Clicca sulle foto che NON vuoi includere. Le altre verranno salvate."}
+                                    </p>
+                                    <p className="text-xs text-red-500 mt-1">
+                                      Modalità "Non mi piace" attiva
+                                    </p>
+                                  </>
+                                ) : isUnlimitedSelection ? (
                                   <>
                                     <div className="text-3xl font-bold text-terracotta mb-2">
                                       {selectedPhotoIds.length} foto
@@ -3923,24 +4046,26 @@ export default function Gallery() {
                                     disabled={
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
-                                      (isMultiProductMode && productRequirements
-                                        ? // Multi-product: check all products with limits have required photos
-                                          !productRequirements.every((prod, idx) => {
-                                            const assignedCount = Object.values(photoAssignments).filter(
-                                              assignments => assignments.includes(String(idx))
-                                            ).length;
-                                            const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
-                                            // FIX: Prodotti illimitati (<=0) sono sempre OK
-                                            return requiredCount <= 0 || assignedCount >= requiredCount;
-                                          })
-                                        : // Single-product o unlimited: per unlimited serve almeno 1 foto
-                                          isUnlimitedSelection 
-                                            ? selectedPhotoIds.length === 0
-                                            // FIX BUG 4: Coerente con validazione - serve almeno N foto, non esattamente N
-                                            : selectedPhotoIds.length < requiredPhotoCount
+                                      (isDislikeMode
+                                        ? false // In dislike mode, always enabled (0 disliked = keep all)
+                                        : isMultiProductMode && productRequirements
+                                          ? // Multi-product: check all products with limits have required photos
+                                            !productRequirements.every((prod, idx) => {
+                                              const assignedCount = Object.values(photoAssignments).filter(
+                                                assignments => assignments.includes(String(idx))
+                                              ).length;
+                                              const requiredCount = Number(prod.prodottoNumeroFoto) || 0;
+                                              // FIX: Prodotti illimitati (<=0) sono sempre OK
+                                              return requiredCount <= 0 || assignedCount >= requiredCount;
+                                            })
+                                          : // Single-product o unlimited: per unlimited serve almeno 1 foto
+                                            isUnlimitedSelection 
+                                              ? selectedPhotoIds.length === 0
+                                              // FIX BUG 4: Coerente con validazione - serve almeno N foto, non esattamente N
+                                              : selectedPhotoIds.length < requiredPhotoCount
                                       )
                                     }
-                                    className={`${isUnlimitedSelection ? 'bg-terracotta hover:bg-terracotta/90' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    className={`${isDislikeMode ? 'bg-red-600 hover:bg-red-700' : isUnlimitedSelection ? 'bg-terracotta hover:bg-terracotta/90' : 'bg-sage hover:bg-sage/90'} text-white px-8 py-6 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed`}
                                     data-testid="button-confirm-selection"
                                   >
                                     {isSubmittingSelection ? (
@@ -3948,6 +4073,8 @@ export default function Gallery() {
                                         <span className="animate-spin mr-2">⏳</span>
                                         Conferma in corso...
                                       </>
+                                    ) : isDislikeMode ? (
+                                      <>Conferma esclusioni</>
                                     ) : isUnlimitedSelection ? (
                                       <>Ho finito</>
                                     ) : (
@@ -4189,9 +4316,9 @@ export default function Gallery() {
         initialIndex={currentPhotoIndex}
         selectionInfo={isSelectionMode && !isMultiProductMode && selectionStatus !== "completed" ? {
           isSelectionMode: true,
-          selectedPhotoIds,
+          selectedPhotoIds: isDislikeMode ? Array.from(dislikedPhotoIds) : selectedPhotoIds,
           requiredPhotoCount,
-          unlimitedSelection: isUnlimitedSelection,
+          unlimitedSelection: isDislikeMode ? true : isUnlimitedSelection, // dislike mode acts like unlimited (no count limit)
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
           onCompleteSelection: isUnlimitedSelection ? handleOpenConfirmModal : undefined,
