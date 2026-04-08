@@ -4042,7 +4042,7 @@ export default function Gallery() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    onClick={isUnlimitedSelection ? handleOpenConfirmModal : handleConfirmSelection}
+                                    onClick={isDislikeMode ? handleConfirmSelection : isUnlimitedSelection ? handleOpenConfirmModal : handleConfirmSelection}
                                     disabled={
                                       isSubmittingSelection ||
                                       isDeadlinePassed ||
@@ -4318,10 +4318,11 @@ export default function Gallery() {
           isSelectionMode: true,
           selectedPhotoIds: isDislikeMode ? Array.from(dislikedPhotoIds) : selectedPhotoIds,
           requiredPhotoCount,
-          unlimitedSelection: isDislikeMode ? true : isUnlimitedSelection, // dislike mode acts like unlimited (no count limit)
+          unlimitedSelection: isDislikeMode ? false : isUnlimitedSelection,
+          isDislikeMode,
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
-          onCompleteSelection: isUnlimitedSelection ? handleOpenConfirmModal : undefined,
+          onCompleteSelection: !isDislikeMode && isUnlimitedSelection ? handleOpenConfirmModal : undefined,
         } : undefined}
         multiProductInfo={isSelectionMode && isMultiProductMode && selectionStatus !== "completed" && productRequirements ? {
           isMultiProductMode: true,

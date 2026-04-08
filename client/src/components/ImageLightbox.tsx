@@ -9,6 +9,7 @@ interface SelectionInfo {
   selectedPhotoIds: string[];
   requiredPhotoCount: number;
   unlimitedSelection?: boolean; // Selezione libera senza limite
+  isDislikeMode?: boolean; // Modalità "non mi piace": selectedPhotoIds contiene le foto ESCLUSE
   onToggleSelection: (photoId: string) => void;
   selectionStatus?: string;
   onCompleteSelection?: () => void; // Callback per "Ho finito" in selezione libera
@@ -273,13 +274,47 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
         {selectionInfo?.isSelectionMode && selectionInfo.selectionStatus !== 'completed' && currentPhoto && (
           <div className="mb-3">
             {(() => {
-              const isSelected = selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
+              const isDislike = selectionInfo.isDislikeMode === true;
+              // In dislike mode: selectedPhotoIds = escluse; "isSelected" = è esclusa
+              const isExcluded = isDislike && selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
+              const isSelected = !isDislike && selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
               const currentCount = selectionInfo.selectedPhotoIds.length;
               const requiredCount = selectionInfo.requiredPhotoCount;
               const isUnlimited = selectionInfo.unlimitedSelection === true;
               const canAddMore = isUnlimited || currentCount < requiredCount;
-              const canToggle = isSelected || canAddMore;
+              const canToggle = isDislike ? true : (isSelected || canAddMore);
               
+              if (isDislike) {
+                return (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-white text-sm font-medium bg-black/40 px-3 py-1 rounded-full">
+                      {currentCount > 0 ? `${currentCount} foto escluse` : 'Nessuna foto esclusa'}
+                    </div>
+                    <button
+                      onClick={() => selectionInfo.onToggleSelection(currentPhoto.id)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
+                        isExcluded
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-red-600 text-white hover:bg-red-700'
+                      }`}
+                      data-testid="lightbox-selection-button"
+                    >
+                      {isExcluded ? (
+                        <>
+                          <Check size={20} />
+                          Includi questa foto
+                        </>
+                      ) : (
+                        <>
+                          <X size={20} />
+                          Escludi questa foto
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              }
+
               return (
                 <div className="flex flex-col items-center gap-2">
                   {/* Contatore selezione */}
