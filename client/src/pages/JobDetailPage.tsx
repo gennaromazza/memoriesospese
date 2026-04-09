@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -1317,26 +1317,34 @@ export default function JobDetailPage() {
               )}
             </div>
 
-            {/* Moduli Informativi */}
-            <div ref={moduliSectionRef} className="scroll-mt-4">
-              <Card className="shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="pt-6">
-                  <InfoFormJobSection
-                    jobId={job.id}
-                    jobName={job.nomeEvento}
-                    clienti={clienti.map(c => ({
-                      id: c.id,
-                      nome: c.nome,
-                      cognome: c.cognome,
-                      email: c.email,
-                      whatsapp: c.whatsapp,
-                      cellulare1: c.cellulare1,
-                    }))}
-                  />
-                </CardContent>
-              </Card>
-            </div>
           </div>
+
+        {/* Moduli Informativi - Full Width */}
+        <div ref={moduliSectionRef} className="scroll-mt-4 mt-6">
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="bg-gradient-to-r from-[#6b7f6b]/5 to-transparent">
+              <CardTitle className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-[#6b7f6b]" />
+                Moduli Informativi
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <InfoFormJobSection
+                jobId={job.id}
+                jobName={job.nomeEvento}
+                hideTitle
+                clienti={clienti.map(c => ({
+                  id: c.id,
+                  nome: c.nome,
+                  cognome: c.cognome,
+                  email: c.email,
+                  whatsapp: c.whatsapp,
+                  cellulare1: c.cellulare1,
+                }))}
+              />
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Quote Builder Modal */}
         {(job.clientiIds?.length || 0) > 0 && quoteBuilderOpen && jobType && (

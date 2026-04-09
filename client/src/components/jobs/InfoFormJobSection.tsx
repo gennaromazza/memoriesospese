@@ -41,6 +41,7 @@ import { it } from 'date-fns/locale';
 interface InfoFormJobSectionProps {
   jobId: string;
   jobName?: string;
+  hideTitle?: boolean;
   clienti: Array<{
     id?: string;
     nome?: string;
@@ -430,7 +431,7 @@ function SendFormDialog({
   );
 }
 
-export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoFormJobSectionProps) {
+export default function InfoFormJobSection({ jobId, jobName, hideTitle, clienti }: InfoFormJobSectionProps) {
   const { toast } = useToast();
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -459,30 +460,47 @@ export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoForm
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header — il titolo è opzionale (hideTitle=true quando il parent usa CardHeader) */}
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-[#6b7f6b]/10 rounded-md">
-              <ClipboardList className="h-4 w-4 text-[#6b7f6b]" />
+        {!hideTitle ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-[#6b7f6b]/10 rounded-md">
+                <ClipboardList className="h-4 w-4 text-[#6b7f6b]" />
+              </div>
+              <span className="font-semibold text-sm text-gray-800">Moduli Informativi</span>
             </div>
-            <span className="font-semibold text-sm text-gray-800">Moduli Informativi</span>
+            {submissions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pl-0.5">
+                {completed > 0 && (
+                  <Badge className="bg-green-100 text-green-700 border-green-200 text-xs font-normal">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />{completed} compilat{completed === 1 ? 'o' : 'i'}
+                  </Badge>
+                )}
+                {pending > 0 && (
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-normal">
+                    <Clock className="h-3 w-3 mr-1" />{pending} in attesa
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
-          {submissions.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap pl-0.5">
-              {completed > 0 && (
-                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs font-normal">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />{completed} compilat{completed === 1 ? 'o' : 'i'}
-                </Badge>
-              )}
-              {pending > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-normal">
-                  <Clock className="h-3 w-3 mr-1" />{pending} in attesa
-                </Badge>
-              )}
-            </div>
-          )}
-        </div>
+        ) : (
+          /* Quando il titolo è gestito dal parent, mostra solo i badge */
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {completed > 0 && (
+              <Badge className="bg-green-100 text-green-700 border-green-200 text-xs font-normal">
+                <CheckCircle2 className="h-3 w-3 mr-1" />{completed} compilat{completed === 1 ? 'o' : 'i'}
+              </Badge>
+            )}
+            {pending > 0 && (
+              <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-normal">
+                <Clock className="h-3 w-3 mr-1" />{pending} in attesa
+              </Badge>
+            )}
+            {submissions.length === 0 && <span className="text-xs text-gray-400">Nessun modulo inviato</span>}
+          </div>
+        )}
         <Button
           size="sm"
           onClick={() => setSendDialogOpen(true)}
@@ -511,15 +529,17 @@ export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoForm
                 Usa i moduli per raccogliere informazioni logistiche dal cliente (location, orari, preferenze).
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setSendDialogOpen(true)}
-              className="border-[#6b7f6b]/40 text-[#6b7f6b] hover:bg-[#6b7f6b]/10 mt-1"
-            >
-              <Send className="h-3.5 w-3.5 mr-1.5" />
-              Invia il primo modulo
-            </Button>
+            {!hideTitle && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSendDialogOpen(true)}
+                className="border-[#6b7f6b]/40 text-[#6b7f6b] hover:bg-[#6b7f6b]/10 mt-1"
+              >
+                <Send className="h-3.5 w-3.5 mr-1.5" />
+                Invia il primo modulo
+              </Button>
+            )}
           </div>
         </div>
       )}

@@ -5,12 +5,12 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { google } from "googleapis";
-import { db } from './firebase-admin.js';
-import { DateTime } from 'luxon';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
-import { nowRomeDate } from './utils/timezone.js';
+import { db } from "./firebase-admin.js";
+import { DateTime } from "luxon";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { formatPhoneForWhatsApp } from "../shared/phone-utils.js";
+import { nowRomeDate } from "./utils/timezone.js";
 
 const router = Router();
 
@@ -21,7 +21,7 @@ interface EmailLogEntry {
   to: string | string[];
   subject: string;
   type: string;
-  status: 'sent' | 'failed';
+  status: "sent" | "failed";
   sentAt: FirebaseFirestore.FieldValue;
   senderEmail?: string;
   relatedDocId?: string;
@@ -33,7 +33,9 @@ interface EmailLogEntry {
 /**
  * Helper: Salva log email in Firestore
  */
-async function logEmailSent(entry: Omit<EmailLogEntry, 'sentAt'>): Promise<string | null> {
+async function logEmailSent(
+  entry: Omit<EmailLogEntry, "sentAt">,
+): Promise<string | null> {
   try {
     // Filtra campi undefined (Firestore non li accetta)
     const cleanEntry: Record<string, any> = {
@@ -47,12 +49,14 @@ async function logEmailSent(entry: Omit<EmailLogEntry, 'sentAt'>): Promise<strin
     if (entry.relatedDocType) cleanEntry.relatedDocType = entry.relatedDocType;
     if (entry.clientName) cleanEntry.clientName = entry.clientName;
     if (entry.errorMessage) cleanEntry.errorMessage = entry.errorMessage;
-    
-    const logRef = await db.collection('emailLogs').add(cleanEntry);
-    console.log(`📝 Email log saved: ${logRef.id} - ${entry.type} to ${Array.isArray(entry.to) ? entry.to.join(', ') : entry.to}`);
+
+    const logRef = await db.collection("emailLogs").add(cleanEntry);
+    console.log(
+      `📝 Email log saved: ${logRef.id} - ${entry.type} to ${Array.isArray(entry.to) ? entry.to.join(", ") : entry.to}`,
+    );
     return logRef.id;
   } catch (error) {
-    console.error('❌ Failed to save email log:', error);
+    console.error("❌ Failed to save email log:", error);
     return null;
   }
 }
@@ -67,20 +71,23 @@ const FIREBASE_PROJECT_ID = "wedding-gallery-397b6";
 export function getSiteBaseUrl(req?: Request): string {
   // 1. Usa variabile d'ambiente se impostata
   if (process.env.SITE_URL) {
-    return process.env.SITE_URL.replace(/\/$/, ''); // Rimuove trailing slash
+    return process.env.SITE_URL.replace(/\/$/, ""); // Rimuove trailing slash
   }
-  
+
   // 2. Se abbiamo la request, usa gli header
   if (req) {
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const host = req.get('x-forwarded-host') || req.get('host');
+    const protocol =
+      req.protocol === "https" || req.get("x-forwarded-proto") === "https"
+        ? "https"
+        : "http";
+    const host = req.get("x-forwarded-host") || req.get("host");
     if (host) {
       return `${protocol}://${host}`;
     }
   }
-  
+
   // 3. Fallback: URL di produzione (dominio ufficiale)
-  return 'https://imagestudiofotografico.replit.app';
+  return "https://imagestudiofotografico.replit.app";
 }
 
 /**
@@ -93,13 +100,13 @@ export function createCollaboratorAssignmentEmailHTML(
   jobDescription: string,
   dueDate: string,
   jobLink: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -140,7 +147,7 @@ export function createCollaboratorAssignmentEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -152,11 +159,11 @@ export function createCollaboratorAssignmentEmailHTML(
  * Template precompilati disponibili
  */
 const TEMPLATES = {
-  CONSULTATION_CONFIRMATION: 'consultation_confirmation',
-  CONSULTATION_CANCELLATION: 'consultation_cancellation',
-  RECEIPT: 'receipt',
-  BOOKING_CONFIRMATION: 'booking_confirmation',
-  COLLABORATOR_ASSIGNMENT: 'collaborator_assignment' // Aggiunto per notifica assegnazione collaboratore
+  CONSULTATION_CONFIRMATION: "consultation_confirmation",
+  CONSULTATION_CANCELLATION: "consultation_cancellation",
+  RECEIPT: "receipt",
+  BOOKING_CONFIRMATION: "booking_confirmation",
+  COLLABORATOR_ASSIGNMENT: "collaborator_assignment", // Aggiunto per notifica assegnazione collaboratore
 };
 
 /**
@@ -188,11 +195,14 @@ export async function getStudioContactInfo(): Promise<{
     if (studioDoc?.fields) {
       return {
         name: studioDoc.fields.name?.stringValue || "Image Studio Fotografico",
-        email: studioDoc.fields.email?.stringValue || "image.studio.fotografico@gmail.com",
+        email:
+          studioDoc.fields.email?.stringValue ||
+          "image.studio.fotografico@gmail.com",
         phone: studioDoc.fields.phone?.stringValue || "+39 334 7103142",
         address: studioDoc.fields.address?.stringValue || "",
         whatsapp: studioDoc.fields.whatsapp?.stringValue || "+39 327 4656179",
-        googleReviewUrl: studioDoc.fields.googleReviewUrl?.stringValue || undefined,
+        googleReviewUrl:
+          studioDoc.fields.googleReviewUrl?.stringValue || undefined,
       };
     }
   } catch (error) {
@@ -212,7 +222,7 @@ export async function getStudioContactInfo(): Promise<{
 /**
  * Genera link "Aggiungi al Calendario" per Google Calendar
  * ESPORTATA per uso in booking-routes.ts, consultation-routes.ts, calendar-routes.ts
- * 
+ *
  * @param params.title - Titolo evento (obbligatorio)
  * @param params.description - Descrizione evento (opzionale, max 200 chars)
  * @param params.location - Luogo evento (opzionale)
@@ -230,25 +240,32 @@ export function generateGoogleCalendarLink(params: {
   isAllDay?: boolean;
 }): string {
   try {
-    const { title, description, location, startDate, endDate, isAllDay = false } = params;
+    const {
+      title,
+      description,
+      location,
+      startDate,
+      endDate,
+      isAllDay = false,
+    } = params;
 
     // Validazione title obbligatorio
-    if (!title || title.trim() === '') {
-      console.warn('⚠️ generateGoogleCalendarLink: title mancante');
-      return '';
+    if (!title || title.trim() === "") {
+      console.warn("⚠️ generateGoogleCalendarLink: title mancante");
+      return "";
     }
 
     // Converti date in Date objects se necessario
     let start: Date;
     let end: Date;
 
-    if (typeof startDate === 'string') {
+    if (typeof startDate === "string") {
       start = new Date(startDate);
     } else {
       start = startDate;
     }
 
-    if (typeof endDate === 'string') {
+    if (typeof endDate === "string") {
       end = new Date(endDate);
     } else {
       end = endDate;
@@ -256,8 +273,11 @@ export function generateGoogleCalendarLink(params: {
 
     // Validazione date valide
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      console.warn('⚠️ generateGoogleCalendarLink: date non valide', { startDate, endDate });
-      return '';
+      console.warn("⚠️ generateGoogleCalendarLink: date non valide", {
+        startDate,
+        endDate,
+      });
+      return "";
     }
 
     // Formatta date secondo formato Google Calendar
@@ -267,8 +287,8 @@ export function generateGoogleCalendarLink(params: {
       // All-day: YYYYMMDD/YYYYMMDD (end date exclusive)
       // CRITICAL: Use Luxon for correct Europe/Rome timezone extraction (server runs in UTC)
       const formatYYYYMMDD = (date: Date): string => {
-        const romeDate = DateTime.fromJSDate(date, { zone: 'Europe/Rome' });
-        return romeDate.toFormat('yyyyMMdd');
+        const romeDate = DateTime.fromJSDate(date, { zone: "Europe/Rome" });
+        return romeDate.toFormat("yyyyMMdd");
       };
 
       const startFormatted = formatYYYYMMDD(start);
@@ -283,7 +303,7 @@ export function generateGoogleCalendarLink(params: {
       if (startDay === endDay) {
         // Single-day event: end deve essere start+1 (esclusivo)
         // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
-        const endDT = DateTime.fromJSDate(end, { zone: 'Europe/Rome' });
+        const endDT = DateTime.fromJSDate(end, { zone: "Europe/Rome" });
         const endPlusOne = endDT.plus({ days: 1 }).toJSDate();
         endFormatted = formatYYYYMMDD(endPlusOne);
       } else {
@@ -296,11 +316,11 @@ export function generateGoogleCalendarLink(params: {
       // Timed event: YYYYMMDDTHHmmssZ (UTC format)
       const formatUTC = (date: Date): string => {
         const year = date.getUTCFullYear();
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const hours = String(date.getUTCHours()).padStart(2, '0');
-        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-        const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+        const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+        const day = String(date.getUTCDate()).padStart(2, "0");
+        const hours = String(date.getUTCHours()).padStart(2, "0");
+        const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+        const seconds = String(date.getUTCSeconds()).padStart(2, "0");
         return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
       };
 
@@ -308,43 +328,45 @@ export function generateGoogleCalendarLink(params: {
     }
 
     // Costruisci URL Google Calendar
-    const baseUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+    const baseUrl =
+      "https://calendar.google.com/calendar/render?action=TEMPLATE";
 
     // URL-encode parametri
     const params_url = new URLSearchParams();
-    params_url.append('text', title);
-    params_url.append('dates', datesParam);
+    params_url.append("text", title);
+    params_url.append("dates", datesParam);
 
     // Aggiungi description (tronca a 200 chars, rimuovi HTML se presente)
-    if (description && description.trim() !== '') {
+    if (description && description.trim() !== "") {
       const cleanDescription = description
-        .replace(/<[^>]*>/g, '') // Rimuovi tag HTML
+        .replace(/<[^>]*>/g, "") // Rimuovi tag HTML
         .trim()
         .substring(0, 200); // Max 200 chars
 
       if (cleanDescription) {
-        params_url.append('details', cleanDescription);
+        params_url.append("details", cleanDescription);
       }
     }
 
     // Aggiungi location se presente
-    if (location && location.trim() !== '') {
-      params_url.append('location', location.trim());
+    if (location && location.trim() !== "") {
+      params_url.append("location", location.trim());
     }
 
     // Aggiungi timezone per eventi con orario (migliora UX per utenti italiani)
     if (!isAllDay) {
-      params_url.append('ctz', 'Europe/Rome');
+      params_url.append("ctz", "Europe/Rome");
     }
 
     const finalUrl = `${baseUrl}&${params_url.toString()}`;
 
-    console.log(`📅 Generato Google Calendar link: ${title} (${isAllDay ? 'all-day' : 'timed'})`);
+    console.log(
+      `📅 Generato Google Calendar link: ${title} (${isAllDay ? "all-day" : "timed"})`,
+    );
     return finalUrl;
-
   } catch (error) {
-    console.error('❌ Errore generateGoogleCalendarLink:', error);
-    return ''; // Graceful degradation: ritorna stringa vuota
+    console.error("❌ Errore generateGoogleCalendarLink:", error);
+    return ""; // Graceful degradation: ritorna stringa vuota
   }
 }
 
@@ -406,7 +428,11 @@ async function getAccessToken(): Promise<string> {
     hostname,
     hasReplIdentity,
     hasWebRenewal,
-    mode: hasReplIdentity ? 'DEVELOPMENT' : hasWebRenewal ? 'PRODUCTION' : 'UNKNOWN'
+    mode: hasReplIdentity
+      ? "DEVELOPMENT"
+      : hasWebRenewal
+        ? "PRODUCTION"
+        : "UNKNOWN",
   });
 
   const xReplitToken = process.env.REPL_IDENTITY
@@ -416,18 +442,19 @@ async function getAccessToken(): Promise<string> {
       : null;
 
   if (!xReplitToken) {
-    console.error('❌ Gmail - No token available:', { hasReplIdentity, hasWebRenewal });
+    console.error("❌ Gmail - No token available:", {
+      hasReplIdentity,
+      hasWebRenewal,
+    });
     throw new Error("Missing REPL_IDENTITY or WEB_REPL_RENEWAL");
   }
 
-  console.log(
-    "📞 Fetching Gmail connection from Replit Connectors API",
-  );
+  console.log("📞 Fetching Gmail connection from Replit Connectors API");
 
   // 3. Fetch connection settings da Replit Connectors API
   try {
     const connectorUrl = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-mail`;
-    console.log('📞 Fetching Gmail connection from:', connectorUrl);
+    console.log("📞 Fetching Gmail connection from:", connectorUrl);
 
     const response = await fetch(connectorUrl, {
       headers: {
@@ -437,25 +464,27 @@ async function getAccessToken(): Promise<string> {
     });
 
     if (!response.ok) {
-      console.error('❌ Gmail connector fetch failed:', {
+      console.error("❌ Gmail connector fetch failed:", {
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
       });
-      throw new Error(`Gmail connector API returned ${response.status}: ${response.statusText}`);
+      throw new Error(
+        `Gmail connector API returned ${response.status}: ${response.statusText}`,
+      );
     }
 
     const data: any = await response.json();
     const connection = data.items?.[0];
 
-    console.log('📦 Gmail connection response:', {
+    console.log("📦 Gmail connection response:", {
       hasItems: !!data.items,
       itemsLength: data.items?.length || 0,
       hasSettings: !!connection?.settings,
-      hasAccessToken: !!connection?.settings?.access_token
+      hasAccessToken: !!connection?.settings?.access_token,
     });
 
     if (!connection || !connection.settings) {
-      console.error('❌ Gmail not connected or missing settings');
+      console.error("❌ Gmail not connected or missing settings");
       throw new Error("Gmail not connected in Replit Integration");
     }
 
@@ -465,7 +494,7 @@ async function getAccessToken(): Promise<string> {
       connection?.settings?.oauth?.credentials?.access_token;
 
     if (!accessToken) {
-      console.error('❌ Gmail access token not found in connection settings');
+      console.error("❌ Gmail access token not found in connection settings");
       throw new Error("Gmail access token not found");
     }
 
@@ -490,7 +519,7 @@ async function getAccessToken(): Promise<string> {
 /**
  * Invia email tramite Gmail API CON LOGGING AUTOMATICO
  * ESPORTATA per uso diretto da altri moduli (booking-routes.ts)
- * 
+ *
  * Il tipo di email viene determinato automaticamente dal subject se non specificato.
  * Tutte le email inviate vengono salvate nella collezione emailLogs di Firestore.
  */
@@ -505,14 +534,14 @@ export async function sendGmailEmail(
     relatedDocType?: string;
     clientName?: string;
     skipLog?: boolean;
-  }
+  },
 ): Promise<void> {
   const toList = Array.isArray(to) ? to : [to];
   const recipients = toList.join(", ");
-  
+
   // Determina automaticamente il tipo di email dal subject se non specificato
   const emailType = logOptions?.type || detectEmailType(subject);
-  
+
   try {
     console.log(
       `📧 Sending email to ${toList.length} recipient(s): ${recipients}`,
@@ -555,14 +584,14 @@ export async function sendGmailEmail(
     console.log(
       `✅ Email sent successfully via Gmail API to ${toList.length} recipient(s)`,
     );
-    
+
     // 6. Log automatico (a meno che non sia esplicitamente disabilitato)
     if (!logOptions?.skipLog) {
       await logEmailSent({
         to,
         subject,
         type: emailType,
-        status: 'sent',
+        status: "sent",
         relatedDocId: logOptions?.relatedDocId,
         relatedDocType: logOptions?.relatedDocType,
         clientName: logOptions?.clientName,
@@ -570,21 +599,21 @@ export async function sendGmailEmail(
     }
   } catch (error: any) {
     console.error("❌ Gmail send error:", error);
-    
+
     // Log anche le email fallite
     if (!logOptions?.skipLog) {
       await logEmailSent({
         to,
         subject,
         type: emailType,
-        status: 'failed',
-        errorMessage: error.message || 'Unknown error',
+        status: "failed",
+        errorMessage: error.message || "Unknown error",
         relatedDocId: logOptions?.relatedDocId,
         relatedDocType: logOptions?.relatedDocType,
         clientName: logOptions?.clientName,
       });
     }
-    
+
     throw error;
   }
 }
@@ -594,24 +623,39 @@ export async function sendGmailEmail(
  */
 function detectEmailType(subject: string): string {
   const subjectLower = subject.toLowerCase();
-  
-  if (subjectLower.includes('promemoria') && subjectLower.includes('shooting')) return 'booking_reminder';
-  if (subjectLower.includes('promemoria') && subjectLower.includes('consulenza')) return 'consultation_reminder';
-  if (subjectLower.includes('conferma') && subjectLower.includes('prenotazione')) return 'booking_confirmation';
-  if (subjectLower.includes('conferma') && subjectLower.includes('consulenza')) return 'consultation_confirmation';
-  if (subjectLower.includes('preventivo')) return 'quote';
-  if (subjectLower.includes('ordine')) return 'order';
-  if (subjectLower.includes('pagamento')) return 'payment';
-  if (subjectLower.includes('galleria')) return 'gallery';
-  if (subjectLower.includes('selezione')) return 'selection';
-  if (subjectLower.includes('questionario')) return 'questionnaire';
-  if (subjectLower.includes('collaboratore') || subjectLower.includes('collaboratori')) return 'collaborator';
-  if (subjectLower.includes('annullat') || subjectLower.includes('cancellat')) return 'cancellation';
-  if (subjectLower.includes('rifiutat')) return 'rejection';
-  if (subjectLower.includes('ricevuta')) return 'receipt';
-  if (subjectLower.includes('contratto')) return 'contract';
-  
-  return 'general';
+
+  if (subjectLower.includes("promemoria") && subjectLower.includes("shooting"))
+    return "booking_reminder";
+  if (
+    subjectLower.includes("promemoria") &&
+    subjectLower.includes("consulenza")
+  )
+    return "consultation_reminder";
+  if (
+    subjectLower.includes("conferma") &&
+    subjectLower.includes("prenotazione")
+  )
+    return "booking_confirmation";
+  if (subjectLower.includes("conferma") && subjectLower.includes("consulenza"))
+    return "consultation_confirmation";
+  if (subjectLower.includes("preventivo")) return "quote";
+  if (subjectLower.includes("ordine")) return "order";
+  if (subjectLower.includes("pagamento")) return "payment";
+  if (subjectLower.includes("galleria")) return "gallery";
+  if (subjectLower.includes("selezione")) return "selection";
+  if (subjectLower.includes("questionario")) return "questionnaire";
+  if (
+    subjectLower.includes("collaboratore") ||
+    subjectLower.includes("collaboratori")
+  )
+    return "collaborator";
+  if (subjectLower.includes("annullat") || subjectLower.includes("cancellat"))
+    return "cancellation";
+  if (subjectLower.includes("rifiutat")) return "rejection";
+  if (subjectLower.includes("ricevuta")) return "receipt";
+  if (subjectLower.includes("contratto")) return "contract";
+
+  return "general";
 }
 
 /**
@@ -727,13 +771,13 @@ function createNewPhotosEmailHTML(
   uploaderName: string,
   newPhotosCount: number,
   galleryUrl: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -755,7 +799,7 @@ function createNewPhotosEmailHTML(
       </div>
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
         <p style="font-size: 10px; margin-top: 10px; opacity: 0.7;">
@@ -776,13 +820,13 @@ function createGalleryPasswordEmailHTML(
   galleryCode: string,
   password: string,
   galleryUrl: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -812,7 +856,7 @@ function createGalleryPasswordEmailHTML(
       </div>
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -970,7 +1014,7 @@ router.post(
         uploaderName || "Admin",
         newPhotosCount || 1,
         galleryUrl,
-        studioInfo
+        studioInfo,
       );
 
       const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? "e" : ""} foto in "${galleryName}"`;
@@ -982,24 +1026,28 @@ router.post(
       } else {
         // OPZIONE 2: Usa queue per invio massivo (>5 destinatari)
         // Chiama Firebase Function per enqueue
-        const baseUrl = process.env.FIREBASE_FUNCTIONS_URL || 'https://us-central1-wedding-gallery-397b6.cloudfunctions.net';
+        const baseUrl =
+          process.env.FIREBASE_FUNCTIONS_URL ||
+          "https://us-central1-wedding-gallery-397b6.cloudfunctions.net";
 
         await fetch(`${baseUrl}/enqueueEmail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             to: recipients,
             subject,
             htmlContent,
-            priority: 'high',
+            priority: "high",
             metadata: {
               galleryId,
-              type: 'new_photos'
-            }
-          })
+              type: "new_photos",
+            },
+          }),
         });
 
-        console.log(`📬 ${recipients.length} email enqueued for async processing`);
+        console.log(
+          `📬 ${recipients.length} email enqueued for async processing`,
+        );
       }
 
       console.log(
@@ -1076,43 +1124,63 @@ router.post("/send-gallery-password", async (req, res) => {
     // 3. Se trova password legacy, la migra automaticamente a gallerySecrets
     let password: string | undefined;
 
-    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    const secretsDoc = await db
+      .collection("gallerySecrets")
+      .doc(galleryId)
+      .get();
 
     if (secretsDoc.exists && secretsDoc.data()?.password) {
       // Caso 1: Password trovata in gallerySecrets (nuova architettura)
       password = secretsDoc.data()?.password;
-      console.log(`✅ Password recuperata da gallerySecrets per galleria ${galleryId}`);
+      console.log(
+        `✅ Password recuperata da gallerySecrets per galleria ${galleryId}`,
+      );
     } else {
       // Caso 2: Fallback a galleries.password (gallerie legacy)
-      console.log(`⚠️ gallerySecrets non trovato, tentativo fallback a galleries.password per ${galleryId}`);
+      console.log(
+        `⚠️ gallerySecrets non trovato, tentativo fallback a galleries.password per ${galleryId}`,
+      );
 
       const legacyPassword = galleryDoc.password;
 
       if (legacyPassword) {
         password = legacyPassword;
-        console.log(`✅ Password recuperata da galleries.password (legacy) per galleria ${galleryId}`);
+        console.log(
+          `✅ Password recuperata da galleries.password (legacy) per galleria ${galleryId}`,
+        );
 
         // Migrazione automatica a gallerySecrets
         try {
-          await db.collection('gallerySecrets').doc(galleryId).set({
-            password: legacyPassword,
-            migratedAt: new Date().toISOString(),
-            migratedFrom: 'galleries.password'
-          }, { merge: true });
-          console.log(`✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`);
+          await db.collection("gallerySecrets").doc(galleryId).set(
+            {
+              password: legacyPassword,
+              migratedAt: new Date().toISOString(),
+              migratedFrom: "galleries.password",
+            },
+            { merge: true },
+          );
+          console.log(
+            `✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`,
+          );
         } catch (migrationError) {
-          console.error(`⚠️ Errore migrazione automatica password per ${galleryId}:`, migrationError);
+          console.error(
+            `⚠️ Errore migrazione automatica password per ${galleryId}:`,
+            migrationError,
+          );
           // Non bloccare l'invio email se la migrazione fallisce
         }
       }
     }
 
     if (!password) {
-      console.error(`❌ Password non trovata né in gallerySecrets né in galleries.password per galleria ${galleryId}`);
+      console.error(
+        `❌ Password non trovata né in gallerySecrets né in galleries.password per galleria ${galleryId}`,
+      );
       return res.status(500).json({
-        error: { 
-          code: "internal", 
-          message: "Configurazione password non trovata. Contatta l'amministratore." 
+        error: {
+          code: "internal",
+          message:
+            "Configurazione password non trovata. Contatta l'amministratore.",
         },
       });
     }
@@ -1128,7 +1196,7 @@ router.post("/send-gallery-password", async (req, res) => {
       galleryCode,
       password,
       galleryUrl,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Password per la galleria "${galleryName}"`;
@@ -1174,42 +1242,60 @@ interface ProductWithBundle {
  * Mostra ogni prodotto con numero foto e, se bundle, elenca i prodotti inclusi
  */
 function formatProductsForEmail(products: ProductWithBundle[]): string {
-  if (!products || products.length === 0) return '';
-  
-  let html = '<div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">';
-  html += '<h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📦 Prodotti Selezionati</h3>';
-  
+  if (!products || products.length === 0) return "";
+
+  let html =
+    '<div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">';
+  html +=
+    '<h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📦 Prodotti Selezionati</h3>';
+
   for (const product of products) {
     const qty = product.quantita || 1;
-    const qtyStr = qty > 1 ? ` x${qty}` : '';
-    
+    const qtyStr = qty > 1 ? ` x${qty}` : "";
+
     // Calcola foto totali: per bundle somma bundleItems, altrimenti usa prodottoNumeroFoto
     let totalPhotos = 0;
-    if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
-      totalPhotos = product.bundleItems.reduce((sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1), 0);
+    if (
+      product.isBundle &&
+      product.bundleItems &&
+      product.bundleItems.length > 0
+    ) {
+      totalPhotos = product.bundleItems.reduce(
+        (sum, bi) => sum + (bi.numeroFoto || 0) * (bi.quantita || 1),
+        0,
+      );
     } else {
       totalPhotos = product.prodottoNumeroFoto || 0;
     }
-    
-    const photoStr = totalPhotos > 0 ? ` (${totalPhotos} foto)` : '';
-    const bundleIcon = product.isBundle ? ' 📦' : '';
-    
+
+    const photoStr = totalPhotos > 0 ? ` (${totalPhotos} foto)` : "";
+    const bundleIcon = product.isBundle ? " 📦" : "";
+
     html += `<p style="margin: 8px 0; font-weight: 500;">• ${product.prodottoNome}${qtyStr}${photoStr}${bundleIcon}</p>`;
-    
+
     // Se è un bundle, elenca i prodotti inclusi
-    if (product.isBundle && product.bundleItems && product.bundleItems.length > 0) {
-      html += '<div style="margin-left: 20px; padding: 10px; background: #f8f5f0; border-radius: 5px; margin-bottom: 10px;">';
-      html += '<p style="margin: 0 0 8px 0; font-size: 13px; color: #666; font-style: italic;">Prodotti inclusi nel bundle:</p>';
+    if (
+      product.isBundle &&
+      product.bundleItems &&
+      product.bundleItems.length > 0
+    ) {
+      html +=
+        '<div style="margin-left: 20px; padding: 10px; background: #f8f5f0; border-radius: 5px; margin-bottom: 10px;">';
+      html +=
+        '<p style="margin: 0 0 8px 0; font-size: 13px; color: #666; font-style: italic;">Prodotti inclusi nel bundle:</p>';
       for (const item of product.bundleItems) {
-        const itemQty = item.quantita > 1 ? ` x${item.quantita}` : '';
-        const itemPhotos = item.numeroFoto > 0 ? ` (${item.numeroFoto * item.quantita} foto)` : '';
+        const itemQty = item.quantita > 1 ? ` x${item.quantita}` : "";
+        const itemPhotos =
+          item.numeroFoto > 0
+            ? ` (${item.numeroFoto * item.quantita} foto)`
+            : "";
         html += `<p style="margin: 4px 0; font-size: 13px; color: #555;">  └ ${item.prodottoNome}${itemQty}${itemPhotos}</p>`;
       }
-      html += '</div>';
+      html += "</div>";
     }
   }
-  
-  html += '</div>';
+
+  html += "</div>";
   return html;
 }
 
@@ -1218,20 +1304,20 @@ function formatProductsForEmail(products: ProductWithBundle[]): string {
  * Usato quando si passa un singolo prodotto invece di un array
  */
 function formatSingleProductForEmail(
-  productName?: string, 
-  products?: ProductWithBundle[]
+  productName?: string,
+  products?: ProductWithBundle[],
 ): string {
   // Se abbiamo prodotti multipli, usa il formatter avanzato
   if (products && products.length > 0) {
     return formatProductsForEmail(products);
   }
-  
+
   // Fallback: prodotto singolo legacy
   if (productName) {
     return `<p style="margin: 8px 0;"><strong>📦 Pacchetto:</strong> ${productName}</p>`;
   }
-  
-  return '';
+
+  return "";
 }
 
 /**
@@ -1246,13 +1332,13 @@ export function createBookingReceivedEmailHTML(
   productName?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   calendarLink?: string,
-  products?: ProductWithBundle[]
+  products?: ProductWithBundle[],
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   // Usa la nuova funzione per formattare i prodotti (supporta bundle)
@@ -1292,7 +1378,9 @@ export function createBookingReceivedEmailHTML(
         </p>
       </div>
 
-      ${calendarLink ? `
+      ${
+        calendarLink
+          ? `
       <div style="text-align: center; margin: 30px 0;">
         <a href="${calendarLink}" 
            style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
@@ -1304,11 +1392,13 @@ export function createBookingReceivedEmailHTML(
           Compatibile con Google Calendar, Outlook, Apple Calendar
         </p>
       </div>
-      ` : ''}
+      `
+          : ""
+      }
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -1330,13 +1420,20 @@ router.post("/send-booking-received", async (req, res) => {
       dataShootingInizio,
       dataShootingFine,
       prodottoNome,
-      note
+      note,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+    if (
+      !recipientEmail ||
+      !clienteNome ||
+      !clienteCognome ||
+      !campaignNome ||
+      !dataShootingInizio ||
+      !dataShootingFine
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email prenotazione ricevuta"
+        error: "Parametri mancanti per invio email prenotazione ricevuta",
       });
     }
 
@@ -1352,7 +1449,7 @@ router.post("/send-booking-received", async (req, res) => {
       dataShootingFine,
       0, // duration non usata nel template attuale
       prodottoNome,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Prenotazione Ricevuta - ${campaignNome}`;
@@ -1360,18 +1457,18 @@ router.post("/send-booking-received", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`
+      `✅ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Booking received email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-booking-received:", error);
     res.status(500).json({
-      error: "Errore invio email prenotazione ricevuta"
+      error: "Errore invio email prenotazione ricevuta",
     });
   }
 });
@@ -1390,13 +1487,20 @@ router.post("/send-booking-confirmed", async (req, res) => {
       dataShootingInizio,
       dataShootingFine,
       prodottoNome,
-      note
+      note,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !dataShootingInizio || !dataShootingFine) {
+    if (
+      !recipientEmail ||
+      !clienteNome ||
+      !clienteCognome ||
+      !campaignNome ||
+      !dataShootingInizio ||
+      !dataShootingFine
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email prenotazione confermata"
+        error: "Parametri mancanti per invio email prenotazione confermata",
       });
     }
 
@@ -1413,7 +1517,7 @@ router.post("/send-booking-confirmed", async (req, res) => {
       0, // duration non usata nel template attuale
       prodottoNome,
       note,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Prenotazione Confermata - ${campaignNome}`;
@@ -1421,18 +1525,18 @@ router.post("/send-booking-confirmed", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome}`
+      `✅ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Booking confirmed email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-booking-confirmed:", error);
     res.status(500).json({
-      error: "Errore invio email prenotazione confermata"
+      error: "Errore invio email prenotazione confermata",
     });
   }
 });
@@ -1448,13 +1552,19 @@ router.post("/send-booking-cancelled", async (req, res) => {
       clienteNome,
       clienteCognome,
       campaignNome,
-      bookingDate
+      bookingDate,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteNome || !clienteCognome || !campaignNome || !bookingDate) {
+    if (
+      !recipientEmail ||
+      !clienteNome ||
+      !clienteCognome ||
+      !campaignNome ||
+      !bookingDate
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email prenotazione annullata"
+        error: "Parametri mancanti per invio email prenotazione annullata",
       });
     }
 
@@ -1467,7 +1577,7 @@ router.post("/send-booking-cancelled", async (req, res) => {
       clienteName,
       campaignNome,
       bookingDate,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Prenotazione Annullata - ${campaignNome}`;
@@ -1475,18 +1585,18 @@ router.post("/send-booking-cancelled", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Prenotazione Annullata" inviata a ${recipientEmail} per campagna ${campaignNome}`
+      `✅ Email "Prenotazione Annullata" inviata a ${recipientEmail} per campagna ${campaignNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Booking cancelled email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-booking-cancelled:", error);
     res.status(500).json({
-      error: "Errore invio email prenotazione annullata"
+      error: "Errore invio email prenotazione annullata",
     });
   }
 });
@@ -1504,13 +1614,13 @@ export function createBookingConfirmedEmailHTML(
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   calendarLink?: string,
-  products?: ProductWithBundle[]
+  products?: ProductWithBundle[],
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   // Usa la nuova funzione per formattare i prodotti (supporta bundle)
@@ -1533,7 +1643,7 @@ export function createBookingConfirmedEmailHTML(
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
           <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
           <p style="margin: 8px 0;"><strong>⏱️ Durata:</strong> ${duration} minuti</p>
-          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
+          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ""}
         </div>
 
         ${productsHtml}
@@ -1555,7 +1665,9 @@ export function createBookingConfirmedEmailHTML(
           </ul>
         </div>
 
-        ${calendarLink ? `
+        ${
+          calendarLink
+            ? `
         <div style="text-align: center; margin: 25px 0; padding: 20px; background: #f9f7f4; border-radius: 12px;">
           <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
             📅 Non dimenticare il tuo appuntamento!
@@ -1573,7 +1685,9 @@ export function createBookingConfirmedEmailHTML(
             Compatibile con Google Calendar, Outlook, Apple Calendar
           </p>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
           Non vediamo l'ora di immortalare i tuoi momenti speciali!
@@ -1582,7 +1696,7 @@ export function createBookingConfirmedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -1604,13 +1718,13 @@ export function createAdminNotificationEmailHTML(
   productName?: string,
   notes?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  products?: ProductWithBundle[]
+  products?: ProductWithBundle[],
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   // Usa la nuova funzione per formattare i prodotti (supporta bundle)
@@ -1638,7 +1752,7 @@ export function createAdminNotificationEmailHTML(
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Prenotazione</h3>
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${bookingDate}</p>
           <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${bookingTime}</p>
-          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ''}
+          ${notes ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${notes}</p>` : ""}
         </div>
 
         ${productsHtml}
@@ -1658,7 +1772,7 @@ export function createAdminNotificationEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -1674,13 +1788,13 @@ export function createBookingCompletedEmailHTML(
   clienteName: string,
   campaignName: string,
   bookingDate: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -1718,7 +1832,7 @@ export function createBookingCompletedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -1734,13 +1848,13 @@ export function createBookingCancelledEmailHTML(
   clienteName: string,
   campaignName: string,
   bookingDate: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -1774,7 +1888,7 @@ export function createBookingCancelledEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -1791,13 +1905,13 @@ export function createBookingRejectedEmailHTML(
   campaignName: string,
   bookingDate: string,
   bookingUrl: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -1846,7 +1960,7 @@ export function createBookingRejectedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
       </div>
@@ -1868,28 +1982,34 @@ export function createOrderAccontoRicevutoEmailHTML(
   note?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   totaleOrdine?: number,
-  transactions?: Array<{ tipo: 'acconto' | 'saldo'; importo: number; metodo: string; data: any; note?: string }>
+  transactions?: Array<{
+    tipo: "acconto" | "saldo";
+    importo: number;
+    metodo: string;
+    data: any;
+    note?: string;
+  }>,
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
   const formatMethod = (method: string) => {
     const methods: Record<string, string> = {
-      'contante': 'Contante',
-      'carta': 'Carta',
-      'bonifico': 'Bonifico',
-      'paypal': 'PayPal'
+      contante: "Contante",
+      carta: "Carta",
+      bonifico: "Bonifico",
+      paypal: "PayPal",
     };
     return methods[method.toLowerCase()] || method;
   };
@@ -1915,19 +2035,23 @@ export function createOrderAccontoRicevutoEmailHTML(
             <p style="margin: 0; font-size: 14px; color: #155724;">
               Metodo: ${formatMethod(metodo)}
             </p>
-            ${note ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${note}</p>` : ''}
+            ${note ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${note}</p>` : ""}
           </div>
         </div>
 
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
           <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Riepilogo Ordine</h4>
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
-            ${totaleOrdine ? `
+            ${
+              totaleOrdine
+                ? `
             <tr style="border-bottom: 1px solid #ddd;">
               <td style="padding: 8px 0; font-weight: bold;">Costo totale servizio:</td>
               <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #8b5a3c;">${formatCurrency(totaleOrdine)}</td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
             <tr style="border-bottom: 1px solid #ddd;">
               <td style="padding: 8px 0;">Acconto totale versato:</td>
               <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(accontoTotale)}</td>
@@ -1939,7 +2063,9 @@ export function createOrderAccontoRicevutoEmailHTML(
           </table>
         </div>
 
-        ${transactions && transactions.length > 0 ? `
+        ${
+          transactions && transactions.length > 0
+            ? `
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
           <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📋 Cronologia Pagamenti</h4>
           <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
@@ -1952,57 +2078,70 @@ export function createOrderAccontoRicevutoEmailHTML(
               </tr>
             </thead>
             <tbody>
-              ${transactions.map((t, index) => {
-                // Helper robusto per parsing date - gestisce Firestore Timestamp, ISO string, millisecondi
-                let date: Date;
-                if (!t.data) {
-                  date = nowRomeDate(); // Fallback
-                } else if (t.data.toDate && typeof t.data.toDate === 'function') {
-                  date = t.data.toDate(); // Firestore Timestamp
-                } else if (typeof t.data === 'string') {
-                  date = new Date(t.data); // ISO string
-                } else if (typeof t.data === 'number') {
-                  date = new Date(t.data); // Milliseconds
-                } else if (t.data instanceof Date) {
-                  date = t.data; // Already a Date
-                } else {
-                  date = nowRomeDate(); // Fallback sicuro
-                }
+              ${transactions
+                .map((t, index) => {
+                  // Helper robusto per parsing date - gestisce Firestore Timestamp, ISO string, millisecondi
+                  let date: Date;
+                  if (!t.data) {
+                    date = nowRomeDate(); // Fallback
+                  } else if (
+                    t.data.toDate &&
+                    typeof t.data.toDate === "function"
+                  ) {
+                    date = t.data.toDate(); // Firestore Timestamp
+                  } else if (typeof t.data === "string") {
+                    date = new Date(t.data); // ISO string
+                  } else if (typeof t.data === "number") {
+                    date = new Date(t.data); // Milliseconds
+                  } else if (t.data instanceof Date) {
+                    date = t.data; // Already a Date
+                  } else {
+                    date = nowRomeDate(); // Fallback sicuro
+                  }
 
-                const dateStr = date.toLocaleDateString('it-IT', { 
-                  day: '2-digit', 
-                  month: 'long', 
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
+                  const dateStr = date.toLocaleDateString("it-IT", {
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
 
-                return `
+                  return `
                   <tr style="border-bottom: 1px solid #e0e0e0;">
                     <td style="padding: 10px; font-size: 12px;">${dateStr}</td>
                     <td style="padding: 10px;">
-                      <span style="background: ${t.tipo === 'acconto' ? '#cfe2ff' : '#d1e7dd'}; color: ${t.tipo === 'acconto' ? '#084298' : '#0f5132'}; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">
-                        ${t.tipo === 'acconto' ? 'Acconto' : 'Saldo'}
+                      <span style="background: ${t.tipo === "acconto" ? "#cfe2ff" : "#d1e7dd"}; color: ${t.tipo === "acconto" ? "#084298" : "#0f5132"}; padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">
+                        ${t.tipo === "acconto" ? "Acconto" : "Saldo"}
                       </span>
                     </td>
                     <td style="padding: 10px; text-align: right; font-weight: bold; color: #28a745;">${formatCurrency(t.importo)}</td>
                     <td style="padding: 10px; font-size: 12px;">${formatMethod(t.metodo)}</td>
                   </tr>
-                  ${t.note ? `
+                  ${
+                    t.note
+                      ? `
                   <tr>
                     <td colspan="4" style="padding: 5px 10px; font-size: 11px; color: #666; font-style: italic; border-bottom: 1px solid #e0e0e0;">
                       Note: ${t.note}
                     </td>
                   </tr>
-                  ` : ''}
+                  `
+                      : ""
+                  }
                 `;
-              }).join('')}
+                })
+                .join("")}
             </tbody>
           </table>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${saldoRimanente > 0 ? `
+        ${
+          saldoRimanente > 0
+            ? `
         <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
           <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">📸 Prossimi Passi</h4>
           <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
@@ -2011,13 +2150,15 @@ export function createOrderAccontoRicevutoEmailHTML(
             <li>Ti informeremo quando l'ordine sarà pronto</li>
           </ul>
         </div>
-        ` : `
+        `
+            : `
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 16px; font-weight: bold; color: #0f5132;">
             🎉 Ordine completamente saldato! Procederemo con la lavorazione e ti contatteremo appena pronto.
           </p>
         </div>
-        `}
+        `
+        }
 
         <p style="font-size: 14px; color: #666; text-align: center; margin-top: 25px;">
           Grazie per aver scelto Image Studio Fotografico! ❤️
@@ -2026,7 +2167,7 @@ export function createOrderAccontoRicevutoEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -2041,42 +2182,44 @@ export function createOrderAccontoRicevutoEmailHTML(
 export function createOrderPaymentReceivedEmailHTML(
   clienteName: string,
   nomeEvento: string,
-  paymentType: 'acconto' | 'saldo',
+  paymentType: "acconto" | "saldo",
   paymentAmount: number,
   paymentMethod: string,
   formattedDate: string,
   remainingBalance: number,
   nextPaymentDate?: string,
   notes?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
   const formatMethod = (method: string) => {
     const methods: Record<string, string> = {
-      'contante': 'Contante',
-      'carta': 'Carta',
-      'bonifico': 'Bonifico',
-      'paypal': 'PayPal'
+      contante: "Contante",
+      carta: "Carta",
+      bonifico: "Bonifico",
+      paypal: "PayPal",
     };
     return methods[method.toLowerCase()] || method;
   };
 
-  const isAcconto = paymentType === 'acconto';
-  const titleColor = isAcconto ? '#28a745' : '#0d6efd';
-  const titleText = isAcconto ? '✅ Acconto Ricevuto' : '🎉 Saldo Finale Ricevuto';
+  const isAcconto = paymentType === "acconto";
+  const titleColor = isAcconto ? "#28a745" : "#0d6efd";
+  const titleText = isAcconto
+    ? "✅ Acconto Ricevuto"
+    : "🎉 Saldo Finale Ricevuto";
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -2086,16 +2229,17 @@ export function createOrderPaymentReceivedEmailHTML(
           Ciao <strong>${clienteName}</strong>,
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
-          ${isAcconto 
-            ? `Abbiamo ricevuto con successo il tuo acconto per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Grazie per la tua fiducia!`
-            : `Abbiamo ricevuto il saldo finale per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Il pagamento è stato completato con successo! 🎉`
+          ${
+            isAcconto
+              ? `Abbiamo ricevuto con successo il tuo acconto per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Grazie per la tua fiducia!`
+              : `Abbiamo ricevuto il saldo finale per <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Il pagamento è stato completato con successo! 🎉`
           }
         </p>
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: ${titleColor}; margin-top: 0; margin-bottom: 15px;">💰 Dettagli Pagamento</h3>
-          <div style="background: ${isAcconto ? '#d4edda' : '#cfe2ff'}; border-left: 4px solid ${titleColor}; padding: 15px; margin: 10px 0;">
-            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: ${isAcconto ? '#155724' : '#084298'};">
+          <div style="background: ${isAcconto ? "#d4edda" : "#cfe2ff"}; border-left: 4px solid ${titleColor}; padding: 15px; margin: 10px 0;">
+            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: ${isAcconto ? "#155724" : "#084298"};">
               ${formatCurrency(paymentAmount)}
             </p>
             <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">
@@ -2104,23 +2248,30 @@ export function createOrderPaymentReceivedEmailHTML(
             <p style="margin: 0; font-size: 14px; color: #666;">
               <strong>Data:</strong> ${formattedDate}
             </p>
-            ${notes ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${notes}</p>` : ''}
+            ${notes ? `<p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">${notes}</p>` : ""}
           </div>
         </div>
 
-        ${remainingBalance > 0 ? `
+        ${
+          remainingBalance > 0
+            ? `
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
           <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">📋 Saldo Rimanente</h4>
           <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #856404;">
             ${formatCurrency(remainingBalance)}
           </p>
-          ${nextPaymentDate ? `
+          ${
+            nextPaymentDate
+              ? `
             <p style="margin: 0; font-size: 14px; color: #856404;">
               Prossima scadenza: ${nextPaymentDate}
             </p>
-          ` : ''}
+          `
+              : ""
+          }
         </div>
-        ` : `
+        `
+            : `
         <div style="background: #d1e7dd; border-left: 4px solid #0f5132; padding: 15px; margin: 20px 0; text-align: center;">
           <p style="margin: 0; font-size: 16px; font-weight: bold; color: #0f5132;">
             ✅ Pagamento Completato
@@ -2129,13 +2280,15 @@ export function createOrderPaymentReceivedEmailHTML(
             Non ci sono importi residui da saldare.
           </p>
         </div>
-        `}
+        `
+        }
 
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
-            ${isAcconto 
-              ? 'Grazie per il tuo pagamento! Ti contatteremo presto per i prossimi passi.'
-              : 'Grazie per aver scelto Image Studio! È stato un piacere lavorare con te.'
+            ${
+              isAcconto
+                ? "Grazie per il tuo pagamento! Ti contatteremo presto per i prossimi passi."
+                : "Grazie per aver scelto Image Studio! È stato un piacere lavorare con te."
             }
           </p>
         </div>
@@ -2143,7 +2296,7 @@ export function createOrderPaymentReceivedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -2163,19 +2316,19 @@ function createOrderCreatedEmailHTML(
   saldo: number,
   prodotti: Array<{ nome: string; prezzo: number; quantita: number }>,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  sconto?: number
+  sconto?: number,
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
@@ -2194,13 +2347,19 @@ function createOrderCreatedEmailHTML(
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">Dettagli Ordine</h3>
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
-            ${prodotti.map(p => `
+            ${prodotti
+              .map(
+                (p) => `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px 0;">${p.nome}${p.quantita > 1 ? ` (x${p.quantita})` : ''}</td>
+                <td style="padding: 8px 0;">${p.nome}${p.quantita > 1 ? ` (x${p.quantita})` : ""}</td>
                 <td style="padding: 8px 0; text-align: right;">${formatCurrency(p.prezzo * p.quantita)}</td>
               </tr>
-            `).join('')}
-            ${sconto && sconto > 0 ? `
+            `,
+              )
+              .join("")}
+            ${
+              sconto && sconto > 0
+                ? `
             <tr style="border-top: 1px solid #ddd;">
               <td style="padding: 8px 0;">Subtotale:</td>
               <td style="padding: 8px 0; text-align: right;">${formatCurrency(totale + sconto)}</td>
@@ -2209,7 +2368,9 @@ function createOrderCreatedEmailHTML(
               <td style="padding: 8px 0;">Sconto applicato:</td>
               <td style="padding: 8px 0; text-align: right;">-${formatCurrency(sconto)}</td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
             <tr style="border-top: 2px solid #8b5a3c; font-weight: bold;">
               <td style="padding: 12px 0;">Totale:</td>
               <td style="padding: 12px 0; text-align: right; color: #8b5a3c; font-size: 18px;">${formatCurrency(totale)}</td>
@@ -2217,7 +2378,9 @@ function createOrderCreatedEmailHTML(
           </table>
         </div>
 
-        ${acconto > 0 ? `
+        ${
+          acconto > 0
+            ? `
         <div style="background: #e7f3ff; border-left: 4px solid #0056b3; padding: 15px; margin: 20px 0;">
           <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">Pagamenti</h4>
           <table style="width: 100%; font-size: 14px; color: #333;">
@@ -2231,13 +2394,15 @@ function createOrderCreatedEmailHTML(
             </tr>
           </table>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0;">
           <h4 style="color: #0c5460; margin-top: 0; margin-bottom: 10px;">Prossimi Passi</h4>
           <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #0c5460;">
             <li>Ti contatteremo a breve per confermare i dettagli</li>
-            ${acconto > 0 ? '<li>Procederemo con la richiesta di acconto per iniziare la lavorazione</li>' : ''}
+            ${acconto > 0 ? "<li>Procederemo con la richiesta di acconto per iniziare la lavorazione</li>" : ""}
             <li>Ti terremo aggiornato sullo stato dell'ordine</li>
           </ol>
         </div>
@@ -2249,7 +2414,7 @@ function createOrderCreatedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -2271,13 +2436,21 @@ router.post("/order-created", async (req, res) => {
       acconto,
       saldo,
       prodotti,
-      sconto
+      sconto,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !prodottoNome || totale === undefined || acconto === undefined || saldo === undefined || !prodotti) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !prodottoNome ||
+      totale === undefined ||
+      acconto === undefined ||
+      saldo === undefined ||
+      !prodotti
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per email creazione ordine"
+        error: "Parametri mancanti per email creazione ordine",
       });
     }
 
@@ -2292,7 +2465,7 @@ router.post("/order-created", async (req, res) => {
       saldo,
       prodotti,
       studioInfo,
-      sconto
+      sconto,
     );
 
     const subject = `Nuovo Ordine Creato - ${prodottoNome}`;
@@ -2300,18 +2473,18 @@ router.post("/order-created", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Ordine Creato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+      `✅ Email "Ordine Creato" inviata a ${recipientEmail} per ordine ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Order created email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore order-created email:", error);
     res.status(500).json({
-      error: "Errore invio email creazione ordine"
+      error: "Errore invio email creazione ordine",
     });
   }
 });
@@ -2329,13 +2502,20 @@ router.post("/acconto-cancelled", async (req, res) => {
       accontoImporto,
       nuovoAccontoTotale,
       nuovoSaldo,
-      motivo
+      motivo,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !prodottoNome || accontoImporto === undefined || nuovoAccontoTotale === undefined || nuovoSaldo === undefined) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !prodottoNome ||
+      accontoImporto === undefined ||
+      nuovoAccontoTotale === undefined ||
+      nuovoSaldo === undefined
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per email cancellazione acconto"
+        error: "Parametri mancanti per email cancellazione acconto",
       });
     }
 
@@ -2349,7 +2529,7 @@ router.post("/acconto-cancelled", async (req, res) => {
       nuovoAccontoTotale,
       nuovoSaldo,
       motivo,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Acconto Annullato - ${prodottoNome}`;
@@ -2357,18 +2537,18 @@ router.post("/acconto-cancelled", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Acconto Annullato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+      `✅ Email "Acconto Annullato" inviata a ${recipientEmail} per ordine ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Acconto cancelled email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore acconto-cancelled email:", error);
     res.status(500).json({
-      error: "Errore invio email cancellazione acconto"
+      error: "Errore invio email cancellazione acconto",
     });
   }
 });
@@ -2385,13 +2565,18 @@ router.post("/saldo-received", async (req, res) => {
       prodottoNome,
       saldoAmount,
       totaleOrdine,
-      transactions
+      transactions,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !prodottoNome || saldoAmount === undefined) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !prodottoNome ||
+      saldoAmount === undefined
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per email saldo ricevuto"
+        error: "Parametri mancanti per email saldo ricevuto",
       });
     }
 
@@ -2404,7 +2589,7 @@ router.post("/saldo-received", async (req, res) => {
       saldoAmount,
       studioInfo,
       totaleOrdine,
-      transactions
+      transactions,
     );
 
     const subject = `Saldo Completato - ${prodottoNome}`;
@@ -2412,18 +2597,18 @@ router.post("/saldo-received", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Saldo Completato" inviata a ${recipientEmail} per ordine ${prodottoNome}`
+      `✅ Email "Saldo Completato" inviata a ${recipientEmail} per ordine ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Saldo received email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore saldo-received email:", error);
     res.status(500).json({
-      error: "Errore invio email saldo ricevuto"
+      error: "Errore invio email saldo ricevuto",
     });
   }
 });
@@ -2439,7 +2624,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 
     if (!galleryId || !clientEmail) {
       return res.status(400).json({
-        error: "Missing required fields: galleryId, clientEmail"
+        error: "Missing required fields: galleryId, clientEmail",
       });
     }
 
@@ -2453,9 +2638,8 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 
     // Inizializza Firebase Admin per recuperare dati galleria
 
-
     // Recupera dati galleria
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    const galleryDoc = await db.collection("galleries").doc(galleryId).get();
     if (!galleryDoc.exists) {
       return res.status(404).json({ error: "Gallery not found" });
     }
@@ -2466,9 +2650,14 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
     const specialTheme = galleryData?.specialTheme;
 
     // Recupera PIN da collection protetta
-    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    const secretsDoc = await db
+      .collection("gallerySecrets")
+      .doc(galleryId)
+      .get();
     if (!secretsDoc.exists || !secretsDoc.data()?.specialPin) {
-      return res.status(400).json({ error: "PIN not configured for this gallery" });
+      return res
+        .status(400)
+        .json({ error: "PIN not configured for this gallery" });
     }
 
     const pin = secretsDoc.data()?.specialPin;
@@ -2479,10 +2668,12 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
       carnevale: { emoji: "🎭", name: "Carnevale" },
       sanvalentino: { emoji: "💕", name: "San Valentino" },
       pasqua: { emoji: "🐰", name: "Pasqua" },
-      halloween: { emoji: "🎃", name: "Halloween" }
+      halloween: { emoji: "🎃", name: "Halloween" },
     };
 
-    const theme = specialTheme ? themeInfo[specialTheme] || { emoji: "✨", name: "Speciale" } : { emoji: "✨", name: "Speciale" };
+    const theme = specialTheme
+      ? themeInfo[specialTheme] || { emoji: "✨", name: "Speciale" }
+      : { emoji: "✨", name: "Speciale" };
 
     // Recupera info studio
     const studioInfo = await getStudioContactInfo();
@@ -2493,7 +2684,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
       <h2 style="color: #8b5a3c; text-align: center;">${theme.emoji} Accesso Galleria Speciale ${theme.name}</h2>
       <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao${clientName ? ` <strong>${clientName}</strong>` : ''},
+          Ciao${clientName ? ` <strong>${clientName}</strong>` : ""},
         </p>
         <p style="font-size: 16px; margin-bottom: 20px;">
           La tua galleria speciale <strong style="color: #8b5a3c;">${galleryName}</strong> è pronta!
@@ -2533,7 +2724,7 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
-        ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+        ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
         <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
       </div>
@@ -2549,13 +2740,12 @@ router.post("/special-gallery-pin-notification", async (req, res) => {
     res.status(200).json({
       success: true,
       message: "PIN notification email sent successfully",
-      recipientEmail: clientEmail
+      recipientEmail: clientEmail,
     });
-
   } catch (error) {
     console.error("❌ Errore invio email PIN:", error);
     res.status(500).json({
-      error: "Errore invio email notifica PIN"
+      error: "Errore invio email notifica PIN",
     });
   }
 });
@@ -2571,7 +2761,7 @@ router.post("/gallery-password-notification", async (req, res) => {
 
     if (!galleryId || !clientEmail) {
       return res.status(400).json({
-        error: "Missing required fields: galleryId, clientEmail"
+        error: "Missing required fields: galleryId, clientEmail",
       });
     }
 
@@ -2581,7 +2771,7 @@ router.post("/gallery-password-notification", async (req, res) => {
     const baseUrl = getSiteBaseUrl(req);
 
     // Recupera dati galleria
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    const galleryDoc = await db.collection("galleries").doc(galleryId).get();
     if (!galleryDoc.exists) {
       return res.status(404).json({ error: "Gallery not found" });
     }
@@ -2594,9 +2784,14 @@ router.post("/gallery-password-notification", async (req, res) => {
     console.log(`🔗 URL galleria: ${galleryUrl}`);
 
     // Recupera password da collection protetta
-    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    const secretsDoc = await db
+      .collection("gallerySecrets")
+      .doc(galleryId)
+      .get();
     if (!secretsDoc.exists || !secretsDoc.data()?.password) {
-      return res.status(400).json({ error: "Password not configured for this gallery" });
+      return res
+        .status(400)
+        .json({ error: "Password not configured for this gallery" });
     }
 
     const password = secretsDoc.data()?.password;
@@ -2605,8 +2800,9 @@ router.post("/gallery-password-notification", async (req, res) => {
     const studioInfo = await getStudioContactInfo();
 
     // Import template
-    const { generateGalleryPasswordEmail, generateGalleryPasswordSubject } = await import('./email-templates/gallery-password-notification');
-    
+    const { generateGalleryPasswordEmail, generateGalleryPasswordSubject } =
+      await import("./email-templates/gallery-password-notification");
+
     const htmlContent = generateGalleryPasswordEmail({
       clientName,
       galleryName,
@@ -2614,26 +2810,29 @@ router.post("/gallery-password-notification", async (req, res) => {
       password,
       studioName: studioInfo.name,
       studioPhone: studioInfo.phone,
-      studioEmail: studioInfo.email
+      studioEmail: studioInfo.email,
     });
 
     const subject = generateGalleryPasswordSubject(galleryName);
 
     // Invia email (senza emoji nel subject per compatibilità)
-    await sendGmailEmail(clientEmail, subject.replace(/[^\x00-\x7F]/g, ''), htmlContent);
+    await sendGmailEmail(
+      clientEmail,
+      subject.replace(/[^\x00-\x7F]/g, ""),
+      htmlContent,
+    );
 
     console.log(`✅ Email password inviata con successo a: ${clientEmail}`);
 
     res.status(200).json({
       success: true,
       message: "Password notification email sent successfully",
-      recipientEmail: clientEmail
+      recipientEmail: clientEmail,
     });
-
   } catch (error) {
     console.error("❌ Errore invio email password:", error);
     res.status(500).json({
-      error: "Errore invio email notifica password"
+      error: "Errore invio email notifica password",
     });
   }
 });
@@ -2644,80 +2843,97 @@ router.post("/gallery-password-notification", async (req, res) => {
  * Usato da EditGalleryModal per caricare i secrets quando si apre il modal
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
  */
-router.get("/get-gallery-secrets/:galleryId", authenticateFirebase, async (req: any, res) => {
-  try {
-    const { galleryId } = req.params;
+router.get(
+  "/get-gallery-secrets/:galleryId",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const { galleryId } = req.params;
 
-    if (!galleryId) {
-      return res.status(400).json({
-        error: { code: "invalid-argument", message: "Missing galleryId" }
-      });
-    }
+      if (!galleryId) {
+        return res.status(400).json({
+          error: { code: "invalid-argument", message: "Missing galleryId" },
+        });
+      }
 
-    // CONTROLLO ADMIN: Solo admin possono accedere ai secrets
-    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
-    const isAdmin = ADMIN_EMAILS.includes(req.user.email || "");
+      // CONTROLLO ADMIN: Solo admin possono accedere ai secrets
+      const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+      const isAdmin = ADMIN_EMAILS.includes(req.user.email || "");
 
-    if (!isAdmin) {
-      console.log(`❌ Utente ${req.user.email} non autorizzato a leggere secrets`);
-      return res.status(403).json({
-        error: {
-          code: "permission-denied",
-          message: "Admin access required"
-        }
-      });
-    }
+      if (!isAdmin) {
+        console.log(
+          `❌ Utente ${req.user.email} non autorizzato a leggere secrets`,
+        );
+        return res.status(403).json({
+          error: {
+            code: "permission-denied",
+            message: "Admin access required",
+          },
+        });
+      }
 
-    console.log(`🔍 Recupero secrets per galleria: ${galleryId} (utente admin: ${req.user.email})`);
+      console.log(
+        `🔍 Recupero secrets per galleria: ${galleryId} (utente admin: ${req.user.email})`,
+      );
 
-    // Inizializza Firebase Admin
+      // Inizializza Firebase Admin
 
+      // Leggi secrets dalla collection protetta
+      const secretsDoc = await db
+        .collection("gallerySecrets")
+        .doc(galleryId)
+        .get();
 
-    // Leggi secrets dalla collection protetta
-    const secretsDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+      let password: string | null = null;
+      let specialPin: string | null = null;
 
-    let password: string | null = null;
-    let specialPin: string | null = null;
+      if (secretsDoc.exists) {
+        const secretsData = secretsDoc.data();
+        password = secretsData?.password || null;
+        specialPin = secretsData?.specialPin || null;
+      }
 
-    if (secretsDoc.exists) {
-      const secretsData = secretsDoc.data();
-      password = secretsData?.password || null;
-      specialPin = secretsData?.specialPin || null;
-    }
-
-    // BACKWARD COMPATIBILITY: se non c'è password in gallerySecrets, prova il campo legacy nella galleria
-    if (!password) {
-      const galleryDoc = await db.collection('galleries').doc(galleryId).get();
-      if (galleryDoc.exists) {
-        const galleryData = galleryDoc.data();
-        if (galleryData?.password) {
-          password = galleryData.password;
-          // Migra automaticamente a gallerySecrets
-          try {
-            await db.collection('gallerySecrets').doc(galleryId).set(
-              { password: galleryData.password },
-              { merge: true }
-            );
-            console.log(`✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`);
-          } catch (migErr) {
-            console.warn(`⚠️ Migrazione password fallita per galleria ${galleryId}:`, migErr);
+      // BACKWARD COMPATIBILITY: se non c'è password in gallerySecrets, prova il campo legacy nella galleria
+      if (!password) {
+        const galleryDoc = await db
+          .collection("galleries")
+          .doc(galleryId)
+          .get();
+        if (galleryDoc.exists) {
+          const galleryData = galleryDoc.data();
+          if (galleryData?.password) {
+            password = galleryData.password;
+            // Migra automaticamente a gallerySecrets
+            try {
+              await db
+                .collection("gallerySecrets")
+                .doc(galleryId)
+                .set({ password: galleryData.password }, { merge: true });
+              console.log(
+                `✅ Password migrata automaticamente a gallerySecrets per galleria ${galleryId}`,
+              );
+            } catch (migErr) {
+              console.warn(
+                `⚠️ Migrazione password fallita per galleria ${galleryId}:`,
+                migErr,
+              );
+            }
+          }
+          if (!specialPin && galleryData?.specialPin) {
+            specialPin = galleryData.specialPin;
           }
         }
-        if (!specialPin && galleryData?.specialPin) {
-          specialPin = galleryData.specialPin;
-        }
       }
+
+      res.status(200).json({ password, specialPin });
+    } catch (error) {
+      console.error("❌ Errore recupero gallery secrets:", error);
+      res.status(500).json({
+        error: { code: "internal", message: "Errore recupero secrets" },
+      });
     }
-
-    res.status(200).json({ password, specialPin });
-
-  } catch (error) {
-    console.error("❌ Errore recupero gallery secrets:", error);
-    res.status(500).json({
-      error: { code: "internal", message: "Errore recupero secrets" }
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/email/verify-special-pin
@@ -2732,7 +2948,7 @@ router.post("/verify-special-pin", async (req, res) => {
     // Validazione parametri
     if (!pin) {
       return res.status(400).json({
-        error: { code: "invalid-argument", message: "Missing PIN" }
+        error: { code: "invalid-argument", message: "Missing PIN" },
       });
     }
 
@@ -2740,9 +2956,11 @@ router.post("/verify-special-pin", async (req, res) => {
 
     // OTTIMIZZAZIONE: Cerca direttamente in gallerySecrets per PIN match
     // Questo è più veloce che scansionare tutte le gallerie speciali
-    const secretsSnapshot = await db.collection('gallerySecrets').get();
-    
-    console.log(`📊 Trovati ${secretsSnapshot.size} documenti in gallerySecrets`);
+    const secretsSnapshot = await db.collection("gallerySecrets").get();
+
+    console.log(
+      `📊 Trovati ${secretsSnapshot.size} documenti in gallerySecrets`,
+    );
 
     for (const secretDoc of secretsSnapshot.docs) {
       const secretData = secretDoc.data();
@@ -2751,13 +2969,16 @@ router.post("/verify-special-pin", async (req, res) => {
       // Verifica PIN
       if (correctPin && correctPin.trim() === pin.trim()) {
         const galleryId = secretDoc.id;
-        
+
         // Recupera dati galleria
-        const galleryDoc = await db.collection('galleries').doc(galleryId).get();
-        
+        const galleryDoc = await db
+          .collection("galleries")
+          .doc(galleryId)
+          .get();
+
         if (galleryDoc.exists) {
           const galleryData = galleryDoc.data();
-          
+
           // Verifica che sia una galleria speciale
           if (galleryData?.specialTheme) {
             const galleryCode = galleryData.code || galleryId;
@@ -2765,13 +2986,13 @@ router.post("/verify-special-pin", async (req, res) => {
 
             console.log(`✅ PIN corretto per galleria ${galleryCode}`);
             return res.status(200).json({
-              result: { 
-                valid: true, 
+              result: {
+                valid: true,
                 galleryId,
                 galleryCode,
                 galleryName,
-                message: "PIN correct" 
-              }
+                message: "PIN correct",
+              },
             });
           }
         }
@@ -2781,12 +3002,12 @@ router.post("/verify-special-pin", async (req, res) => {
     // Nessuna galleria trovata con questo PIN
     console.log("❌ PIN non valido");
     return res.status(200).json({
-      result: { valid: false, message: "Invalid PIN" }
+      result: { valid: false, message: "Invalid PIN" },
     });
   } catch (error) {
     console.error("❌ Errore verify-special-pin:", error);
     res.status(500).json({
-      error: { code: "internal", message: "Failed to verify PIN" }
+      error: { code: "internal", message: "Failed to verify PIN" },
     });
   }
 });
@@ -2802,7 +3023,7 @@ router.post("/check-pin-unique", async (req, res) => {
 
     if (!pin) {
       return res.status(400).json({
-        error: { code: "invalid-argument", message: "Missing PIN" }
+        error: { code: "invalid-argument", message: "Missing PIN" },
       });
     }
 
@@ -2810,9 +3031,8 @@ router.post("/check-pin-unique", async (req, res) => {
 
     // Inizializza Firebase Admin
 
-
     // Query tutti i gallerySecrets con specialPin
-    const secretsSnapshot = await db.collection('gallerySecrets').get();
+    const secretsSnapshot = await db.collection("gallerySecrets").get();
 
     for (const secretDoc of secretsSnapshot.docs) {
       const galleryId = secretDoc.id;
@@ -2824,30 +3044,37 @@ router.post("/check-pin-unique", async (req, res) => {
       }
 
       // Verifica se questo PIN è già usato
-      if (secretData?.specialPin && secretData.specialPin.trim() === pin.trim()) {
+      if (
+        secretData?.specialPin &&
+        secretData.specialPin.trim() === pin.trim()
+      ) {
         // PIN duplicato trovato - recupera info galleria
-        const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+        const galleryDoc = await db
+          .collection("galleries")
+          .doc(galleryId)
+          .get();
         const galleryData = galleryDoc.exists ? galleryDoc.data() : {};
 
-        console.log(`❌ PIN duplicato trovato in galleria: ${galleryData?.code || galleryId}`);
+        console.log(
+          `❌ PIN duplicato trovato in galleria: ${galleryData?.code || galleryId}`,
+        );
 
         return res.status(200).json({
           unique: false,
           usedByGallery: galleryData?.code || galleryId,
-          usedByGalleryName: galleryData?.name || 'Galleria Sconosciuta'
+          usedByGalleryName: galleryData?.name || "Galleria Sconosciuta",
         });
       }
     }
 
-    console.log('✅ PIN unico, nessun duplicato trovato');
+    console.log("✅ PIN unico, nessun duplicato trovato");
     return res.status(200).json({
-      unique: true
+      unique: true,
     });
-
   } catch (error) {
     console.error("❌ Errore check-pin-unique:", error);
     res.status(500).json({
-      error: { code: "internal", message: "Failed to check PIN uniqueness" }
+      error: { code: "internal", message: "Failed to check PIN uniqueness" },
     });
   }
 });
@@ -2864,36 +3091,45 @@ router.post("/verify-gallery-password", async (req, res) => {
     // Validazione parametri
     if (!galleryId || !password) {
       return res.status(400).json({
-        error: { code: "invalid-argument", message: "Missing galleryId or password" }
+        error: {
+          code: "invalid-argument",
+          message: "Missing galleryId or password",
+        },
       });
     }
 
     // VERIFICA ESISTENZA GALLERIA usando Admin SDK
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
+    const galleryDoc = await db.collection("galleries").doc(galleryId).get();
     if (!galleryDoc.exists) {
       console.log(`❌ Galleria ${galleryId} non trovata`);
       return res.status(404).json({
-        error: { code: "not-found", message: "Gallery not found" }
+        error: { code: "not-found", message: "Gallery not found" },
       });
     }
 
     // RECUPERA PASSWORD da collection protetta `gallerySecrets` tramite Admin SDK
-    const secretDoc = await db.collection('gallerySecrets').doc(galleryId).get();
+    const secretDoc = await db
+      .collection("gallerySecrets")
+      .doc(galleryId)
+      .get();
     const secretData = secretDoc.exists ? secretDoc.data() : null;
 
     // Se non esiste documento secrets O non ha password, verifica anche vecchio campo password su galleria
     const correctPassword = secretData?.password;
-    
+
     // BACKWARD COMPATIBILITY: se non c'è in gallerySecrets, prova il vecchio campo password nella galleria
     const galleryData = galleryDoc.data();
     const legacyPassword = galleryData?.password;
-    
+
     const passwordToCheck = correctPassword || legacyPassword;
-    
+
     if (!passwordToCheck) {
       console.log(`✅ Galleria ${galleryId} senza password, accesso libero`);
       return res.status(200).json({
-        result: { valid: true, message: "Gallery has no password, access granted" }
+        result: {
+          valid: true,
+          message: "Gallery has no password, access granted",
+        },
       });
     }
 
@@ -2903,18 +3139,18 @@ router.post("/verify-gallery-password", async (req, res) => {
     if (isValid) {
       console.log(`✅ Password corretta per galleria ${galleryId}`);
       return res.status(200).json({
-        result: { valid: true, message: "Password correct" }
+        result: { valid: true, message: "Password correct" },
       });
     } else {
       console.log(`❌ Password errata per galleria ${galleryId}`);
       return res.status(200).json({
-        result: { valid: false, message: "Password incorrect" }
+        result: { valid: false, message: "Password incorrect" },
       });
     }
   } catch (error) {
     console.error("❌ Errore verify-gallery-password:", error);
     res.status(500).json({
-      error: { code: "internal", message: "Failed to verify password" }
+      error: { code: "internal", message: "Failed to verify password" },
     });
   }
 });
@@ -2925,17 +3161,12 @@ router.post("/verify-gallery-password", async (req, res) => {
  */
 router.post("/shooting-completed", async (req, res) => {
   try {
-    const {
-      recipientEmail,
-      clienteName,
-      campaignName,
-      bookingDate
-    } = req.body;
+    const { recipientEmail, clienteName, campaignName, bookingDate } = req.body;
 
     // Validazioni
     if (!recipientEmail || !clienteName || !campaignName || !bookingDate) {
       return res.status(400).json({
-        error: "Parametri mancanti per email shooting completato"
+        error: "Parametri mancanti per email shooting completato",
       });
     }
 
@@ -2946,26 +3177,24 @@ router.post("/shooting-completed", async (req, res) => {
       clienteName,
       campaignName,
       bookingDate,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Shooting Completato - ${campaignName}`;
 
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
-    console.log(
-      `✅ Email "Shooting Completato" inviata a ${recipientEmail}`
-    );
+    console.log(`✅ Email "Shooting Completato" inviata a ${recipientEmail}`);
 
     res.status(200).json({
       success: true,
       message: "Shooting completed email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore shooting-completed email:", error);
     res.status(500).json({
-      error: "Errore invio email shooting completato"
+      error: "Errore invio email shooting completato",
     });
   }
 });
@@ -2976,16 +3205,12 @@ router.post("/shooting-completed", async (req, res) => {
  */
 router.post("/order-processing", async (req, res) => {
   try {
-    const {
-      recipientEmail,
-      clienteName,
-      prodottoNome
-    } = req.body;
+    const { recipientEmail, clienteName, prodottoNome } = req.body;
 
     // Validazioni
     if (!recipientEmail || !clienteName || !prodottoNome) {
       return res.status(400).json({
-        error: "Parametri mancanti per email ordine in lavorazione"
+        error: "Parametri mancanti per email ordine in lavorazione",
       });
     }
 
@@ -2995,7 +3220,7 @@ router.post("/order-processing", async (req, res) => {
     const htmlContent = createOrderProcessingEmailHTML(
       clienteName,
       prodottoNome,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Il tuo ordine è in lavorazione - ${prodottoNome}`;
@@ -3003,18 +3228,18 @@ router.post("/order-processing", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Ordine in Lavorazione" inviata a ${recipientEmail} per ${prodottoNome}`
+      `✅ Email "Ordine in Lavorazione" inviata a ${recipientEmail} per ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Order processing email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore order-processing email:", error);
     res.status(500).json({
-      error: "Errore invio email ordine in lavorazione"
+      error: "Errore invio email ordine in lavorazione",
     });
   }
 });
@@ -3025,16 +3250,12 @@ router.post("/order-processing", async (req, res) => {
  */
 router.post("/order-ready", async (req, res) => {
   try {
-    const {
-      recipientEmail,
-      clienteName,
-      prodottoNome
-    } = req.body;
+    const { recipientEmail, clienteName, prodottoNome } = req.body;
 
     // Validazioni
     if (!recipientEmail || !clienteName || !prodottoNome) {
       return res.status(400).json({
-        error: "Parametri mancanti per email ordine pronto"
+        error: "Parametri mancanti per email ordine pronto",
       });
     }
 
@@ -3044,7 +3265,7 @@ router.post("/order-ready", async (req, res) => {
     const htmlContent = createOrderReadyEmailHTML(
       clienteName,
       prodottoNome,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Il tuo ordine e' pronto per il ritiro - ${prodottoNome}`;
@@ -3052,18 +3273,18 @@ router.post("/order-ready", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Ordine Pronto" inviata a ${recipientEmail} per ${prodottoNome}`
+      `✅ Email "Ordine Pronto" inviata a ${recipientEmail} per ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Order ready email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("Errore order-ready email:", error);
     res.status(500).json({
-      error: "Errore invio email ordine pronto"
+      error: "Errore invio email ordine pronto",
     });
   }
 });
@@ -3074,15 +3295,11 @@ router.post("/order-ready", async (req, res) => {
  */
 router.post("/order-delivered", async (req, res) => {
   try {
-    const {
-      recipientEmail,
-      clienteName,
-      prodottoNome
-    } = req.body;
+    const { recipientEmail, clienteName, prodottoNome } = req.body;
 
     if (!recipientEmail || !clienteName || !prodottoNome) {
       return res.status(400).json({
-        error: "Parametri mancanti per email ordine consegnato"
+        error: "Parametri mancanti per email ordine consegnato",
       });
     }
 
@@ -3091,7 +3308,7 @@ router.post("/order-delivered", async (req, res) => {
     const htmlContent = createOrderDeliveredEmailHTML(
       clienteName,
       prodottoNome,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Ordine consegnato - ${prodottoNome}`;
@@ -3099,18 +3316,18 @@ router.post("/order-delivered", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `Email "Ordine Consegnato" inviata a ${recipientEmail} per ${prodottoNome}`
+      `Email "Ordine Consegnato" inviata a ${recipientEmail} per ${prodottoNome}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Order delivered email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("Errore order-delivered email:", error);
     res.status(500).json({
-      error: "Errore invio email ordine consegnato"
+      error: "Errore invio email ordine consegnato",
     });
   }
 });
@@ -3121,7 +3338,7 @@ router.post("/order-delivered", async (req, res) => {
 function createReviewRequestEmailHTML(
   clienteName: string,
   trackingUrl: string,
-  studioInfo: { name: string; email: string; phone: string; whatsapp?: string }
+  studioInfo: { name: string; email: string; phone: string; whatsapp?: string },
 ): string {
   const studioName = studioInfo.name || "Image Studio Fotografico";
   const studioPhone = studioInfo.phone || "";
@@ -3199,8 +3416,8 @@ function createReviewRequestEmailHTML(
         <tr>
           <td style="padding:24px 48px 32px;text-align:center;">
             <p style="margin:0 0 6px;color:#3d4f3d;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">${studioName}</p>
-            ${studioPhone ? `<p style="margin:0 0 4px;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioPhone}</p>` : ''}
-            ${studioEmail ? `<p style="margin:0;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioEmail}</p>` : ''}
+            ${studioPhone ? `<p style="margin:0 0 4px;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioPhone}</p>` : ""}
+            ${studioEmail ? `<p style="margin:0;color:#888;font-size:12px;font-family:Arial,sans-serif;">${studioEmail}</p>` : ""}
             <p style="margin:12px 0 0;color:#bbb;font-size:11px;font-family:Arial,sans-serif;">
               Questa email e' stata inviata automaticamente al termine del tuo servizio fotografico.
             </p>
@@ -3216,16 +3433,16 @@ function createReviewRequestEmailHTML(
 
 /** Helper auth admin: verifica Bearer token Firebase, ritorna 401 se non valido */
 async function requireAdminAuth(req: Request, res: Response): Promise<boolean> {
-  const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Non autenticato' });
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Non autenticato" });
     return false;
   }
   try {
-    await getAuth().verifyIdToken(authHeader.replace('Bearer ', '').trim());
+    await getAuth().verifyIdToken(authHeader.replace("Bearer ", "").trim());
     return true;
   } catch {
-    res.status(401).json({ error: 'Token non valido' });
+    res.status(401).json({ error: "Token non valido" });
     return false;
   }
 }
@@ -3235,10 +3452,13 @@ const REVIEW_RESEND_DAYS = 30;
 /**
  * Helper: recupera il log recensione esistente per email (1 lettura Firestore)
  */
-async function findReviewLog(email: string): Promise<{ id: string; data: any } | null> {
+async function findReviewLog(
+  email: string,
+): Promise<{ id: string; data: any } | null> {
   const normalized = email.toLowerCase().trim();
-  const snap = await db.collection('reviewEmailLogs')
-    .where('recipientEmail', '==', normalized)
+  const snap = await db
+    .collection("reviewEmailLogs")
+    .where("recipientEmail", "==", normalized)
     .limit(1)
     .get();
   if (snap.empty) return null;
@@ -3251,22 +3471,28 @@ async function findReviewLog(email: string): Promise<{ id: string; data: any } |
  */
 function computeEligibility(existingLog: { id: string; data: any } | null): {
   canSend: boolean;
-  reason: 'ok' | 'clicked' | 'recent';
+  reason: "ok" | "clicked" | "recent";
   daysUntilResend?: number;
 } {
-  if (!existingLog) return { canSend: true, reason: 'ok' };
+  if (!existingLog) return { canSend: true, reason: "ok" };
 
   const data = existingLog.data;
-  if (data.clicked === true) return { canSend: false, reason: 'clicked' };
+  if (data.clicked === true) return { canSend: false, reason: "clicked" };
 
-  const lastSentAt: Date = data.lastSentAt?.toDate ? data.lastSentAt.toDate() : new Date(data.lastSentAt);
+  const lastSentAt: Date = data.lastSentAt?.toDate
+    ? data.lastSentAt.toDate()
+    : new Date(data.lastSentAt);
   const daysSince = (Date.now() - lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
 
   if (daysSince < REVIEW_RESEND_DAYS) {
-    return { canSend: false, reason: 'recent', daysUntilResend: Math.ceil(REVIEW_RESEND_DAYS - daysSince) };
+    return {
+      canSend: false,
+      reason: "recent",
+      daysUntilResend: Math.ceil(REVIEW_RESEND_DAYS - daysSince),
+    };
   }
 
-  return { canSend: true, reason: 'ok' };
+  return { canSend: true, reason: "ok" };
 }
 
 /**
@@ -3275,20 +3501,24 @@ function computeEligibility(existingLog: { id: string; data: any } | null): {
 async function sendAndLogReviewEmail(
   recipientEmail: string,
   clienteName: string,
-  source: 'auto' | 'bulk' | 'manual',
+  source: "auto" | "bulk" | "manual",
   req: Request,
-  existingLog: { id: string; data: any } | null
+  existingLog: { id: string; data: any } | null,
 ): Promise<void> {
   const studioInfo = await getStudioContactInfo();
   const reviewUrl = studioInfo.googleReviewUrl;
-  if (!reviewUrl) throw new Error('googleReviewUrl non configurato');
+  if (!reviewUrl) throw new Error("googleReviewUrl non configurato");
 
   const normalized = recipientEmail.toLowerCase().trim();
-  const token = Buffer.from(normalized).toString('base64url');
+  const token = Buffer.from(normalized).toString("base64url");
   const siteUrl = getSiteBaseUrl(req);
   const trackingUrl = `${siteUrl}/api/email/review-track?e=${token}`;
 
-  const htmlContent = createReviewRequestEmailHTML(clienteName, trackingUrl, studioInfo);
+  const htmlContent = createReviewRequestEmailHTML(
+    clienteName,
+    trackingUrl,
+    studioInfo,
+  );
   const subject = `La tua opinione conta per noi - ${studioInfo.name}`;
 
   await sendGmailEmail([normalized], subject, htmlContent);
@@ -3297,14 +3527,17 @@ async function sendAndLogReviewEmail(
   const now = FieldValue.serverTimestamp();
 
   if (existingLog) {
-    await db.collection('reviewEmailLogs').doc(existingLog.id).update({
-      lastSentAt: now,
-      sentCount: (existingLog.data.sentCount || 1) + 1,
-      source,
-      clicked: false, // reset click se si rinvia dopo 30gg
-    });
+    await db
+      .collection("reviewEmailLogs")
+      .doc(existingLog.id)
+      .update({
+        lastSentAt: now,
+        sentCount: (existingLog.data.sentCount || 1) + 1,
+        source,
+        clicked: false, // reset click se si rinvia dopo 30gg
+      });
   } else {
-    await db.collection('reviewEmailLogs').add({
+    await db.collection("reviewEmailLogs").add({
       recipientEmail: normalized,
       clienteName,
       firstSentAt: now,
@@ -3324,15 +3557,17 @@ async function sendAndLogReviewEmail(
 router.get("/review-track", async (req: Request, res: Response) => {
   // Recupera reviewUrl subito per poterlo usare anche come fallback
   const studioInfo = await getStudioContactInfo().catch(() => null);
-  const reviewUrl = studioInfo?.googleReviewUrl || 'https://www.google.com/maps/search/fotografo';
+  const reviewUrl =
+    studioInfo?.googleReviewUrl ||
+    "https://www.google.com/maps/search/fotografo";
 
   const { e } = req.query as { e?: string };
   if (!e) return res.redirect(reviewUrl); // Bug fix: redirect corretto senza ?e=
 
   let email: string;
   try {
-    email = Buffer.from(e as string, 'base64url').toString('utf-8');
-    if (!email || !email.includes('@')) throw new Error('email non valida');
+    email = Buffer.from(e as string, "base64url").toString("utf-8");
+    if (!email || !email.includes("@")) throw new Error("email non valida");
   } catch {
     return res.redirect(reviewUrl); // fallback graceful
   }
@@ -3340,14 +3575,14 @@ router.get("/review-track", async (req: Request, res: Response) => {
   try {
     const log = await findReviewLog(email);
     if (log) {
-      await db.collection('reviewEmailLogs').doc(log.id).update({
+      await db.collection("reviewEmailLogs").doc(log.id).update({
         clicked: true,
         clickedAt: FieldValue.serverTimestamp(),
       });
       console.log(`🖱️ Click recensione tracciato per ${email}`);
     }
   } catch (err) {
-    console.warn('⚠️ Errore tracking click recensione (non bloccante):', err);
+    console.warn("⚠️ Errore tracking click recensione (non bloccante):", err);
   }
 
   return res.redirect(reviewUrl);
@@ -3364,13 +3599,21 @@ router.post("/review-request", async (req: Request, res: Response) => {
     const { recipientEmail, clienteName, jobId } = req.body;
 
     if (!recipientEmail || !clienteName) {
-      return res.status(400).json({ error: "Parametri mancanti: recipientEmail e clienteName obbligatori" });
+      return res
+        .status(400)
+        .json({
+          error: "Parametri mancanti: recipientEmail e clienteName obbligatori",
+        });
     }
 
     const studioInfo = await getStudioContactInfo();
     if (!studioInfo.googleReviewUrl) {
-      console.warn("⚠️ review-request: googleReviewUrl non configurato — email non inviata");
-      return res.status(200).json({ success: false, skipped: true, reason: 'no_url' });
+      console.warn(
+        "⚠️ review-request: googleReviewUrl non configurato — email non inviata",
+      );
+      return res
+        .status(200)
+        .json({ success: false, skipped: true, reason: "no_url" });
     }
 
     // 1 sola lettura Firestore
@@ -3378,28 +3621,43 @@ router.post("/review-request", async (req: Request, res: Response) => {
     const eligibility = computeEligibility(existingLog); // pura, no Firestore
 
     if (!eligibility.canSend) {
-      console.log(`⏭️ review-request saltata per ${recipientEmail}: ${eligibility.reason}`);
+      console.log(
+        `⏭️ review-request saltata per ${recipientEmail}: ${eligibility.reason}`,
+      );
       return res.status(200).json({
-        success: false, skipped: true,
-        reason: eligibility.reason, daysUntilResend: eligibility.daysUntilResend,
+        success: false,
+        skipped: true,
+        reason: eligibility.reason,
+        daysUntilResend: eligibility.daysUntilResend,
       });
     }
 
-    await sendAndLogReviewEmail(recipientEmail, clienteName, 'auto', req, existingLog);
+    await sendAndLogReviewEmail(
+      recipientEmail,
+      clienteName,
+      "auto",
+      req,
+      existingLog,
+    );
 
     // Aggiunge evento timeline al job (non bloccante)
     if (jobId) {
       const timelineEvent = {
         id: `review_${Date.now()}`,
         jobId,
-        tipo: 'email_recensione_inviata',
+        tipo: "email_recensione_inviata",
         descrizione: `Email richiesta recensione Google inviata a ${recipientEmail}`,
         data: Timestamp.now(),
         metadata: { recipientEmail, clienteName },
       };
-      db.collection('jobs').doc(jobId).update({
-        workflowEvents: FieldValue.arrayUnion(timelineEvent),
-      }).catch((err: any) => console.warn('⚠️ Timeline event recensione non salvato:', err));
+      db.collection("jobs")
+        .doc(jobId)
+        .update({
+          workflowEvents: FieldValue.arrayUnion(timelineEvent),
+        })
+        .catch((err: any) =>
+          console.warn("⚠️ Timeline event recensione non salvato:", err),
+        );
     }
 
     return res.status(200).json({ success: true, recipientEmail });
@@ -3421,61 +3679,93 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
   try {
     const studioInfo = await getStudioContactInfo();
     if (!studioInfo.googleReviewUrl) {
-      return res.status(400).json({ error: "Configura prima il link recensione Google nelle impostazioni." });
+      return res
+        .status(400)
+        .json({
+          error:
+            "Configura prima il link recensione Google nelle impostazioni.",
+        });
     }
 
-    const jobsSnap = await db.collection('jobs').where('status', '==', 'consegnato').get();
+    const jobsSnap = await db
+      .collection("jobs")
+      .where("status", "==", "consegnato")
+      .get();
     console.log(`📋 Bulk review: trovati ${jobsSnap.size} job consegnati`);
 
-    const results = { sent: 0, skipped_clicked: 0, skipped_recent: 0, skipped_no_email: 0, errors: 0 };
+    const results = {
+      sent: 0,
+      skipped_clicked: 0,
+      skipped_recent: 0,
+      skipped_no_email: 0,
+      errors: 0,
+    };
     const details: any[] = [];
 
     for (const jobDoc of jobsSnap.docs) {
       const job = jobDoc.data();
       const clienteId = (job.clientiIds && job.clientiIds[0]) || job.clienteId;
-      if (!clienteId) { results.skipped_no_email++; continue; }
+      if (!clienteId) {
+        results.skipped_no_email++;
+        continue;
+      }
 
       try {
-        const clienteSnap = await db.collection('clienti').doc(clienteId).get();
-        if (!clienteSnap.exists) { results.skipped_no_email++; continue; }
+        const clienteSnap = await db.collection("clienti").doc(clienteId).get();
+        if (!clienteSnap.exists) {
+          results.skipped_no_email++;
+          continue;
+        }
 
         const cliente = clienteSnap.data()!;
         const email = cliente.email;
-        const nome = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
-        if (!email) { results.skipped_no_email++; continue; }
+        const nome = `${cliente.nome || ""} ${cliente.cognome || ""}`.trim();
+        if (!email) {
+          results.skipped_no_email++;
+          continue;
+        }
 
         // 1 lettura Firestore per email, poi eligibility pura (nessuna seconda lettura)
         const existingLog = await findReviewLog(email);
         const eligibility = computeEligibility(existingLog);
 
         if (!eligibility.canSend) {
-          if (eligibility.reason === 'clicked') {
+          if (eligibility.reason === "clicked") {
             results.skipped_clicked++;
-            details.push({ email, nome, status: 'clicked', jobId: jobDoc.id });
+            details.push({ email, nome, status: "clicked", jobId: jobDoc.id });
           } else {
             results.skipped_recent++;
-            details.push({ email, nome, status: 'recent', daysUntilResend: eligibility.daysUntilResend, jobId: jobDoc.id });
+            details.push({
+              email,
+              nome,
+              status: "recent",
+              daysUntilResend: eligibility.daysUntilResend,
+              jobId: jobDoc.id,
+            });
           }
           continue;
         }
 
-        await sendAndLogReviewEmail(email, nome, 'bulk', req, existingLog);
+        await sendAndLogReviewEmail(email, nome, "bulk", req, existingLog);
         results.sent++;
-        details.push({ email, nome, status: 'sent', jobId: jobDoc.id });
-
+        details.push({ email, nome, status: "sent", jobId: jobDoc.id });
       } catch (err: any) {
-        console.error(`❌ Errore bulk review per job ${jobDoc.id}:`, err.message);
+        console.error(
+          `❌ Errore bulk review per job ${jobDoc.id}:`,
+          err.message,
+        );
         results.errors++;
-        details.push({ jobId: jobDoc.id, status: 'error', error: err.message });
+        details.push({ jobId: jobDoc.id, status: "error", error: err.message });
       }
     }
 
     console.log(`✅ Bulk review completato:`, results);
     return res.status(200).json({ success: true, results, details });
-
   } catch (error) {
     console.error("❌ Errore review-request-bulk:", error);
-    return res.status(500).json({ error: "Errore invio bulk email recensione" });
+    return res
+      .status(500)
+      .json({ error: "Errore invio bulk email recensione" });
   }
 });
 
@@ -3486,18 +3776,20 @@ router.post("/review-request-bulk", async (req: Request, res: Response) => {
 router.get("/review-status", async (req: Request, res: Response) => {
   if (!(await requireAdminAuth(req, res))) return;
   try {
-    const emailRaw = (req.query.email as string || '').trim();
-    if (!emailRaw) return res.status(400).json({ error: 'email obbligatoria' });
+    const emailRaw = ((req.query.email as string) || "").trim();
+    if (!emailRaw) return res.status(400).json({ error: "email obbligatoria" });
     const emailLower = emailRaw.toLowerCase();
 
     // Prova prima con email originale, poi con lowercase (Firestore è case-sensitive)
-    let snap = await db.collection('reviewEmailLogs')
-      .where('recipientEmail', '==', emailRaw)
+    let snap = await db
+      .collection("reviewEmailLogs")
+      .where("recipientEmail", "==", emailRaw)
       .limit(1)
       .get();
     if (snap.empty && emailLower !== emailRaw) {
-      snap = await db.collection('reviewEmailLogs')
-        .where('recipientEmail', '==', emailLower)
+      snap = await db
+        .collection("reviewEmailLogs")
+        .where("recipientEmail", "==", emailLower)
         .limit(1)
         .get();
     }
@@ -3527,11 +3819,12 @@ router.get("/review-request-log", async (req: Request, res: Response) => {
   if (!(await requireAdminAuth(req, res))) return;
 
   try {
-    const snap = await db.collection('reviewEmailLogs')
-      .orderBy('lastSentAt', 'desc')
+    const snap = await db
+      .collection("reviewEmailLogs")
+      .orderBy("lastSentAt", "desc")
       .get();
 
-    const logs = snap.docs.map(d => {
+    const logs = snap.docs.map((d) => {
       const data = d.data();
       return {
         id: d.id,
@@ -3542,14 +3835,16 @@ router.get("/review-request-log", async (req: Request, res: Response) => {
         sentCount: data.sentCount || 1,
         clicked: data.clicked || false,
         clickedAt: data.clickedAt?.toDate?.()?.toISOString() ?? null,
-        source: data.source || 'auto',
+        source: data.source || "auto",
       };
     });
 
     return res.status(200).json({ logs });
   } catch (error) {
     console.error("❌ Errore review-request-log:", error);
-    return res.status(500).json({ error: "Errore recupero log email recensione" });
+    return res
+      .status(500)
+      .json({ error: "Errore recupero log email recensione" });
   }
 });
 
@@ -3560,13 +3855,13 @@ function createShootingCompletedEmailHTML(
   clienteName: string,
   campaignName: string,
   bookingDate: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -3604,7 +3899,7 @@ function createShootingCompletedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3618,13 +3913,13 @@ function createShootingCompletedEmailHTML(
 function createOrderProcessingEmailHTML(
   clienteName: string,
   prodottoNome: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -3662,7 +3957,7 @@ function createOrderProcessingEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3676,18 +3971,29 @@ function createOrderProcessingEmailHTML(
 function createOrderReadyEmailHTML(
   clienteName: string,
   prodottoNome: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string; whatsapp: string }
+  studioInfo?: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    whatsapp: string;
+  },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: "",
-    whatsapp: "+39 327 4656179"
+    whatsapp: "+39 327 4656179",
   };
 
-  const whatsappNumber = (studio.whatsapp || studio.phone).replace(/[\s+\-]/g, '');
-  const whatsappMessage = encodeURIComponent(`Ciao, vorrei concordare il ritiro del mio ordine "${prodottoNome}". Grazie!`);
+  const whatsappNumber = (studio.whatsapp || studio.phone).replace(
+    /[\s+\-]/g,
+    "",
+  );
+  const whatsappMessage = encodeURIComponent(
+    `Ciao, vorrei concordare il ritiro del mio ordine "${prodottoNome}". Grazie!`,
+  );
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -3733,7 +4039,7 @@ function createOrderReadyEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3747,14 +4053,20 @@ function createOrderReadyEmailHTML(
 function createOrderDeliveredEmailHTML(
   clienteName: string,
   prodottoNome: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string; whatsapp: string }
+  studioInfo?: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    whatsapp: string;
+  },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
     address: "",
-    whatsapp: "+39 327 4656179"
+    whatsapp: "+39 327 4656179",
   };
 
   return `
@@ -3799,7 +4111,7 @@ function createOrderDeliveredEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3815,13 +4127,13 @@ export function createConsultationReceivedEmailHTML(
   jobType: string,
   consultationDate: string,
   consultationTime: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -3851,7 +4163,7 @@ export function createConsultationReceivedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3869,13 +4181,13 @@ export function createConsultationApprovedEmailHTML(
   consultationTime: string,
   meetingLink: string | null,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  calendarLink?: string,
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -3897,22 +4209,30 @@ export function createConsultationApprovedEmailHTML(
           <p style="margin: 8px 0;"><strong>📸 Tipo servizio:</strong> ${jobType}</p>
         </div>
 
-        ${meetingLink ? `
+        ${
+          meetingLink
+            ? `
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: center;">
           <h4 style="color: #0056b3; margin-top: 0; margin-bottom: 10px;">🔗 Link Incontro</h4>
           <a href="${meetingLink}" style="display: inline-block; background: #0056b3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">
             Unisciti alla consulenza
           </a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${calendarLink ? `
+        ${
+          calendarLink
+            ? `
         <div style="text-align: center; margin: 20px 0;">
           <a href="${calendarLink}" style="display: inline-block; background: #8b5a3c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
             📅 Aggiungi al Calendario
           </a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h4 style="color: #155724; margin-top: 0; margin-bottom: 10px;">💡 Cosa Aspettarsi</h4>
@@ -3927,7 +4247,7 @@ export function createConsultationApprovedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3944,13 +4264,13 @@ export function createConsultationRejectedEmailHTML(
   consultationDate: string,
   consultationTime: string,
   rejectionReason: string | null,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -3964,13 +4284,17 @@ export function createConsultationRejectedEmailHTML(
           Ci dispiace informarti che non siamo riusciti a confermare la consulenza per <strong>${jobType}</strong> nella data richiesta (${consultationDate} alle ${consultationTime}).
         </p>
 
-        ${rejectionReason ? `
+        ${
+          rejectionReason
+            ? `
         <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #721c24;">
             <strong>Motivo:</strong> ${rejectionReason}
           </p>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
@@ -3981,7 +4305,7 @@ export function createConsultationRejectedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -3999,13 +4323,13 @@ export function createConsultationReminderEmailHTML(
   consultationDate: string,
   consultationTime: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  calendarLink?: string,
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -4042,22 +4366,30 @@ export function createConsultationReminderEmailHTML(
               <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Servizio:</td>
               <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${jobType}</td>
             </tr>
-            ${studio.address ? `
+            ${
+              studio.address
+                ? `
             <tr>
               <td style="padding: 8px 0; color: #6b7d8a; font-size: 14px;">Luogo:</td>
               <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${studio.address}</td>
             </tr>
-            ` : ''}
+            `
+                : ""
+            }
           </table>
         </div>
 
-        ${calendarLink ? `
+        ${
+          calendarLink
+            ? `
         <div style="text-align: center; margin: 20px 0;">
           <a href="${calendarLink}" style="display: inline-block; background: #8b9a7d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
             Aggiungi al Calendario
           </a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="background: #f0f5f2; padding: 15px 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #d4e0d8;">
           <h4 style="color: #6b7d8a; margin: 0 0 12px 0; font-size: 15px;">Suggerimenti</h4>
@@ -4079,7 +4411,7 @@ export function createConsultationReminderEmailHTML(
 
       <div style="text-align: center; color: #6b7d8a; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e8e4de;">
         <p style="margin: 5px 0; font-weight: 600; color: #555;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -4096,13 +4428,13 @@ export function createConsultationCancelledEmailHTML(
   consultationDate: string,
   consultationTime: string,
   cancellationReason: string | null,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -4116,13 +4448,17 @@ export function createConsultationCancelledEmailHTML(
           Ti informiamo che la consulenza per <strong>${jobType}</strong> prevista il ${consultationDate} alle ${consultationTime} è stata cancellata.
         </p>
 
-        ${cancellationReason ? `
+        ${
+          cancellationReason
+            ? `
         <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #721c24;">
             <strong>Motivo:</strong> ${cancellationReason}
           </p>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
@@ -4133,7 +4469,7 @@ export function createConsultationCancelledEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -4154,13 +4490,13 @@ export function createCalendarEventEmailHTML(
   eventLocation?: string,
   eventDescription?: string,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  calendarLink?: string
+  calendarLink?: string,
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   return `
@@ -4178,9 +4514,9 @@ export function createCalendarEventEmailHTML(
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">📋 Dettagli Appuntamento</h3>
           <p style="margin: 8px 0;"><strong>📝 Titolo:</strong> ${eventTitle}</p>
           <p style="margin: 8px 0;"><strong>📅 Data:</strong> ${eventDate}</p>
-          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${eventTime}${eventEndTime ? ` - ${eventEndTime}` : ''}</p>
-          ${eventLocation ? `<p style="margin: 8px 0;"><strong>📍 Luogo:</strong> ${eventLocation}</p>` : ''}
-          ${eventDescription ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${eventDescription}</p>` : ''}
+          <p style="margin: 8px 0;"><strong>🕐 Orario:</strong> ${eventTime}${eventEndTime ? ` - ${eventEndTime}` : ""}</p>
+          ${eventLocation ? `<p style="margin: 8px 0;"><strong>📍 Luogo:</strong> ${eventLocation}</p>` : ""}
+          ${eventDescription ? `<p style="margin: 8px 0;"><strong>📝 Note:</strong> ${eventDescription}</p>` : ""}
         </div>
 
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0;">
@@ -4195,7 +4531,9 @@ export function createCalendarEventEmailHTML(
         </p>
       </div>
 
-      ${calendarLink ? `
+      ${
+        calendarLink
+          ? `
       <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f9f7f4; border-radius: 12px;">
         <p style="font-size: 16px; color: #333; margin-bottom: 8px; font-weight: 600;">
           📅 Non dimenticare l'appuntamento!
@@ -4212,11 +4550,13 @@ export function createCalendarEventEmailHTML(
           Compatibile con Google Calendar, Outlook, Apple Calendar
         </p>
       </div>
-      ` : ''}
+      `
+          : ""
+      }
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -4236,29 +4576,33 @@ export function createQuoteSignedEmailHTML(
   signatureDate: Date,
   portalLink: string,
   nextPayment?: { importo: number; dataScadenza: Date; descrizione: string },
-  payments?: Array<{ importo: number; dataScadenza: Date; descrizione: string }>,
+  payments?: Array<{
+    importo: number;
+    dataScadenza: Date;
+    descrizione: string;
+  }>,
   studioInfo?: { name: string; email: string; phone: string; address: string },
-  includedServices?: string[]
+  includedServices?: string[],
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio", 
+  const studio = studioInfo || {
+    name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('it-IT', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric' 
+    return date.toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
     });
   };
 
@@ -4279,7 +4623,7 @@ export function createQuoteSignedEmailHTML(
           <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
             <tr style="border-bottom: 1px solid #b6d4fe;">
               <td style="padding: 8px 0;">Tipo preventivo:</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === 'fisso' ? 'Pacchetto Fisso' : 'A Consumo'}</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === "fisso" ? "Pacchetto Fisso" : "A Consumo"}</td>
             </tr>
             <tr style="border-bottom: 1px solid #b6d4fe;">
               <td style="padding: 8px 0;">Totale selezionato:</td>
@@ -4292,22 +4636,32 @@ export function createQuoteSignedEmailHTML(
           </table>
         </div>
 
-        ${includedServices && includedServices.length > 0 ? `
+        ${
+          includedServices && includedServices.length > 0
+            ? `
         <div style="background: #d1fae5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0; border-radius: 4px;">
           <h4 style="color: #065f46; margin-top: 0; margin-bottom: 12px;">🎁 Servizi Inclusi nel Contratto</h4>
-          ${includedServices.map(name => `
+          ${includedServices
+            .map(
+              (name) => `
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
             <span style="color: #059669; font-size: 16px; margin-right: 8px;">✓</span>
             <span style="color: #065f46; font-weight: bold;">${name}</span>
             <span style="margin-left: 8px; background: #059669; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold;">INCLUSO</span>
-          </div>`).join('')}
+          </div>`,
+            )
+            .join("")}
           <p style="margin: 12px 0 0 0; font-size: 12px; color: #065f46; font-style: italic;">
             I servizi inclusi sono già compresi nell'offerta e non comportano costi aggiuntivi.
           </p>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${nextPayment ? `
+        ${
+          nextPayment
+            ? `
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
           <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Prossima Scadenza</h4>
           <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #856404;">
@@ -4317,9 +4671,13 @@ export function createQuoteSignedEmailHTML(
             Scadenza: ${formatDate(nextPayment.dataScadenza)}
           </p>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
-        ${payments && payments.length > 0 ? `
+        ${
+          payments && payments.length > 0
+            ? `
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
           <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📅 Piano Pagamenti</h4>
           <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
@@ -4331,17 +4689,23 @@ export function createQuoteSignedEmailHTML(
               </tr>
             </thead>
             <tbody>
-              ${payments.map((p, i) => `
+              ${payments
+                .map(
+                  (p, i) => `
                 <tr style="border-bottom: 1px solid #e0e0e0;">
                   <td style="padding: 10px;">${p.descrizione}</td>
                   <td style="padding: 10px; text-align: right; font-weight: bold;">${formatCurrency(p.importo)}</td>
                   <td style="padding: 10px; text-align: right;">${formatDate(p.dataScadenza)}</td>
                 </tr>
-              `).join('')}
+              `,
+                )
+                .join("")}
             </tbody>
           </table>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <div style="text-align: center; margin: 25px 0;">
           <a href="${portalLink}" style="display: inline-block; background-color: #0d6efd; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
@@ -4364,7 +4728,7 @@ export function createQuoteSignedEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
       </div>
@@ -4386,29 +4750,33 @@ export function createPaymentReminderEmailHTML(
   daysUntilDue: number,
   isOverdue: boolean,
   portalUrl?: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
     }).format(amount);
   };
 
   // Urgency colors: red (overdue), orange (<=7 days), sage (normal)
-  const urgencyColor = isOverdue ? '#dc3545' : daysUntilDue <= 7 ? '#ff8c42' : '#8b9a8e';
-  const urgencyGradient = isOverdue 
-    ? 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)' 
-    : daysUntilDue <= 7 
-      ? 'linear-gradient(135deg, #ff8c42 0%, #ffa726 100%)'
-      : 'linear-gradient(135deg, #8b9a8e 0%, #a8b5a8 100%)';
+  const urgencyColor = isOverdue
+    ? "#dc3545"
+    : daysUntilDue <= 7
+      ? "#ff8c42"
+      : "#8b9a8e";
+  const urgencyGradient = isOverdue
+    ? "linear-gradient(135deg, #dc3545 0%, #c82333 100%)"
+    : daysUntilDue <= 7
+      ? "linear-gradient(135deg, #ff8c42 0%, #ffa726 100%)"
+      : "linear-gradient(135deg, #8b9a8e 0%, #a8b5a8 100%)";
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
@@ -4417,15 +4785,16 @@ export function createPaymentReminderEmailHTML(
       <div style="background: ${urgencyGradient}; padding: 50px 30px; text-align: center;">
         <div style="background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3); border-radius: 12px; padding: 30px;">
           <h1 style="color: #ffffff; font-size: 32px; font-weight: 300; margin: 0 0 15px 0; letter-spacing: 2px; text-transform: uppercase;">
-            ${isOverdue ? 'Pagamento Scaduto' : 'Promemoria Pagamento'}
+            ${isOverdue ? "Pagamento Scaduto" : "Promemoria Pagamento"}
           </h1>
           <div style="width: 60px; height: 2px; background: rgba(255,255,255,0.6); margin: 0 auto 20px auto;"></div>
           <p style="color: rgba(255,255,255,0.95); font-size: 18px; margin: 0; font-weight: 300; line-height: 1.6;">
-            ${isOverdue 
-              ? 'Il pagamento ha superato la scadenza prevista' 
-              : daysUntilDue <= 7 
-                ? `Mancano ${daysUntilDue} giorni alla scadenza` 
-                : 'Promemoria gentile per pagamento in programma'
+            ${
+              isOverdue
+                ? "Il pagamento ha superato la scadenza prevista"
+                : daysUntilDue <= 7
+                  ? `Mancano ${daysUntilDue} giorni alla scadenza`
+                  : "Promemoria gentile per pagamento in programma"
             }
           </p>
         </div>
@@ -4440,9 +4809,10 @@ export function createPaymentReminderEmailHTML(
         </p>
 
         <p style="font-size: 16px; color: #666666; line-height: 1.8; margin-bottom: 35px;">
-          ${isOverdue 
-            ? `Ti ricordiamo che è scaduto un pagamento relativo a <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Ti chiediamo cortesemente di regolarizzare al più presto.`
-            : `Con la presente ti ricordiamo un pagamento ${daysUntilDue <= 7 ? 'in imminente scadenza' : 'programmato'} per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
+          ${
+            isOverdue
+              ? `Ti ricordiamo che è scaduto un pagamento relativo a <strong style="color: #8b5a3c;">${nomeEvento}</strong>. Ti chiediamo cortesemente di regolarizzare al più presto.`
+              : `Con la presente ti ricordiamo un pagamento ${daysUntilDue <= 7 ? "in imminente scadenza" : "programmato"} per <strong style="color: #8b5a3c;">${nomeEvento}</strong>.`
           }
         </p>
 
@@ -4481,7 +4851,7 @@ export function createPaymentReminderEmailHTML(
             </tr>
             <tr>
               <td style="padding: 20px 0 5px 0; color: #666;">
-                <span style="font-weight: 600;">${isOverdue ? 'Giorni di Ritardo' : 'Giorni Rimanenti'}</span>
+                <span style="font-weight: 600;">${isOverdue ? "Giorni di Ritardo" : "Giorni Rimanenti"}</span>
               </td>
               <td style="padding: 20px 0 5px 0; text-align: right; color: ${urgencyColor}; font-weight: 700; font-size: 22px;">
                 ${Math.abs(daysUntilDue)}
@@ -4490,7 +4860,9 @@ export function createPaymentReminderEmailHTML(
           </table>
         </div>
 
-        ${portalUrl ? `
+        ${
+          portalUrl
+            ? `
         <!-- CTA Button -->
         <div style="text-align: center; margin: 40px 0;">
           <a href="${portalUrl}" 
@@ -4501,18 +4873,21 @@ export function createPaymentReminderEmailHTML(
             Visualizza Dettagli Pagamento
           </a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <!-- Info Box -->
         <div style="background: #f5f8f5; border-radius: 8px; padding: 25px; margin: 35px 0;">
           <h4 style="color: #8b9a8e; font-size: 14px; font-weight: 700; margin: 0 0 15px 0; letter-spacing: 1px; text-transform: uppercase;">
-            ${isOverdue ? 'Cosa Fare Ora' : 'Come Procedere'}
+            ${isOverdue ? "Cosa Fare Ora" : "Come Procedere"}
           </h4>
 
           <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.8;">
-            ${isOverdue 
-              ? 'Se hai già effettuato il pagamento, ti preghiamo di inviarci la ricevuta via email per conferma. In caso contrario, ti chiediamo gentilmente di provvedere al più presto per evitare eventuali ritardi nella lavorazione.'
-              : 'Per effettuare il pagamento o per qualsiasi chiarimento riguardo alle modalità, siamo a tua completa disposizione. Puoi contattarci via email o telefono.'
+            ${
+              isOverdue
+                ? "Se hai già effettuato il pagamento, ti preghiamo di inviarci la ricevuta via email per conferma. In caso contrario, ti chiediamo gentilmente di provvedere al più presto per evitare eventuali ritardi nella lavorazione."
+                : "Per effettuare il pagamento o per qualsiasi chiarimento riguardo alle modalità, siamo a tua completa disposizione. Puoi contattarci via email o telefono."
             }
           </p>
         </div>
@@ -4520,9 +4895,10 @@ export function createPaymentReminderEmailHTML(
         <!-- Closing Message -->
         <div style="text-align: center; margin: 40px 0 30px 0; padding: 25px; border-top: 1px solid #e8d5c4; border-bottom: 1px solid #e8d5c4;">
           <p style="font-size: 16px; color: #8b5a3c; font-style: italic; line-height: 1.8; margin: 0;">
-            ${isOverdue 
-              ? 'Grazie per la tua comprensione e collaborazione' 
-              : 'Grazie per la tua puntualità e collaborazione'
+            ${
+              isOverdue
+                ? "Grazie per la tua comprensione e collaborazione"
+                : "Grazie per la tua puntualità e collaborazione"
             }
           </p>
         </div>
@@ -4533,7 +4909,7 @@ export function createPaymentReminderEmailHTML(
         <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c; letter-spacing: 1px;">
           ${studio.name}
         </p>
-        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 0 0 5px 0; font-size: 13px; color: #999;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0; font-size: 13px; color: #666;">
           <a href="mailto:${studio.email}" style="color: #8b5a3c; text-decoration: none;">${studio.email}</a>
         </p>
@@ -4545,32 +4921,56 @@ export function createPaymentReminderEmailHTML(
 
 export function createAdminQuoteSignedNotificationHTML(
   clienteName: string,
-  quoteType: 'fisso' | 'variabile',
+  quoteType: "fisso" | "variabile",
   nomeEvento: string,
   totalAmount: number,
   signatureDate: Date,
   quoteUrl: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
   const studio = studioInfo || {
     name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+    new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
 
   const formatDate = (date: Date) =>
-    date.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
+    date.toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      weekday: "long",
+    });
 
-  const monthNames = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  const monthNames = [
+    "gennaio",
+    "febbraio",
+    "marzo",
+    "aprile",
+    "maggio",
+    "giugno",
+    "luglio",
+    "agosto",
+    "settembre",
+    "ottobre",
+    "novembre",
+    "dicembre",
+  ];
   const d = signatureDate;
   const formattedDay = d.getDate();
   const formattedMonth = monthNames[d.getMonth()];
   const formattedYear = d.getFullYear();
-  const formattedTime = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  const formattedTime = d.toLocaleTimeString("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -4622,7 +5022,7 @@ export function createAdminQuoteSignedNotificationHTML(
               <td width="50%" style="padding-left:8px;vertical-align:top;">
                 <div style="background:#f5f0e8;border-radius:10px;padding:18px 20px;">
                   <p style="margin:0 0 4px;font-size:11px;color:#9a8f84;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;">Tipo</p>
-                  <p style="margin:0;font-size:16px;color:#3d3530;font-weight:700;font-family:Georgia,serif;">${quoteType === 'fisso' ? 'Pacchetto fisso' : 'A consumo'}</p>
+                  <p style="margin:0;font-size:16px;color:#3d3530;font-weight:700;font-family:Georgia,serif;">${quoteType === "fisso" ? "Pacchetto fisso" : "A consumo"}</p>
                 </div>
               </td>
             </tr>
@@ -4638,7 +5038,9 @@ export function createAdminQuoteSignedNotificationHTML(
       </tr>
 
       <!-- CTA BUTTON -->
-      ${quoteUrl && quoteUrl !== '#' ? `
+      ${
+        quoteUrl && quoteUrl !== "#"
+          ? `
       <tr>
         <td style="padding:0 40px 32px;">
           <table width="100%" cellpadding="0" cellspacing="0">
@@ -4652,7 +5054,9 @@ export function createAdminQuoteSignedNotificationHTML(
           </table>
         </td>
       </tr>
-      ` : ''}
+      `
+          : ""
+      }
 
       <!-- DIVIDER -->
       <tr>
@@ -4683,17 +5087,20 @@ function createAccontoCancelledEmailHTML(
   nuovoAccontoTotale: number,
   nuovoSaldo: number,
   motivo: string,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
   const studio = studioInfo || {
     name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+    new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -4706,7 +5113,7 @@ function createAccontoCancelledEmailHTML(
           Ti informiamo che un acconto di <strong style="color: #e65100;">${formatCurrency(accontoImporto)}</strong>
           relativo a <strong>${prodottoNome}</strong> è stato annullato.
         </p>
-        ${motivo ? `<p style="font-size: 14px; color: #666; margin-bottom: 15px;"><em>Motivo: ${motivo}</em></p>` : ''}
+        ${motivo ? `<p style="font-size: 14px; color: #666; margin-bottom: 15px;"><em>Motivo: ${motivo}</em></p>` : ""}
         <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse; margin-top: 10px;">
           <tr style="border-bottom: 1px solid #ffe0b2;">
             <td style="padding: 8px 0;">Acconto annullato:</td>
@@ -4727,7 +5134,7 @@ function createAccontoCancelledEmailHTML(
       </p>
       <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
         <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
-        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ''}
+        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ""}
         <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
       </div>
     </div>
@@ -4740,17 +5147,20 @@ function createOrderSaldoPendenteEmailHTML(
   saldoAmount: number,
   studioInfo?: { name: string; email: string; phone: string; address: string },
   totaleOrdine?: number,
-  transactions?: Array<{ importo: number; tipo: string; data: string }>
+  transactions?: Array<{ importo: number; tipo: string; data: string }>,
 ): string {
   const studio = studioInfo || {
     name: "Image Studio",
     email: "info@imagestudiofotografico.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount);
+    new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -4767,12 +5177,16 @@ function createOrderSaldoPendenteEmailHTML(
             <td style="padding: 8px 0;">Saldo pagato:</td>
             <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #2e7d32; font-size: 18px;">${formatCurrency(saldoAmount)}</td>
           </tr>
-          ${totaleOrdine !== undefined ? `
+          ${
+            totaleOrdine !== undefined
+              ? `
           <tr style="border-bottom: 1px solid #c8e6c9;">
             <td style="padding: 8px 0;">Totale ordine:</td>
             <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatCurrency(totaleOrdine)}</td>
           </tr>
-          ` : ''}
+          `
+              : ""
+          }
           <tr>
             <td colspan="2" style="padding: 15px 0 0; text-align: center;">
               <span style="color: #2e7d32; font-size: 16px; font-weight: 600;">✓ Pagamento completato</span>
@@ -4780,26 +5194,34 @@ function createOrderSaldoPendenteEmailHTML(
           </tr>
         </table>
       </div>
-      ${transactions && transactions.length > 0 ? `
+      ${
+        transactions && transactions.length > 0
+          ? `
         <div style="margin: 20px 0;">
           <h3 style="font-size: 15px; color: #333; margin-bottom: 10px;">Riepilogo Pagamenti</h3>
           <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
-            ${transactions.map(t => `
+            ${transactions
+              .map(
+                (t) => `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 6px 0; color: #666;">${t.tipo || 'Pagamento'}</td>
-                <td style="padding: 6px 0; color: #666;">${t.data || ''}</td>
+                <td style="padding: 6px 0; color: #666;">${t.tipo || "Pagamento"}</td>
+                <td style="padding: 6px 0; color: #666;">${t.data || ""}</td>
                 <td style="padding: 6px 0; text-align: right; font-weight: bold;">${formatCurrency(t.importo)}</td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </table>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
       <p style="font-size: 14px; color: #666; text-align: center;">
         Grazie per la tua fiducia!
       </p>
       <div style="background: #f9f7f4; padding: 20px; text-align: center; border-top: 3px solid #c9a961; border-radius: 0 0 10px 10px;">
         <p style="margin: 0 0 8px 0; font-weight: 700; font-size: 15px; color: #8b5a3c;">${studio.name}</p>
-        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ''}
+        ${studio.phone ? `<p style="margin: 5px 0; font-size: 13px; color: #666;">Tel: ${studio.phone}</p>` : ""}
         <p style="margin: 5px 0; font-size: 13px; color: #666;">${studio.email}</p>
       </div>
     </div>
@@ -4819,13 +5241,20 @@ router.post("/admin-quote-signed-notification", async (req, res) => {
       totalAmount,
       signatureDate,
       quoteType,
-      quoteUrl
+      quoteUrl,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !nomeEvento || totalAmount === undefined || !signatureDate || !quoteType) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !nomeEvento ||
+      totalAmount === undefined ||
+      !signatureDate ||
+      !quoteType
+    ) {
       return res.status(400).json({
-        error: "Missing required fields for admin quote signed notification"
+        error: "Missing required fields for admin quote signed notification",
       });
     }
 
@@ -4833,16 +5262,19 @@ router.post("/admin-quote-signed-notification", async (req, res) => {
     const studioInfo = await getStudioContactInfo();
 
     // Converti signatureDate in Date se è una stringa
-    const signedAt = typeof signatureDate === 'string' ? new Date(signatureDate) : signatureDate;
+    const signedAt =
+      typeof signatureDate === "string"
+        ? new Date(signatureDate)
+        : signatureDate;
 
     const htmlContent = createAdminQuoteSignedNotificationHTML(
       clienteName,
-      quoteType as 'fisso' | 'variabile',
+      quoteType as "fisso" | "variabile",
       nomeEvento,
       totalAmount,
       signedAt,
-      quoteUrl || '#',
-      studioInfo
+      quoteUrl || "#",
+      studioInfo,
     );
 
     const subject = `Nuovo Contratto Firmato - ${nomeEvento} (${clienteName})`;
@@ -4850,18 +5282,18 @@ router.post("/admin-quote-signed-notification", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Admin Quote Signed Notification" inviata a ${recipientEmail} per evento ${nomeEvento}`
+      `✅ Email "Admin Quote Signed Notification" inviata a ${recipientEmail} per evento ${nomeEvento}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Admin quote signed notification email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore admin-quote-signed-notification email:", error);
     res.status(500).json({
-      error: "Errore invio notifica admin contratto firmato"
+      error: "Errore invio notifica admin contratto firmato",
     });
   }
 });
@@ -4877,13 +5309,19 @@ router.post("/send-consultation-received", async (req, res) => {
       clienteName,
       jobType,
       consultationDate,
-      consultationTime
+      consultationTime,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !jobType ||
+      !consultationDate ||
+      !consultationTime
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email consulenza ricevuta"
+        error: "Parametri mancanti per invio email consulenza ricevuta",
       });
     }
 
@@ -4895,7 +5333,7 @@ router.post("/send-consultation-received", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Richiesta Consulenza Ricevuta - ${jobType}`;
@@ -4903,18 +5341,18 @@ router.post("/send-consultation-received", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Consulenza Ricevuta" inviata a ${recipientEmail} per ${jobType}`
+      `✅ Email "Consulenza Ricevuta" inviata a ${recipientEmail} per ${jobType}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Consultation received email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-consultation-received:", error);
     res.status(500).json({
-      error: "Errore invio email consulenza ricevuta"
+      error: "Errore invio email consulenza ricevuta",
     });
   }
 });
@@ -4931,13 +5369,19 @@ router.post("/send-consultation-approved", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      meetingLink
+      meetingLink,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !jobType ||
+      !consultationDate ||
+      !consultationTime
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email consulenza approvata"
+        error: "Parametri mancanti per invio email consulenza approvata",
       });
     }
 
@@ -4950,7 +5394,7 @@ router.post("/send-consultation-approved", async (req, res) => {
       consultationDate,
       consultationTime,
       meetingLink || null,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Consulenza Confermata - ${jobType}`;
@@ -4958,18 +5402,18 @@ router.post("/send-consultation-approved", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Consulenza Approvata" inviata a ${recipientEmail} per ${jobType}`
+      `✅ Email "Consulenza Approvata" inviata a ${recipientEmail} per ${jobType}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Consultation approved email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-consultation-approved:", error);
     res.status(500).json({
-      error: "Errore invio email consulenza approvata"
+      error: "Errore invio email consulenza approvata",
     });
   }
 });
@@ -4986,13 +5430,19 @@ router.post("/send-consultation-rejected", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      rejectionReason
+      rejectionReason,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !jobType ||
+      !consultationDate ||
+      !consultationTime
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email consulenza rifiutata"
+        error: "Parametri mancanti per invio email consulenza rifiutata",
       });
     }
 
@@ -5005,7 +5455,7 @@ router.post("/send-consultation-rejected", async (req, res) => {
       consultationDate,
       consultationTime,
       rejectionReason || null,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Aggiornamento Consulenza - ${jobType}`;
@@ -5013,18 +5463,18 @@ router.post("/send-consultation-rejected", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Consulenza Rifiutata" inviata a ${recipientEmail} per ${jobType}`
+      `✅ Email "Consulenza Rifiutata" inviata a ${recipientEmail} per ${jobType}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Consultation rejected email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-consultation-rejected:", error);
     res.status(500).json({
-      error: "Errore invio email consulenza rifiutata"
+      error: "Errore invio email consulenza rifiutata",
     });
   }
 });
@@ -5041,13 +5491,19 @@ router.post("/send-consultation-cancelled", async (req, res) => {
       jobType,
       consultationDate,
       consultationTime,
-      cancellationReason
+      cancellationReason,
     } = req.body;
 
     // Validazioni
-    if (!recipientEmail || !clienteName || !jobType || !consultationDate || !consultationTime) {
+    if (
+      !recipientEmail ||
+      !clienteName ||
+      !jobType ||
+      !consultationDate ||
+      !consultationTime
+    ) {
       return res.status(400).json({
-        error: "Parametri mancanti per invio email consulenza cancellata"
+        error: "Parametri mancanti per invio email consulenza cancellata",
       });
     }
 
@@ -5060,7 +5516,7 @@ router.post("/send-consultation-cancelled", async (req, res) => {
       consultationDate,
       consultationTime,
       cancellationReason || null,
-      studioInfo
+      studioInfo,
     );
 
     const subject = `Consulenza Cancellata - ${jobType}`;
@@ -5068,18 +5524,18 @@ router.post("/send-consultation-cancelled", async (req, res) => {
     await sendGmailEmail(recipientEmail, subject, htmlContent);
 
     console.log(
-      `✅ Email "Consulenza Cancellata" inviata a ${recipientEmail} per ${jobType}`
+      `✅ Email "Consulenza Cancellata" inviata a ${recipientEmail} per ${jobType}`,
     );
 
     res.status(200).json({
       success: true,
       message: "Consultation cancelled email sent successfully",
-      recipientEmail
+      recipientEmail,
     });
   } catch (error) {
     console.error("❌ Errore send-consultation-cancelled:", error);
     res.status(500).json({
-      error: "Errore invio email consulenza cancellata"
+      error: "Errore invio email consulenza cancellata",
     });
   }
 });
@@ -5090,23 +5546,23 @@ router.post("/send-consultation-cancelled", async (req, res) => {
  */
 export function createQuoteSentEmailHTML(
   clienteName: string,
-  quoteType: 'fisso' | 'variabile',
+  quoteType: "fisso" | "variabile",
   nomeEvento: string,
   totalAfterDiscount: number,
   quoteUrl: string,
   expiresAt?: Date,
-  studioInfo?: { name: string; email: string; phone: string; address: string }
+  studioInfo?: { name: string; email: string; phone: string; address: string },
 ): string {
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
 
-  const expiryText = expiresAt 
-    ? `Questo preventivo è valido fino al <strong>${expiresAt.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}</strong>.`
-    : '';
+  const expiryText = expiresAt
+    ? `Questo preventivo è valido fino al <strong>${expiresAt.toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}</strong>.`
+    : "";
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -5121,9 +5577,9 @@ export function createQuoteSentEmailHTML(
 
         <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💰 Dettagli Preventivo</h3>
-          <p style="margin: 8px 0;"><strong>Tipo:</strong> ${quoteType === 'fisso' ? 'Preventivo Fisso' : 'Preventivo Variabile'}</p>
+          <p style="margin: 8px 0;"><strong>Tipo:</strong> ${quoteType === "fisso" ? "Preventivo Fisso" : "Preventivo Variabile"}</p>
           <p style="margin: 8px 0;"><strong>Totale:</strong> €${totalAfterDiscount.toFixed(2)}</p>
-          ${expiryText ? `<p style="margin: 8px 0; color: #666;">${expiryText}</p>` : ''}
+          ${expiryText ? `<p style="margin: 8px 0; color: #666;">${expiryText}</p>` : ""}
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
@@ -5137,9 +5593,11 @@ export function createQuoteSentEmailHTML(
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0c5460;">
             <strong>✅ Prossimi Passi</strong><br>
-            ${quoteType === 'fisso' 
-              ? 'Rivedi il preventivo e firmalo online per confermare il servizio.'
-              : 'Seleziona i prodotti che desideri e firma il preventivo per procedere.'}
+            ${
+              quoteType === "fisso"
+                ? "Rivedi il preventivo e firmalo online per confermare il servizio."
+                : "Seleziona i prodotti che desideri e firma il preventivo per procedere."
+            }
           </p>
         </div>
 
@@ -5150,7 +5608,7 @@ export function createQuoteSentEmailHTML(
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
         <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
       </div>
@@ -5172,34 +5630,39 @@ router.post("/collaborator-assignment", async (req, res) => {
       ruolo,
       compenso,
       noteAdmin,
-      dashboardToken
+      dashboardToken,
     } = req.body;
 
     if (!collaboratoreEmail || !collaboratoreNome || !jobNome) {
       return res.status(400).json({
-        error: "Dati mancanti: collaboratoreEmail, collaboratoreNome, jobNome sono obbligatori"
+        error:
+          "Dati mancanti: collaboratoreEmail, collaboratoreNome, jobNome sono obbligatori",
       });
     }
 
-    console.log(`📧 Invio email assegnazione lavoro a ${collaboratoreEmail}...`);
+    console.log(
+      `📧 Invio email assegnazione lavoro a ${collaboratoreEmail}...`,
+    );
 
     const studioInfo = await getStudioContactInfo();
     const siteUrl = getSiteBaseUrl(req);
-    
+
     const ruoliLabels: Record<string, string> = {
-      fotografo_secondario: 'Fotografo Secondario',
-      videomaker: 'Videomaker',
-      assistente: 'Assistente',
-      photo_editor: 'Photo Editor',
-      album_designer: 'Album Designer',
-      altro: 'Altro'
+      fotografo_secondario: "Fotografo Secondario",
+      videomaker: "Videomaker",
+      assistente: "Assistente",
+      photo_editor: "Photo Editor",
+      album_designer: "Album Designer",
+      altro: "Altro",
     };
 
-    const ruoloLabel = ruoliLabels[ruolo] || ruolo || 'Collaboratore';
-    const compensoFormatted = compenso ? `€${compenso.toLocaleString('it-IT')}` : 'Da definire';
-    const dataFormatted = jobData || 'Data da confermare';
-    
-    const dashboardUrl = dashboardToken 
+    const ruoloLabel = ruoliLabels[ruolo] || ruolo || "Collaboratore";
+    const compensoFormatted = compenso
+      ? `€${compenso.toLocaleString("it-IT")}`
+      : "Da definire";
+    const dataFormatted = jobData || "Data da confermare";
+
+    const dashboardUrl = dashboardToken
       ? `${siteUrl}/collaboratori/dashboard/${dashboardToken}`
       : null;
 
@@ -5247,16 +5710,22 @@ router.post("/collaborator-assignment", async (req, res) => {
                 <td style="padding: 8px 0; color: #666; font-size: 14px;">💰 Compenso:</td>
                 <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">${compensoFormatted}</td>
               </tr>
-              ${noteAdmin ? `
+              ${
+                noteAdmin
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">📝 Note:</td>
                 <td style="padding: 8px 0; color: #333; font-size: 14px;">${noteAdmin}</td>
               </tr>
-              ` : ''}
+              `
+                  : ""
+              }
             </table>
           </div>
           
-          ${dashboardUrl ? `
+          ${
+            dashboardUrl
+              ? `
           <!-- Call to Action -->
           <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
             <p style="font-size: 16px; color: #333; margin: 0 0 20px 0;">
@@ -5275,14 +5744,16 @@ router.post("/collaborator-assignment", async (req, res) => {
               Link diretto: <a href="${dashboardUrl}" style="color: #8b5a3c;">${dashboardUrl}</a>
             </p>
           </div>
-          ` : `
+          `
+              : `
           <!-- Messaggio senza dashboard -->
           <div style="background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
             <p style="font-size: 14px; color: #856404; margin: 0;">
               ⚠️ Per accettare o rifiutare questo lavoro, contatta direttamente lo studio.
             </p>
           </div>
-          `}
+          `
+          }
           
           <!-- Info Risposta -->
           <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin-bottom: 25px; border-radius: 0 8px 8px 0;">
@@ -5302,7 +5773,7 @@ router.post("/collaborator-assignment", async (req, res) => {
         <!-- Footer -->
         <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
           <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
-          ${studioInfo.address ? `<p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.address}</p>` : ''}
+          ${studioInfo.address ? `<p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.address}</p>` : ""}
           <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">📧 ${studioInfo.email}</p>
           <p style="margin: 0; font-size: 12px; color: #666;">📱 ${studioInfo.phone}</p>
         </div>
@@ -5313,22 +5784,23 @@ router.post("/collaborator-assignment", async (req, res) => {
     await sendGmailEmail(
       collaboratoreEmail,
       `🎯 Nuovo Lavoro Assegnato: ${jobNome} | ${studioInfo.name}`,
-      htmlContent
+      htmlContent,
     );
 
-    console.log(`✅ Email assegnazione inviata con successo a ${collaboratoreEmail}`);
+    console.log(
+      `✅ Email assegnazione inviata con successo a ${collaboratoreEmail}`,
+    );
 
     return res.json({
       success: true,
       message: `Email assegnazione inviata a ${collaboratoreEmail}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error: any) {
     console.error("❌ Errore invio email assegnazione:", error);
     return res.status(500).json({
       success: false,
-      error: error.message || "Errore invio email assegnazione"
+      error: error.message || "Errore invio email assegnazione",
     });
   }
 });
@@ -5340,15 +5812,15 @@ router.post("/collaborator-assignment", async (req, res) => {
 router.post("/send-test", async (req, res) => {
   try {
     const { recipientEmail } = req.body;
-    
+
     if (!recipientEmail) {
       return res.status(400).json({ error: "recipientEmail richiesto" });
     }
-    
+
     console.log(`📧 Invio email di test a ${recipientEmail}...`);
-    
+
     const studioInfo = await getStudioContactInfo();
-    
+
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #8b5a3c; text-align: center;">✅ Test Email - Sistema Funzionante!</h2>
@@ -5363,37 +5835,37 @@ router.post("/send-test", async (req, res) => {
             <p style="margin: 0; font-size: 14px; color: #155724;">
               <strong>✅ Connessione Gmail API:</strong> Attiva<br>
               <strong>✅ Invio Email:</strong> Funzionante<br>
-              <strong>📅 Data Test:</strong> ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}
+              <strong>📅 Data Test:</strong> ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}
             </p>
           </div>
         </div>
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
           <p style="margin: 5px 0; font-weight: 600;">${studioInfo.name}</p>
-          ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ''}
+          ${studioInfo.address ? `<p style="margin: 5px 0;">${studioInfo.address}</p>` : ""}
           <p style="margin: 5px 0;">Email: ${studioInfo.email}</p>
           <p style="margin: 5px 0;">Tel: ${studioInfo.phone}</p>
         </div>
       </div>
     `;
-    
+
     await sendGmailEmail(
       recipientEmail,
       `✅ Test Email - ${studioInfo.name}`,
-      htmlContent
+      htmlContent,
     );
-    
+
     console.log(`✅ Email di test inviata con successo a ${recipientEmail}`);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       message: `Email di test inviata a ${recipientEmail}`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
     console.error("❌ Errore invio email di test:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Errore invio email di test"
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Errore invio email di test",
     });
   }
 });
@@ -5405,28 +5877,28 @@ router.post("/send-test", async (req, res) => {
 router.get("/test-connection", async (req, res) => {
   try {
     console.log("🔍 Testing Gmail API connection...");
-    
+
     const accessToken = await getAccessToken();
-    
+
     if (accessToken) {
       console.log("✅ Gmail API connection successful");
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: "Gmail API connection OK",
-        tokenPreview: accessToken.substring(0, 20) + "..."
+        tokenPreview: accessToken.substring(0, 20) + "...",
       });
     } else {
       console.error("❌ Gmail API: No access token");
-      return res.status(500).json({ 
-        success: false, 
-        error: "No access token available" 
+      return res.status(500).json({
+        success: false,
+        error: "No access token available",
       });
     }
   } catch (error: any) {
     console.error("❌ Gmail API test failed:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Connection test failed"
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Connection test failed",
     });
   }
 });
@@ -5438,49 +5910,51 @@ router.get("/test-connection", async (req, res) => {
  */
 router.get("/logs", authenticateFirebase, async (req: any, res) => {
   try {
-    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    const adminEmails = ["gennaro.mazzacane@gmail.com"];
     if (!req.user || !adminEmails.includes(req.user.email)) {
-      return res.status(403).json({ error: 'Accesso non autorizzato' });
+      return res.status(403).json({ error: "Accesso non autorizzato" });
     }
 
     const limit = parseInt(req.query.limit as string) || 50;
     const type = req.query.type as string;
     const startAfter = req.query.startAfter as string;
 
-    let query = db.collection('emailLogs')
-      .orderBy('sentAt', 'desc')
+    let query = db
+      .collection("emailLogs")
+      .orderBy("sentAt", "desc")
       .limit(limit);
 
     if (type) {
-      query = db.collection('emailLogs')
-        .where('type', '==', type)
-        .orderBy('sentAt', 'desc')
+      query = db
+        .collection("emailLogs")
+        .where("type", "==", type)
+        .orderBy("sentAt", "desc")
         .limit(limit);
     }
 
     const snapshot = await query.get();
-    
-    const logs = snapshot.docs.map(doc => ({
+
+    const logs = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-      sentAt: doc.data().sentAt?.toDate?.()?.toISOString() || null
+      sentAt: doc.data().sentAt?.toDate?.()?.toISOString() || null,
     }));
 
     // Conta totale per statistiche
-    const statsSnapshot = await db.collection('emailLogs').count().get();
+    const statsSnapshot = await db.collection("emailLogs").count().get();
     const totalCount = statsSnapshot.data().count;
 
     return res.json({
       success: true,
       logs,
       total: totalCount,
-      hasMore: logs.length === limit
+      hasMore: logs.length === limit,
     });
   } catch (error: any) {
     console.error("❌ Errore recupero log email:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Errore recupero log email"
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Errore recupero log email",
     });
   }
 });
@@ -5491,35 +5965,38 @@ router.get("/logs", authenticateFirebase, async (req: any, res) => {
  */
 router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
   try {
-    const adminEmails = ['gennaro.mazzacane@gmail.com'];
+    const adminEmails = ["gennaro.mazzacane@gmail.com"];
     if (!req.user || !adminEmails.includes(req.user.email)) {
-      return res.status(403).json({ error: 'Accesso non autorizzato' });
+      return res.status(403).json({ error: "Accesso non autorizzato" });
     }
 
     // Statistiche ultime 24 ore
     // CRITICAL: Use Luxon for correct timezone handling
-    const nowRome = DateTime.now().setZone('Europe/Rome');
+    const nowRome = DateTime.now().setZone("Europe/Rome");
     const yesterday = nowRome.minus({ days: 1 }).toJSDate();
 
-    const last24hSnapshot = await db.collection('emailLogs')
-      .where('sentAt', '>=', yesterday)
+    const last24hSnapshot = await db
+      .collection("emailLogs")
+      .where("sentAt", ">=", yesterday)
       .count()
       .get();
 
     // Statistiche ultimi 7 giorni
     const lastWeek = nowRome.minus({ days: 7 }).toJSDate();
 
-    const last7dSnapshot = await db.collection('emailLogs')
-      .where('sentAt', '>=', lastWeek)
+    const last7dSnapshot = await db
+      .collection("emailLogs")
+      .where("sentAt", ">=", lastWeek)
       .count()
       .get();
 
     // Statistiche totali
-    const totalSnapshot = await db.collection('emailLogs').count().get();
+    const totalSnapshot = await db.collection("emailLogs").count().get();
 
     // Email fallite
-    const failedSnapshot = await db.collection('emailLogs')
-      .where('status', '==', 'failed')
+    const failedSnapshot = await db
+      .collection("emailLogs")
+      .where("status", "==", "failed")
       .count()
       .get();
 
@@ -5529,14 +6006,14 @@ router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
         last24h: last24hSnapshot.data().count,
         last7d: last7dSnapshot.data().count,
         total: totalSnapshot.data().count,
-        failed: failedSnapshot.data().count
-      }
+        failed: failedSnapshot.data().count,
+      },
     });
   } catch (error: any) {
     console.error("❌ Errore recupero statistiche email:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Errore recupero statistiche"
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Errore recupero statistiche",
     });
   }
 });
@@ -5546,278 +6023,318 @@ router.get("/logs/stats", authenticateFirebase, async (req: any, res) => {
  * Migra password e specialPin dalla collection galleries a gallerySecrets
  * Admin only - operazione una tantum
  */
-router.post("/admin/migrate-legacy-secrets", authenticateFirebase, async (req: any, res) => {
-  try {
-    const adminEmails = ['gennaro.mazzacane@gmail.com'];
-    if (!req.user || !adminEmails.includes(req.user.email)) {
-      return res.status(403).json({ error: 'Accesso non autorizzato' });
-    }
-
-    console.log('🔄 Inizio migrazione secrets legacy...');
-
-    // Recupera tutte le gallerie
-    const galleriesSnapshot = await db.collection('galleries').get();
-    
-    const results = {
-      total: galleriesSnapshot.size,
-      withLegacyPassword: 0,
-      withLegacyPin: 0,
-      migrated: 0,
-      alreadyMigrated: 0,
-      errors: [] as string[]
-    };
-
-    for (const galleryDoc of galleriesSnapshot.docs) {
-      const galleryData = galleryDoc.data();
-      const galleryId = galleryDoc.id;
-      
-      // Controlla se ha password o specialPin nel documento principale
-      const hasLegacyPassword = galleryData.password && typeof galleryData.password === 'string' && galleryData.password.trim();
-      const hasLegacyPin = galleryData.specialPin && typeof galleryData.specialPin === 'string' && galleryData.specialPin.trim();
-      
-      if (hasLegacyPassword) results.withLegacyPassword++;
-      if (hasLegacyPin) results.withLegacyPin++;
-      
-      if (!hasLegacyPassword && !hasLegacyPin) {
-        continue; // Nessun secret legacy, salta
+router.post(
+  "/admin/migrate-legacy-secrets",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const adminEmails = ["gennaro.mazzacane@gmail.com"];
+      if (!req.user || !adminEmails.includes(req.user.email)) {
+        return res.status(403).json({ error: "Accesso non autorizzato" });
       }
 
-      try {
-        // Controlla se esiste già in gallerySecrets
-        const secretsRef = db.collection('gallerySecrets').doc(galleryId);
-        const secretsDoc = await secretsRef.get();
-        
-        const existingSecrets = secretsDoc.exists ? secretsDoc.data() : {};
-        
-        // Prepara i dati da migrare
-        const migrateData: any = {
-          migratedAt: nowRomeDate(),
-          migratedFrom: 'galleries'
-        };
-        
-        // Migra password solo se non esiste già in secrets
-        if (hasLegacyPassword && !existingSecrets?.password) {
-          migrateData.password = galleryData.password.trim();
-          console.log(`📋 Migrazione password per galleria ${galleryId} (${galleryData.name})`);
+      console.log("🔄 Inizio migrazione secrets legacy...");
+
+      // Recupera tutte le gallerie
+      const galleriesSnapshot = await db.collection("galleries").get();
+
+      const results = {
+        total: galleriesSnapshot.size,
+        withLegacyPassword: 0,
+        withLegacyPin: 0,
+        migrated: 0,
+        alreadyMigrated: 0,
+        errors: [] as string[],
+      };
+
+      for (const galleryDoc of galleriesSnapshot.docs) {
+        const galleryData = galleryDoc.data();
+        const galleryId = galleryDoc.id;
+
+        // Controlla se ha password o specialPin nel documento principale
+        const hasLegacyPassword =
+          galleryData.password &&
+          typeof galleryData.password === "string" &&
+          galleryData.password.trim();
+        const hasLegacyPin =
+          galleryData.specialPin &&
+          typeof galleryData.specialPin === "string" &&
+          galleryData.specialPin.trim();
+
+        if (hasLegacyPassword) results.withLegacyPassword++;
+        if (hasLegacyPin) results.withLegacyPin++;
+
+        if (!hasLegacyPassword && !hasLegacyPin) {
+          continue; // Nessun secret legacy, salta
         }
-        
-        // Migra PIN solo se non esiste già in secrets
-        if (hasLegacyPin && !existingSecrets?.specialPin) {
-          migrateData.specialPin = galleryData.specialPin.trim();
-          console.log(`📋 Migrazione PIN per galleria ${galleryId} (${galleryData.name})`);
-        }
-        
-        // Se c'è qualcosa da migrare, salva in gallerySecrets
-        if (migrateData.password || migrateData.specialPin) {
-          await secretsRef.set(migrateData, { merge: true });
-          
-          // Rimuovi i campi legacy dalla galleria principale
-          const removeFields: any = {};
-          if (hasLegacyPassword) removeFields.password = FieldValue.delete();
-          if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
-          
-          await db.collection('galleries').doc(galleryId).update(removeFields);
-          
-          results.migrated++;
-          console.log(`✅ Migrazione completata per galleria ${galleryId}`);
-        } else {
-          results.alreadyMigrated++;
-          console.log(`ℹ️ Galleria ${galleryId} già migrata, rimuovo solo campi legacy`);
-          
-          // Rimuovi comunque i campi legacy se presenti
-          const removeFields: any = {};
-          if (hasLegacyPassword) removeFields.password = FieldValue.delete();
-          if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
-          
-          if (Object.keys(removeFields).length > 0) {
-            await db.collection('galleries').doc(galleryId).update(removeFields);
+
+        try {
+          // Controlla se esiste già in gallerySecrets
+          const secretsRef = db.collection("gallerySecrets").doc(galleryId);
+          const secretsDoc = await secretsRef.get();
+
+          const existingSecrets = secretsDoc.exists ? secretsDoc.data() : {};
+
+          // Prepara i dati da migrare
+          const migrateData: any = {
+            migratedAt: nowRomeDate(),
+            migratedFrom: "galleries",
+          };
+
+          // Migra password solo se non esiste già in secrets
+          if (hasLegacyPassword && !existingSecrets?.password) {
+            migrateData.password = galleryData.password.trim();
+            console.log(
+              `📋 Migrazione password per galleria ${galleryId} (${galleryData.name})`,
+            );
           }
+
+          // Migra PIN solo se non esiste già in secrets
+          if (hasLegacyPin && !existingSecrets?.specialPin) {
+            migrateData.specialPin = galleryData.specialPin.trim();
+            console.log(
+              `📋 Migrazione PIN per galleria ${galleryId} (${galleryData.name})`,
+            );
+          }
+
+          // Se c'è qualcosa da migrare, salva in gallerySecrets
+          if (migrateData.password || migrateData.specialPin) {
+            await secretsRef.set(migrateData, { merge: true });
+
+            // Rimuovi i campi legacy dalla galleria principale
+            const removeFields: any = {};
+            if (hasLegacyPassword) removeFields.password = FieldValue.delete();
+            if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
+
+            await db
+              .collection("galleries")
+              .doc(galleryId)
+              .update(removeFields);
+
+            results.migrated++;
+            console.log(`✅ Migrazione completata per galleria ${galleryId}`);
+          } else {
+            results.alreadyMigrated++;
+            console.log(
+              `ℹ️ Galleria ${galleryId} già migrata, rimuovo solo campi legacy`,
+            );
+
+            // Rimuovi comunque i campi legacy se presenti
+            const removeFields: any = {};
+            if (hasLegacyPassword) removeFields.password = FieldValue.delete();
+            if (hasLegacyPin) removeFields.specialPin = FieldValue.delete();
+
+            if (Object.keys(removeFields).length > 0) {
+              await db
+                .collection("galleries")
+                .doc(galleryId)
+                .update(removeFields);
+            }
+          }
+        } catch (error: any) {
+          console.error(`❌ Errore migrazione galleria ${galleryId}:`, error);
+          results.errors.push(`${galleryId}: ${error.message}`);
         }
-        
-      } catch (error: any) {
-        console.error(`❌ Errore migrazione galleria ${galleryId}:`, error);
-        results.errors.push(`${galleryId}: ${error.message}`);
       }
+
+      console.log("✅ Migrazione secrets completata:", results);
+
+      return res.json({
+        success: true,
+        message: "Migrazione completata",
+        results,
+      });
+    } catch (error: any) {
+      console.error("❌ Errore migrazione secrets:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Errore migrazione secrets",
+      });
     }
-
-    console.log('✅ Migrazione secrets completata:', results);
-
-    return res.json({
-      success: true,
-      message: 'Migrazione completata',
-      results
-    });
-
-  } catch (error: any) {
-    console.error("❌ Errore migrazione secrets:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Errore migrazione secrets"
-    });
-  }
-});
+  },
+);
 
 /**
  * GET /api/email/admin/check-legacy-secrets
  * Verifica quante gallerie hanno ancora secrets nel formato legacy
  * Admin only - per audit
  */
-router.get("/admin/check-legacy-secrets", authenticateFirebase, async (req: any, res) => {
-  try {
-    const adminEmails = ['gennaro.mazzacane@gmail.com'];
-    if (!req.user || !adminEmails.includes(req.user.email)) {
-      return res.status(403).json({ error: 'Accesso non autorizzato' });
-    }
-
-    console.log('🔍 Controllo secrets legacy...');
-
-    const galleriesSnapshot = await db.collection('galleries').get();
-    
-    const legacyGalleries: Array<{
-      id: string;
-      name: string;
-      hasPassword: boolean;
-      hasPin: boolean;
-    }> = [];
-
-    for (const galleryDoc of galleriesSnapshot.docs) {
-      const galleryData = galleryDoc.data();
-      
-      const hasLegacyPassword = galleryData.password && typeof galleryData.password === 'string' && galleryData.password.trim();
-      const hasLegacyPin = galleryData.specialPin && typeof galleryData.specialPin === 'string' && galleryData.specialPin.trim();
-      
-      if (hasLegacyPassword || hasLegacyPin) {
-        legacyGalleries.push({
-          id: galleryDoc.id,
-          name: galleryData.name || 'Senza nome',
-          hasPassword: !!hasLegacyPassword,
-          hasPin: !!hasLegacyPin
-        });
+router.get(
+  "/admin/check-legacy-secrets",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const adminEmails = ["gennaro.mazzacane@gmail.com"];
+      if (!req.user || !adminEmails.includes(req.user.email)) {
+        return res.status(403).json({ error: "Accesso non autorizzato" });
       }
+
+      console.log("🔍 Controllo secrets legacy...");
+
+      const galleriesSnapshot = await db.collection("galleries").get();
+
+      const legacyGalleries: Array<{
+        id: string;
+        name: string;
+        hasPassword: boolean;
+        hasPin: boolean;
+      }> = [];
+
+      for (const galleryDoc of galleriesSnapshot.docs) {
+        const galleryData = galleryDoc.data();
+
+        const hasLegacyPassword =
+          galleryData.password &&
+          typeof galleryData.password === "string" &&
+          galleryData.password.trim();
+        const hasLegacyPin =
+          galleryData.specialPin &&
+          typeof galleryData.specialPin === "string" &&
+          galleryData.specialPin.trim();
+
+        if (hasLegacyPassword || hasLegacyPin) {
+          legacyGalleries.push({
+            id: galleryDoc.id,
+            name: galleryData.name || "Senza nome",
+            hasPassword: !!hasLegacyPassword,
+            hasPin: !!hasLegacyPin,
+          });
+        }
+      }
+
+      console.log(
+        `🔍 Trovate ${legacyGalleries.length} gallerie con secrets legacy`,
+      );
+
+      return res.json({
+        success: true,
+        totalGalleries: galleriesSnapshot.size,
+        legacyCount: legacyGalleries.length,
+        legacyGalleries,
+      });
+    } catch (error: any) {
+      console.error("❌ Errore controllo secrets legacy:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Errore controllo secrets",
+      });
     }
-
-    console.log(`🔍 Trovate ${legacyGalleries.length} gallerie con secrets legacy`);
-
-    return res.json({
-      success: true,
-      totalGalleries: galleriesSnapshot.size,
-      legacyCount: legacyGalleries.length,
-      legacyGalleries
-    });
-
-  } catch (error: any) {
-    console.error("❌ Errore controllo secrets legacy:", error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || "Errore controllo secrets"
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/email/gallery-photos-ready
  * Notifica al cliente che la galleria è pronta con foto caricate
  * Inviata automaticamente dopo upload foto o manualmente da admin
  */
-router.post("/gallery-photos-ready", authenticateFirebase, async (req: any, res) => {
-  try {
-    const { galleryId, photoCount } = req.body;
+router.post(
+  "/gallery-photos-ready",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const { galleryId, photoCount } = req.body;
 
-    if (!galleryId) {
-      return res.status(400).json({
-        error: "Missing required field: galleryId"
+      if (!galleryId) {
+        return res.status(400).json({
+          error: "Missing required field: galleryId",
+        });
+      }
+
+      console.log(
+        `📧 Richiesta notifica galleria pronta con foto: ${galleryId}`,
+      );
+
+      // Recupera dati galleria
+      const galleryDoc = await db.collection("galleries").doc(galleryId).get();
+      if (!galleryDoc.exists) {
+        return res.status(404).json({ error: "Gallery not found" });
+      }
+
+      const galleryData = galleryDoc.data();
+      const galleryName = galleryData?.name || "Galleria";
+      const galleryCode = galleryData?.code || galleryId;
+      const clienteId = galleryData?.clienteId;
+
+      // Priorità: clienteId dalla galleria, poi clientEmail legacy
+      let clientEmail = galleryData?.clientEmail;
+      let clientName = galleryData?.clientName || "Cliente";
+
+      // Se c'è clienteId, recupera email e nome dal cliente
+      if (clienteId) {
+        const clienteDoc = await db.collection("clienti").doc(clienteId).get();
+        if (clienteDoc.exists) {
+          const clienteData = clienteDoc.data();
+          clientEmail = clienteData?.email || clientEmail;
+          clientName =
+            `${clienteData?.nome || ""} ${clienteData?.cognome || ""}`.trim() ||
+            clientName;
+          console.log(
+            `📧 Recuperato cliente ${clienteId}: ${clientName} (${clientEmail})`,
+          );
+        }
+      }
+
+      if (!clientEmail) {
+        return res.status(400).json({
+          error: "No client email associated with this gallery",
+        });
+      }
+
+      // Costruisci URL galleria
+      const baseUrl = getSiteBaseUrl(req);
+      const isSpecialGallery = !!galleryData?.specialTheme;
+      const galleryUrl = isSpecialGallery
+        ? `${baseUrl}/special-gallery`
+        : `${baseUrl}/g/${galleryCode}`;
+
+      const actualPhotoCount = photoCount || galleryData?.photoCount || 0;
+      const hasSelection = galleryData?.selectionEnabled;
+      const deadline = galleryData?.selectionDeadline;
+
+      // Recupera info studio per email
+      const studioInfo = await getStudioContactInfo();
+
+      // Genera HTML email con stile October Mist
+      const htmlContent = createGalleryPhotosReadyEmailHTML({
+        clientName,
+        galleryName,
+        galleryUrl,
+        photoCount: actualPhotoCount,
+        hasSelection,
+        deadline: deadline?.toDate?.() || null,
+        studioInfo,
+      });
+
+      // Invia email usando sendGmailEmail esistente (NO emoji nell'oggetto)
+      await sendGmailEmail(
+        clientEmail,
+        `La tua galleria "${galleryName}" e pronta`,
+        htmlContent,
+        undefined, // usa default from
+        {
+          type: "gallery_ready",
+          relatedDocId: galleryId,
+          relatedDocType: "gallery",
+          clientName,
+        },
+      );
+
+      console.log(`✅ Email galleria pronta inviata a ${clientEmail}`);
+
+      return res.json({
+        success: true,
+        message: `Notifica inviata a ${clientEmail}`,
+        galleryName,
+        photoCount: actualPhotoCount,
+      });
+    } catch (error: any) {
+      console.error("❌ Errore invio notifica galleria pronta:", error);
+      return res.status(500).json({
+        error: error.message || "Errore invio email",
       });
     }
-
-    console.log(`📧 Richiesta notifica galleria pronta con foto: ${galleryId}`);
-
-    // Recupera dati galleria
-    const galleryDoc = await db.collection('galleries').doc(galleryId).get();
-    if (!galleryDoc.exists) {
-      return res.status(404).json({ error: "Gallery not found" });
-    }
-
-    const galleryData = galleryDoc.data();
-    const galleryName = galleryData?.name || "Galleria";
-    const galleryCode = galleryData?.code || galleryId;
-    const clienteId = galleryData?.clienteId;
-    
-    // Priorità: clienteId dalla galleria, poi clientEmail legacy
-    let clientEmail = galleryData?.clientEmail;
-    let clientName = galleryData?.clientName || "Cliente";
-    
-    // Se c'è clienteId, recupera email e nome dal cliente
-    if (clienteId) {
-      const clienteDoc = await db.collection('clienti').doc(clienteId).get();
-      if (clienteDoc.exists) {
-        const clienteData = clienteDoc.data();
-        clientEmail = clienteData?.email || clientEmail;
-        clientName = `${clienteData?.nome || ''} ${clienteData?.cognome || ''}`.trim() || clientName;
-        console.log(`📧 Recuperato cliente ${clienteId}: ${clientName} (${clientEmail})`);
-      }
-    }
-    
-    if (!clientEmail) {
-      return res.status(400).json({
-        error: "No client email associated with this gallery"
-      });
-    }
-
-    // Costruisci URL galleria
-    const baseUrl = getSiteBaseUrl(req);
-    const isSpecialGallery = !!galleryData?.specialTheme;
-    const galleryUrl = isSpecialGallery 
-      ? `${baseUrl}/special-gallery` 
-      : `${baseUrl}/g/${galleryCode}`;
-    
-    const actualPhotoCount = photoCount || galleryData?.photoCount || 0;
-    const hasSelection = galleryData?.selectionEnabled;
-    const deadline = galleryData?.selectionDeadline;
-    
-    // Recupera info studio per email
-    const studioInfo = await getStudioContactInfo();
-    
-    // Genera HTML email con stile October Mist
-    const htmlContent = createGalleryPhotosReadyEmailHTML({
-      clientName,
-      galleryName,
-      galleryUrl,
-      photoCount: actualPhotoCount,
-      hasSelection,
-      deadline: deadline?.toDate?.() || null,
-      studioInfo
-    });
-    
-    // Invia email usando sendGmailEmail esistente (NO emoji nell'oggetto)
-    await sendGmailEmail(
-      clientEmail,
-      `La tua galleria "${galleryName}" e pronta`,
-      htmlContent,
-      undefined, // usa default from
-      { 
-        type: 'gallery_ready',
-        relatedDocId: galleryId, 
-        relatedDocType: 'gallery', 
-        clientName 
-      }
-    );
-
-    console.log(`✅ Email galleria pronta inviata a ${clientEmail}`);
-
-    return res.json({
-      success: true,
-      message: `Notifica inviata a ${clientEmail}`,
-      galleryName,
-      photoCount: actualPhotoCount
-    });
-
-  } catch (error: any) {
-    console.error("❌ Errore invio notifica galleria pronta:", error);
-    return res.status(500).json({ 
-      error: error.message || "Errore invio email"
-    });
-  }
-});
+  },
+);
 
 /**
  * Template HTML per email "Galleria Pronta con Foto"
@@ -5832,20 +6349,28 @@ function createGalleryPhotosReadyEmailHTML(params: {
   deadline?: Date | null;
   studioInfo?: { name: string; email: string; phone: string; address: string };
 }): string {
-  const { clientName, galleryName, galleryUrl, photoCount, hasSelection, deadline, studioInfo } = params;
-  
-  const studio = studioInfo || { 
-    name: "Image Studio Fotografico", 
+  const {
+    clientName,
+    galleryName,
+    galleryUrl,
+    photoCount,
+    hasSelection,
+    deadline,
+    studioInfo,
+  } = params;
+
+  const studio = studioInfo || {
+    name: "Image Studio Fotografico",
     email: "image.studio.fotografico@gmail.com",
     phone: "+39 334 7103142",
-    address: ""
+    address: "",
   };
-  
-  const deadlineText = deadline 
-    ? `<p style="margin: 8px 0; color: #c17f59;"><strong>Scadenza selezione:</strong> ${deadline.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>`
-    : '';
-    
-  const selectionInfo = hasSelection 
+
+  const deadlineText = deadline
+    ? `<p style="margin: 8px 0; color: #c17f59;"><strong>Scadenza selezione:</strong> ${deadline.toLocaleDateString("it-IT", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>`
+    : "";
+
+  const selectionInfo = hasSelection
     ? `
       <div style="background: #f5f0e8; border-left: 4px solid #c17f59; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
         <h4 style="color: #c17f59; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Selezione Foto Richiesta</h4>
@@ -5855,8 +6380,8 @@ function createGalleryPhotosReadyEmailHTML(params: {
         </p>
         ${deadlineText}
       </div>
-    ` 
-    : '';
+    `
+    : "";
 
   return `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
@@ -5901,7 +6426,7 @@ function createGalleryPhotosReadyEmailHTML(params: {
         <p style="margin: 5px 0; font-weight: 600; color: #8b9a7d;">${studio.name}</p>
         <p style="margin: 5px 0;">Email: ${studio.email}</p>
         <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ''}
+        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
       </div>
     </div>
   `;
@@ -5913,11 +6438,13 @@ function createGalleryPhotosReadyEmailHTML(params: {
  */
 router.post("/selection-copy", async (req, res) => {
   try {
-    const { recipientEmail, galleryName, galleryCode, selectedPhotos } = req.body;
+    const { recipientEmail, galleryName, galleryCode, selectedPhotos } =
+      req.body;
 
     if (!recipientEmail || !galleryName || !selectedPhotos) {
-      return res.status(400).json({ 
-        error: "Missing required fields: recipientEmail, galleryName, selectedPhotos" 
+      return res.status(400).json({
+        error:
+          "Missing required fields: recipientEmail, galleryName, selectedPhotos",
       });
     }
 
@@ -5927,16 +6454,21 @@ router.post("/selection-copy", async (req, res) => {
     // Genera griglia HTML con thumbnails (max 30 per email leggera)
     const maxPhotos = Math.min(photoCount, 30);
     const photosToShow = selectedPhotos.slice(0, maxPhotos);
-    
-    const thumbnailsHtml = photosToShow.map((photo: { url: string; name?: string }, index: number) => `
+
+    const thumbnailsHtml = photosToShow
+      .map(
+        (photo: { url: string; name?: string }, index: number) => `
       <div style="display: inline-block; width: 80px; height: 80px; margin: 4px; border-radius: 6px; overflow: hidden; border: 2px solid #e8e4de;">
         <img src="${photo.url}" alt="Foto ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;" />
       </div>
-    `).join('');
+    `,
+      )
+      .join("");
 
-    const morePhotosText = photoCount > maxPhotos 
-      ? `<p style="text-align: center; color: #6b7d8a; font-size: 13px; margin-top: 15px;">...e altre ${photoCount - maxPhotos} foto</p>` 
-      : '';
+    const morePhotosText =
+      photoCount > maxPhotos
+        ? `<p style="text-align: center; color: #6b7d8a; font-size: 13px; margin-top: 15px;">...e altre ${photoCount - maxPhotos} foto</p>`
+        : "";
 
     const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
@@ -5995,14 +6527,15 @@ router.post("/selection-copy", async (req, res) => {
     await logEmailSent({
       to: recipientEmail,
       subject,
-      type: 'selection_copy',
-      status: 'sent',
-      relatedDocType: 'gallery',
+      type: "selection_copy",
+      status: "sent",
+      relatedDocType: "gallery",
     });
 
-    console.log(`✅ Selection copy email sent to ${recipientEmail} - ${photoCount} photos`);
+    console.log(
+      `✅ Selection copy email sent to ${recipientEmail} - ${photoCount} photos`,
+    );
     res.json({ success: true, message: "Email inviata con successo" });
-
   } catch (error: any) {
     console.error("❌ Error sending selection copy email:", error);
     res.status(500).json({ error: error.message || "Failed to send email" });
@@ -6015,11 +6548,17 @@ router.post("/selection-copy", async (req, res) => {
  */
 router.post("/booking-cancelled", async (req, res) => {
   try {
-    const { clientEmail, clientName, prodottoNome, dataPrenotazione, cancelReason } = req.body;
+    const {
+      clientEmail,
+      clientName,
+      prodottoNome,
+      dataPrenotazione,
+      cancelReason,
+    } = req.body;
 
     if (!clientEmail || !clientName) {
-      return res.status(400).json({ 
-        error: "Missing required fields: clientEmail, clientName" 
+      return res.status(400).json({
+        error: "Missing required fields: clientEmail, clientName",
       });
     }
 
@@ -6028,13 +6567,13 @@ router.post("/booking-cancelled", async (req, res) => {
     if (dataPrenotazione) {
       try {
         const date = new Date(dataPrenotazione);
-        formattedDate = date.toLocaleDateString('it-IT', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
+        formattedDate = date.toLocaleDateString("it-IT", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
         });
       } catch (e) {
         formattedDate = dataPrenotazione;
@@ -6042,12 +6581,14 @@ router.post("/booking-cancelled", async (req, res) => {
     }
 
     // Sezione motivo (opzionale)
-    const reasonSection = cancelReason ? `
+    const reasonSection = cancelReason
+      ? `
       <div style="background: #fff8e6; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
         <p style="margin: 0; font-size: 14px; color: #92400e; font-weight: 600; margin-bottom: 8px;">📝 Motivazione:</p>
         <p style="margin: 0; font-size: 15px; color: #78350f; line-height: 1.6;">${cancelReason}</p>
       </div>
-    ` : '';
+    `
+      : "";
 
     const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
@@ -6067,7 +6608,7 @@ router.post("/booking-cancelled", async (req, res) => {
 
           <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2;">
             <p style="font-size: 14px; color: #6b7d8a; margin-bottom: 8px;">Dettagli prenotazione annullata:</p>
-            <p style="font-size: 16px; color: #333; margin: 5px 0;"><strong>Servizio:</strong> ${prodottoNome || 'Servizio fotografico'}</p>
+            <p style="font-size: 16px; color: #333; margin: 5px 0;"><strong>Servizio:</strong> ${prodottoNome || "Servizio fotografico"}</p>
             <p style="font-size: 16px; color: #333; margin: 5px 0;"><strong>Data prevista:</strong> ${formattedDate}</p>
           </div>
 
@@ -6097,7 +6638,7 @@ router.post("/booking-cancelled", async (req, res) => {
       </div>
     `;
 
-    const subject = `Prenotazione Annullata - ${prodottoNome || 'Servizio fotografico'}`;
+    const subject = `Prenotazione Annullata - ${prodottoNome || "Servizio fotografico"}`;
 
     await sendGmailEmail(clientEmail, subject, htmlContent);
 
@@ -6105,15 +6646,14 @@ router.post("/booking-cancelled", async (req, res) => {
     await logEmailSent({
       to: clientEmail,
       subject,
-      type: 'booking_cancelled',
-      status: 'sent',
+      type: "booking_cancelled",
+      status: "sent",
       clientName,
-      relatedDocType: 'booking',
+      relatedDocType: "booking",
     });
 
     console.log(`✅ Booking cancelled email sent to ${clientEmail}`);
     res.json({ success: true, message: "Email inviata con successo" });
-
   } catch (error: any) {
     console.error("❌ Error sending booking cancelled email:", error);
     res.status(500).json({ error: error.message || "Failed to send email" });
@@ -6125,68 +6665,100 @@ router.post("/booking-cancelled", async (req, res) => {
  * Invia email di conferma per ordini walk-in (vendita diretta in studio)
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
  */
-router.post("/order-confirmation-walkin", authenticateFirebase, async (req: any, res) => {
-  try {
-    const { orderId, clientEmail, clientName, prodotti, totale, acconto, saldo, stato } = req.body;
+router.post(
+  "/order-confirmation-walkin",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const {
+        orderId,
+        clientEmail,
+        clientName,
+        prodotti,
+        totale,
+        acconto,
+        saldo,
+        stato,
+      } = req.body;
 
-    console.log(`🛍️ Richiesta conferma ordine walk-in da utente: ${req.user?.email}`);
+      console.log(
+        `🛍️ Richiesta conferma ordine walk-in da utente: ${req.user?.email}`,
+      );
 
-    // Validazione campi obbligatori
-    if (!clientEmail || !clientName || !prodotti || prodotti.length === 0) {
-      return res.status(400).json({
-        error: {
-          code: "invalid-argument",
-          message: "Campi obbligatori mancanti: clientEmail, clientName, prodotti"
-        }
-      });
-    }
+      // Validazione campi obbligatori
+      if (!clientEmail || !clientName || !prodotti || prodotti.length === 0) {
+        return res.status(400).json({
+          error: {
+            code: "invalid-argument",
+            message:
+              "Campi obbligatori mancanti: clientEmail, clientName, prodotti",
+          },
+        });
+      }
 
-    // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
-    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
-    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+      // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
+      const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+      const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
 
-    if (!isAdmin) {
-      console.log(`❌ Utente ${req.user?.email} non autorizzato per conferma ordine walk-in`);
-      return res.status(403).json({
-        error: { code: "permission-denied", message: "Solo gli admin possono inviare conferme ordini" }
-      });
-    }
+      if (!isAdmin) {
+        console.log(
+          `❌ Utente ${req.user?.email} non autorizzato per conferma ordine walk-in`,
+        );
+        return res.status(403).json({
+          error: {
+            code: "permission-denied",
+            message: "Solo gli admin possono inviare conferme ordini",
+          },
+        });
+      }
 
-    // Genera HTML prodotti
-    const prodottiHtml = prodotti.map((p: any) => `
+      // Genera HTML prodotti
+      const prodottiHtml = prodotti
+        .map(
+          (p: any) => `
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #e8e4de;">
-          ${p.prodottoNome} ${p.isCustom ? '<span style="color: #f59e0b; font-size: 11px;">(Custom)</span>' : ''}
+          ${p.prodottoNome} ${p.isCustom ? '<span style="color: #f59e0b; font-size: 11px;">(Custom)</span>' : ""}
         </td>
         <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: center;">${p.quantita}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e8e4de; text-align: right;">€${(p.prodottoPrezzo * p.quantita).toFixed(2)}</td>
       </tr>
-    `).join('');
+    `,
+        )
+        .join("");
 
-    // Stato badge
-    const statoBadge = stato === 'completato' 
-      ? '<span style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">✓ Completato</span>'
-      : stato === 'in_lavorazione'
-        ? '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Lavorazione</span>'
-        : '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Attesa</span>';
+      // Stato badge
+      const statoBadge =
+        stato === "completato"
+          ? '<span style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">✓ Completato</span>'
+          : stato === "in_lavorazione"
+            ? '<span style="background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Lavorazione</span>'
+            : '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">In Attesa</span>';
 
-    // Sezione pagamento
-    const pagamentoHtml = acconto > 0 ? `
+      // Sezione pagamento
+      const pagamentoHtml =
+        acconto > 0
+          ? `
       <div style="background: #f5f0e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
           <span style="color: #666;">Acconto versato:</span>
           <span style="color: #22c55e; font-weight: 600;">€${acconto.toFixed(2)}</span>
         </div>
-        ${saldo > 0 ? `
+        ${
+          saldo > 0
+            ? `
           <div style="display: flex; justify-content: space-between;">
             <span style="color: #666;">Saldo da pagare:</span>
             <span style="color: #f59e0b; font-weight: 600;">€${saldo.toFixed(2)}</span>
           </div>
-        ` : '<p style="color: #22c55e; margin: 0; font-weight: 600;">✓ Pagamento completato</p>'}
+        `
+            : '<p style="color: #22c55e; margin: 0; font-weight: 600;">✓ Pagamento completato</p>'
+        }
       </div>
-    ` : '';
+    `
+          : "";
 
-    const htmlContent = `
+      const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #faf8f5;">
         <div style="background: linear-gradient(135deg, #8b9a7d 0%, #6b7d5a 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
           <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Conferma Ordine</h1>
@@ -6242,87 +6814,107 @@ router.post("/order-confirmation-walkin", authenticateFirebase, async (req: any,
       </div>
     `;
 
-    const subject = `Conferma Ordine - Image Studio Fotografico`;
+      const subject = `Conferma Ordine - Image Studio Fotografico`;
 
-    await sendGmailEmail(clientEmail, subject, htmlContent);
+      await sendGmailEmail(clientEmail, subject, htmlContent);
 
-    // Log email
-    await logEmailSent({
-      to: clientEmail,
-      subject,
-      type: 'order_confirmation_walkin',
-      status: 'sent',
-      clientName,
-      relatedDocId: orderId,
-      relatedDocType: 'order',
-    });
-
-    console.log(`✅ Walk-in order confirmation email sent to ${clientEmail} for order ${orderId}`);
-    res.json({ success: true, message: "Email conferma ordine inviata con successo" });
-
-  } catch (error: any) {
-    console.error("❌ Error sending walk-in order confirmation email:", error);
-    
-    // Log email fallita
-    if (req.body.clientEmail) {
+      // Log email
       await logEmailSent({
-        to: req.body.clientEmail,
-        subject: `Conferma Ordine - Image Studio Fotografico`,
-        type: 'order_confirmation_walkin',
-        status: 'failed',
-        errorMessage: error.message,
-        relatedDocType: 'order',
+        to: clientEmail,
+        subject,
+        type: "order_confirmation_walkin",
+        status: "sent",
+        clientName,
+        relatedDocId: orderId,
+        relatedDocType: "order",
       });
-    }
 
-    res.status(500).json({ error: error.message || "Errore invio email" });
-  }
-});
+      console.log(
+        `✅ Walk-in order confirmation email sent to ${clientEmail} for order ${orderId}`,
+      );
+      res.json({
+        success: true,
+        message: "Email conferma ordine inviata con successo",
+      });
+    } catch (error: any) {
+      console.error(
+        "❌ Error sending walk-in order confirmation email:",
+        error,
+      );
+
+      // Log email fallita
+      if (req.body.clientEmail) {
+        await logEmailSent({
+          to: req.body.clientEmail,
+          subject: `Conferma Ordine - Image Studio Fotografico`,
+          type: "order_confirmation_walkin",
+          status: "failed",
+          errorMessage: error.message,
+          relatedDocType: "order",
+        });
+      }
+
+      res.status(500).json({ error: error.message || "Errore invio email" });
+    }
+  },
+);
 
 /**
  * POST /api/email/send-payment-receipt
  * Invia ricevuta di pagamento al cliente
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
  */
-router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res) => {
-  try {
-    const {
-      recipientEmail,
-      clientName,
-      eventName,
-      paymentType, // acconto, rata, saldo
-      paymentAmount,
-      paymentDate,
-      totalPaid,
-      remainingBalance,
-      jobId
-    } = req.body;
+router.post(
+  "/send-payment-receipt",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const {
+        recipientEmail,
+        clientName,
+        eventName,
+        paymentType, // acconto, rata, saldo
+        paymentAmount,
+        paymentDate,
+        totalPaid,
+        remainingBalance,
+        jobId,
+      } = req.body;
 
-    console.log(`💰 Richiesta invio ricevuta pagamento da utente: ${req.user?.email}`);
+      console.log(
+        `💰 Richiesta invio ricevuta pagamento da utente: ${req.user?.email}`,
+      );
 
-    // Validazione campi obbligatori
-    if (!recipientEmail || !clientName || !paymentType || !paymentAmount || !paymentDate) {
-      return res.status(400).json({
-        error: {
-          code: "invalid-argument",
-          message: "Campi obbligatori mancanti: recipientEmail, clientName, paymentType, paymentAmount, paymentDate"
-        }
-      });
-    }
+      // Validazione campi obbligatori
+      if (
+        !recipientEmail ||
+        !clientName ||
+        !paymentType ||
+        !paymentAmount ||
+        !paymentDate
+      ) {
+        return res.status(400).json({
+          error: {
+            code: "invalid-argument",
+            message:
+              "Campi obbligatori mancanti: recipientEmail, clientName, paymentType, paymentAmount, paymentDate",
+          },
+        });
+      }
 
-    // Recupera dati contatto studio
-    const studioInfo = await getStudioContactInfo();
+      // Recupera dati contatto studio
+      const studioInfo = await getStudioContactInfo();
 
-    // Formatta tipo pagamento
-    const paymentTypeLabels: Record<string, string> = {
-      acconto: 'Acconto',
-      rata: 'Rata',
-      saldo: 'Saldo'
-    };
-    const paymentTypeLabel = paymentTypeLabels[paymentType] || paymentType;
+      // Formatta tipo pagamento
+      const paymentTypeLabels: Record<string, string> = {
+        acconto: "Acconto",
+        rata: "Rata",
+        saldo: "Saldo",
+      };
+      const paymentTypeLabel = paymentTypeLabels[paymentType] || paymentType;
 
-    // Template email ricevuta
-    const htmlContent = `
+      // Template email ricevuta
+      const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -6342,7 +6934,7 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
                 Ricevuta Pagamento
               </h1>
               <p style="margin:10px 0 0;color:rgba(255,255,255,0.9);font-size:16px;">
-                ${eventName || 'Il tuo servizio fotografico'}
+                ${eventName || "Il tuo servizio fotografico"}
               </p>
             </td>
           </tr>
@@ -6386,7 +6978,9 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
                           <strong style="color:#2e7d32;font-size:20px;">€${Number(paymentAmount).toFixed(2)}</strong>
                         </td>
                       </tr>
-                      ${totalPaid !== undefined ? `
+                      ${
+                        totalPaid !== undefined
+                          ? `
                       <tr>
                         <td style="padding:8px 0;border-bottom:1px solid #e8e4df;">
                           <span style="color:#666;font-size:14px;">Totale Pagato:</span>
@@ -6395,8 +6989,12 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
                           <strong style="color:#333;font-size:14px;">€${Number(totalPaid).toFixed(2)}</strong>
                         </td>
                       </tr>
-                      ` : ''}
-                      ${remainingBalance !== undefined && remainingBalance > 0 ? `
+                      `
+                          : ""
+                      }
+                      ${
+                        remainingBalance !== undefined && remainingBalance > 0
+                          ? `
                       <tr>
                         <td style="padding:8px 0;">
                           <span style="color:#666;font-size:14px;">Saldo Residuo:</span>
@@ -6405,13 +7003,15 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
                           <strong style="color:#e65100;font-size:14px;">€${Number(remainingBalance).toFixed(2)}</strong>
                         </td>
                       </tr>
-                      ` : `
+                      `
+                          : `
                       <tr>
                         <td colspan="2" style="padding:15px 0 0;text-align:center;">
                           <span style="color:#2e7d32;font-size:16px;font-weight:600;">✓ Pagamento completato</span>
                         </td>
                       </tr>
-                      `}
+                      `
+                      }
                     </table>
                   </td>
                 </tr>
@@ -6427,10 +7027,10 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
           <tr>
             <td style="background-color:#f8f6f3;padding:30px 40px;text-align:center;border-top:1px solid #e8e4df;">
               <p style="margin:0 0 10px;font-size:14px;color:#8b5a3c;font-weight:600;">
-                ${studioInfo.name || 'Studio Fotografico'}
+                ${studioInfo.name || "Studio Fotografico"}
               </p>
-              ${studioInfo.phone ? `<p style="margin:0 0 5px;font-size:13px;color:#666;">Tel: ${studioInfo.phone}</p>` : ''}
-              ${studioInfo.email ? `<p style="margin:0;font-size:13px;color:#666;">Email: ${studioInfo.email}</p>` : ''}
+              ${studioInfo.phone ? `<p style="margin:0 0 5px;font-size:13px;color:#666;">Tel: ${studioInfo.phone}</p>` : ""}
+              ${studioInfo.email ? `<p style="margin:0;font-size:13px;color:#666;">Email: ${studioInfo.email}</p>` : ""}
             </td>
           </tr>
         </table>
@@ -6441,131 +7041,158 @@ router.post("/send-payment-receipt", authenticateFirebase, async (req: any, res)
 </html>
     `;
 
-    const subject = `Ricevuta ${paymentTypeLabel} - ${eventName || 'Il tuo servizio fotografico'}`;
+      const subject = `Ricevuta ${paymentTypeLabel} - ${eventName || "Il tuo servizio fotografico"}`;
 
-    await sendGmailEmail(recipientEmail, subject, htmlContent);
+      await sendGmailEmail(recipientEmail, subject, htmlContent);
 
-    console.log(`✅ Ricevuta pagamento inviata a ${recipientEmail} per ${eventName || 'servizio'}`);
+      console.log(
+        `✅ Ricevuta pagamento inviata a ${recipientEmail} per ${eventName || "servizio"}`,
+      );
 
-    // Log audit
-    try {
-      await db.collection('emailLogs').add({
-        type: 'payment_receipt',
-        recipientEmail,
-        clientName,
-        eventName,
-        paymentType,
-        paymentAmount,
-        jobId,
-        sentAt: FieldValue.serverTimestamp(),
-        sentBy: req.user?.email,
+      // Log audit
+      try {
+        await db.collection("emailLogs").add({
+          type: "payment_receipt",
+          recipientEmail,
+          clientName,
+          eventName,
+          paymentType,
+          paymentAmount,
+          jobId,
+          sentAt: FieldValue.serverTimestamp(),
+          sentBy: req.user?.email,
+          success: true,
+        });
+      } catch (logError) {
+        console.warn("⚠️ Errore logging email ricevuta:", logError);
+      }
+
+      res.status(200).json({
         success: true,
+        message: "Ricevuta pagamento inviata con successo",
+        recipientEmail,
       });
-    } catch (logError) {
-      console.warn('⚠️ Errore logging email ricevuta:', logError);
+    } catch (error: any) {
+      console.error("❌ Errore send-payment-receipt:", error);
+      res.status(500).json({
+        error: error.message || "Errore invio ricevuta pagamento",
+      });
     }
-
-    res.status(200).json({
-      success: true,
-      message: "Ricevuta pagamento inviata con successo",
-      recipientEmail
-    });
-
-  } catch (error: any) {
-    console.error("❌ Errore send-payment-receipt:", error);
-    res.status(500).json({
-      error: error.message || "Errore invio ricevuta pagamento"
-    });
-  }
-});
+  },
+);
 
 /**
  * POST /api/email/notify-youtube-video
  * Invia notifica email al cliente quando vengono aggiunti video YouTube alla galleria
  * RICHIEDE AUTENTICAZIONE: Bearer token Firebase (solo admin)
  */
-router.post("/notify-youtube-video", authenticateFirebase, async (req: any, res) => {
-  try {
-    const { clientEmail, clientName, galleryName, galleryCode, videoCount } = req.body;
+router.post(
+  "/notify-youtube-video",
+  authenticateFirebase,
+  async (req: any, res) => {
+    try {
+      const { clientEmail, clientName, galleryName, galleryCode, videoCount } =
+        req.body;
 
-    console.log(`📹 Richiesta notifica video YouTube da utente: ${req.user?.email}`);
+      console.log(
+        `📹 Richiesta notifica video YouTube da utente: ${req.user?.email}`,
+      );
 
-    // Validazione campi obbligatori
-    if (!clientEmail || !galleryName || !galleryCode || !videoCount) {
-      return res.status(400).json({
-        error: {
-          code: "invalid-argument",
-          message: "Campi obbligatori mancanti: clientEmail, galleryName, galleryCode, videoCount"
-        }
+      // Validazione campi obbligatori
+      if (!clientEmail || !galleryName || !galleryCode || !videoCount) {
+        return res.status(400).json({
+          error: {
+            code: "invalid-argument",
+            message:
+              "Campi obbligatori mancanti: clientEmail, galleryName, galleryCode, videoCount",
+          },
+        });
+      }
+
+      // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
+      const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+      const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+
+      if (!isAdmin) {
+        console.log(
+          `❌ Utente ${req.user?.email} non autorizzato per notifica video`,
+        );
+        return res.status(403).json({
+          error: {
+            code: "permission-denied",
+            message: "Solo gli admin possono inviare notifiche video",
+          },
+        });
+      }
+
+      // Importa template email
+      const {
+        createYouTubeVideoNotificationEmailHTML,
+        getYouTubeVideoNotificationSubject,
+      } = await import("./email-templates/youtube-video-notification.js");
+
+      // Recupera info studio
+      const studioInfo = await getStudioContactInfo();
+
+      // Genera URL galleria
+      const galleryUrl = `${getSiteBaseUrl(req)}/gallery/${galleryCode}`;
+
+      // Crea contenuto email
+      const htmlContent = createYouTubeVideoNotificationEmailHTML({
+        clientName: clientName || "Cliente",
+        galleryName,
+        videoCount,
+        galleryUrl,
+        studioInfo,
       });
-    }
 
-    // AUTORIZZAZIONE: Solo admin può inviare queste notifiche
-    const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
-    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+      const subject = getYouTubeVideoNotificationSubject(
+        galleryName,
+        videoCount,
+      );
 
-    if (!isAdmin) {
-      console.log(`❌ Utente ${req.user?.email} non autorizzato per notifica video`);
-      return res.status(403).json({
-        error: { code: "permission-denied", message: "Solo gli admin possono inviare notifiche video" }
-      });
-    }
+      // Invia email
+      await sendGmailEmail(clientEmail, subject, htmlContent);
 
-    // Importa template email
-    const { createYouTubeVideoNotificationEmailHTML, getYouTubeVideoNotificationSubject } = 
-      await import('./email-templates/youtube-video-notification.js');
-
-    // Recupera info studio
-    const studioInfo = await getStudioContactInfo();
-
-    // Genera URL galleria
-    const galleryUrl = `${getSiteBaseUrl(req)}/gallery/${galleryCode}`;
-
-    // Crea contenuto email
-    const htmlContent = createYouTubeVideoNotificationEmailHTML({
-      clientName: clientName || "Cliente",
-      galleryName,
-      videoCount,
-      galleryUrl,
-      studioInfo
-    });
-
-    const subject = getYouTubeVideoNotificationSubject(galleryName, videoCount);
-
-    // Invia email
-    await sendGmailEmail(clientEmail, subject, htmlContent);
-
-    // Log email
-    await logEmailSent({
-      to: clientEmail,
-      subject,
-      type: 'youtube_video_notification',
-      status: 'sent',
-      clientName: clientName || "Cliente",
-      relatedDocType: 'gallery',
-    });
-
-    console.log(`✅ YouTube video notification email sent to ${clientEmail} for gallery ${galleryName}`);
-    res.json({ success: true, message: "Email notifica video inviata con successo" });
-
-  } catch (error: any) {
-    console.error("❌ Error sending YouTube video notification email:", error);
-    
-    // Log email fallita
-    if (req.body.clientEmail) {
+      // Log email
       await logEmailSent({
-        to: req.body.clientEmail,
-        subject: `Nuovi video - ${req.body.galleryName || 'Galleria'}`,
-        type: 'youtube_video_notification',
-        status: 'failed',
-        errorMessage: error.message,
-        relatedDocType: 'gallery',
+        to: clientEmail,
+        subject,
+        type: "youtube_video_notification",
+        status: "sent",
+        clientName: clientName || "Cliente",
+        relatedDocType: "gallery",
       });
-    }
 
-    res.status(500).json({ error: error.message || "Errore invio email" });
-  }
-});
+      console.log(
+        `✅ YouTube video notification email sent to ${clientEmail} for gallery ${galleryName}`,
+      );
+      res.json({
+        success: true,
+        message: "Email notifica video inviata con successo",
+      });
+    } catch (error: any) {
+      console.error(
+        "❌ Error sending YouTube video notification email:",
+        error,
+      );
+
+      // Log email fallita
+      if (req.body.clientEmail) {
+        await logEmailSent({
+          to: req.body.clientEmail,
+          subject: `Nuovi video - ${req.body.galleryName || "Galleria"}`,
+          type: "youtube_video_notification",
+          status: "failed",
+          errorMessage: error.message,
+          relatedDocType: "gallery",
+        });
+      }
+
+      res.status(500).json({ error: error.message || "Errore invio email" });
+    }
+  },
+);
 
 /**
  * POST /api/email/daily-job-reminder
@@ -6573,177 +7200,220 @@ router.post("/notify-youtube-video", authenticateFirebase, async (req: any, res)
  * Chiamato da cron job giornaliero (es. alle 18:00 del giorno prima)
  * PROTETTO: richiede autenticazione admin
  */
-router.post("/daily-job-reminder", authenticateFirebase, async (req: any, res) => {
-  // Verifica che sia admin
-  const adminEmails = ['gennaro.mazzacane@gmail.com'];
-  if (!adminEmails.includes(req.user?.email)) {
-    return res.status(403).json({ 
-      error: { code: "permission-denied", message: "Solo gli admin possono inviare promemoria giornalieri" }
-    });
-  }
-  try {
-    console.log("🔔 Starting daily job reminder email process...");
-    
-    const { targetDate: targetDateParam } = req.body;
-    
-    // Se non specificato, usa domani
-    const targetDate = targetDateParam 
-      ? DateTime.fromISO(targetDateParam, { zone: 'Europe/Rome' })
-      : DateTime.now().setZone('Europe/Rome').plus({ days: 1 });
-    
-    const startOfDay = targetDate.startOf('day');
-    const endOfDay = targetDate.endOf('day');
-    
-    console.log(`📅 Looking for jobs on: ${targetDate.toFormat('dd/MM/yyyy')}`);
-    
-    // Trova tutti i job con eventDate = domani
-    const jobsSnapshot = await db.collection('jobs')
-      .where('eventDate', '>=', startOfDay.toJSDate())
-      .where('eventDate', '<=', endOfDay.toJSDate())
-      .get();
-    
-    if (jobsSnapshot.empty) {
-      console.log(`ℹ️ No jobs found for ${targetDate.toFormat('dd/MM/yyyy')}`);
-      return res.json({ 
-        success: true, 
-        message: `Nessun lavoro per ${targetDate.toFormat('dd/MM/yyyy')}`,
-        jobsProcessed: 0 
+router.post(
+  "/daily-job-reminder",
+  authenticateFirebase,
+  async (req: any, res) => {
+    // Verifica che sia admin
+    const adminEmails = ["gennaro.mazzacane@gmail.com"];
+    if (!adminEmails.includes(req.user?.email)) {
+      return res.status(403).json({
+        error: {
+          code: "permission-denied",
+          message: "Solo gli admin possono inviare promemoria giornalieri",
+        },
       });
     }
-    
-    const jobs = jobsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    console.log(`📋 Found ${jobs.length} jobs for ${targetDate.toFormat('dd/MM/yyyy')}`);
-    
-    const studioInfo = await getStudioContactInfo();
-    const adminEmail = 'gennaro.mazzacane@gmail.com';
-    let totalEmailsSent = 0;
-    
-    for (const job of jobs) {
-      try {
-        // Raccolta destinatari email
-        const recipients: string[] = [adminEmail];
-        
-        // Aggiungi collaboratori accettati
-        const collaboratoriAssegnati = (job as any).collaboratoriAssegnati || [];
-        for (const collab of collaboratoriAssegnati) {
-          if (collab.status === 'accettato' && collab.collaboratoreId) {
-            try {
-              const collabDoc = await db.collection('collaboratori').doc(collab.collaboratoreId).get();
-              if (collabDoc.exists) {
-                const email = collabDoc.data()?.email;
-                if (email && !recipients.includes(email)) {
-                  recipients.push(email);
+    try {
+      console.log("🔔 Starting daily job reminder email process...");
+
+      const { targetDate: targetDateParam } = req.body;
+
+      // Se non specificato, usa domani
+      const targetDate = targetDateParam
+        ? DateTime.fromISO(targetDateParam, { zone: "Europe/Rome" })
+        : DateTime.now().setZone("Europe/Rome").plus({ days: 1 });
+
+      const startOfDay = targetDate.startOf("day");
+      const endOfDay = targetDate.endOf("day");
+
+      console.log(
+        `📅 Looking for jobs on: ${targetDate.toFormat("dd/MM/yyyy")}`,
+      );
+
+      // Trova tutti i job con eventDate = domani
+      const jobsSnapshot = await db
+        .collection("jobs")
+        .where("eventDate", ">=", startOfDay.toJSDate())
+        .where("eventDate", "<=", endOfDay.toJSDate())
+        .get();
+
+      if (jobsSnapshot.empty) {
+        console.log(
+          `ℹ️ No jobs found for ${targetDate.toFormat("dd/MM/yyyy")}`,
+        );
+        return res.json({
+          success: true,
+          message: `Nessun lavoro per ${targetDate.toFormat("dd/MM/yyyy")}`,
+          jobsProcessed: 0,
+        });
+      }
+
+      const jobs = jobsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      console.log(
+        `📋 Found ${jobs.length} jobs for ${targetDate.toFormat("dd/MM/yyyy")}`,
+      );
+
+      const studioInfo = await getStudioContactInfo();
+      const adminEmail = "gennaro.mazzacane@gmail.com";
+      let totalEmailsSent = 0;
+
+      for (const job of jobs) {
+        try {
+          // Raccolta destinatari email
+          const recipients: string[] = [adminEmail];
+
+          // Aggiungi collaboratori accettati
+          const collaboratoriAssegnati =
+            (job as any).collaboratoriAssegnati || [];
+          for (const collab of collaboratoriAssegnati) {
+            if (collab.status === "accettato" && collab.collaboratoreId) {
+              try {
+                const collabDoc = await db
+                  .collection("collaboratori")
+                  .doc(collab.collaboratoreId)
+                  .get();
+                if (collabDoc.exists) {
+                  const email = collabDoc.data()?.email;
+                  if (email && !recipients.includes(email)) {
+                    recipients.push(email);
+                  }
                 }
+              } catch (err) {
+                console.warn(
+                  `⚠️ Could not fetch collaborator ${collab.collaboratoreId}:`,
+                  err,
+                );
               }
-            } catch (err) {
-              console.warn(`⚠️ Could not fetch collaborator ${collab.collaboratoreId}:`, err);
             }
           }
-        }
-        
-        // Fetch dettagli clienti
-        const clientiDetails: Array<{
-          nome: string;
-          cognome: string;
-          telefono?: string;
-          email?: string;
-          indirizzo?: string;
-          citta?: string;
-          cap?: string;
-        }> = [];
-        
-        const clientiIds = (job as any).clientiIds || [];
-        for (const clienteId of clientiIds) {
-          try {
-            const clienteDoc = await db.collection('clienti').doc(clienteId).get();
-            if (clienteDoc.exists) {
-              const data = clienteDoc.data();
-              clientiDetails.push({
-                nome: data?.nome || '',
-                cognome: data?.cognome || '',
-                telefono: data?.cellulare1 || data?.cellulare2 || '',
-                email: data?.email || '',
-                indirizzo: data?.via || '',
-                citta: data?.citta || '',
-                cap: data?.cap || '',
-              });
-            }
-          } catch (err) {
-            console.warn(`⚠️ Could not fetch client ${clienteId}:`, err);
-          }
-        }
-        
-        // Fetch dettagli collaboratori per l'email
-        const collaboratoriDetails: Array<{ nome: string; telefono?: string }> = [];
-        for (const collab of collaboratoriAssegnati) {
-          if (collab.status === 'accettato' && collab.collaboratoreId) {
+
+          // Fetch dettagli clienti
+          const clientiDetails: Array<{
+            nome: string;
+            cognome: string;
+            telefono?: string;
+            email?: string;
+            indirizzo?: string;
+            citta?: string;
+            cap?: string;
+          }> = [];
+
+          const clientiIds = (job as any).clientiIds || [];
+          for (const clienteId of clientiIds) {
             try {
-              const collabDoc = await db.collection('collaboratori').doc(collab.collaboratoreId).get();
-              if (collabDoc.exists) {
-                const data = collabDoc.data();
-                collaboratoriDetails.push({
-                  nome: data?.nome || data?.email || 'Collaboratore',
-                  telefono: data?.telefono,
+              const clienteDoc = await db
+                .collection("clienti")
+                .doc(clienteId)
+                .get();
+              if (clienteDoc.exists) {
+                const data = clienteDoc.data();
+                clientiDetails.push({
+                  nome: data?.nome || "",
+                  cognome: data?.cognome || "",
+                  telefono: data?.cellulare1 || data?.cellulare2 || "",
+                  email: data?.email || "",
+                  indirizzo: data?.via || "",
+                  citta: data?.citta || "",
+                  cap: data?.cap || "",
                 });
               }
-            } catch (err) { /* skip */ }
+            } catch (err) {
+              console.warn(`⚠️ Could not fetch client ${clienteId}:`, err);
+            }
           }
+
+          // Fetch dettagli collaboratori per l'email
+          const collaboratoriDetails: Array<{
+            nome: string;
+            telefono?: string;
+          }> = [];
+          for (const collab of collaboratoriAssegnati) {
+            if (collab.status === "accettato" && collab.collaboratoreId) {
+              try {
+                const collabDoc = await db
+                  .collection("collaboratori")
+                  .doc(collab.collaboratoreId)
+                  .get();
+                if (collabDoc.exists) {
+                  const data = collabDoc.data();
+                  collaboratoriDetails.push({
+                    nome: data?.nome || data?.email || "Collaboratore",
+                    telefono: data?.telefono,
+                  });
+                }
+              } catch (err) {
+                /* skip */
+              }
+            }
+          }
+
+          // Genera HTML email
+          const eventDate =
+            (job as any).eventDate?.toDate?.() ||
+            new Date((job as any).eventDate);
+          const htmlContent = generateDailyJobReminderHTML({
+            nomeEvento: (job as any).nomeEvento || "Lavoro",
+            jobType: (job as any).jobType || "",
+            eventDate: DateTime.fromJSDate(eventDate).setZone("Europe/Rome"),
+            rituTime: (job as any).rituTime,
+            rituLocation: (job as any).rituLocation,
+            eventLocation: (job as any).eventLocation,
+            clienti: clientiDetails,
+            collaboratori: collaboratoriDetails,
+            noteInterne: (job as any).noteInterne,
+            studioInfo,
+            jobId: job.id,
+            baseUrl: getSiteBaseUrl(req),
+          });
+
+          const subject = `📸 Promemoria: ${(job as any).nomeEvento} - ${targetDate.toFormat("dd MMMM yyyy", { locale: "it" })}`;
+
+          // Invia email a tutti i destinatari
+          await sendGmailEmail(recipients.join(","), subject, htmlContent);
+          totalEmailsSent++;
+
+          // Log
+          await logEmailSent({
+            to: recipients,
+            subject,
+            type: "daily_job_reminder",
+            status: "sent",
+            relatedDocId: job.id,
+            relatedDocType: "job",
+          });
+
+          console.log(
+            `✅ Daily reminder sent for job ${job.id} to ${recipients.join(", ")}`,
+          );
+        } catch (jobError: any) {
+          console.error(`❌ Error processing job ${job.id}:`, jobError);
         }
-        
-        // Genera HTML email
-        const eventDate = (job as any).eventDate?.toDate?.() || new Date((job as any).eventDate);
-        const htmlContent = generateDailyJobReminderHTML({
-          nomeEvento: (job as any).nomeEvento || 'Lavoro',
-          jobType: (job as any).jobType || '',
-          eventDate: DateTime.fromJSDate(eventDate).setZone('Europe/Rome'),
-          rituTime: (job as any).rituTime,
-          rituLocation: (job as any).rituLocation,
-          eventLocation: (job as any).eventLocation,
-          clienti: clientiDetails,
-          collaboratori: collaboratoriDetails,
-          noteInterne: (job as any).noteInterne,
-          studioInfo,
-          jobId: job.id,
-          baseUrl: getSiteBaseUrl(req),
-        });
-        
-        const subject = `📸 Promemoria: ${(job as any).nomeEvento} - ${targetDate.toFormat('dd MMMM yyyy', { locale: 'it' })}`;
-        
-        // Invia email a tutti i destinatari
-        await sendGmailEmail(recipients.join(','), subject, htmlContent);
-        totalEmailsSent++;
-        
-        // Log
-        await logEmailSent({
-          to: recipients,
-          subject,
-          type: 'daily_job_reminder',
-          status: 'sent',
-          relatedDocId: job.id,
-          relatedDocType: 'job',
-        });
-        
-        console.log(`✅ Daily reminder sent for job ${job.id} to ${recipients.join(', ')}`);
-        
-      } catch (jobError: any) {
-        console.error(`❌ Error processing job ${job.id}:`, jobError);
       }
+
+      console.log(
+        `🎉 Daily job reminder completed: ${totalEmailsSent} emails sent for ${jobs.length} jobs`,
+      );
+
+      res.json({
+        success: true,
+        message: `Inviate ${totalEmailsSent} email per ${jobs.length} lavori del ${targetDate.toFormat("dd/MM/yyyy")}`,
+        jobsProcessed: jobs.length,
+        emailsSent: totalEmailsSent,
+      });
+    } catch (error: any) {
+      console.error("❌ Error in daily job reminder:", error);
+      res
+        .status(500)
+        .json({
+          error: error.message || "Errore invio promemoria giornaliero",
+        });
     }
-    
-    console.log(`🎉 Daily job reminder completed: ${totalEmailsSent} emails sent for ${jobs.length} jobs`);
-    
-    res.json({
-      success: true,
-      message: `Inviate ${totalEmailsSent} email per ${jobs.length} lavori del ${targetDate.toFormat('dd/MM/yyyy')}`,
-      jobsProcessed: jobs.length,
-      emailsSent: totalEmailsSent,
-    });
-    
-  } catch (error: any) {
-    console.error("❌ Error in daily job reminder:", error);
-    res.status(500).json({ error: error.message || "Errore invio promemoria giornaliero" });
-  }
-});
+  },
+);
 
 /**
  * Helper: Genera HTML per email promemoria giornaliero
@@ -6770,46 +7440,80 @@ function generateDailyJobReminderHTML(data: {
   jobId: string;
   baseUrl: string;
 }): string {
-  const { nomeEvento, jobType, eventDate, rituTime, rituLocation, eventLocation, clienti, collaboratori, noteInterne, studioInfo, jobId, baseUrl } = data;
-  
-  const generateMapsLink = (address: string) => 
+  const {
+    nomeEvento,
+    jobType,
+    eventDate,
+    rituTime,
+    rituLocation,
+    eventLocation,
+    clienti,
+    collaboratori,
+    noteInterne,
+    studioInfo,
+    jobId,
+    baseUrl,
+  } = data;
+
+  const generateMapsLink = (address: string) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  
-  const clientiHtml = clienti.map(c => {
-    const fullAddress = [c.indirizzo, c.cap, c.citta].filter(Boolean).join(', ');
-    return `
+
+  const clientiHtml = clienti
+    .map((c) => {
+      const fullAddress = [c.indirizzo, c.cap, c.citta]
+        .filter(Boolean)
+        .join(", ");
+      return `
       <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
         <p style="margin: 0 0 8px 0; font-weight: 600; color: #1f2937;">
           ${c.nome} ${c.cognome}
         </p>
-        ${c.telefono ? `
+        ${
+          c.telefono
+            ? `
           <p style="margin: 4px 0;">
-            📞 <a href="tel:${c.telefono.replace(/\s/g, '')}" style="color: #059669;">${c.telefono}</a>
+            📞 <a href="tel:${c.telefono.replace(/\s/g, "")}" style="color: #059669;">${c.telefono}</a>
           </p>
-        ` : ''}
-        ${c.email ? `
+        `
+            : ""
+        }
+        ${
+          c.email
+            ? `
           <p style="margin: 4px 0;">
             ✉️ <a href="mailto:${c.email}" style="color: #2563eb;">${c.email}</a>
           </p>
-        ` : ''}
-        ${fullAddress ? `
+        `
+            : ""
+        }
+        ${
+          fullAddress
+            ? `
           <p style="margin: 4px 0;">
             🏠 <a href="${generateMapsLink(fullAddress)}" target="_blank" style="color: #7c3aed;">${fullAddress}</a>
           </p>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     `;
-  }).join('');
-  
-  const collaboratoriHtml = collaboratori.length > 0 
-    ? collaboratori.map(c => `
+    })
+    .join("");
+
+  const collaboratoriHtml =
+    collaboratori.length > 0
+      ? collaboratori
+          .map(
+            (c) => `
         <span style="display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 12px; border-radius: 16px; margin: 4px; font-size: 14px;">
           ${c.nome}
-          ${c.telefono ? `<a href="tel:${c.telefono.replace(/\s/g, '')}" style="color: #4338ca; margin-left: 4px;">📞</a>` : ''}
+          ${c.telefono ? `<a href="tel:${c.telefono.replace(/\s/g, "")}" style="color: #4338ca; margin-left: 4px;">📞</a>` : ""}
         </span>
-      `).join('')
-    : '<p style="color: #6b7280; font-style: italic;">Nessun collaboratore assegnato</p>';
-  
+      `,
+          )
+          .join("")
+      : '<p style="color: #6b7280; font-style: italic;">Nessun collaboratore assegnato</p>';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -6821,30 +7525,38 @@ function generateDailyJobReminderHTML(data: {
       <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 16px; padding: 24px; margin-bottom: 20px;">
         <h1 style="margin: 0 0 8px 0; color: #92400e; font-size: 24px;">📸 Promemoria Lavoro</h1>
         <p style="margin: 0; color: #b45309; font-size: 16px;">
-          ${eventDate.toFormat('EEEE d MMMM yyyy', { locale: 'it' })}
+          ${eventDate.toFormat("EEEE d MMMM yyyy", { locale: "it" })}
         </p>
       </div>
       
       <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <h2 style="margin: 0 0 16px 0; color: #1f2937; font-size: 20px; border-bottom: 2px solid #fbbf24; padding-bottom: 8px;">
           ${nomeEvento}
-          ${jobType ? `<span style="font-size: 14px; color: #6b7280; font-weight: normal;"> (${jobType})</span>` : ''}
+          ${jobType ? `<span style="font-size: 14px; color: #6b7280; font-weight: normal;"> (${jobType})</span>` : ""}
         </h2>
         
-        ${rituTime || rituLocation ? `
+        ${
+          rituTime || rituLocation
+            ? `
           <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 16px; border-radius: 0 8px 8px 0;">
             <p style="margin: 0; font-weight: 600; color: #92400e;">⛪ Cerimonia</p>
-            ${rituTime ? `<p style="margin: 4px 0 0 0; color: #78350f;">🕐 Ore ${rituTime}</p>` : ''}
-            ${rituLocation ? `<p style="margin: 4px 0 0 0;"><a href="${generateMapsLink(rituLocation)}" target="_blank" style="color: #b45309;">📍 ${rituLocation}</a></p>` : ''}
+            ${rituTime ? `<p style="margin: 4px 0 0 0; color: #78350f;">🕐 Ore ${rituTime}</p>` : ""}
+            ${rituLocation ? `<p style="margin: 4px 0 0 0;"><a href="${generateMapsLink(rituLocation)}" target="_blank" style="color: #b45309;">📍 ${rituLocation}</a></p>` : ""}
           </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${eventLocation ? `
+        ${
+          eventLocation
+            ? `
           <div style="background: #d1fae5; border-left: 4px solid #10b981; padding: 12px; margin-bottom: 16px; border-radius: 0 8px 8px 0;">
             <p style="margin: 0; font-weight: 600; color: #065f46;">🎉 Location Evento</p>
             <p style="margin: 4px 0 0 0;"><a href="${generateMapsLink(eventLocation)}" target="_blank" style="color: #047857;">📍 ${eventLocation}</a></p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
       
       <div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
@@ -6857,12 +7569,16 @@ function generateDailyJobReminderHTML(data: {
         ${collaboratoriHtml}
       </div>
       
-      ${noteInterne ? `
+      ${
+        noteInterne
+          ? `
         <div style="background: #fef9c3; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
           <h3 style="margin: 0 0 8px 0; color: #854d0e; font-size: 14px;">📝 Note</h3>
           <p style="margin: 0; color: #78350f; white-space: pre-wrap;">${noteInterne}</p>
         </div>
-      ` : ''}
+      `
+          : ""
+      }
       
       <div style="text-align: center; margin-top: 24px;">
         <a href="${baseUrl}/admin/jobs/${jobId}" 
@@ -6873,8 +7589,8 @@ function generateDailyJobReminderHTML(data: {
       
       <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
         <p style="margin: 0;">
-          ${studioInfo?.name || 'Image Studio Fotografico'}<br>
-          ${studioInfo?.phone ? `📞 ${studioInfo.phone}` : ''}
+          ${studioInfo?.name || "Image Studio Fotografico"}<br>
+          ${studioInfo?.phone ? `📞 ${studioInfo.phone}` : ""}
         </p>
       </div>
     </body>
@@ -6888,14 +7604,25 @@ function generateDailyJobReminderHTML(data: {
  * POST /send-info-form-to-client
  * Invia email al cliente con il link al modulo informativo
  */
-router.post("/send-info-form-to-client", authenticateFirebase, async (req: any, res: Response) => {
-  try {
-    const { clientName, clientEmail, templateName, formUrl, jobName } = req.body;
-    if (!clientEmail || !formUrl) {
-      return res.status(400).json({ error: { code: "invalid-argument", message: "Missing clientEmail or formUrl" } });
-    }
+router.post(
+  "/send-info-form-to-client",
+  authenticateFirebase,
+  async (req: any, res: Response) => {
+    try {
+      const { clientName, clientEmail, templateName, formUrl, jobName } =
+        req.body;
+      if (!clientEmail || !formUrl) {
+        return res
+          .status(400)
+          .json({
+            error: {
+              code: "invalid-argument",
+              message: "Missing clientEmail or formUrl",
+            },
+          });
+      }
 
-    const html = `
+      const html = `
 <!DOCTYPE html>
 <html>
 <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f0e8;">
@@ -6906,10 +7633,10 @@ router.post("/send-info-form-to-client", authenticateFirebase, async (req: any, 
 
   <div style="background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
     <p style="font-size: 16px; color: #374151; margin-top: 0;">
-      Ciao <strong>${clientName || 'Cliente'}</strong>,
+      Ciao <strong>${clientName || "Cliente"}</strong>,
     </p>
     <p style="color: #4b5563;">
-      Per prepararci al meglio per il vostro evento <strong>${jobName || ''}</strong>, ti inviamo il modulo <strong>"${templateName}"</strong>.
+      Per prepararci al meglio per il vostro evento <strong>${jobName || ""}</strong>, ti inviamo il modulo <strong>"${templateName}"</strong>.
     </p>
     <p style="color: #4b5563;">
       Compilalo quando puoi — bastano pochi minuti!
@@ -6936,89 +7663,120 @@ router.post("/send-info-form-to-client", authenticateFirebase, async (req: any, 
 </html>
     `;
 
-    await sendGmailEmail(
-      clientEmail,
-      `📋 Modulo informativo: ${templateName}`,
-      html,
-      undefined,
-      { type: 'info-form-to-client', clientName: clientName || '' }
-    );
+      await sendGmailEmail(
+        clientEmail,
+        `Modulo informativo: ${templateName}`,
+        html,
+        undefined,
+        { type: "info-form-to-client", clientName: clientName || "" },
+      );
 
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("❌ Errore send-info-form-to-client:", error);
-    res.status(500).json({ error: { code: "internal", message: error.message } });
-  }
-});
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("❌ Errore send-info-form-to-client:", error);
+      res
+        .status(500)
+        .json({ error: { code: "internal", message: error.message } });
+    }
+  },
+);
 
 /**
  * POST /send-info-form-submitted
  * Notifica all'admin quando un cliente compila un modulo informativo.
  * Richiede il token della submission per verifica server-side (nessun payload arbitrario accettato).
  */
-router.post("/send-info-form-submitted", async (req: Request, res: Response) => {
-  try {
-    const { token } = req.body;
-    if (!token) {
-      return res.status(400).json({ error: { code: "invalid-argument", message: "Missing token" } });
-    }
-
-    // Verifica server-side: cerca la submission per token e controlla che sia completata
-    const submissionsSnap = await db.collection("infoFormSubmissions")
-      .where("token", "==", token)
-      .limit(1)
-      .get();
-
-    if (submissionsSnap.empty) {
-      return res.status(404).json({ error: { code: "not-found", message: "Submission not found" } });
-    }
-
-    const submissionDoc = submissionsSnap.docs[0];
-    const submissionData = submissionDoc.data();
-    if (submissionData.status !== "completed") {
-      return res.status(400).json({ error: { code: "invalid-argument", message: "Submission not completed" } });
-    }
-
-    // Idempotency: if admin email was already sent, skip to avoid spam
-    if (submissionData.adminEmailSentAt) {
-      return res.json({ success: true, note: "admin email already sent" });
-    }
-
-    const { jobId, clientName, templateName, templateFields: fields, answers } = submissionData;
-
-    // Recupera studioInfo per l'email di destinazione
-    let adminEmail: string | null = null;
+router.post(
+  "/send-info-form-submitted",
+  async (req: Request, res: Response) => {
     try {
-      const studioSnap = await db.collection("studioInfo").limit(1).get();
-      if (!studioSnap.empty) {
-        const studioData = studioSnap.docs[0].data();
-        if (studioData.email) adminEmail = studioData.email;
+      const { token } = req.body;
+      if (!token) {
+        return res
+          .status(400)
+          .json({
+            error: { code: "invalid-argument", message: "Missing token" },
+          });
       }
-    } catch (_) {}
 
-    if (!adminEmail) {
-      console.warn("⚠️ studioInfo.email non trovato — email admin non inviata");
-      return res.json({ success: true, note: "admin email not configured" });
-    }
+      // Verifica server-side: cerca la submission per token e controlla che sia completata
+      const submissionsSnap = await db
+        .collection("infoFormSubmissions")
+        .where("token", "==", token)
+        .limit(1)
+        .get();
 
-    const SITE_URL = "https://imagestudiofotografico.com";
-    const deepLink = `${SITE_URL}/admin/jobs/${jobId}?tab=moduli`;
+      if (submissionsSnap.empty) {
+        return res
+          .status(404)
+          .json({
+            error: { code: "not-found", message: "Submission not found" },
+          });
+      }
 
-    let answersHtml = '';
-    if (Array.isArray(fields) && fields.length > 0) {
-      answersHtml = fields.map((f: any) => {
-        const val = answers?.[f.id];
-        const display = Array.isArray(val) ? val.join(', ') : (val ?? '—');
-        return `
+      const submissionDoc = submissionsSnap.docs[0];
+      const submissionData = submissionDoc.data();
+      if (submissionData.status !== "completed") {
+        return res
+          .status(400)
+          .json({
+            error: {
+              code: "invalid-argument",
+              message: "Submission not completed",
+            },
+          });
+      }
+
+      // Idempotency: if admin email was already sent, skip to avoid spam
+      if (submissionData.adminEmailSentAt) {
+        return res.json({ success: true, note: "admin email already sent" });
+      }
+
+      const {
+        jobId,
+        clientName,
+        templateName,
+        templateFields: fields,
+        answers,
+      } = submissionData;
+
+      // Recupera studioInfo per l'email di destinazione
+      let adminEmail: string | null = null;
+      try {
+        const studioSnap = await db.collection("studioInfo").limit(1).get();
+        if (!studioSnap.empty) {
+          const studioData = studioSnap.docs[0].data();
+          if (studioData.email) adminEmail = studioData.email;
+        }
+      } catch (_) {}
+
+      if (!adminEmail) {
+        console.warn(
+          "⚠️ studioInfo.email non trovato — email admin non inviata",
+        );
+        return res.json({ success: true, note: "admin email not configured" });
+      }
+
+      const SITE_URL = "https://imagestudiofotografico.com";
+      const deepLink = `${SITE_URL}/admin/jobs/${jobId}?tab=moduli`;
+
+      let answersHtml = "";
+      if (Array.isArray(fields) && fields.length > 0) {
+        answersHtml = fields
+          .map((f: any) => {
+            const val = answers?.[f.id];
+            const display = Array.isArray(val) ? val.join(", ") : (val ?? "—");
+            return `
           <tr>
             <td style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 13px; white-space: nowrap; vertical-align: top;">${f.label}</td>
-            <td style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 13px; vertical-align: top;">${display || '—'}</td>
+            <td style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 13px; vertical-align: top;">${display || "—"}</td>
           </tr>
         `;
-      }).join('');
-    }
+          })
+          .join("");
+      }
 
-    const html = `
+      const html = `
 <!DOCTYPE html>
 <html>
 <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f0e8;">
@@ -7028,7 +7786,9 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
   </div>
 
   <div style="background: white; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-    ${answersHtml ? `
+    ${
+      answersHtml
+        ? `
       <table style="width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
         <thead>
           <tr style="background: #f9fafb;">
@@ -7038,7 +7798,9 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
         </thead>
         <tbody>${answersHtml}</tbody>
       </table>
-    ` : '<p style="color: #6b7280; font-style: italic;">Nessuna risposta registrata</p>'}
+    `
+        : '<p style="color: #6b7280; font-style: italic;">Nessuna risposta registrata</p>'
+    }
 
     <div style="text-align: center; margin-top: 24px;">
       <a href="${deepLink}"
@@ -7055,22 +7817,31 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
 </html>
     `;
 
-    await sendGmailEmail(
-      adminEmail,
-      `📋 Modulo compilato: ${clientName} — ${templateName}`,
-      html,
-      undefined,
-      { type: 'info-form-submitted', clientName: clientName || '', relatedDocId: jobId }
-    );
+      await sendGmailEmail(
+        adminEmail,
+        `📋 Modulo compilato: ${clientName} — ${templateName}`,
+        html,
+        undefined,
+        {
+          type: "info-form-submitted",
+          clientName: clientName || "",
+          relatedDocId: jobId,
+        },
+      );
 
-    // Mark adminEmailSentAt for idempotency — prevents repeated email if endpoint is called again
-    await submissionDoc.ref.update({ adminEmailSentAt: new Date().toISOString() });
+      // Mark adminEmailSentAt for idempotency — prevents repeated email if endpoint is called again
+      await submissionDoc.ref.update({
+        adminEmailSentAt: new Date().toISOString(),
+      });
 
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("❌ Errore send-info-form-submitted:", error);
-    res.status(500).json({ error: { code: "internal", message: error.message } });
-  }
-});
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("❌ Errore send-info-form-submitted:", error);
+      res
+        .status(500)
+        .json({ error: { code: "internal", message: error.message } });
+    }
+  },
+);
 
 export default router;
