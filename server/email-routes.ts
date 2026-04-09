@@ -6953,14 +6953,35 @@ router.post("/send-info-form-to-client", authenticateFirebase, async (req: any, 
 
 /**
  * POST /send-info-form-submitted
- * Notifica all'admin quando un cliente compila un modulo informativo
+ * Notifica all'admin quando un cliente compila un modulo informativo.
+ * Richiede il token della submission per verifica server-side (nessun payload arbitrario accettato).
  */
 router.post("/send-info-form-submitted", async (req: Request, res: Response) => {
   try {
-    const { submissionId, jobId, clientName, templateName, fields, answers } = req.body;
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: { code: "invalid-argument", message: "Missing token" } });
+    }
+
+    // Verifica server-side: cerca la submission per token e controlla che sia completata
+    const submissionsSnap = await db.collection("infoFormSubmissions")
+      .where("token", "==", token)
+      .limit(1)
+      .get();
+
+    if (submissionsSnap.empty) {
+      return res.status(404).json({ error: { code: "not-found", message: "Submission not found" } });
+    }
+
+    const submissionData = submissionsSnap.docs[0].data();
+    if (submissionData.status !== "completed") {
+      return res.status(400).json({ error: { code: "invalid-argument", message: "Submission not completed" } });
+    }
+
+    const { jobId, clientName, templateName, templateFields: fields, answers } = submissionData;
 
     // Recupera studioInfo per l'email di destinazione
-    let adminEmail = "image.studio.fotografico@gmail.com";
+    let adminEmail: string | null = null;
     try {
       const studioSnap = await db.collection("studioInfo").limit(1).get();
       if (!studioSnap.empty) {
@@ -6968,6 +6989,11 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
         if (studioData.email) adminEmail = studioData.email;
       }
     } catch (_) {}
+
+    if (!adminEmail) {
+      console.warn("⚠️ studioInfo.email non trovato — email admin non inviata");
+      return res.json({ success: true, note: "admin email not configured" });
+    }
 
     const SITE_URL = "https://imagestudiofotografico.com";
     const deepLink = `${SITE_URL}/admin/dashboard?tab=lavori&job=${jobId}&subtab=moduli`;

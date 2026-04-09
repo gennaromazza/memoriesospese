@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, FileText, X } from 'lucide-react';
+import { Bell, Camera, MessageCircle, MessageSquare, CheckSquare, FileText, ClipboardList, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,6 +29,7 @@ export const NotificationBell = React.memo(function NotificationBell() {
       case 'comment': return <MessageSquare className="h-4 w-4" />;
       case 'selection': return <CheckSquare className="h-4 w-4" />;
       case 'quick_quote': return <FileText className="h-4 w-4" />;
+      case 'info_form': return <ClipboardList className="h-4 w-4" />;
       default: return <Bell className="h-4 w-4" />;
     }
   }, []);
@@ -76,6 +77,10 @@ export const NotificationBell = React.memo(function NotificationBell() {
             headers: { 'Authorization': `Bearer ${token}` },
           });
         }
+      } else if (type === 'info_form') {
+        const firestoreDocId = notificationId.replace('info-form-', '');
+        const { markInfoFormNotificationRead } = await import('@/lib/infoForms');
+        await markInfoFormNotificationRead(firestoreDocId);
       } else {
         const { db } = await import('@/lib/firebase');
         const { doc, updateDoc } = await import('firebase/firestore');

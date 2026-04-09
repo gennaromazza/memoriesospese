@@ -595,7 +595,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   nome: c.nome,
                   cognome: c.cognome,
                   email: c.email,
-                  whatsapp: (c as any).whatsapp,
+                  whatsapp: c.whatsapp,
                   cellulare1: c.cellulare1,
                 }))}
               />

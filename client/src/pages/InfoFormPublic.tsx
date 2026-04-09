@@ -79,16 +79,9 @@ export default function InfoFormPublic() {
     setSubmitting(true);
     try {
       await submitInfoForm(submission.id, token, answers);
-      // Notifica email all'admin
+      // Notifica email all'admin — server verifica il token e recupera i dati autonomamente
       try {
-        await apiRequest('POST', '/api/email/send-info-form-submitted', {
-          submissionId: submission.id,
-          jobId: submission.jobId,
-          clientName: submission.clientName,
-          templateName: submission.templateName,
-          fields: submission.templateFields,
-          answers,
-        });
+        await apiRequest('POST', '/api/email/send-info-form-submitted', { token });
       } catch (_) { /* non bloccare anche se l'email fallisce */ }
       setSubmitted(true);
     } catch (err: any) {

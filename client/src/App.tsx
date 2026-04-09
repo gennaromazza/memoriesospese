@@ -84,6 +84,7 @@ const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/Paym
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
+const InfoFormTemplateManager = lazyWithRetry(() => import("./pages/admin/InfoFormTemplateManager"));
 
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
@@ -158,6 +159,9 @@ function AppRoutes() {
 
         {/* Moduli Informativi - Link condivisibile per compilazione pubblica */}
         <Route path="/modulo/:token" component={InfoFormPublic} />
+
+        {/* Moduli Informativi - Template manager standalone */}
+        <Route path="/admin/moduli-template" component={InfoFormTemplateManager} />
 
         {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
         <Route path="/special-gallery" component={SpecialGalleryAccess} />
