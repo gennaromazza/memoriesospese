@@ -102,9 +102,14 @@ export async function getSubmissionByToken(token: string): Promise<InfoFormSubmi
 }
 
 export async function getSubmissionsByJobId(jobId: string): Promise<InfoFormSubmission[]> {
-  const q = query(collection(db, SUBMISSIONS_COL), where('jobId', '==', jobId), orderBy('sentAt', 'desc'));
+  const q = query(collection(db, SUBMISSIONS_COL), where('jobId', '==', jobId));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as InfoFormSubmission));
+  const results = snap.docs.map(d => ({ id: d.id, ...d.data() } as InfoFormSubmission));
+  return results.sort((a, b) => {
+    const aTime = a.sentAt?.toDate ? a.sentAt.toDate().getTime() : 0;
+    const bTime = b.sentAt?.toDate ? b.sentAt.toDate().getTime() : 0;
+    return bTime - aTime;
+  });
 }
 
 export async function submitInfoForm(
@@ -144,8 +149,7 @@ export async function getInfoFormNotifications(): Promise<InfoFormNotification[]
   const cutoff = new Date(Date.now() - 48 * 3600 * 1000);
   const q = query(
     collection(db, NOTIFICATIONS_COL),
-    where('isRead', '==', false),
-    orderBy('createdAt', 'desc')
+    where('isRead', '==', false)
   );
   const snap = await getDocs(q);
   return snap.docs
@@ -153,6 +157,11 @@ export async function getInfoFormNotifications(): Promise<InfoFormNotification[]
     .filter(n => {
       const date = n.createdAt?.toDate ? n.createdAt.toDate() : null;
       return !date || date >= cutoff;
+    })
+    .sort((a, b) => {
+      const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+      const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+      return bTime - aTime;
     });
 }
 
