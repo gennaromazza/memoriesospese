@@ -47,8 +47,10 @@ import {
   Download,
   Clock,
   ArrowRight,
-  Loader2
+  Loader2,
+  ClipboardList,
 } from 'lucide-react';
+import InfoFormJobSection from './InfoFormJobSection';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { JobStatus } from '@shared/jobs-types';
@@ -248,12 +250,16 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           
           {/* Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-              <TabsTrigger value="timeline" data-testid="tab-timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="preventivi" data-testid="tab-preventivi">Preventivi</TabsTrigger>
-              <TabsTrigger value="pagamenti" data-testid="tab-pagamenti">Pagamenti</TabsTrigger>
-              <TabsTrigger value="gallerie" data-testid="tab-gallerie">Gallerie</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="overview" data-testid="tab-overview" className="text-xs px-1">Overview</TabsTrigger>
+              <TabsTrigger value="timeline" data-testid="tab-timeline" className="text-xs px-1">Timeline</TabsTrigger>
+              <TabsTrigger value="preventivi" data-testid="tab-preventivi" className="text-xs px-1">Preventivi</TabsTrigger>
+              <TabsTrigger value="pagamenti" data-testid="tab-pagamenti" className="text-xs px-1">Pagamenti</TabsTrigger>
+              <TabsTrigger value="gallerie" data-testid="tab-gallerie" className="text-xs px-1">Gallerie</TabsTrigger>
+              <TabsTrigger value="moduli" data-testid="tab-moduli" className="text-xs px-1">
+                <ClipboardList className="h-3.5 w-3.5 mr-1 inline-block" />
+                Moduli
+              </TabsTrigger>
             </TabsList>
             
             {/* Overview */}
@@ -577,6 +583,22 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            {/* Moduli Informativi */}
+            <TabsContent value="moduli" className="space-y-3 pt-2">
+              <InfoFormJobSection
+                jobId={jobId}
+                jobName={job?.nomeEvento}
+                clienti={clienti.map(c => ({
+                  id: c.id,
+                  nome: c.nome,
+                  cognome: c.cognome,
+                  email: c.email,
+                  whatsapp: (c as any).whatsapp,
+                  cellulare1: c.cellulare1,
+                }))}
+              />
             </TabsContent>
 
             {/* Gallerie */}

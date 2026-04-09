@@ -83,6 +83,7 @@ const PhoneMigrationPage = lazyWithRetry(() => import("./pages/admin/PhoneMigrat
 const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
+const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
 
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
@@ -154,6 +155,9 @@ function AppRoutes() {
 
         {/* Preventivo Rapido - Link condivisibile per compilazione pubblica */}
         <Route path="/preventivo-rapido/:token" component={QuickQuotePage} />
+
+        {/* Moduli Informativi - Link condivisibile per compilazione pubblica */}
+        <Route path="/modulo/:token" component={InfoFormPublic} />
 
         {/* Nota: qui stai usando /gallery/:id -> GalleryAccess e /view/:id -> Gallery */}
         <Route path="/special-gallery" component={SpecialGalleryAccess} />

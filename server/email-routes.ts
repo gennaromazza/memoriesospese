@@ -6882,4 +6882,160 @@ function generateDailyJobReminderHTML(data: {
   `;
 }
 
+// ===================== MODULI INFORMATIVI =====================
+
+/**
+ * POST /send-info-form-to-client
+ * Invia email al cliente con il link al modulo informativo
+ */
+router.post("/send-info-form-to-client", authenticateFirebase, async (req: any, res: Response) => {
+  try {
+    const { clientName, clientEmail, templateName, formUrl, jobName } = req.body;
+    if (!clientEmail || !formUrl) {
+      return res.status(400).json({ error: { code: "invalid-argument", message: "Missing clientEmail or formUrl" } });
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f0e8;">
+  <div style="background: linear-gradient(135deg, #6b7f6b 0%, #4a5f4a 100%); border-radius: 16px; padding: 28px; margin-bottom: 24px; text-align: center;">
+    <h1 style="margin: 0; color: white; font-size: 22px; letter-spacing: 1px;">Image Studio Fotografico</h1>
+    <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">Modulo Informativo Evento</p>
+  </div>
+
+  <div style="background: white; border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+    <p style="font-size: 16px; color: #374151; margin-top: 0;">
+      Ciao <strong>${clientName || 'Cliente'}</strong>,
+    </p>
+    <p style="color: #4b5563;">
+      Per prepararci al meglio per il vostro evento <strong>${jobName || ''}</strong>, ti inviamo il modulo <strong>"${templateName}"</strong>.
+    </p>
+    <p style="color: #4b5563;">
+      Compilalo quando puoi — bastano pochi minuti!
+    </p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${formUrl}"
+         style="display: inline-block; background: #6b7f6b; color: white; padding: 14px 36px; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 16px; letter-spacing: 0.5px;">
+        Compila il Modulo →
+      </a>
+    </div>
+
+    <p style="color: #9ca3af; font-size: 13px;">
+      Se il link non funziona, copialo nel tuo browser:<br>
+      <a href="${formUrl}" style="color: #6b7f6b; word-break: break-all;">${formUrl}</a>
+    </p>
+  </div>
+
+  <div style="text-align: center; color: #9ca3af; font-size: 12px; padding: 16px;">
+    <p style="margin: 0;">Image Studio Fotografico<br>
+    I tuoi dati verranno utilizzati esclusivamente per organizzare il tuo evento.</p>
+  </div>
+</body>
+</html>
+    `;
+
+    await sendGmailEmail(
+      clientEmail,
+      `📋 Modulo informativo: ${templateName}`,
+      html,
+      undefined,
+      { type: 'info-form-to-client', clientName: clientName || '' }
+    );
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("❌ Errore send-info-form-to-client:", error);
+    res.status(500).json({ error: { code: "internal", message: error.message } });
+  }
+});
+
+/**
+ * POST /send-info-form-submitted
+ * Notifica all'admin quando un cliente compila un modulo informativo
+ */
+router.post("/send-info-form-submitted", async (req: Request, res: Response) => {
+  try {
+    const { submissionId, jobId, clientName, templateName, fields, answers } = req.body;
+
+    // Recupera studioInfo per l'email di destinazione
+    let adminEmail = "image.studio.fotografico@gmail.com";
+    try {
+      const studioSnap = await db.collection("studioInfo").limit(1).get();
+      if (!studioSnap.empty) {
+        const studioData = studioSnap.docs[0].data();
+        if (studioData.email) adminEmail = studioData.email;
+      }
+    } catch (_) {}
+
+    const SITE_URL = "https://imagestudiofotografico.com";
+    const deepLink = `${SITE_URL}/admin/dashboard?tab=lavori&job=${jobId}&subtab=moduli`;
+
+    let answersHtml = '';
+    if (Array.isArray(fields) && fields.length > 0) {
+      answersHtml = fields.map((f: any) => {
+        const val = answers?.[f.id];
+        const display = Array.isArray(val) ? val.join(', ') : (val ?? '—');
+        return `
+          <tr>
+            <td style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb; color: #6b7280; font-size: 13px; white-space: nowrap; vertical-align: top;">${f.label}</td>
+            <td style="padding: 10px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-size: 13px; vertical-align: top;">${display || '—'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f0e8;">
+  <div style="background: linear-gradient(135deg, #6b7f6b 0%, #4a5f4a 100%); border-radius: 16px; padding: 28px; margin-bottom: 24px;">
+    <h1 style="margin: 0; color: white; font-size: 20px;">📋 Modulo Compilato!</h1>
+    <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${clientName} ha completato "${templateName}"</p>
+  </div>
+
+  <div style="background: white; border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+    ${answersHtml ? `
+      <table style="width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <thead>
+          <tr style="background: #f9fafb;">
+            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #374151; border-bottom: 2px solid #e5e7eb;">Domanda</th>
+            <th style="padding: 12px 16px; text-align: left; font-size: 13px; color: #374151; border-bottom: 2px solid #e5e7eb;">Risposta</th>
+          </tr>
+        </thead>
+        <tbody>${answersHtml}</tbody>
+      </table>
+    ` : '<p style="color: #6b7280; font-style: italic;">Nessuna risposta registrata</p>'}
+
+    <div style="text-align: center; margin-top: 24px;">
+      <a href="${deepLink}"
+         style="display: inline-block; background: #6b7f6b; color: white; padding: 12px 28px; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        Vedi nel Dashboard →
+      </a>
+    </div>
+  </div>
+
+  <div style="text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">Image Studio Fotografico</p>
+  </div>
+</body>
+</html>
+    `;
+
+    await sendGmailEmail(
+      adminEmail,
+      `📋 Modulo compilato: ${clientName} — ${templateName}`,
+      html,
+      undefined,
+      { type: 'info-form-submitted', clientName: clientName || '', relatedDocId: jobId }
+    );
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("❌ Errore send-info-form-submitted:", error);
+    res.status(500).json({ error: { code: "internal", message: error.message } });
+  }
+});
+
 export default router;

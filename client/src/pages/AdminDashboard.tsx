@@ -113,8 +113,10 @@ import {
   ExternalLink,
   Database,
   HardDrive,
+  ClipboardList,
 } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
+import InfoFormTemplateManager from "./admin/InfoFormTemplateManager";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import CashDashboard from "@/components/CashDashboard";
@@ -1700,6 +1702,7 @@ export default function AdminDashboard() {
                     variant={
                       activeTab === "galleries" ||
                       activeTab === "questionnaire" ||
+                      activeTab === "moduli-informativi" ||
                       activeTab === "themes" ||
                       activeTab === "requests"
                         ? "default"
@@ -1722,6 +1725,10 @@ export default function AdminDashboard() {
                   >
                     <HelpCircle className="h-4 w-4 mr-2" />
                     Questionari
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setActiveTab("moduli-informativi")}>
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Moduli Informativi
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setActiveTab("themes")}>
                     <Sparkles className="h-4 w-4 mr-2" />
@@ -2615,6 +2622,11 @@ export default function AdminDashboard() {
                 </div>
                 <QuestionnaireManager />
               </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Moduli Informativi */}
+            <TabsContent value="moduli-informativi">
+              <InfoFormTemplateManager />
             </TabsContent>
 
             {/* Contenuto Tab Temi Stagionali */}

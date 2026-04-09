@@ -59,6 +59,7 @@ Image Studio is an all-in-one platform for professional photographers, designed 
 - **Cascade Delete System:** Proper cleanup of associated data (job references, photos) upon deletion of quotes, orders, or galleries.
 - **System Audit Tools:** Automated admin-only audit system for data integrity, workflow consistency, and calendar sync issues, including an Orphaned Photos Manager.
 - **Quote Benefits System:** Per-quote configurable benefit rules (`shared/quote-benefits.ts`) with pure `computeBenefitStates()` function; states: locked/preview/unlocked; admin UI in QuoteBuilder and QuoteTemplatesManager (sezione 3, variabile quotes only); client-facing live panel in QuotePublicViewPage with progress bar and dynamic feedback messages; benefits never affect totals. Each `BenefitRule` specifies a `benefitProductName` (the product that becomes FREE/OMAGGIO) and optional trigger conditions (`requiredProductNames[]` and/or `minSelectableCount`).
+- **Info Forms System (Moduli Informativi):** Reusable logistical form templates (Firestore: `infoFormTemplates`) sent to job clients via unique-token public link (`/modulo/:token`). Responses stored in `infoFormSubmissions`, admin notifications in `infoFormNotifications`. Admin template manager in Gallerie dropdown. Job-level sending/viewing in JobDetailDrawer "Moduli" tab. Email notifications to client on send, to admin on submission. Types: `shared/info-form-types.ts`; service: `client/src/lib/infoForms.ts`.
 
 ## External Dependencies
 - **Firebase:** Firestore, Storage, Authentication, Functions, Hosting

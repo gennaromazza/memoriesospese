@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { apiRequest } from '@/lib/queryClient';
+import { getInfoFormNotifications } from '@/lib/infoForms';
 
 export interface Notification {
   id: string;
-  type: 'booking' | 'consultation' | 'comment' | 'selection' | 'quick_quote';
+  type: 'booking' | 'consultation' | 'comment' | 'selection' | 'quick_quote' | 'info_form';
   title: string;
   description: string;
   createdAt: Timestamp | null;
@@ -125,15 +126,35 @@ export function useNotifications() {
         }
       };
       
+      const fetchInfoForms = async () => {
+        try {
+          const items = await getInfoFormNotifications();
+          return items.map(n => ({
+            id: `info-form-${n.id}`,
+            type: 'info_form' as const,
+            title: '📋 Modulo Compilato',
+            description: `${n.clientName} ha compilato "${n.templateName}"`,
+            createdAt: n.createdAt || null,
+            isRead: n.isRead,
+            resourceId: n.jobId,
+            deepLink: n.deepLink,
+          } as Notification));
+        } catch (error) {
+          console.error('[Notifications] Errore fetch info forms:', error);
+          return [];
+        }
+      };
+
       // 🚀 Esegui tutte le fetch in parallelo per massima performance
-      const [bookingsAndConsultations, comments, selections] = await Promise.all([
+      const [bookingsAndConsultations, comments, selections, infoForms] = await Promise.all([
         fetchBookingsAndConsultations(),
         fetchComments(),
-        fetchSelections()
+        fetchSelections(),
+        fetchInfoForms(),
       ]);
       
       // Combina e ordina tutte le notifiche
-      const allNotifications = [...bookingsAndConsultations, ...comments, ...selections];
+      const allNotifications = [...bookingsAndConsultations, ...comments, ...selections, ...infoForms];
       
       return allNotifications.sort((a, b) => {
         if (!a || !b) return 0;
