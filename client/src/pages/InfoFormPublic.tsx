@@ -3,14 +3,14 @@
  * Accessibile tramite link con token univoco: /modulo/:token
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, CheckCircle2, ClipboardList, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, ClipboardList, AlertCircle, AlertTriangle } from 'lucide-react';
 import { getSubmissionByToken, submitInfoForm } from '@/lib/infoForms';
 import type { InfoFormSubmission, InfoFormField } from '@shared/info-form-types';
 import { apiRequest } from '@/lib/queryClient';
@@ -26,6 +26,10 @@ export default function InfoFormPublic() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const errorBannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -75,14 +79,28 @@ export default function InfoFormPublic() {
   };
 
   const handleSubmit = async () => {
-    if (!submission || !validate()) return;
+    setSubmitAttempted(true);
+    if (!submission || !validate()) {
+      setTimeout(() => {
+        errorBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const firstErrorField = submission?.templateFields?.find(f => {
+          const val = answers[f.id];
+          if (!f.required) return false;
+          if (f.type === 'checkbox') return !Array.isArray(val) || val.length === 0;
+          return !val || String(val).trim() === '';
+        });
+        if (firstErrorField) {
+          fieldRefs.current[firstErrorField.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return;
+    }
     setSubmitting(true);
     try {
       await submitInfoForm(submission.id, token, answers);
-      // Notifica email all'admin — server verifica il token e recupera i dati autonomamente
       try {
         await apiRequest('POST', '/api/email/send-info-form-submitted', { token });
-      } catch (_) { /* non bloccare anche se l'email fallisce */ }
+      } catch (_) { }
       setSubmitted(true);
     } catch (err: any) {
       alert(err.message || 'Errore durante l\'invio. Riprova.');
@@ -91,10 +109,14 @@ export default function InfoFormPublic() {
     }
   };
 
+  const errorCount = Object.keys(errors).length;
+
   const renderField = (field: InfoFormField) => {
     const hasError = !!errors[field.id];
 
-    const inputClass = `w-full ${hasError ? 'border-red-400 focus:ring-red-400' : ''}`;
+    const inputClass = hasError
+      ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-300'
+      : '';
 
     switch (field.type) {
       case 'text':
@@ -141,9 +163,9 @@ export default function InfoFormPublic() {
         );
       case 'radio':
         return (
-          <div className="space-y-2">
+          <div className={`space-y-2 rounded-lg p-3 transition-colors ${hasError ? 'bg-red-50 border border-red-200' : 'border border-transparent'}`}>
             {(field.options || []).map(opt => (
-              <label key={opt} className="flex items-center gap-2 cursor-pointer">
+              <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
                 <input
                   type="radio"
                   name={field.id}
@@ -152,25 +174,25 @@ export default function InfoFormPublic() {
                   onChange={() => handleChange(field.id, opt)}
                   className="h-4 w-4 text-[#6b7f6b] border-gray-300 focus:ring-[#6b7f6b]"
                 />
-                <span className="text-sm">{opt}</span>
+                <span className="text-sm text-gray-700 group-hover:text-gray-900">{opt}</span>
               </label>
             ))}
           </div>
         );
       case 'checkbox':
         return (
-          <div className="space-y-2">
+          <div className={`space-y-2 rounded-lg p-3 transition-colors ${hasError ? 'bg-red-50 border border-red-200' : 'border border-transparent'}`}>
             {(field.options || []).map(opt => {
               const checked = Array.isArray(answers[field.id]) && answers[field.id].includes(opt);
               return (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={checked}
                     onChange={e => handleCheckboxChange(field.id, opt, e.target.checked)}
                     className="h-4 w-4 text-[#6b7f6b] border-gray-300 rounded focus:ring-[#6b7f6b]"
                   />
-                  <span className="text-sm">{opt}</span>
+                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{opt}</span>
                 </label>
               );
             })}
@@ -234,24 +256,55 @@ export default function InfoFormPublic() {
           </p>
         </div>
 
+        {/* Banner errori — appare solo dopo aver premuto Invia con campi mancanti */}
+        {submitAttempted && errorCount > 0 && (
+          <div
+            ref={errorBannerRef}
+            className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3"
+          >
+            <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-700">
+                {errorCount === 1
+                  ? 'C\'è 1 campo obbligatorio da compilare'
+                  : `Ci sono ${errorCount} campi obbligatori da compilare`}
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Scorri la pagina, i campi mancanti sono evidenziati in rosso.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Form */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-          {submission?.templateFields?.map((field, index) => (
-            <div key={field.id} className="space-y-2">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
-                <span className="text-[#6b7f6b] font-bold text-xs mr-1">{index + 1}.</span>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-              </Label>
-              {renderField(field)}
-              {errors[field.id] && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors[field.id]}
-                </p>
-              )}
-            </div>
-          ))}
+          {submission?.templateFields?.map((field, index) => {
+            const hasError = !!errors[field.id];
+            return (
+              <div
+                key={field.id}
+                ref={el => { fieldRefs.current[field.id] = el; }}
+                className={`space-y-2 rounded-xl px-4 py-3 transition-colors ${
+                  hasError
+                    ? 'bg-red-50 border border-red-200 -mx-2'
+                    : 'border border-transparent'
+                }`}
+              >
+                <Label className={`text-sm font-semibold flex items-center gap-1 ${hasError ? 'text-red-700' : 'text-gray-700'}`}>
+                  <span className={`font-bold text-xs mr-1 ${hasError ? 'text-red-500' : 'text-[#6b7f6b]'}`}>{index + 1}.</span>
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </Label>
+                {renderField(field)}
+                {hasError && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                    <p className="text-xs font-medium text-red-600">{errors[field.id]}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {(!submission?.templateFields || submission.templateFields.length === 0) && (
             <p className="text-center text-gray-500 py-8">Questo modulo non ha campi configurati.</p>
