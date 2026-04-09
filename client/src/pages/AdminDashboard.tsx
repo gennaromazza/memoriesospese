@@ -546,6 +546,7 @@ export default function AdminDashboard() {
     | "job-types"
     | "contract-clauses"
     | "quote-templates"
+    | "moduli-informativi"
   >(() => {
     return (sessionStorage.getItem("activeJobSection") as any) || "jobs-list";
   });
@@ -1702,7 +1703,6 @@ export default function AdminDashboard() {
                     variant={
                       activeTab === "galleries" ||
                       activeTab === "questionnaire" ||
-                      activeTab === "moduli-informativi" ||
                       activeTab === "themes" ||
                       activeTab === "requests"
                         ? "default"
@@ -1725,10 +1725,6 @@ export default function AdminDashboard() {
                   >
                     <HelpCircle className="h-4 w-4 mr-2" />
                     Questionari
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab("moduli-informativi")}>
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Moduli Informativi
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setActiveTab("themes")}>
                     <Sparkles className="h-4 w-4 mr-2" />
@@ -1754,14 +1750,29 @@ export default function AdminDashboard() {
                 <span>Prenotazioni</span>
               </TabsTrigger>
 
-              {/* Jobs System: Lavori Fotografici */}
-              <TabsTrigger
-                value="lavori"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-              >
-                <Briefcase className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Lavori</span>
-              </TabsTrigger>
+              {/* Jobs System: Lavori Fotografici con dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={activeTab === "lavori" ? "default" : "ghost"}
+                    className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
+                  >
+                    <Briefcase className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                    <span>Lavori</span>
+                    <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => { setActiveTab("lavori"); setActiveJobSection("jobs-list"); }}>
+                    <Briefcase className="h-4 w-4 mr-2" />
+                    Lista Lavori
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setActiveTab("lavori"); setActiveJobSection("moduli-informativi"); }}>
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Moduli Informativi
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Financial Management: Cassa */}
               <TabsTrigger
@@ -2624,11 +2635,6 @@ export default function AdminDashboard() {
               </div>
             </TabsContent>
 
-            {/* Contenuto Tab Moduli Informativi */}
-            <TabsContent value="moduli-informativi">
-              <InfoFormTemplateManager />
-            </TabsContent>
-
             {/* Contenuto Tab Temi Stagionali */}
             <TabsContent value="themes">
               <div className="bg-white shadow sm:rounded-lg p-5">
@@ -2962,7 +2968,7 @@ export default function AdminDashboard() {
                 onValueChange={(v) => setActiveJobSection(v as any)}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 gap-1 mb-4">
+                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 gap-1 mb-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
                   </TabsTrigger>
@@ -2984,6 +2990,10 @@ export default function AdminDashboard() {
                   >
                     <FileText className="w-4 h-4 mr-2" />
                     Template Preventivi
+                  </TabsTrigger>
+                  <TabsTrigger value="moduli-informativi">
+                    <ClipboardList className="w-4 h-4 mr-1.5" />
+                    Moduli Informativi
                   </TabsTrigger>
                 </TabsList>
 
@@ -3046,6 +3056,10 @@ export default function AdminDashboard() {
 
                 <TabsContent value="quote-templates">
                   <QuoteTemplatesManager />
+                </TabsContent>
+
+                <TabsContent value="moduli-informativi">
+                  <InfoFormTemplateManager />
                 </TabsContent>
               </Tabs>
             </TabsContent>
