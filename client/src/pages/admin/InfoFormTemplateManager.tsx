@@ -3,8 +3,10 @@
  * Crea, modifica ed elimina i template di moduli riutilizzabili per i job.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -196,6 +198,15 @@ function TemplateFormDialog({
   const [fields, setFields] = useState<InfoFormField[]>(template?.fields || []);
   const [showPreview, setShowPreview] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setName(template?.name || '');
+      setDescription(template?.description || '');
+      setFields(template?.fields || []);
+      setShowPreview(false);
+    }
+  }, [open, template]);
+
   const reset = () => {
     setName(template?.name || '');
     setDescription(template?.description || '');
@@ -350,9 +361,17 @@ function TemplateFormDialog({
 
 export default function InfoFormTemplateManager() {
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useFirebaseAuth();
+  const [, navigate] = useLocation();
   const [editingTemplate, setEditingTemplate] = useState<InfoFormTemplate | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/admin');
+    }
+  }, [authLoading, user, navigate]);
 
   const { data: templates = [], isLoading } = useQuery<InfoFormTemplate[]>({
     queryKey: ['infoFormTemplates'],

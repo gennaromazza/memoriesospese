@@ -279,10 +279,6 @@ function SendFormDialog({
             </div>
             {sentSubmissions.map(sub => {
               const formUrl = createAbsoluteUrl(`/modulo/${sub.token}`);
-              const clienti_with_phone = clienti.filter(c => {
-                const phone = c.whatsapp || c.cellulare1;
-                return !!phone && !!formatPhoneForWhatsApp(phone);
-              });
               const clienteData = clienti.find(c => c.email === sub.clientEmail);
               const phone = clienteData?.whatsapp || clienteData?.cellulare1;
               const waPhone = phone ? formatPhoneForWhatsApp(phone) : null;

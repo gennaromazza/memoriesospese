@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star } from 'lucide-react';
@@ -48,6 +48,7 @@ import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import ClienteJobCard from '@/components/jobs/ClienteJobCard';
 import ModuliJobSection from '@/components/jobs/ModuliJobSection';
+import InfoFormJobSection from '@/components/jobs/InfoFormJobSection';
 import CostiLavoroTable from '@/components/jobs/CostiLavoroTable';
 import QuoteBuilder from '@/components/quotes/QuoteBuilder';
 import PaymentScheduleSection from '@/components/jobs/PaymentScheduleSection';
@@ -82,6 +83,19 @@ export default function JobDetailPage() {
   const [location, navigate] = useLocation();
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
+
+  // Ref for deep-link scroll to moduli section
+  const moduliSectionRef = useRef<HTMLDivElement>(null);
+
+  // Handle ?tab=moduli deeplink — scroll to moduli section
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1] || '');
+    if (params.get('tab') === 'moduli' && moduliSectionRef.current) {
+      setTimeout(() => {
+        moduliSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 400);
+    }
+  }, [location]);
 
   // State for modals
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
@@ -1301,6 +1315,26 @@ export default function JobDetailPage() {
                 </CardContent>
                 </Card>
               )}
+            </div>
+
+            {/* Moduli Informativi */}
+            <div ref={moduliSectionRef} className="scroll-mt-4">
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <InfoFormJobSection
+                    jobId={job.id}
+                    jobName={job.nomeEvento}
+                    clienti={clienti.map(c => ({
+                      id: c.id,
+                      nome: c.nome,
+                      cognome: c.cognome,
+                      email: c.email,
+                      whatsapp: c.whatsapp,
+                      cellulare1: c.cellulare1,
+                    }))}
+                  />
+                </CardContent>
+              </Card>
             </div>
           </div>
 

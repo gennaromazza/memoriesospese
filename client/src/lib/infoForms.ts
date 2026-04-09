@@ -130,7 +130,7 @@ export async function submitInfoForm(
     templateName: data.templateName,
     createdAt: serverTimestamp(),
     isRead: false,
-    deepLink: `/admin/dashboard?tab=lavori&job=${data.jobId}&subtab=moduli`,
+    deepLink: `/admin/jobs/${data.jobId}?tab=moduli`,
   });
 }
 
@@ -141,7 +141,7 @@ export async function deleteSubmission(id: string): Promise<void> {
 // ===================== NOTIFICATIONS =====================
 
 export async function getInfoFormNotifications(): Promise<InfoFormNotification[]> {
-  const cutoff = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const cutoff = new Date(Date.now() - 48 * 3600 * 1000);
   const q = query(
     collection(db, NOTIFICATIONS_COL),
     where('isRead', '==', false),
