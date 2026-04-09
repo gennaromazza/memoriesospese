@@ -34,6 +34,28 @@ export default function InfoFormPublic() {
   const [animating, setAnimating] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (animating || submitting) return;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) {
+      isLast ? handleSubmit() : handleNext();
+    } else {
+      handleBack();
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -341,10 +363,12 @@ export default function InfoFormPublic() {
             </p>
           )}
 
-          {/* Card domanda */}
+          {/* Card domanda — touch: swipe sx=avanti, swipe dx=indietro */}
           <div
             ref={cardRef}
-            className={`bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-8 transition-all duration-200 ${
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className={`bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-8 transition-all duration-200 select-none ${
               animating
                 ? direction === 'forward'
                   ? 'opacity-0 translate-x-4'

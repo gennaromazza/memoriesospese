@@ -19,31 +19,30 @@ export function createAbsoluteUrl(relativePath: string): string {
   const pathPart = urlParts[0];
   const queryAndFragment = urlParts.length > 1 ? '?' + urlParts.slice(1).join('?') : '';
 
-  // Pulisce solo la parte del path
+  // Pulisce solo la parte del path (senza slash iniziale)
   const cleanPath = pathPart.startsWith("/")
     ? pathPart.slice(1)
     : pathPart;
 
-  // Dominio di partenza
+  // Dominio di partenza — NON toccare mai questa parte con replace sugli slash
+  // perché verrebbe corrotto https:// → https:/
   const origin = window.location.origin;
 
-  let finalUrl: string;
+  let normalizedPath: string;
 
-  // In sviluppo non aggiungere mai base path
+  // Normalizza SOLO il path (non l'URL completo) per evitare di corrompere il protocollo
   if (import.meta.env.DEV) {
-    finalUrl = `${origin}/${cleanPath}`.replace(/\/+/g, "/");
+    normalizedPath = `/${cleanPath}`.replace(/\/+/g, "/");
   } else {
-    // In produzione usa il base path se configurato
     const viteBasePath = import.meta.env.VITE_BASE_PATH || "/";
     const normalizedBasePath = viteBasePath.endsWith("/")
       ? viteBasePath
       : `${viteBasePath}/`;
-
-    finalUrl = `${origin}${normalizedBasePath}${cleanPath}`.replace(/\/+/g, "/");
+    normalizedPath = `${normalizedBasePath}${cleanPath}`.replace(/\/+/g, "/");
   }
 
   // Riattacca query parameters e fragment preservandoli intatti
-  return finalUrl + queryAndFragment;
+  return `${origin}${normalizedPath}${queryAndFragment}`;
 }
 
 /** Crea un URL relativo corretto, utile per routing o link interni */
