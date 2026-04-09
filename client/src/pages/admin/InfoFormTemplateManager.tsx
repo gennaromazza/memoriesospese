@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, Trash2, Edit2, ArrowUp, ArrowDown, ClipboardList, Loader2, Eye, X, GripVertical,
-  Download, Upload, Sparkles,
+  Download, Upload, Sparkles, Copy, Check,
 } from 'lucide-react';
 import { getAllTemplates, createTemplate, updateTemplate, deleteTemplate } from '@/lib/infoForms';
 import type { InfoFormTemplate, InfoFormField } from '@shared/info-form-types';
@@ -221,6 +221,7 @@ function TemplateFormDialog({
   const [description, setDescription] = useState(template?.description || '');
   const [fields, setFields] = useState<InfoFormField[]>(template?.fields || []);
   const [showPreview, setShowPreview] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -228,6 +229,7 @@ function TemplateFormDialog({
       setDescription(template?.description || '');
       setFields(template?.fields || []);
       setShowPreview(false);
+      setPromptCopied(false);
     }
   }, [open, template]);
 
@@ -266,6 +268,53 @@ function TemplateFormDialog({
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const handleCopyAIPrompt = async () => {
+    const tipoEvento = name.trim() || 'un servizio fotografico professionale';
+    const prompt = `Sei un assistente per fotografi professionisti. Crea un modulo informativo per raccogliere informazioni logistiche dai clienti per: ${tipoEvento}.
+
+Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo, senza markdown, senza \`\`\`json. Solo il JSON puro.
+
+Struttura obbligatoria:
+{
+  "name": "Nome del modulo",
+  "description": "Breve descrizione dello scopo del modulo",
+  "fields": [
+    {
+      "label": "Testo della domanda",
+      "type": "TIPO",
+      "required": true,
+      "placeholder": "Testo di esempio (opzionale, solo per text/textarea/number)",
+      "options": ["Opzione 1", "Opzione 2"]
+    }
+  ]
+}
+
+Tipi di campo disponibili (scegli il più adatto per ogni domanda):
+- "text" → risposta breve su una riga. NON includere "options".
+- "textarea" → risposta lunga su più righe (note, descrizioni). NON includere "options".
+- "number" → valore numerico (numero di invitati, orario numerico). NON includere "options".
+- "radio" → scelta SINGOLA tra opzioni fisse. DEVE includere "options" con almeno 2 voci.
+- "checkbox" → scelte MULTIPLE tra opzioni fisse. DEVE includere "options" con almeno 2 voci.
+- "select" → menu a tendina, scelta singola. DEVE includere "options" con almeno 2 voci.
+
+Regole:
+- "options" è obbligatorio per radio/checkbox/select e VIETATO per text/textarea/number.
+- Usa "required": true solo per le domande essenziali.
+- Crea tra 8 e 12 domande pertinenti e pratiche per il tipo di evento.
+- Le domande devono aiutare il fotografo a pianificare il servizio.
+- Scrivi tutto in italiano.
+- Rispondi SOLO con il JSON, nient'altro.`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2500);
+      toast({ title: '✅ Prompt copiato!', description: 'Incollalo in ChatGPT → poi copia la risposta JSON → Importa JSON.' });
+    } catch {
+      toast({ title: 'Errore copia', description: 'Copia manualmente il prompt.', variant: 'destructive' });
+    }
   };
 
   const handleExportJSON = () => {
@@ -369,18 +418,31 @@ function TemplateFormDialog({
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2 pt-1 border-t border-[#c4724a]/10">
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#c4724a]/10">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={promptCopied ? 'default' : 'outline'}
+                    className={`text-xs h-8 ${promptCopied ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-[#c4724a]/40 text-[#c4724a] hover:bg-[#c4724a]/10'}`}
+                    onClick={handleCopyAIPrompt}
+                    title={name.trim() ? `Genera prompt per: "${name}"` : 'Scrivi prima il nome del template, poi copia il prompt'}
+                  >
+                    {promptCopied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                    {promptCopied ? 'Prompt copiato!' : 'Copia prompt per ChatGPT'}
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="text-xs h-7 text-[#6b7f6b] hover:text-[#4a5f4a]"
+                    className="text-xs h-8 text-[#6b7f6b] hover:text-[#4a5f4a]"
                     onClick={() => importRef.current?.click()}
                   >
                     <Upload className="h-3 w-3 mr-1" />
                     Importa JSON
                   </Button>
-                  <span className="text-xs text-gray-400">— oppure chiedi a ChatGPT di generare il JSON e importalo qui</span>
+                  {!name.trim() && (
+                    <span className="text-xs text-amber-600 italic">← scrivi il nome prima di copiare il prompt</span>
+                  )}
                 </div>
               </div>
             )}
