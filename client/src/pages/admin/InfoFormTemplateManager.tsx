@@ -3,7 +3,7 @@
  * Crea, modifica ed elimina i template di moduli riutilizzabili per i job.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
@@ -25,9 +25,32 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, Trash2, Edit2, ArrowUp, ArrowDown, ClipboardList, Loader2, Eye, X, GripVertical,
+  Download, Upload, Sparkles,
 } from 'lucide-react';
 import { getAllTemplates, createTemplate, updateTemplate, deleteTemplate } from '@/lib/infoForms';
 import type { InfoFormTemplate, InfoFormField } from '@shared/info-form-types';
+import PRESETS_RAW from '@/data/info-form-presets.json';
+
+interface Preset {
+  id: string;
+  label: string;
+  emoji: string;
+  name: string;
+  description: string;
+  fields: Omit<InfoFormField, 'id'>[];
+}
+const PRESETS: Preset[] = PRESETS_RAW as Preset[];
+
+function normalizeImportedFields(raw: any[]): InfoFormField[] {
+  return raw.map(f => ({
+    id: crypto.randomUUID(),
+    label: typeof f.label === 'string' ? f.label : '',
+    type: ['text','textarea','number','select','radio','checkbox'].includes(f.type) ? f.type : 'text',
+    required: !!f.required,
+    placeholder: typeof f.placeholder === 'string' ? f.placeholder : '',
+    options: Array.isArray(f.options) ? f.options.map(String) : [],
+  }));
+}
 
 const FIELD_TYPE_LABELS: Record<InfoFormField['type'], string> = {
   text: 'Testo breve',
@@ -192,6 +215,7 @@ function TemplateFormDialog({
 }) {
   const { toast } = useToast();
   const isEdit = !!template;
+  const importRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(template?.name || '');
   const [description, setDescription] = useState(template?.description || '');
@@ -212,6 +236,47 @@ function TemplateFormDialog({
     setDescription(template?.description || '');
     setFields(template?.fields || []);
     setShowPreview(false);
+  };
+
+  const handleLoadPreset = (preset: Preset) => {
+    setName(preset.name);
+    setDescription(preset.description);
+    setFields(normalizeImportedFields(preset.fields));
+    toast({ title: `Preset "${preset.label}" caricato`, description: 'Puoi modificare o aggiungere campi prima di salvare.' });
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = JSON.parse(ev.target?.result as string);
+        if (json.name) setName(json.name);
+        if (json.description) setDescription(json.description);
+        if (Array.isArray(json.fields) && json.fields.length > 0) {
+          setFields(normalizeImportedFields(json.fields));
+          toast({ title: 'JSON importato', description: `${json.fields.length} campi caricati da "${file.name}".` });
+        } else {
+          toast({ title: 'JSON importato', description: 'Nessun campo trovato — controlla la struttura del file.', variant: 'destructive' });
+        }
+      } catch {
+        toast({ title: 'Errore importazione', description: 'File JSON non valido.', variant: 'destructive' });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleExportJSON = () => {
+    const data = { name, description, fields: fields.map(({ id: _id, ...rest }) => rest) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `modulo-${name.toLowerCase().replace(/\s+/g, '-') || 'template'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const saveMutation = useMutation({
@@ -268,8 +333,75 @@ function TemplateFormDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {/* Hidden file input for JSON import */}
+        <input
+          ref={importRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={handleImportJSON}
+        />
+
         {!showPreview ? (
           <div className="space-y-5 py-2">
+
+            {/* Preset / Import toolbar */}
+            {!isEdit && (
+              <div className="bg-[#f5f0e8]/60 border border-[#c4724a]/20 rounded-lg p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#c4724a]" />
+                  <span className="text-sm font-medium text-gray-700">Carica domande predefinite</span>
+                </div>
+
+                {/* Preset buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {PRESETS.map(p => (
+                    <Button
+                      key={p.id}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-8 border-[#6b7f6b]/40 hover:bg-[#6b7f6b]/10"
+                      onClick={() => handleLoadPreset(p)}
+                    >
+                      {p.emoji} {p.label}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 border-t border-[#c4724a]/10">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-xs h-7 text-[#6b7f6b] hover:text-[#4a5f4a]"
+                    onClick={() => importRef.current?.click()}
+                  >
+                    <Upload className="h-3 w-3 mr-1" />
+                    Importa JSON
+                  </Button>
+                  <span className="text-xs text-gray-400">— oppure chiedi a ChatGPT di generare il JSON e importalo qui</span>
+                </div>
+              </div>
+            )}
+
+            {/* Edit mode: only show import JSON */}
+            {isEdit && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => importRef.current?.click()}
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Importa campi da JSON
+                </Button>
+                <span className="text-xs text-gray-400">I campi esistenti verranno sostituiti</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Nome template *</Label>
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="Es. Scheda Matrimonio" />
@@ -296,7 +428,7 @@ function TemplateFormDialog({
               {fields.length === 0 && (
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
                   <ClipboardList className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm text-gray-500">Nessun campo. Clicca "Aggiungi campo" per iniziare.</p>
+                  <p className="text-sm text-gray-500">Nessun campo. Scegli un preset sopra oppure aggiungi manualmente.</p>
                 </div>
               )}
 
@@ -338,10 +470,18 @@ function TemplateFormDialog({
         )}
 
         <DialogFooter className="flex items-center justify-between gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)}>
-            <Eye className="h-3 w-3 mr-1" />
-            {showPreview ? 'Modifica' : 'Anteprima'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)}>
+              <Eye className="h-3 w-3 mr-1" />
+              {showPreview ? 'Modifica' : 'Anteprima'}
+            </Button>
+            {fields.length > 0 && (
+              <Button variant="outline" size="sm" onClick={handleExportJSON} title="Scarica template come file JSON">
+                <Download className="h-3 w-3 mr-1" />
+                Esporta JSON
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => { reset(); onClose(); }}>Annulla</Button>
             <Button

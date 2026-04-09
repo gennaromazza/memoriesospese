@@ -1,0 +1,114 @@
+[
+  {
+    "id": "matrimonio",
+    "label": "Matrimonio",
+    "emoji": "💍",
+    "name": "Scheda Informativa Matrimonio",
+    "description": "Informazioni logistiche per il giorno del matrimonio",
+    "fields": [
+      { "label": "Location della cerimonia (chiesa/comune/altro)", "type": "text", "required": true, "placeholder": "Es. Chiesa di San Marco, Via Roma 1, Aversa" },
+      { "label": "Orario inizio cerimonia", "type": "text", "required": true, "placeholder": "Es. 16:30" },
+      { "label": "Location del ricevimento", "type": "text", "required": false, "placeholder": "Es. Villa dei Fiori, Via Napoli 10" },
+      { "label": "Orario previsto apertura ristorante/buffet", "type": "text", "required": false, "placeholder": "Es. 19:00" },
+      { "label": "Numero totale di invitati", "type": "number", "required": false, "placeholder": "Es. 120" },
+      { "label": "Momento della preparazione sposa (location)", "type": "text", "required": true, "placeholder": "Es. Casa della sposa, Via..." },
+      { "label": "Orario arrivo fotografo alla preparazione", "type": "text", "required": true, "placeholder": "Es. 12:00" },
+      { "label": "Momento della preparazione sposo (location)", "type": "text", "required": false, "placeholder": "Es. Hotel Miramare" },
+      { "label": "Ci sarà un lancio di riso/petali/bolle?", "type": "radio", "required": false, "options": ["Sì, riso", "Sì, petali", "Sì, bolle di sapone", "No"] },
+      { "label": "Sono previsti momenti particolari (sorprese, flash mob, ecc.)?", "type": "textarea", "required": false, "placeholder": "Descrivi eventuali momenti speciali da non perdere" },
+      { "label": "Referente per comunicazioni il giorno del matrimonio (nome e numero)", "type": "text", "required": true, "placeholder": "Es. Zia Maria — 333 1234567" }
+    ]
+  },
+  {
+    "id": "battesimo",
+    "label": "Battesimo",
+    "emoji": "👶",
+    "name": "Scheda Informativa Battesimo",
+    "description": "Informazioni logistiche per la cerimonia del battesimo",
+    "fields": [
+      { "label": "Nome del bambino/a", "type": "text", "required": true, "placeholder": "Es. Luca" },
+      { "label": "Data di nascita", "type": "text", "required": false, "placeholder": "Es. 12/03/2025" },
+      { "label": "Location della cerimonia (chiesa)", "type": "text", "required": true, "placeholder": "Es. Parrocchia San Pietro, Aversa" },
+      { "label": "Orario inizio cerimonia", "type": "text", "required": true, "placeholder": "Es. 11:00" },
+      { "label": "Location del ricevimento / casa", "type": "text", "required": false, "placeholder": "Es. Casa dei genitori, Via..." },
+      { "label": "Orario previsto rinfresco/pranzo", "type": "text", "required": false, "placeholder": "Es. 13:00" },
+      { "label": "Numero di invitati circa", "type": "number", "required": false, "placeholder": "Es. 50" },
+      { "label": "Ci saranno altri bambini piccoli da fotografare?", "type": "radio", "required": false, "options": ["Sì", "No"] },
+      { "label": "Momenti speciali da non perdere", "type": "textarea", "required": false, "placeholder": "Es. foto di gruppo con nonni, momento candeline, ecc." },
+      { "label": "Referente il giorno dell'evento (nome e numero)", "type": "text", "required": true, "placeholder": "Es. Papà Giovanni — 347 9876543" }
+    ]
+  },
+  {
+    "id": "comunione",
+    "label": "Prima Comunione",
+    "emoji": "✝️",
+    "name": "Scheda Informativa Prima Comunione",
+    "description": "Informazioni logistiche per la cerimonia della prima comunione",
+    "fields": [
+      { "label": "Nome del/la comunicando/a", "type": "text", "required": true, "placeholder": "Es. Sofia" },
+      { "label": "Location della cerimonia (chiesa)", "type": "text", "required": true, "placeholder": "Es. Cattedrale di Aversa" },
+      { "label": "Orario inizio cerimonia", "type": "text", "required": true, "placeholder": "Es. 10:30" },
+      { "label": "Ci sarà un servizio di preparazione/vestizione?", "type": "radio", "required": false, "options": ["Sì, a casa", "Sì, in un altro luogo", "No"] },
+      { "label": "Indirizzo della preparazione (se diverso da casa)", "type": "text", "required": false, "placeholder": "Es. Salone di bellezza Via..." },
+      { "label": "Location del pranzo/ricevimento", "type": "text", "required": false, "placeholder": "Es. Ristorante Il Giardino, Via..." },
+      { "label": "Orario pranzo", "type": "text", "required": false, "placeholder": "Es. 13:30" },
+      { "label": "Numero di invitati circa", "type": "number", "required": false, "placeholder": "Es. 40" },
+      { "label": "Ci sono altri comunicandi nella stessa cerimonia (conoscenti)?", "type": "radio", "required": false, "options": ["Sì", "No"] },
+      { "label": "Momenti importanti da non perdere", "type": "textarea", "required": false, "placeholder": "Es. consegna attestato, foto con padrino/madrina, ecc." }
+    ]
+  },
+  {
+    "id": "cresima",
+    "label": "Cresima",
+    "emoji": "🕊️",
+    "name": "Scheda Informativa Cresima",
+    "description": "Informazioni logistiche per la cerimonia della cresima",
+    "fields": [
+      { "label": "Nome del/la cresimando/a", "type": "text", "required": true, "placeholder": "Es. Marco" },
+      { "label": "Location della cerimonia (chiesa)", "type": "text", "required": true, "placeholder": "Es. Duomo di Aversa" },
+      { "label": "Orario inizio cerimonia", "type": "text", "required": true, "placeholder": "Es. 17:00" },
+      { "label": "Nome del padrino/della madrina", "type": "text", "required": false, "placeholder": "Es. Zio Antonio" },
+      { "label": "Location del rinfresco/cena", "type": "text", "required": false, "placeholder": "Es. Ristorante Da Luigi" },
+      { "label": "Orario cena/rinfresco", "type": "text", "required": false, "placeholder": "Es. 20:00" },
+      { "label": "Momenti speciali da documentare", "type": "textarea", "required": false, "placeholder": "Es. foto con vescovo, consegna del libro, ecc." },
+      { "label": "Referente il giorno dell'evento", "type": "text", "required": true, "placeholder": "Nome e numero di telefono" }
+    ]
+  },
+  {
+    "id": "ritratto",
+    "label": "Servizio Ritratto",
+    "emoji": "📸",
+    "name": "Scheda Informativa Servizio Ritratto",
+    "description": "Informazioni per servizi fotografici di ritratto o famiglia",
+    "fields": [
+      { "label": "Tipo di servizio", "type": "radio", "required": true, "options": ["Ritratto individuale", "Coppia", "Famiglia", "Maternità", "Neonato newborn"] },
+      { "label": "Quante persone saranno fotografate?", "type": "number", "required": false, "placeholder": "Es. 4" },
+      { "label": "Ci sono bambini? Se sì, quanti anni hanno?", "type": "text", "required": false, "placeholder": "Es. 2 bambini, 3 e 6 anni" },
+      { "label": "Avete già in mente una location?", "type": "radio", "required": false, "options": ["Sì, la proponiamo noi", "No, sceglie il fotografo", "In studio"] },
+      { "label": "Se sì, quale location avete in mente?", "type": "text", "required": false, "placeholder": "Es. Parco pubblico, spiaggia, centro storico..." },
+      { "label": "Preferenza stile fotografico", "type": "radio", "required": false, "options": ["Naturale e spontaneo", "Più formale e in posa", "Creativo/artistico", "Nessuna preferenza"] },
+      { "label": "Colori/abbigliamento pianificato?", "type": "textarea", "required": false, "placeholder": "Descrivete i colori dei vestiti se li avete già scelti (aiuta a coordinare con la location)" },
+      { "label": "Avete preferenze su come usare le foto?", "type": "checkbox", "required": false, "options": ["Album stampato", "File digitali", "Stampe incorniciate", "Social media", "Altro"] },
+      { "label": "Allergie o esigenze particolari dei bambini?", "type": "textarea", "required": false, "placeholder": "Es. allergie, paura degli sconosciuti, orari del pisolino, ecc." }
+    ]
+  },
+  {
+    "id": "corporate",
+    "label": "Evento Corporate",
+    "emoji": "🏢",
+    "name": "Scheda Informativa Evento Aziendale",
+    "description": "Informazioni logistiche per eventi aziendali e conferenze",
+    "fields": [
+      { "label": "Nome azienda / organizzazione", "type": "text", "required": true, "placeholder": "Es. Azienda Rossi Srl" },
+      { "label": "Tipo di evento", "type": "radio", "required": true, "options": ["Conferenza/convegno", "Team building", "Inaugurazione", "Cena aziendale", "Fiera/expo", "Altro"] },
+      { "label": "Location dell'evento", "type": "text", "required": true, "placeholder": "Indirizzo completo" },
+      { "label": "Orario inizio evento", "type": "text", "required": true, "placeholder": "Es. 09:00" },
+      { "label": "Orario fine previsto", "type": "text", "required": false, "placeholder": "Es. 18:00" },
+      { "label": "Numero di partecipanti circa", "type": "number", "required": false, "placeholder": "Es. 80" },
+      { "label": "Ci sarà un programma/scaletta? Puoi allegarla o descriverla?", "type": "textarea", "required": false, "placeholder": "Es. 09:00 registrazione, 10:00 apertura lavori, 11:00 pausa caffè..." },
+      { "label": "Momenti chiave da documentare obbligatoriamente", "type": "textarea", "required": true, "placeholder": "Es. discorso CEO, firma accordo, consegna premi, networking cocktail" },
+      { "label": "Ci sono restrizioni fotografiche (zone vietate, ospiti che non vogliono essere fotografati)?", "type": "textarea", "required": false, "placeholder": "Specificare eventuali limitazioni" },
+      { "label": "Referente sul posto il giorno dell'evento", "type": "text", "required": true, "placeholder": "Nome, ruolo e numero di telefono" }
+    ]
+  }
+]

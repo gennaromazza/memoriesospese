@@ -487,5 +487,29 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update site content
       allow delete: if isAdmin(); // Only admin can delete site content
     }
+
+    // Info Form Templates - Admin manages reusable logistical form templates
+    match /infoFormTemplates/{templateId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Info Form Submissions - Token-based public access for clients; admin can read/delete
+    match /infoFormSubmissions/{submissionId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin(); // Created server-side via client lib when sending
+      allow update: if true; // Client completes form via token (validated in code)
+      allow delete: if isAdmin();
+    }
+
+    // Info Form Notifications - Admin only
+    match /infoFormNotifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if true; // Created when client submits a form (token validated in code)
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
   }
 }
