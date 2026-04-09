@@ -1,16 +1,18 @@
 /**
  * Pagina pubblica per la compilazione di un Modulo Informativo
- * Accessibile tramite link con token univoco: /modulo/:token
+ * Vista a card sfogliabile: una domanda per volta con animazioni.
  */
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, CheckCircle2, ClipboardList, AlertCircle, AlertTriangle } from 'lucide-react';
+import {
+  Loader2, CheckCircle2, ClipboardList, AlertCircle,
+  ArrowRight, ArrowLeft, Send,
+} from 'lucide-react';
 import { getSubmissionByToken, submitInfoForm } from '@/lib/infoForms';
 import type { InfoFormSubmission, InfoFormField } from '@shared/info-form-types';
 import { apiRequest } from '@/lib/queryClient';
@@ -23,13 +25,15 @@ export default function InfoFormPublic() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const errorBannerRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
+  const [animating, setAnimating] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -49,9 +53,54 @@ export default function InfoFormPublic() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  const fields = submission?.templateFields || [];
+  const total = fields.length;
+  const current = fields[currentIndex];
+  const isLast = currentIndex === total - 1;
+  const progress = total > 0 ? ((currentIndex + 1) / total) * 100 : 0;
+
+  const validateCurrent = (): boolean => {
+    if (!current?.required) return true;
+    const val = answers[current.id];
+    if (current.type === 'checkbox') {
+      if (!Array.isArray(val) || val.length === 0) {
+        setFieldError('Seleziona almeno un\'opzione per continuare');
+        return false;
+      }
+    } else {
+      if (!val || String(val).trim() === '') {
+        setFieldError('Compila questo campo per continuare');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const animateTransition = (newIndex: number, dir: 'forward' | 'backward') => {
+    setDirection(dir);
+    setAnimating(true);
+    setTimeout(() => {
+      setCurrentIndex(newIndex);
+      setFieldError(null);
+      setAnimating(false);
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 220);
+  };
+
+  const handleNext = () => {
+    if (!validateCurrent()) return;
+    if (isLast) return;
+    animateTransition(currentIndex + 1, 'forward');
+  };
+
+  const handleBack = () => {
+    if (currentIndex === 0) return;
+    animateTransition(currentIndex - 1, 'backward');
+  };
+
   const handleChange = (fieldId: string, value: any) => {
     setAnswers(prev => ({ ...prev, [fieldId]: value }));
-    if (errors[fieldId]) setErrors(prev => { const e = { ...prev }; delete e[fieldId]; return e; });
+    setFieldError(null);
   };
 
   const handleCheckboxChange = (fieldId: string, option: string, checked: boolean) => {
@@ -60,41 +109,12 @@ export default function InfoFormPublic() {
       if (checked) return { ...prev, [fieldId]: [...current, option] };
       return { ...prev, [fieldId]: current.filter(v => v !== option) };
     });
-    if (errors[fieldId]) setErrors(prev => { const e = { ...prev }; delete e[fieldId]; return e; });
-  };
-
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    submission?.templateFields?.forEach(field => {
-      if (!field.required) return;
-      const val = answers[field.id];
-      if (field.type === 'checkbox') {
-        if (!Array.isArray(val) || val.length === 0) newErrors[field.id] = 'Seleziona almeno un\'opzione';
-      } else {
-        if (!val || String(val).trim() === '') newErrors[field.id] = 'Campo obbligatorio';
-      }
-    });
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setFieldError(null);
   };
 
   const handleSubmit = async () => {
-    setSubmitAttempted(true);
-    if (!submission || !validate()) {
-      setTimeout(() => {
-        errorBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const firstErrorField = submission?.templateFields?.find(f => {
-          const val = answers[f.id];
-          if (!f.required) return false;
-          if (f.type === 'checkbox') return !Array.isArray(val) || val.length === 0;
-          return !val || String(val).trim() === '';
-        });
-        if (firstErrorField) {
-          fieldRefs.current[firstErrorField.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 50);
-      return;
-    }
+    if (!validateCurrent()) return;
+    if (!submission) return;
     setSubmitting(true);
     try {
       await submitInfoForm(submission.id, token, answers);
@@ -103,96 +123,128 @@ export default function InfoFormPublic() {
       } catch (_) { }
       setSubmitted(true);
     } catch (err: any) {
-      alert(err.message || 'Errore durante l\'invio. Riprova.');
+      setFieldError(err.message || 'Errore durante l\'invio. Riprova.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const errorCount = Object.keys(errors).length;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && current?.type !== 'textarea') {
+      e.preventDefault();
+      isLast ? handleSubmit() : handleNext();
+    }
+  };
 
-  const renderField = (field: InfoFormField) => {
-    const hasError = !!errors[field.id];
-
-    const inputClass = hasError
-      ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-300'
-      : '';
+  const renderFieldInput = (field: InfoFormField) => {
+    const hasError = !!fieldError;
+    const baseInput = hasError
+      ? 'border-red-400 bg-red-50 focus:border-red-500'
+      : 'border-gray-200 focus:border-[#6b7f6b]';
 
     switch (field.type) {
       case 'text':
         return (
           <Input
+            autoFocus
             value={answers[field.id] || ''}
             onChange={e => handleChange(field.id, e.target.value)}
-            placeholder={field.placeholder || ''}
-            className={inputClass}
+            onKeyDown={handleKeyDown}
+            placeholder={field.placeholder || 'Scrivi qui la tua risposta...'}
+            className={`text-lg h-12 ${baseInput}`}
           />
         );
       case 'textarea':
         return (
           <Textarea
+            autoFocus
             value={answers[field.id] || ''}
             onChange={e => handleChange(field.id, e.target.value)}
-            placeholder={field.placeholder || ''}
-            rows={4}
-            className={inputClass}
+            placeholder={field.placeholder || 'Scrivi qui la tua risposta...'}
+            rows={5}
+            className={`text-base resize-none ${baseInput}`}
           />
         );
       case 'number':
         return (
           <Input
+            autoFocus
             type="number"
             value={answers[field.id] || ''}
             onChange={e => handleChange(field.id, e.target.value)}
-            placeholder={field.placeholder || ''}
-            className={inputClass}
+            onKeyDown={handleKeyDown}
+            placeholder={field.placeholder || 'Inserisci un numero...'}
+            className={`text-lg h-12 ${baseInput}`}
           />
         );
       case 'select':
         return (
           <Select value={answers[field.id] || ''} onValueChange={v => handleChange(field.id, v)}>
-            <SelectTrigger className={inputClass}>
+            <SelectTrigger className={`h-12 text-base ${baseInput}`}>
               <SelectValue placeholder="Seleziona un'opzione..." />
             </SelectTrigger>
             <SelectContent>
               {(field.options || []).map(opt => (
-                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                <SelectItem key={opt} value={opt} className="text-base py-3">{opt}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         );
       case 'radio':
         return (
-          <div className={`space-y-2 rounded-lg p-3 transition-colors ${hasError ? 'bg-red-50 border border-red-200' : 'border border-transparent'}`}>
-            {(field.options || []).map(opt => (
-              <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
-                <input
-                  type="radio"
-                  name={field.id}
-                  value={opt}
-                  checked={answers[field.id] === opt}
-                  onChange={() => handleChange(field.id, opt)}
-                  className="h-4 w-4 text-[#6b7f6b] border-gray-300 focus:ring-[#6b7f6b]"
-                />
-                <span className="text-sm text-gray-700 group-hover:text-gray-900">{opt}</span>
-              </label>
-            ))}
+          <div className="space-y-2.5 mt-1">
+            {(field.options || []).map(opt => {
+              const selected = answers[field.id] === opt;
+              return (
+                <label
+                  key={opt}
+                  onClick={() => handleChange(field.id, opt)}
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    selected
+                      ? 'border-[#6b7f6b] bg-[#6b7f6b]/8 text-[#4a5f4a]'
+                      : hasError
+                        ? 'border-red-200 bg-red-50 hover:border-red-300'
+                        : 'border-gray-200 hover:border-[#6b7f6b]/50 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                    selected ? 'border-[#6b7f6b] bg-[#6b7f6b]' : 'border-gray-300'
+                  }`}>
+                    {selected && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                  <span className={`text-base font-medium ${selected ? 'text-[#4a5f4a]' : 'text-gray-700'}`}>{opt}</span>
+                </label>
+              );
+            })}
           </div>
         );
       case 'checkbox':
         return (
-          <div className={`space-y-2 rounded-lg p-3 transition-colors ${hasError ? 'bg-red-50 border border-red-200' : 'border border-transparent'}`}>
+          <div className="space-y-2.5 mt-1">
             {(field.options || []).map(opt => {
               const checked = Array.isArray(answers[field.id]) && answers[field.id].includes(opt);
               return (
-                <label key={opt} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={e => handleCheckboxChange(field.id, opt, e.target.checked)}
-                    className="h-4 w-4 text-[#6b7f6b] border-gray-300 rounded focus:ring-[#6b7f6b]"
-                  />
-                  <span className="text-sm text-gray-700 group-hover:text-gray-900">{opt}</span>
+                <label
+                  key={opt}
+                  onClick={() => handleCheckboxChange(field.id, opt, !checked)}
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    checked
+                      ? 'border-[#6b7f6b] bg-[#6b7f6b]/8 text-[#4a5f4a]'
+                      : hasError
+                        ? 'border-red-200 bg-red-50 hover:border-red-300'
+                        : 'border-gray-200 hover:border-[#6b7f6b]/50 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                    checked ? 'border-[#6b7f6b] bg-[#6b7f6b]' : 'border-gray-300'
+                  }`}>
+                    {checked && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`text-base font-medium ${checked ? 'text-[#4a5f4a]' : 'text-gray-700'}`}>{opt}</span>
                 </label>
               );
             })}
@@ -227,109 +279,164 @@ export default function InfoFormPublic() {
     return (
       <div className="min-h-screen bg-[#f5f0e8] flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center space-y-6">
-          <CheckCircle2 className="h-20 w-20 mx-auto text-[#6b7f6b]" />
+          <div className="flex justify-center">
+            <div className="w-24 h-24 bg-[#6b7f6b]/10 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="h-14 w-14 text-[#6b7f6b]" />
+            </div>
+          </div>
           <h1 className="text-3xl font-playfair text-gray-800">Grazie!</h1>
-          <p className="text-gray-600 text-lg">
-            Il tuo modulo è stato ricevuto correttamente. Il fotografo lo consulterà prima del vostro evento.
+          <p className="text-gray-600 text-lg leading-relaxed">
+            Il tuo modulo è stato ricevuto correttamente.<br />
+            Il fotografo lo consulterà prima del vostro evento.
           </p>
-          <p className="text-sm text-gray-500 italic">Puoi chiudere questa pagina.</p>
+          <p className="text-sm text-gray-400 italic">Puoi chiudere questa pagina.</p>
         </div>
       </div>
     );
   }
 
+  if (total === 0) {
+    return (
+      <div className="min-h-screen bg-[#f5f0e8] flex items-center justify-center px-4">
+        <p className="text-gray-500">Questo modulo non ha campi configurati.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#f5f0e8] py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-12 h-12 bg-[#6b7f6b] rounded-full flex items-center justify-center">
-              <ClipboardList className="h-6 w-6 text-white" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-playfair text-gray-800 mb-2">
-            {submission?.templateName}
-          </h1>
-          <p className="text-gray-600">
-            Ciao <strong>{submission?.clientName}</strong>, compila questo modulo per aiutarci a prepararci al meglio per il tuo evento.
-          </p>
-        </div>
-
-        {/* Banner errori — appare solo dopo aver premuto Invia con campi mancanti */}
-        {submitAttempted && errorCount > 0 && (
-          <div
-            ref={errorBannerRef}
-            className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3"
-          >
-            <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-red-700">
-                {errorCount === 1
-                  ? 'C\'è 1 campo obbligatorio da compilare'
-                  : `Ci sono ${errorCount} campi obbligatori da compilare`}
-              </p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Scorri la pagina, i campi mancanti sono evidenziati in rosso.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-          {submission?.templateFields?.map((field, index) => {
-            const hasError = !!errors[field.id];
-            return (
-              <div
-                key={field.id}
-                ref={el => { fieldRefs.current[field.id] = el; }}
-                className={`space-y-2 rounded-xl px-4 py-3 transition-colors ${
-                  hasError
-                    ? 'bg-red-50 border border-red-200 -mx-2'
-                    : 'border border-transparent'
-                }`}
-              >
-                <Label className={`text-sm font-semibold flex items-center gap-1 ${hasError ? 'text-red-700' : 'text-gray-700'}`}>
-                  <span className={`font-bold text-xs mr-1 ${hasError ? 'text-red-500' : 'text-[#6b7f6b]'}`}>{index + 1}.</span>
-                  {field.label}
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                </Label>
-                {renderField(field)}
-                {hasError && (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
-                    <p className="text-xs font-medium text-red-600">{errors[field.id]}</p>
-                  </div>
-                )}
+    <div className="min-h-screen bg-[#f5f0e8] flex flex-col">
+      {/* Top bar con logo e progresso */}
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-[#6b7f6b] rounded-full flex items-center justify-center">
+                <ClipboardList className="h-3.5 w-3.5 text-white" />
               </div>
-            );
-          })}
+              <span className="text-sm font-medium text-gray-700 truncate max-w-[200px]">
+                {submission?.templateName}
+              </span>
+            </div>
+            <span className="text-sm font-semibold text-[#6b7f6b]">
+              {currentIndex + 1} / {total}
+            </span>
+          </div>
+          {/* Barra di progresso */}
+          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#6b7f6b] rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </div>
 
-          {(!submission?.templateFields || submission.templateFields.length === 0) && (
-            <p className="text-center text-gray-500 py-8">Questo modulo non ha campi configurati.</p>
+      {/* Contenuto principale */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-xl">
+          {/* Saluto iniziale — solo sulla prima card */}
+          {currentIndex === 0 && (
+            <p className="text-center text-gray-500 text-sm mb-5">
+              Ciao <strong className="text-gray-700">{submission?.clientName}</strong> 👋 — rispondi alle domande per aiutarci a prepararci al meglio
+            </p>
           )}
 
-          <div className="pt-4 border-t">
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white h-12 text-base"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Invio in corso...
-                </>
-              ) : (
-                'Invia Modulo'
+          {/* Card domanda */}
+          <div
+            ref={cardRef}
+            className={`bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-8 transition-all duration-200 ${
+              animating
+                ? direction === 'forward'
+                  ? 'opacity-0 translate-x-4'
+                  : 'opacity-0 -translate-x-4'
+                : 'opacity-100 translate-x-0'
+            }`}
+            style={{ transform: animating ? undefined : 'translateX(0)' }}
+          >
+            {/* Numero domanda */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#6b7f6b]/10 text-[#6b7f6b] text-xs font-bold">
+                {currentIndex + 1}
+              </span>
+              {current?.required && (
+                <span className="text-xs text-gray-400 font-medium">Obbligatoria</span>
               )}
-            </Button>
-            <p className="text-xs text-gray-400 text-center mt-3">
-              I tuoi dati verranno utilizzati esclusivamente per organizzare il tuo evento fotografico.
-            </p>
+            </div>
+
+            {/* Testo domanda */}
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-5 leading-snug">
+              {current?.label}
+              {current?.required && <span className="text-red-500 ml-1">*</span>}
+            </h2>
+
+            {/* Input */}
+            {current && renderFieldInput(current)}
+
+            {/* Errore campo */}
+            {fieldError && (
+              <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span className="text-sm font-medium">{fieldError}</span>
+              </div>
+            )}
           </div>
+
+          {/* Navigazione */}
+          <div className="flex items-center justify-between mt-5 gap-3">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentIndex === 0 || animating}
+              className="flex items-center gap-2 border-gray-300 text-gray-600 hover:border-gray-400 disabled:opacity-30"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Indietro
+            </Button>
+
+            {isLast ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || animating}
+                className="flex-1 bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white h-11 text-base font-medium"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Invio...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Invia Modulo
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={animating}
+                className="flex-1 bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white h-11 text-base font-medium"
+              >
+                Avanti
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            )}
+          </div>
+
+          {/* Hint tasto Enter */}
+          {current?.type !== 'textarea' && current?.type !== 'radio' && current?.type !== 'checkbox' && (
+            <p className="text-center text-xs text-gray-400 mt-3">
+              Premi <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-gray-500 font-mono">Enter</kbd> per continuare
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="py-4 text-center">
+        <p className="text-xs text-gray-400">
+          I tuoi dati sono utilizzati esclusivamente per organizzare il tuo evento fotografico.
+        </p>
       </div>
     </div>
   );
