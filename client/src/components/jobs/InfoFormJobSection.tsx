@@ -459,19 +459,26 @@ export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoForm
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-[#6b7f6b]" />
-            <span className="font-medium text-sm">Moduli Informativi</span>
+            <div className="p-1.5 bg-[#6b7f6b]/10 rounded-md">
+              <ClipboardList className="h-4 w-4 text-[#6b7f6b]" />
+            </div>
+            <span className="font-semibold text-sm text-gray-800">Moduli Informativi</span>
           </div>
           {submissions.length > 0 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap pl-0.5">
               {completed > 0 && (
-                <Badge className="bg-green-100 text-green-700 text-xs">{completed} compilati</Badge>
+                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs font-normal">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />{completed} compilat{completed === 1 ? 'o' : 'i'}
+                </Badge>
               )}
               {pending > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 text-xs">{pending} in attesa</Badge>
+                <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs font-normal">
+                  <Clock className="h-3 w-3 mr-1" />{pending} in attesa
+                </Badge>
               )}
             </div>
           )}
@@ -479,7 +486,7 @@ export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoForm
         <Button
           size="sm"
           onClick={() => setSendDialogOpen(true)}
-          className="bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white"
+          className="bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white shrink-0"
         >
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           Invia Modulo
@@ -487,16 +494,33 @@ export default function InfoFormJobSection({ jobId, jobName, clienti }: InfoForm
       </div>
 
       {isLoading && (
-        <div className="flex items-center justify-center py-6">
+        <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
         </div>
       )}
 
       {!isLoading && submissions.length === 0 && (
-        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
-          <ClipboardList className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-          <p className="text-sm text-gray-400">Nessun modulo inviato</p>
-          <p className="text-xs text-gray-400 mt-1">Clicca "Invia Modulo" per raccogliere informazioni logistiche dal cliente</p>
+        <div className="rounded-xl border-2 border-dashed border-[#6b7f6b]/20 bg-[#6b7f6b]/[0.03] p-6">
+          <div className="flex flex-col items-center text-center gap-3">
+            <div className="p-3 bg-[#6b7f6b]/10 rounded-full">
+              <ClipboardList className="h-6 w-6 text-[#6b7f6b]/60" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-600">Nessun modulo inviato</p>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Usa i moduli per raccogliere informazioni logistiche dal cliente (location, orari, preferenze).
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSendDialogOpen(true)}
+              className="border-[#6b7f6b]/40 text-[#6b7f6b] hover:bg-[#6b7f6b]/10 mt-1"
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              Invia il primo modulo
+            </Button>
+          </div>
         </div>
       )}
 
