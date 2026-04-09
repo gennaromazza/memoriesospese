@@ -6973,9 +6973,15 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
       return res.status(404).json({ error: { code: "not-found", message: "Submission not found" } });
     }
 
-    const submissionData = submissionsSnap.docs[0].data();
+    const submissionDoc = submissionsSnap.docs[0];
+    const submissionData = submissionDoc.data();
     if (submissionData.status !== "completed") {
       return res.status(400).json({ error: { code: "invalid-argument", message: "Submission not completed" } });
+    }
+
+    // Idempotency: if admin email was already sent, skip to avoid spam
+    if (submissionData.adminEmailSentAt) {
+      return res.json({ success: true, note: "admin email already sent" });
     }
 
     const { jobId, clientName, templateName, templateFields: fields, answers } = submissionData;
@@ -6996,7 +7002,7 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
     }
 
     const SITE_URL = "https://imagestudiofotografico.com";
-    const deepLink = `${SITE_URL}/admin/dashboard?tab=lavori&job=${jobId}&subtab=moduli`;
+    const deepLink = `${SITE_URL}/admin/jobs/${jobId}?tab=moduli`;
 
     let answersHtml = '';
     if (Array.isArray(fields) && fields.length > 0) {
@@ -7056,6 +7062,9 @@ router.post("/send-info-form-submitted", async (req: Request, res: Response) => 
       undefined,
       { type: 'info-form-submitted', clientName: clientName || '', relatedDocId: jobId }
     );
+
+    // Mark adminEmailSentAt for idempotency — prevents repeated email if endpoint is called again
+    await submissionDoc.ref.update({ adminEmailSentAt: new Date().toISOString() });
 
     res.json({ success: true });
   } catch (error: any) {
