@@ -72,25 +72,22 @@ export async function compressImage(
  * @returns Promise con il file thumbnail
  */
 export async function generateThumbnail(file: File): Promise<File> {
-  try {
-    if (!file.type.startsWith('image/')) return file;
-
-    const thumbnail = await imageCompression(file, {
-      maxSizeMB: 0.04,        // 40KB target
-      maxWidthOrHeight: 400,  // max 400px lato lungo
-      useWebWorker: true,
-      preserveExif: false,    // scarta EXIF per ridurre dimensioni
-    });
-
-    const thumbName = `thumb_${file.name}`;
-    return new File([thumbnail], thumbName, {
-      type: thumbnail.type || file.type,
-      lastModified: file.lastModified,
-    });
-  } catch (error) {
-    console.error('❌ Errore generazione thumbnail:', error);
-    return file;
+  if (!file.type.startsWith('image/')) {
+    throw new Error(`File non immagine: ${file.type}`);
   }
+
+  const thumbnail = await imageCompression(file, {
+    maxSizeMB: 0.04,        // 40KB target
+    maxWidthOrHeight: 400,  // max 400px lato lungo
+    useWebWorker: true,
+    preserveExif: false,    // scarta EXIF per ridurre dimensioni
+  });
+
+  const thumbName = `thumb_${file.name}`;
+  return new File([thumbnail], thumbName, {
+    type: thumbnail.type || file.type,
+    lastModified: file.lastModified,
+  });
 }
 
 /**

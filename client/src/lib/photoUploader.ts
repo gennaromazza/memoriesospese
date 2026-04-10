@@ -184,7 +184,7 @@ export const uploadSinglePhoto = async (
           // Upload completato con successo, ottieni l'URL di download
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
-          // Genera e carica la thumbnail in background (senza bloccare il resolve)
+          // Genera e carica la thumbnail (sequenziale; un errore non blocca il risultato)
           let thumbnailUrl: string | undefined;
           try {
             const thumbFile = await generateThumbnail(file);
@@ -200,7 +200,7 @@ export const uploadSinglePhoto = async (
             thumbnailUrl = await getDownloadURL(thumbTask.snapshot.ref);
             console.log(`🖼️ Thumbnail caricata: ${thumbPath}`);
           } catch (thumbErr) {
-            console.warn('⚠️ Thumbnail non generata, uso URL principale:', thumbErr);
+            console.warn('⚠️ Thumbnail non generata, photo.url usato come fallback:', thumbErr);
           }
 
           const photoData: UploadedPhoto = {
