@@ -280,28 +280,28 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async ({ files, hashMap = new Map() }: { files: File[]; hashMap?: Map<string, string> }) => {
       if (!galleryId || !user) throw new Error('Missing gallery or user');
 
-      // Filtra duplicati per nome E per hash contenuto
+      // Filtra duplicati per nome E per hash contenuto (usa hashMap passata direttamente, non lo stato)
       const duplicates = files.filter((f, idx) => {
-        const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+        const hash = hashMap.get(`${idx}-${f.name}`);
         return existingPhotoNames.has(f.name) || (hash ? existingPhotoHashes.has(hash) : false);
       });
       let uniqueFiles = files.filter((f, idx) => {
-        const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+        const hash = hashMap.get(`${idx}-${f.name}`);
         return !existingPhotoNames.has(f.name) && !(hash ? existingPhotoHashes.has(hash) : false);
       });
 
       if (duplicates.length > 0) {
         const byHash = duplicates.filter((f, idx) => {
-          const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+          const hash = hashMap.get(`${idx}-${f.name}`);
           return hash && existingPhotoHashes.has(hash) && !existingPhotoNames.has(f.name);
         });
         const reason = byHash.length > 0 ? ` (${byHash.length} rilevati per contenuto identico)` : '';
         toast({
-          title: `⚠️ ${duplicates.length} file duplicati${reason}`,
-          description: `Questi file verranno saltati: ${duplicates.slice(0, 3).map(f => f.name).join(', ')}${duplicates.length > 3 ? '...' : ''}`,
+          title: `⚠️ ${duplicates.length} foto duplicate saltate${reason}`,
+          description: `${duplicates.slice(0, 3).map(f => f.name).join(', ')}${duplicates.length > 3 ? `... +${duplicates.length - 3}` : ''}`,
         });
       }
 
@@ -445,7 +445,7 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    // Calcola hash dei file selezionati per rilevamento duplicati per contenuto
+    // Calcola hash PRIMA di avviare la mutation (passati direttamente, non tramite stato)
     const hashMap = new Map<string, string>();
     await Promise.all(acceptedFiles.map(async (file, idx) => {
       try {
@@ -455,9 +455,8 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
         // fallback: solo controllo per nome
       }
     }));
-    setSelectedFileHashes(hashMap);
 
-    uploadMutation.mutate(acceptedFiles);
+    uploadMutation.mutate({ files: acceptedFiles, hashMap });
   }, [uploadMutation]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
