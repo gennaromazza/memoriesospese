@@ -215,6 +215,7 @@ export default function Gallery() {
   const [, navigate] = useLocation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [lightboxSourcePhotos, setLightboxSourcePhotos] = useState<any[] | null>(null);
   const { studioSettings } = useStudio();
   const { user, isAuthenticated } = useFirebaseAuth();
   const isAdmin = useIsAdmin();
@@ -1503,13 +1504,16 @@ export default function Gallery() {
   }, [photos, guestPhotos]);
 
   // 🔍 UX Enhancement: Apre lightbox usando displayPhotos (supporta filtro "Solo Selezionate")
-  const openLightbox = (index: number) => {
+  // Quando sourcePhotos è passato (es. da un capitolo), la lightbox naviga SOLO in quelle foto
+  const openLightbox = (index: number, sourcePhotos?: any[]) => {
     setCurrentPhotoIndex(index);
+    setLightboxSourcePhotos(sourcePhotos ?? null);
     setLightboxOpen(true);
   };
 
   const closeLightbox = () => {
     setLightboxOpen(false);
+    setLightboxSourcePhotos(null);
   };
 
   // Funzione per applicare i filtri
@@ -3797,20 +3801,19 @@ export default function Gallery() {
                                 
                                 {/* Griglia Foto del Capitolo */}
                                 <div className="masonry-grid">
-                                  {group.photos.map((photo) => {
-                                    const globalIndex = flatChapterPhotos.findIndex(p => p.id === photo.id);
+                                  {group.photos.map((photo, chapterIndex) => {
                                     return (
                                       <React.Fragment key={photo.id}>
                                         <PhotoCard
                                           photo={photo}
-                                          index={globalIndex}
+                                          index={chapterIndex}
                                           isSelected={selectedPhotoIds.includes(photo.id)}
                                           isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                           assignedProducts={photoAssignments[photo.id] || []}
                                           isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                           isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
                                           isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                          onClick={() => openLightbox(globalIndex)}
+                                          onClick={() => openLightbox(chapterIndex, group.photos)}
                                         />
                                         {!isSelectionMode && (
                                           <div className="mt-2">
@@ -4298,15 +4301,16 @@ export default function Gallery() {
       {/* Instagram Call to Action e Footer */}
       <GalleryFooter studioSettings={studioSettings} />
 
-      {/* Photo Lightbox - usa flatChapterPhotos quando capitoli attivi per mantenere coerenza con gli indici */}
+      {/* Photo Lightbox - usa lightboxSourcePhotos (foto capitolo) se presenti, altrimenti fallback globale */}
       <ImageLightbox
         isOpen={lightboxOpen}
         onClose={closeLightbox}
-        photos={(activeTab === "photographer" && chaptersEnabled && photosByChapter
-          ? flatChapterPhotos
-          : (activeTab === "photographer" && isSelectionMode && selectionStatus !== "completed"
-            ? displayPhotos
-            : allPhotos)
+        photos={(lightboxSourcePhotos
+          ?? (activeTab === "photographer" && chaptersEnabled && photosByChapter
+            ? flatChapterPhotos
+            : (activeTab === "photographer" && isSelectionMode && selectionStatus !== "completed"
+              ? displayPhotos
+              : allPhotos))
         ).map((photo) => ({
           id: photo.id,
           name: photo.name,
