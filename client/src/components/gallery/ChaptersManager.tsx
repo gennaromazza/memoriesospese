@@ -152,12 +152,14 @@ const PhotoGridItem = memo(({
   photo, 
   isSelected, 
   onToggle,
+  onDelete,
   isDragging,
   registerRef
 }: { 
   photo: Photo; 
   isSelected: boolean;
   onToggle: () => void;
+  onDelete: () => void;
   isDragging?: boolean;
   registerRef?: (el: HTMLDivElement | null) => void;
 }) => {
@@ -182,6 +184,7 @@ const PhotoGridItem = memo(({
         draggable={false}
       />
       
+      {/* Checkbox selezione */}
       <div className={cn(
         "absolute top-2 left-2 transition-opacity pointer-events-none",
         isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -195,6 +198,16 @@ const PhotoGridItem = memo(({
           {isSelected && <Check className="w-4 h-4" />}
         </div>
       </div>
+
+      {/* Bottone elimina singola foto (hover) */}
+      <button
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Elimina foto"
+        type="button"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
       
       {photo.chapterId && (
         <div className="absolute bottom-2 right-2 pointer-events-none">
@@ -482,6 +495,27 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
       queryClient.invalidateQueries({ queryKey: ['photo-counts-by-chapter', galleryId] });
     }
   });
+
+  const deletePhotosMutation = useMutation({
+    mutationFn: async (photoIds: string[]) => {
+      await Promise.all(photoIds.map(id => PhotoService.deletePhoto(id)));
+    },
+    onSuccess: (_, photoIds) => {
+      toast({ title: `${photoIds.length} foto eliminate` });
+      setSelectedPhotos(new Set());
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', galleryId] });
+      queryClient.invalidateQueries({ queryKey: ['photo-counts-by-chapter', galleryId] });
+    },
+    onError: () => {
+      toast({ title: 'Errore', description: 'Impossibile eliminare le foto', variant: 'destructive' });
+    }
+  });
+
+  const handleDeletePhotos = (photoIds: string[]) => {
+    const count = photoIds.length;
+    if (!confirm(`Eliminare ${count === 1 ? 'questa foto' : `queste ${count} foto`}? L'operazione è irreversibile.`)) return;
+    deletePhotosMutation.mutate(photoIds);
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setDragActiveId(event.active.id as string);
@@ -836,6 +870,20 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                     </DropdownMenuContent>
                   </DropdownMenu>
                   
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeletePhotos(Array.from(selectedPhotos))}
+                    disabled={deletePhotosMutation.isPending}
+                  >
+                    {deletePhotosMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    Elimina
+                  </Button>
+
                   <Button variant="outline" size="sm" onClick={handleDeselectAll}>
                     <X className="w-4 h-4 mr-2" />
                     Deseleziona
@@ -892,6 +940,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                     photo={photo}
                     isSelected={selectedPhotos.has(photo.id)}
                     onToggle={() => handleTogglePhoto(photo.id)}
+                    onDelete={() => handleDeletePhotos([photo.id])}
                     registerRef={(el) => registerPhotoRef(photo.id, el)}
                   />
                 ))}
