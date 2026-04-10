@@ -3693,7 +3693,7 @@ export default function Gallery() {
                           </div>
                           
                           {/* Griglia Card Capitoli con Miniature */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {photosByChapter.map((group) => {
                               const isExpanded = !collapsedChapters[group.chapter.id];
                               const selectedInChapter = group.photos.filter(p => selectedPhotoIds.includes(p.id)).length;
@@ -3704,7 +3704,7 @@ export default function Gallery() {
                                 <button
                                   key={group.chapter.id}
                                   onClick={() => toggleChapterCollapse(group.chapter.id)}
-                                  className={`relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer transition-all group shadow-md hover:shadow-xl ${
+                                  className={`relative aspect-[16/9] sm:aspect-[3/4] rounded-xl overflow-hidden cursor-pointer transition-all group shadow-md hover:shadow-xl ${
                                     isExpanded ? 'ring-4 ring-sage ring-offset-2' : ''
                                   }`}
                                   data-testid={`chapter-card-${group.chapter.id}`}
