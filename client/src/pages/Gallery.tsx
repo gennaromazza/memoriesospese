@@ -53,6 +53,8 @@ import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useGalleryPreload } from "@/hooks/useGalleryPreload";
+import { GalleryPreloadBanner } from "@/components/gallery/GalleryPreloadBanner";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X, Expand, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -217,6 +219,7 @@ export default function Gallery() {
   const isAdmin = useIsAdmin();
   const userInfo = useUserInfo();
   const { toast } = useToast();
+  const galleryPreload = useGalleryPreload();
 
   // 🔒 Stato per tracciare quando l'accesso viene validato (trigger reattivo)
   const [accessValidatedTrigger, setAccessValidatedTrigger] = useState(0);
@@ -2181,13 +2184,11 @@ export default function Gallery() {
                     />
                   </div>
 
-                  {/* Azioni galleria - layout pulito e organizzato */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <div className="flex flex-col lg:flex-row gap-4">
-                      {/* Sezione riservata per future funzionalità */}
-                      <div className="flex-1"></div>
-                    </div>
-                  </div>
+                  {/* Banner precaricamento galleria */}
+                  <GalleryPreloadBanner
+                    preload={galleryPreload}
+                    photoUrls={allDisplayPhotos.map(p => p.url).filter(Boolean)}
+                  />
                 </div>
               )}
 
