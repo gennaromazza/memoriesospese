@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { StorageService } from './storage';
+import { computeFileHash } from './photoUploader';
 
 export interface Photo {
   id: string;
@@ -101,6 +102,17 @@ export class PhotoService {
     concurrency: number = 3
   ): Promise<Photo[]> {
     try {
+      // Calcola hash di ogni file prima dell'upload (per rilevamento duplicati futuri)
+      const fileHashMap = new Map<string, string>();
+      await Promise.all(files.map(async file => {
+        try {
+          const hash = await computeFileHash(file);
+          fileHashMap.set(file.name, hash);
+        } catch {
+          // Non bloccante
+        }
+      }));
+
       // Upload files to Storage con concorrenza configurabile
       const uploadResults = await StorageService.uploadGalleryPhotos(
         files, 
@@ -109,8 +121,11 @@ export class PhotoService {
         concurrency
       );
 
-      // Save metadata to Firestore
+      // Save metadata to Firestore (incluso contentHash per rilevamento duplicati)
       const photoPromises = uploadResults.map(result => {
+        // Il fileName in Storage ha formato "{timestamp}-{originalName}"; ricaviamo l'originale
+        const originalName = result.fileName.replace(/^\d+-/, '');
+        const contentHash = fileHashMap.get(originalName) || fileHashMap.get(result.fileName);
         const photoData: PhotoData = {
           galleryId,
           name: result.fileName,
@@ -119,7 +134,8 @@ export class PhotoService {
           size: result.size,
           uploaderUid,
           uploaderEmail,
-          uploaderName
+          uploaderName,
+          ...(contentHash ? { contentHash } : {})
         };
         return this.addPhoto(photoData, uploadedBy);
       });
