@@ -67,6 +67,33 @@ export async function compressImage(
 }
 
 /**
+ * Genera una thumbnail compatta (max 400px, max 40KB) per uso nella griglia galleria.
+ * @param file - Il file immagine originale
+ * @returns Promise con il file thumbnail
+ */
+export async function generateThumbnail(file: File): Promise<File> {
+  try {
+    if (!file.type.startsWith('image/')) return file;
+
+    const thumbnail = await imageCompression(file, {
+      maxSizeMB: 0.04,        // 40KB target
+      maxWidthOrHeight: 400,  // max 400px lato lungo
+      useWebWorker: true,
+      preserveExif: false,    // scarta EXIF per ridurre dimensioni
+    });
+
+    const thumbName = `thumb_${file.name}`;
+    return new File([thumbnail], thumbName, {
+      type: thumbnail.type || file.type,
+      lastModified: file.lastModified,
+    });
+  } catch (error) {
+    console.error('❌ Errore generazione thumbnail:', error);
+    return file;
+  }
+}
+
+/**
  * Comprime un array di file immagine
  * @param files - Array di file da comprimere
  * @param customOptions - Opzioni personalizzate per la compressione

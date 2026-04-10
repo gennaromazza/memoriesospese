@@ -1,7 +1,7 @@
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from './firebase';
 import { serverTimestamp } from 'firebase/firestore';
-import { compressImage } from './imageCompression';
+import { compressImage, generateThumbnail } from './imageCompression';
 
 export interface UploadProgressInfo {
   file: File;
@@ -184,9 +184,29 @@ export const uploadSinglePhoto = async (
           // Upload completato con successo, ottieni l'URL di download
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
+          // Genera e carica la thumbnail in background (senza bloccare il resolve)
+          let thumbnailUrl: string | undefined;
+          try {
+            const thumbFile = await generateThumbnail(file);
+            const thumbPath = `thumbnails/${galleryId}/${fileId}-thumb-${safeFileName}`;
+            const thumbRef = ref(storage, thumbPath);
+            const thumbTask = uploadBytesResumable(thumbRef, thumbFile);
+            await new Promise<void>((res, rej) => {
+              thumbTask.on('state_changed', null,
+                (err) => { console.warn('⚠️ Thumbnail upload error:', err); rej(err); },
+                () => res()
+              );
+            });
+            thumbnailUrl = await getDownloadURL(thumbTask.snapshot.ref);
+            console.log(`🖼️ Thumbnail caricata: ${thumbPath}`);
+          } catch (thumbErr) {
+            console.warn('⚠️ Thumbnail non generata, uso URL principale:', thumbErr);
+          }
+
           const photoData: UploadedPhoto = {
             name: safeFileName,
             url: downloadUrl,
+            thumbnailUrl,
             size: file.size,
             contentType: file.type,
             createdAt: serverTimestamp()

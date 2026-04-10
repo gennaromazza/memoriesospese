@@ -1676,6 +1676,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           const docRef = await addDoc(collection(db, "photos"), {
             name: photo.name,
             url: photo.url,
+            ...(photo.thumbnailUrl ? { thumbnailUrl: photo.thumbnailUrl } : {}),
             size: photo.size,
             contentType: photo.contentType,
             createdAt: photo.createdAt || serverTimestamp(),

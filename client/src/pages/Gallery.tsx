@@ -118,13 +118,14 @@ const PhotoCard = memo(({
         onClick={handleClick}
       >
         <img
-          src={photo.url}
+          src={photo.thumbnailUrl || photo.url}
           alt={photo.name || `Foto ${index + 1}`}
           className={`w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200 ${
             showBorder ? 'brightness-105' : isDisliked ? 'opacity-60' : ''
           }`}
-          loading="lazy"
-          decoding="async"
+          loading={index < 8 ? 'eager' : 'lazy'}
+          decoding={index < 8 ? 'sync' : 'async'}
+          fetchPriority={index < 8 ? 'high' : 'auto'}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")
