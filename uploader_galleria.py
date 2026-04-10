@@ -154,11 +154,14 @@ class UploaderApp(tk.Tk):
         self.firebase_ok = False
 
         # Stato interno
+        self.mode_var = tk.StringVar(value="new")  # "new" | "existing"
         self.folder_path = tk.StringVar()
         self.chapters_data = []
         self.product_rows = []  # [{'name_var': ..., 'count_var': ...}]
         self.upload_running = False
         self.final_gallery_url = ""
+        self._galleries_cache = []    # lista dict {name, code, date, id}
+        self.selected_gallery = None  # dict galleria selezionata
 
         self._build_ui()
 
@@ -203,8 +206,70 @@ class UploaderApp(tk.Tk):
         ttk.Label(header, text="Crea e carica una nuova galleria su Firebase", foreground='#718096').pack(anchor='w')
         ttk.Separator(self.scroll_frame, orient='horizontal').pack(fill='x', padx=20, pady=8)
 
-        # --- FORM ---
-        form = ttk.Frame(self.scroll_frame)
+        # --- MODALITÀ ---
+        mode_frame = ttk.Frame(self.scroll_frame)
+        mode_frame.pack(fill='x', padx=20, pady=(0, 6))
+        ttk.Label(mode_frame, text="Modalità", style='Section.TLabel').pack(anchor='w', pady=(0, 4))
+        rb_row = ttk.Frame(mode_frame)
+        rb_row.pack(anchor='w')
+        ttk.Radiobutton(rb_row, text="Crea nuova galleria", variable=self.mode_var,
+                        value="new", command=self._on_mode_change).pack(side='left', padx=(0, 24))
+        ttk.Radiobutton(rb_row, text="Aggiungi foto a galleria esistente", variable=self.mode_var,
+                        value="existing", command=self._on_mode_change).pack(side='left')
+
+        # Container fisso che occupa il posto giusto nello scroll_frame
+        self.mode_section = ttk.Frame(self.scroll_frame)
+        self.mode_section.pack(fill='x')
+
+        # --- GALLERIA ESISTENTE (dentro mode_section, nascosta all'inizio) ---
+        self.existing_frame = ttk.Frame(self.mode_section)
+        # NON packed qui — verrà mostrato/nascosto da _on_mode_change
+
+        # Riga cerca + pulsante carica
+        ex_top = ttk.Frame(self.existing_frame)
+        ex_top.pack(fill='x', padx=20, pady=(8, 4))
+        ttk.Label(ex_top, text="Cerca galleria", style='Section.TLabel').pack(anchor='w', pady=(0, 4))
+        ex_search_row = ttk.Frame(ex_top)
+        ex_search_row.pack(fill='x')
+        self.gallery_search_var = tk.StringVar()
+        self.gallery_search_var.trace_add('write', self._on_gallery_search)
+        self.gallery_search_entry = ttk.Entry(ex_search_row, textvariable=self.gallery_search_var,
+                                              font=('Segoe UI', 10))
+        self.gallery_search_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        self.load_galleries_btn = ttk.Button(ex_search_row, text="Carica gallerie",
+                                             command=self._load_galleries)
+        self.load_galleries_btn.pack(side='right')
+
+        # Listbox gallerie
+        ex_list_frame = ttk.Frame(self.existing_frame)
+        ex_list_frame.pack(fill='x', padx=20, pady=(0, 4))
+        list_scroll = ttk.Scrollbar(ex_list_frame, orient='vertical')
+        self.gallery_listbox = tk.Listbox(
+            ex_list_frame, height=8, font=('Segoe UI', 10),
+            selectmode='single', activestyle='none',
+            bg='white', fg='#1a202c', selectbackground='#c6f6d5', selectforeground='#22543d',
+            relief='flat', bd=1, highlightthickness=1, highlightbackground='#cbd5e0',
+            yscrollcommand=list_scroll.set
+        )
+        list_scroll.config(command=self.gallery_listbox.yview)
+        list_scroll.pack(side='right', fill='y')
+        self.gallery_listbox.pack(side='left', fill='x', expand=True)
+        self.gallery_listbox.bind('<<ListboxSelect>>', self._on_gallery_select)
+
+        # Label galleria selezionata
+        self.selected_gallery_label_var = tk.StringVar(value="Nessuna galleria selezionata")
+        ttk.Label(self.existing_frame, textvariable=self.selected_gallery_label_var,
+                  foreground='#2f855a', font=('Segoe UI', 10, 'bold')).pack(anchor='w', padx=20, pady=(0, 8))
+
+        # Hint iniziale nella listbox
+        self.gallery_listbox.insert(tk.END, "  ← Clicca 'Carica gallerie' per vedere la lista")
+        self.gallery_listbox.config(state='disabled')
+        # Non packed ancora — visibile solo in modalità existing
+
+        # --- FORM (solo nuova galleria, dentro mode_section) ---
+        self.new_gallery_frame = ttk.Frame(self.mode_section)
+        self.new_gallery_frame.pack(fill='x')
+        form = ttk.Frame(self.new_gallery_frame)
         form.pack(fill='x', padx=20)
 
         # Nome galleria
@@ -232,10 +297,10 @@ class UploaderApp(tk.Tk):
         ttk.Label(form, text="Lascia vuoto per nessuna password", foreground='#a0aec0',
                   font=('Segoe UI', 9)).pack(anchor='w', pady=(0, 2))
 
-        ttk.Separator(self.scroll_frame, orient='horizontal').pack(fill='x', padx=20, pady=10)
+        ttk.Separator(self.new_gallery_frame, orient='horizontal').pack(fill='x', padx=20, pady=10)
 
         # --- SELEZIONE FOTO ---
-        sel_frame = ttk.Frame(self.scroll_frame)
+        sel_frame = ttk.Frame(self.new_gallery_frame)
         sel_frame.pack(fill='x', padx=20)
 
         ttk.Label(sel_frame, text="Selezione Foto", style='Section.TLabel').pack(anchor='w', pady=(0, 4))
@@ -363,6 +428,126 @@ class UploaderApp(tk.Tk):
         if val == placeholder:
             return ""
         return val
+
+    # =========================================================================
+    # MODE TOGGLE
+    # =========================================================================
+
+    def _on_mode_change(self):
+        """Mostra/nasconde le sezioni in base alla modalità selezionata."""
+        mode = self.mode_var.get()
+        if mode == "existing":
+            self.new_gallery_frame.pack_forget()
+            if not self.existing_frame.winfo_ismapped():
+                self.existing_frame.pack(fill='x')
+            self.upload_btn.config(text="Aggiungi Foto alla Galleria")
+        else:
+            self.existing_frame.pack_forget()
+            if not self.new_gallery_frame.winfo_ismapped():
+                self.new_gallery_frame.pack(fill='x')
+            self.upload_btn.config(text="Carica Galleria")
+        self.selected_gallery = None
+        self.selected_gallery_label_var.set("Nessuna galleria selezionata")
+
+    # =========================================================================
+    # GALLERY LIST (modalità existing)
+    # =========================================================================
+
+    def _load_galleries(self):
+        """Carica la lista gallerie da Firestore in un thread separato."""
+        if not self._init_firebase():
+            return
+        self.load_galleries_btn.config(state='disabled', text="Caricamento...")
+        self.gallery_listbox.config(state='normal')
+        self.gallery_listbox.delete(0, tk.END)
+        self.gallery_listbox.insert(tk.END, "  Caricamento in corso...")
+        self.gallery_listbox.config(state='disabled')
+
+        def _fetch():
+            try:
+                docs = self.firestore_db.collection('galleries').order_by(
+                    'createdAt', direction='DESCENDING'
+                ).limit(200).stream()
+                galleries = []
+                for doc in docs:
+                    d = doc.to_dict()
+                    galleries.append({
+                        'id': doc.id,
+                        'name': d.get('name', '(senza nome)'),
+                        'code': d.get('code', ''),
+                        'date': d.get('date', ''),
+                        'photoCount': d.get('photoCount', 0),
+                    })
+                self.after(0, lambda: self._populate_gallery_list(galleries))
+            except Exception as e:
+                self.after(0, lambda: self._gallery_load_error(str(e)))
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
+    def _gallery_load_error(self, err: str):
+        self.load_galleries_btn.config(state='normal', text="Carica gallerie")
+        self.gallery_listbox.config(state='normal')
+        self.gallery_listbox.delete(0, tk.END)
+        self.gallery_listbox.insert(tk.END, f"  Errore: {err}")
+        self.gallery_listbox.config(state='disabled')
+
+    def _populate_gallery_list(self, galleries: list):
+        self._galleries_cache = galleries
+        self.load_galleries_btn.config(state='normal', text="Ricarica")
+        self._refresh_listbox(galleries)
+
+    def _refresh_listbox(self, galleries: list):
+        self.gallery_listbox.config(state='normal')
+        self.gallery_listbox.delete(0, tk.END)
+        if not galleries:
+            self.gallery_listbox.insert(tk.END, "  Nessuna galleria trovata.")
+        else:
+            for g in galleries:
+                date_str = f" — {g['date']}" if g['date'] else ""
+                count_str = f"  [{g['photoCount']} foto]"
+                self.gallery_listbox.insert(tk.END, f"  {g['name']}{date_str}{count_str}")
+
+    def _on_gallery_search(self, *_):
+        """Filtra la listbox in base al testo cercato."""
+        query = self.gallery_search_var.get().strip().lower()
+        if not self._galleries_cache:
+            return
+        if query:
+            filtered = [g for g in self._galleries_cache
+                        if query in g['name'].lower() or query in g['date'].lower()
+                        or query in g['code'].lower()]
+        else:
+            filtered = self._galleries_cache
+        self._refresh_listbox(filtered)
+        self.selected_gallery = None
+        self.selected_gallery_label_var.set("Nessuna galleria selezionata")
+
+    def _on_gallery_select(self, event):
+        """Gestisce la selezione di una galleria dalla listbox."""
+        sel = self.gallery_listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        # Ricostruisci lista filtrata corrente
+        query = self.gallery_search_var.get().strip().lower()
+        if query:
+            filtered = [g for g in self._galleries_cache
+                        if query in g['name'].lower() or query in g['date'].lower()
+                        or query in g['code'].lower()]
+        else:
+            filtered = self._galleries_cache
+        if idx >= len(filtered):
+            return
+        self.selected_gallery = filtered[idx]
+        name = self.selected_gallery['name']
+        date = self.selected_gallery['date']
+        code = self.selected_gallery['code']
+        count = self.selected_gallery['photoCount']
+        label = f"✓ Selezionata: {name}"
+        if date:
+            label += f" ({date})"
+        label += f" — codice: {code} — {count} foto presenti"
+        self.selected_gallery_label_var.set(label)
 
     # =========================================================================
     # SELECTION TOGGLE
@@ -507,62 +692,77 @@ class UploaderApp(tk.Tk):
 
         # --- Raccolta valori form (TUTTO sul main thread) ---
 
-        name = self._get_field_value('name_var', 'es. Matrimonio Rossi - Bianchi').strip()
-        if not name:
-            messagebox.showerror("Campo obbligatorio", "Inserisci il nome della galleria.")
-            return
+        mode = self.mode_var.get()
 
+        # --- Validazione cartella (comune a entrambe le modalità) ---
         if not self.folder_path.get():
             messagebox.showerror("Cartella mancante", "Seleziona la cartella con le foto.")
             return
-
         if not self.chapters_data:
             messagebox.showerror("Nessuna foto", "Nessuna immagine trovata nella cartella selezionata.")
             return
 
-        date_val = self._get_field_value('date_var', '15/06/2025')
-        location_val = self._get_field_value('location_var', 'es. Villa Reale, Milano')
-        description_val = self.description_text.get("1.0", tk.END).strip()
-        password_val = self.password_var.get().strip()
-        selection_enabled = self.selection_enabled_var.get()
-
-        # Prodotti (letti tutti sul main thread)
-        product_requirements = []
-        if selection_enabled:
-            for row in self.product_rows:
-                prod_name = row['name_var'].get().strip()
-                count_str = row['count_var'].get().strip()
-                if prod_name:
-                    try:
-                        count = int(count_str)
-                    except ValueError:
-                        count = 0
-                    product_requirements.append({
-                        'prodottoNome': prod_name,
-                        'prodottoNumeroFoto': count
-                    })
-
-        # Snapshot immutabile dei capitoli (già struttura Python, nessun widget)
+        # Snapshot immutabile dei capitoli
         chapters_snapshot = [
             {
                 'name': ch['name'],
                 'ordine': ch['ordine'],
-                'photos': list(ch['photos'])  # copia lista Path
+                'photos': list(ch['photos'])
             }
             for ch in self.chapters_data
         ]
 
-        # Payload puro da passare al thread
-        payload = {
-            'gallery_name': name,
-            'date': date_val,
-            'location': location_val,
-            'description': description_val,
-            'password': password_val,
-            'selection_enabled': selection_enabled,
-            'product_requirements': product_requirements,
-            'chapters': chapters_snapshot,
-        }
+        if mode == "existing":
+            # --- Modalità: Galleria esistente ---
+            if not self.selected_gallery:
+                messagebox.showerror("Galleria non selezionata",
+                                     "Seleziona una galleria dalla lista prima di procedere.")
+                return
+            payload = {
+                'mode': 'existing',
+                'gallery_id': self.selected_gallery['id'],
+                'gallery_name': self.selected_gallery['name'],
+                'gallery_code': self.selected_gallery['code'],
+                'current_photo_count': self.selected_gallery['photoCount'],
+                'chapters': chapters_snapshot,
+            }
+        else:
+            # --- Modalità: Nuova galleria ---
+            name = self._get_field_value('name_var', 'es. Matrimonio Rossi - Bianchi').strip()
+            if not name:
+                messagebox.showerror("Campo obbligatorio", "Inserisci il nome della galleria.")
+                return
+            date_val = self._get_field_value('date_var', '15/06/2025')
+            location_val = self._get_field_value('location_var', 'es. Villa Reale, Milano')
+            description_val = self.description_text.get("1.0", tk.END).strip()
+            password_val = self.password_var.get().strip()
+            selection_enabled = self.selection_enabled_var.get()
+
+            product_requirements = []
+            if selection_enabled:
+                for row in self.product_rows:
+                    prod_name = row['name_var'].get().strip()
+                    count_str = row['count_var'].get().strip()
+                    if prod_name:
+                        try:
+                            count = int(count_str)
+                        except ValueError:
+                            count = 0
+                        product_requirements.append({
+                            'prodottoNome': prod_name,
+                            'prodottoNumeroFoto': count
+                        })
+            payload = {
+                'mode': 'new',
+                'gallery_name': name,
+                'date': date_val,
+                'location': location_val,
+                'description': description_val,
+                'password': password_val,
+                'selection_enabled': selection_enabled,
+                'product_requirements': product_requirements,
+                'chapters': chapters_snapshot,
+            }
 
         if not self._init_firebase():
             return
@@ -588,92 +788,145 @@ class UploaderApp(tk.Tk):
         Riceve solo dati Python puri (nessun widget/StringVar Tkinter).
         """
         try:
+            from firebase_admin import firestore as fb_firestore
+
+            mode = payload.get('mode', 'new')
             gallery_name = payload['gallery_name']
-            date_val = payload['date']
-            location_val = payload['location']
-            description_val = payload['description']
-            password_val = payload['password']
-            selection_enabled = payload['selection_enabled']
-            product_requirements = payload['product_requirements']
             chapters_data_local = payload['chapters']
 
             self._log("=" * 50)
-            self._log(f"Avvio creazione galleria: {gallery_name}")
+            if mode == 'existing':
+                self._log(f"Aggiungi foto a galleria esistente: {gallery_name}")
+            else:
+                self._log(f"Avvio creazione nuova galleria: {gallery_name}")
             self._log("=" * 50)
 
-            # Genera ID e codice galleria
-            gallery_id = str(uuid.uuid4())
-            gallery_code = generate_gallery_code(8)
-            has_chapters = any(ch['name'] for ch in chapters_data_local)
+            # ----------------------------------------------------------------
+            # BRANCH: nuova galleria
+            # ----------------------------------------------------------------
+            if mode == 'new':
+                date_val = payload['date']
+                location_val = payload['location']
+                description_val = payload['description']
+                password_val = payload['password']
+                selection_enabled = payload['selection_enabled']
+                product_requirements = payload['product_requirements']
 
-            self._log(f"Gallery ID: {gallery_id}")
-            self._log(f"Codice galleria: {gallery_code}")
+                gallery_id = str(uuid.uuid4())
+                gallery_code = generate_gallery_code(8)
+                has_chapters = any(ch['name'] for ch in chapters_data_local)
 
-            # Calcola total required photos
-            required_photo_count = sum(p['prodottoNumeroFoto'] for p in product_requirements)
+                self._log(f"Gallery ID:      {gallery_id}")
+                self._log(f"Codice galleria: {gallery_code}")
 
-            # Costruisci array capitoli Firestore
-            firestore_chapters = []
-            for ch in chapters_data_local:
-                if ch['name']:
-                    firestore_chapters.append({
-                        'id': generate_chapter_id(),
-                        'titolo': ch['name'],
-                        'descrizione': '',
-                        'ordine': ch['ordine'],
-                        'createdAt': datetime.utcnow(),
-                        'updatedAt': datetime.utcnow()
+                required_photo_count = sum(p['prodottoNumeroFoto'] for p in product_requirements)
+
+                # Costruisci capitoli Firestore
+                firestore_chapters = []
+                for ch in chapters_data_local:
+                    if ch['name']:
+                        firestore_chapters.append({
+                            'id': generate_chapter_id(),
+                            'titolo': ch['name'],
+                            'descrizione': '',
+                            'ordine': ch['ordine'],
+                            'createdAt': datetime.utcnow(),
+                            'updatedAt': datetime.utcnow()
+                        })
+
+                # Scrivi documento galleries
+                self._log("\nCreazione documento galleria su Firestore...")
+                gallery_doc = {
+                    'name': gallery_name,
+                    'code': gallery_code,
+                    'date': date_val,
+                    'location': location_val,
+                    'description': description_val,
+                    'hasPassword': bool(password_val),
+                    'active': True,
+                    'photoCount': 0,
+                    'selectionEnabled': selection_enabled,
+                    'unlimitedSelection': False,
+                    'requiredPhotoCount': required_photo_count,
+                    'chaptersEnabled': has_chapters,
+                    'chapters': firestore_chapters,
+                    'userId': 'script-upload',
+                    'createdAt': datetime.utcnow(),
+                    'updatedAt': datetime.utcnow(),
+                }
+                if selection_enabled:
+                    gallery_doc['productRequirements'] = product_requirements
+                    gallery_doc['selectionStatus'] = 'pending'
+                    gallery_doc['selectedPhotoIds'] = []
+
+                gallery_ref = self.firestore_db.collection('galleries').document(gallery_id)
+                gallery_ref.set(gallery_doc)
+                self._log("✓ Documento galleria creato")
+
+                # Scrivi gallerySecrets
+                self._log("Creazione documento gallerySecrets...")
+                secrets_doc = {
+                    'galleryId': gallery_id,
+                    'password': password_val if password_val else None,
+                    'specialPin': None,
+                    'createdAt': datetime.utcnow(),
+                    'updatedAt': datetime.utcnow(),
+                }
+                self.firestore_db.collection('gallerySecrets').document(gallery_id).set(secrets_doc)
+                self._log("✓ Documento gallerySecrets creato")
+
+                chapter_id_map = {ch['titolo']: ch['id'] for ch in firestore_chapters}
+
+            # ----------------------------------------------------------------
+            # BRANCH: galleria esistente
+            # ----------------------------------------------------------------
+            else:
+                gallery_id = payload['gallery_id']
+                gallery_code = payload['gallery_code']
+                current_photo_count = payload['current_photo_count']
+
+                gallery_ref = self.firestore_db.collection('galleries').document(gallery_id)
+
+                # Leggi i capitoli esistenti dalla galleria
+                self._log("Lettura capitoli esistenti dalla galleria...")
+                gallery_snap = gallery_ref.get()
+                existing_doc = gallery_snap.to_dict() or {}
+                existing_chapters = existing_doc.get('chapters', [])
+                # Mappa titolo -> id per matching
+                chapter_id_map = {ch['titolo']: ch['id'] for ch in existing_chapters}
+                self._log(f"Capitoli esistenti: {list(chapter_id_map.keys()) or ['(nessuno)']}")
+
+                # Crea nuovi capitoli se non esistono già
+                new_chapters_added = []
+                for ch_data in chapters_data_local:
+                    ch_name = ch_data.get('name')
+                    if ch_name and ch_name not in chapter_id_map:
+                        new_id = generate_chapter_id()
+                        chapter_id_map[ch_name] = new_id
+                        new_chapters_added.append({
+                            'id': new_id,
+                            'titolo': ch_name,
+                            'descrizione': '',
+                            'ordine': ch_data['ordine'] + len(existing_chapters),
+                            'createdAt': datetime.utcnow(),
+                            'updatedAt': datetime.utcnow()
+                        })
+
+                if new_chapters_added:
+                    updated_chapters = existing_chapters + new_chapters_added
+                    gallery_ref.update({
+                        'chapters': updated_chapters,
+                        'chaptersEnabled': True,
+                        'updatedAt': datetime.utcnow(),
                     })
+                    self._log(f"✓ Aggiunti {len(new_chapters_added)} nuovi capitoli: "
+                              f"{[c['titolo'] for c in new_chapters_added]}")
+                else:
+                    self._log("✓ Nessun nuovo capitolo da creare")
 
-            # --- SCRIVI documento galleries ---
-            self._log("\nCreazione documento galleria su Firestore...")
-            gallery_doc = {
-                'name': gallery_name,
-                'code': gallery_code,
-                'date': date_val,
-                'location': location_val,
-                'description': description_val,
-                'hasPassword': bool(password_val),
-                'active': True,
-                'photoCount': 0,
-                'selectionEnabled': selection_enabled,
-                'unlimitedSelection': False,
-                'requiredPhotoCount': required_photo_count,
-                'chaptersEnabled': has_chapters,
-                'chapters': firestore_chapters,
-                'userId': 'script-upload',
-                'createdAt': datetime.utcnow(),
-                'updatedAt': datetime.utcnow(),
-            }
-
-            if selection_enabled:
-                gallery_doc['productRequirements'] = product_requirements  # [] se nessun prodotto
-                gallery_doc['selectionStatus'] = 'pending'
-                gallery_doc['selectedPhotoIds'] = []
-
-            from firebase_admin import firestore as fb_firestore
-
-            gallery_ref = self.firestore_db.collection('galleries').document(gallery_id)
-            gallery_ref.set(gallery_doc)
-            self._log("✓ Documento galleria creato")
-
-            # --- SCRIVI documento gallerySecrets ---
-            self._log("Creazione documento gallerySecrets...")
-            secrets_doc = {
-                'galleryId': gallery_id,
-                'password': password_val if password_val else None,
-                'specialPin': None,
-                'createdAt': datetime.utcnow(),
-                'updatedAt': datetime.utcnow(),
-            }
-            self.firestore_db.collection('gallerySecrets').document(gallery_id).set(secrets_doc)
-            self._log("✓ Documento gallerySecrets creato")
-
-            # --- UPLOAD FOTO ---
-            # Crea mappa chapter name -> chapter id
-            chapter_id_map = {ch['titolo']: ch['id'] for ch in firestore_chapters}
-
-            # Costruisci lista piatta di tutti i job
+            # ----------------------------------------------------------------
+            # UPLOAD FOTO (comune a entrambe le modalità)
+            # ----------------------------------------------------------------
             upload_jobs = []
             for ch_data in chapters_data_local:
                 chapter_id = chapter_id_map.get(ch_data['name']) if ch_data['name'] else None
@@ -698,28 +951,20 @@ class UploaderApp(tk.Tk):
                 gid = job['gallery_id']
 
                 original_filename = photo_path.name
-                # Prefisso random per evitare collisioni tra file con stesso nome in capitoli diversi
                 unique_prefix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
                 storage_filename = f"{unique_prefix}_{original_filename}"
                 storage_path = f"galleries/{gid}/photos/{storage_filename}"
                 content_type = get_content_type(photo_path)
                 file_size = photo_path.stat().st_size
 
-                # Upload su Firebase Storage
                 blob = self.storage_bucket.blob(storage_path)
-                blob.upload_from_filename(
-                    str(photo_path),
-                    content_type=content_type
-                )
+                blob.upload_from_filename(str(photo_path), content_type=content_type)
 
-                # Rendi il file pubblicamente leggibile.
-                # NOTA: Se il bucket usa Uniform Bucket-Level Access (UBLA), make_public()
-                # fallisce. In tal caso viene usato un Signed URL temporaneo (1 anno).
+                # Rendi pubblico (fallback signed URL se UBLA attivo)
                 try:
                     blob.make_public()
                     download_url = blob.public_url
                 except Exception:
-                    # Fallback: generate_signed_url richiede service account con signBlob permission
                     from datetime import timedelta
                     download_url = blob.generate_signed_url(
                         expiration=timedelta(days=365),
@@ -727,11 +972,10 @@ class UploaderApp(tk.Tk):
                         version='v4'
                     )
 
-                # Scrivi documento photos su Firestore
                 photo_doc = {
                     'galleryId': gid,
                     'chapterId': chapter_id,
-                    'name': original_filename,  # Nome originale nei metadati
+                    'name': original_filename,
                     'url': download_url,
                     'size': file_size,
                     'contentType': content_type,
@@ -744,18 +988,16 @@ class UploaderApp(tk.Tk):
                     'position': 0,
                     'createdAt': datetime.utcnow(),
                 }
-
                 self.firestore_db.collection('photos').add(photo_doc)
-                return {'filename': filename, 'ok': True}
+                return {'filename': original_filename, 'ok': True}
 
             with ThreadPoolExecutor(max_workers=MAX_UPLOAD_WORKERS) as executor:
                 future_to_job = {executor.submit(upload_single, job): job for job in upload_jobs}
-
                 for future in as_completed(future_to_job):
                     job = future_to_job[future]
                     filename = job['path'].name
                     try:
-                        result = future.result()
+                        future.result()
                         with lock:
                             completed += 1
                         pct = (completed / total) * 100
@@ -771,33 +1013,51 @@ class UploaderApp(tk.Tk):
 
             # --- AGGIORNA photoCount ---
             success_count = total - len(errors)
-            self._log(f"\nAggiornamento photoCount: {success_count} foto...")
-            gallery_ref.update({
-                'photoCount': success_count,
-                'updatedAt': datetime.utcnow()
-            })
-            self._log("✓ photoCount aggiornato")
+            self._log(f"\nAggiornamento photoCount...")
+            if mode == 'existing':
+                # Incrementa il contatore esistente
+                gallery_ref.update({
+                    'photoCount': fb_firestore.Increment(success_count),
+                    'updatedAt': datetime.utcnow()
+                })
+                new_total = current_photo_count + success_count
+                self._log(f"✓ photoCount aggiornato: {current_photo_count} + {success_count} = {new_total}")
+            else:
+                gallery_ref.update({
+                    'photoCount': success_count,
+                    'updatedAt': datetime.utcnow()
+                })
+                self._log(f"✓ photoCount impostato a {success_count}")
 
             # --- RISULTATO FINALE ---
             gallery_url = f"{GALLERY_BASE_URL}/{gallery_code}"
             self.final_gallery_url = gallery_url
 
+            action_label = "aggiunte alla galleria" if mode == 'existing' else "caricate nella nuova galleria"
             self._log("\n" + "=" * 50)
             self._log("UPLOAD COMPLETATO!")
-            self._log(f"Foto caricate: {success_count}/{total}")
+            self._log(f"Foto {action_label}: {success_count}/{total}")
             if errors:
                 self._log(f"Errori: {len(errors)}")
             self._log(f"URL Galleria: {gallery_url}")
             self._log("=" * 50)
 
-            self._set_progress(100, f"Completato! {success_count}/{total} foto caricate.")
+            self._set_progress(100, f"Completato! {success_count}/{total} foto {action_label}.")
 
             def _show_result():
-                self.result_label_var.set(
-                    f"✓ Galleria creata! {success_count}/{total} foto caricate."
+                result_text = (
+                    f"✓ {success_count}/{total} foto {action_label}."
                 )
+                self.result_label_var.set(result_text)
                 self.result_link_var.set(gallery_url)
                 self.link_row.pack(anchor='w', pady=(4, 0))
+                # Aggiorna il cache locale se in modalità existing
+                if mode == 'existing' and self.selected_gallery:
+                    self.selected_gallery['photoCount'] = current_photo_count + success_count
+                    self.selected_gallery_label_var.set(
+                        self.selected_gallery_label_var.get().split(' — ')[0] +
+                        f" — {self.selected_gallery['photoCount']} foto presenti"
+                    )
                 if errors:
                     messagebox.showwarning(
                         "Upload completato con errori",
@@ -814,9 +1074,10 @@ class UploaderApp(tk.Tk):
             self._log(traceback.format_exc())
             self.after(0, lambda: messagebox.showerror("Errore Upload", f"Errore durante l'upload:\n{e}"))
         finally:
+            btn_label = "Aggiungi Foto alla Galleria" if payload.get('mode') == 'existing' else "Carica Galleria"
             def _reset():
                 self.upload_running = False
-                self.upload_btn.config(state='normal', text="Carica Galleria")
+                self.upload_btn.config(state='normal', text=btn_label)
             self.after(0, _reset)
 
     def _copy_link(self):
