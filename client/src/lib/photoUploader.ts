@@ -19,6 +19,29 @@ export interface UploadedPhoto {
   contentType: string;
   createdAt: any;
   thumbnailUrl?: string;
+  contentHash?: string;
+}
+
+/**
+ * Calcola un fingerprint SHA-256 del file usando:
+ * - Primi 128KB del contenuto
+ * - Dimensione del file (come extra entropy)
+ * Abbastanza veloce anche per batch di centinaia di file, e praticamente
+ * immune a collisioni per foto reali.
+ */
+export async function computeFileHash(file: File): Promise<string> {
+  const SAMPLE_SIZE = 128 * 1024;
+  const slice = file.slice(0, SAMPLE_SIZE);
+  const contentBuffer = await slice.arrayBuffer();
+  const sizeBuffer = new ArrayBuffer(8);
+  new DataView(sizeBuffer).setFloat64(0, file.size);
+  const combined = new Uint8Array(contentBuffer.byteLength + sizeBuffer.byteLength);
+  combined.set(new Uint8Array(contentBuffer), 0);
+  combined.set(new Uint8Array(sizeBuffer), contentBuffer.byteLength);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 export interface UploadSummary {
@@ -70,6 +93,14 @@ export const uploadSinglePhoto = async (
       const safeFileName = (compressedFile.name || file.name).replace(/[#$]/g, '_');
       const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const storagePath = `galleries/${galleryId}/${fileId}-${safeFileName}`;
+
+      // Calcola hash del contenuto per rilevamento duplicati anche con nomi diversi
+      let contentHash: string | undefined;
+      try {
+        contentHash = await computeFileHash(file);
+      } catch {
+        // Non bloccante: se fallisce, il controllo duplicati sarà solo per nome
+      }
 
       if (progressCallback) {
         progressCallback({ file: compressedFile, progress: 0, state: 'running', uploadedBytes: 0, totalBytes: compressedFile.size, attempt });
@@ -143,7 +174,8 @@ export const uploadSinglePhoto = async (
               thumbnailUrl,
               size: file.size,
               contentType: file.type,
-              createdAt: serverTimestamp()
+              createdAt: serverTimestamp(),
+              contentHash,
             };
 
             if (progressCallback) {

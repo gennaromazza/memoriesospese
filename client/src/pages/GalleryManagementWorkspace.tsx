@@ -9,6 +9,7 @@ import { useRoute, useLocation } from 'wouter';
 import { useDropzone } from 'react-dropzone';
 import { GalleryService, type Gallery, type SelectionSnapshot } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
+import { computeFileHash } from '@/lib/photoUploader';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -171,7 +172,9 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFileHashes, setSelectedFileHashes] = useState<Map<string, string>>(new Map());
   const [existingPhotoNames, setExistingPhotoNames] = useState<Set<string>>(new Set());
+  const [existingPhotoHashes, setExistingPhotoHashes] = useState<Set<string>>(new Set());
   const [uploadConcurrency, setUploadConcurrency] = useState(3); // Concorrenza configurabile
   const [showPreview, setShowPreview] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -234,11 +237,13 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     staleTime: 0 // 🔧 NO CACHE per admin workflow - sempre dati freschi!
   });
 
-  // Carica nomi foto esistenti per controllo duplicati
+  // Carica nomi e hash foto esistenti per controllo duplicati
   useEffect(() => {
     if (allPhotos.length > 0) {
       const names = new Set(allPhotos.map(p => p.name));
+      const hashes = new Set(allPhotos.map(p => p.contentHash).filter(Boolean) as string[]);
       setExistingPhotoNames(names);
+      setExistingPhotoHashes(hashes);
     }
   }, [allPhotos]);
 
@@ -255,10 +260,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     }
   }, [isLoading, gallery, galleryId, toast, handleBack]);
 
-  // Crea preview per file selezionati
-  const createPreviews = useCallback((files: File[]) => {
-    const previews = files.map(file => {
-      const isDuplicate = existingPhotoNames.has(file.name);
+  // Crea preview per file selezionati (considera sia nome che hash)
+  const createPreviews = useCallback((files: File[], hashMap: Map<string, string> = new Map()) => {
+    const previews = files.map((file, idx) => {
+      const hash = hashMap.get(`${idx}-${file.name}`);
+      const isDuplicate = existingPhotoNames.has(file.name) ||
+        (hash ? existingPhotoHashes.has(hash) : false);
       return {
         fileName: file.name,
         progress: 0,
@@ -269,20 +276,31 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
       };
     });
     setUploadProgress(previews);
-  }, [existingPhotoNames]);
+  }, [existingPhotoNames, existingPhotoHashes]);
 
   // Upload mutation
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
       if (!galleryId || !user) throw new Error('Missing gallery or user');
 
-      // Filtra duplicati se richiesto
-      const duplicates = files.filter(f => existingPhotoNames.has(f.name));
-      let uniqueFiles = files.filter(f => !existingPhotoNames.has(f.name));
+      // Filtra duplicati per nome E per hash contenuto
+      const duplicates = files.filter((f, idx) => {
+        const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+        return existingPhotoNames.has(f.name) || (hash ? existingPhotoHashes.has(hash) : false);
+      });
+      let uniqueFiles = files.filter((f, idx) => {
+        const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+        return !existingPhotoNames.has(f.name) && !(hash ? existingPhotoHashes.has(hash) : false);
+      });
 
       if (duplicates.length > 0) {
+        const byHash = duplicates.filter((f, idx) => {
+          const hash = selectedFileHashes.get(`${idx}-${f.name}`);
+          return hash && existingPhotoHashes.has(hash) && !existingPhotoNames.has(f.name);
+        });
+        const reason = byHash.length > 0 ? ` (${byHash.length} rilevati per contenuto identico)` : '';
         toast({
-          title: `⚠️ ${duplicates.length} file duplicati`,
+          title: `⚠️ ${duplicates.length} file duplicati${reason}`,
           description: `Questi file verranno saltati: ${duplicates.slice(0, 3).map(f => f.name).join(', ')}${duplicates.length > 3 ? '...' : ''}`,
         });
       }
@@ -424,10 +442,22 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   });
 
   // Dropzone
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      uploadMutation.mutate(acceptedFiles);
-    }
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+
+    // Calcola hash dei file selezionati per rilevamento duplicati per contenuto
+    const hashMap = new Map<string, string>();
+    await Promise.all(acceptedFiles.map(async (file, idx) => {
+      try {
+        const hash = await computeFileHash(file);
+        hashMap.set(`${idx}-${file.name}`, hash);
+      } catch {
+        // fallback: solo controllo per nome
+      }
+    }));
+    setSelectedFileHashes(hashMap);
+
+    uploadMutation.mutate(acceptedFiles);
   }, [uploadMutation]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

@@ -40,6 +40,7 @@ export interface Photo {
   chapterPosition?: number;
   createdAt: any;
   updatedAt?: any;
+  contentHash?: string;
 }
 
 export interface PhotoData {
@@ -52,6 +53,7 @@ export interface PhotoData {
   uploaderUid: string;
   uploaderEmail: string;
   uploaderName: string;
+  contentHash?: string;
 }
 
 export interface PhotoStats {

@@ -10,7 +10,7 @@ import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
-import { uploadPhotos, UploadSummary, UploadProgressInfo, UploadedPhoto } from "../lib/photoUploader";
+import { uploadPhotos, computeFileHash, UploadSummary, UploadProgressInfo, UploadedPhoto } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal, Palette } from "lucide-react";
 import { GALLERY_HEADER_THEMES } from '@/lib/gallery-header-themes';
@@ -71,6 +71,7 @@ interface PhotoData {
   uploaderName?: string;
   uploaderRole?: string;
   uploadedBy?: 'admin' | 'guest' | 'legacy';
+  contentHash?: string;
 }
 
 interface GalleryType {
@@ -160,6 +161,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [activeTab, setActiveTab] = useState<string>("details");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFileHashes, setSelectedFileHashes] = useState<Map<string, string>>(new Map()); // index-name → hash
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: any}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -338,7 +340,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         uploaderEmail: photo.uploaderEmail,
         uploaderName: photo.uploaderName,
         uploaderRole: photo.uploadedBy === 'guest' ? 'guest' : 'admin',
-        uploadedBy: photo.uploadedBy || 'legacy'
+        uploadedBy: photo.uploadedBy || 'legacy',
+        contentHash: photo.contentHash,
       } as PhotoData));
 
       console.log('📸 [EditGalleryModal] Foto caricate via PhotoService:', loadedPhotos.length);
@@ -1601,14 +1604,20 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     }
   }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
-  // Controlla se un file è già stato caricato
+  // Controlla se un file è già stato caricato (per nome OPPURE per hash contenuto)
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
     const existingPhotoNames = new Set(photos.map(p => p.name));
+    const existingPhotoHashes = new Set(photos.map(p => p.contentHash).filter(Boolean) as string[]);
     const uniqueFiles: File[] = [];
     const duplicates: string[] = [];
 
-    files.forEach(file => {
-      if (existingPhotoNames.has(file.name)) {
+    files.forEach((file, idx) => {
+      const key = `${idx}-${file.name}`;
+      const hash = selectedFileHashes.get(key);
+      const isDuplicateByName = existingPhotoNames.has(file.name);
+      const isDuplicateByHash = hash ? existingPhotoHashes.has(hash) : false;
+
+      if (isDuplicateByName || isDuplicateByHash) {
         duplicates.push(file.name);
       } else {
         uniqueFiles.push(file);
@@ -1675,6 +1684,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             name: photo.name,
             url: photo.url,
             ...(photo.thumbnailUrl ? { thumbnailUrl: photo.thumbnailUrl } : {}),
+            ...(photo.contentHash ? { contentHash: photo.contentHash } : {}),
             size: photo.size,
             contentType: photo.contentType,
             createdAt: photo.createdAt || serverTimestamp(),
@@ -1783,6 +1793,21 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const handleFileSelection = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setSelectedFiles(files);
+    setSelectedFileHashes(new Map());
+
+    // Calcola hash in background (non bloccante)
+    (async () => {
+      const hashMap = new Map<string, string>();
+      await Promise.all(files.map(async (file, idx) => {
+        try {
+          const hash = await computeFileHash(file);
+          hashMap.set(`${idx}-${file.name}`, hash);
+        } catch {
+          // fallback: il controllo sarà solo per nome
+        }
+      }));
+      setSelectedFileHashes(new Map(hashMap));
+    })();
   };
 
   if (!gallery) return null;
