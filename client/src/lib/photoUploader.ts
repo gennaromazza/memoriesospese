@@ -33,225 +33,136 @@ export interface UploadSummary {
   uploadedSize: number;
 }
 
-// Costanti per la configurazione
+// Costanti
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000;
-const DEFAULT_CONCURRENCY = 1; // Upload sequenziali per massima stabilità
-const CHUNK_SIZE = 50; // Chunk più piccoli per migliore gestione memoria
-const UPLOAD_TIMEOUT_MS = 30000; // Timeout di 30 secondi per upload
+const UPLOAD_TIMEOUT_MS = 60000;
+const BULK_THRESHOLD = 50; // >50 file = modalità bulk (salta thumbnail, concorrenza maggiore)
+const PROGRESS_THROTTLE_MS = 400; // Aggiorna UI al massimo ogni 400ms
 
 /**
  * Carica un singolo file su Firebase Storage con supporto per i ritentativi automatici
- * @param galleryId ID della galleria 
- * @param file File da caricare
- * @param progressCallback Callback per il progresso dell'upload
- * @param attempt Tentativo corrente (per ritentativi)
- * @returns Promise con i dati della foto caricata
  */
 export const uploadSinglePhoto = async (
   galleryId: string,
   file: File,
   progressCallback?: (progress: UploadProgressInfo) => void,
-  attempt: number = 1
+  attempt: number = 1,
+  skipThumbnail: boolean = false
 ): Promise<UploadedPhoto> => {
   return new Promise(async (resolve, reject) => {
     try {
-      // Comprimi l'immagine prima dell'upload con gestione errori robusta
+      // Comprimi l'immagine
       let compressedFile: File;
       try {
         compressedFile = await compressImage(file);
-      } catch (compressionError) {
-        console.error('❌ Errore compressione immagine:', compressionError);
-        console.log(`⚠️ Usando file originale per: ${file.name}`);
-        compressedFile = file; // Usa il file originale in caso di errore
+      } catch {
+        compressedFile = file;
       }
-      
-      // Verifica che il file compresso abbia tutte le proprietà necessarie
+
       if (!compressedFile.name || !compressedFile.type || compressedFile.size === undefined) {
-        console.warn(`⚠️ File compresso con proprietà mancanti, ricostruendo file: ${file.name}`);
         compressedFile = new File([compressedFile], file.name, {
           type: compressedFile.type || file.type,
           lastModified: file.lastModified
         });
       }
-      
-      // Log dettagliato della compressione
-      const originalSize = (file.size / 1024).toFixed(2);
-      const compressedSize = (compressedFile.size / 1024).toFixed(2);
-      console.log(`✅ Compressione completata: ${file.name}`);
-      console.log(`📊 Dimensioni: ${originalSize} KB → ${compressedSize} KB`);
 
-      // Utilizza un identificatore univoco per evitare collisioni di nomi
-      const safeFileName = (compressedFile.name || file.name).replace(/[#$]/g, '_'); // Caratteri problematici in Firebase Storage
+      const safeFileName = (compressedFile.name || file.name).replace(/[#$]/g, '_');
       const fileId = `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const storagePath = `galleries/${galleryId}/${fileId}-${safeFileName}`;
 
-      // Notifica lo stato iniziale
       if (progressCallback) {
-        progressCallback({
-          file: compressedFile,
-          progress: 0,
-          state: 'running',
-          uploadedBytes: 0,
-          totalBytes: compressedFile.size,
-          attempt
-        });
+        progressCallback({ file: compressedFile, progress: 0, state: 'running', uploadedBytes: 0, totalBytes: compressedFile.size, attempt });
       }
 
-      // Verifica che Firebase Storage sia configurato correttamente
-      if (!storage) {
-        throw new Error('Firebase Storage non configurato correttamente');
-      }
-      
-      console.log(`📤 Inizio upload: ${file.name} -> ${storagePath}`);
-      console.log(`📋 Dimensioni file: ${(compressedFile.size / 1024).toFixed(2)} KB`);
-      console.log(`📄 Tipo file: ${compressedFile.type}`);
-      
+      if (!storage) throw new Error('Firebase Storage non configurato correttamente');
+
       const storageRef = ref(storage, storagePath);
-      
-      // Verifica che la referenza sia valida
-      if (!storageRef) {
-        throw new Error('Impossibile creare riferimento Storage');
-      }
-      
       const uploadTask = uploadBytesResumable(storageRef, compressedFile);
 
-      // Crea un timeout per evitare upload bloccati
       const timeoutId = setTimeout(() => {
-        console.warn(`⏰ Timeout upload per ${file.name} dopo ${UPLOAD_TIMEOUT_MS}ms`);
+        console.warn(`⏰ Timeout upload per ${file.name}`);
         uploadTask.cancel();
       }, UPLOAD_TIMEOUT_MS);
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        // Calcola e riporta il progresso
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        if (progressCallback) {
-          progressCallback({
-            file,
-            progress,
-            state: snapshot.state as 'running' | 'paused' | 'error' | 'success' | 'waiting' | 'retry' | 'canceled',
-            uploadedBytes: snapshot.bytesTransferred,
-            totalBytes: snapshot.totalBytes,
-            attempt
-          });
-        }
-      },
-      async (error) => {
-        clearTimeout(timeoutId); // Pulizia timeout
-        
-        console.error('❌ Errore upload Firebase Storage:', error);
-        console.error('❌ Tipo errore:', error.code);
-        console.error('❌ Messaggio errore:', error.message);
-        console.error('❌ Stack trace:', error.stack);
-        
-        // Gestione automatica dei ritentativi
-        if (attempt < MAX_RETRY_ATTEMPTS) {
-          console.log(`🔄 Tentativo ${attempt + 1} di ${MAX_RETRY_ATTEMPTS} per ${file.name}`);
-          
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           if (progressCallback) {
             progressCallback({
               file,
-              progress: 0,
-              state: 'retry',
-              uploadedBytes: 0,
-              totalBytes: file.size,
+              progress,
+              state: snapshot.state as UploadProgressInfo['state'],
+              uploadedBytes: snapshot.bytesTransferred,
+              totalBytes: snapshot.totalBytes,
               attempt
             });
           }
-
-          // Attendi un po' prima di riprovare
-          await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-
+        },
+        async (error) => {
+          clearTimeout(timeoutId);
+          if (attempt < MAX_RETRY_ATTEMPTS) {
+            if (progressCallback) progressCallback({ file, progress: 0, state: 'retry', uploadedBytes: 0, totalBytes: file.size, attempt });
+            await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+            try {
+              resolve(await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1, skipThumbnail));
+            } catch (e) { reject(e); }
+          } else {
+            reject(error);
+          }
+        },
+        async () => {
           try {
-            // Ritenta il caricamento
-            const result = await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1);
-            resolve(result);
-          } catch (retryError) {
-            console.error('❌ Errore durante retry:', retryError);
-            reject(retryError);
+            clearTimeout(timeoutId);
+            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+
+            // Thumbnail: salta in modalità bulk (velocizza enormemente il caricamento)
+            let thumbnailUrl: string | undefined;
+            if (!skipThumbnail) {
+              try {
+                const thumbFile = await generateThumbnail(file);
+                const thumbPath = `thumbnails/${galleryId}/${fileId}-thumb-${safeFileName}`;
+                const thumbRef = ref(storage, thumbPath);
+                const thumbTask = uploadBytesResumable(thumbRef, thumbFile);
+                await new Promise<void>((res, rej) => {
+                  thumbTask.on('state_changed', null,
+                    (err) => { console.warn('⚠️ Thumbnail upload error:', err); rej(err); },
+                    () => res()
+                  );
+                });
+                thumbnailUrl = await getDownloadURL(thumbTask.snapshot.ref);
+              } catch {
+                // thumbnail non critica: fallback su url principale
+              }
+            }
+
+            const photoData: UploadedPhoto = {
+              name: safeFileName,
+              url: downloadUrl,
+              thumbnailUrl,
+              size: file.size,
+              contentType: file.type,
+              createdAt: serverTimestamp()
+            };
+
+            if (progressCallback) {
+              progressCallback({ file, progress: 100, state: 'success', uploadedBytes: file.size, totalBytes: file.size, attempt });
+            }
+
+            resolve(photoData);
+          } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
           }
-        } else {
-          console.error(`❌ Troppi tentativi falliti per ${file.name}`);
-          reject(error);
         }
-      },
-      async () => {
-        try {
-          clearTimeout(timeoutId); // Pulizia timeout
-          
-          // Upload completato con successo, ottieni l'URL di download
-          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-
-          // Genera e carica la thumbnail (sequenziale; un errore non blocca il risultato)
-          let thumbnailUrl: string | undefined;
-          try {
-            const thumbFile = await generateThumbnail(file);
-            const thumbPath = `thumbnails/${galleryId}/${fileId}-thumb-${safeFileName}`;
-            const thumbRef = ref(storage, thumbPath);
-            const thumbTask = uploadBytesResumable(thumbRef, thumbFile);
-            await new Promise<void>((res, rej) => {
-              thumbTask.on('state_changed', null,
-                (err) => { console.warn('⚠️ Thumbnail upload error:', err); rej(err); },
-                () => res()
-              );
-            });
-            thumbnailUrl = await getDownloadURL(thumbTask.snapshot.ref);
-            console.log(`🖼️ Thumbnail caricata: ${thumbPath}`);
-          } catch (thumbErr) {
-            console.warn('⚠️ Thumbnail non generata, photo.url usato come fallback:', thumbErr);
-          }
-
-          const photoData: UploadedPhoto = {
-            name: safeFileName,
-            url: downloadUrl,
-            thumbnailUrl,
-            size: file.size,
-            contentType: file.type,
-            createdAt: serverTimestamp()
-          };
-
-          // Notifica che l'upload è stato completato con successo
-          if (progressCallback) {
-            progressCallback({
-              file,
-              progress: 100,
-              state: 'success',
-              uploadedBytes: file.size,
-              totalBytes: file.size,
-              attempt
-            });
-          }
-
-          resolve(photoData);
-        } catch (error) {
-          clearTimeout(timeoutId); // Pulizia timeout anche in caso di errore
-          console.error('❌ Errore nel getDownloadURL:', error);
-          reject(error);
-        }
-      }
-    );
-    } catch (uploadError) {
-      // Errore generale nell'upload
-      console.error('❌ Errore upload foto:', uploadError);
-      console.error('❌ Tipo errore generale:', uploadError?.code || 'Unknown');
-      console.error('❌ Messaggio errore generale:', uploadError?.message || 'Unknown error');
-      console.error('❌ Stack trace generale:', uploadError?.stack || 'No stack trace');
-      
-      // Anche per gli errori generali, prova il retry
+      );
+    } catch (uploadError: any) {
       if (attempt < MAX_RETRY_ATTEMPTS) {
-        console.log(`🔄 Retry per errore generale - Tentativo ${attempt + 1} di ${MAX_RETRY_ATTEMPTS} per ${file.name}`);
-        
         await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-        
         try {
-          const result = await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1);
-          resolve(result);
-        } catch (retryError) {
-          console.error('❌ Errore durante retry generale:', retryError);
-          reject(retryError);
-        }
+          resolve(await uploadSinglePhoto(galleryId, file, progressCallback, attempt + 1, skipThumbnail));
+        } catch (e) { reject(e); }
       } else {
         reject(uploadError);
       }
@@ -259,247 +170,148 @@ export const uploadSinglePhoto = async (
   });
 };
 
-/**
- * Calcola un riepilogo dello stato di avanzamento degli upload
- * @param progressMap Mappa dei progressi di upload
- * @returns Riepilogo dello stato di avanzamento
- */
 export const calculateUploadSummary = (progressMap: { [filename: string]: UploadProgressInfo }): UploadSummary => {
   const summary: UploadSummary = {
-    total: 0,
-    completed: 0,
-    failed: 0,
-    inProgress: 0,
-    waiting: 0,
-    avgProgress: 0,
-    overallProgress: 0,
-    totalSize: 0,
-    uploadedSize: 0
+    total: 0, completed: 0, failed: 0, inProgress: 0, waiting: 0,
+    avgProgress: 0, overallProgress: 0, totalSize: 0, uploadedSize: 0
   };
-
   const entries = Object.values(progressMap);
   if (entries.length === 0) return summary;
-
   summary.total = entries.length;
-
   let totalProgress = 0;
-
   entries.forEach(entry => {
     summary.totalSize += entry.totalBytes;
     summary.uploadedSize += entry.uploadedBytes;
-
     switch (entry.state) {
-      case 'success':
-        summary.completed++;
-        totalProgress += 100;
-        break;
-      case 'error':
-        summary.failed++;
-        break;
-      case 'running':
-      case 'retry':
-        summary.inProgress++;
-        totalProgress += entry.progress;
-        break;
-      case 'waiting':
-        summary.waiting++;
-        break;
-      default:
-        break;
+      case 'success': summary.completed++; totalProgress += 100; break;
+      case 'error': summary.failed++; break;
+      case 'running': case 'retry': summary.inProgress++; totalProgress += entry.progress; break;
+      case 'waiting': summary.waiting++; break;
     }
   });
-
   summary.avgProgress = totalProgress / summary.total;
   summary.overallProgress = totalProgress / summary.total;
-
   return summary;
 };
 
 /**
- * Carica più file contemporaneamente con controllo della concorrenza e gestione ottimizzata della memoria
- * @param galleryId ID della galleria
- * @param files Array di file da caricare
- * @param concurrency Numero massimo di upload simultanei
- * @param progressCallback Callback per il progresso degli upload
- * @param summaryCallback Callback per il riepilogo dello stato di avanzamento
- * @returns Promise con array di dati delle foto caricate
+ * Carica più file con concorrenza adattiva, throttle UI, e callback progressivo per salvataggio Firestore
+ * 
+ * @param onPhotoCompleted - Callback chiamata appena ogni foto è caricata su Storage.
+ *   Permette di salvare su Firestore in modo progressivo senza aspettare la fine di tutto.
  */
 export const uploadPhotos = async (
   galleryId: string,
   files: File[],
-  concurrency: number = DEFAULT_CONCURRENCY,
+  concurrency: number = 3,
   progressCallback?: (info: { [filename: string]: UploadProgressInfo }) => void,
-  summaryCallback?: (summary: UploadSummary) => void
+  summaryCallback?: (summary: UploadSummary) => void,
+  onPhotoCompleted?: (photo: UploadedPhoto) => Promise<void>
 ): Promise<UploadedPhoto[]> => {
-  // Usa la concorrenza fornita o adattala intelligentemente
-  const adaptiveConcurrency = concurrency > 0 
-    ? Math.min(concurrency, 5) // Max 5 per sicurezza
-    : files.length > 20 
-      ? 2 // Massimo 2 per volumi elevati
-      : files.length > 10 
-        ? 3 // 3 per volumi medi
-        : Math.max(1, DEFAULT_CONCURRENCY); // Default per piccoli volumi
+  const isBulk = files.length > BULK_THRESHOLD;
 
+  // Concorrenza adattiva: più upload simultanei per batch grandi
+  const adaptiveConcurrency = concurrency > 0
+    ? Math.min(concurrency, 5)
+    : files.length > 100 ? 4
+    : files.length > 50  ? 3
+    : 2;
 
-
-  // Per tenere traccia del progresso di tutti i file
   const progressMap: { [filename: string]: UploadProgressInfo } = {};
-
-  // Timestamp di inizio per statistiche
-  const startTime = Date.now();
-
-  // Inizializza il progress map
-  files.forEach((file, index) => {
-    const uniqueKey = `${index}-${file.name}`;
-    progressMap[uniqueKey] = {
-      file,
-      progress: 0,
-      state: 'waiting', // All files start in waiting state
-      uploadedBytes: 0,
-      totalBytes: file.size
-    };
-  });
-
-  // Funzione che aggiorna il progress map e chiama i callback
-  const updateProgress = (info: UploadProgressInfo, fileIndex: number) => {
-    const uniqueKey = `${fileIndex}-${info.file.name}`;
-    progressMap[uniqueKey] = info;
-
-    if (progressCallback) {
-      progressCallback({...progressMap});
-    }
-
-    if (summaryCallback) {
-      const summary = calculateUploadSummary(progressMap);
-      summaryCallback(summary);
-    }
-  };
-
-  // Divide i file in chunk per gestire meglio la memoria
   const uploadedPhotos: UploadedPhoto[] = [];
-  const totalFiles = files.length;
-
-  // Statistiche per monitorare le prestazioni
-  let totalUploadTime = 0;
   let successfulUploads = 0;
   let failedUploads = 0;
 
-  // Elabora i file in chunk per gestire meglio la memoria
-  for (let chunkStart = 0; chunkStart < totalFiles; chunkStart += CHUNK_SIZE) {
-    const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, totalFiles);
-
-    console.log(`📦 Elaborando chunk ${Math.floor(chunkStart/CHUNK_SIZE) + 1}/${Math.ceil(totalFiles/CHUNK_SIZE)} (${chunkEnd - chunkStart} file)`);
-
-    const fileChunk = files.slice(chunkStart, chunkEnd);
-    const queue = [...fileChunk];
-    const activeUploads = new Map();
-    let currentConcurrency = Math.min(adaptiveConcurrency, 2); // Massimo 2 upload simultanei
-
-    // Timestamp di inizio per questo chunk
-    const chunkStartTime = Date.now();
-
-    while (queue.length > 0 || activeUploads.size > 0) {
-      // Riduce la concorrenza se ci sono troppi errori
-      if (failedUploads > successfulUploads && currentConcurrency > 1) {
-        currentConcurrency = 1;
-        console.log(`⚠️ Ridotta concorrenza a ${currentConcurrency} per gestire errori`);
-      }
-
-      // Avvia nuovi upload fino al limite di concorrenza
-      while (queue.length > 0 && activeUploads.size < currentConcurrency) {
-        const file = queue.shift()!;
-        const fileIndex = chunkStart + fileChunk.indexOf(file);
-
-        // Aggiorna lo stato prima di avviare l'upload
-        updateProgress({
-          file,
-          progress: 0,
-          state: 'running',
-          uploadedBytes: 0,
-          totalBytes: file.size
-        }, fileIndex);
-
-        const uploadPromise = uploadSinglePhoto(
-          galleryId, 
-          file,
-          (progress) => updateProgress(progress, fileIndex)
-        )
-        .then(photoData => {
-          console.log(`✅ Upload completato: ${file.name}`);
-          uploadedPhotos.push(photoData);
-          activeUploads.delete(file.name);
-          // Incrementa il contatore dei successi
-          successfulUploads++;
-          
-          // Log del progresso
-          const totalProcessed = successfulUploads + failedUploads;
-          console.log(`📊 Progresso: ${totalProcessed}/${totalFiles} (${successfulUploads} successi, ${failedUploads} errori)`);
-          
-          return photoData;
-        })
-        .catch(error => {
-          console.error(`❌ Errore upload ${file.name}:`, error);
-          updateProgress({
-            file,
-            progress: 0,
-            state: 'error',
-            uploadedBytes: 0,
-            totalBytes: file.size
-          }, fileIndex);
-          activeUploads.delete(file.name);
-          // Incrementa il contatore degli errori
-          failedUploads++;
-          
-          // Aggiungi un piccolo delay prima del prossimo upload per evitare sovraccarico
-          return new Promise(resolve => {
-            setTimeout(() => resolve(null), 1000);
-          });
-        });
-
-        activeUploads.set(file.name, uploadPromise);
-      }
-
-      // Attendi che almeno un upload finisca prima di continuare
-      if (activeUploads.size > 0) {
-        await Promise.race(activeUploads.values());
-        
-        // Piccolo delay per evitare sovraccarico del sistema
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+  // Throttle: accumula gli aggiornamenti e li invia al massimo ogni PROGRESS_THROTTLE_MS
+  let lastProgressUpdate = 0;
+  let pendingProgressUpdate = false;
+  const flushProgress = () => {
+    pendingProgressUpdate = false;
+    lastProgressUpdate = Date.now();
+    if (progressCallback) progressCallback({ ...progressMap });
+    if (summaryCallback) summaryCallback(calculateUploadSummary(progressMap));
+  };
+  const throttledUpdate = () => {
+    const now = Date.now();
+    if (now - lastProgressUpdate >= PROGRESS_THROTTLE_MS) {
+      flushProgress();
+    } else if (!pendingProgressUpdate) {
+      pendingProgressUpdate = true;
+      setTimeout(flushProgress, PROGRESS_THROTTLE_MS - (now - lastProgressUpdate));
     }
+  };
 
-    // Calcola le statistiche per questo chunk
-    const chunkEndTime = Date.now();
-    const chunkDuration = chunkEndTime - chunkStartTime;
-    totalUploadTime += chunkDuration;
+  // Inizializza progress map
+  files.forEach((file, index) => {
+    progressMap[`${index}-${file.name}`] = {
+      file, progress: 0, state: 'waiting', uploadedBytes: 0, totalBytes: file.size
+    };
+  });
+  throttledUpdate();
 
-    // Calcola la velocità di upload per questo chunk
-    const chunkFiles = fileChunk.length;
-    const filesPerSecond = (chunkFiles / (chunkDuration / 1000)).toFixed(2);
+  const queue = files.map((f, i) => ({ file: f, index: i }));
+  const activeUploads = new Map<string, Promise<any>>();
 
+  const startNext = () => {
+    while (queue.length > 0 && activeUploads.size < adaptiveConcurrency) {
+      const item = queue.shift()!;
+      const { file, index } = item;
+      const key = `${index}-${file.name}`;
 
+      progressMap[key] = { file, progress: 0, state: 'running', uploadedBytes: 0, totalBytes: file.size };
 
-    // Libera memoria dopo ogni chunk
-    if (chunkEnd < totalFiles) {
+      const p = uploadSinglePhoto(
+        galleryId,
+        file,
+        (info) => {
+          progressMap[key] = info;
+          throttledUpdate();
+        },
+        1,
+        isBulk // skipThumbnail in bulk mode
+      ).then(async (photoData) => {
+        successfulUploads++;
+        uploadedPhotos.push(photoData);
+        activeUploads.delete(key);
+        // Callback progressivo: permette al chiamante di salvare subito su Firestore
+        if (onPhotoCompleted) {
+          try { await onPhotoCompleted(photoData); } catch (e) { console.warn('⚠️ onPhotoCompleted error:', e); }
+        }
+        startNext(); // avvia il prossimo appena si libera uno slot
+      }).catch((error) => {
+        failedUploads++;
+        progressMap[key] = { file, progress: 0, state: 'error', uploadedBytes: 0, totalBytes: file.size };
+        activeUploads.delete(key);
+        console.error(`❌ Upload fallito: ${file.name}`, error);
+        throttledUpdate();
+        startNext();
+      });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      activeUploads.set(key, p);
     }
+  };
+
+  startNext();
+
+  // Aspetta che tutti gli upload attivi finiscano
+  const waitForAll = () => new Promise<void>((resolve) => {
+    const check = () => {
+      if (activeUploads.size === 0 && queue.length === 0) {
+        resolve();
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+
+  await waitForAll();
+  flushProgress(); // Aggiornamento finale garantito
+
+  if (isBulk) {
+    console.log(`📦 Modalità bulk (${files.length} file): thumbnail saltate per velocità. Saranno generate al prossimo accesso.`);
   }
+  console.log(`📈 Upload completato: ${successfulUploads} successi, ${failedUploads} errori su ${files.length} file`);
 
-  // Calcola le statistiche finali
-  const endTime = Date.now();
-  const totalDuration = (endTime - startTime) / 1000; // in secondi
-  const averageSpeed = (successfulUploads / totalDuration).toFixed(2);
-
-  // Log del riepilogo finale
-  console.log(`📈 Upload completato in ${totalDuration.toFixed(1)}s`);
-  console.log(`📊 Risultati: ${successfulUploads} successi, ${failedUploads} errori su ${totalFiles} file`);
-  console.log(`⚡ Velocità media: ${averageSpeed} file/secondo`);
-  
-  if (failedUploads > 0) {
-    console.warn(`⚠️ ${failedUploads} file non sono stati caricati. Riprova per i file mancanti.`);
-  }
-
-  // Filtra eventuali null (file che hanno fallito l'upload)
-  return uploadedPhotos.filter(Boolean) as UploadedPhoto[];
+  return uploadedPhotos;
 };

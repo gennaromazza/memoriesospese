@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, ChangeEvent } from "react";
-import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc, arrayRemove, arrayUnion } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, getDoc, addDoc, serverTimestamp, where, query, deleteDoc, Timestamp, setDoc, arrayRemove, arrayUnion, writeBatch } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, getMetadata, listAll } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -10,7 +10,7 @@ import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
-import { uploadPhotos, UploadSummary, UploadProgressInfo } from "../lib/photoUploader";
+import { uploadPhotos, UploadSummary, UploadProgressInfo, UploadedPhoto } from "../lib/photoUploader";
 import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal, Palette } from "lucide-react";
 import { GALLERY_HEADER_THEMES } from '@/lib/gallery-header-themes';
@@ -1654,26 +1654,24 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
 
     setIsUploading(true);
     try {
-      // Prepara i file per l'upload (solo quelli unici)
       const filesToUpload = uniqueFiles;
+      const isBulk = filesToUpload.length > 50;
 
-      // Carica le foto su Firebase Storage
-      const uploadedPhotos = await uploadPhotos(
-        gallery.id,
-        filesToUpload,
-        2, // concorrenza ridotta per stabilità
-        (progress) => setUploadProgress(progress),
-        (summary) => setUploadSummary(summary)
-      );
+      // Salvataggio progressivo su Firestore: accumula foto completate e le salva in batch da 20
+      // In questo modo Firestore non viene bombardato di 800 scritture simultanee alla fine
+      const FIRESTORE_BATCH_SIZE = 20;
+      let pendingBatch: UploadedPhoto[] = [];
+      let totalSaved = 0;
 
-      console.log(`${uploadedPhotos.length} foto caricate su Storage`);
-
-      // Salva i metadati delle foto in Firestore nella collezione globale photos
-      const photoPromises = uploadedPhotos.map(async (photo, index) => {
-        try {
-          console.log(`💾 Salvando metadati foto ${index + 1}/${uploadedPhotos.length}: ${photo.name}`);
-          // Salva nella collezione globale photos come fanno gli ospiti
-          const docRef = await addDoc(collection(db, "photos"), {
+      const flushToFirestore = async (forceAll = false) => {
+        if (pendingBatch.length === 0) return;
+        if (!forceAll && pendingBatch.length < FIRESTORE_BATCH_SIZE) return;
+        const toSave = [...pendingBatch];
+        pendingBatch = [];
+        const batch = writeBatch(db);
+        toSave.forEach(photo => {
+          const docRef = doc(collection(db, "photos"));
+          batch.set(docRef, {
             name: photo.name,
             url: photo.url,
             ...(photo.thumbnailUrl ? { thumbnailUrl: photo.thumbnailUrl } : {}),
@@ -1681,7 +1679,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             contentType: photo.contentType,
             createdAt: photo.createdAt || serverTimestamp(),
             galleryId: gallery.id,
-            uploadedBy: 'admin', // Importante: marca come foto amministratore
+            uploadedBy: 'admin',
             uploaderEmail: 'admin@wedding-gallery.app',
             uploaderName: 'Fotografo',
             uploaderUid: 'admin',
@@ -1689,14 +1687,40 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             commentCount: 0,
             position: 0
           });
-          console.log(`✅ Foto salvata in Firestore: ${docRef.id}`);
-        } catch (err) {
-          console.error('❌ Errore nel salvare foto:', photo.name, err);
-          throw err; // Re-throw per far fallire l'upload se c'è un errore Firestore
-        }
-      });
+        });
+        await batch.commit();
+        totalSaved += toSave.length;
+        console.log(`💾 Batch Firestore: ${totalSaved} foto salvate finora`);
+      };
 
-      await Promise.all(photoPromises);
+      // Throttle aggiornamenti UI progress (max ogni 400ms per non congelare React con 800 voci)
+      let lastProgressSet = 0;
+      const throttledSetProgress = (p: typeof uploadProgress) => {
+        const now = Date.now();
+        if (now - lastProgressSet >= 400) {
+          lastProgressSet = now;
+          setUploadProgress(p);
+        }
+      };
+
+      // Carica le foto su Firebase Storage con concorrenza adattiva e salvataggio progressivo
+      const uploadedPhotos = await uploadPhotos(
+        gallery.id,
+        filesToUpload,
+        isBulk ? 4 : 2, // più slot per batch grandi
+        throttledSetProgress,
+        (summary) => setUploadSummary(summary),
+        async (photo) => {
+          // Chiamato appena ogni singola foto è caricata su Storage
+          pendingBatch.push(photo);
+          await flushToFirestore(); // salva se il buffer è pieno
+        }
+      );
+
+      // Flush finale: salva le foto rimaste nel buffer
+      await flushToFirestore(true);
+
+      console.log(`✅ ${uploadedPhotos.length} foto caricate, ${totalSaved} salvate in Firestore`);
 
       // Aggiorna il numero di foto nella galleria
       const galleryRef = doc(db, "galleries", gallery.id);
