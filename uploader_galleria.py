@@ -925,20 +925,56 @@ class UploaderApp(tk.Tk):
                     self._log("✓ Nessun nuovo capitolo da creare")
 
             # ----------------------------------------------------------------
+            # SKIP FILE GIÀ PRESENTI (solo modalità existing)
+            # ----------------------------------------------------------------
+            existing_filenames: set = set()
+            if mode == 'existing':
+                self._log("\nVerifica file già presenti nella galleria...")
+                existing_docs = self.firestore_db.collection('photos').where(
+                    'galleryId', '==', gallery_id
+                ).stream()
+                for doc in existing_docs:
+                    fname = (doc.to_dict() or {}).get('name', '')
+                    if fname:
+                        existing_filenames.add(fname)
+                if existing_filenames:
+                    self._log(f"Trovati {len(existing_filenames)} file già presenti — i duplicati verranno saltati")
+                else:
+                    self._log("Nessun file già presente in questa galleria")
+
+            # ----------------------------------------------------------------
             # UPLOAD FOTO (comune a entrambe le modalità)
             # ----------------------------------------------------------------
             upload_jobs = []
+            skipped_count = 0
             for ch_data in chapters_data_local:
                 chapter_id = chapter_id_map.get(ch_data['name']) if ch_data['name'] else None
                 for photo_path in ch_data['photos']:
+                    if photo_path.name in existing_filenames:
+                        skipped_count += 1
+                        continue
                     upload_jobs.append({
                         'path': photo_path,
                         'chapter_id': chapter_id,
                         'gallery_id': gallery_id
                     })
 
+            if skipped_count:
+                self._log(f"⏭ {skipped_count} file saltati (già presenti nella galleria)")
+
             total = len(upload_jobs)
-            self._log(f"\nInizio upload di {total} foto (max {MAX_UPLOAD_WORKERS} in parallelo)...\n")
+            if total == 0:
+                self._log("\n✓ Nessuna foto nuova da caricare — tutte già presenti nella galleria.")
+                self._set_progress(100, "Completato! Nessuna foto nuova.")
+                def _show_nothing():
+                    self.result_label_var.set(
+                        f"✓ Nessuna foto nuova da caricare ({skipped_count} già presenti)."
+                    )
+                    self.result_link_var.set(f"{GALLERY_BASE_URL}/{gallery_code}")
+                    self.link_row.pack(anchor='w', pady=(4, 0))
+                self.after(0, _show_nothing)
+                return
+            self._log(f"\nInizio upload di {total} foto nuove (max {MAX_UPLOAD_WORKERS} in parallelo)...\n")
 
             completed = 0
             errors = []
