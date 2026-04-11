@@ -1,7 +1,9 @@
 import { Cliente } from '@shared/clienti-types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, MessageCircle, Edit, Clock, MapPin, Instagram, Copy, Check } from 'lucide-react';
+import { Mail, Phone, MessageCircle, Edit, Clock, MapPin, Instagram, Copy, Check, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import type { AppuntamentoCliente } from '@shared/jobs-types';
@@ -12,10 +14,28 @@ interface ClienteJobCardProps {
   appuntamento?: AppuntamentoCliente;
   onViewDetails?: () => void;
   onEdit?: () => void;
+  onAppuntamentoSave?: (clienteId: string, orario: string, note: string) => Promise<void>;
 }
 
-export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, onEdit }: ClienteJobCardProps) {
+export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, onEdit, onAppuntamentoSave }: ClienteJobCardProps) {
   const [copiedInstagram, setCopiedInstagram] = useState(false);
+  const [orario, setOrario] = useState(appuntamento?.orarioAppuntamento || '');
+  const [note, setNote] = useState(appuntamento?.noteAppuntamento || '');
+  const [saving, setSaving] = useState(false);
+
+  const isDirty =
+    orario !== (appuntamento?.orarioAppuntamento || '') ||
+    note !== (appuntamento?.noteAppuntamento || '');
+
+  const handleSave = async () => {
+    if (!onAppuntamentoSave) return;
+    setSaving(true);
+    try {
+      await onAppuntamentoSave(cliente.id, orario, note);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleEmail = () => {
     if (cliente.email) {
@@ -131,9 +151,50 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                 </div>
               )}
             </div>
-            
-            {/* Appuntamento */}
-            {appuntamento?.orarioAppuntamento && (
+
+            {/* Orario appuntamento — inline editabile */}
+            {onAppuntamentoSave && (
+              <div className="mt-3 pt-3 border-t space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <Clock className="h-3.5 w-3.5" />
+                  Orario appuntamento
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <TimeInput
+                    placeholder="--:--"
+                    value={orario}
+                    onChange={(e) => setOrario(e.target.value)}
+                    className="h-8 text-sm"
+                    data-testid={`input-orario-${cliente.id}`}
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Note (es. indirizzo, citofono...)"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="h-8 text-sm"
+                    data-testid={`input-note-${cliente.id}`}
+                  />
+                </div>
+                {isDirty && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={handleSave}
+                    disabled={saving}
+                    data-testid={`button-save-orario-${cliente.id}`}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {saving ? 'Salvataggio...' : 'Salva orario'}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Read-only appuntamento quando non è in modalità admin */}
+            {!onAppuntamentoSave && appuntamento?.orarioAppuntamento && (
               <div className="mt-3 pt-3 border-t">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="h-3.5 w-3.5 text-sage flex-shrink-0" />

@@ -635,6 +635,34 @@ export default function JobDetailPage() {
     }
   });
   
+  // Mutation per salvare orario/note appuntamento di un cliente
+  const saveAppuntamentoMutation = useMutation({
+    mutationFn: async ({ clienteId, orario, note }: { clienteId: string; orario: string; note: string }) => {
+      if (!job || !user) throw new Error('Job o utente non disponibile');
+      const existing = job.appuntamentiClienti || [];
+      const updated = existing.filter(a => a.clienteId !== clienteId);
+      if (orario) {
+        updated.push({
+          clienteId,
+          orarioAppuntamento: orario,
+          ...(note ? { noteAppuntamento: note } : {})
+        });
+      }
+      await updateJob(jobId!, { appuntamentiClienti: updated.length > 0 ? updated : undefined }, user.uid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      toast({ title: 'Orario salvato', description: 'Appuntamento aggiornato correttamente' });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile salvare l\'orario',
+        variant: 'destructive'
+      });
+    }
+  });
+
   // Mutation per aggiungere cliente al job
   const addClienteToJobMutation = useMutation({
     mutationFn: async (clienteId: string) => {
@@ -916,6 +944,9 @@ export default function JobDetailPage() {
                             cliente={cliente}
                             appuntamento={appuntamento}
                             onEdit={() => setEditingCliente(cliente)}
+                            onAppuntamentoSave={(clienteId, orario, note) =>
+                              saveAppuntamentoMutation.mutateAsync({ clienteId, orario, note })
+                            }
                           />
                         );
                       })}
