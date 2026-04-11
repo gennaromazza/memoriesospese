@@ -7,6 +7,9 @@ import {
   query,
   where,
   getDocs,
+  doc,
+  updateDoc,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -38,6 +41,9 @@ import { Info, Eye, EyeOff, Trash, RefreshCw, Copy, Check } from "lucide-react";
 import { ClienteSelector } from "./ClienteSelector";
 import { createAbsoluteUrl } from "@/lib/basePath";
 import { getClienteByEmail } from "@/lib/clienti";
+import { getAllJobs } from "@/lib/jobs";
+import type { Job } from "@shared/jobs-types";
+import { Link2 } from "lucide-react";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -157,6 +163,12 @@ export default function NewGalleryModal({
   // YouTube URLs support
   const [youtubeUrls, setYoutubeUrls] = useState<string[]>([]);
   const [newYoutubeUrl, setNewYoutubeUrl] = useState("");
+
+  // Job association
+  const [jobId, setJobId] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
+  const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
+  const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
 
   // Multi-product selection support (NEW: array for multiple products)
   const [selectedProductIndices, setSelectedProductIndices] = useState<
@@ -323,6 +335,11 @@ export default function NewGalleryModal({
       }
     }
   }, [prePopulate, clienteIdInitialized]);
+
+  // Carica tutti i job disponibili una sola volta
+  useEffect(() => {
+    getAllJobs().then(setAvailableJobs).catch(console.error);
+  }, []);
 
   // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -541,9 +558,25 @@ export default function NewGalleryModal({
         galleryData.clienteId = clienteId;
       }
 
+      // Add job association
+      if (jobId) {
+        galleryData.jobId = jobId;
+      }
+
       // Use GalleryService instead of direct Firestore write
       const { GalleryService } = await import("@/lib/galleries");
       const newGalleryId = await GalleryService.createGallery(galleryData);
+
+      // Sync: aggiungi la nuova galleria al job collegato
+      if (jobId) {
+        try {
+          await updateDoc(doc(db, 'jobs', jobId), {
+            galleryIds: arrayUnion(newGalleryId)
+          });
+        } catch (err) {
+          console.error('Errore sync galleryIds su job:', err);
+        }
+      }
 
       // SALVA PASSWORD E SPECIAL PIN in collection protetta `gallerySecrets`
       // IMPORTANTE: Password e PIN sono MUTUAMENTE ESCLUSIVI
@@ -890,6 +923,64 @@ export default function NewGalleryModal({
                   showCurrentClient={true}
                 />
               )}
+            </div>
+
+            {/* Collegamento a Lavoro esistente */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5" />
+                Collega a un Lavoro
+              </Label>
+              {jobId ? (
+                <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/30">
+                  <span className="flex-1 text-sm font-medium truncate">
+                    {availableJobs.find(j => j.id === jobId)?.nomeEvento || `Lavoro ${jobId.slice(0, 8)}…`}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                    onClick={() => { setJobId(''); setJobSearch(''); }}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Input
+                    placeholder="Cerca lavoro per nome evento..."
+                    value={jobSearch}
+                    onChange={(e) => { setJobSearch(e.target.value); setJobDropdownOpen(true); }}
+                    onFocus={() => setJobDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setJobDropdownOpen(false), 200)}
+                    className="text-sm"
+                    autoComplete="off"
+                  />
+                  {jobDropdownOpen && jobSearch.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {availableJobs
+                        .filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase()))
+                        .slice(0, 10)
+                        .map(j => (
+                          <button
+                            key={j.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2"
+                            onMouseDown={() => { setJobId(j.id); setJobSearch(''); setJobDropdownOpen(false); }}
+                          >
+                            <span className="font-medium truncate">{j.nomeEvento}</span>
+                            {j.jobType && <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">({j.jobType})</span>}
+                          </button>
+                        ))}
+                      {availableJobs.filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase())).length === 0 && (
+                        <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Il collegamento aggiorna automaticamente il lavoro</p>
             </div>
 
             {/* Password Field - Hidden if special theme is selected */}
