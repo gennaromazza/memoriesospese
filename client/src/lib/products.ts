@@ -88,29 +88,95 @@ export async function createProduct(data: InsertProduct): Promise<string> {
 }
 
 /**
- * Aggiorna un prodotto esistente
+ * Aggiorna in batch tutti i preventivi e template che referenziano oldName
+ * nelle BenefitRule (benefitProductNames[] e requiredProductNames[]).
+ * Chiamata automaticamente da updateProduct() quando il nome del prodotto cambia.
+ */
+async function renameBenefitProductNameInRules(oldName: string, newName: string): Promise<void> {
+  if (!oldName || !newName || oldName === newName) return;
+
+  const batch = writeBatch(db);
+  let updatedCount = 0;
+
+  const replaceInArray = (arr: string[]): { updated: string[]; changed: boolean } => {
+    let changed = false;
+    const updated = arr.map(name => {
+      if (name === oldName) { changed = true; return newName; }
+      return name;
+    });
+    return { updated, changed };
+  };
+
+  const processSnapshot = async (collectionName: string) => {
+    const snapshot = await getDocs(collection(db, collectionName));
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      const rules: any[] = data.benefitRules;
+      if (!Array.isArray(rules) || rules.length === 0) continue;
+
+      let docChanged = false;
+      const updatedRules = rules.map((rule: any) => {
+        let ruleChanged = false;
+        let updatedRule = { ...rule };
+
+        if (Array.isArray(rule.benefitProductNames)) {
+          const { updated, changed } = replaceInArray(rule.benefitProductNames);
+          if (changed) { updatedRule.benefitProductNames = updated; ruleChanged = true; }
+        }
+        if (Array.isArray(rule.requiredProductNames)) {
+          const { updated, changed } = replaceInArray(rule.requiredProductNames);
+          if (changed) { updatedRule.requiredProductNames = updated; ruleChanged = true; }
+        }
+        if (ruleChanged) docChanged = true;
+        return updatedRule;
+      });
+
+      if (docChanged) {
+        batch.update(doc(db, collectionName, docSnap.id), { benefitRules: updatedRules });
+        updatedCount++;
+      }
+    }
+  };
+
+  await Promise.all([
+    processSnapshot('quotes'),
+    processSnapshot('quoteTemplates'),
+  ]);
+
+  if (updatedCount > 0) {
+    await batch.commit();
+    console.log(`[renameBenefitProductName] Aggiornati ${updatedCount} documenti: "${oldName}" → "${newName}"`);
+  }
+}
+
+/**
+ * Aggiorna un prodotto esistente.
+ * Se il nome cambia, aggiorna automaticamente le BenefitRule in quotes e quoteTemplates.
  */
 export async function updateProduct(id: string, data: Partial<InsertProduct>): Promise<void> {
   const docRef = doc(db, PRODUCTS_COLLECTION, id);
-  
-  // Se prezzo o sconto cambiano, ricalcola prezzoFinale
+
+  // Leggi sempre il doc corrente: serve per prezzo/sconto E per rilevare cambio nome
+  const currentDoc = await getDoc(docRef);
+  const currentData = currentDoc.exists() ? currentDoc.data() : null;
+
   let updateData: any = {
     ...data,
     updatedAt: serverTimestamp(),
   };
-  
+
   if (data.prezzo !== undefined || data.sconto !== undefined) {
-    // Ottieni dati correnti per calcolo
-    const currentDoc = await getDoc(docRef);
-    if (currentDoc.exists()) {
-      const currentData = currentDoc.data();
-      const prezzo = data.prezzo ?? currentData.prezzo;
-      const sconto = data.sconto ?? currentData.sconto;
-      updateData.prezzoFinale = prezzo - (prezzo * sconto / 100);
-    }
+    const prezzo = data.prezzo ?? currentData?.prezzo ?? 0;
+    const sconto = data.sconto ?? currentData?.sconto ?? 0;
+    updateData.prezzoFinale = prezzo - (prezzo * sconto / 100);
   }
-  
+
   await updateDoc(docRef, updateData);
+
+  // Cascade: aggiorna BenefitRule se il nome è cambiato
+  if (data.nome && currentData?.nome && data.nome !== currentData.nome) {
+    await renameBenefitProductNameInRules(currentData.nome, data.nome);
+  }
 }
 
 /**
