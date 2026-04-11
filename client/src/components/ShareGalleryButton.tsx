@@ -11,11 +11,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 import { auth } from "@/lib/firebase";
+import { getClienteById } from "@/lib/clienti";
 
 interface ShareGalleryButtonProps {
   galleryId: string;
   galleryCode: string;
   galleryName: string;
+  clienteId?: string;
   clientPhone?: string;
   clientName?: string;
   onWhatsAppSent?: () => void;
@@ -29,8 +31,9 @@ export default function ShareGalleryButton({
   galleryId,
   galleryCode,
   galleryName,
-  clientPhone,
-  clientName,
+  clienteId,
+  clientPhone: clientPhoneProp,
+  clientName: clientNameProp,
   onWhatsAppSent,
   whatsAppSent,
   variant = "icon",
@@ -41,6 +44,8 @@ export default function ShareGalleryButton({
   const [copied, setCopied] = useState(false);
   const [secrets, setSecrets] = useState<{ password: string | null; specialPin: string | null } | null>(null);
   const [loadingSecrets, setLoadingSecrets] = useState(false);
+  const [resolvedPhone, setResolvedPhone] = useState<string | undefined>(clientPhoneProp);
+  const [resolvedName, setResolvedName] = useState<string | undefined>(clientNameProp);
   const { toast } = useToast();
 
   const fetchSecrets = useCallback(async () => {
@@ -68,6 +73,24 @@ export default function ShareGalleryButton({
       fetchSecrets();
     }
   }, [isOpen]);
+
+  // Lookup cliente by clienteId when dialog opens (se clientPhone non è già disponibile)
+  useEffect(() => {
+    if (!isOpen || resolvedPhone) return;
+    if (!clienteId) return;
+    getClienteById(clienteId)
+      .then(cliente => {
+        if (!cliente) return;
+        const phone = cliente.whatsapp || cliente.cellulare1;
+        if (phone) setResolvedPhone(phone);
+        const name = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+        if (name) setResolvedName(name);
+      })
+      .catch(console.error);
+  }, [isOpen, clienteId]);
+
+  const clientPhone = resolvedPhone;
+  const clientName = resolvedName;
 
   const galleryPassword = secrets?.password || undefined;
   const galleryPin = secrets?.specialPin || undefined;

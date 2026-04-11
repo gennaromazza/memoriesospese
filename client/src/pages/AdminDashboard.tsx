@@ -2377,6 +2377,7 @@ export default function AdminDashboard() {
                                           galleryId={gallery.id}
                                           galleryCode={gallery.code}
                                           galleryName={gallery.name}
+                                          clienteId={(gallery as any).clienteId}
                                         />
                                         {isCurrentUserAdmin() && (
                                           <Link
@@ -2548,6 +2549,7 @@ export default function AdminDashboard() {
                                     galleryId={gallery.id}
                                     galleryCode={gallery.code}
                                     galleryName={gallery.name}
+                                    clienteId={(gallery as any).clienteId}
                                     variant="button"
                                     size="sm"
                                     className="flex-1 min-w-[100px]"

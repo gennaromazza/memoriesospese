@@ -1088,6 +1088,8 @@ export default function JobDetailPage() {
                               galleryId={g.id}
                               galleryCode={g.code}
                               galleryName={g.name}
+                              clientPhone={clienti[0]?.whatsapp || clienti[0]?.cellulare1}
+                              clientName={clienti[0] ? `${clienti[0].nome} ${clienti[0].cognome}`.trim() : undefined}
                             />
                             {/* Gestisci */}
                             <Link to={`/admin/gallery/${g.id}/manage`}>
