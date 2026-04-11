@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
-import { createCliente, getClienteById, getClienteByEmail } from '@/lib/clienti';
+import { createCliente, getClienteById, DuplicateClienteError } from '@/lib/clienti';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -81,12 +81,8 @@ export function ClienteQuickAddDialog({
         }
         return { cliente, isNew: true };
       } catch (error) {
-        const message = error instanceof Error ? error.message : '';
-        if (message.includes('Esiste già un cliente')) {
-          const existing = await getClienteByEmail(data.email);
-          if (existing) {
-            return { cliente: existing, isNew: false };
-          }
+        if (error instanceof DuplicateClienteError) {
+          return { cliente: error.existingCliente, isNew: false };
         }
         throw error;
       }

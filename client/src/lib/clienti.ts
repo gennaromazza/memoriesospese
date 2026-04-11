@@ -54,11 +54,18 @@ function normalizeEmail(email: string): string {
 /**
  * Crea nuovo cliente
  */
+export class DuplicateClienteError extends Error {
+  constructor(public readonly existingCliente: Cliente) {
+    super(`Esiste già un cliente con l'email "${existingCliente.email}" (${existingCliente.nome} ${existingCliente.cognome})`);
+    this.name = 'DuplicateClienteError';
+  }
+}
+
 export async function createCliente(data: InsertCliente): Promise<string> {
   const normalizedEmail = normalizeEmail(data.email);
   const existing = await getClienteByEmail(normalizedEmail);
   if (existing) {
-    throw new Error(`Esiste già un cliente con l'email "${normalizedEmail}" (${existing.nome} ${existing.cognome})`);
+    throw new DuplicateClienteError(existing);
   }
 
   const now = serverTimestamp();
