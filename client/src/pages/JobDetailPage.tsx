@@ -67,7 +67,7 @@ import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy, upd
 import type { Quote } from '@shared/quotes-types';
 import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
-import { ClienteQuickAddDialog } from '@/components/clienti/ClienteQuickAddDialog';
+import { AssegnaClienteDialog } from '@/components/clienti/AssegnaClienteDialog';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 import { useJobFinancials } from '@/hooks/useJobFinancials';
@@ -1411,10 +1411,11 @@ export default function JobDetailPage() {
         />
       )}
 
-      {/* Add Cliente Dialog */}
-      <ClienteQuickAddDialog
+      {/* Add Cliente Dialog — ibrido: cerca esistente + crea nuovo */}
+      <AssegnaClienteDialog
         open={showAddClienteDialog}
         onOpenChange={setShowAddClienteDialog}
+        excludeClienteIds={job?.clientiIds ?? []}
         onSuccess={(cliente) => {
           addClienteToJobMutation.mutate(cliente.id);
         }}
