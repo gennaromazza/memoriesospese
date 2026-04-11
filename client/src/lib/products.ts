@@ -119,8 +119,12 @@ function renameBenefitRuleNames(rule: BenefitRule, oldName: string, newName: str
 /**
  * Aggiorna in batch (chunked, max 499 ops/batch) tutti i preventivi e template
  * che referenziano oldName nelle BenefitRule.
- * La cascade viene eseguita PRIMA del rename del prodotto: se fallisce, il prodotto
- * non viene rinominato mantenendo la consistenza.
+ *
+ * La cascade viene eseguita PRIMA del rename del prodotto: se fallisce prima di
+ * qualunque commit, il prodotto non viene rinominato (consistenza garantita).
+ * In scenari con >499 documenti (multi-chunk), un fallimento su un chunk tardivo
+ * può lasciare una parte dei documenti già aggiornati — in tal caso il prodotto
+ * non viene rinominato e la cascade parziale è loggoata per eventuale recovery.
  */
 async function renameBenefitProductNameInRules(oldName: string, newName: string): Promise<void> {
   if (!oldName || !newName || oldName === newName) return;
@@ -151,13 +155,27 @@ async function renameBenefitProductNameInRules(oldName: string, newName: string)
   if (updates.length === 0) return;
 
   // Commit in chunk da max BENEFIT_RULES_BATCH_SIZE per rispettare il limite Firestore
+  const totalChunks = Math.ceil(updates.length / BENEFIT_RULES_BATCH_SIZE);
   for (let i = 0; i < updates.length; i += BENEFIT_RULES_BATCH_SIZE) {
+    const chunkIndex = Math.floor(i / BENEFIT_RULES_BATCH_SIZE) + 1;
     const chunk = updates.slice(i, i + BENEFIT_RULES_BATCH_SIZE);
     const batch = writeBatch(db);
     for (const { collectionName, docId, benefitRules } of chunk) {
       batch.update(doc(db, collectionName, docId), { benefitRules });
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err) {
+      const committedDocs = updates.slice(0, i).map(u => `${u.collectionName}/${u.docId}`);
+      const pendingDocs = updates.slice(i).map(u => `${u.collectionName}/${u.docId}`);
+      console.error(
+        `[renameBenefitProductName] ERRORE chunk ${chunkIndex}/${totalChunks} "${oldName}" → "${newName}".\n` +
+        `Già aggiornati (${committedDocs.length}): ${committedDocs.join(', ') || 'nessuno'}\n` +
+        `Non aggiornati (${pendingDocs.length}): ${pendingDocs.join(', ')}`,
+        err
+      );
+      throw err;
+    }
   }
 
   console.log(`[renameBenefitProductName] Aggiornati ${updates.length} documenti: "${oldName}" → "${newName}"`);
