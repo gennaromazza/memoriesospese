@@ -377,6 +377,124 @@ router.post('/notifications/:id/dismiss', authenticateFirebase, async (req: any,
 });
 
 /**
+ * GET /api/jobs/check-calendar
+ * Controlla conflitti su Google Calendar e bookings per una data/orario specifico
+ * 
+ * Query params:
+ * - eventDate: string ISO (es. "2025-12-25")
+ * - allDay: boolean (true se evento tutto il giorno)
+ * - startTime: string HH:MM (opzionale, richiesto se !allDay)
+ * - endTime: string HH:MM (opzionale, richiesto se !allDay)
+ * 
+ * IMPORTANTE: Questo route DEVE stare prima di /:id per evitare che Express
+ * catturi "check-calendar" come parametro :id.
+ */
+router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
+  try {
+    const { eventDate, allDay, startTime, endTime } = req.query;
+    
+    // Validazione params
+    if (!eventDate) {
+      return res.status(400).json({ error: 'eventDate richiesta' });
+    }
+    
+    const isAllDay = allDay === 'true';
+    
+    if (!isAllDay && (!startTime || !endTime)) {
+      return res.status(400).json({ 
+        error: 'startTime e endTime richiesti se non tutto il giorno' 
+      });
+    }
+    
+    // Parse eventDate
+    const dateStr = eventDate as string;
+    
+    let timeMin: Date;
+    let timeMax: Date;
+    
+    if (isAllDay) {
+      timeMin = createEuropeRomeDate(dateStr, '00:00');
+      timeMax = createEuropeRomeDate(dateStr, '23:59');
+    } else {
+      timeMin = createEuropeRomeDate(dateStr, startTime as string);
+      timeMax = createEuropeRomeDate(dateStr, endTime as string);
+    }
+    
+    // 1. Query Google Calendar
+    let calendarEvents: any[] = [];
+    try {
+      const events = await getEvents('primary', timeMin, timeMax);
+      calendarEvents = events.filter(e => e.summary).map(event => ({
+        type: 'calendar',
+        title: event.summary,
+        start: event.start?.dateTime || event.start?.date,
+        end: event.end?.dateTime || event.end?.date,
+        allDay: !event.start?.dateTime && !!event.start?.date
+      }));
+    } catch (error) {
+      console.error('[Check Calendar] Google Calendar error:', error);
+      // Continue even if Calendar fails
+    }
+    
+    // 2. Query Firestore bookings
+    // NOTA: Firestore non permette inequality su campi diversi, quindi fetchiamo
+    // tutti i bookings del giorno usando solo dataShootingInizio, poi filtriamo in-memory
+    const dayStart = createEuropeRomeDate(dateStr, '00:00');
+    const dayEnd = createEuropeRomeDate(dateStr, '23:59');
+    
+    const bookingsSnapshot = await db.collection('bookings')
+      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
+      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
+      .get();
+    
+    // Filter in-memory per overlap detection
+    const bookingConflicts = bookingsSnapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        const start = data.dataShootingInizio?.toDate();
+        const end = data.dataShootingFine?.toDate();
+        
+        return {
+          start,
+          end,
+          data: {
+            type: 'booking',
+            title: `Booking: ${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`,
+            start: start?.toISOString(),
+            end: end?.toISOString(),
+            allDay: false,
+            bookingId: doc.id,
+            clientName: `${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`.trim()
+          }
+        };
+      })
+      .filter(booking => {
+        // Overlap check: booking overlaps if start < timeMax AND end > timeMin
+        return booking.start && booking.end &&
+               booking.start < timeMax && booking.end > timeMin;
+      })
+      .map(booking => booking.data);
+    
+    // 3. Combina conflicts
+    const conflicts = [...calendarEvents, ...bookingConflicts];
+    
+    console.log(`[Check Calendar] Found ${conflicts.length} conflicts for ${dateStr} (${isAllDay ? 'all-day' : `${startTime}-${endTime}`})`);
+    
+    return res.json({ 
+      conflicts,
+      hasConflicts: conflicts.length > 0
+    });
+    
+  } catch (error: any) {
+    console.error('[Check Calendar] Error:', error);
+    return res.status(500).json({ 
+      error: 'Errore durante il controllo calendario',
+      details: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/jobs/:id
  * Recupera un singolo lavoro per ID (con verifica admin)
  */
@@ -524,121 +642,6 @@ router.get('/consultation-templates', authenticateFirebase, async (req: any, res
     console.error('[Get Consultation Templates] Error:', error);
     res.status(500).json({ 
       error: 'Errore durante recupero template consulenza',
-      details: error.message 
-    });
-  }
-});
-
-/**
- * GET /api/jobs/check-calendar
- * Controlla conflitti su Google Calendar e bookings per una data/orario specifico
- * 
- * Query params:
- * - eventDate: string ISO (es. "2025-12-25")
- * - allDay: boolean (true se evento tutto il giorno)
- * - startTime: string HH:MM (opzionale, richiesto se !allDay)
- * - endTime: string HH:MM (opzionale, richiesto se !allDay)
- */
-router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
-  try {
-    const { eventDate, allDay, startTime, endTime } = req.query;
-    
-    // Validazione params
-    if (!eventDate) {
-      return res.status(400).json({ error: 'eventDate richiesta' });
-    }
-    
-    const isAllDay = allDay === 'true';
-    
-    if (!isAllDay && (!startTime || !endTime)) {
-      return res.status(400).json({ 
-        error: 'startTime e endTime richiesti se non tutto il giorno' 
-      });
-    }
-    
-    // Parse eventDate
-    const dateStr = eventDate as string;
-    
-    let timeMin: Date;
-    let timeMax: Date;
-    
-    if (isAllDay) {
-      timeMin = createEuropeRomeDate(dateStr, '00:00');
-      timeMax = createEuropeRomeDate(dateStr, '23:59');
-    } else {
-      timeMin = createEuropeRomeDate(dateStr, startTime as string);
-      timeMax = createEuropeRomeDate(dateStr, endTime as string);
-    }
-    
-    // 1. Query Google Calendar
-    let calendarEvents: any[] = [];
-    try {
-      const events = await getEvents('primary', timeMin, timeMax);
-      calendarEvents = events.filter(e => e.summary).map(event => ({
-        type: 'calendar',
-        title: event.summary,
-        start: event.start?.dateTime || event.start?.date,
-        end: event.end?.dateTime || event.end?.date,
-        allDay: !event.start?.dateTime && !!event.start?.date
-      }));
-    } catch (error) {
-      console.error('[Check Calendar] Google Calendar error:', error);
-      // Continue even if Calendar fails
-    }
-    
-    // 2. Query Firestore bookings
-    // NOTA: Firestore non permette inequality su campi diversi, quindi fetchiamo
-    // tutti i bookings del giorno usando solo dataShootingInizio, poi filtriamo in-memory
-    const dayStart = createEuropeRomeDate(dateStr, '00:00');
-    const dayEnd = createEuropeRomeDate(dateStr, '23:59');
-    
-    const bookingsSnapshot = await db.collection('bookings')
-      .where('dataShootingInizio', '>=', Timestamp.fromDate(dayStart))
-      .where('dataShootingInizio', '<=', Timestamp.fromDate(dayEnd))
-      .get();
-    
-    // Filter in-memory per overlap detection
-    const bookingConflicts = bookingsSnapshot.docs
-      .map(doc => {
-        const data = doc.data();
-        const start = data.dataShootingInizio?.toDate();
-        const end = data.dataShootingFine?.toDate();
-        
-        return {
-          start,
-          end,
-          data: {
-            type: 'booking',
-            title: `Booking: ${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`,
-            start: start?.toISOString(),
-            end: end?.toISOString(),
-            allDay: false,
-            bookingId: doc.id,
-            clientName: `${data.cliente?.nome || ''} ${data.cliente?.cognome || ''}`.trim()
-          }
-        };
-      })
-      .filter(booking => {
-        // Overlap check: booking overlaps if start < timeMax AND end > timeMin
-        return booking.start && booking.end &&
-               booking.start < timeMax && booking.end > timeMin;
-      })
-      .map(booking => booking.data);
-    
-    // 3. Combina conflicts
-    const conflicts = [...calendarEvents, ...bookingConflicts];
-    
-    console.log(`[Check Calendar] Found ${conflicts.length} conflicts for ${dateStr} (${isAllDay ? 'all-day' : `${startTime}-${endTime}`})`);
-    
-    return res.json({ 
-      conflicts,
-      hasConflicts: conflicts.length > 0
-    });
-    
-  } catch (error: any) {
-    console.error('[Check Calendar] Error:', error);
-    return res.status(500).json({ 
-      error: 'Errore durante il controllo calendario',
       details: error.message 
     });
   }
