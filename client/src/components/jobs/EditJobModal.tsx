@@ -485,47 +485,27 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                         )}
                         
                         {!loadingClienti && selectedClienti.length > 0 && (
-                          <div className="space-y-3 mt-2">
+                          <div className="space-y-2 mt-2">
                             {selectedClienti.map((cliente) => (
                               <div
                                 key={cliente.id}
-                                className="p-3 border rounded-lg bg-muted/30"
+                                className="flex items-center justify-between px-3 py-2 border rounded-lg bg-muted/30"
                                 data-testid={`cliente-appuntamento-${cliente.id}`}
                               >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">{cliente.nome} {cliente.cognome}</span>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-auto p-1 hover:bg-transparent text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleRemoveCliente(cliente.id)}
-                                    data-testid={`button-remove-${cliente.id}`}
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
+                                <div className="flex items-center gap-2">
+                                  <User className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium">{cliente.nome} {cliente.cognome}</span>
                                 </div>
-                                
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <TimeInput
-                                    placeholder="Orario appuntamento"
-                                    value={appuntamentiClienti[cliente.id]?.orario || ''}
-                                    onChange={(e) => handleAppuntamentoChange(cliente.id, 'orario', e.target.value)}
-                                    className="h-8"
-                                    data-testid={`input-orario-${cliente.id}`}
-                                  />
-                                  <Input
-                                    type="text"
-                                    placeholder="Note (es. indirizzo, citofono...)"
-                                    value={appuntamentiClienti[cliente.id]?.note || ''}
-                                    onChange={(e) => handleAppuntamentoChange(cliente.id, 'note', e.target.value)}
-                                    className="h-8"
-                                    data-testid={`input-note-${cliente.id}`}
-                                  />
-                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-auto p-1 hover:bg-transparent text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleRemoveCliente(cliente.id)}
+                                  data-testid={`button-remove-${cliente.id}`}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
                               </div>
                             ))}
                           </div>
