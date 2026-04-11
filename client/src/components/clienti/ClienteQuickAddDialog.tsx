@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
-import { createCliente, getClienteById } from '@/lib/clienti';
+import { createCliente, getClienteById, getClienteByEmail } from '@/lib/clienti';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -65,27 +65,39 @@ export function ClienteQuickAddDialog({
   });
 
   const mutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const clienteId = await createCliente({
-        nome: data.nome,
-        cognome: data.cognome,
-        email: data.email,
-        cellulare1: data.cellulare1 || undefined,
-        via: data.via || undefined,
-        citta: data.citta || undefined
-      });
-      
-      const cliente = await getClienteById(clienteId);
-      if (!cliente) {
-        throw new Error('Cliente creato ma impossibile recuperarlo');
+    mutationFn: async (data: FormData): Promise<{ cliente: Cliente; isNew: boolean }> => {
+      try {
+        const clienteId = await createCliente({
+          nome: data.nome,
+          cognome: data.cognome,
+          email: data.email,
+          cellulare1: data.cellulare1 || undefined,
+          via: data.via || undefined,
+          citta: data.citta || undefined
+        });
+        const cliente = await getClienteById(clienteId);
+        if (!cliente) {
+          throw new Error('Cliente creato ma impossibile recuperarlo');
+        }
+        return { cliente, isNew: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '';
+        if (message.includes('Esiste già un cliente')) {
+          const existing = await getClienteByEmail(data.email);
+          if (existing) {
+            return { cliente: existing, isNew: false };
+          }
+        }
+        throw error;
       }
-      return cliente;
     },
-    onSuccess: (cliente) => {
+    onSuccess: ({ cliente, isNew }) => {
       queryClient.invalidateQueries({ queryKey: ['clienti'] });
       toast({
-        title: 'Cliente creato',
-        description: `${cliente.nome} ${cliente.cognome} aggiunto con successo`
+        title: isNew ? 'Cliente creato' : 'Cliente già registrato',
+        description: isNew
+          ? `${cliente.nome} ${cliente.cognome} aggiunto con successo`
+          : `${cliente.nome} ${cliente.cognome} è già registrato — associato direttamente al lavoro`
       });
       onSuccess(cliente);
       form.reset();

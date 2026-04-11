@@ -137,7 +137,7 @@ export function ClientAutocomplete({
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[min(400px,calc(100vw-2rem))] p-0 z-[100]" 
+        className="w-[min(400px,calc(100vw-2rem))] p-0 z-[200]" 
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
