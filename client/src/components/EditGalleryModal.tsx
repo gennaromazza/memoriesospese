@@ -493,7 +493,49 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         // 🔥 FIX Task 7: PRIORITY 1 - Carica productRequirements se esiste nella galleria
         if ((gallery as any).productRequirements && (gallery as any).productRequirements.length > 0) {
           const productReqs = (gallery as any).productRequirements;
-          const products = productReqs.map((prod: any) => ({
+
+          // 🔥 AUTO-ESPANSIONE BUNDLE: se un prodotto è un bundle nel catalogo, espandilo
+          let hasExpansions = false;
+          const expandedReqs: any[] = [];
+
+          for (const prod of productReqs) {
+            const prodottoId = prod.prodottoId;
+            if (prodottoId && prodottoId !== '') {
+              try {
+                const pSnap = await getDoc(doc(db, 'products', prodottoId));
+                if (pSnap.exists()) {
+                  const pData = pSnap.data();
+                  if (pData.isBundle && pData.bundleItems && pData.bundleItems.length > 0) {
+                    hasExpansions = true;
+                    const parentName = prod.prodottoNome || pData.nome;
+                    for (const bi of pData.bundleItems) {
+                      const biQty = bi.quantita || 1;
+                      for (let i = 0; i < biQty; i++) {
+                        expandedReqs.push({
+                          prodottoId: bi.prodottoId || null,
+                          prodottoNome: biQty > 1
+                            ? `${bi.prodottoNome} (${i + 1}/${biQty}) - ${parentName}`
+                            : `${bi.prodottoNome} - ${parentName}`,
+                          prodottoNumeroFoto: bi.numeroFoto || 0,
+                        });
+                      }
+                    }
+                    console.log(`📦 Bundle auto-espanso: ${parentName}`);
+                    continue;
+                  }
+                }
+              } catch (e) {
+                console.warn('Errore fetch prodotto per espansione bundle:', prodottoId, e);
+              }
+            }
+            expandedReqs.push({
+              prodottoId: prod.prodottoId || null,
+              prodottoNome: prod.prodottoNome || 'Prodotto Sconosciuto',
+              prodottoNumeroFoto: prod.prodottoNumeroFoto || 0,
+            });
+          }
+
+          const products = expandedReqs.map((prod: any) => ({
             prodottoId: prod.prodottoId || undefined,
             nome: prod.prodottoNome || 'Prodotto Sconosciuto',
             numeroFoto: prod.prodottoNumeroFoto || 0,
@@ -501,6 +543,18 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           }));
           setAssociatedProducts(products);
           console.log(`✅ ${products.length} prodotti caricati da gallery.productRequirements:`, products);
+
+          // Se ci sono state espansioni bundle → aggiorna automaticamente Firestore
+          if (hasExpansions) {
+            const newRequiredCount = expandedReqs.reduce((s: number, p: any) => s + (p.prodottoNumeroFoto || 0), 0);
+            updateDoc(doc(db, 'galleries', gallery.id), {
+              productRequirements: expandedReqs,
+              requiredPhotoCount: newRequiredCount,
+              updatedAt: serverTimestamp(),
+            }).catch(e => console.warn('Errore salvataggio espansione bundle in Firestore:', e));
+            console.log(`✅ Bundle espansi auto-salvati in Firestore. Totale foto richieste: ${newRequiredCount}`);
+          }
+
           return; // STOP qui se productRequirements esiste
         }
         
@@ -928,18 +982,51 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     try {
       const bookingId = (gallery as any).bookingId;
       // Priority 1: ricarica da gallery.productRequirements (Firestore fresco)
-      const { getDoc: fsGetDoc, doc: fsDoc } = await import('firebase/firestore');
-      const freshSnap = await fsGetDoc(fsDoc(db, 'galleries', gallery.id));
+      const freshSnap = await getDoc(doc(db, 'galleries', gallery.id));
       if (freshSnap.exists()) {
         const freshData = freshSnap.data();
         if (freshData.productRequirements?.length > 0) {
-          setAssociatedProducts(freshData.productRequirements.map((p: any) => ({
-            prodottoId: p.prodottoId,
+          const productReqs = freshData.productRequirements;
+          // Auto-espansione bundle
+          let hasExpansions = false;
+          const expandedReqs: any[] = [];
+          for (const prod of productReqs) {
+            if (prod.prodottoId) {
+              try {
+                const pSnap = await getDoc(doc(db, 'products', prod.prodottoId));
+                if (pSnap.exists()) {
+                  const pData = pSnap.data();
+                  if (pData.isBundle && pData.bundleItems?.length > 0) {
+                    hasExpansions = true;
+                    const parentName = prod.prodottoNome || pData.nome;
+                    for (const bi of pData.bundleItems) {
+                      const biQty = bi.quantita || 1;
+                      for (let i = 0; i < biQty; i++) {
+                        expandedReqs.push({
+                          prodottoId: bi.prodottoId || null,
+                          prodottoNome: biQty > 1 ? `${bi.prodottoNome} (${i + 1}/${biQty}) - ${parentName}` : `${bi.prodottoNome} - ${parentName}`,
+                          prodottoNumeroFoto: bi.numeroFoto || 0,
+                        });
+                      }
+                    }
+                    continue;
+                  }
+                }
+              } catch {}
+            }
+            expandedReqs.push({ prodottoId: prod.prodottoId || null, prodottoNome: prod.prodottoNome || 'Prodotto Sconosciuto', prodottoNumeroFoto: prod.prodottoNumeroFoto || 0 });
+          }
+          setAssociatedProducts(expandedReqs.map((p: any) => ({
+            prodottoId: p.prodottoId || undefined,
             nome: p.prodottoNome || 'Prodotto Sconosciuto',
             numeroFoto: p.prodottoNumeroFoto || 0,
             isCustom: !p.prodottoId
           })));
-          toast({ title: '✅ Prodotti ricaricati', description: `${freshData.productRequirements.length} prodotti caricati dalla galleria.` });
+          if (hasExpansions) {
+            const newCount = expandedReqs.reduce((s: number, p: any) => s + (p.prodottoNumeroFoto || 0), 0);
+            updateDoc(doc(db, 'galleries', gallery.id), { productRequirements: expandedReqs, requiredPhotoCount: newCount, updatedAt: serverTimestamp() }).catch(() => {});
+          }
+          toast({ title: '✅ Prodotti ricaricati', description: `${expandedReqs.length} prodotti caricati dalla galleria.` });
           return;
         }
       }
