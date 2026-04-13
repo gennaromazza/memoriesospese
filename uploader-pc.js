@@ -414,6 +414,69 @@ function applyChapterCovers(fsChapters, coverUpdates) {
   return fsChapters;
 }
 
+// ── Formatta telefono per wa.me (identico a shared/phone-utils.ts) ───────────
+function formatPhoneForWhatsApp(phone) {
+  if (!phone) return '';
+  let cleaned = phone.replace(/\D/g, '');
+  if (!cleaned) return '';
+  if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+  if (cleaned.startsWith('39') && cleaned.length >= 11 && cleaned[2] === '3') return cleaned;
+  if (cleaned.startsWith('3') && cleaned.length >= 9 && cleaned.length <= 10) return '39' + cleaned;
+  return cleaned;
+}
+
+// ── Apre URL nel browser di sistema (Windows / Mac / Linux) ──────────────────
+function openBrowser(url) {
+  const { exec } = require('child_process');
+  if (process.platform === 'win32')  exec(`start "" "${url}"`);
+  else if (process.platform === 'darwin') exec(`open "${url}"`);
+  else exec(`xdg-open "${url}"`);
+}
+
+// ── Condivisione WhatsApp dopo upload ────────────────────────────────────────
+async function shareViaWhatsApp({ galleryName, code, password, specialPin, clientName, clientPhone }) {
+  console.log('\n─── CONDIVISIONE WHATSAPP ───────────────────────────');
+  const url = `${GALLERY_URL}/${code}`;
+
+  // Costruisci messaggio (identico al bottone web)
+  let message = clientName
+    ? `Ciao ${clientName}! Ecco il link alla tua galleria fotografica "${galleryName}":\n\n${url}`
+    : `Ecco il link alla galleria fotografica "${galleryName}":\n\n${url}`;
+  if (password)   message += `\n\nPassword: ${password}`;
+  if (specialPin) message += `\n\nPIN di accesso: ${specialPin}`;
+
+  console.log('\nAnteprima messaggio:');
+  console.log('─'.repeat(50));
+  console.log(message);
+  console.log('─'.repeat(50));
+
+  // Numero telefono: prendi dal cliente o chiedi
+  let phone = clientPhone || '';
+  if (!phone) {
+    phone = await ask('\nNumero WhatsApp del cliente (es. 3331234567, invio per saltare): ');
+  } else {
+    console.log(`\nNumero cliente: ${phone}`);
+    const change = await ask('Usare questo numero? (s/n, invio=sì): ');
+    if (change.toLowerCase() === 'n') {
+      phone = await ask('Nuovo numero WhatsApp: ');
+    }
+  }
+
+  const formattedPhone = formatPhoneForWhatsApp(phone);
+  const waUrl = formattedPhone
+    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+  const send = await ask('\nAprire WhatsApp nel browser? (s/n, invio=sì): ');
+  if (send.toLowerCase() !== 'n') {
+    openBrowser(waUrl);
+    console.log('✓ WhatsApp aperto nel browser!');
+  } else {
+    console.log('\nLink WhatsApp (copia e incolla nel browser):');
+    console.log(waUrl);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // NUOVA GALLERIA
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -428,13 +491,14 @@ async function createNewGallery() {
   const description = await ask('Descrizione (invio per saltare): ');
 
   // Associazione cliente
-  let clienteId = '', clientEmail = '', clientName = '';
+  let clienteId = '', clientEmail = '', clientName = '', clientPhone = '';
   const cliente = await selectCliente();
   if (cliente) {
     clienteId   = cliente.id;
     clientEmail = cliente.email || '';
     clientName  = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
-    console.log(`  ✓ Cliente: ${clientName}`);
+    clientPhone = cliente.whatsapp || cliente.cellulare1 || '';
+    console.log(`  ✓ Cliente: ${clientName}${clientPhone ? '  📱 ' + clientPhone : ''}`);
   } else {
     clientEmail = await ask('  Email cliente per notifiche (invio per saltare): ');
     if (clientEmail) clientName = await ask('  Nome cliente: ');
@@ -563,7 +627,21 @@ async function createNewGallery() {
     }
   }
 
-  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${code}\n`);
+  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${code}`);
+
+  // Condivisione WhatsApp
+  const doShare = await ask('\nCondividere la galleria su WhatsApp ora? (s/n, invio=sì): ');
+  if (doShare.toLowerCase() !== 'n') {
+    await shareViaWhatsApp({
+      galleryName: name,
+      code,
+      password:   access.mode === 'password' ? access.password : null,
+      specialPin: access.mode === 'theme'    ? access.specialPin : null,
+      clientName,
+      clientPhone,
+    });
+  }
+  console.log('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -663,7 +741,47 @@ async function addToExisting() {
     console.log('⚠  Errori:');
     errors.forEach(e => console.log(`   - ${e.f}: ${e.err}`));
   }
-  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${gallery.code}\n`);
+  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${gallery.code}`);
+
+  // Condivisione WhatsApp — legge secrets e cliente dalla galleria
+  const doShare = await ask('\nCondividere la galleria su WhatsApp ora? (s/n, invio=sì): ');
+  if (doShare.toLowerCase() !== 'n') {
+    // Recupera password/PIN da gallerySecrets
+    let password = null, specialPin = null;
+    try {
+      const secretsSnap = await db.collection('gallerySecrets').doc(gallery.id).get();
+      if (secretsSnap.exists) {
+        password   = secretsSnap.data().password   || null;
+        specialPin = secretsSnap.data().specialPin || null;
+      }
+    } catch {}
+
+    // Recupera info cliente dalla galleria
+    let clientName = '', clientPhone = '';
+    try {
+      const galSnap = await db.collection('galleries').doc(gallery.id).get();
+      const galData = galSnap.data() || {};
+      clientName = galData.clientName || '';
+      if (galData.clienteId) {
+        const cSnap = await db.collection('clienti').doc(galData.clienteId).get();
+        if (cSnap.exists) {
+          const cd = cSnap.data();
+          clientPhone = cd.whatsapp || cd.cellulare1 || '';
+          if (!clientName) clientName = `${cd.nome || ''} ${cd.cognome || ''}`.trim();
+        }
+      }
+    } catch {}
+
+    await shareViaWhatsApp({
+      galleryName: gallery.name,
+      code:        gallery.code,
+      password,
+      specialPin,
+      clientName,
+      clientPhone,
+    });
+  }
+  console.log('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
