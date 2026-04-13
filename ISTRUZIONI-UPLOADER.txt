@@ -1,0 +1,79 @@
+════════════════════════════════════════════════════════════
+  Image Studio — Uploader Gallerie per PC
+  (Versione semplificata, nessuna configurazione richiesta)
+════════════════════════════════════════════════════════════
+
+COSA SERVE (solo la prima volta):
+──────────────────────────────────
+1. Node.js installato sul tuo PC
+   → Scaricalo da: https://nodejs.org
+   → Scegli la versione "LTS" e installala normalmente
+
+2. Copia questi due file nella stessa cartella sul tuo PC:
+   - uploader-pc.js
+   - package-uploader.json   (rinominalo in: package.json)
+
+3. Apri il terminale (cmd o PowerShell) in quella cartella
+   e scrivi:
+      npm install
+   Attendi che finisca (scarica firebase-admin, ~30 secondi)
+
+═══ FATTO! Non devi fare altro. ═══════════════════════════
+
+
+COME USARLO OGNI VOLTA:
+─────────────────────────────────────────────────────────────
+1. Apri il terminale (cmd o PowerShell)
+2. Entra nella cartella dove hai salvato uploader-pc.js:
+      cd C:\Users\TuoNome\Desktop\Uploader
+3. Esegui:
+      node uploader-pc.js
+
+Lo script ti chiede tutto in modo interattivo:
+  - Vuoi creare una nuova galleria o aggiungere foto a una esistente?
+  - Nome della galleria
+  - Data evento
+  - Percorso della cartella con le foto
+
+
+ORGANIZZAZIONE DELLE FOTO:
+─────────────────────────────────────────────────────────────
+• Cartella SENZA sottocartelle → tutte le foto in un unico blocco
+
+• Cartella CON sottocartelle → ogni sottocartella diventa un
+  capitolo nella galleria (utile per matrimoni: chiesa, ristorante, ecc.)
+
+  Esempio:
+    📁 Matrimonio Rossi
+      📁 01-Chiesa
+      📁 02-Villa-Ricevimento
+      📁 03-Torta
+
+  Le sottocartelle vengono ordinate alfabeticamente.
+
+
+FORMATI SUPPORTATI:
+─────────────────────────────────────────────────────────────
+JPG, JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC, HEIF, AVIF
+
+
+DOMANDE FREQUENTI:
+─────────────────────────────────────────────────────────────
+Q: Come inserisco il percorso della cartella?
+A: Puoi trascinare la cartella direttamente sul terminale —
+   il percorso viene incollato automaticamente.
+   Oppure copia il percorso da Esplora File.
+
+Q: Posso chiudere il terminale durante l'upload?
+A: No, lascia il terminale aperto fino al completamento.
+   Vedrai il contatore: 📷  23/150 nome-file.jpg
+
+Q: Se un file fallisce, le altre foto vengono caricate lo stesso?
+A: Sì. Alla fine viene mostrato un elenco degli errori.
+
+Q: Posso caricare le stesse foto due volte?
+A: Sì, ma creerà duplicati. Lo script non controlla duplicati
+   nella modalità "nuova galleria". Usa "aggiungi a esistente"
+   con cautela.
+
+════════════════════════════════════════════════════════════

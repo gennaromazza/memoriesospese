@@ -1,0 +1,8 @@
+{
+  "name": "image-studio-uploader",
+  "version": "2.0.0",
+  "description": "Uploader gallerie Image Studio",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
