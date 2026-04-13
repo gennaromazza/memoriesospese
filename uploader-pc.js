@@ -1,16 +1,24 @@
 #!/usr/bin/env node
 /**
- * uploader-pc.js — Uploader Gallerie Image Studio
- * ================================================
+ * uploader-pc.js — Uploader Gallerie Image Studio  v3
+ * ====================================================
  * SETUP (una volta sola sul tuo PC Windows):
  *   1. Installa Node.js da https://nodejs.org  (versione LTS, es. 20.x)
- *   2. Apri il terminale (cmd o PowerShell) nella cartella dove hai questo file
- *   3. Esegui:  npm install firebase-admin
+ *   2. Copia nella stessa cartella:
+ *        uploader-pc.js
+ *        package-uploader.json  →  rinominalo in  package.json
+ *   3. Apri il terminale (cmd o PowerShell) nella cartella
+ *   4. Esegui:  npm install
  *
- * USO (ogni volta che vuoi caricare foto):
+ * USO:
  *   node uploader-pc.js
  *
- * Le credenziali Firebase sono già configurate — non toccare nulla.
+ * CONVENZIONE COPERTINE (opzionale):
+ *   Metti nella cartella delle foto (o nella sottocartella capitolo) un file
+ *   il cui nome inizia con  "_copertina"  (es. _copertina.jpg)
+ *   → verrà caricato come foto normale E impostato come copertina.
+ *
+ * Le credenziali Firebase sono già integrate — non toccare nulla.
  */
 'use strict';
 
@@ -38,8 +46,17 @@ const BUCKET          = PROJECT_ID + '.firebasestorage.app';
 const GALLERY_URL     = 'https://imagestudiofotografico.com/gallery';
 // ─────────────────────────────────────────────────────────────────────────────
 
-const IMG_EXT     = new Set(['.jpg','.jpeg','.png','.gif','.webp','.bmp','.tiff','.tif','.heic','.heif','.avif']);
+const IMG_EXT      = new Set(['.jpg','.jpeg','.png','.gif','.webp','.bmp','.tiff','.tif','.heic','.heif','.avif']);
 const MAX_PARALLEL = 3;
+const SIGNED_URL_EXPIRY = '2099-01-01';
+
+const THEMES = [
+  { id: 'natale',        label: '🎄 Natale' },
+  { id: 'carnevale',     label: '🎭 Carnevale' },
+  { id: 'san-valentino', label: '💕 San Valentino' },
+  { id: 'pasqua',        label: '🐰 Pasqua' },
+  { id: 'halloween',     label: '🎃 Halloween' },
+];
 
 // ── Firebase init ─────────────────────────────────────────────────────────────
 admin.initializeApp({ credential: admin.credential.cert(SERVICE_ACCOUNT), storageBucket: BUCKET });
@@ -58,28 +75,47 @@ function nanoid(n = 8) {
 }
 
 function mime(file) {
-  const e = path.extname(file).toLowerCase();
-  return { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
-           '.webp':'image/webp','.bmp':'image/bmp','.tiff':'image/tiff','.tif':'image/tiff',
-           '.heic':'image/heic','.heif':'image/heif','.avif':'image/avif' }[e] || 'image/jpeg';
+  return ({
+    '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif',
+    '.webp':'image/webp','.bmp':'image/bmp','.tiff':'image/tiff','.tif':'image/tiff',
+    '.heic':'image/heic','.heif':'image/heif','.avif':'image/avif',
+  })[path.extname(file).toLowerCase()] || 'image/jpeg';
 }
 
+function isImage(file) {
+  return IMG_EXT.has(path.extname(file).toLowerCase());
+}
+
+function isCover(file) {
+  return path.basename(file).toLowerCase().startsWith('_copertina');
+}
+
+/** Scansiona una cartella e restituisce capitoli con foto e cover */
 function scanFolder(root) {
   const entries  = fs.readdirSync(root, { withFileTypes: true });
   const subdirs  = entries.filter(e => e.isDirectory()).sort((a,b) => a.name.localeCompare(b.name));
-  const imgFiles = f => IMG_EXT.has(path.extname(f).toLowerCase());
-  const rootPhotos = entries.filter(e => e.isFile() && imgFiles(e.name))
-                            .map(e => path.join(root, e.name)).sort();
+  const rootFiles = entries.filter(e => e.isFile() && isImage(e.name)).map(e => path.join(root, e.name)).sort();
+  const rootCover  = rootFiles.find(f => isCover(f)) || null;
+  const rootPhotos = rootFiles.filter(f => !isCover(f));
+
   if (!subdirs.length) {
-    return rootPhotos.length ? [{ name: null, ordine: 0, photos: rootPhotos }] : [];
+    return rootPhotos.length || rootCover
+      ? [{ name: null, ordine: 0, photos: rootPhotos, cover: rootCover }]
+      : [];
   }
+
   const chapters = [];
   for (const [i, d] of subdirs.entries()) {
-    const photos = fs.readdirSync(path.join(root, d.name))
-      .filter(imgFiles).sort().map(f => path.join(root, d.name, f));
-    if (photos.length) chapters.push({ name: d.name, ordine: i, photos });
+    const files  = fs.readdirSync(path.join(root, d.name)).filter(isImage).sort()
+                     .map(f => path.join(root, d.name, f));
+    const cover  = files.find(f => isCover(f)) || null;
+    const photos = files.filter(f => !isCover(f));
+    if (photos.length || cover) chapters.push({ name: d.name, ordine: i, photos, cover });
   }
-  if (rootPhotos.length) chapters.push({ name: null, ordine: chapters.length, photos: rootPhotos });
+  // File nella radice (tra le sottocartelle) = senza capitolo
+  if (rootPhotos.length || rootCover) {
+    chapters.push({ name: null, ordine: chapters.length, photos: rootPhotos, cover: rootCover });
+  }
   return chapters;
 }
 
@@ -92,23 +128,17 @@ async function runPool(jobs, fn, concurrency) {
   );
 }
 
-// ── Upload singola foto ───────────────────────────────────────────────────────
+// ── Upload foto ───────────────────────────────────────────────────────────────
 async function uploadPhoto(filePath, galleryId, chapterId, counter) {
-  const original     = path.basename(filePath);
-  const storageName  = `${Date.now()}_${nanoid(6)}-${original}`;
-  const storagePath  = `galleries/${galleryId}/photos/${storageName}`;
-  const contentType  = mime(filePath);
+  const original    = path.basename(filePath);
+  const storageName = `${Date.now()}_${nanoid(6)}-${original}`;
+  const storagePath = `galleries/${galleryId}/photos/${storageName}`;
+  const contentType = mime(filePath);
 
-  await bucket.upload(filePath, {
-    destination: storagePath,
-    metadata: { contentType },
-  });
+  await bucket.upload(filePath, { destination: storagePath, metadata: { contentType } });
+  const [url] = await bucket.file(storagePath).getSignedUrl({ action: 'read', expires: SIGNED_URL_EXPIRY });
 
-  const [url] = await bucket.file(storagePath).getSignedUrl({
-    action: 'read', expires: '2099-01-01',
-  });
-
-  await db.collection('photos').add({
+  const ref = await db.collection('photos').add({
     galleryId,
     chapterId:     chapterId || null,
     name:          original,
@@ -125,93 +155,423 @@ async function uploadPhoto(filePath, galleryId, chapterId, counter) {
     createdAt:     admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  counter.done++;
-  const label = original.length > 45 ? original.slice(0, 42) + '...' : original.padEnd(45);
-  process.stdout.write(`\r  📷 ${String(counter.done).padStart(4)}/${counter.total}  ${label}`);
+  if (counter) {
+    counter.done++;
+    const label = original.length > 45 ? original.slice(0, 42) + '...' : original.padEnd(45);
+    process.stdout.write(`\r  📷 ${String(counter.done).padStart(4)}/${counter.total}  ${label}`);
+  }
+  return { id: ref.id, url };
 }
 
-// ── NUOVA GALLERIA ────────────────────────────────────────────────────────────
+// ── Upload copertina galleria ─────────────────────────────────────────────────
+async function uploadGalleryCover(filePath, galleryId) {
+  const storagePath = `galleries/${galleryId}/cover/cover-${Date.now()}.jpg`;
+  const contentType = mime(filePath);
+  await bucket.upload(filePath, { destination: storagePath, metadata: { contentType } });
+  const [url] = await bucket.file(storagePath).getSignedUrl({ action: 'read', expires: SIGNED_URL_EXPIRY });
+  return url;
+}
+
+// ── Ricerca cliente per nome ──────────────────────────────────────────────────
+async function searchCliente(query) {
+  const snap = await db.collection('clienti').limit(200).get();
+  const q = query.toLowerCase();
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(c => {
+      const full = `${c.nome || ''} ${c.cognome || ''} ${c.email || ''}`.toLowerCase();
+      return full.includes(q);
+    })
+    .slice(0, 8);
+}
+
+// ── Wizard: seleziona cliente ─────────────────────────────────────────────────
+async function selectCliente() {
+  console.log('\n  Ricerca cliente (invio per saltare):');
+  const q = await ask('  Nome / cognome / email: ');
+  if (!q) return null;
+  const results = await searchCliente(q);
+  if (!results.length) { console.log('  Nessun cliente trovato.'); return null; }
+  results.forEach((c, i) =>
+    console.log(`  ${i + 1}. ${c.nome || ''} ${c.cognome || ''}${c.email ? '  <' + c.email + '>' : ''}`)
+  );
+  const n = parseInt(await ask('  Numero cliente (invio per saltare): '), 10);
+  if (!n || n < 1 || n > results.length) return null;
+  return results[n - 1];
+}
+
+// ── Wizard: seleziona job ─────────────────────────────────────────────────────
+async function selectJob() {
+  console.log('\n  Ricerca job (invio per saltare):');
+  const snap = await db.collection('jobs').orderBy('createdAt', 'desc').limit(150).get();
+  const list = snap.docs.map((d, i) => {
+    const dt = d.data();
+    return { n: i + 1, id: d.id, titolo: dt.title || dt.nome || d.id, data: dt.date || dt.eventDate || '' };
+  });
+  list.forEach(j =>
+    console.log(`  ${String(j.n).padStart(3)}. ${j.titolo}${j.data ? '  (' + j.data + ')' : ''}`)
+  );
+  const n = parseInt(await ask('  Numero job (invio per saltare): '), 10);
+  if (!n || n < 1 || n > list.length) return null;
+  return list[n - 1];
+}
+
+// ── Wizard: opzioni selezione foto ────────────────────────────────────────────
+async function askSelectionOptions() {
+  const enableStr = await ask('\nAbilitare selezione foto per il cliente? (s/n, invio=no): ');
+  if (!['s', 'si', 'sì'].includes(enableStr.toLowerCase())) {
+    return { selectionEnabled: false };
+  }
+
+  const opts = { selectionEnabled: true, selectionMode: 'like', unlimitedSelection: false, requiredPhotoCount: 0, selectionDeadline: null };
+
+  const modeStr = await ask('  Modalità: (1) Like ✅  (2) Dislike ❌  [invio=Like]: ');
+  if (modeStr === '2') opts.selectionMode = 'dislike';
+
+  const liberaStr = await ask('  Selezione libera senza limite? (s/n, invio=no): ');
+  if (['s', 'si', 'sì'].includes(liberaStr.toLowerCase())) {
+    opts.unlimitedSelection = true;
+  } else {
+    const countStr = await ask('  Numero foto da selezionare (invio=0 per illimitato): ');
+    opts.requiredPhotoCount = parseInt(countStr, 10) || 0;
+  }
+
+  const deadlineStr = await ask('  Scadenza selezione (gg/mm/aaaa, invio per saltare): ');
+  if (deadlineStr) {
+    const parts = deadlineStr.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts.map(Number);
+      const dt = new Date(y, m - 1, d, 23, 59, 59);
+      if (!isNaN(dt.getTime())) opts.selectionDeadline = dt;
+    }
+  }
+
+  return opts;
+}
+
+// ── Wizard: opzioni accesso ───────────────────────────────────────────────────
+async function askAccessOptions() {
+  console.log('\nAccesso galleria:');
+  console.log('  1. Pubblica (senza protezione)');
+  console.log('  2. Protetta da password');
+  console.log('  3. Tema speciale + PIN (Natale, San Valentino, ecc.)');
+  const choice = await ask('Scelta (1/2/3, invio=pubblica): ');
+
+  if (choice === '2') {
+    const password = await ask('  Password: ');
+    return { mode: 'password', password: password.trim(), specialTheme: null, specialPin: null };
+  }
+
+  if (choice === '3') {
+    console.log('\n  Temi disponibili:');
+    THEMES.forEach((t, i) => console.log(`    ${i + 1}. ${t.label}`));
+    const tn = parseInt(await ask('  Numero tema: '), 10);
+    if (!tn || tn < 1 || tn > THEMES.length) {
+      console.log('  Tema non valido, galleria pubblica.');
+      return { mode: 'public', password: null, specialTheme: null, specialPin: null };
+    }
+    const theme = THEMES[tn - 1];
+
+    // Verifica unicità PIN in Firestore
+    let pin = '';
+    let pinOk = false;
+    while (!pinOk) {
+      pin = await ask(`  PIN per ${theme.label} (min 4 caratteri alfanumerici): `);
+      if (!pin || pin.length < 4 || !/^[a-zA-Z0-9]+$/.test(pin)) {
+        console.log('  PIN non valido. Deve essere almeno 4 caratteri alfanumerici.');
+        continue;
+      }
+      process.stdout.write('  Verifica unicità PIN...');
+      const snap = await db.collection('gallerySecrets').where('specialPin', '==', pin).limit(1).get();
+      if (!snap.empty) {
+        const existing = await db.collection('galleries').doc(snap.docs[0].id).get();
+        const existingName = existing.data()?.name || snap.docs[0].id;
+        console.log(`\n  ⚠ PIN già usato dalla galleria "${existingName}". Scegli un PIN diverso.`);
+      } else {
+        console.log(' ✓');
+        pinOk = true;
+      }
+    }
+    return { mode: 'theme', password: null, specialTheme: theme.id, specialPin: pin };
+  }
+
+  return { mode: 'public', password: null, specialTheme: null, specialPin: null };
+}
+
+// ── Wizard: URL YouTube ───────────────────────────────────────────────────────
+async function askYoutubeUrls() {
+  const addStr = await ask('\nAggiungere video YouTube? (s/n, invio=no): ');
+  if (!['s', 'si', 'sì'].includes(addStr.toLowerCase())) return [];
+  const urls = [];
+  while (true) {
+    const url = await ask(`  URL video ${urls.length + 1} (invio per finire): `);
+    if (!url) break;
+    if (/youtu/i.test(url)) urls.push(url.trim());
+    else console.log('  URL non riconosciuto come YouTube, saltato.');
+  }
+  return urls;
+}
+
+// ── Costruisce galleryData + secretsData ──────────────────────────────────────
+function buildGalleryData(fields) {
+  const {
+    name, date, location, description, userId, code,
+    access, selection, youtubeUrls, clienteId, clientEmail, clientName, jobId,
+  } = fields;
+
+  const galleryData = {
+    name:            name.trim(),
+    code,
+    date:            date || '',
+    location:        location.trim(),
+    description:     description.trim(),
+    hasPassword:     access.mode === 'password' && !!access.password,
+    userId,
+    photoCount:      0,
+    active:          true,
+    selectionEnabled: selection.selectionEnabled,
+    chaptersEnabled:  false, // aggiornato dopo
+    chapters:         [],
+    createdAt:        admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (access.specialTheme) galleryData.specialTheme = access.specialTheme;
+  if (clientEmail)         galleryData.clientEmail   = clientEmail;
+  if (clientName)          galleryData.clientName    = clientName;
+  if (clienteId)           galleryData.clienteId     = clienteId;
+  if (jobId)               galleryData.jobId         = jobId;
+  if (youtubeUrls.length)  galleryData.youtubeUrls   = youtubeUrls;
+
+  if (selection.selectionEnabled) {
+    if (selection.selectionMode === 'dislike') galleryData.selectionMode = 'dislike';
+    galleryData.selectionStatus    = 'pending';
+    galleryData.selectedPhotoIds   = [];
+    if (selection.unlimitedSelection) {
+      galleryData.unlimitedSelection  = true;
+      galleryData.requiredPhotoCount  = 0;
+    } else if (selection.requiredPhotoCount > 0) {
+      galleryData.requiredPhotoCount  = selection.requiredPhotoCount;
+    }
+    if (selection.selectionDeadline) {
+      galleryData.selectionDeadline         = admin.firestore.Timestamp.fromDate(selection.selectionDeadline);
+      galleryData.selectionDeadlineEnforced = true;
+    }
+  }
+
+  const secretsData = {
+    password:   access.mode === 'password' ? (access.password || null) : null,
+    specialPin: access.mode === 'theme'    ? (access.specialPin || null) : null,
+    createdAt:  admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  return { galleryData, secretsData };
+}
+
+// ── Carica foto + copertine per ogni capitolo ─────────────────────────────────
+async function uploadChapters(chapters, galleryId, fsChapters) {
+  const chapterMap = Object.fromEntries(fsChapters.map(c => [c.titolo, c]));
+  const total      = chapters.reduce((s, c) => s + c.photos.length + (c.cover ? 1 : 0), 0);
+  const counter    = { done: 0, total };
+  const errors     = [];
+  const coverUpdates = []; // { chapterId, photoId, url }
+
+  for (const ch of chapters) {
+    const fsChapter = ch.name ? chapterMap[ch.name] : null;
+    const chapterId = fsChapter?.id || null;
+
+    // Carica copertina capitolo (se presente)
+    if (ch.cover) {
+      try {
+        const { id, url } = await uploadPhoto(ch.cover, galleryId, chapterId, counter);
+        if (chapterId) coverUpdates.push({ chapterId, photoId: id, url });
+      } catch (e) {
+        errors.push({ f: path.basename(ch.cover), err: e.message });
+      }
+    }
+
+    // Carica foto normali
+    const jobs = ch.photos.map(p => ({ path: p, chapterId }));
+    await runPool(jobs, async job => {
+      try { await uploadPhoto(job.path, galleryId, job.chapterId, counter); }
+      catch (e) { errors.push({ f: path.basename(job.path), err: e.message }); }
+    }, MAX_PARALLEL);
+  }
+
+  return { photoCount: counter.done - errors.length, errors, coverUpdates };
+}
+
+// ── Applica copertine capitoli al documento galleria ─────────────────────────
+function applyChapterCovers(fsChapters, coverUpdates) {
+  for (const upd of coverUpdates) {
+    const ch = fsChapters.find(c => c.id === upd.chapterId);
+    if (ch) {
+      ch.coverPhotoId  = upd.photoId;
+      ch.coverPhotoUrl = upd.url;
+    }
+  }
+  return fsChapters;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NUOVA GALLERIA
+// ═══════════════════════════════════════════════════════════════════════════════
 async function createNewGallery() {
   console.log('\n─── NUOVA GALLERIA ──────────────────────────────────\n');
+
   const name = await ask('Nome galleria *: ');
   if (!name) { console.error('\nNome obbligatorio.'); process.exit(1); }
 
   const date     = await ask('Data evento (gg/mm/aaaa, invio per saltare): ');
   const location = await ask('Luogo (invio per saltare): ');
-  const folder   = (await ask('Percorso cartella foto *: ')).replace(/^["']|["']$/g, '');
+  const description = await ask('Descrizione (invio per saltare): ');
 
-  if (!fs.existsSync(folder)) {
-    console.error('\nCartella non trovata: ' + folder);
-    process.exit(1);
+  // Associazione cliente
+  let clienteId = '', clientEmail = '', clientName = '';
+  const cliente = await selectCliente();
+  if (cliente) {
+    clienteId   = cliente.id;
+    clientEmail = cliente.email || '';
+    clientName  = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+    console.log(`  ✓ Cliente: ${clientName}`);
+  } else {
+    clientEmail = await ask('  Email cliente per notifiche (invio per saltare): ');
+    if (clientEmail) clientName = await ask('  Nome cliente: ');
   }
 
-  const chapters = scanFolder(folder);
-  if (!chapters.length) { console.error('\nNessuna immagine trovata nella cartella.'); process.exit(1); }
+  // Associazione job
+  let jobId = '';
+  const useJob = await ask('\nAssociare a un Job? (s/n, invio=no): ');
+  if (['s', 'si', 'sì'].includes(useJob.toLowerCase())) {
+    const job = await selectJob();
+    if (job) { jobId = job.id; console.log(`  ✓ Job: ${job.titolo}`); }
+  }
 
-  const total       = chapters.reduce((s, c) => s + c.photos.length, 0);
-  const hasChapters = chapters.some(c => c.name);
-  const namedChs    = chapters.filter(c => c.name);
+  // Accesso
+  const access = await askAccessOptions();
 
-  console.log(`\nTrovate: ${total} foto${hasChapters ? ' in ' + namedChs.length + ' capitoli: ' + namedChs.map(c=>c.name).join(', ') : ''}`);
-  const ok = await ask('Procedere con il caricamento? (s/n): ');
+  // Selezione foto
+  const selection = await askSelectionOptions();
+
+  // YouTube
+  const youtubeUrls = await askYoutubeUrls();
+
+  // Cartella foto
+  console.log('');
+  const folderRaw = await ask('Percorso cartella foto *: ');
+  const folder    = folderRaw.replace(/^["']|["']$/g, '');
+  if (!fs.existsSync(folder)) { console.error('\nCartella non trovata: ' + folder); process.exit(1); }
+
+  const chapters    = scanFolder(folder);
+  const galleryCoverFile = chapters.find(c => c.name === null)?.cover
+    || (fs.readdirSync(folder).find(f => isCover(f)) ? path.join(folder, fs.readdirSync(folder).find(f => isCover(f))) : null);
+
+  if (!chapters.length && !galleryCoverFile) {
+    console.error('\nNessuna immagine trovata nella cartella.'); process.exit(1);
+  }
+
+  const totalPhotos  = chapters.reduce((s, c) => s + c.photos.length, 0);
+  const hasChapters  = chapters.some(c => c.name !== null);
+  const namedChapters = chapters.filter(c => c.name);
+  const coverCount   = chapters.filter(c => c.cover).length + (galleryCoverFile ? 1 : 0);
+
+  console.log(`\nRiepilogo:`);
+  console.log(`  📷 ${totalPhotos} foto`);
+  if (hasChapters) console.log(`  📂 ${namedChapters.length} capitoli: ${namedChapters.map(c => c.name).join(', ')}`);
+  if (coverCount)  console.log(`  🖼  ${coverCount} copertina/e rilevata/e`);
+  if (access.mode === 'password')  console.log(`  🔒 Password: ${access.password}`);
+  if (access.mode === 'theme')     console.log(`  🎨 Tema: ${access.specialTheme}  PIN: ${access.specialPin}`);
+  if (selection.selectionEnabled)  console.log(`  ✅ Selezione foto abilitata`);
+  if (youtubeUrls.length)          console.log(`  🎬 ${youtubeUrls.length} video YouTube`);
+
+  const ok = await ask('\nProcedere? (s/n): ');
   if (ok.toLowerCase() !== 's') { console.log('Annullato.'); process.exit(0); }
 
   // Crea documento galleria
-  const galleryId   = db.collection('galleries').doc().id;
-  const galleryCode = nanoid(8);
-  const fsChapters  = namedChs.map(c => ({
+  const galleryId = db.collection('galleries').doc().id;
+  const code      = nanoid(8);
+
+  const fsChapters = namedChapters.map((c, i) => ({
     id: nanoid(10), titolo: c.name, descrizione: '',
-    ordine: c.ordine, createdAt: new Date(), updatedAt: new Date(),
+    ordine: i, createdAt: new Date(), updatedAt: new Date(),
   }));
 
-  await db.collection('galleries').doc(galleryId).set({
-    name, code: galleryCode,
-    date: date || '', location: location || '', description: '',
-    hasPassword: false, active: true,
-    photoCount: 0, selectionEnabled: false, unlimitedSelection: false,
-    chaptersEnabled: hasChapters,
-    chapters: fsChapters,
-    userId: 'script-upload',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  const { galleryData, secretsData } = buildGalleryData({
+    name, date, location, description,
+    userId:      'script-upload',
+    code,
+    access, selection, youtubeUrls,
+    clienteId, clientEmail, clientName, jobId,
   });
-  await db.collection('gallerySecrets').doc(galleryId).set({
-    galleryId, password: null, specialPin: null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  console.log(`\n✓ Galleria creata  (codice: ${galleryCode})`);
-  console.log(`\nAvvio upload di ${total} foto...\n`);
+  galleryData.chapters        = fsChapters;
+  galleryData.chaptersEnabled = hasChapters;
 
-  const chapterMap = Object.fromEntries(fsChapters.map(c => [c.titolo, c.id]));
-  const jobs       = chapters.flatMap(ch =>
-    ch.photos.map(p => ({ path: p, chapterId: ch.name ? chapterMap[ch.name] : null }))
-  );
-  const counter = { done: 0, total };
-  const errors  = [];
+  // Salva galleria + secrets
+  await db.collection('galleries').doc(galleryId).set(galleryData);
+  await db.collection('gallerySecrets').doc(galleryId).set(secretsData);
 
-  await runPool(jobs, async job => {
-    try { await uploadPhoto(job.path, galleryId, job.chapterId, counter); }
-    catch (e) { errors.push({ f: path.basename(job.path), err: e.message }); }
-  }, MAX_PARALLEL);
-
-  await db.collection('galleries').doc(galleryId).update({
-    photoCount: total - errors.length,
-    updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
-  });
-
-  console.log(`\n\n✅ Upload completato: ${total - errors.length}/${total} foto caricate`);
-  if (errors.length) {
-    console.log('⚠  Errori su questi file:');
-    errors.forEach(e => console.log(`   - ${e.f}: ${e.err}`));
+  // Sync job
+  if (jobId) {
+    await db.collection('jobs').doc(jobId).update({
+      galleryIds: admin.firestore.FieldValue.arrayUnion(galleryId),
+    }).catch(() => {});
   }
-  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${galleryCode}\n`);
+
+  console.log(`\n✓ Galleria creata  (codice: ${code})`);
+
+  // Carica copertina galleria (dalla radice)
+  const rootCoverFile = chapters.find(c => c.name === null)?.cover || null;
+  if (rootCoverFile) {
+    process.stdout.write('  📸 Upload copertina galleria...');
+    try {
+      const coverUrl = await uploadGalleryCover(rootCoverFile, galleryId);
+      await db.collection('galleries').doc(galleryId).update({
+        coverImageUrl:     coverUrl,
+        coverImageMobile:  coverUrl,
+        coverImageDesktop: coverUrl,
+      });
+      console.log(' ✓');
+    } catch (e) {
+      console.log(' ⚠ Errore copertina: ' + e.message);
+    }
+  }
+
+  // Upload foto
+  const totalCount = chapters.reduce((s, c) => s + c.photos.length + (c.cover ? 1 : 0), 0);
+  if (totalCount === 0) {
+    console.log('\nNessuna foto da caricare (solo copertina galleria).');
+  } else {
+    console.log(`\nAvvio upload di ${totalCount} foto...\n`);
+    const { photoCount, errors, coverUpdates } = await uploadChapters(chapters, galleryId, fsChapters);
+
+    // Applica copertine capitoli
+    if (coverUpdates.length) {
+      const updatedChapters = applyChapterCovers(fsChapters, coverUpdates);
+      await db.collection('galleries').doc(galleryId).update({ chapters: updatedChapters });
+    }
+
+    await db.collection('galleries').doc(galleryId).update({
+      photoCount: photoCount,
+      updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`\n\n✅ Upload completato: ${photoCount}/${totalCount} foto caricate`);
+    if (errors.length) {
+      console.log('⚠  Errori:');
+      errors.forEach(e => console.log(`   - ${e.f}: ${e.err}`));
+    }
+  }
+
+  console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${code}\n`);
 }
 
-// ── GALLERIA ESISTENTE ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGGIUNGI FOTO A GALLERIA ESISTENTE
+// ═══════════════════════════════════════════════════════════════════════════════
 async function addToExisting() {
   console.log('\n─── AGGIUNGI FOTO A GALLERIA ESISTENTE ──────────────\n');
-  console.log('Caricamento gallerie dal database...');
+  console.log('Caricamento gallerie...');
 
   const snap = await db.collection('galleries').orderBy('createdAt', 'desc').limit(200).get();
   const list = snap.docs.map((d, i) => {
@@ -222,69 +582,83 @@ async function addToExisting() {
   console.log('');
   list.forEach(g => {
     const label = `${g.name}${g.date ? '  (' + g.date + ')' : ''}`;
-    console.log(`  ${String(g.n).padStart(3)}.  ${label.padEnd(50)}  [${g.count} foto]`);
+    console.log(`  ${String(g.n).padStart(3)}.  ${label.padEnd(52)}  [${g.count} foto]`);
   });
 
-  const numStr = await ask('\nNumero galleria: ');
-  const num    = parseInt(numStr, 10);
+  const numStr  = await ask('\nNumero galleria: ');
+  const num     = parseInt(numStr, 10);
   if (!num || num < 1 || num > list.length) { console.error('Numero non valido.'); process.exit(1); }
   const gallery = list[num - 1];
 
-  const folder = (await ask('Percorso cartella foto *: ')).replace(/^["']|["']$/g, '');
+  const folderRaw = await ask('Percorso cartella foto *: ');
+  const folder    = folderRaw.replace(/^["']|["']$/g, '');
   if (!fs.existsSync(folder)) { console.error('\nCartella non trovata: ' + folder); process.exit(1); }
 
-  const chapters = scanFolder(folder);
+  const chapters  = scanFolder(folder);
   if (!chapters.length) { console.error('\nNessuna immagine trovata.'); process.exit(1); }
 
-  const total = chapters.reduce((s, c) => s + c.photos.length, 0);
-  console.log(`\nGalleria selezionata: "${gallery.name}"`);
-  console.log(`Foto da aggiungere: ${total}`);
+  const total      = chapters.reduce((s, c) => s + c.photos.length + (c.cover ? 1 : 0), 0);
+  const coverCount = chapters.filter(c => c.cover).length;
+  console.log(`\nGalleria: "${gallery.name}"`);
+  console.log(`Foto da aggiungere: ${total}${coverCount ? ' + ' + coverCount + ' copertina/e capitoli' : ''}`);
   const ok = await ask('Procedere? (s/n): ');
   if (ok.toLowerCase() !== 's') { console.log('Annullato.'); process.exit(0); }
 
+  // Aggiorna copertina galleria (radice)
+  const rootCoverFile = chapters.find(c => c.name === null)?.cover || null;
+  if (rootCoverFile) {
+    process.stdout.write('\n  📸 Aggiornamento copertina galleria...');
+    try {
+      const coverUrl = await uploadGalleryCover(rootCoverFile, gallery.id);
+      await db.collection('galleries').doc(gallery.id).update({
+        coverImageUrl:     coverUrl,
+        coverImageMobile:  coverUrl,
+        coverImageDesktop: coverUrl,
+      });
+      console.log(' ✓');
+    } catch (e) { console.log(' ⚠ ' + e.message); }
+  }
+
   // Gestione capitoli esistenti + nuovi
-  const galleryDocData  = (await db.collection('galleries').doc(gallery.id).get()).data();
+  const galleryDocData   = (await db.collection('galleries').doc(gallery.id).get()).data();
   const existingChapters = galleryDocData.chapters || [];
-  const chapterMap = Object.fromEntries(existingChapters.map(c => [c.titolo, c.id]));
-  const newChapters = [];
+  const chapterMap       = Object.fromEntries(existingChapters.map(c => [c.titolo, c]));
+  const newChapters      = [];
 
   for (const ch of chapters.filter(c => c.name)) {
     if (!chapterMap[ch.name]) {
-      const newId = nanoid(10);
-      chapterMap[ch.name] = newId;
-      newChapters.push({
-        id: newId, titolo: ch.name, descrizione: '',
+      const newCh = {
+        id: nanoid(10), titolo: ch.name, descrizione: '',
         ordine: existingChapters.length + newChapters.length,
         createdAt: new Date(), updatedAt: new Date(),
-      });
+      };
+      chapterMap[ch.name] = newCh;
+      newChapters.push(newCh);
     }
   }
+
+  const allChapters = [...existingChapters, ...newChapters];
   if (newChapters.length) {
     await db.collection('galleries').doc(gallery.id).update({
-      chapters: [...existingChapters, ...newChapters],
-      chaptersEnabled: true,
+      chapters: allChapters, chaptersEnabled: true,
     });
     console.log(`✓ Aggiunti ${newChapters.length} nuovi capitoli`);
   }
 
-  const jobs = chapters.flatMap(ch =>
-    ch.photos.map(p => ({ path: p, chapterId: ch.name ? chapterMap[ch.name] : null }))
-  );
-  console.log(`\nAvvio upload di ${total} foto...\n`);
-  const counter = { done: 0, total };
-  const errors  = [];
+  console.log(`\nAvvio upload di ${total} file...\n`);
+  const { photoCount, errors, coverUpdates } = await uploadChapters(chapters, gallery.id, allChapters);
 
-  await runPool(jobs, async job => {
-    try { await uploadPhoto(job.path, gallery.id, job.chapterId, counter); }
-    catch (e) { errors.push({ f: path.basename(job.path), err: e.message }); }
-  }, MAX_PARALLEL);
+  if (coverUpdates.length) {
+    const updatedChapters = applyChapterCovers(allChapters, coverUpdates);
+    await db.collection('galleries').doc(gallery.id).update({ chapters: updatedChapters });
+  }
 
   await db.collection('galleries').doc(gallery.id).update({
-    photoCount: admin.firestore.FieldValue.increment(total - errors.length),
+    photoCount: admin.firestore.FieldValue.increment(photoCount),
     updatedAt:  admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  console.log(`\n\n✅ Upload completato: ${total - errors.length}/${total} foto aggiunte a "${gallery.name}"`);
+  console.log(`\n\n✅ Upload completato: ${photoCount}/${total} foto aggiunte a "${gallery.name}"`);
   if (errors.length) {
     console.log('⚠  Errori:');
     errors.forEach(e => console.log(`   - ${e.f}: ${e.err}`));
@@ -292,11 +666,13 @@ async function addToExisting() {
   console.log(`\n🔗 Link galleria: ${GALLERY_URL}/${gallery.code}\n`);
 }
 
-// ── MAIN ──────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════════════════════════
 async function main() {
-  console.log('\n╔════════════════════════════════════════════════╗');
-  console.log('║   Image Studio — Uploader Gallerie v2          ║');
-  console.log('╚════════════════════════════════════════════════╝\n');
+  console.log('\n╔══════════════════════════════════════════════════╗');
+  console.log('║   Image Studio — Uploader Gallerie  v3           ║');
+  console.log('╚══════════════════════════════════════════════════╝\n');
   const choice = await ask('Cosa vuoi fare?\n  1. Crea nuova galleria\n  2. Aggiungi foto a galleria esistente\n\nScelta (1 o 2): ');
   if (choice === '1')      await createNewGallery();
   else if (choice === '2') await addToExisting();

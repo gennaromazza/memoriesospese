@@ -1,6 +1,6 @@
 ════════════════════════════════════════════════════════════
-  Image Studio — Uploader Gallerie per PC
-  (Versione semplificata, nessuna configurazione richiesta)
+  Image Studio — Uploader Gallerie per PC  (v3)
+  Nessuna configurazione richiesta — credenziali già integrate
 ════════════════════════════════════════════════════════════
 
 COSA SERVE (solo la prima volta):
@@ -16,7 +16,7 @@ COSA SERVE (solo la prima volta):
 3. Apri il terminale (cmd o PowerShell) in quella cartella
    e scrivi:
       npm install
-   Attendi che finisca (scarica firebase-admin, ~30 secondi)
+   Attendi che finisca (~30 secondi)
 
 ═══ FATTO! Non devi fare altro. ═══════════════════════════
 
@@ -24,16 +24,48 @@ COSA SERVE (solo la prima volta):
 COME USARLO OGNI VOLTA:
 ─────────────────────────────────────────────────────────────
 1. Apri il terminale (cmd o PowerShell)
-2. Entra nella cartella dove hai salvato uploader-pc.js:
+2. Entra nella cartella dove hai salvato i file:
       cd C:\Users\TuoNome\Desktop\Uploader
 3. Esegui:
       node uploader-pc.js
 
-Lo script ti chiede tutto in modo interattivo:
-  - Vuoi creare una nuova galleria o aggiungere foto a una esistente?
-  - Nome della galleria
-  - Data evento
-  - Percorso della cartella con le foto
+Lo script ti guida passo dopo passo e chiede:
+
+  ① Nuova galleria o aggiungi foto a una esistente?
+  ② Nome, data, luogo, descrizione
+  ③ Cliente da associare (cerca per nome/email)
+  ④ Job da collegare (lista selezionabile)
+  ⑤ Tipo di accesso:
+        Pubblica  /  Password  /  Tema speciale + PIN
+  ⑥ Selezione foto per il cliente:
+        Modalità like ✅ o dislike ❌, numero foto, scadenza
+  ⑦ Video YouTube da associare
+  ⑧ Percorso cartella con le foto
+
+
+COPERTINE (convenzione automatica):
+─────────────────────────────────────────────────────────────
+Puoi impostare le copertine semplicemente nominando il file
+con il prefisso "_copertina" (es. _copertina.jpg).
+Lo script le rileva automaticamente:
+
+  📁 Matrimonio Rossi
+    ├── _copertina.jpg          ← copertina della GALLERIA
+    ├── 001.jpg
+    ├── 002.jpg
+    ├── 📁 01-Chiesa
+    │   ├── _copertina.jpg      ← copertina del capitolo "01-Chiesa"
+    │   ├── chiesa-001.jpg
+    │   └── chiesa-002.jpg
+    └── 📁 02-Ristorante
+        ├── _copertina.jpg      ← copertina del capitolo "02-Ristorante"
+        ├── cena-001.jpg
+        └── cena-002.jpg
+
+• Le foto _copertina vengono caricate normalmente nell'album
+  E impostate come copertina della galleria / del capitolo.
+• Se non metti nessun file _copertina, non c'è problema:
+  le copertine resteranno vuote (impostabili dopo dal pannello).
 
 
 ORGANIZZAZIONE DELLE FOTO:
@@ -41,18 +73,38 @@ ORGANIZZAZIONE DELLE FOTO:
 • Cartella SENZA sottocartelle → tutte le foto in un unico blocco
 
 • Cartella CON sottocartelle → ogni sottocartella diventa un
-  capitolo nella galleria (utile per matrimoni: chiesa, ristorante, ecc.)
+  capitolo nella galleria
 
   Esempio:
-    📁 Matrimonio Rossi
+    📁 Matrimonio Verdi
       📁 01-Chiesa
-      📁 02-Villa-Ricevimento
-      📁 03-Torta
+      📁 02-Villa
+      📁 03-Torta-e-Balli
 
-  Le sottocartelle vengono ordinate alfabeticamente.
+  Le sottocartelle vengono ordinate alfabeticamente,
+  quindi usa numeri davanti al nome per controllare l'ordine.
 
 
-FORMATI SUPPORTATI:
+TEMI SPECIALI DISPONIBILI:
+─────────────────────────────────────────────────────────────
+  🎄 Natale          🎭 Carnevale       💕 San Valentino
+  🐰 Pasqua          🎃 Halloween
+
+Per i temi speciali è obbligatorio un PIN (min. 4 caratteri).
+Il PIN deve essere unico: lo script verifica automaticamente.
+Password e Tema speciale sono MUTUAMENTE ESCLUSIVI.
+
+
+SELEZIONE FOTO:
+─────────────────────────────────────────────────────────────
+Puoi abilitare la modalità selezione per il cliente:
+  • Like ✅   → il cliente sceglie le foto che VUOLE
+  • Dislike ❌ → il cliente esclude le foto che NON vuole
+  • Numero di foto da selezionare (oppure "libera" senza limite)
+  • Scadenza entro cui completare la selezione
+
+
+FORMATI FOTO SUPPORTATI:
 ─────────────────────────────────────────────────────────────
 JPG, JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC, HEIF, AVIF
 
@@ -60,20 +112,22 @@ JPG, JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC, HEIF, AVIF
 DOMANDE FREQUENTI:
 ─────────────────────────────────────────────────────────────
 Q: Come inserisco il percorso della cartella?
-A: Puoi trascinare la cartella direttamente sul terminale —
+A: Trascina la cartella direttamente sul terminale —
    il percorso viene incollato automaticamente.
-   Oppure copia il percorso da Esplora File.
 
 Q: Posso chiudere il terminale durante l'upload?
-A: No, lascia il terminale aperto fino al completamento.
-   Vedrai il contatore: 📷  23/150 nome-file.jpg
+A: No, lascia aperto fino al completamento.
+   Vedrai il contatore: 📷   45/350  nome-file.jpg
 
-Q: Se un file fallisce, le altre foto vengono caricate lo stesso?
-A: Sì. Alla fine viene mostrato un elenco degli errori.
+Q: Se un file fallisce, le altre foto si caricano lo stesso?
+A: Sì. Alla fine vedi l'elenco degli eventuali errori.
 
-Q: Posso caricare le stesse foto due volte?
-A: Sì, ma creerà duplicati. Lo script non controlla duplicati
-   nella modalità "nuova galleria". Usa "aggiungi a esistente"
-   con cautela.
+Q: Posso aggiungere video YouTube alla galleria?
+A: Sì, lo script te lo chiede. Puoi aggiungere
+   quanti URL YouTube vuoi.
+
+Q: Il cliente riceve un'email quando creo la galleria?
+A: Solo se configuri l'email nel pannello admin separatamente.
+   L'uploader associa il cliente ma non invia email autonomamente.
 
 ════════════════════════════════════════════════════════════
