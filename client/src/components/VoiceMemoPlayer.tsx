@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -10,16 +9,12 @@ import {
   Volume2, 
   VolumeX, 
   Download,
-  Clock,
   Calendar,
-  User,
-  MessageSquare,
   Lock,
   Unlock,
   Trash2
 } from 'lucide-react';
 import { VoiceMemo } from '@shared/schema';
-import InteractionWrapper from './InteractionWrapper';
 import UserAvatar from './UserAvatar';
 import { Timestamp } from 'firebase/firestore';
 
@@ -214,28 +209,26 @@ export default function VoiceMemoPlayer({
     return (
       <Card className="w-full opacity-60">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <UserAvatar
-                  userEmail={memo.userEmail}
-                  userName={memo.guestName}
-                  userProfileImageUrl={memo.userProfileImageUrl}
-                  size="md"
-                />
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                  <Lock className="h-3 w-3 text-white" />
-                </div>
-              </div>
-              <div>
-                <p className="font-medium text-gray-700">{memo.guestName}</p>
-                <p className="text-sm text-gray-500">Messaggio bloccato</p>
+          <div className="flex items-center gap-3">
+            <div className="relative flex-shrink-0">
+              <UserAvatar
+                userEmail={memo.userEmail}
+                userName={memo.guestName}
+                userProfileImageUrl={memo.userProfileImageUrl}
+                size="md"
+              />
+              <div className="absolute -top-1 -right-1 w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                <Lock className="h-3 w-3 text-white" />
               </div>
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-700 truncate">{memo.guestName}</p>
+              <p className="text-sm text-gray-500">Messaggio bloccato</p>
+            </div>
             {hasUnlockDate && (
-              <Badge variant="outline" className="text-gray-600">
+              <Badge variant="outline" className="text-gray-600 text-[11px] flex-shrink-0">
                 <Calendar className="h-3 w-3 mr-1" />
-                Sblocco: {formatDate(memo.unlockDate!)}
+                {formatDate(memo.unlockDate!)}
               </Badge>
             )}
           </div>
@@ -246,79 +239,66 @@ export default function VoiceMemoPlayer({
 
   return (
     <Card className="w-full">
-      <CardContent className="p-4 sm:p-6">
-        <div className="space-y-4">
-          {/* Header with guest info */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
+      <CardContent className="p-4">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
               <UserAvatar
                 userEmail={memo.userEmail}
                 userName={memo.guestName}
                 userProfileImageUrl={memo.userProfileImageUrl}
                 size="md"
               />
-              <div>
-                <p className="font-medium text-gray-900 text-sm sm:text-base">{memo.guestName}</p>
-                <p className="text-xs sm:text-sm text-gray-500">
-                  <Clock className="h-3 w-3 inline mr-1" />
-                  {formatDateTime(memo.createdAt)}
-                </p>
-              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-gray-900 text-[14px] truncate">{memo.guestName}</p>
+              <p className="text-[12px] text-gray-400">
+                {formatDateTime(memo.createdAt)}
+              </p>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               {isLocked && isAdmin && (
-                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                  <Lock className="h-3 w-3 mr-1" />
+                <Badge variant="outline" className="text-orange-600 border-orange-300 text-[11px]">
+                  <Lock className="h-3 w-3 mr-0.5" />
                   Bloccato
                 </Badge>
               )}
               {hasUnlockDate && (
-                <Badge variant="outline" className="text-blue-600 border-blue-300">
-                  <Calendar className="h-3 w-3 mr-1" />
+                <Badge variant="outline" className="text-blue-600 border-blue-300 text-[11px]">
+                  <Calendar className="h-3 w-3 mr-0.5" />
                   {formatDate(memo.unlockDate!)}
                 </Badge>
               )}
             </div>
           </div>
 
-          {/* Message if present */}
           {memo.message && (
-            <div className="bg-gray-50 p-3 rounded-lg border">
-              <div className="flex items-start gap-2">
-                <MessageSquare className="h-4 w-4 text-gray-600 mt-0.5" />
-                <p className="text-sm text-gray-700">{memo.message}</p>
-              </div>
+            <div className="bg-gray-50 px-3 py-2.5 rounded-xl">
+              <p className="text-[13px] text-gray-700 leading-relaxed">{memo.message}</p>
             </div>
           )}
 
-          {/* Audio controls */}
-          <div className="space-y-3">
-            {/* Play controls and progress */}
+          <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <Button
+              <button
                 onClick={togglePlay}
                 disabled={isLoading || !!error}
-                size="sm"
-                className="w-10 h-10 rounded-full bg-[#d0dfd4] hover:bg-sage-700 text-white"
+                className="w-12 h-12 rounded-full bg-sage-600 hover:bg-sage-700 active:bg-sage-800 text-white flex items-center justify-center flex-shrink-0 transition-colors touch-manipulation shadow-sm"
               >
                 {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : isPlaying ? (
-                  <Pause className="h-4 w-4" />
+                  <Pause className="h-5 w-5" />
                 ) : (
-                  <Play className="h-4 w-4" />
+                  <Play className="h-5 w-5 ml-0.5" />
                 )}
-              </Button>
+              </button>
               
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
+              <div className="flex-1 space-y-1 min-w-0">
                 <Progress 
                   value={progressPercentage} 
-                  className="w-full h-2 cursor-pointer"
+                  className="w-full h-2.5 cursor-pointer touch-manipulation"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX - rect.left;
@@ -326,80 +306,73 @@ export default function VoiceMemoPlayer({
                     handleSeek(percentage);
                   }}
                 />
+                <div className="flex items-center justify-between text-[11px] text-gray-400 tabular-nums px-0.5">
+                  <span>{formatTime(currentTime)}</span>
+                  <span>{formatTime(duration)}</span>
+                </div>
               </div>
             </div>
 
-            {/* Additional controls */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
+              <div className="flex items-center gap-1">
+                <button
                   onClick={resetAudio}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
+                  aria-label="Riavvolgi audio"
+                  className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-500 touch-manipulation transition-colors"
                 >
-                  <RotateCcw className="h-3 w-3" />
-                </Button>
+                  <RotateCcw className="h-4 w-4" />
+                </button>
                 
-                <div className="flex items-center gap-1">
-                  <Button
-                    onClick={toggleMute}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                  >
-                    {isMuted ? (
-                      <VolumeX className="h-3 w-3" />
-                    ) : (
-                      <Volume2 className="h-3 w-3" />
-                    )}
-                  </Button>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={isMuted ? 0 : volume * 100}
-                    onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                    className="w-16 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
+                <button
+                  onClick={toggleMute}
+                  aria-label={isMuted ? "Attiva audio" : "Disattiva audio"}
+                  className="h-9 w-9 hidden sm:flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-500 touch-manipulation transition-colors"
+                >
+                  {isMuted ? (
+                    <VolumeX className="h-4 w-4" />
+                  ) : (
+                    <Volume2 className="h-4 w-4" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={isMuted ? 0 : volume * 100}
+                  onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                  className="w-16 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer hidden sm:block"
+                />
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
+              <div className="flex items-center gap-1">
+                <button
                   onClick={downloadAudio}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
+                  className="h-9 px-3 flex items-center gap-1.5 rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-500 text-[12px] touch-manipulation transition-colors"
                 >
-                  <Download className="h-3 w-3 mr-1" />
-                  <span className="text-xs">Scarica</span>
-                </Button>
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Scarica</span>
+                </button>
 
                 {isAdmin && (
                   <>
                     {isLocked && onUnlock && (
-                      <Button
+                      <button
                         onClick={() => onUnlock(memo.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="h-9 px-3 flex items-center gap-1.5 rounded-full text-green-600 hover:bg-green-50 active:bg-green-100 text-[12px] touch-manipulation transition-colors"
                       >
-                        <Unlock className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Sblocca</span>
-                      </Button>
+                        <Unlock className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Sblocca</span>
+                      </button>
                     )}
                     
                     {onDelete && (
-                      <Button
+                      <button
                         onClick={() => onDelete(memo.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="h-9 px-3 flex items-center gap-1.5 rounded-full text-red-600 hover:bg-red-50 active:bg-red-100 text-[12px] touch-manipulation transition-colors"
                       >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Elimina</span>
-                      </Button>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Elimina</span>
+                      </button>
                     )}
                   </>
                 )}
@@ -407,34 +380,18 @@ export default function VoiceMemoPlayer({
             </div>
           </div>
 
-          {/* Error message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
 
-          {/* Hidden audio element */}
           <audio
             ref={audioRef}
             src={memo.audioUrl}
             preload="metadata"
             className="hidden"
           />
-
-          {/* Interaction Panel - Like e Commenti - Rimosso per evitare icone duplicate */}
-          {/* 
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <InteractionWrapper
-              itemId={memo.id}
-              itemType="voice_memo"
-              galleryId={galleryId}
-              isAdmin={isAdmin}
-              variant="inline"
-              className="bg-transparent"
-            />
-          </div>
-          */}
         </div>
       </CardContent>
     </Card>

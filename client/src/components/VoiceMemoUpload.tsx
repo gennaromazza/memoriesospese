@@ -426,14 +426,13 @@ export default function VoiceMemoUpload({
                 </div>
               </div>
 
-            {/* Tabs for record vs upload */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="record" className="flex items-center gap-2">
+              <TabsList className="grid w-full grid-cols-2 h-11 rounded-xl">
+                <TabsTrigger value="record" className="flex items-center gap-2 h-9 rounded-lg touch-manipulation text-[13px]">
                   <Mic2 className="h-4 w-4" />
                   Registra ora
                 </TabsTrigger>
-                <TabsTrigger value="upload" className="flex items-center gap-2">
+                <TabsTrigger value="upload" className="flex items-center gap-2 h-9 rounded-lg touch-manipulation text-[13px]">
                   <Upload className="h-4 w-4" />
                   Carica file
                 </TabsTrigger>
@@ -545,36 +544,32 @@ export default function VoiceMemoUpload({
             )}
 
 
-            {/* Validation messages */}
             {(!recordedBlob && !selectedFile) && !isUploading && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-red-600 font-bold text-xs">!</span>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-red-600 font-bold text-[11px]">!</span>
                   </div>
-                  <div className="space-y-2">
-                    <p className="font-medium text-red-900 text-sm">
-                      Completa per salvare il ricordo:
-                    </p>
-                    <ul className="text-red-800 text-sm space-y-1">
-                      {(!recordedBlob && !selectedFile) && (
-                        <li className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                          Registra un audio o carica un file
-                        </li>
-                      )}
-                    </ul>
-                  </div>
+                  <p className="text-[13px] text-red-800">
+                    Registra un audio o carica un file per continuare
+                  </p>
                 </div>
               </div>
             )}
 
-            {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+              <Button
+                variant="outline"
+                onClick={handleDialogClose}
+                disabled={isUploading}
+                className="h-12 sm:h-11 px-6 border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-[14px] rounded-xl touch-manipulation sm:w-auto"
+              >
+                {isUploading ? 'Attendere...' : 'Annulla'}
+              </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={(!recordedBlob && !selectedFile) || isUploading}
-                className="flex-1 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 text-white font-medium py-2.5 sm:py-3 shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base relative"
+                className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 active:from-sage-800 active:to-blue-gray-800 text-white font-medium shadow-lg transition-all duration-300 disabled:opacity-50 text-[14px] rounded-xl touch-manipulation"
               >
                 {isUploading ? (
                   <div className="flex items-center gap-2">
@@ -589,32 +584,16 @@ export default function VoiceMemoUpload({
                     {(!recordedBlob && !selectedFile) ? 'Completa i campi' : 'Salva ricordo'}
                   </div>
                 )}
-                {(!recordedBlob && !selectedFile) && !isUploading && (
-                  <div className="absolute inset-0 bg-gray-400 bg-opacity-10 rounded-md flex items-center justify-center">
-                    <div className="w-4 h-4 border-2 border-gray-400 rounded-full flex items-center justify-center">
-                      <span className="text-gray-400 font-bold text-xs">!</span>
-                    </div>
-                  </div>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleDialogClose}
-                disabled={isUploading}
-                className="px-4 sm:px-6 border-gray-300 hover:bg-gray-50 text-sm sm:text-base py-2.5 sm:py-3"
-              >
-                {isUploading ? 'Attendere...' : 'Annulla'}
               </Button>
             </div>
 
-            {/* Info box */}
             {!isUploading && (
-              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div className="flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-600 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-amber-900 mb-1">Come funziona:</p>
-                    <ul className="text-amber-800 space-y-1 text-xs">
+                  <Sparkles className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-amber-900 text-[13px] mb-1">Come funziona:</p>
+                    <ul className="text-amber-800 space-y-0.5 text-[12px]">
                       <li>• I tuoi vocali saranno privati fino alla data di sblocco</li>
                       <li>• Solo gli sposi potranno ascoltarli dopo lo sblocco</li>
                       <li>• Crea un ricordo speciale per il loro giorno perfetto</li>

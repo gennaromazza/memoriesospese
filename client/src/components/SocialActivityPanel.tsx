@@ -347,43 +347,42 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
 
   return (
     <>
-    <div className={`${className} grid grid-cols-1 lg:grid-cols-3 gap-4`}>
+    <div className={`${className} grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4`}>
       {/* Recent Comments Section */}
-      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-sm sm:shadow-lg overflow-hidden">
+        <CardHeader className="pb-2 px-4">
+          <CardTitle className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-2">
             <MessageCircle className="h-4 w-4 text-blue-600" />
             Commenti Recenti
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-64">
-            <div className="p-4">
+          <ScrollArea className="h-56 sm:h-64">
+            <div className="px-3 sm:px-4 pb-3">
               {recentComments.length === 0 ? (
-                <div className="text-center py-4">
-                  <MessageCircle className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-500">Nessun commento</p>
+                <div className="text-center py-8">
+                  <MessageCircle className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">Nessun commento</p>
                 </div>
               ) : (
-                <div className="relative">
-                  {/* Slide Container */}
+                <div className="relative overflow-hidden">
                   <div 
                     className="flex transition-transform duration-500 ease-in-out"
                     style={{ transform: `translateX(-${currentSlide * 100}%)` }}
                   >
                     {Array.from({ length: Math.ceil(recentComments.length / 3) }, (_, slideIndex) => (
                       <div key={slideIndex} className="w-full flex-shrink-0 space-y-1">
-                        {recentComments.slice(slideIndex * 3, (slideIndex + 1) * 3).map((comment, index) => (
-                          <div 
+                        {recentComments.slice(slideIndex * 3, (slideIndex + 1) * 3).map((comment) => (
+                          <button 
                             key={comment.id} 
-                            className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
+                            className="w-full text-left p-2.5 sm:p-2 rounded-xl active:bg-gray-100 sm:hover:bg-gray-50 transition-colors touch-manipulation"
                             onClick={() => {
                               if (comment.itemId && onPhotoClick) {
                                 onPhotoClick(comment.itemId);
                               }
                             }}
                           >
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-2.5">
                               <UserAvatar
                                 userEmail={comment.userEmail}
                                 userName={comment.userName}
@@ -391,39 +390,33 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                                 size="sm"
                               />
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-xs font-medium text-gray-900 truncate">
+                                <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                                  <p className="text-[13px] font-semibold text-gray-900 truncate">
                                     {comment.userName}
                                   </p>
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-[11px] text-gray-400 flex-shrink-0">
                                     {formatDateTime(comment.createdAt)}
                                   </span>
                                 </div>
-                                <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-2">
+                                <p className="text-[13px] text-gray-600 line-clamp-2 leading-relaxed">
                                   {(comment as any).text || comment.content || ''}
                                 </p>
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                                    {comment.itemId ? 'Foto' : 'Galleria'}
-                                  </Badge>
-                                </div>
                               </div>
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     ))}
                   </div>
                   
-                  {/* Slide Indicators */}
                   {recentComments.length > 3 && (
-                    <div className="flex justify-center mt-3 gap-1">
+                    <div className="flex justify-center mt-3 gap-1.5">
                       {Array.from({ length: Math.ceil(recentComments.length / 3) }, (_, index) => (
                         <button
                           key={index}
                           onClick={() => setCurrentSlide(index)}
-                          className={`w-2 h-2 rounded-full transition-colors ${
-                            index === currentSlide ? 'bg-sage-600' : 'bg-gray-300'
+                          className={`h-2 rounded-full transition-all touch-manipulation ${
+                            index === currentSlide ? 'bg-sage-600 w-5' : 'bg-gray-300 w-2'
                           }`}
                         />
                       ))}
@@ -437,38 +430,40 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       </Card>
 
       {/* Top Photos Section */}
-      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <Heart className="h-4 w-4 text-red-600" />
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-sm sm:shadow-lg overflow-hidden">
+        <CardHeader className="pb-2 px-4">
+          <CardTitle className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-2">
+            <Heart className="h-4 w-4 text-red-500" />
             Foto Top
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-64">
-            <div className="p-4">
+          <ScrollArea className="h-56 sm:h-64">
+            <div className="px-3 sm:px-4 pb-3">
               {topPhotos.length === 0 ? (
-                <div className="text-center py-4">
-                  <Heart className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-500">Nessuna foto disponibile</p>
+                <div className="text-center py-8">
+                  <Heart className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">Nessun like ancora</p>
                 </div>
               ) : (
                 <div className="space-y-1">
                   {topPhotos.map((photo, index) => (
                     <div 
                       key={photo.id} 
-                      className="group p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-transparent hover:border-gray-200"
-                      onClick={() => {
-                        if (onPhotoClick) {
-                          onPhotoClick(photo.id);
-                        }
-                      }}
+                      className="p-2 rounded-xl active:bg-gray-100 sm:hover:bg-gray-50 transition-colors touch-manipulation"
+                      role="group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-6 h-6 flex-shrink-0">
+                        <div 
+                          className="flex items-center justify-center w-7 h-7 flex-shrink-0 cursor-pointer"
+                          onClick={() => onPhotoClick?.(photo.id)}
+                        >
                           {getRankIcon(index)}
                         </div>
-                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 shadow-sm">
+                        <div 
+                          className="w-14 h-14 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 shadow-sm cursor-pointer"
+                          onClick={() => onPhotoClick?.(photo.id)}
+                        >
                           <img 
                             src={photo.url} 
                             alt={photo.name}
@@ -477,25 +472,30 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-900 truncate mb-1">
+                          <p 
+                            className="text-[13px] font-medium text-gray-900 truncate mb-1.5 cursor-pointer"
+                            onClick={() => onPhotoClick?.(photo.id)}
+                          >
                             {photo.name || 'Foto senza nome'}
                           </p>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <div className="flex items-center gap-4 text-[13px] text-gray-500">
                             <button
                               onClick={(e) => handleLikePhoto(photo.id, e)}
-                              className={`flex items-center gap-1 hover:scale-110 transition-transform ${
+                              aria-label={`Mi piace foto ${photo.name || ''}`}
+                              className={`flex items-center gap-1.5 min-h-[44px] active:scale-95 transition-transform touch-manipulation ${
                                 likedPhotos.has(photo.id) ? 'text-red-500' : ''
                               }`}
                             >
-                              <Heart className={`h-3 w-3 ${likedPhotos.has(photo.id) ? 'fill-current' : ''}`} />
-                              <span className="font-medium">{photo.likesCount}</span>
+                              <Heart className={`h-4 w-4 ${likedPhotos.has(photo.id) ? 'fill-current' : ''}`} />
+                              <span className="font-semibold">{photo.likesCount}</span>
                             </button>
                             <button
                               onClick={(e) => handleCommentPhoto(photo.id, e)}
-                              className="flex items-center gap-1 hover:scale-110 transition-transform hover:text-blue-600"
+                              aria-label={`Commenta foto ${photo.name || ''}`}
+                              className="flex items-center gap-1.5 min-h-[44px] active:scale-95 transition-transform touch-manipulation hover:text-blue-600"
                             >
-                              <MessageCircle className="h-3 w-3" />
-                              <span className="font-medium">{photo.commentsCount}</span>
+                              <MessageCircle className="h-4 w-4" />
+                              <span className="font-semibold">{photo.commentsCount}</span>
                             </button>
                           </div>
                         </div>
@@ -510,10 +510,10 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
       </Card>
 
       {/* Recent Voice Memos Section */}
-      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-lg">
-        <CardHeader className="pb-3">
+      <Card className="border-gray-200 bg-white/95 backdrop-blur-sm shadow-sm sm:shadow-lg overflow-hidden">
+        <CardHeader className="pb-2 px-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-2">
               <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
@@ -521,57 +521,57 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
             </CardTitle>
             <button
               onClick={() => setShowVoiceMemoUpload(true)}
-              className="text-purple-600 hover:text-purple-700 transition-colors p-1 rounded-full hover:bg-purple-50"
-              title="Aggiungi nota audio"
+              className="h-11 w-11 flex items-center justify-center text-purple-600 hover:text-purple-700 rounded-full hover:bg-purple-50 active:bg-purple-100 transition-colors touch-manipulation"
+              aria-label="Aggiungi nota audio"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-64">
-            <div className="p-4">
+          <ScrollArea className="h-56 sm:h-64">
+            <div className="px-3 sm:px-4 pb-3">
               {recentVoiceMemos.length === 0 ? (
-                <div className="text-center py-4">
-                  <svg className="h-6 w-6 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center py-8">
+                  <svg className="h-8 w-8 text-gray-200 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                   </svg>
-                  <p className="text-xs text-gray-500">Nessuna nota audio</p>
+                  <p className="text-sm text-gray-400">Nessuna nota audio</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {recentVoiceMemos.map((memo, index) => (
-                    <div key={memo.id} className="group">
-                      <div className="p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <svg className="h-3 w-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div key={memo.id}>
+                      <div className="p-2.5 sm:p-2 rounded-xl active:bg-gray-50 sm:hover:bg-gray-50 transition-colors touch-manipulation">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                             </svg>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-medium text-gray-900 truncate">
+                            <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                              <p className="text-[13px] font-semibold text-gray-900 truncate">
                                 {memo.guestName}
                               </p>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-[11px] text-gray-400 flex-shrink-0">
                                 {formatDateTime(memo.createdAt)}
                               </span>
                             </div>
                             {memo.message && (
-                              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-1">
+                              <p className="text-[13px] text-gray-600 line-clamp-2 leading-relaxed mb-1">
                                 {memo.message}
                               </p>
                             )}
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                <Badge variant="outline" className="text-[11px] px-1.5 py-0.5 border-purple-200 text-purple-600">
                                   Audio
                                 </Badge>
                                 {memo.duration && (
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-[12px] text-gray-400">
                                     {Math.floor(memo.duration / 60)}:{(memo.duration % 60).toString().padStart(2, '0')}
                                   </span>
                                 )}
@@ -582,12 +582,11 @@ export default function SocialActivityPanel({ galleryId, className = '', onPhoto
                                     const audio = new Audio((memo as any).audioUrl);
                                     audio.play().catch(console.error);
                                   }}
-                                  className="flex items-center gap-1 px-2 py-1 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
+                                  className="flex items-center gap-1 h-7 px-2.5 text-[12px] text-purple-600 hover:text-purple-700 active:bg-purple-100 hover:bg-purple-50 rounded-full transition-colors touch-manipulation"
                                   title="Ascolta audio"
                                 >
-                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1l4 4 4-4h1m-9-4h4v3H9V6z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 18v-1a5.95 5.95 0 005.95-5.95 5.95 5.95 0 00-5.95-5.95V4" />
+                                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
                                   </svg>
                                   Play
                                 </button>

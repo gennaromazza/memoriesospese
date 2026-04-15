@@ -1,27 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Heart, 
   MessageCircle, 
-  Send, 
-  Trash2,
-  User,
-  Clock,
-  LogIn,
-  UserPlus
 } from 'lucide-react';
 import CommentModal from './CommentModal';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { LikeService } from '@/lib/likes';
 import { CommentService, Comment } from '@/lib/comments';
-import { PhotoService } from '@/lib/photos';
-import { RealtimeService } from '@/lib/realtime';
-import { Timestamp } from 'firebase/firestore';
 
 interface InteractionPanelProps {
   itemId: string;
@@ -62,13 +50,9 @@ export default function InteractionPanel({
   const { user, userProfile, isAuthenticated } = useFirebaseAuth();
   const { toast } = useToast();
 
-  // Get authentication data from centralized system
   const userEmail = user?.email || '';
   const userName = userProfile?.displayName || user?.displayName || (userEmail ? userEmail.split('@')[0] : 'Utente');
 
-
-
-  // Fetch interaction stats using Firebase services
   const fetchStats = async () => {
     try {
       setIsLoadingStats(true);
@@ -86,7 +70,6 @@ export default function InteractionPanel({
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
-      // Set default stats on error
       setStats({
         likesCount: 0,
         commentsCount: 0,
@@ -97,7 +80,6 @@ export default function InteractionPanel({
     }
   };
 
-  // Fetch comments using Firebase services
   const fetchComments = async () => {
     try {
       setIsLoadingStats(true);
@@ -112,15 +94,7 @@ export default function InteractionPanel({
     }
   };
 
-  // Handle authentication requirement
-  const handleAuthRequired = () => {
-    setShowAuthDialog(true);
-    onAuthRequired?.();
-  };
-
-  // Handle like functionality using Firebase services
   const handleLike = async () => {
-    // Verifica autenticazione
     if (!isAuthenticated || !user) {
       setShowAuthDialog(true);
       return;
@@ -131,7 +105,6 @@ export default function InteractionPanel({
       
       const isNowLiked = await LikeService.toggleLike(itemId, user.uid, userEmail, userName);
       
-      // Update stats based on action
       setStats(prev => ({
         ...prev,
         hasUserLiked: isNowLiked,
@@ -156,7 +129,6 @@ export default function InteractionPanel({
     }
   };
 
-  // Handle comment submission using Firebase services
   const handleSubmitComment = async () => {
     if (!newComment.trim()) {
       toast({
@@ -167,7 +139,6 @@ export default function InteractionPanel({
       return;
     }
 
-    // Verifica autenticazione Firebase
     if (!isAuthenticated || !user) {
       setShowAuthDialog(true);
       return;
@@ -178,17 +149,6 @@ export default function InteractionPanel({
 
       const finalUserEmail = user.email || '';
       const finalUserName = userProfile?.displayName || user.displayName || finalUserEmail.split('@')[0];
-
-      console.log('🔍 Tentativo aggiunta commento:', {
-        galleryId, 
-        itemId: itemId,
-        itemType: itemType,
-        userId: user.uid, 
-        userEmail: finalUserEmail, 
-        userName: finalUserName,
-        userProfileImageUrl: userProfile?.profileImageUrl,
-        content: newComment.trim()
-      });
 
       const commentId = await CommentService.addComment({
         galleryId, 
@@ -215,10 +175,8 @@ export default function InteractionPanel({
         createdAt: new Date()
       };
 
-      // Add comment to local state
       setComments(prev => [newCommentData, ...prev]);
 
-      // Update stats
       setStats(prev => ({
         ...prev,
         commentsCount: prev.commentsCount + 1
@@ -242,17 +200,14 @@ export default function InteractionPanel({
     }
   };
 
-  // Handle comment deletion (admin only) using Firebase services
   const handleDeleteComment = async (commentId: string) => {
     if (!isAdmin) return;
 
     try {
       await CommentService.deleteComment(commentId);
 
-      // Remove comment from local state
       setComments(prev => prev.filter(comment => comment.id !== commentId));
 
-      // Update stats
       setStats(prev => ({
         ...prev,
         commentsCount: Math.max(0, prev.commentsCount - 1)
@@ -272,37 +227,6 @@ export default function InteractionPanel({
     }
   };
 
-  // Format date helper
-  const formatDate = (timestamp: Timestamp | Date | string | number | null | undefined): string => {
-    try {
-      let date: Date;
-
-      if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp) {
-        // Firestore Timestamp
-        date = (timestamp as any).toDate();
-      } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
-        // Firestore Timestamp object
-        date = new Date((timestamp as any).seconds * 1000);
-      } else if (timestamp) {
-        // Regular Date or string
-        date = new Date(timestamp);
-      } else {
-        return 'Data non disponibile';
-      }
-
-      return date.toLocaleDateString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      return 'Data non disponibile';
-    }
-  };
-
-  // Initial data loading
   useEffect(() => {
     fetchStats();
   }, [itemId, itemType, galleryId, userEmail]);
@@ -315,39 +239,42 @@ export default function InteractionPanel({
   if (variant === 'floating') {
     return (
       <>
-        <div className="flex gap-1">
-          {/* Like button - floating */}
-          <Button
+        <div className="flex gap-1.5">
+          <button
             onClick={handleLike}
-            variant="ghost"
-            size="sm"
-            className={`h-8 w-8 p-0 rounded-full bg-white/90 backdrop-blur-sm shadow-sm ${
-              stats.hasUserLiked
-                ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
-                : 'text-gray-600 hover:text-red-500 hover:bg-red-50'
-            }`}
             disabled={isLoading || isLoadingStats}
+            className={`flex items-center gap-1 h-10 min-w-[44px] px-2.5 rounded-full bg-white/90 backdrop-blur-sm shadow-md active:scale-95 transition-all touch-manipulation ${
+              stats.hasUserLiked
+                ? 'text-red-500'
+                : 'text-gray-600'
+            }`}
           >
             <Heart 
-              className={`h-4 w-4 ${stats.hasUserLiked ? 'fill-current' : ''}`} 
+              className={`h-[18px] w-[18px] ${stats.hasUserLiked ? 'fill-current' : ''}`} 
             />
-          </Button>
+            {stats.likesCount > 0 && (
+              <span className="text-xs font-semibold">{stats.likesCount}</span>
+            )}
+          </button>
 
-          {/* Comments button - floating */}
-          <Button
+          <button
             onClick={() => {
+              if (!isAuthenticated || !user) {
+                setShowAuthDialog(true);
+                return;
+              }
               setShowCommentModal(true);
               fetchComments();
             }}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 rounded-full bg-white/90 backdrop-blur-sm shadow-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+            className="flex items-center gap-1 h-10 min-w-[44px] px-2.5 rounded-full bg-white/90 backdrop-blur-sm shadow-md text-gray-600 active:scale-95 transition-all touch-manipulation"
           >
-            <MessageCircle className="h-4 w-4" />
-          </Button>
+            <MessageCircle className="h-[18px] w-[18px]" />
+            {stats.commentsCount > 0 && (
+              <span className="text-xs font-semibold">{stats.commentsCount}</span>
+            )}
+          </button>
         </div>
 
-        {/* Comment Modal */}
         <CommentModal
           isOpen={showCommentModal}
           onOpenChange={setShowCommentModal}
@@ -362,7 +289,6 @@ export default function InteractionPanel({
           userName={userName}
         />
 
-        {/* Authentication Dialog */}
         <UnifiedAuthDialog
           isOpen={showAuthDialog}
           onOpenChange={setShowAuthDialog}
@@ -373,34 +299,25 @@ export default function InteractionPanel({
     );
   }
 
-  // Combined authentication check - ensure we have proper user identification
-  const hasFirebaseAuth = isAuthenticated && user && userEmail;
-  const hasLocalAuth = !isAuthenticated && userEmail && userName;
-  const hasAuth = hasFirebaseAuth || hasLocalAuth;
-
-
-
   return (
-    <div className={`space-y-3 ${className}`}>
-      {/* Like and comment buttons */}
-      <div className="flex items-center gap-4">
-        <Button
+    <div className={`${className}`}>
+      <div className="flex items-center gap-2">
+        <button
           onClick={handleLike}
           disabled={isLoading || isLoadingStats}
-          variant="ghost"
-          size="sm"
-          className={`h-8 px-3 ${stats.hasUserLiked 
-            ? 'text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100' 
-            : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
+          className={`flex items-center gap-1.5 h-10 px-3.5 rounded-full active:scale-95 transition-all touch-manipulation ${
+            stats.hasUserLiked 
+              ? 'text-red-600 bg-red-50' 
+              : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
           }`}
         >
-          <Heart className={`h-4 w-4 mr-1 ${stats.hasUserLiked ? 'fill-current' : ''}`} />
-          <span className="text-sm font-medium">
-            {isLoadingStats ? '...' : stats.likesCount}
+          <Heart className={`h-[18px] w-[18px] ${stats.hasUserLiked ? 'fill-current' : ''}`} />
+          <span className="text-sm font-medium tabular-nums">
+            {isLoadingStats ? '·' : stats.likesCount}
           </span>
-        </Button>
+        </button>
 
-        <Button
+        <button
           onClick={() => {
             if (!isAuthenticated || !user) {
               setShowAuthDialog(true);
@@ -409,22 +326,15 @@ export default function InteractionPanel({
             setShowCommentModal(true);
             fetchComments();
           }}
-          variant="ghost"
-          size="sm"
-          className="h-8 px-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+          className="flex items-center gap-1.5 h-10 px-3.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 active:scale-95 transition-all touch-manipulation"
         >
-          <MessageCircle className="h-4 w-4 mr-1" />
-          <span className="text-sm font-medium">
-            {isLoadingStats ? '...' : stats.commentsCount}
+          <MessageCircle className="h-[18px] w-[18px]" />
+          <span className="text-sm font-medium tabular-nums">
+            {isLoadingStats ? '·' : stats.commentsCount}
           </span>
-        </Button>
+        </button>
       </div>
 
-      
-
-
-
-      {/* Comment Modal */}
       <CommentModal
         isOpen={showCommentModal}
         onOpenChange={setShowCommentModal}
@@ -439,7 +349,6 @@ export default function InteractionPanel({
         userName={userName}
       />
 
-      {/* Authentication Dialog */}
       <UnifiedAuthDialog
         isOpen={showAuthDialog}
         onOpenChange={setShowAuthDialog}

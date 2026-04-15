@@ -269,45 +269,44 @@ export default function VoiceMemosList({
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Stats overview */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2 px-4">
+          <CardTitle className="flex items-center gap-2 text-base">
             <Mic2 className="h-5 w-5 text-purple-600" />
             Vocali Segreti
-            <Badge variant="outline" className="ml-auto">
+            <Badge variant="outline" className="ml-auto text-[12px]">
               {stats.total} {stats.total === 1 ? 'messaggio' : 'messaggi'}
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-green-600">{stats.unlocked}</div>
-              <div className="text-xs sm:text-sm text-gray-600 flex items-center justify-center gap-1">
+        <CardContent className="pt-0 px-4 pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            <div className="bg-green-50 rounded-xl p-3 text-center">
+              <div className="text-2xl font-bold text-green-600">{stats.unlocked}</div>
+              <div className="text-[11px] text-green-700 flex items-center justify-center gap-1 mt-0.5">
                 <Volume2 className="h-3 w-3" />
                 Disponibili
               </div>
             </div>
             {isAdmin && (
-              <div className="text-center">
-                <div className="text-xl sm:text-2xl font-bold text-orange-600">{stats.locked}</div>
-                <div className="text-xs sm:text-sm text-gray-600 flex items-center justify-center gap-1">
+              <div className="bg-orange-50 rounded-xl p-3 text-center">
+                <div className="text-2xl font-bold text-orange-600">{stats.locked}</div>
+                <div className="text-[11px] text-orange-700 flex items-center justify-center gap-1 mt-0.5">
                   <Lock className="h-3 w-3" />
                   Bloccati
                 </div>
               </div>
             )}
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.upcomingUnlocks}</div>
-              <div className="text-xs sm:text-sm text-gray-600 flex items-center justify-center gap-1">
+            <div className="bg-blue-50 rounded-xl p-3 text-center">
+              <div className="text-2xl font-bold text-blue-600">{stats.upcomingUnlocks}</div>
+              <div className="text-[11px] text-blue-700 flex items-center justify-center gap-1 mt-0.5">
                 <Clock className="h-3 w-3" />
                 In arrivo
               </div>
             </div>
-            <div className="text-center">
-              <div className="text-xl sm:text-2xl font-bold text-purple-600">{stats.total}</div>
-              <div className="text-xs sm:text-sm text-gray-600 flex items-center justify-center gap-1">
+            <div className="bg-purple-50 rounded-xl p-3 text-center">
+              <div className="text-2xl font-bold text-purple-600">{stats.total}</div>
+              <div className="text-[11px] text-purple-700 flex items-center justify-center gap-1 mt-0.5">
                 <Heart className="h-3 w-3" />
                 Totali
               </div>
@@ -316,40 +315,35 @@ export default function VoiceMemosList({
         </CardContent>
       </Card>
 
-      {/* Upcoming unlocks (if any) */}
       {stats.upcomingUnlocks > 0 && (
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base text-blue-900">
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 overflow-hidden">
+          <CardHeader className="pb-2 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm text-blue-900">
               <Calendar className="h-4 w-4" />
               Prossimi sblocchi
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 px-4 pb-4">
             <div className="space-y-2">
               {getUpcomingUnlocks().map((memo) => (
-                <div key={memo.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Mic2 className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 text-sm">{memo.guestName}</p>
-                      <p className="text-xs text-gray-600">
-                        Sblocco il {formatDate(memo.unlockDate!)}
-                      </p>
-                    </div>
+                <div key={memo.id} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-blue-100">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mic2 className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-[13px] truncate">{memo.guestName}</p>
+                    <p className="text-[12px] text-gray-500">
+                      Sblocco il {formatDate(memo.unlockDate!)}
+                    </p>
                   </div>
                   {isAdmin && (
-                    <Button
+                    <button
                       onClick={() => handleUnlockMemo(memo.id)}
-                      size="sm"
-                      variant="outline"
-                      className="text-green-600 border-green-300 hover:bg-green-50"
+                      className="h-9 px-3 flex items-center gap-1.5 rounded-full text-green-600 border border-green-300 hover:bg-green-50 active:bg-green-100 text-[12px] font-medium touch-manipulation transition-colors flex-shrink-0"
                     >
-                      <Unlock className="h-3 w-3 mr-1" />
-                      Sblocca ora
-                    </Button>
+                      <Unlock className="h-3.5 w-3.5" />
+                      Sblocca
+                    </button>
                   )}
                 </div>
               ))}
@@ -372,12 +366,11 @@ export default function VoiceMemosList({
         ))}
       </div>
 
-      {/* Refresh and unlock check buttons */}
-      <div className="text-center space-x-2">
+      <div className="flex flex-col sm:flex-row gap-2 sm:justify-center">
         <Button 
           onClick={fetchVoiceMemos} 
           variant="outline"
-          className="text-sage-600 border-sage-300 hover:bg-sage-50"
+          className="h-11 text-sage-600 border-sage-300 hover:bg-sage-50 active:bg-sage-100 rounded-xl touch-manipulation w-full sm:w-auto"
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           Aggiorna elenco
@@ -386,8 +379,6 @@ export default function VoiceMemosList({
           <Button 
             onClick={async () => {
               try {
-                console.log('🔍 Avvio controllo sblocchi automatici...');
-                // Usa direttamente VoiceMemoService invece di API endpoint
                 const { VoiceMemoService } = await import('@/lib/voiceMemos');
                 const unlockedCount = await VoiceMemoService.checkAndUnlockMemos();
                 
@@ -406,7 +397,7 @@ export default function VoiceMemosList({
               }
             }} 
             variant="outline"
-            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+            className="h-11 text-blue-600 border-blue-300 hover:bg-blue-50 active:bg-blue-100 rounded-xl touch-manipulation w-full sm:w-auto"
           >
             <Unlock className="h-4 w-4 mr-2" />
             Controlla sblocchi
