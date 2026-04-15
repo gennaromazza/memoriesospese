@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Mic, Square, Play, Pause, RotateCcw, Download } from 'lucide-react';
+import { Mic, Square, Play, Pause, RotateCcw, Check, AlertCircle } from 'lucide-react';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob, duration: number) => void;
-  maxDuration?: number; // in seconds, default 180 (3 minutes)
+  maxDuration?: number;
 }
 
 export default function VoiceRecorder({ 
@@ -19,6 +18,8 @@ export default function VoiceRecorder({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -26,7 +27,6 @@ export default function VoiceRecorder({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Check for microphone permission on mount
     checkMicrophonePermission();
     
     return () => {
@@ -46,7 +46,7 @@ export default function VoiceRecorder({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setHasPermission(true);
-      stream.getTracks().forEach(track => track.stop()); // Stop immediately after checking
+      stream.getTracks().forEach(track => track.stop());
     } catch (error) {
       setHasPermission(false);
       console.error('Microphone permission denied:', error);
@@ -65,9 +65,22 @@ export default function VoiceRecorder({
       
       streamRef.current = stream;
       
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        ''
+      ];
+      const supportedMime = mimeTypes.find(t => !t || MediaRecorder.isTypeSupported(t)) || '';
+      
+      const recorderOptions: MediaRecorderOptions = {};
+      if (supportedMime) {
+        recorderOptions.mimeType = supportedMime;
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+      const actualMime = mediaRecorder.mimeType || 'audio/webm';
       
       const chunks: BlobPart[] = [];
       
@@ -78,12 +91,11 @@ export default function VoiceRecorder({
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+        const blob = new Blob(chunks, { type: actualMime });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         
-        // Clean up
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
         }
@@ -93,8 +105,8 @@ export default function VoiceRecorder({
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingTime(0);
+      setIsConfirmed(false);
       
-      // Start timer
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
           const newTime = prev + 1;
@@ -142,7 +154,9 @@ export default function VoiceRecorder({
       setAudioUrl(null);
     }
     setRecordingTime(0);
+    setPlaybackTime(0);
     setIsPlaying(false);
+    setIsConfirmed(false);
     
     if (audioRef.current) {
       audioRef.current.pause();
@@ -152,128 +166,181 @@ export default function VoiceRecorder({
 
   const handleUseRecording = () => {
     if (audioBlob) {
+      setIsConfirmed(true);
       onRecordingComplete(audioBlob, recordingTime);
     }
   };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const progressPercentage = (recordingTime / maxDuration) * 100;
+  const playbackPercentage = recordingTime > 0 ? (playbackTime / recordingTime) * 100 : 0;
 
   if (hasPermission === false) {
     return (
-      <Card className="w-full">
-        <CardContent className="p-6 text-center">
-          <div className="mb-4">
-            <Mic className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Accesso al microfono richiesto
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Per registrare un messaggio audio, è necessario consentire l'accesso al microfono.
-            </p>
-            <Button onClick={checkMicrophonePermission} variant="outline">
-              Riprova
-            </Button>
+      <Card className="w-full border-red-200 bg-red-50">
+        <CardContent className="p-5 text-center">
+          <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <AlertCircle className="h-7 w-7 text-red-500" />
           </div>
+          <h3 className="text-base font-semibold text-gray-900 mb-1">
+            Microfono non disponibile
+          </h3>
+          <p className="text-[13px] text-gray-600 mb-4 leading-relaxed">
+            Consenti l'accesso al microfono nelle impostazioni del browser per registrare.
+          </p>
+          <button
+            onClick={checkMicrophonePermission}
+            className="h-11 px-6 bg-white border border-red-200 rounded-xl text-[14px] font-medium text-red-600 hover:bg-red-50 active:bg-red-100 touch-manipulation transition-colors"
+          >
+            Riprova
+          </button>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="w-full">
-      <CardContent className="p-4 sm:p-6">
+    <Card className="w-full overflow-hidden">
+      <CardContent className="p-4">
         <div className="text-center space-y-4">
-          {/* Timer e progress */}
-          <div className="space-y-2">
-            <div className="text-2xl sm:text-3xl font-mono font-bold text-sage-900">
-              {formatTime(recordingTime)}
-            </div>
-            <Progress 
-              value={progressPercentage} 
-              className="w-full h-2"
-            />
-            <div className="text-xs text-gray-500">
-              Massimo {formatTime(maxDuration)}
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="from-sage-50 to-blue-gray-50 p-4 rounded-lg border border-sage-200 bg-[#aab7bd]">
-            <div className="flex justify-center items-center gap-3 sm:gap-4">
-              {!audioBlob ? (
-                <>
-                  <Button
+          {!audioBlob ? (
+            <>
+              <div className="relative py-6">
+                <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center transition-all duration-300 touch-manipulation ${
+                  isRecording 
+                    ? 'bg-red-500 shadow-lg shadow-red-200 scale-110' 
+                    : 'bg-sage-600 hover:bg-sage-700 active:bg-sage-800 shadow-lg'
+                }`}>
+                  {isRecording && (
+                    <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-ping opacity-30" />
+                  )}
+                  <button
                     onClick={isRecording ? stopRecording : startRecording}
                     disabled={hasPermission === null}
-                    size="lg"
-                    className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 px-8 bg-[#667f8f] hover:bg-sage-700 w-16 h-16 rounded-full shadow-lg text-white"
+                    className="w-full h-full rounded-full flex items-center justify-center touch-manipulation"
+                    aria-label={isRecording ? "Ferma registrazione" : "Inizia registrazione"}
                   >
                     {isRecording ? (
-                      <Square className="h-6 w-6" />
+                      <Square className="h-8 w-8 text-white" fill="white" />
                     ) : (
-                      <Mic className="h-6 w-6" />
+                      <Mic className="h-10 w-10 text-white" />
                     )}
-                  </Button>
-                  <div className="text-sm text-sage-700 font-medium">
-                    {isRecording ? 'Registrazione...' : 'Inizia registrazione'}
+                  </button>
+                </div>
+
+                {isRecording && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-red-600 font-semibold text-[15px] tabular-nums">
+                      {formatTime(recordingTime)}
+                    </span>
                   </div>
-                </>
-              ) : (
-                <>
-                  <Button
-                    onClick={playRecording}
-                    variant="outline"
-                    size="lg"
-                    className="w-12 h-12 rounded-full border-sage-300 hover:bg-sage-50"
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-5 w-5 text-sage-600" />
-                    ) : (
-                      <Play className="h-5 w-5 text-sage-600" />
-                    )}
-                  </Button>
-                  <Button
-                    onClick={resetRecording}
-                    variant="outline"
-                    size="lg"
-                    className="w-12 h-12 rounded-full border-sage-300 hover:bg-sage-50"
-                  >
-                    <RotateCcw className="h-5 w-5 text-sage-600" />
-                  </Button>
-                  <Button
-                    onClick={handleUseRecording}
-                    className="bg-sage-600 hover:bg-sage-700 text-white px-6 shadow-lg"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Usa questa registrazione
-                  </Button>
-                </>
+                )}
+              </div>
+
+              {isRecording && (
+                <div className="space-y-1.5">
+                  <Progress value={progressPercentage} className="w-full h-1.5" />
+                  <p className="text-[11px] text-gray-400">
+                    Max {formatTime(maxDuration)}
+                  </p>
+                </div>
               )}
-            </div>
-          </div>
 
-          {/* Audio element for playback */}
-          {audioUrl && (
-            <audio
-              ref={audioRef}
-              src={audioUrl}
-              onEnded={() => setIsPlaying(false)}
-              className="hidden"
-            />
-          )}
+              <p className="text-[13px] text-gray-500">
+                {isRecording 
+                  ? 'Tocca il quadrato per fermare' 
+                  : 'Tocca il microfono per registrare'}
+              </p>
+            </>
+          ) : (
+            <>
+              {isConfirmed ? (
+                <div className="py-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Check className="h-8 w-8 text-green-600" />
+                  </div>
+                  <p className="text-[15px] font-semibold text-green-700">Audio selezionato!</p>
+                  <p className="text-[13px] text-gray-500 mt-1">
+                    Durata: {formatTime(recordingTime)} — Compila i campi sotto e invia
+                  </p>
+                  <button
+                    onClick={resetRecording}
+                    className="mt-3 h-9 px-4 text-[13px] text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-lg touch-manipulation transition-colors"
+                  >
+                    Registra di nuovo
+                  </button>
+                </div>
+              ) : (
+                <div className="py-4 space-y-4">
+                  <div className="bg-sage-50 rounded-2xl p-4 border border-sage-100">
+                    <p className="text-[12px] text-sage-600 font-medium mb-3 uppercase tracking-wide">
+                      Anteprima registrazione
+                    </p>
 
-          {/* Recording status */}
-          {isRecording && (
-            <div className="flex items-center justify-center gap-2 text-red-600">
-              <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium">Registrazione in corso...</span>
-            </div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <button
+                        onClick={playRecording}
+                        className="w-12 h-12 rounded-full bg-sage-600 hover:bg-sage-700 active:bg-sage-800 text-white flex items-center justify-center flex-shrink-0 transition-colors touch-manipulation shadow-sm"
+                        aria-label={isPlaying ? "Pausa" : "Riproduci"}
+                      >
+                        {isPlaying ? (
+                          <Pause className="h-5 w-5" />
+                        ) : (
+                          <Play className="h-5 w-5 ml-0.5" />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <Progress value={playbackPercentage} className="w-full h-2 mb-1" />
+                        <div className="flex justify-between text-[11px] text-gray-400 tabular-nums">
+                          <span>{formatTime(playbackTime)}</span>
+                          <span>{formatTime(recordingTime)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={resetRecording}
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 active:bg-gray-100 text-[14px] font-medium touch-manipulation transition-colors"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Rifai
+                    </button>
+                    <button
+                      onClick={handleUseRecording}
+                      className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-sage-600 hover:bg-sage-700 active:bg-sage-800 text-white text-[14px] font-semibold touch-manipulation transition-colors shadow-sm"
+                    >
+                      <Check className="h-5 w-5" />
+                      Usa questo vocale
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {audioUrl && (
+                <audio
+                  ref={audioRef}
+                  src={audioUrl}
+                  onEnded={() => {
+                    setIsPlaying(false);
+                    setPlaybackTime(0);
+                  }}
+                  onTimeUpdate={() => {
+                    if (audioRef.current) {
+                      setPlaybackTime(audioRef.current.currentTime);
+                    }
+                  }}
+                  className="hidden"
+                />
+              )}
+            </>
           )}
         </div>
       </CardContent>

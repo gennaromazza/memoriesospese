@@ -39,8 +39,8 @@ service firebase.storage {
       allow write: if isSignedIn() && isValidImageFile();
     }
     
-    // Voice memos - audio files
-    match /voice-memos/{memoId} {
+    // Voice memos - audio files (nested path: voice-memos/{galleryId}/{fileName})
+    match /voice-memos/{galleryId}/{allPaths=**} {
       allow read: if true;
       allow write: if isSignedIn() && isValidAudioFile();
     }

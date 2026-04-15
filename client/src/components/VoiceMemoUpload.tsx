@@ -526,32 +526,41 @@ export default function VoiceMemoUpload({
               </p>
             </div>
 
-            {/* Upload progress */}
             {isUploading && (
-              <Card className="bg-sage-50 border border-sage-200">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="font-medium text-blue-gray-900">Caricamento in corso...</span>
-                    <span className="ml-auto text-sage-700 font-bold">{Math.round(uploadProgress)}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="w-full h-2" />
-                  <p className="text-xs text-sage-700 mt-2">
-                    Il tuo messaggio vocale sta per essere salvato...
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="bg-sage-50 border border-sage-200 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-5 h-5 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-semibold text-blue-gray-900 text-[14px]">
+                    {uploadStatus === 'uploading-audio' && 'Caricamento audio...'}
+                    {uploadStatus === 'saving-data' && 'Salvataggio dati...'}
+                    {uploadStatus === 'complete' && 'Completato!'}
+                  </span>
+                  <span className="ml-auto text-sage-700 font-bold text-[14px]">{Math.round(uploadProgress)}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full h-2.5" />
+              </div>
             )}
 
-
             {(!recordedBlob && !selectedFile) && !isUploading && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-red-600 font-bold text-[11px]">!</span>
+                  <Mic2 className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                  <p className="text-[13px] text-amber-800">
+                    Registra un vocale o carica un file audio per continuare
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {(recordedBlob || selectedFile) && !isUploading && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="h-3.5 w-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                   </div>
-                  <p className="text-[13px] text-red-800">
-                    Registra un audio o carica un file per continuare
+                  <p className="text-[13px] text-green-800 font-medium">
+                    {recordedBlob ? 'Audio registrato e pronto' : `File "${selectedFile?.name}" selezionato`}
+                    {' — premi "Salva ricordo" per inviare'}
                   </p>
                 </div>
               </div>

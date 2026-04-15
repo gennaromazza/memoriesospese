@@ -247,13 +247,14 @@ export default function CommentModal({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="absolute right-2.5 bottom-2 h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 touch-manipulation transition-colors"
+                      aria-label="Inserisci emoji"
+                      className="absolute right-2.5 bottom-2 h-10 w-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 touch-manipulation transition-colors"
                       disabled={isSubmitting}
                     >
                       <Smile className="h-5 w-5 text-gray-400" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[280px] sm:w-80 p-3" align="end" side="top" sideOffset={8}>
+                  <PopoverContent className="w-[280px] sm:w-80 p-3 z-[11000]" align="end" side="top" sideOffset={8}>
                     <div className="space-y-2.5 max-h-[240px] overflow-y-auto overscroll-contain">
                       {Object.entries(emojiCategories).map(([category, emojis]) => (
                         <div key={category}>
