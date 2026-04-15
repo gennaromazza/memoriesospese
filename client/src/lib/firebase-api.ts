@@ -261,11 +261,9 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     // Conta i like per ogni foto (usa anche itemId per compatibilità)
     const photoLikesCount: Record<string, number> = {};
     likesData.forEach(like => {
-      if (like.photoId) {
-        photoLikesCount[like.photoId] = (photoLikesCount[like.photoId] || 0) + 1;
-      }
-      if (like.itemId) {
-        photoLikesCount[like.itemId] = (photoLikesCount[like.itemId] || 0) + 1;
+      const pid = like.photoId || like.itemId;
+      if (pid) {
+        photoLikesCount[pid] = (photoLikesCount[pid] || 0) + 1;
       }
     });
     
@@ -276,11 +274,9 @@ export async function getTopLikedPhotos(galleryId: string, limitCount: number = 
     // Conta i commenti per ogni foto (usa anche itemId per compatibilità)
     const photoCommentsCount: Record<string, number> = {};
     commentsData.forEach(comment => {
-      if (comment.photoId) {
-        photoCommentsCount[comment.photoId] = (photoCommentsCount[comment.photoId] || 0) + 1;
-      }
-      if (comment.itemId) {
-        photoCommentsCount[comment.itemId] = (photoCommentsCount[comment.itemId] || 0) + 1;
+      const pid = comment.photoId || comment.itemId;
+      if (pid) {
+        photoCommentsCount[pid] = (photoCommentsCount[pid] || 0) + 1;
       }
     });
     

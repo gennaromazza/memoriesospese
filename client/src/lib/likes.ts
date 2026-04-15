@@ -129,30 +129,36 @@ export class LikeService {
   /**
    * Ottieni le foto più piaciute di una galleria
    */
-  static async getMostLikedPhotos(galleryId: string, limit: number = 10): Promise<any[]> {
+  static async getMostLikedPhotos(galleryId: string, limitCount: number = 10): Promise<any[]> {
     try {
-      // Questa query richiede un indice composto su Firebase
-      // Per ora implementiamo una versione semplificata
-      const likesQuery = query(
-        collection(db, 'likes'),
-        where('photoId', '>=', galleryId),
-        where('photoId', '<', galleryId + '\uf8ff')
+      const photosSnapshot = await getDocs(
+        query(collection(db, 'galleries', galleryId, 'photos'))
       );
-      
-      const snapshot = await getDocs(likesQuery);
-      const likesData = snapshot.docs.map(doc => doc.data());
-      
-      // Raggruppa per photoId e conta
-      const photosLikeCount = likesData.reduce((acc, like) => {
-        acc[like.photoId] = (acc[like.photoId] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      // Ordina per conteggio likes
+      const globalPhotosSnapshot = await getDocs(
+        query(collection(db, 'photos'), where('galleryId', '==', galleryId))
+      );
+
+      const photoIds = new Set<string>();
+      photosSnapshot.docs.forEach(d => photoIds.add(d.id));
+      globalPhotosSnapshot.docs.forEach(d => photoIds.add(d.id));
+
+      if (photoIds.size === 0) return [];
+
+      const likesSnapshot = await getDocs(collection(db, 'likes'));
+      const photosLikeCount: Record<string, number> = {};
+
+      likesSnapshot.docs.forEach(d => {
+        const data = d.data();
+        const pid = data.photoId;
+        if (pid && photoIds.has(pid)) {
+          photosLikeCount[pid] = (photosLikeCount[pid] || 0) + 1;
+        }
+      });
+
       const sortedPhotos = Object.entries(photosLikeCount)
         .sort(([,a], [,b]) => b - a)
-        .slice(0, limit);
-      
+        .slice(0, limitCount);
+
       return sortedPhotos.map(([photoId, likeCount]) => ({
         photoId,
         likeCount

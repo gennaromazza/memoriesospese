@@ -241,12 +241,17 @@ export class CommentService {
   static subscribeToPhotoComments(photoId: string, callback: (comments: Comment[]) => void) {
     const q = query(
       collection(db, 'comments'),
-      where('photoId', '==', photoId),
-      orderBy('createdAt', 'asc')
+      where('photoId', '==', photoId)
     );
     
     return onSnapshot(q, (snapshot) => {
-      const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      const comments = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Comment))
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.() || new Date(0);
+          const timeB = b.createdAt?.toDate?.() || new Date(0);
+          return timeA.getTime() - timeB.getTime();
+        });
       callback(comments);
     }, (error) => {
       console.error('Errore subscription commenti foto:', error);
@@ -258,18 +263,24 @@ export class CommentService {
    * Real-time subscription ai commenti di una galleria
    */
   static subscribeToGalleryComments(galleryId: string, callback: (comments: Comment[]) => void, limitCount?: number) {
-    let q = query(
+    const q = query(
       collection(db, 'comments'),
-      where('galleryId', '==', galleryId),
-      orderBy('createdAt', 'desc')
+      where('galleryId', '==', galleryId)
     );
-
-    if (limitCount) {
-      q = query(q, limit(limitCount));
-    }
     
     return onSnapshot(q, (snapshot) => {
-      const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      let comments = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Comment))
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.() || new Date(0);
+          const timeB = b.createdAt?.toDate?.() || new Date(0);
+          return timeB.getTime() - timeA.getTime();
+        });
+
+      if (limitCount) {
+        comments = comments.slice(0, limitCount);
+      }
+
       callback(comments);
     }, (error) => {
       console.error('Errore subscription commenti galleria:', error);

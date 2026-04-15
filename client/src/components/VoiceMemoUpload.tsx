@@ -544,33 +544,6 @@ export default function VoiceMemoUpload({
               </Card>
             )}
 
-            {/* Progress bar when uploading */}
-            {isUploading && (
-              <div className="space-y-3 mb-4">
-                <div className="bg-gray-100 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {uploadStatus === 'uploading-audio' && 'Caricamento audio...'}
-                      {uploadStatus === 'saving-data' && 'Salvataggio dati...'}
-                      {uploadStatus === 'complete' && 'Completato!'}
-                    </span>
-                    <span className="text-sm text-gray-600">{Math.round(uploadProgress)}%</span>
-                  </div>
-                  <div 
-                    className="bg-gradient-to-r from-sage-600 to-blue-gray-600 h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="w-3 h-3 border-2 border-sage-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-xs text-gray-500">
-                    {uploadStatus === 'uploading-audio' && 'Upload del file audio in corso...'}
-                    {uploadStatus === 'saving-data' && 'Creazione del ricordo...'}
-                    {uploadStatus === 'complete' && 'Ricordo salvato con successo!'}
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* Validation messages */}
             {(!recordedBlob && !selectedFile) && !isUploading && (

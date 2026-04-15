@@ -54,12 +54,12 @@ export default function VoiceMemosList({
       // Automatic unlock check for admin users
       if (isAdmin) {
         try {
-          const now = new Date();
+          const nowISO = new Date().toISOString();
           const memosToUnlock = query(
             collection(db, 'voiceMemos'),
             where('galleryId', '==', galleryId),
             where('isUnlocked', '==', false),
-            where('unlockDate', '<=', now)
+            where('unlockDate', '<=', nowISO)
           );
           
           const unlockSnapshot = await getDocs(memosToUnlock);
