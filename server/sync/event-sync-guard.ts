@@ -35,6 +35,7 @@ interface SyncReport {
   repairs: {
     consultations: RepairAction[];
     bookings: RepairAction[];
+    jobs: { id: string; action: string }[];
   };
   orphanedGoogleEvents: string[]; // Eventi GCAL senza riferimento in Firestore
 }
@@ -186,6 +187,87 @@ async function repairBooking(booking: Booking): Promise<RepairAction> {
 }
 
 /**
+ * Trova e ripara job con preventivo firmato ma status ancora "lead" o "in-trattativa".
+ * Questo accade quando la chiamata post-signature fallisce lato client (es. errore di rete su mobile).
+ */
+async function repairSignedQuoteJobs(): Promise<{ id: string; action: string }[]> {
+  const repairs: { id: string; action: string }[] = [];
+
+  const jobsSnap = await db.collection('jobs')
+    .where('status', 'in', ['lead', 'in-trattativa'])
+    .get();
+
+  if (jobsSnap.empty) return repairs;
+
+  for (const jobDoc of jobsSnap.docs) {
+    const job = { id: jobDoc.id, ...jobDoc.data() } as any;
+    if (!job.quoteIds || job.quoteIds.length === 0) continue;
+
+    let hasSignedQuote = false;
+    let signedQuoteTotal = 0;
+
+    for (const quoteId of job.quoteIds) {
+      try {
+        const quoteDoc = await db.collection('quotes').doc(quoteId).get();
+        if (quoteDoc.exists) {
+          const quote = quoteDoc.data()!;
+          if (quote.status === 'firmato' || quote.signature?.signedAt) {
+            hasSignedQuote = true;
+            signedQuoteTotal = quote.totaleSelezionato || quote.totalAfterDiscount || quote.totalAmount || 0;
+            break;
+          }
+        }
+      } catch {}
+    }
+
+    if (!hasSignedQuote) continue;
+
+    try {
+      const updateData: any = {
+        status: 'confermato',
+        updatedAt: nowRomeDate(),
+      };
+      if (signedQuoteTotal > 0) {
+        updateData['financials.totalePreventivato'] = signedQuoteTotal;
+      }
+      await db.collection('jobs').doc(job.id).update(updateData);
+
+      // Aggiungi timeline event se mancante
+      const existingTimeline = await db.collection('jobTimeline')
+        .where('jobId', '==', job.id)
+        .where('tipo', '==', 'preventivo_firmato')
+        .limit(1)
+        .get();
+
+      if (existingTimeline.empty) {
+        await db.collection('jobTimeline').add({
+          jobId: job.id,
+          tipo: 'preventivo_firmato',
+          descrizione: 'Preventivo firmato (recuperato automaticamente da Event Sync Guard)',
+          data: nowRomeDate(),
+        });
+      }
+
+      // Sync Google Calendar
+      try {
+        const { ensureJobCalendarEvent } = await import('../job-routes.js');
+        await ensureJobCalendarEvent(job.id);
+      } catch (calErr: any) {
+        console.warn(`[EVENT SYNC GUARD] ⚠️ Sync Calendar fallito per job ${job.id}:`, calErr?.message);
+      }
+
+      const action = `Job aveva preventivo firmato ma status era "${job.status}". Aggiornato a "confermato".`;
+      repairs.push({ id: job.id, action });
+      console.log(`[EVENT SYNC GUARD] 🔧 JOB REPAIR: ${job.id} - ${action}`);
+    } catch (err: any) {
+      console.error(`[EVENT SYNC GUARD] ❌ Impossibile riparare job ${job.id}:`, err?.message);
+    }
+  }
+
+  return repairs;
+}
+
+/**
  * Esegue la sincronizzazione completa
  */
 export async function runEventSyncGuard(): Promise<SyncReport> {
@@ -225,6 +307,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     const repairs: SyncReport['repairs'] = {
       consultations: [],
       bookings: [],
+      jobs: [],
     };
     
     // Ripara consultations con eventi mancanti - PARALLELO per velocità
@@ -261,7 +344,19 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
       });
     }
     
-    // 5. Identifica eventi orfani in Google Calendar
+    // 5. Ripara job con preventivo firmato ma status non aggiornato
+    console.log('\n[EVENT SYNC GUARD] 🔍 Checking jobs with signed quotes...');
+    try {
+      const jobRepairs = await repairSignedQuoteJobs();
+      repairs.jobs.push(...jobRepairs);
+      if (jobRepairs.length === 0) {
+        console.log('[EVENT SYNC GUARD] ✅ Nessun job da riparare (quote firmate OK)');
+      }
+    } catch (err: any) {
+      console.error('[EVENT SYNC GUARD] ⚠️ Errore check job firmati (non critico):', err?.message);
+    }
+
+    // 6. Identifica eventi orfani in Google Calendar
     const orphanedEvents: string[] = [];
     for (const gcalEventId of googleEventIds) {
       if (!knownEventIds.has(gcalEventId)) {
@@ -301,7 +396,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
     console.log(`Duration: ${duration}ms`);
     console.log(`Google Calendar events: ${googleEventIds.size}`);
     console.log(`Firestore records: ${consultations.length + bookings.length}`);
-    console.log(`Repairs performed: ${repairs.consultations.length + repairs.bookings.length}`);
+    console.log(`Repairs performed: ${repairs.consultations.length + repairs.bookings.length + repairs.jobs.length}`);
     
     if (repairs.consultations.length > 0) {
       console.log(`\n🔧 Consultations repaired: ${repairs.consultations.length}`);
@@ -317,7 +412,14 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
       });
     }
     
-    if (repairs.consultations.length === 0 && repairs.bookings.length === 0) {
+    if (repairs.jobs.length > 0) {
+      console.log(`\n🔧 Jobs riparati (preventivo firmato non processato): ${repairs.jobs.length}`);
+      repairs.jobs.forEach(r => {
+        console.log(`   - ${r.id}: ${r.action}`);
+      });
+    }
+
+    if (repairs.consultations.length === 0 && repairs.bookings.length === 0 && repairs.jobs.length === 0) {
       console.log('\n✅ No Firestore inconsistencies found!');
     }
     
@@ -340,7 +442,7 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
       duration: Date.now() - startTime,
       googleCalendarEvents: 0,
       firestoreRecords: { consultations: 0, bookings: 0 },
-      repairs: { consultations: [], bookings: [] },
+      repairs: { consultations: [], bookings: [], jobs: [] },
       orphanedGoogleEvents: [],
     };
   }
