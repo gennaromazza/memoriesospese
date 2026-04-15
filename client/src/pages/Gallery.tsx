@@ -125,7 +125,7 @@ const PhotoCard = memo(({
           }`}
           loading={index < 8 ? 'eager' : 'lazy'}
           decoding={index < 8 ? 'sync' : 'async'}
-          fetchPriority={index < 8 ? 'high' : 'auto'}
+          fetchpriority={index < 8 ? 'high' : 'auto'}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")
