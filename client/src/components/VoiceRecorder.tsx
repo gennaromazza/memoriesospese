@@ -211,27 +211,25 @@ export default function VoiceRecorder({
           {!audioBlob ? (
             <>
               <div className="relative py-6">
-                <div className={`w-24 h-24 mx-auto rounded-full flex items-center justify-center transition-all duration-300 touch-manipulation ${
-                  isRecording 
-                    ? 'bg-red-500 shadow-lg shadow-red-200 scale-110' 
-                    : 'bg-sage-600 hover:bg-sage-700 active:bg-sage-800 shadow-lg'
-                }`}>
-                  {isRecording && (
-                    <div className="absolute inset-0 rounded-full border-4 border-red-300 animate-ping opacity-30" />
+                {isRecording && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-4 border-red-300 animate-ping opacity-30 pointer-events-none" />
+                )}
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={hasPermission === null}
+                  aria-label={isRecording ? "Ferma registrazione" : "Inizia registrazione"}
+                  className={`relative z-10 w-24 h-24 mx-auto rounded-full flex items-center justify-center transition-all duration-300 touch-manipulation ${
+                    isRecording 
+                      ? 'bg-red-500 shadow-lg shadow-red-200 scale-110' 
+                      : 'bg-sage-600 hover:bg-sage-700 active:bg-sage-800 shadow-lg'
+                  }`}
+                >
+                  {isRecording ? (
+                    <Square className="h-8 w-8 text-white" fill="white" />
+                  ) : (
+                    <Mic className="h-10 w-10 text-white" />
                   )}
-                  <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    disabled={hasPermission === null}
-                    className="w-full h-full rounded-full flex items-center justify-center touch-manipulation"
-                    aria-label={isRecording ? "Ferma registrazione" : "Inizia registrazione"}
-                  >
-                    {isRecording ? (
-                      <Square className="h-8 w-8 text-white" fill="white" />
-                    ) : (
-                      <Mic className="h-10 w-10 text-white" />
-                    )}
-                  </button>
-                </div>
+                </button>
 
                 {isRecording && (
                   <div className="flex items-center justify-center gap-2 mt-4">
