@@ -427,12 +427,12 @@ export default function VoiceMemoUpload({
               </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2 h-11 rounded-xl">
-                <TabsTrigger value="record" className="flex items-center gap-2 h-9 rounded-lg touch-manipulation text-[13px]">
+              <TabsList className="grid w-full grid-cols-2 h-12 rounded-xl bg-gray-100 p-1">
+                <TabsTrigger value="record" className="flex items-center gap-2 h-10 rounded-lg touch-manipulation text-[13px] font-semibold data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-500">
                   <Mic2 className="h-4 w-4" />
                   Registra ora
                 </TabsTrigger>
-                <TabsTrigger value="upload" className="flex items-center gap-2 h-9 rounded-lg touch-manipulation text-[13px]">
+                <TabsTrigger value="upload" className="flex items-center gap-2 h-10 rounded-lg touch-manipulation text-[13px] font-semibold data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm text-gray-500">
                   <Upload className="h-4 w-4" />
                   Carica file
                 </TabsTrigger>
@@ -578,7 +578,7 @@ export default function VoiceMemoUpload({
               <Button
                 onClick={handleSubmit}
                 disabled={(!recordedBlob && !selectedFile) || isUploading}
-                className="flex-1 h-12 sm:h-11 bg-gradient-to-r from-sage-600 to-blue-gray-600 hover:from-sage-700 hover:to-blue-gray-700 active:from-sage-800 active:to-blue-gray-800 text-white font-medium shadow-lg transition-all duration-300 disabled:opacity-50 text-[14px] rounded-xl touch-manipulation"
+                className="flex-1 h-12 sm:h-11 bg-[#4a6741] hover:bg-[#3d5636] active:bg-[#334a2e] text-white font-semibold shadow-lg transition-all duration-300 disabled:opacity-50 text-[14px] rounded-xl touch-manipulation"
               >
                 {isUploading ? (
                   <div className="flex items-center gap-2">

@@ -221,7 +221,7 @@ export default function VoiceRecorder({
                   className={`relative z-10 w-24 h-24 mx-auto rounded-full flex items-center justify-center transition-all duration-300 touch-manipulation ${
                     isRecording 
                       ? 'bg-red-500 shadow-lg shadow-red-200 scale-110' 
-                      : 'bg-sage-600 hover:bg-sage-700 active:bg-sage-800 shadow-lg'
+                      : 'bg-[#4a6741] hover:bg-[#3d5636] active:bg-[#334a2e] shadow-lg'
                   }`}
                 >
                   {isRecording ? (
@@ -284,7 +284,7 @@ export default function VoiceRecorder({
                     <div className="flex items-center gap-3 mb-2">
                       <button
                         onClick={playRecording}
-                        className="w-12 h-12 rounded-full bg-sage-600 hover:bg-sage-700 active:bg-sage-800 text-white flex items-center justify-center flex-shrink-0 transition-colors touch-manipulation shadow-sm"
+                        className="w-12 h-12 rounded-full bg-[#4a6741] hover:bg-[#3d5636] active:bg-[#334a2e] text-white flex items-center justify-center flex-shrink-0 transition-colors touch-manipulation shadow-sm"
                         aria-label={isPlaying ? "Pausa" : "Riproduci"}
                       >
                         {isPlaying ? (
@@ -306,14 +306,14 @@ export default function VoiceRecorder({
                   <div className="flex gap-2">
                     <button
                       onClick={resetRecording}
-                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 active:bg-gray-100 text-[14px] font-medium touch-manipulation transition-colors"
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl border-2 border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100 text-[14px] font-semibold touch-manipulation transition-colors"
                     >
                       <RotateCcw className="h-4 w-4" />
                       Rifai
                     </button>
                     <button
                       onClick={handleUseRecording}
-                      className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-sage-600 hover:bg-sage-700 active:bg-sage-800 text-white text-[14px] font-semibold touch-manipulation transition-colors shadow-sm"
+                      className="flex-[2] h-12 flex items-center justify-center gap-2 rounded-xl bg-[#4a6741] hover:bg-[#3d5636] active:bg-[#334a2e] text-white text-[14px] font-semibold touch-manipulation transition-colors shadow-md"
                     >
                       <Check className="h-5 w-5" />
                       Usa questo vocale
