@@ -725,8 +725,108 @@ router.post('/generate', authenticateFirebase, async (req: any, res: Response) =
 });
 
 /**
+ * Helper: trova il totale "vero" del job dal preventivo firmato collegato.
+ * Ritorna 0 se nessun preventivo firmato è disponibile.
+ */
+async function getSignedQuoteTotal(jobId: string, hintQuoteId?: string): Promise<{ total: number; quoteId: string | null }> {
+  // 1) Prova con hintQuoteId (quoteId stored sullo schedule)
+  if (hintQuoteId) {
+    const q = await db.collection('quotes').doc(hintQuoteId).get();
+    if (q.exists) {
+      const data: any = q.data();
+      if (data.status === 'firmato') {
+        const total = (Number(data.totaleSelezionato) > 0 ? Number(data.totaleSelezionato) : 0)
+          || Number(data.totalAfterDiscount) || 0;
+        if (total > 0) return { total, quoteId: hintQuoteId };
+      }
+    }
+  }
+
+  // 2) Prova con job.signedQuoteId, poi con tutti i quoteIds del job → primo firmato
+  const jobSnap = await db.collection('jobs').doc(jobId).get();
+  if (!jobSnap.exists) return { total: 0, quoteId: null };
+  const job: any = jobSnap.data();
+
+  const candidates: string[] = [];
+  if (job.signedQuoteId) candidates.push(job.signedQuoteId);
+  if (Array.isArray(job.quoteIds)) {
+    for (const qid of job.quoteIds) if (qid && !candidates.includes(qid)) candidates.push(qid);
+  }
+
+  for (const qid of candidates) {
+    const q = await db.collection('quotes').doc(qid).get();
+    if (!q.exists) continue;
+    const data: any = q.data();
+    if (data.status !== 'firmato') continue;
+    const total = (Number(data.totaleSelezionato) > 0 ? Number(data.totaleSelezionato) : 0)
+      || Number(data.totalAfterDiscount) || 0;
+    if (total > 0) return { total, quoteId: qid };
+  }
+
+  return { total: 0, quoteId: null };
+}
+
+/**
+ * Helper: riconcilia i totali di uno schedule e li persiste se differiscono.
+ * Strategia self-healing: copre sia letture (A) che scritture (B) — ogni
+ * mutazione invalida la query e il successivo GET ripulisce eventuali derive.
+ *
+ * Regole:
+ * - schedule.totale = totale del preventivo firmato (se trovato e diverso da 0)
+ * - schedule.totalePagato = somma reale degli importoPagato (di tutti i payments)
+ * - schedule.saldoResiduo = max(0, totale - totalePagato)
+ *
+ * Ritorna lo schedule (potenzialmente corretto) e un flag se è stata fatta una scrittura.
+ */
+async function reconcileSchedule(scheduleId: string, raw: any): Promise<{ schedule: any; persisted: boolean }> {
+  const realPaid = Math.round(((raw.payments || []) as any[])
+    .reduce((s, p) => s + (Number(p.importoPagato) || 0), 0) * 100) / 100;
+
+  const { total: signedTotal, quoteId: foundQuoteId } = await getSignedQuoteTotal(raw.jobId, raw.quoteId);
+
+  // Se non troviamo un preventivo firmato, conserviamo il totale stored
+  // (es. job senza preventivo, totale inserito manualmente)
+  const storedTotal = Number(raw.totale) || 0;
+  const correctTotal = signedTotal > 0 ? signedTotal : storedTotal;
+  const correctSaldo = Math.max(0, Math.round((correctTotal - realPaid) * 100) / 100);
+
+  const driftTotale = Math.abs(storedTotal - correctTotal) > 0.01;
+  const driftPagato = Math.abs((Number(raw.totalePagato) || 0) - realPaid) > 0.01;
+  const driftSaldo = Math.abs((Number(raw.saldoResiduo) || 0) - correctSaldo) > 0.01;
+  const driftQuoteId = foundQuoteId && raw.quoteId !== foundQuoteId;
+
+  const reconciled = {
+    ...raw,
+    totale: correctTotal,
+    totalePagato: realPaid,
+    saldoResiduo: correctSaldo,
+    quoteId: foundQuoteId || raw.quoteId || null,
+  };
+
+  let persisted = false;
+  if (driftTotale || driftPagato || driftSaldo || driftQuoteId) {
+    try {
+      const updates: any = {
+        totale: correctTotal,
+        totalePagato: realPaid,
+        saldoResiduo: correctSaldo,
+        updatedAt: Timestamp.now(),
+      };
+      if (foundQuoteId) updates.quoteId = foundQuoteId;
+      await db.collection('paymentSchedules').doc(scheduleId).update(updates);
+      persisted = true;
+      console.log(`🔧 Reconciled schedule ${scheduleId}: totale ${storedTotal}→${correctTotal}, pagato ${raw.totalePagato}→${realPaid}, saldo ${raw.saldoResiduo}→${correctSaldo}`);
+    } catch (e) {
+      console.error(`⚠️ Errore reconciliation schedule ${scheduleId}:`, e);
+    }
+  }
+
+  return { schedule: reconciled, persisted };
+}
+
+/**
  * GET /api/payment-schedules/job/:jobId
- * Ottieni payment schedules per job
+ * Ottieni payment schedules per job (con auto-riconciliazione)
  */
 router.get('/job/:jobId', async (req: Request, res: Response) => {
   try {
@@ -737,10 +837,30 @@ router.get('/job/:jobId', async (req: Request, res: Response) => {
       .orderBy('createdAt', 'desc')
       .get();
 
-    const schedules = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const schedules: any[] = [];
+    let anyPersisted = false;
+    for (const doc of snapshot.docs) {
+      const { schedule, persisted } = await reconcileSchedule(doc.id, { id: doc.id, ...doc.data() });
+      if (persisted) anyPersisted = true;
+      schedules.push(schedule);
+    }
+
+    // Se sono stati riconciliati schedule, sincronizza anche job.financials
+    if (anyPersisted) {
+      try {
+        const totalePreventivato = schedules.reduce((s, x) => s + (Number(x.totale) || 0), 0);
+        const totalePagato = schedules.reduce((s, x) => s + (Number(x.totalePagato) || 0), 0);
+        const saldoResiduo = Math.max(0, Math.round((totalePreventivato - totalePagato) * 100) / 100);
+        await db.collection('jobs').doc(jobId).update({
+          'financials.totalePreventivato': totalePreventivato,
+          'financials.totalePagato': totalePagato,
+          'financials.saldoResiduo': saldoResiduo,
+          updatedAt: Timestamp.now(),
+        });
+      } catch (e) {
+        console.error('⚠️ Errore sync job.financials:', e);
+      }
+    }
 
     return res.json(schedules);
   } catch (error) {
