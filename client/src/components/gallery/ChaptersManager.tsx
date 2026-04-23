@@ -175,12 +175,14 @@ const PhotoGridItem = memo(({
       )}
       onClick={onToggle}
       data-testid={`chapter-photo-${photo.id}`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
     >
       <img
-        src={photo.url}
+        src={photo.thumbnailUrl || photo.url}
         alt={photo.name}
         className="w-full h-full object-cover pointer-events-none"
         loading="lazy"
+        decoding="async"
         draggable={false}
       />
       
@@ -1123,9 +1125,10 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                             : "border-gray-200 hover:border-sage/50"
                         )}
                         data-testid={`cover-photo-${photo.id}`}
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                       >
                         <img
-                          src={photo.url}
+                          src={photo.thumbnailUrl || photo.url}
                           alt={photo.name}
                           className="w-full h-full object-cover"
                           style={
@@ -1134,6 +1137,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                               : {}
                           }
                           loading="lazy"
+                          decoding="async"
                         />
                         {coverChapter?.coverPhotoId === photo.id && (
                           <div className="absolute top-2 right-2 bg-sage text-white rounded-full p-1">

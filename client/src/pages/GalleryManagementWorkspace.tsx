@@ -47,12 +47,14 @@ const PhotoCard = memo(({ photo, isSelected, onToggle, readOnly }: { photo: any;
       } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
       onClick={readOnly ? undefined : onToggle}
       data-testid={`img-selected-${photo.id}`}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
     >
       <img
-        src={photo.url}
+        src={photo.thumbnailUrl || photo.url}
         alt={photo.name}
         className="w-full h-full object-cover"
         loading="lazy"
+        decoding="async"
       />
       {isSelected && !readOnly && (
         <div className="absolute inset-0 bg-sage bg-opacity-30 flex items-center justify-center">
@@ -1113,10 +1115,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                                 </div>
 
                                 <img
-                                  src={photo.url}
+                                  src={photo.thumbnailUrl || photo.url}
                                   alt={photo.name}
                                   className="w-full h-full object-cover"
                                   loading="lazy"
+                                  decoding="async"
                                 />
 
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">

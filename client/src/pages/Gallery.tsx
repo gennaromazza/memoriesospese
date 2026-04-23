@@ -106,7 +106,10 @@ const PhotoCard = memo(({
   const showBorder = isSelected && (isSelectionMode || isUnlimitedCompleted);
 
   return (
-    <div className="masonry-item">
+    <div
+      className="masonry-item"
+      style={{ contentVisibility: index < 8 ? 'visible' : 'auto', containIntrinsicSize: '300px 400px' }}
+    >
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
           showBorder 
@@ -2960,9 +2963,11 @@ export default function Gallery() {
                                       >
                                         <div className="aspect-square overflow-hidden rounded-lg border-2 border-sage/30">
                                           <img
-                                            src={photo.url}
+                                            src={photo.thumbnailUrl || photo.url}
                                             alt={`Selezionata ${idx + 1}`}
                                             className="w-full h-full object-cover"
+                                            loading="lazy"
+                                            decoding="async"
                                           />
                                         </div>
                                         <div className="absolute top-2 left-2 bg-sage text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
@@ -3110,9 +3115,11 @@ export default function Gallery() {
                                                 onClick={() => setReviewLightboxPhoto(photo.url)}
                                               >
                                                 <img
-                                                  src={photo.url}
+                                                  src={photo.thumbnailUrl || photo.url}
                                                   alt={`Foto ${photoIdx + 1}`}
                                                   className="w-full h-full object-cover rounded-lg transition-opacity group-hover/thumb:opacity-80"
+                                                  loading="lazy"
+                                                  decoding="async"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                                   <Expand className="w-5 h-5 text-white drop-shadow-lg" />
@@ -3175,9 +3182,11 @@ export default function Gallery() {
                                         onClick={() => setReviewLightboxPhoto(photo.url)}
                                       >
                                         <img
-                                          src={photo.url}
+                                          src={photo.thumbnailUrl || photo.url}
                                           alt={`Foto ${idx + 1}`}
                                           className="w-full h-full object-cover rounded-lg transition-opacity group-hover/thumb:opacity-80"
+                                          loading="lazy"
+                                          decoding="async"
                                         />
                                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                           <Expand className="w-5 h-5 text-white drop-shadow-lg" />
@@ -3647,10 +3656,11 @@ export default function Gallery() {
                                                 }}
                                               >
                                                 <img 
-                                                  src={photo.url} 
+                                                  src={photo.thumbnailUrl || photo.url} 
                                                   alt={photo.name || ''} 
                                                   className="w-full h-full object-cover" 
                                                   loading="lazy" 
+                                                  decoding="async"
                                                 />
                                               </div>
                                             ))}
@@ -3670,10 +3680,11 @@ export default function Gallery() {
                                           }}
                                         >
                                           <img 
-                                            src={photo.url} 
+                                            src={photo.thumbnailUrl || photo.url} 
                                             alt={photo.name || ''} 
                                             className="w-full h-full object-cover" 
                                             loading="lazy" 
+                                            decoding="async"
                                           />
                                         </div>
                                       ))}
@@ -4142,16 +4153,20 @@ export default function Gallery() {
                   ) : (
                     <div className="masonry-grid">
                       {guestPhotos.map((photo, index) => (
-                        <div key={photo.id} className="masonry-item">
+                        <div
+                          key={photo.id}
+                          className="masonry-item"
+                          style={{ contentVisibility: index < 8 ? 'visible' : 'auto', containIntrinsicSize: '300px 400px' }}
+                        >
                           <div
                             className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
                             onClick={() => openLightbox(photos.length + index)}
                           >
                             <img
-                              src={photo.url}
+                              src={photo.thumbnailUrl || photo.url}
                               alt={photo.name || `Foto ospite ${index + 1}`}
                               className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
-                              loading="eager"
+                              loading={index < 8 ? 'eager' : 'lazy'}
                               decoding="async"
                               style={{
                                 backgroundColor: "transparent",
