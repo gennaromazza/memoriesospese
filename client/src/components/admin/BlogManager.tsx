@@ -17,7 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, ImagePlus, Code, FileJson } from 'lucide-react';
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
@@ -69,6 +69,8 @@ export default function BlogManager() {
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   // Counter per gestire race condition in openDialog (fetch asincrono da Storage)
   const openDialogCallRef = useRef(0);
+  // Ref input file nascosto per import JSON
+  const jsonImportInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Form state
@@ -132,6 +134,111 @@ export default function BlogManager() {
       metaDescription: ''
     });
     setEditingPost(null);
+  };
+
+  // Importa un articolo da file JSON e popola il form (apre la dialog)
+  const handleJsonImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset input così lo stesso file può essere ricaricato dopo
+    if (e.target) e.target.value = '';
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+      toast({
+        title: "Formato non valido",
+        description: "Seleziona un file con estensione .json",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        toast({
+          title: "JSON non valido",
+          description: "Il file non contiene JSON valido. Controlla la sintassi.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Se è un array, prendi il primo elemento (consente sia oggetto singolo che array con 1 articolo)
+      const data = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (!data || typeof data !== 'object') {
+        toast({
+          title: "Struttura non valida",
+          description: "Il JSON deve essere un oggetto o un array di oggetti.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Validazione campi obbligatori
+      const missing: string[] = [];
+      if (!data.title || typeof data.title !== 'string' || !data.title.trim()) missing.push('title');
+      if (!data.excerpt || typeof data.excerpt !== 'string' || !data.excerpt.trim()) missing.push('excerpt');
+      if (!data.content || typeof data.content !== 'string' || !data.content.trim()) missing.push('content');
+      if (missing.length > 0) {
+        toast({
+          title: "Campi obbligatori mancanti",
+          description: `Manca: ${missing.join(', ')}. I campi obbligatori sono: title, excerpt, content.`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Normalizza tags (accetta array di stringhe o stringa CSV)
+      let tagsString = '';
+      if (Array.isArray(data.tags)) {
+        tagsString = data.tags.filter((t: any) => typeof t === 'string').join(', ');
+      } else if (typeof data.tags === 'string') {
+        tagsString = data.tags;
+      }
+
+      // Normalizza status (default: draft)
+      const allowedStatus = ['draft', 'published', 'archived'];
+      const status = allowedStatus.includes(data.status)
+        ? (data.status as BlogPostStatus)
+        : BlogPostStatus.DRAFT;
+
+      // Normalizza slug (genera dal titolo se mancante)
+      const rawSlug = typeof data.slug === 'string' && data.slug.trim()
+        ? data.slug
+        : generateSlug(data.title);
+
+      setEditingPost(null);
+      setShowHtmlSource(false);
+      setFormData({
+        title: data.title.trim(),
+        slug: normalizeSlug(rawSlug),
+        excerpt: data.excerpt.trim(),
+        content: data.content,
+        coverImage: typeof data.coverImage === 'string' ? data.coverImage.trim() : '',
+        status,
+        category: typeof data.category === 'string' ? data.category.trim() : '',
+        tags: tagsString,
+        author: typeof data.author === 'string' && data.author.trim() ? data.author.trim() : 'Gennaro Mazzacane',
+        metaTitle: typeof data.metaTitle === 'string' ? data.metaTitle.trim().slice(0, 60) : '',
+        metaDescription: typeof data.metaDescription === 'string' ? data.metaDescription.trim().slice(0, 160) : ''
+      });
+      setDialogOpen(true);
+
+      toast({
+        title: "✅ Articolo caricato",
+        description: `Campi compilati da "${file.name}". Controlla e salva.`
+      });
+    } catch (err) {
+      console.error('Errore import JSON:', err);
+      toast({
+        title: "Errore lettura file",
+        description: err instanceof Error ? err.message : 'Errore sconosciuto',
+        variant: "destructive"
+      });
+    }
   };
 
   const openDialog = async (post?: BlogPost) => {
@@ -577,6 +684,24 @@ export default function BlogManager() {
 
         <div className="flex flex-col sm:flex-row gap-2">
           <WordPressImporter onImportComplete={loadPosts} />
+
+          <input
+            ref={jsonImportInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleJsonImport}
+            className="hidden"
+            data-testid="input-import-json"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => jsonImportInputRef.current?.click()}
+            data-testid="button-import-json"
+          >
+            <FileJson className="h-4 w-4 mr-2" />
+            Carica JSON
+          </Button>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
