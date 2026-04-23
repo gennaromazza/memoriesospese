@@ -423,6 +423,22 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
     return allPhotos.filter(p => p.chapterId === activeChapter);
   }, [allPhotos, activeChapter]);
 
+  const PHOTOS_PER_PAGE = 100;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeChapter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPhotos.length / PHOTOS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * PHOTOS_PER_PAGE;
+  const endIdx = startIdx + PHOTOS_PER_PAGE;
+  const paginatedPhotos = useMemo(
+    () => filteredPhotos.slice(startIdx, endIdx),
+    [filteredPhotos, startIdx, endIdx]
+  );
+
   const createChapterMutation = useMutation({
     mutationFn: async () => {
       return ChapterService.createChapter(galleryId, newChapterTitle, newChapterDescription);
@@ -928,38 +944,106 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                 </p>
               </div>
             ) : (
-              <div 
-                ref={gridRef}
-                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 relative select-none"
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                style={{ cursor: isSelecting ? 'crosshair' : 'default' }}
-              >
-                {filteredPhotos.map(photo => (
-                  <PhotoGridItem
-                    key={photo.id}
-                    photo={photo}
-                    isSelected={selectedPhotos.has(photo.id)}
-                    onToggle={() => handleTogglePhoto(photo.id)}
-                    onDelete={() => handleDeletePhotos([photo.id])}
-                    registerRef={(el) => registerPhotoRef(photo.id, el)}
-                  />
-                ))}
-                
-                {/* Selection rectangle */}
-                {isSelecting && selectionStart && selectionEnd && (
-                  <div
-                    className="absolute border-2 border-sage bg-sage/20 pointer-events-none z-50"
-                    style={{
-                      left: Math.min(selectionStart.x, selectionEnd.x),
-                      top: Math.min(selectionStart.y, selectionEnd.y),
-                      width: Math.abs(selectionEnd.x - selectionStart.x),
-                      height: Math.abs(selectionEnd.y - selectionStart.y)
-                    }}
-                  />
+              <>
+                {filteredPhotos.length > PHOTOS_PER_PAGE && (
+                  <div className="flex items-center justify-between mb-3 p-2.5 bg-sage/5 rounded-lg border border-sage/20" data-testid="chapters-pagination-top">
+                    <p className="text-xs text-gray-700">
+                      Foto <strong>{startIdx + 1}–{Math.min(endIdx, filteredPhotos.length)}</strong> di <strong>{filteredPhotos.length}</strong>
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={safePage === 1}
+                        data-testid="chapters-btn-prev-top"
+                      >
+                        ←
+                      </Button>
+                      <span className="text-xs font-medium px-1.5">
+                        {safePage} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={safePage === totalPages}
+                        data-testid="chapters-btn-next-top"
+                      >
+                        →
+                      </Button>
+                    </div>
+                  </div>
                 )}
-              </div>
+                <div 
+                  ref={gridRef}
+                  className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 relative select-none"
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  style={{ cursor: isSelecting ? 'crosshair' : 'default' }}
+                >
+                  {paginatedPhotos.map(photo => (
+                    <PhotoGridItem
+                      key={photo.id}
+                      photo={photo}
+                      isSelected={selectedPhotos.has(photo.id)}
+                      onToggle={() => handleTogglePhoto(photo.id)}
+                      onDelete={() => handleDeletePhotos([photo.id])}
+                      registerRef={(el) => registerPhotoRef(photo.id, el)}
+                    />
+                  ))}
+                  
+                  {/* Selection rectangle */}
+                  {isSelecting && selectionStart && selectionEnd && (
+                    <div
+                      className="absolute border-2 border-sage bg-sage/20 pointer-events-none z-50"
+                      style={{
+                        left: Math.min(selectionStart.x, selectionEnd.x),
+                        top: Math.min(selectionStart.y, selectionEnd.y),
+                        width: Math.abs(selectionEnd.x - selectionStart.x),
+                        height: Math.abs(selectionEnd.y - selectionStart.y)
+                      }}
+                    />
+                  )}
+                </div>
+                {filteredPhotos.length > PHOTOS_PER_PAGE && (
+                  <div className="flex items-center justify-between mt-3 p-2.5 bg-sage/5 rounded-lg border border-sage/20" data-testid="chapters-pagination-bottom">
+                    <p className="text-xs text-gray-700">
+                      Foto <strong>{startIdx + 1}–{Math.min(endIdx, filteredPhotos.length)}</strong> di <strong>{filteredPhotos.length}</strong>
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCurrentPage(p => Math.max(1, p - 1));
+                          gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                        disabled={safePage === 1}
+                        data-testid="chapters-btn-prev-bottom"
+                      >
+                        ← Precedente
+                      </Button>
+                      <span className="text-xs font-medium px-1.5">
+                        {safePage} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCurrentPage(p => Math.min(totalPages, p + 1));
+                          gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
+                        disabled={safePage === totalPages}
+                        data-testid="chapters-btn-next-bottom"
+                      >
+                        Successiva →
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
