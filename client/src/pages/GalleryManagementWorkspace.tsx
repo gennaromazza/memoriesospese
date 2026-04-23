@@ -181,6 +181,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const [showPreview, setShowPreview] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const PHOTOS_PER_PAGE = 100;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
   const [enableCompression, setEnableCompression] = useState(true);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -1074,14 +1080,51 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                         <Loader2 className="w-8 h-8 text-sage animate-spin mx-auto mb-2" />
                         <p className="text-sm text-gray-600">Caricamento foto...</p>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {allPhotos
-                          .filter(photo =>
-                            searchTerm === '' ||
-                            photo.name.toLowerCase().includes(searchTerm.toLowerCase())
-                          )
-                          .map((photo) => {
+                    ) : (() => {
+                      const filteredPhotos = allPhotos.filter(photo =>
+                        searchTerm === '' ||
+                        photo.name.toLowerCase().includes(searchTerm.toLowerCase())
+                      );
+                      const totalPages = Math.max(1, Math.ceil(filteredPhotos.length / PHOTOS_PER_PAGE));
+                      const safePage = Math.min(currentPage, totalPages);
+                      const startIdx = (safePage - 1) * PHOTOS_PER_PAGE;
+                      const endIdx = startIdx + PHOTOS_PER_PAGE;
+                      const paginatedPhotos = filteredPhotos.slice(startIdx, endIdx);
+                      return (
+                        <>
+                          {filteredPhotos.length > PHOTOS_PER_PAGE && (
+                            <div className="flex items-center justify-between mb-4 p-3 bg-sage/5 rounded-lg border border-sage/20" data-testid="admin-photos-pagination-top">
+                              <p className="text-sm text-gray-700">
+                                Foto <strong>{startIdx + 1}–{Math.min(endIdx, filteredPhotos.length)}</strong> di <strong>{filteredPhotos.length}</strong>
+                                {searchTerm && <span className="text-gray-500"> (filtrate)</span>}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                  disabled={safePage === 1}
+                                  data-testid="btn-prev-page-top"
+                                >
+                                  ← Precedente
+                                </Button>
+                                <span className="text-sm font-medium px-2">
+                                  Pagina {safePage} / {totalPages}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                  disabled={safePage === totalPages}
+                                  data-testid="btn-next-page-top"
+                                >
+                                  Successiva →
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            {paginatedPhotos.map((photo) => {
                             const isSelected = selectedPhotos.has(photo.id);
                             return (
                               <div
@@ -1181,8 +1224,46 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                               </div>
                             );
                           })}
-                      </div>
-                    )}
+                          </div>
+                          {filteredPhotos.length > PHOTOS_PER_PAGE && (
+                            <div className="flex items-center justify-between mt-4 p-3 bg-sage/5 rounded-lg border border-sage/20" data-testid="admin-photos-pagination-bottom">
+                              <p className="text-sm text-gray-700">
+                                Foto <strong>{startIdx + 1}–{Math.min(endIdx, filteredPhotos.length)}</strong> di <strong>{filteredPhotos.length}</strong>
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setCurrentPage(p => Math.max(1, p - 1));
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  disabled={safePage === 1}
+                                  data-testid="btn-prev-page-bottom"
+                                >
+                                  ← Precedente
+                                </Button>
+                                <span className="text-sm font-medium px-2">
+                                  Pagina {safePage} / {totalPages}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setCurrentPage(p => Math.min(totalPages, p + 1));
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  disabled={safePage === totalPages}
+                                  data-testid="btn-next-page-bottom"
+                                >
+                                  Successiva →
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {searchTerm && allPhotos.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
                       <div className="text-center py-12">
