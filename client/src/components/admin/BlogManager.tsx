@@ -71,6 +71,9 @@ export default function BlogManager() {
   const openDialogCallRef = useRef(0);
   // Ref input file nascosto per import JSON
   const jsonImportInputRef = useRef<HTMLInputElement>(null);
+  // Dialog "Incolla JSON"
+  const [pasteJsonOpen, setPasteJsonOpen] = useState(false);
+  const [pasteJsonText, setPasteJsonText] = useState('');
   const { toast } = useToast();
 
   // Form state
@@ -136,7 +139,98 @@ export default function BlogManager() {
     setEditingPost(null);
   };
 
-  // Importa un articolo da file JSON e popola il form (apre la dialog)
+  // Parsa testo JSON, valida e popola il form aprendo la dialog. Ritorna true se OK.
+  const importArticleFromJsonText = (text: string, sourceLabel: string): boolean => {
+    if (!text || !text.trim()) {
+      toast({
+        title: "Nessun contenuto",
+        description: "Incolla o carica del testo JSON prima di importare.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      toast({
+        title: "JSON non valido",
+        description: "Il testo non contiene JSON valido. Controlla la sintassi.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Se è un array, prendi il primo elemento (consente sia oggetto singolo che array con 1 articolo)
+    const data = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (!data || typeof data !== 'object') {
+      toast({
+        title: "Struttura non valida",
+        description: "Il JSON deve essere un oggetto o un array di oggetti.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validazione campi obbligatori
+    const missing: string[] = [];
+    if (!data.title || typeof data.title !== 'string' || !data.title.trim()) missing.push('title');
+    if (!data.excerpt || typeof data.excerpt !== 'string' || !data.excerpt.trim()) missing.push('excerpt');
+    if (!data.content || typeof data.content !== 'string' || !data.content.trim()) missing.push('content');
+    if (missing.length > 0) {
+      toast({
+        title: "Campi obbligatori mancanti",
+        description: `Manca: ${missing.join(', ')}. I campi obbligatori sono: title, excerpt, content.`,
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Normalizza tags (accetta array di stringhe o stringa CSV)
+    let tagsString = '';
+    if (Array.isArray(data.tags)) {
+      tagsString = data.tags.filter((t: any) => typeof t === 'string').join(', ');
+    } else if (typeof data.tags === 'string') {
+      tagsString = data.tags;
+    }
+
+    // Normalizza status (default: draft)
+    const allowedStatus = ['draft', 'published', 'archived'];
+    const status = allowedStatus.includes(data.status)
+      ? (data.status as BlogPostStatus)
+      : BlogPostStatus.DRAFT;
+
+    // Normalizza slug (genera dal titolo se mancante)
+    const rawSlug = typeof data.slug === 'string' && data.slug.trim()
+      ? data.slug
+      : generateSlug(data.title);
+
+    setEditingPost(null);
+    setShowHtmlSource(false);
+    setFormData({
+      title: data.title.trim(),
+      slug: normalizeSlug(rawSlug),
+      excerpt: data.excerpt.trim(),
+      content: data.content,
+      coverImage: typeof data.coverImage === 'string' ? data.coverImage.trim() : '',
+      status,
+      category: typeof data.category === 'string' ? data.category.trim() : '',
+      tags: tagsString,
+      author: typeof data.author === 'string' && data.author.trim() ? data.author.trim() : 'Gennaro Mazzacane',
+      metaTitle: typeof data.metaTitle === 'string' ? data.metaTitle.trim().slice(0, 60) : '',
+      metaDescription: typeof data.metaDescription === 'string' ? data.metaDescription.trim().slice(0, 160) : ''
+    });
+    setDialogOpen(true);
+
+    toast({
+      title: "✅ Articolo caricato",
+      description: `Campi compilati da ${sourceLabel}. Controlla e salva.`
+    });
+    return true;
+  };
+
+  // Importa un articolo da file JSON
   const handleJsonImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // Reset input così lo stesso file può essere ricaricato dopo
@@ -154,90 +248,23 @@ export default function BlogManager() {
 
     try {
       const text = await file.text();
-      let parsed: any;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        toast({
-          title: "JSON non valido",
-          description: "Il file non contiene JSON valido. Controlla la sintassi.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Se è un array, prendi il primo elemento (consente sia oggetto singolo che array con 1 articolo)
-      const data = Array.isArray(parsed) ? parsed[0] : parsed;
-      if (!data || typeof data !== 'object') {
-        toast({
-          title: "Struttura non valida",
-          description: "Il JSON deve essere un oggetto o un array di oggetti.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validazione campi obbligatori
-      const missing: string[] = [];
-      if (!data.title || typeof data.title !== 'string' || !data.title.trim()) missing.push('title');
-      if (!data.excerpt || typeof data.excerpt !== 'string' || !data.excerpt.trim()) missing.push('excerpt');
-      if (!data.content || typeof data.content !== 'string' || !data.content.trim()) missing.push('content');
-      if (missing.length > 0) {
-        toast({
-          title: "Campi obbligatori mancanti",
-          description: `Manca: ${missing.join(', ')}. I campi obbligatori sono: title, excerpt, content.`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Normalizza tags (accetta array di stringhe o stringa CSV)
-      let tagsString = '';
-      if (Array.isArray(data.tags)) {
-        tagsString = data.tags.filter((t: any) => typeof t === 'string').join(', ');
-      } else if (typeof data.tags === 'string') {
-        tagsString = data.tags;
-      }
-
-      // Normalizza status (default: draft)
-      const allowedStatus = ['draft', 'published', 'archived'];
-      const status = allowedStatus.includes(data.status)
-        ? (data.status as BlogPostStatus)
-        : BlogPostStatus.DRAFT;
-
-      // Normalizza slug (genera dal titolo se mancante)
-      const rawSlug = typeof data.slug === 'string' && data.slug.trim()
-        ? data.slug
-        : generateSlug(data.title);
-
-      setEditingPost(null);
-      setShowHtmlSource(false);
-      setFormData({
-        title: data.title.trim(),
-        slug: normalizeSlug(rawSlug),
-        excerpt: data.excerpt.trim(),
-        content: data.content,
-        coverImage: typeof data.coverImage === 'string' ? data.coverImage.trim() : '',
-        status,
-        category: typeof data.category === 'string' ? data.category.trim() : '',
-        tags: tagsString,
-        author: typeof data.author === 'string' && data.author.trim() ? data.author.trim() : 'Gennaro Mazzacane',
-        metaTitle: typeof data.metaTitle === 'string' ? data.metaTitle.trim().slice(0, 60) : '',
-        metaDescription: typeof data.metaDescription === 'string' ? data.metaDescription.trim().slice(0, 160) : ''
-      });
-      setDialogOpen(true);
-
-      toast({
-        title: "✅ Articolo caricato",
-        description: `Campi compilati da "${file.name}". Controlla e salva.`
-      });
+      importArticleFromJsonText(text, `"${file.name}"`);
     } catch (err) {
-      console.error('Errore import JSON:', err);
+      console.error('Errore lettura file JSON:', err);
       toast({
         title: "Errore lettura file",
         description: err instanceof Error ? err.message : 'Errore sconosciuto',
         variant: "destructive"
       });
+    }
+  };
+
+  // Importa un articolo dal testo incollato nel dialog
+  const handleJsonPasteImport = () => {
+    const ok = importArticleFromJsonText(pasteJsonText, 'JSON incollato');
+    if (ok) {
+      setPasteJsonOpen(false);
+      setPasteJsonText('');
     }
   };
 
@@ -701,6 +728,16 @@ export default function BlogManager() {
           >
             <FileJson className="h-4 w-4 mr-2" />
             Carica JSON
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPasteJsonOpen(true)}
+            data-testid="button-paste-json"
+          >
+            <Code className="h-4 w-4 mr-2" />
+            Incolla JSON
           </Button>
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -1284,6 +1321,38 @@ export default function BlogManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={pasteJsonOpen} onOpenChange={(open) => {
+        setPasteJsonOpen(open);
+        if (!open) setPasteJsonText('');
+      }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Incolla JSON Articolo</DialogTitle>
+            <DialogDescription>
+              Incolla il contenuto del file JSON generato dal tuo script Python. I campi obbligatori sono <code>title</code>, <code>excerpt</code> e <code>content</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={pasteJsonText}
+            onChange={(e) => setPasteJsonText(e.target.value)}
+            placeholder='{\n  "title": "...",\n  "excerpt": "...",\n  "content": "<p>...</p>",\n  "tags": ["tag1", "tag2"],\n  "status": "draft"\n}'
+            className="w-full font-mono text-xs border rounded-md p-3 bg-gray-950 text-green-400 resize-y focus:outline-none focus:ring-2 focus:ring-sage-500"
+            style={{ minHeight: '320px' }}
+            spellCheck={false}
+            data-testid="textarea-paste-json"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPasteJsonOpen(false); setPasteJsonText(''); }}>
+              Annulla
+            </Button>
+            <Button onClick={handleJsonPasteImport} data-testid="button-confirm-paste-json">
+              <FileJson className="h-4 w-4 mr-2" />
+              Importa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
