@@ -3,10 +3,10 @@
  * Features: Photo upload, Client selection view, Settings
  */
 
-import { useState, useCallback, useMemo, memo, useEffect } from 'react';
+import { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRoute, useLocation } from 'wouter';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import { GalleryService, type Gallery, type SelectionSnapshot } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
 import { computeFileHash } from '@/lib/photoUploader';
@@ -19,7 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw } from 'lucide-react';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
@@ -173,8 +173,6 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   }, [onClose, setLocation]);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [selectedFileHashes, setSelectedFileHashes] = useState<Map<string, string>>(new Map());
   const [existingPhotoNames, setExistingPhotoNames] = useState<Set<string>>(new Set());
   const [existingPhotoHashes, setExistingPhotoHashes] = useState<Set<string>>(new Set());
   const [uploadConcurrency, setUploadConcurrency] = useState(3); // Concorrenza configurabile
@@ -268,23 +266,26 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     }
   }, [isLoading, gallery, galleryId, toast, handleBack]);
 
-  // Crea preview per file selezionati (considera sia nome che hash)
-  const createPreviews = useCallback((files: File[], hashMap: Map<string, string> = new Map()) => {
-    const previews = files.map((file, idx) => {
-      const hash = hashMap.get(`${idx}-${file.name}`);
-      const isDuplicate = existingPhotoNames.has(file.name) ||
-        (hash ? existingPhotoHashes.has(hash) : false);
-      return {
-        fileName: file.name,
-        progress: 0,
-        status: 'pending' as const,
-        preview: URL.createObjectURL(file),
-        size: file.size,
-        isDuplicate
-      };
-    });
-    setUploadProgress(previews);
-  }, [existingPhotoNames, existingPhotoHashes]);
+  // State + ref per bloccare drop sovrapposti durante prep+upload
+  // Ref sincrono per check immediati nei rapid drops, state per re-render della UI
+  const [isPreparingUpload, setIsPreparingUpload] = useState(false);
+  const isPreparingUploadRef = useRef(false);
+
+  // Tracking degli object URL attivi tramite ref (mutato in modo sincrono per chiusura
+  // affidabile su unmount, anche per URL appena creati che non hanno ancora triggerato re-render)
+  const activeObjectUrlsRef = useRef<Set<string>>(new Set());
+
+  const createTrackedObjectURL = useCallback((file: File): string => {
+    const url = URL.createObjectURL(file);
+    activeObjectUrlsRef.current.add(url);
+    return url;
+  }, []);
+
+  const revokeTrackedObjectURL = useCallback((url: string | undefined) => {
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    activeObjectUrlsRef.current.delete(url);
+  }, []);
 
   // Upload mutation
   const uploadMutation = useMutation({
@@ -363,20 +364,28 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
         });
       }
 
-      // Initialize progress (mantiene preview esistenti)
-      setUploadProgress(prev =>
-        uniqueFiles.map(file => {
+      // Initialize progress (mantiene preview esistenti, revoca quelle scartate)
+      setUploadProgress(prev => {
+        const next = uniqueFiles.map(file => {
           const existing = prev.find(p => p.fileName === file.name);
           return {
             fileName: file.name,
             progress: 0,
             status: 'pending' as const,
-            preview: existing?.preview || URL.createObjectURL(file),
+            preview: existing?.preview || createTrackedObjectURL(file),
             size: file.size,
             isDuplicate: false
           };
-        })
-      );
+        });
+        // Revoca le preview che non vengono riutilizzate (es. duplicati scartati)
+        const keptPreviews = new Set(next.map(p => p.preview).filter(Boolean) as string[]);
+        prev.forEach(p => {
+          if (p.preview && !keptPreviews.has(p.preview)) {
+            revokeTrackedObjectURL(p.preview);
+          }
+        });
+        return next;
+      });
 
       // Upload photos con concorrenza configurabile
       const photos = await PhotoService.uploadPhotosToGallery(
@@ -437,8 +446,13 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
       // Invalida anche cache galleria per aggiornare photoCount
       await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
 
-      // Reset progress after 3s
-      setTimeout(() => setUploadProgress([]), 3000);
+      // Reset progress after 3s (revocando gli object URL per evitare memory leak)
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          prev.forEach(p => revokeTrackedObjectURL(p.preview));
+          return [];
+        });
+      }, 3000);
     },
     onError: (error) => {
       toast({
@@ -446,33 +460,90 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
         description: error instanceof Error ? error.message : 'Errore sconosciuto',
         variant: 'destructive',
       });
+      // Revoca object URL anche in caso di errore
+      setUploadProgress(prev => {
+        prev.forEach(p => revokeTrackedObjectURL(p.preview));
+        return [];
+      });
+    },
+    onSettled: () => {
+      // Reset del lock prep+upload (sia su success che error)
+      isPreparingUploadRef.current = false;
+      setIsPreparingUpload(false);
     },
   });
+
+  // Cleanup object URLs allo smontaggio del componente per evitare memory leak
+  useEffect(() => {
+    return () => {
+      activeObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      activeObjectUrlsRef.current.clear();
+    };
+  }, []);
 
   // Dropzone
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    // Calcola hash PRIMA di avviare la mutation (passati direttamente, non tramite stato)
-    const hashMap = new Map<string, string>();
-    await Promise.all(acceptedFiles.map(async (file, idx) => {
-      try {
-        const hash = await computeFileHash(file);
-        hashMap.set(`${idx}-${file.name}`, hash);
-      } catch {
-        // fallback: solo controllo per nome
-      }
-    }));
+    // Blocca upload sovrapposti: check sincrono via ref per gestire drops in rapida sequenza
+    if (isPreparingUploadRef.current || uploadMutation.isPending) {
+      toast({
+        title: '⏳ Upload già in corso',
+        description: 'Attendi il completamento prima di aggiungere altre foto.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    uploadMutation.mutate({ files: acceptedFiles, hashMap });
-  }, [uploadMutation]);
+    // Imposta lock subito (ref sincrono + state per UI). Resta attivo fino a onSettled
+    // della mutation; se invece falliamo prima del mutate, lo resettiamo nel catch.
+    isPreparingUploadRef.current = true;
+    setIsPreparingUpload(true);
+
+    let mutateScheduled = false;
+    try {
+      // Calcola hash PRIMA di avviare la mutation (passati direttamente, non tramite stato)
+      const hashMap = new Map<string, string>();
+      await Promise.all(acceptedFiles.map(async (file, idx) => {
+        try {
+          const hash = await computeFileHash(file);
+          hashMap.set(`${idx}-${file.name}`, hash);
+        } catch {
+          // fallback: solo controllo per nome
+        }
+      }));
+
+      uploadMutation.mutate({ files: acceptedFiles, hashMap });
+      mutateScheduled = true;
+    } finally {
+      // Solo se mutate non è stato chiamato resettiamo qui; altrimenti onSettled gestisce il reset
+      if (!mutateScheduled) {
+        isPreparingUploadRef.current = false;
+        setIsPreparingUpload(false);
+      }
+    }
+  }, [uploadMutation, toast]);
+
+  const onDropRejected = useCallback((rejections: FileRejection[]) => {
+    const tooLarge = rejections.filter(r => r.errors.some(e => e.code === 'file-too-large'));
+    if (tooLarge.length > 0) {
+      toast({
+        title: `⚠️ ${tooLarge.length} file scartati (> 50 MB)`,
+        description: `${tooLarge.slice(0, 3).map(r => r.file.name).join(', ')}${tooLarge.length > 3 ? `... +${tooLarge.length - 3}` : ''}`,
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif']
     },
     multiple: true,
+    maxSize: 50 * 1024 * 1024, // 50 MB
+    disabled: uploadMutation.isPending || isPreparingUpload,
   });
 
 
@@ -763,12 +834,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                         </select>
                       </div>
                     </div>
-                    {selectedFiles.length > 0 && (
+                    {uploadProgress.length > 0 && !uploadMutation.isPending && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setSelectedFiles([]);
+                          uploadProgress.forEach(p => p.preview && URL.revokeObjectURL(p.preview));
                           setUploadProgress([]);
                         }}
                       >
@@ -949,6 +1020,28 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                   </div>
                 )}
 
+                {/* Errore caricamento foto (visibile anche con dataset vuoto) */}
+                {!isLoadingPhotos && Boolean(photosError) && allPhotos.length === 0 && (
+                  <div className="mt-8 pt-8 border-t border-gray-200">
+                    <div className="text-center py-12 bg-red-50 border border-red-200 rounded-lg">
+                      <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-red-700 mb-1">Errore nel caricamento delle foto</p>
+                      <p className="text-xs text-red-600 mb-3">
+                        {photosError instanceof Error ? photosError.message : 'Errore sconosciuto'}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refetchPhotos()}
+                        data-testid="button-retry-load-photos-empty"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Riprova
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Foto Esistenti con possibilità di eliminazione */}
                 {allPhotos.length > 0 && (
                   <div className="mt-8 pt-8 border-t border-gray-200">
@@ -1079,6 +1172,23 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                       <div className="text-center py-12">
                         <Loader2 className="w-8 h-8 text-sage animate-spin mx-auto mb-2" />
                         <p className="text-sm text-gray-600">Caricamento foto...</p>
+                      </div>
+                    ) : Boolean(photosError) ? (
+                      <div className="text-center py-12 bg-red-50 border border-red-200 rounded-lg">
+                        <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-red-700 mb-1">Errore nel caricamento delle foto</p>
+                        <p className="text-xs text-red-600 mb-3">
+                          {photosError instanceof Error ? photosError.message : 'Errore sconosciuto'}
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => refetchPhotos()}
+                          data-testid="button-retry-load-photos"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Riprova
+                        </Button>
                       </div>
                     ) : (() => {
                       const filteredPhotos = allPhotos.filter(photo =>
