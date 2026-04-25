@@ -8,6 +8,7 @@ import {
 import CommentModal from './CommentModal';
 import UnifiedAuthDialog from './auth/UnifiedAuthDialog';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
+import { useGalleryInteractions } from '@/context/GalleryInteractionsContext';
 import { LikeService } from '@/lib/likes';
 import { CommentService, Comment } from '@/lib/comments';
 
@@ -49,11 +50,25 @@ export default function InteractionPanel({
 
   const { user, userProfile, isAuthenticated } = useFirebaseAuth();
   const { toast } = useToast();
+  // Se siamo dentro un GalleryInteractionsProvider, leggiamo le stats dalla mappa
+  // pre-caricata invece di fare 3 query Firestore per ogni foto.
+  const galleryInteractions = useGalleryInteractions();
 
   const userEmail = user?.email || '';
   const userName = userProfile?.displayName || user?.displayName || (userEmail ? userEmail.split('@')[0] : 'Utente');
 
+  // Il provider precarica SOLO foto: per voice_memo o altri tipi facciamo
+  // sempre il fetch legacy per non perdere likes/commenti registrati.
+  const canUseProvider = !!galleryInteractions && itemType === 'photo';
+
   const fetchStats = async () => {
+    // 🚀 Se il provider è disponibile per questo tipo, niente fetch: leggiamo dalla mappa.
+    if (canUseProvider) {
+      const s = galleryInteractions!.getStats(itemId);
+      setStats(s);
+      setIsLoadingStats(!galleryInteractions!.isReady);
+      return;
+    }
     try {
       setIsLoadingStats(true);
       
@@ -112,6 +127,8 @@ export default function InteractionPanel({
           ? prev.likesCount + 1 
           : Math.max(0, prev.likesCount - 1)
       }));
+      // Sync con la mappa galleria-wide se disponibile
+      galleryInteractions?.applyLikeDelta(itemId, isNowLiked);
 
       toast({
         title: isNowLiked ? 'Like aggiunto' : 'Like rimosso',
@@ -181,6 +198,7 @@ export default function InteractionPanel({
         ...prev,
         commentsCount: prev.commentsCount + 1
       }));
+      galleryInteractions?.applyCommentDelta(itemId, 1);
 
       setNewComment('');
 
@@ -212,6 +230,7 @@ export default function InteractionPanel({
         ...prev,
         commentsCount: Math.max(0, prev.commentsCount - 1)
       }));
+      galleryInteractions?.applyCommentDelta(itemId, -1);
 
       toast({
         title: 'Successo',
@@ -229,7 +248,18 @@ export default function InteractionPanel({
 
   useEffect(() => {
     fetchStats();
-  }, [itemId, itemType, galleryId, userEmail]);
+    // Quando il provider è disponibile per le foto, ascoltiamo anche cambi di
+    // getStats/isReady per riflettere immediatamente prefetch e mutazioni cross-foto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    itemId,
+    itemType,
+    galleryId,
+    userEmail,
+    canUseProvider,
+    canUseProvider ? galleryInteractions?.isReady : null,
+    canUseProvider ? galleryInteractions?.getStats : null,
+  ]);
 
   const handleAuthSuccess = () => {
     setShowAuthDialog(false);

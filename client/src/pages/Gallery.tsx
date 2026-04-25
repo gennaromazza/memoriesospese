@@ -49,6 +49,7 @@ import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionPanel from "@/components/InteractionPanel";
 import LazyInteractionPanel from "@/components/LazyInteractionPanel";
+import { GalleryInteractionsProvider } from "@/context/GalleryInteractionsContext";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
@@ -1969,7 +1970,19 @@ export default function Gallery() {
   const themeClass =
     currentTheme && currentTheme !== "none" ? `theme-${currentTheme}` : "";
 
+  // 🚀 Pre-fetch likes/commenti per tutte le foto della galleria in batch (1-2 query
+  // totali invece di 3 per foto). Stabile rispetto a filtri/ordinamento perché
+  // usa allPhotos (sorgente non filtrata).
+  const interactionPhotoIds = allPhotos
+    .map((p: any) => p?.id)
+    .filter((x: any): x is string => typeof x === "string" && x.length > 0);
+
   return (
+    <GalleryInteractionsProvider
+      galleryId={galleryData.id || ""}
+      photoIds={interactionPhotoIds}
+      enabled={!!galleryData.id && interactionPhotoIds.length > 0}
+    >
     <div
       className={`min-h-screen ${themeClass || "bg-off-white"} custom-cursor`}
     >
@@ -4431,5 +4444,6 @@ export default function Gallery() {
         isSubmitting={isSubmittingSelection}
       />
     </div>
+    </GalleryInteractionsProvider>
   );
 }
