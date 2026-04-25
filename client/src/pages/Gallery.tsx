@@ -48,6 +48,7 @@ import { GalleryActions } from "@/components/gallery/GalleryActions";
 import VoiceMemoUpload from "@/components/VoiceMemoUpload";
 import VoiceMemosList from "@/components/VoiceMemosList";
 import InteractionPanel from "@/components/InteractionPanel";
+import LazyInteractionPanel from "@/components/LazyInteractionPanel";
 import SocialActivityPanel from "@/components/SocialActivityPanel";
 import RegistrationCTA from "@/components/RegistrationCTA";
 import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
@@ -1679,15 +1680,46 @@ export default function Gallery() {
     return photosByChapter.flatMap(group => group.photos);
   }, [photosByChapter, allDisplayPhotos]);
 
+  // 📊 Totale foto renderizzabili "visibili": in vista standard è allDisplayPhotos.length,
+  // in modalità capitoli è la somma delle foto nei soli capitoli ESPANSI (collassati = 0).
+  // Questo evita che capitoli collassati consumino il budget di paginazione.
+  const renderableTotal = useMemo(() => {
+    if (!photosByChapter) return allDisplayPhotos.length;
+    return photosByChapter.reduce((acc, g) => {
+      const isCollapsed = !!collapsedChapters[g.chapter.id];
+      return acc + (isCollapsed ? 0 : g.photos.length);
+    }, 0);
+  }, [photosByChapter, allDisplayPhotos.length, collapsedChapters]);
+
+  // 📄 Versione paginata di photosByChapter per il rendering: applica un budget
+  // cumulativo (displayedPhotosCount) SOLO ai capitoli espansi. Mantiene anche
+  // il riferimento a allPhotos del capitolo originale per uso lightbox/conteggi.
+  const photosByChapterDisplayed = useMemo(() => {
+    if (!photosByChapter) return null;
+    let budget = displayedPhotosCount;
+    return photosByChapter.map(group => {
+      const isCollapsed = !!collapsedChapters[group.chapter.id];
+      if (isCollapsed) {
+        return { chapter: group.chapter, photos: [] as Photo[], allPhotos: group.photos };
+      }
+      if (budget <= 0) {
+        return { chapter: group.chapter, photos: [] as Photo[], allPhotos: group.photos };
+      }
+      const slice = group.photos.slice(0, budget);
+      budget -= slice.length;
+      return { chapter: group.chapter, photos: slice, allPhotos: group.photos };
+    });
+  }, [photosByChapter, displayedPhotosCount, collapsedChapters]);
+
   // 📄 Funzione per caricare altre foto
   const loadMoreDisplayPhotos = useCallback(() => {
-    setDisplayedPhotosCount(prev => Math.min(prev + PHOTOS_PER_PAGE, allDisplayPhotos.length));
-  }, [allDisplayPhotos.length, PHOTOS_PER_PAGE]);
+    setDisplayedPhotosCount(prev => Math.min(prev + PHOTOS_PER_PAGE, renderableTotal));
+  }, [renderableTotal, PHOTOS_PER_PAGE]);
 
-  // 📊 Check se ci sono altre foto da caricare
+  // 📊 Check se ci sono altre foto da caricare (basato sul totale renderizzabile)
   const hasMorePhotosToShow = useMemo(() => {
-    return displayedPhotosCount < allDisplayPhotos.length;
-  }, [displayedPhotosCount, allDisplayPhotos.length]);
+    return renderableTotal > 0 && displayedPhotosCount < renderableTotal;
+  }, [displayedPhotosCount, renderableTotal]);
 
   // Intersection Observer per auto-load foto (DOPO le dichiarazioni che usa)
   useEffect(() => {
@@ -3770,14 +3802,16 @@ export default function Gallery() {
                         </div>
                       )}
                       
-                      {photosByChapter ? (
+                      {photosByChapterDisplayed ? (
                         <div ref={galleryGridRef} className="space-y-8">
-                          {photosByChapter.map((group) => {
+                          {photosByChapterDisplayed.map((group) => {
                             const isCollapsed = !!collapsedChapters[group.chapter.id];
-                            const selectedInChapter = group.photos.filter(p => selectedPhotoIds.includes(p.id)).length;
-                            
-                            if (isCollapsed) return null;
-                            
+                            // 📊 Conteggi sempre sull'array completo del capitolo (allPhotos)
+                            const selectedInChapter = group.allPhotos.filter(p => selectedPhotoIds.includes(p.id)).length;
+
+                            // Skip render se collassato o se nessuna foto del capitolo è ancora caricata
+                            if (isCollapsed || group.photos.length === 0) return null;
+
                             return (
                               <div key={group.chapter.id} className="chapter-section" data-testid={`chapter-${group.chapter.id}`}>
                                 {/* Intestazione Capitolo Espanso */}
@@ -3795,7 +3829,7 @@ export default function Gallery() {
                                       </span>
                                     )}
                                     <span className="text-sm text-gray-500 bg-beige/50 px-2 py-1 rounded">
-                                      {group.photos.length} foto
+                                      {group.allPhotos.length} foto
                                     </span>
                                     <button
                                       onClick={() => toggleChapterCollapse(group.chapter.id)}
@@ -3824,11 +3858,11 @@ export default function Gallery() {
                                           isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                           isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
                                           isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                          onClick={() => openLightbox(chapterIndex, group.photos)}
+                                          onClick={() => openLightbox(chapterIndex, group.allPhotos)}
                                         />
                                         {!isSelectionMode && (
                                           <div className="mt-2">
-                                            <InteractionPanel
+                                            <LazyInteractionPanel
                                               itemId={photo.id}
                                               itemType="photo"
                                               galleryId={galleryData.id}
@@ -3863,7 +3897,7 @@ export default function Gallery() {
                               />
                               {!isSelectionMode && (
                                 <div className="mt-2">
-                                  <InteractionPanel
+                                  <LazyInteractionPanel
                                     itemId={photo.id}
                                     itemType="photo"
                                     galleryId={galleryData.id}
@@ -3877,8 +3911,8 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      {/* 📄 Sentinella per auto-load infinito - Solo quando NON ci sono capitoli */}
-                      {hasMorePhotosToShow && !photosByChapter && (
+                      {/* 📄 Sentinella per auto-load infinito (attiva sia in vista standard che con capitoli) */}
+                      {hasMorePhotosToShow && (
                         <div
                           ref={sentinelRef}
                           className="flex justify-center mt-8 py-4"
@@ -3886,14 +3920,14 @@ export default function Gallery() {
                           <div className="flex items-center gap-2 text-gray-500">
                             <div className="animate-spin rounded-full h-4 w-4 border-2 border-sage border-t-transparent"></div>
                             <span className="text-sm">
-                              Caricamento foto... ({displayedPhotosCount}/{allDisplayPhotos.length})
+                              Caricamento foto... ({Math.min(displayedPhotosCount, renderableTotal)}/{renderableTotal})
                             </span>
                           </div>
                         </div>
                       )}
 
                       {/* Pulsante manuale fallback (nascosto, disponibile per accessibilità) */}
-                      {hasMorePhotosToShow && !photosByChapter && (
+                      {hasMorePhotosToShow && (
                         <div className="sr-only">
                           <Button
                             onClick={loadMoreDisplayPhotos}

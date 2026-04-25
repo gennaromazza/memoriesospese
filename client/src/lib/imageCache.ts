@@ -1,16 +1,35 @@
-// Sistema di cache intelligente per le immagini
+// Sistema di cache intelligente per le immagini con eviction LRU
 class ImageCache {
   private cache = new Map<string, HTMLImageElement>();
   private loadingPromises = new Map<string, Promise<HTMLImageElement>>();
+  private readonly maxEntries = 250;
+
+  private touch(url: string, img: HTMLImageElement) {
+    if (this.cache.has(url)) this.cache.delete(url);
+    this.cache.set(url, img);
+    this.evictIfNeeded();
+  }
+
+  private evictIfNeeded() {
+    while (this.cache.size > this.maxEntries) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.cache.delete(oldestKey);
+    }
+  }
 
   preloadImage(url: string): Promise<HTMLImageElement> {
-    if (this.cache.has(url)) return Promise.resolve(this.cache.get(url)!);
+    if (this.cache.has(url)) {
+      const cached = this.cache.get(url)!;
+      this.touch(url, cached);
+      return Promise.resolve(cached);
+    }
     if (this.loadingPromises.has(url)) return this.loadingPromises.get(url)!;
 
     const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        this.cache.set(url, img);
+        this.touch(url, img);
         this.loadingPromises.delete(url);
         resolve(img);
       };
@@ -73,7 +92,9 @@ class ImageCache {
   }
 
   getCachedImage(url: string): HTMLImageElement | null {
-    return this.cache.get(url) || null;
+    const img = this.cache.get(url);
+    if (img) this.touch(url, img);
+    return img || null;
   }
 
   clearCache(): void {
