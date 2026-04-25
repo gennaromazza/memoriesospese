@@ -3,6 +3,7 @@ import { PhotoData } from "../hooks/use-gallery-data";
 import { ArrowLeft, ArrowRight, Download, X, ZoomIn, ZoomOut, Maximize, Check, Plus, Minus, ChevronDown, ChevronUp } from "lucide-react";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
+import { imageCache } from "../lib/imageCache";
 
 interface SelectionInfo {
   isSelectionMode: boolean;
@@ -95,6 +96,33 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
   }, [isOpen, currentIndex, photos.length]);
 
   const currentPhoto = useMemo(() => photos[currentIndex], [photos, currentIndex]);
+
+  // 🚀 Preload immagini adiacenti (±2) così la navigazione swipe/freccia è istantanea.
+  // Anche la thumbnail viene precaricata come fallback rapido.
+  useEffect(() => {
+    if (!isOpen || photos.length === 0) return;
+    const indicesToPreload = [
+      (currentIndex + 1) % photos.length,
+      (currentIndex - 1 + photos.length) % photos.length,
+      (currentIndex + 2) % photos.length,
+      (currentIndex - 2 + photos.length) % photos.length,
+    ];
+    const seen = new Set<string>();
+    for (const idx of indicesToPreload) {
+      const p = photos[idx];
+      if (!p) continue;
+      const url = p.url;
+      const thumb = (p as any).thumbnailUrl;
+      if (thumb && !seen.has(thumb)) {
+        seen.add(thumb);
+        imageCache.preloadImage(thumb).catch(() => {});
+      }
+      if (url && !seen.has(url)) {
+        seen.add(url);
+        imageCache.preloadImage(url).catch(() => {});
+      }
+    }
+  }, [isOpen, currentIndex, photos]);
 
   const navigatePrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + photos.length) % photos.length);

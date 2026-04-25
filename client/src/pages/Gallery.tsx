@@ -137,7 +137,7 @@ const PhotoCard = memo(({
           }
           style={{
             backgroundColor: "transparent",
-            willChange: index < 20 ? 'transform' : 'auto',
+            willChange: index < 8 ? 'transform' : 'auto',
           }}
         />
         
@@ -201,14 +201,23 @@ const PhotoCard = memo(({
   );
 }, (prevProps, nextProps) => {
   // Custom comparator: re-render solo se cambiano ID, index, isSelected o assignedProducts
-  return prevProps.photo.id === nextProps.photo.id &&
-         prevProps.index === nextProps.index &&
-         prevProps.isSelected === nextProps.isSelected &&
-         prevProps.isSelectionMode === nextProps.isSelectionMode &&
-         prevProps.isUnlimitedCompleted === nextProps.isUnlimitedCompleted &&
-         prevProps.isDisliked === nextProps.isDisliked &&
-         prevProps.isDislikeMode === nextProps.isDislikeMode &&
-         JSON.stringify(prevProps.assignedProducts) === JSON.stringify(nextProps.assignedProducts);
+  if (
+    prevProps.photo.id !== nextProps.photo.id ||
+    prevProps.index !== nextProps.index ||
+    prevProps.isSelected !== nextProps.isSelected ||
+    prevProps.isSelectionMode !== nextProps.isSelectionMode ||
+    prevProps.isUnlimitedCompleted !== nextProps.isUnlimitedCompleted ||
+    prevProps.isDisliked !== nextProps.isDisliked ||
+    prevProps.isDislikeMode !== nextProps.isDislikeMode
+  ) return false;
+  // Confronto array O(n) per assignedProducts (evita JSON.stringify in hot path)
+  const a = prevProps.assignedProducts || [];
+  const b = nextProps.assignedProducts || [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
 });
 
 PhotoCard.displayName = 'PhotoCard';
