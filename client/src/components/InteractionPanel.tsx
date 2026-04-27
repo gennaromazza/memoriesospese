@@ -342,9 +342,11 @@ export default function InteractionPanel({
           }`}
         >
           <Heart className={`h-[18px] w-[18px] ${stats.hasUserLiked ? 'fill-current' : ''}`} />
-          <span className="text-sm font-medium tabular-nums">
-            {isLoadingStats ? '·' : stats.likesCount}
-          </span>
+          {!isLoadingStats && stats.likesCount > 0 && (
+            <span className="text-sm font-medium tabular-nums">
+              {stats.likesCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -359,9 +361,11 @@ export default function InteractionPanel({
           className="flex items-center gap-1.5 h-10 px-3.5 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-50 active:scale-95 transition-all touch-manipulation"
         >
           <MessageCircle className="h-[18px] w-[18px]" />
-          <span className="text-sm font-medium tabular-nums">
-            {isLoadingStats ? '·' : stats.commentsCount}
-          </span>
+          {!isLoadingStats && stats.commentsCount > 0 && (
+            <span className="text-sm font-medium tabular-nums">
+              {stats.commentsCount}
+            </span>
+          )}
         </button>
       </div>
 

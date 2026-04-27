@@ -24,18 +24,39 @@ export default function LazyInteractionPanel(props: LazyInteractionPanelProps) {
       return;
     }
 
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+    const w = window as any;
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setShouldMount(true);
           observer.disconnect();
+          // Defer del mount: lasciamo al browser il tempo di decodificare/dipingere
+          // le immagini visibili (priorità UX più alta), poi montiamo i pannelli.
+          if (typeof w.requestIdleCallback === 'function') {
+            // timeout: garantisce il mount entro 250ms anche con main thread occupato
+            idleHandle = w.requestIdleCallback(() => setShouldMount(true), { timeout: 250 });
+          } else {
+            timeoutHandle = window.setTimeout(() => setShouldMount(true), 120);
+          }
         }
       },
-      { rootMargin: '300px 0px' }
+      // Margine ridotto: pre-mount solo quando il pannello è vicino al viewport,
+      // così le icone non compaiono "prima" delle foto fuori schermo.
+      { rootMargin: '120px 0px' }
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (idleHandle !== null && typeof w.cancelIdleCallback === 'function') {
+        w.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
   }, [shouldMount]);
 
   return (

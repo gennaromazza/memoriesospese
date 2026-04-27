@@ -107,11 +107,35 @@ const PhotoCard = memo(({
   // Mostra bordino: durante selezione attiva O per selezione libera completata
   const showBorder = isSelected && (isSelectionMode || isUnlimitedCompleted);
 
+  // Le prime 12 foto coprono tipicamente il primo viewport (4 colonne × 3 righe).
+  // Le carichiamo eager con priorità alta per minimizzare il "vuoto" iniziale.
+  const isAboveTheFold = index < 12;
+
+  // Stato di caricamento gestito in React (niente mutazioni DOM imperative).
+  // - placeholder: aspect-ratio 3/4 e img cropped, evita reflow durante il download
+  // - loaded: rimuove aspect-ratio e ripristina h-auto naturale
+  // - errored: rimuove placeholder e mostra fallback (icona)
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const [isErrored, setIsErrored] = React.useState(false);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
+
+  // Chiusura della race "immagine in cache": se l'<img> è già completo prima che
+  // React attacchi onLoad (cache HTTP, BFCache), forza isLoaded=true al mount.
+  React.useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (!img) return;
+    if (img.complete && img.naturalHeight > 0) {
+      setIsLoaded(true);
+    } else if (img.complete && img.naturalHeight === 0) {
+      // immagine "complete" ma rotta
+      setIsErrored(true);
+    }
+  }, []);
+
+  const showPlaceholder = !isLoaded && !isErrored;
+
   return (
-    <div
-      className="masonry-item"
-      style={{ contentVisibility: index < 8 ? 'visible' : 'auto', containIntrinsicSize: '300px 400px' }}
-    >
+    <div className="masonry-item">
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
           showBorder 
@@ -121,25 +145,29 @@ const PhotoCard = memo(({
               : ''
         }`}
         onClick={handleClick}
+        // Riserviamo spazio (3/4) finché la foto non è caricata: evita CLS e
+        // l'effetto "ribilanciamento a blocchi" delle colonne masonry.
+        style={showPlaceholder ? { aspectRatio: '3 / 4' } : undefined}
       >
         <img
+          ref={imgRef}
           src={photo.thumbnailUrl || photo.url}
           alt={photo.name || `Foto ${index + 1}`}
-          className={`w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200 ${
+          className={`w-full ${showPlaceholder ? 'h-full object-cover' : 'h-auto'} hover:opacity-95 transition-opacity duration-200 ${
             showBorder ? 'brightness-105' : isDisliked ? 'opacity-60' : ''
           }`}
-          loading={index < 8 ? 'eager' : 'lazy'}
-          decoding={index < 8 ? 'sync' : 'async'}
-          fetchpriority={index < 8 ? 'high' : 'auto'}
+          loading={isAboveTheFold ? 'eager' : 'lazy'}
+          // decoding=async non blocca mai il main thread (sync invece può causare jank)
+          decoding="async"
+          fetchpriority={isAboveTheFold ? 'high' : 'auto'}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")
               : ""
           }
-          style={{
-            backgroundColor: "transparent",
-            willChange: index < 8 ? 'transform' : 'auto',
-          }}
+          style={{ backgroundColor: 'transparent' }}
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setIsErrored(true)}
         />
         
         {/* Overlay rosso per foto escluse in modalità dislike */}
