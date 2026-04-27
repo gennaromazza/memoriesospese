@@ -450,6 +450,36 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
   animation: shimmer-slow 3s ease-in-out infinite;
 }
 
+/* Skeleton "vivo" per foto galleria in caricamento: gradiente che scorre
+   per comunicare attività e non far percepire i placeholder come "buchi". */
+@keyframes photo-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.photo-skeleton {
+  background-color: hsl(var(--muted, 30 20% 92%));
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: photo-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-skeleton {
+    animation: none;
+  }
+}
+
 /* Shake animation for error states */
 @keyframes shake {
   0%, 100% {

@@ -137,12 +137,19 @@ const PhotoCard = memo(({
   return (
     <div className="masonry-item">
       <div
-        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ${
+        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
+          // Niente shadow durante il placeholder: evita di "incorniciare il vuoto"
+          showPlaceholder ? '' : 'shadow-md hover:shadow-lg'
+        } ${
           showBorder 
             ? 'ring-4 ring-sage ring-offset-2 shadow-xl' 
             : isDisliked
               ? 'ring-4 ring-red-500 ring-offset-2'
               : ''
+        } ${
+          // Skeleton "vivo" finché la foto non carica: comunica attività
+          // invece di apparire come un buco nella griglia.
+          showPlaceholder ? 'photo-skeleton' : ''
         }`}
         onClick={handleClick}
         // Riserviamo spazio (3/4) finché la foto non è caricata: evita CLS e
@@ -153,7 +160,7 @@ const PhotoCard = memo(({
           ref={imgRef}
           src={photo.thumbnailUrl || photo.url}
           alt={photo.name || `Foto ${index + 1}`}
-          className={`w-full ${showPlaceholder ? 'h-full object-cover' : 'h-auto'} hover:opacity-95 transition-opacity duration-200 ${
+          className={`w-full ${showPlaceholder ? 'h-full object-cover opacity-0' : 'h-auto opacity-100'} transition-opacity duration-300 hover:opacity-95 ${
             showBorder ? 'brightness-105' : isDisliked ? 'opacity-60' : ''
           }`}
           loading={isAboveTheFold ? 'eager' : 'lazy'}
