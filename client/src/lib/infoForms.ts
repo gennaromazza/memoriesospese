@@ -94,11 +94,13 @@ export async function sendInfoForm(
 }
 
 export async function getSubmissionByToken(token: string): Promise<InfoFormSubmission | null> {
-  const q = query(collection(db, SUBMISSIONS_COL), where('token', '==', token));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as InfoFormSubmission;
+  // Endpoint pubblico server-side: l'utente NON è autenticato e le Firestore Rules
+  // bloccano la lettura diretta di `infoFormSubmissions`. Il server (admin SDK)
+  // valida il token e restituisce la submission.
+  const res = await fetch(`/api/info-forms/by-token/${encodeURIComponent(token)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Errore nel caricamento del modulo');
+  return (await res.json()) as InfoFormSubmission;
 }
 
 export async function getSubmissionsByJobId(jobId: string): Promise<InfoFormSubmission[]> {
@@ -117,26 +119,27 @@ export async function submitInfoForm(
   token: string,
   answers: Record<string, any>
 ): Promise<void> {
-  const ref = doc(db, SUBMISSIONS_COL, submissionId);
-  const snap = await getDoc(ref);
-  if (!snap.exists() || snap.data()?.token !== token) throw new Error('Modulo non trovato');
-
-  await updateDoc(ref, {
-    answers,
-    status: 'completed',
-    completedAt: serverTimestamp(),
-  });
-
-  const data = snap.data();
-  await addDoc(collection(db, NOTIFICATIONS_COL), {
-    submissionId,
-    jobId: data.jobId,
-    clientName: data.clientName,
-    templateName: data.templateName,
-    createdAt: serverTimestamp(),
-    isRead: false,
-    deepLink: `/admin/jobs/${data.jobId}?tab=moduli`,
-  });
+  // Endpoint pubblico server-side: il server valida il token, completa la
+  // submission e crea la notifica admin. Il parametro submissionId è mantenuto
+  // per retro-compatibilità della firma ma non più usato (il server lo deduce
+  // dal token).
+  void submissionId;
+  const res = await fetch(
+    `/api/info-forms/by-token/${encodeURIComponent(token)}/submit`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers }),
+    }
+  );
+  if (!res.ok) {
+    let msg = 'Errore durante l\'invio del modulo';
+    try {
+      const err = await res.json();
+      if (err?.error) msg = err.error;
+    } catch (_) { /* ignore */ }
+    throw new Error(msg);
+  }
 }
 
 export async function deleteSubmission(id: string): Promise<void> {

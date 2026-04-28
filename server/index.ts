@@ -25,6 +25,7 @@ import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
 import studioAssistantRoutes from './studio-assistant-routes.js';
+import infoFormRoutes from './info-form-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
@@ -147,6 +148,10 @@ async function startServer() {
     // Studio Assistant routes
     app.use('/api/studio-assistant', studioAssistantRoutes);
     console.log('✨ Studio Assistant API routes mounted at /api/studio-assistant');
+
+    // Info Forms (moduli informativi) — accesso pubblico via token UUID
+    app.use('/api/info-forms', infoFormRoutes);
+    console.log('📝 Info Form API routes mounted at /api/info-forms');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {
