@@ -56,6 +56,7 @@ import { useGalleryRefresh } from "@/hooks/useGalleryRefresh";
 import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useGalleryPreload } from "@/hooks/useGalleryPreload";
+import { imageCache } from "@/lib/imageCache";
 import { GalleryPreloadBanner } from "@/components/gallery/GalleryPreloadBanner";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import { Edit3, BookOpen, Info, ChevronDown, ChevronRight, ChevronUp, X, Expand, CheckCircle2 } from "lucide-react";
@@ -140,7 +141,7 @@ const PhotoCard = memo(({
       style={!isAboveTheFold ? { contentVisibility: 'auto', containIntrinsicSize: '0 400px' } : undefined}
     >
       <div
-        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
+        className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg ${
           showPlaceholder ? '' : 'shadow-md hover:shadow-lg'
         } ${
           showBorder 
@@ -162,7 +163,7 @@ const PhotoCard = memo(({
           ref={imgRef}
           src={photo.thumbnailUrl || photo.url}
           alt={photo.name || `Foto ${index + 1}`}
-          className={`w-full ${showPlaceholder ? 'h-full object-cover opacity-0' : 'h-auto opacity-100'} transition-opacity duration-300 hover:opacity-95 ${
+          className={`w-full ${showPlaceholder ? 'h-full object-cover opacity-0' : 'h-auto opacity-100'} transition-opacity duration-150 hover:opacity-95 ${
             showBorder ? 'brightness-105' : isDisliked ? 'opacity-60' : ''
           }`}
           loading={isAboveTheFold ? 'eager' : 'lazy'}
@@ -380,7 +381,14 @@ export default function Gallery() {
   const photos = allPhotosData?.photos ?? [];
   const guestPhotos = allPhotosData?.guestPhotos ?? [];
 
-  // ✅ Lazy loading nativo - nessun preload necessario
+  // ⚡ PERF: Appena i metadati foto arrivano da Firestore, pre-scarica le prime 12
+  // thumbnail via new Image(). Quando React monta gli <img> tag subito dopo, le
+  // immagini sono già in download (o cache HTTP) → appaiono quasi istantaneamente.
+  useEffect(() => {
+    if (!photos.length) return;
+    const urls = photos.slice(0, 12).map(p => p.thumbnailUrl || p.url).filter(Boolean);
+    void imageCache.preloadImages(urls).catch(() => {});
+  }, [photos]);
 
   // Reset contatore foto visualizzate quando cambia tab o galleria
   useEffect(() => {
@@ -4201,7 +4209,7 @@ export default function Gallery() {
                           style={{ contentVisibility: index < 8 ? 'visible' : 'auto', containIntrinsicSize: '300px 400px' }}
                         >
                           <div
-                            className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                            className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg"
                             onClick={() => openLightbox(photos.length + index)}
                           >
                             <img

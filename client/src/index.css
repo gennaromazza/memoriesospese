@@ -147,7 +147,9 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
 
 @layer components {
   .gallery-image {
-    @apply overflow-hidden rounded-lg shadow-md cursor-pointer transition-transform duration-300 bg-gray-100;
+    @apply overflow-hidden rounded-lg shadow-md cursor-pointer bg-gray-100;
+    transition: transform 150ms ease-out, box-shadow 200ms ease-out;
+    will-change: transform;
   }
 
   .gallery-image:hover {
