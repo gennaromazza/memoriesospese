@@ -36,7 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import GalleryHeader from "@/components/gallery/GalleryHeader";
 import YouTubeEmbed from "@/components/gallery/YouTubeEmbed";
 import GalleryFooter from "@/components/gallery/GalleryFooter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import GalleryService from "@/lib/galleries";
 import PhotoService, { Photo } from "@/lib/photos"; // 🔧 Import Photo type per allineamento tipi
 import { queryClient } from "@/lib/queryClient";
@@ -291,9 +291,7 @@ export default function Gallery() {
     }
   }, [isAdmin, id]);
 
-  // 📄 Paginazione client-side per lazy loading
-  const PHOTOS_PER_PAGE = 30; // ⚡ Aumentato da 20 a 30 per schermi moderni
-  const [displayedPhotosCount, setDisplayedPhotosCount] = useState(PHOTOS_PER_PAGE);
+  const GALLERY_PAGE_SIZE = 50;
 
   // Stato per i filtri
   const [filters, setFilters] = useState<FilterCriteria>({
@@ -355,45 +353,46 @@ export default function Gallery() {
     return !!localStorage.getItem(`gallery_auth_${id}`);
   }, [id, isAdmin, galleryData, accessValidatedTrigger]);
 
-  // ⚡ PERF: Singola query Firestore per TUTTE le foto (admin + ospiti), split client-side.
-  // Prima: 2 query moderne + 2 legacy = 4 Firestore reads.
-  // Ora: 1 query moderna + 1 legacy = 2 reads (−50%).
-  // staleTime 5min: le foto cambiano solo quando l'admin carica, il visitatore non ha bisogno
-  // di refetch ogni 5 secondi (causava lag su tab switch e scroll).
+  // ⚡ PERF Round 3: Paginazione Firestore con useInfiniteQuery.
+  // Prima: 1 query scaricava TUTTI i metadati (es. 272 documenti) prima di mostrare qualsiasi cosa.
+  // Ora: scarica 50 foto alla volta dal database, mostrando le prime quasi istantaneamente.
+  // Pagine successive vengono caricate automaticamente quando l'utente scrolla verso il basso.
   const {
-    data: allPhotosData,
+    data: infiniteData,
     isLoading: isLoadingPhotos,
-    error: photosError
-  } = useQuery({
+    error: photosError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['gallery-all-photos', galleryData?.id],
-    queryFn: async () => {
-      if (!galleryData?.id) return { photos: [] as Photo[], guestPhotos: [] as Photo[] };
-      const all = await PhotoService.getGalleryPhotos(galleryData.id);
-      const photos = all.filter(p => p.uploadedBy !== 'guest');
-      const guestPhotos = all.filter(p => p.uploadedBy === 'guest');
-      return { photos, guestPhotos };
+    queryFn: async ({ pageParam }) => {
+      if (!galleryData?.id) return { photos: [] as Photo[], lastDocument: null, hasMore: false };
+      return PhotoService.getGalleryPhotosPaginated(galleryData.id, GALLERY_PAGE_SIZE, pageParam);
     },
+    initialPageParam: undefined as any,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.lastDocument ?? undefined : undefined,
     enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
     staleTime: 5 * 60 * 1000,
   });
 
-  const photos = allPhotosData?.photos ?? [];
-  const guestPhotos = allPhotosData?.guestPhotos ?? [];
+  const { photos, guestPhotos } = useMemo(() => {
+    if (!infiniteData?.pages) return { photos: [] as Photo[], guestPhotos: [] as Photo[] };
+    const all = infiniteData.pages.flatMap(p => p.photos);
+    return {
+      photos: all.filter(p => p.uploadedBy !== 'guest'),
+      guestPhotos: all.filter(p => p.uploadedBy === 'guest'),
+    };
+  }, [infiniteData]);
 
-  // ⚡ PERF: Appena i metadati foto arrivano da Firestore, pre-scarica le prime 12
-  // thumbnail via new Image(). Quando React monta gli <img> tag subito dopo, le
-  // immagini sono già in download (o cache HTTP) → appaiono quasi istantaneamente.
+  // ⚡ PERF: Appena i metadati della prima pagina arrivano, pre-scarica le prime 12 thumbnail.
+  const firstPagePhotos = infiniteData?.pages?.[0]?.photos;
   useEffect(() => {
-    if (!photos.length) return;
-    const urls = photos.slice(0, 12).map(p => p.thumbnailUrl || p.url).filter(Boolean);
+    if (!firstPagePhotos?.length) return;
+    const urls = firstPagePhotos.slice(0, 12).map(p => p.thumbnailUrl || p.url).filter(Boolean);
     void imageCache.preloadImages(urls).catch(() => {});
-  }, [photos]);
-
-  // Reset contatore foto visualizzate quando cambia tab o galleria
-  useEffect(() => {
-    setDisplayedPhotosCount(PHOTOS_PER_PAGE);
-  }, [activeTab, id]);
+  }, [firstPagePhotos]);
 
   // ⏱️ Calcola stima tempo di caricamento basata sulla connessione
   useEffect(() => {
@@ -1620,13 +1619,10 @@ export default function Gallery() {
     photoAssignments,
   ]);
 
-  // 📄 Foto effettivamente visualizzate (paginazione client-side)
-  const displayPhotos = useMemo(() => {
-    return allDisplayPhotos.slice(0, displayedPhotosCount);
-  }, [allDisplayPhotos, displayedPhotosCount]);
+  // 📄 Con paginazione Firestore, tutte le foto caricate sono da visualizzare (niente slice client-side)
+  const displayPhotos = allDisplayPhotos;
 
   // 📚 Foto raggruppate per capitolo (per visualizzazione client)
-  // Usa allDisplayPhotos invece di displayPhotos per evitare problemi di paginazione con i capitoli
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
   
   // Reset collapsed chapters quando cambiano i capitoli della galleria
@@ -1684,63 +1680,39 @@ export default function Gallery() {
     return photosByChapter.flatMap(group => group.photos);
   }, [photosByChapter, allDisplayPhotos]);
 
-  // 📊 Totale foto renderizzabili "visibili": in vista standard è allDisplayPhotos.length,
-  // in modalità capitoli è la somma delle foto nei soli capitoli ESPANSI (collassati = 0).
-  // Questo evita che capitoli collassati consumino il budget di paginazione.
-  const renderableTotal = useMemo(() => {
-    if (!photosByChapter) return allDisplayPhotos.length;
-    return photosByChapter.reduce((acc, g) => {
-      const isCollapsed = !!collapsedChapters[g.chapter.id];
-      return acc + (isCollapsed ? 0 : g.photos.length);
-    }, 0);
-  }, [photosByChapter, allDisplayPhotos.length, collapsedChapters]);
-
-  // 📄 Versione paginata di photosByChapter per il rendering: applica un budget
-  // cumulativo (displayedPhotosCount) SOLO ai capitoli espansi. Mantiene anche
-  // il riferimento a allPhotos del capitolo originale per uso lightbox/conteggi.
+  // 📄 Versione per capitoli: mostra tutte le foto caricate per ogni capitolo,
+  // nascondendo i capitoli collassati. La paginazione è gestita da Firestore (useInfiniteQuery).
   const photosByChapterDisplayed = useMemo(() => {
     if (!photosByChapter) return null;
-    let budget = displayedPhotosCount;
     return photosByChapter.map(group => {
       const isCollapsed = !!collapsedChapters[group.chapter.id];
-      if (isCollapsed) {
-        return { chapter: group.chapter, photos: [] as Photo[], allPhotos: group.photos };
-      }
-      if (budget <= 0) {
-        return { chapter: group.chapter, photos: [] as Photo[], allPhotos: group.photos };
-      }
-      const slice = group.photos.slice(0, budget);
-      budget -= slice.length;
-      return { chapter: group.chapter, photos: slice, allPhotos: group.photos };
+      return {
+        chapter: group.chapter,
+        photos: isCollapsed ? [] as Photo[] : group.photos,
+        allPhotos: group.photos,
+      };
     });
-  }, [photosByChapter, displayedPhotosCount, collapsedChapters]);
+  }, [photosByChapter, collapsedChapters]);
 
-  // 📄 Funzione per caricare altre foto
-  const loadMoreDisplayPhotos = useCallback(() => {
-    setDisplayedPhotosCount(prev => Math.min(prev + PHOTOS_PER_PAGE, renderableTotal));
-  }, [renderableTotal, PHOTOS_PER_PAGE]);
+  // 📊 Check se ci sono altre foto da caricare (Firestore ha più pagine)
+  const hasMorePhotosToShow = !!hasNextPage;
 
-  // 📊 Check se ci sono altre foto da caricare (basato sul totale renderizzabile)
-  const hasMorePhotosToShow = useMemo(() => {
-    return renderableTotal > 0 && displayedPhotosCount < renderableTotal;
-  }, [displayedPhotosCount, renderableTotal]);
-
-  // Intersection Observer per auto-load foto (DOPO le dichiarazioni che usa)
+  // Intersection Observer per auto-load pagine successive da Firestore
   useEffect(() => {
-    if (!sentinelRef.current || !hasMorePhotosToShow) return;
+    if (!sentinelRef.current || !hasNextPage) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMoreDisplayPhotos();
+        if (entries[0].isIntersecting && !isFetchingNextPage) {
+          fetchNextPage();
         }
       },
-      { rootMargin: '400px' } // Preload 400px prima
+      { rootMargin: '400px' }
     );
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMorePhotosToShow, loadMoreDisplayPhotos]);
+  }, [hasNextPage, fetchNextPage, isFetchingNextPage]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
@@ -3927,33 +3899,6 @@ export default function Gallery() {
                         </div>
                       )}
 
-                      {/* 📄 Sentinella per auto-load infinito (attiva sia in vista standard che con capitoli) */}
-                      {hasMorePhotosToShow && (
-                        <div
-                          ref={sentinelRef}
-                          className="flex justify-center mt-8 py-4"
-                        >
-                          <div className="flex items-center gap-2 text-gray-500">
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-sage border-t-transparent"></div>
-                            <span className="text-sm">
-                              Caricamento foto... ({Math.min(displayedPhotosCount, renderableTotal)}/{renderableTotal})
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Pulsante manuale fallback (nascosto, disponibile per accessibilità) */}
-                      {hasMorePhotosToShow && (
-                        <div className="sr-only">
-                          <Button
-                            onClick={loadMoreDisplayPhotos}
-                            variant="outline"
-                          >
-                            Carica altre foto
-                          </Button>
-                        </div>
-                      )}
-
                       {/* Conferma Selezione Button (Task 14) */}
                       {isSelectionMode && selectionStatus !== "completed" && (
                         <div ref={confirmButtonRef} className="mt-8 mb-6 text-center">
@@ -4238,6 +4183,25 @@ export default function Gallery() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* 📄 Sentinella per auto-load Firestore pagination (condivisa tra tab fotografo e ospiti) */}
+              {(activeTab === "photographer" || activeTab === "guests") && hasMorePhotosToShow && (
+                <div
+                  ref={sentinelRef}
+                  className="flex justify-center mt-8 py-4"
+                >
+                  <div className="flex items-center gap-2 text-gray-500">
+                    {isFetchingNextPage && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-sage border-t-transparent"></div>
+                    )}
+                    <span className="text-sm">
+                      {isFetchingNextPage
+                        ? `Caricamento foto... (${photos.length + guestPhotos.length} caricate)`
+                        : `${photos.length + guestPhotos.length} foto caricate`}
+                    </span>
+                  </div>
                 </div>
               )}
 

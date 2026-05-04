@@ -16,7 +16,9 @@ import {
   serverTimestamp,
   onSnapshot,
   limit,
-  getDoc
+  getDoc,
+  startAfter,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { StorageService } from './storage';
@@ -284,6 +286,94 @@ export class PhotoService {
     } catch (error) {
       console.error('Errore recupero foto galleria:', error);
       return [];
+    }
+  }
+
+  /**
+   * Ottieni foto paginate di una galleria (cursor-based Firestore pagination).
+   * Prima pagina: carica anche foto legacy in parallelo.
+   * Pagine successive: solo foto moderne con cursor startAfter.
+   */
+  static async getGalleryPhotosPaginated(
+    galleryId: string,
+    pageSize: number = 50,
+    lastDocument?: QueryDocumentSnapshot
+  ): Promise<{
+    photos: Photo[];
+    lastDocument: QueryDocumentSnapshot | null;
+    hasMore: boolean;
+  }> {
+    try {
+      const constraints: any[] = [
+        where('galleryId', '==', galleryId),
+        orderBy('createdAt', 'desc'),
+        limit(pageSize),
+      ];
+
+      if (lastDocument) {
+        constraints.push(startAfter(lastDocument));
+      }
+
+      const photosQuery = query(collection(db, 'photos'), ...constraints);
+      const isFirstPage = !lastDocument;
+
+      const [snapshot, legacySnapshot] = await Promise.all([
+        getDocs(photosQuery),
+        isFirstPage
+          ? getDocs(collection(db, 'galleries', galleryId, 'photos')).catch(() => ({ docs: [] as any[] }))
+          : Promise.resolve({ docs: [] as any[] }),
+      ]);
+
+      const hasMore = snapshot.docs.length === pageSize;
+      const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+
+      let photos: Photo[] = [];
+      const existingNames = new Set<string>();
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const photo = {
+          id: doc.id,
+          ...data,
+          uploadedBy: data.uploadedBy || 'admin',
+        } as Photo;
+        photos.push(photo);
+        existingNames.add(photo.name);
+      });
+
+      if (isFirstPage && legacySnapshot.docs.length > 0) {
+        legacySnapshot.docs.forEach((doc: any) => {
+          const data = doc.data();
+          const photoName = data.name || '';
+          if (!existingNames.has(photoName)) {
+            photos.push({
+              id: `legacy-${doc.id}`,
+              galleryId,
+              name: photoName,
+              url: data.url || '',
+              thumbnailUrl: data.thumbnailUrl,
+              contentType: data.contentType || 'image/jpeg',
+              size: data.size || 0,
+              uploaderUid: data.uploaderUid || '',
+              uploaderEmail: data.uploaderEmail || 'legacy@system',
+              uploaderName: data.uploaderName || 'Legacy System',
+              uploadedBy: data.uploadedBy || 'legacy',
+              likeCount: data.likeCount || 0,
+              commentCount: data.commentCount || 0,
+              position: data.position,
+              chapterId: data.chapterId,
+              chapterPosition: data.chapterPosition,
+              createdAt: data.createdAt || new Date(),
+              updatedAt: data.updatedAt,
+            } as Photo);
+          }
+        });
+      }
+
+      return { photos, lastDocument: lastDoc, hasMore };
+    } catch (error) {
+      console.error('Errore recupero foto paginate:', error);
+      return { photos: [], lastDocument: null, hasMore: false };
     }
   }
 
