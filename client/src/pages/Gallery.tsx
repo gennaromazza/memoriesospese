@@ -394,6 +394,14 @@ export default function Gallery() {
     void imageCache.preloadImages(urls).catch(() => {});
   }, [firstPagePhotos]);
 
+  // ⚡ HYBRID: Dopo la prima pagina, scarica TUTTE le restanti in background.
+  // Così la lightbox e la selezione hanno sempre l'elenco completo delle foto.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // ⏱️ Calcola stima tempo di caricamento basata sulla connessione
   useEffect(() => {
     if (!galleryData?.photoCount || galleryData.photoCount === 0) {
