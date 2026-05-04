@@ -135,10 +135,12 @@ const PhotoCard = memo(({
   const showPlaceholder = !isLoaded && !isErrored;
 
   return (
-    <div className="masonry-item">
+    <div
+      className="masonry-item"
+      style={!isAboveTheFold ? { contentVisibility: 'auto', containIntrinsicSize: '0 400px' } : undefined}
+    >
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg transition-all duration-300 ${
-          // Niente shadow durante il placeholder: evita di "incorniciare il vuoto"
           showPlaceholder ? '' : 'shadow-md hover:shadow-lg'
         } ${
           showBorder 
@@ -352,40 +354,31 @@ export default function Gallery() {
     return !!localStorage.getItem(`gallery_auth_${id}`);
   }, [id, isAdmin, galleryData, accessValidatedTrigger]);
 
-  // 🔧 React Query: Carica foto fotografo (enabled solo quando galleryData esiste E accesso validato)
+  // ⚡ PERF: Singola query Firestore per TUTTE le foto (admin + ospiti), split client-side.
+  // Prima: 2 query moderne + 2 legacy = 4 Firestore reads.
+  // Ora: 1 query moderna + 1 legacy = 2 reads (−50%).
+  // staleTime 5min: le foto cambiano solo quando l'admin carica, il visitatore non ha bisogno
+  // di refetch ogni 5 secondi (causava lag su tab switch e scroll).
   const {
-    data: photos = [],
+    data: allPhotosData,
     isLoading: isLoadingPhotos,
     error: photosError
   } = useQuery({
-    queryKey: ['gallery-photos', galleryData?.id], // 🔧 Standardized key
+    queryKey: ['gallery-all-photos', galleryData?.id],
     queryFn: async () => {
-      if (!galleryData?.id) return [];
-      // 🔧 Usa PhotoService unificato con filtro exclude-guest (esclude foto ospiti)
-      const photos = await PhotoService.getGalleryPhotos(galleryData.id, undefined, 'exclude-guest');
-      return photos;
+      if (!galleryData?.id) return { photos: [] as Photo[], guestPhotos: [] as Photo[] };
+      const all = await PhotoService.getGalleryPhotos(galleryData.id);
+      const photos = all.filter(p => p.uploadedBy !== 'guest');
+      const guestPhotos = all.filter(p => p.uploadedBy === 'guest');
+      return { photos, guestPhotos };
     },
     enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
-    staleTime: 5000 // 🔧 Ridotto a 5 secondi per gallery pubblica
+    staleTime: 5 * 60 * 1000,
   });
 
-  // 🔧 React Query: Carica foto ospiti (enabled solo quando galleryData esiste E accesso validato)
-  const {
-    data: guestPhotos = [],
-    error: guestPhotosError
-  } = useQuery({
-    queryKey: ['guest-photos', galleryData?.id], // 🔧 Standardized key
-    queryFn: async () => {
-      if (!galleryData?.id) return [];
-      // 🔧 Usa PhotoService unificato con filtro guest
-      const photos = await PhotoService.getGalleryPhotos(galleryData.id, undefined, 'guest');
-      return photos;
-    },
-    enabled: !!galleryData?.id && hasValidAccess,
-    retry: 2,
-    staleTime: 5000 // 🔧 Ridotto a 5 secondi per gallery pubblica
-  });
+  const photos = allPhotosData?.photos ?? [];
+  const guestPhotos = allPhotosData?.guestPhotos ?? [];
 
   // ✅ Lazy loading nativo - nessun preload necessario
 
@@ -462,8 +455,7 @@ export default function Gallery() {
         const [key, id] = query.queryKey;
         // Cattura tutte le query correlate alla gallery corrente
         return typeof key === 'string' && 
-               (key === 'gallery-photos' || 
-                key === 'guest-photos' || 
+               (key === 'gallery-all-photos' || 
                 key === 'top-liked-photos' ||
                 key.includes('photo')) && 
                id === galleryData.id;
@@ -492,11 +484,7 @@ export default function Gallery() {
         variant: "destructive",
       });
     }
-    if (guestPhotosError) {
-      console.error('Errore caricamento foto ospiti:', guestPhotosError);
-      // Non mostriamo errore per foto ospiti - non è critico
-    }
-  }, [galleryError, photosError, guestPhotosError]);
+  }, [galleryError, photosError]);
 
   // 🔧 Gestione galleria non trovata
   useEffect(() => {
@@ -596,6 +584,9 @@ export default function Gallery() {
     }
   }, [isMultiProductMode, photoAssignments, selectedPhotoIdsLegacy]);
 
+  // ⚡ PERF: Set O(1) per lookup isSelected nella griglia (evita O(n) .includes per ogni foto)
+  const selectedPhotoIdsSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
+
   // Calculate total required photos:
   // 1. Single-product requirement: estrai da productRequirements[0]
   // 2. Multi-product: somma tutti i prodotti
@@ -616,53 +607,12 @@ export default function Gallery() {
   const selectionDeadline = galleryData?.selectionDeadline;
   const selectionStatus = galleryData?.selectionStatus || "pending";
 
-  // 🔍 DEBUG: Log stato modalità selezione
+  // 🔍 DEBUG: Log stato modalità selezione (solo in sviluppo, ~20 console.log bloccano il main thread)
   useEffect(() => {
-    if (galleryData) {
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("🔍 SELECTION MODE DEBUG - Galleria:", galleryData.code);
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📌 Gallery ID:", galleryData.id);
-      console.log("📌 Gallery Code:", galleryData.code);
-      console.log("✅ selectionEnabled:", galleryData.selectionEnabled);
-      console.log("✅ isSelectionMode:", isSelectionMode);
-      console.log("📊 requiredPhotoCount:", galleryData.requiredPhotoCount);
-      console.log("📦 productRequirements:", galleryData.productRequirements);
-      console.log("🎯 photoAssignments:", galleryData.photoAssignments);
-      console.log("📋 selectionStatus:", galleryData.selectionStatus);
-      console.log("⏰ selectionDeadline:", galleryData.selectionDeadline);
-      console.log(
-        "🔒 selectionDeadlineEnforced:",
-        galleryData.selectionDeadlineEnforced,
-      );
-      console.log(
-        "💚 selectedPhotoIds count:",
-        galleryData.selectedPhotoIds?.length || 0,
-      );
-
-      // Multi-Product Debug
-      if (isMultiProductMode && productRequirements) {
-        const totalRequired = productRequirements.reduce((sum, p) => sum + p.prodottoNumeroFoto, 0);
-        console.log("🎨 MULTI-PRODUCT MODE ATTIVO");
-        console.log(`📊 Totale foto richieste: ${totalRequired} (da ${productRequirements.length} prodotti)`);
-        productRequirements.forEach((p, idx) => {
-          console.log(`  ${idx + 1}. ${p.prodottoNome}: ${p.prodottoNumeroFoto} foto`);
-        });
-      } else if (isSingleProductRequirement && productRequirements) {
-        console.log("📦 SINGLE-PRODUCT MODE ATTIVO (productRequirements[0])");
-        console.log(`📊 Foto richieste: ${productRequirements[0].prodottoNumeroFoto} (da "${productRequirements[0].prodottoNome}")`);
-      } else if (isLegacySingleProductMode) {
-        console.log("📦 LEGACY SINGLE-PRODUCT MODE ATTIVO");
-        console.log(`📊 Foto richieste: ${galleryData.requiredPhotoCount}`);
-      }
-
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
+    if (import.meta.env.DEV && galleryData) {
+      console.log("🔍 SELECTION MODE -", galleryData.code, "| enabled:", galleryData.selectionEnabled, "| mode:", isSelectionMode);
       if (!galleryData.selectionEnabled) {
-        console.error("❌ PROBLEMA: selectionEnabled è FALSE o undefined!");
-        console.error(
-          "❌ Per attivare: Admin → Gestione Gallerie → Gestisci → Impostazioni → ✓ Modalità Selezione Foto",
-        );
+        console.error("❌ selectionEnabled è FALSE o undefined");
       }
     }
   }, [galleryData, isSelectionMode]);
@@ -1646,7 +1596,7 @@ export default function Gallery() {
 
     // Se il filtro "solo selezionate" è attivo, mostra solo quelle
     if (showOnlySelected && isSelectionMode && selectedPhotoIds.length > 0) {
-      return basePhotos.filter((photo) => selectedPhotoIds.includes(photo.id));
+      return basePhotos.filter((photo) => selectedPhotoIdsSet.has(photo.id));
     }
 
     return basePhotos;
@@ -1657,6 +1607,7 @@ export default function Gallery() {
     showOnlySelected,
     isSelectionMode,
     selectedPhotoIds,
+    selectedPhotoIdsSet,
     filterByProduct,
     photoAssignments,
   ]);
@@ -3761,7 +3712,7 @@ export default function Gallery() {
                                 ) : (
                                   <div className="mt-4">
                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                                      {allPhotos.filter(p => selectedPhotoIds.includes(p.id)).map((photo) => (
+                                      {allPhotos.filter(p => selectedPhotoIdsSet.has(p.id)).map((photo) => (
                                         <div key={photo.id} className="aspect-square rounded-lg overflow-hidden shadow-sm border border-sage/10 cursor-pointer hover:shadow-md transition-shadow"
                                           onClick={() => {
                                             const idx = allPhotos.findIndex(pp => pp.id === photo.id);
@@ -3801,7 +3752,7 @@ export default function Gallery() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {photosByChapter.map((group) => {
                               const isExpanded = !collapsedChapters[group.chapter.id];
-                              const selectedInChapter = group.photos.filter(p => selectedPhotoIds.includes(p.id)).length;
+                              const selectedInChapter = group.photos.filter(p => selectedPhotoIdsSet.has(p.id)).length;
                               const coverUrl = group.chapter.coverPhotoUrl || group.photos[0]?.url;
                               const coverPos = group.chapter.coverPhotoPosition;
                               
@@ -3864,7 +3815,7 @@ export default function Gallery() {
                           {photosByChapterDisplayed.map((group) => {
                             const isCollapsed = !!collapsedChapters[group.chapter.id];
                             // 📊 Conteggi sempre sull'array completo del capitolo (allPhotos)
-                            const selectedInChapter = group.allPhotos.filter(p => selectedPhotoIds.includes(p.id)).length;
+                            const selectedInChapter = group.allPhotos.filter(p => selectedPhotoIdsSet.has(p.id)).length;
 
                             // Skip render se collassato o se nessuna foto del capitolo è ancora caricata
                             if (isCollapsed || group.photos.length === 0) return null;
@@ -3909,7 +3860,7 @@ export default function Gallery() {
                                         <PhotoCard
                                           photo={photo}
                                           index={chapterIndex}
-                                          isSelected={selectedPhotoIds.includes(photo.id)}
+                                          isSelected={selectedPhotoIdsSet.has(photo.id)}
                                           isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                           assignedProducts={photoAssignments[photo.id] || []}
                                           isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
@@ -3944,7 +3895,7 @@ export default function Gallery() {
                               <PhotoCard
                                 photo={photo}
                                 index={index}
-                                isSelected={selectedPhotoIds.includes(photo.id)}
+                                isSelected={selectedPhotoIdsSet.has(photo.id)}
                                 isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
                                 assignedProducts={photoAssignments[photo.id] || []}
                                 isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
