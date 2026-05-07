@@ -67,6 +67,58 @@ function formatAnswer(type: string, value: any): string {
   return String(value);
 }
 
+/**
+ * Formatta le risposte di un modulo compilato in testo ottimizzato per WhatsApp.
+ * Usa grassetto (*), separatori e bullet per le scelte multiple, preserva i newline.
+ */
+function formatSubmissionForWhatsApp(submission: InfoFormSubmission): string {
+  const lines: string[] = [];
+  const completedDate = submission.completedAt?.toDate ? submission.completedAt.toDate() : null;
+
+  lines.push(`📋 *${submission.templateName}*`);
+  lines.push(`👤 Cliente: *${submission.clientName}*`);
+  if (completedDate) {
+    lines.push(`📅 Compilato il ${format(completedDate, 'dd/MM/yyyy HH:mm', { locale: it })}`);
+  }
+  lines.push('━━━━━━━━━━━━━━');
+  lines.push('');
+
+  const fields = submission.templateFields || [];
+  if (fields.length === 0) {
+    lines.push('_Nessun campo nel modulo_');
+  } else {
+    fields.forEach((field, idx) => {
+      const raw = submission.answers?.[field.id];
+      const isEmpty = raw === null || raw === undefined || raw === '' ||
+        (Array.isArray(raw) && raw.length === 0);
+
+      lines.push(`*${field.label}*`);
+
+      if (isEmpty) {
+        lines.push('_(non risposto)_');
+      } else if (Array.isArray(raw)) {
+        // Scelte multiple → bullet list
+        raw.forEach(item => lines.push(`• ${item}`));
+      } else if (field.type === 'textarea') {
+        // Preserva i newline del testo lungo
+        const text = String(raw).trim();
+        text.split('\n').forEach(l => lines.push(l));
+      } else {
+        lines.push(String(raw));
+      }
+
+      // Riga vuota tra i campi (tranne dopo l'ultimo)
+      if (idx < fields.length - 1) lines.push('');
+    });
+  }
+
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━');
+  lines.push('_Image Studio_');
+
+  return lines.join('\n');
+}
+
 function SubmissionCard({
   submission,
   onDelete,
@@ -74,8 +126,10 @@ function SubmissionCard({
   submission: InfoFormSubmission;
   onDelete: () => void;
 }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedWA, setCopiedWA] = useState(false);
 
   const formUrl = createAbsoluteUrl(`/modulo/${submission.token}`);
   const isCompleted = submission.status === 'completed';
@@ -86,6 +140,25 @@ function SubmissionCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (_) {}
+  };
+
+  const copyForWhatsApp = async () => {
+    try {
+      const text = formatSubmissionForWhatsApp(submission);
+      await navigator.clipboard.writeText(text);
+      setCopiedWA(true);
+      setTimeout(() => setCopiedWA(false), 2000);
+      toast({
+        title: 'Risposte copiate',
+        description: 'Incolla su WhatsApp per inviare ai collaboratori',
+      });
+    } catch (_) {
+      toast({
+        title: 'Errore',
+        description: 'Impossibile copiare le risposte',
+        variant: 'destructive',
+      });
+    }
   };
 
   const sentDate = submission.sentAt?.toDate ? submission.sentAt.toDate() : null;
@@ -158,7 +231,29 @@ function SubmissionCard({
 
             {isCompleted && (
               <div className="space-y-3">
-                <Label className="text-xs font-semibold text-gray-600">Risposte</Label>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <Label className="text-xs font-semibold text-gray-600">Risposte</Label>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={copyForWhatsApp}
+                    className="h-7 text-xs gap-1.5 bg-[#25D366]/10 hover:bg-[#25D366]/20 border-[#25D366]/30 text-[#128C7E] hover:text-[#0d6b5e]"
+                    data-testid={`button-copy-whatsapp-${submission.id}`}
+                    title="Copia risposte formattate per WhatsApp"
+                  >
+                    {copiedWA ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        Copiato!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        Copia per WhatsApp
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   {submission.templateFields?.map(field => (
                     <div key={field.id} className="grid grid-cols-[1fr_2fr] gap-2 text-sm">
