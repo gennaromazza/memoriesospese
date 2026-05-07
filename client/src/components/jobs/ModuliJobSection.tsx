@@ -212,8 +212,8 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <p className="text-sm text-muted-foreground">
             {quotes.length} {quotes.length === 1 ? 'modulo' : 'moduli'}
           </p>
@@ -224,7 +224,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
           )}
         </div>
         {isAdmin && onCreateModulo && (
-          <Button onClick={onCreateModulo} size="sm" data-testid="button-create-modulo">
+          <Button onClick={onCreateModulo} size="sm" data-testid="button-create-modulo" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Nuovo Modulo
           </Button>
@@ -241,11 +241,11 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
             <Card data-testid={`card-quote-${quote.id}`}>
               <CollapsibleTrigger asChild>
                 <CardContent className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">
+                  <div className="flex items-start justify-between gap-2 sm:gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-medium break-words">
                           {quote.templateName || 'Modulo Preventivo'}
                         </span>
                         <Badge variant="outline" className="text-xs">
@@ -256,7 +256,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                         </Badge>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
                         <div>
                           <span className="font-medium">Prodotti:</span> {quote.products?.length ?? 0}
                         </div>

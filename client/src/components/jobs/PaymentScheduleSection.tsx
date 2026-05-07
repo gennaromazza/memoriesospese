@@ -361,24 +361,24 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
 
   return (
     <div className="space-y-4">
-      {/* Stats Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Stats Summary - responsive: 1 col mobile, 3 col da sm */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Totale Preventivato</p>
-            <p className="text-2xl font-bold">€{totals.totale.toFixed(2)}</p>
+            <p className="text-xl sm:text-2xl font-bold break-words">€{totals.totale.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Totale Pagato</p>
-            <p className="text-2xl font-bold text-green-600">€{totals.totalePagato.toFixed(2)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-600 break-words">€{totals.totalePagato.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Saldo Residuo</p>
-            <p className="text-2xl font-bold text-orange-600">€{totals.saldoResiduo.toFixed(2)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-orange-600 break-words">€{totals.saldoResiduo.toFixed(2)}</p>
           </CardContent>
         </Card>
       </div>
@@ -387,8 +387,8 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
       {schedules.map((schedule: any) => (
         <Card key={schedule.id}>
           <CardHeader>
-            <CardTitle className="text-base flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span>Piano Pagamenti</span>
                 <Badge variant="outline">
                   {schedule.payments.length} {schedule.payments.length === 1 ? 'rata' : 'rate'}
@@ -400,6 +400,7 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
                   variant="outline"
                   onClick={() => setGestioneRataState({ open: true, mode: 'add', scheduleId: schedule.id })}
                   data-testid="button-add-rata"
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Aggiungi Rata
@@ -408,8 +409,8 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Payments Table */}
-            <div className="rounded-md border">
+            {/* Payments Table - scroll orizzontale su mobile */}
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -558,18 +559,18 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
               </Table>
             </div>
 
-            {/* Schedule Summary */}
-            <div className="mt-4 pt-4 border-t flex justify-between items-center">
-              <div className="space-y-1">
+            {/* Schedule Summary - stack su mobile, riga su sm+ */}
+            <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <div className="space-y-1 min-w-0">
                 <p className="text-sm text-muted-foreground">
                   Creato: {schedule.createdAt ? format(schedule.createdAt, 'dd/MM/yyyy HH:mm', { locale: it }) : 'N/A'}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground truncate">
                   ID: {schedule.id.slice(0, 12)}...
                 </p>
               </div>
-              <div className="text-right">
-                <p className="text-lg font-bold">
+              <div className="sm:text-right">
+                <p className="text-base sm:text-lg font-bold break-words">
                   €{schedule.totalePagato.toFixed(2)} / €{schedule.totale.toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground">
