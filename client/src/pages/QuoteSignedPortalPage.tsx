@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download } from 'lucide-react';
+import { Loader2, CheckCircle2, FileText, Calendar, CreditCard, User, Mail, Phone, MapPin, Download, ExternalLink } from 'lucide-react';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 import type { Quote, QuoteSignature } from '@shared/quotes-types';
 import type { PaymentSchedule } from '@shared/payment-schedule-types';
@@ -410,24 +410,42 @@ export default function QuoteSignedPortalPage() {
                     </div>
                   )}
 
-                  {(cliente.indirizzo || cliente.citta || cliente.cap || cliente.provincia) && (
-                    <div className="flex items-center gap-3 p-2 bg-off-white rounded">
-                      <MapPin className="w-4 h-4 text-sage flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-600">Indirizzo</p>
-                        <p className="font-medium text-gray-900 text-sm">
-                          {cliente.indirizzo && <>{cliente.indirizzo}<br /></>}
-                          {(cliente.citta || cliente.cap || cliente.provincia) && (
-                            <>
-                              {cliente.cap ? `${cliente.cap} ` : ''}
-                              {cliente.citta}
-                              {cliente.provincia && ` (${cliente.provincia})`}
-                            </>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {(cliente.indirizzo || cliente.citta || cliente.cap || cliente.provincia) && (() => {
+                    const fullAddress = [
+                      cliente.indirizzo,
+                      [cliente.cap, cliente.citta].filter(Boolean).join(' '),
+                      cliente.provincia,
+                    ].filter(Boolean).join(', ');
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+                    return (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-2 bg-off-white rounded hover:bg-mint/30 transition-colors group"
+                        data-testid="link-cliente-address-maps"
+                        title="Apri in Google Maps"
+                      >
+                        <MapPin className="w-4 h-4 text-sage flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-600 flex items-center gap-1">
+                            Indirizzo
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </p>
+                          <p className="font-medium text-gray-900 text-sm group-hover:text-sage transition-colors">
+                            {cliente.indirizzo && <>{cliente.indirizzo}<br /></>}
+                            {(cliente.citta || cliente.cap || cliente.provincia) && (
+                              <>
+                                {cliente.cap ? `${cliente.cap} ` : ''}
+                                {cliente.citta}
+                                {cliente.provincia && ` (${cliente.provincia})`}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </a>
+                    );
+                  })()}
                 </div>
                 );
               })}

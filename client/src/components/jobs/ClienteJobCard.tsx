@@ -142,14 +142,25 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                   </Tooltip>
                 </div>
               )}
-              {(cliente.via || cliente.citta) && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span>
-                    {[cliente.via, [cliente.cap, cliente.citta].filter(Boolean).join(' '), cliente.provincia].filter(Boolean).join(', ')}
-                  </span>
-                </div>
-              )}
+              {(cliente.via || cliente.citta) && (() => {
+                const fullAddress = [cliente.via, [cliente.cap, cliente.citta].filter(Boolean).join(' '), cliente.provincia].filter(Boolean).join(', ');
+                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+                return (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-sage hover:underline transition-colors"
+                      data-testid={`link-cliente-address-maps-${cliente.id}`}
+                      title="Apri in Google Maps"
+                    >
+                      {fullAddress}
+                    </a>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Orario appuntamento — inline editabile */}
