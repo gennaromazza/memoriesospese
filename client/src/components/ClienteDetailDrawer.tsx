@@ -56,17 +56,28 @@ export default function ClienteDetailDrawer({
 
   useEffect(() => {
     if (!cliente?.id || !open) return;
-    const q = query(collection(db, 'galleries'), where('clienteId', '==', cliente.id));
-    getDocs(q).then(snap => {
-      setLinkedGalleries(snap.docs.map(d => ({
-        id: d.id,
-        name: d.data().name || '',
-        code: d.data().code || '',
-        date: d.data().date,
-        photoCount: d.data().photoCount || 0,
-        jobType: d.data().jobType,
-      })));
-    }).catch(console.error);
+    // Multi-cliente: leggi gallerie via clientiIds (array-contains) + legacy clienteId, poi dedup
+    const qLegacy = query(collection(db, 'galleries'), where('clienteId', '==', cliente.id));
+    const qMulti = query(collection(db, 'galleries'), where('clientiIds', 'array-contains', cliente.id));
+    Promise.all([getDocs(qLegacy), getDocs(qMulti)])
+      .then(([snapLegacy, snapMulti]) => {
+        const map = new Map<string, any>();
+        for (const d of [...snapLegacy.docs, ...snapMulti.docs]) {
+          if (!map.has(d.id)) {
+            const data = d.data();
+            map.set(d.id, {
+              id: d.id,
+              name: data.name || '',
+              code: data.code || '',
+              date: data.date,
+              photoCount: data.photoCount || 0,
+              jobType: data.jobType,
+            });
+          }
+        }
+        setLinkedGalleries(Array.from(map.values()));
+      })
+      .catch(console.error);
   }, [cliente?.id, open]);
 
   if (!cliente) return null;

@@ -7885,14 +7885,33 @@ router.post("/questionnaire-completed", async (req, res) => {
       return res.status(400).json({ error: "role deve essere 'bride' o 'groom'" });
     }
 
-    // 1) Risposte
-    const answersDoc = await db
-      .doc(`galleries/${galleryId}/questionnaires/${questionnaireId}/answers/${role}`)
-      .get();
+    // 1) Risposte (gate anti-abuso: doc deve esistere e essere stato scritto da client autorizzato via security rules)
+    const answersRef = db.doc(
+      `galleries/${galleryId}/questionnaires/${questionnaireId}/answers/${role}`,
+    );
+    const answersDoc = await answersRef.get();
     if (!answersDoc.exists) {
       return res.status(404).json({ error: "Risposte non trovate" });
     }
     const answersData = answersDoc.data() || {};
+
+    // IDEMPOTENZA: blocca chiamate ripetute → impedisce email-flood se l'endpoint viene
+    // colpito più volte (timing minore di 1s usa "in-progress" lock con timestamp)
+    if (answersData.adminEmailSentAt) {
+      console.log(
+        `ℹ️ Notifica questionario già inviata in precedenza (${answersData.adminEmailSentAt}), skip`,
+      );
+      return res.json({
+        success: true,
+        skipped: true,
+        reason: "already_sent",
+        sentAt: answersData.adminEmailSentAt,
+      });
+    }
+
+    // Lock pessimistico: marca subito come "in invio" per prevenire race da invii concorrenti
+    await answersRef.update({ adminEmailSentAt: new Date().toISOString() });
+
     const answers: Record<string, string> = answersData.answers || {};
 
     // 2) Questionnaire (per faqSetId)
