@@ -6253,28 +6253,40 @@ router.post(
       const galleryData = galleryDoc.data();
       const galleryName = galleryData?.name || "Galleria";
       const galleryCode = galleryData?.code || galleryId;
-      const clienteId = galleryData?.clienteId;
 
-      // Priorità: clienteId dalla galleria, poi clientEmail legacy
-      let clientEmail = galleryData?.clientEmail;
-      let clientName = galleryData?.clientName || "Cliente";
+      // Multi-cliente: clientiIds[] con fallback a clienteId singolo
+      const clientiIds: string[] = Array.isArray(galleryData?.clientiIds) && galleryData!.clientiIds.length > 0
+        ? galleryData!.clientiIds
+        : (galleryData?.clienteId ? [galleryData.clienteId] : []);
 
-      // Se c'è clienteId, recupera email e nome dal cliente
-      if (clienteId) {
-        const clienteDoc = await db.collection("clienti").doc(clienteId).get();
-        if (clienteDoc.exists) {
-          const clienteData = clienteDoc.data();
-          clientEmail = clienteData?.email || clientEmail;
-          clientName =
-            `${clienteData?.nome || ""} ${clienteData?.cognome || ""}`.trim() ||
-            clientName;
-          console.log(
-            `📧 Recuperato cliente ${clienteId}: ${clientName} (${clientEmail})`,
-          );
+      type Recipient = { email: string; name: string };
+      const recipients: Recipient[] = [];
+      const seenEmails = new Set<string>();
+      const addRecipient = (email?: string | null, name?: string | null) => {
+        const e = (email || "").trim().toLowerCase();
+        if (!e || seenEmails.has(e)) return;
+        seenEmails.add(e);
+        recipients.push({ email: email!.trim(), name: (name || "Cliente").trim() });
+      };
+
+      // 1) Tutti i clienti associati
+      for (const cId of clientiIds) {
+        try {
+          const clienteDoc = await db.collection("clienti").doc(cId).get();
+          if (clienteDoc.exists) {
+            const cd = clienteDoc.data();
+            const fullName = `${cd?.nome || ""} ${cd?.cognome || ""}`.trim() || "Cliente";
+            if (cd?.email) addRecipient(cd.email, fullName);
+            console.log(`📧 Recuperato cliente ${cId}: ${fullName} (${cd?.email || 'no email'})`);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Errore recupero cliente ${cId}:`, err);
         }
       }
+      // 2) Fallback legacy: clientEmail/clientName salvati direttamente sulla galleria
+      addRecipient(galleryData?.clientEmail, galleryData?.clientName);
 
-      if (!clientEmail) {
+      if (recipients.length === 0) {
         return res.status(400).json({
           error: "No client email associated with this gallery",
         });
@@ -6294,36 +6306,48 @@ router.post(
       // Recupera info studio per email
       const studioInfo = await getStudioContactInfo();
 
-      // Genera HTML email con stile October Mist
-      const htmlContent = createGalleryPhotosReadyEmailHTML({
-        clientName,
-        galleryName,
-        galleryUrl,
-        photoCount: actualPhotoCount,
-        hasSelection,
-        deadline: deadline?.toDate?.() || null,
-        studioInfo,
-      });
+      // Invia a tutti i destinatari (loop multi-cliente)
+      const sendResults = await Promise.all(recipients.map(async (r) => {
+        try {
+          const htmlContent = createGalleryPhotosReadyEmailHTML({
+            clientName: r.name,
+            galleryName,
+            galleryUrl,
+            photoCount: actualPhotoCount,
+            hasSelection,
+            deadline: deadline?.toDate?.() || null,
+            studioInfo,
+          });
 
-      // Invia email usando sendGmailEmail esistente (NO emoji nell'oggetto)
-      await sendGmailEmail(
-        clientEmail,
-        `La tua galleria "${galleryName}" e pronta`,
-        htmlContent,
-        undefined, // usa default from
-        {
-          type: "gallery_ready",
-          relatedDocId: galleryId,
-          relatedDocType: "gallery",
-          clientName,
-        },
-      );
+          await sendGmailEmail(
+            r.email,
+            `La tua galleria "${galleryName}" e pronta`,
+            htmlContent,
+            undefined,
+            {
+              type: "gallery_ready",
+              relatedDocId: galleryId,
+              relatedDocType: "gallery",
+              clientName: r.name,
+            },
+          );
+          console.log(`✅ Email galleria pronta inviata a ${r.email}`);
+          return { email: r.email, ok: true };
+        } catch (sendErr: any) {
+          console.error(`❌ Errore invio galleria pronta → ${r.email}:`, sendErr);
+          return { email: r.email, ok: false, error: sendErr?.message || "errore invio" };
+        }
+      }));
 
-      console.log(`✅ Email galleria pronta inviata a ${clientEmail}`);
+      const okCount = sendResults.filter(r => r.ok).length;
+      const totalCount = sendResults.length;
 
       return res.json({
-        success: true,
-        message: `Notifica inviata a ${clientEmail}`,
+        success: okCount > 0,
+        message: okCount === totalCount
+          ? `Notifica inviata a ${totalCount} destinatario/i`
+          : `Notifica inviata a ${okCount}/${totalCount} destinatari`,
+        recipients: sendResults,
         galleryName,
         photoCount: actualPhotoCount,
       });

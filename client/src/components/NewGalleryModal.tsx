@@ -38,9 +38,9 @@ import { getAllThemes } from "@shared/special-themes";
 import { getProductById } from "@/lib/products";
 import type { Product } from "@shared/booking-types";
 import { Info, Eye, EyeOff, Trash, RefreshCw, Copy, Check } from "lucide-react";
-import { ClienteSelector } from "./ClienteSelector";
+import { MultiClienteSelector } from "./MultiClienteSelector";
 import { createAbsoluteUrl } from "@/lib/basePath";
-import { getClienteByEmail } from "@/lib/clienti";
+import { getClienteByEmail, getClienteById } from "@/lib/clienti";
 import { getAllJobs } from "@/lib/jobs";
 import type { Job } from "@shared/jobs-types";
 import { Link2 } from "lucide-react";
@@ -145,9 +145,8 @@ export default function NewGalleryModal({
   const [specialPin, setSpecialPin] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
-  const [clienteId, setClienteId] = useState("");
-  const [importedClienteInfo, setImportedClienteInfo] = useState<{nome: string, cognome: string} | null>(null); // Info cliente importato
-  const [clienteIdInitialized, setClienteIdInitialized] = useState<string | null>(null); // Track which booking initialized clienteId
+  const [clientiIds, setClientiIds] = useState<string[]>([]);
+  const [clienteIdInitialized, setClienteIdInitialized] = useState<string | null>(null); // Track which booking initialized clientiIds
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
   const [selectionMode, setSelectionMode] = useState<'like' | 'dislike'>('like'); // Modalità selezione
@@ -325,13 +324,12 @@ export default function NewGalleryModal({
       setSpecialPin(prePopulate.specialPin || "");
       setClientEmail(prePopulate.clienteEmail || "");
       setClientName(prePopulate.clienteNome || "");
-      // Only initialize clienteId if this is a NEW booking (avoid resetting user selections)
+      // Only initialize clientiIds if this is a NEW booking (avoid resetting user selections)
       const currentBookingId = prePopulate.bookingId || null;
       if (clienteIdInitialized !== currentBookingId) {
-        setClienteId(prePopulate.clienteId || "");
-        setImportedClienteInfo(null); // Clear imported info when booking changes
+        setClientiIds(prePopulate.clienteId ? [prePopulate.clienteId] : []);
         setClienteIdInitialized(currentBookingId);
-        console.log("🔄 ClienteId inizializzato per booking:", currentBookingId, "valore:", prePopulate.clienteId || "(vuoto)");
+        console.log("🔄 ClientiIds inizializzati per booking:", currentBookingId, "valore:", prePopulate.clienteId || "(vuoto)");
       }
     }
   }, [prePopulate, clienteIdInitialized]);
@@ -553,9 +551,10 @@ export default function NewGalleryModal({
         galleryData.bookingId = prePopulate.bookingId;
       }
       
-      // Add client association for notifications (from state, not just prePopulate)
-      if (clienteId) {
-        galleryData.clienteId = clienteId;
+      // Add client association for notifications (multi-cliente)
+      if (clientiIds.length > 0) {
+        galleryData.clientiIds = clientiIds;
+        galleryData.clienteId = clientiIds[0]; // retrocompat: primo cliente come "principale"
       }
 
       // Add job association
@@ -566,6 +565,20 @@ export default function NewGalleryModal({
       // Use GalleryService instead of direct Firestore write
       const { GalleryService } = await import("@/lib/galleries");
       const newGalleryId = await GalleryService.createGallery(galleryData);
+
+      // Sync sourceRefs.galleryIds sui clienti associati (coerenza relazioni)
+      if (clientiIds.length > 0) {
+        try {
+          const { doc: fDoc, updateDoc: fUpdate, arrayUnion: fArrayUnion } = await import("firebase/firestore");
+          await Promise.all(clientiIds.map(cId =>
+            fUpdate(fDoc(db, 'clienti', cId), {
+              'sourceRefs.galleryIds': fArrayUnion(newGalleryId)
+            }).catch(err => console.warn(`⚠️ Sync sourceRefs cliente ${cId}:`, err))
+          ));
+        } catch (err) {
+          console.error('⚠️ Errore sync sourceRefs clienti:', err);
+        }
+      }
 
       // Sync: aggiungi la nuova galleria al job collegato
       if (jobId) {
@@ -639,119 +652,116 @@ export default function NewGalleryModal({
         }
       }
 
-      // INVIO EMAIL AUTOMATICO: Se galleria speciale con PIN e email cliente fornita
-      if (specialTheme !== "none" && specialPin.trim() && clientEmail.trim()) {
-        console.log("📧 Invio email PIN al cliente...");
+      // ========== INVIO EMAIL AUTOMATICO MULTI-CLIENTE ==========
+      // Costruisce la lista dei destinatari da: clienti associati + email manuale + prePopulate
+      type EmailRecipient = { email: string; name?: string };
+      const recipients: EmailRecipient[] = [];
+      const seenEmails = new Set<string>();
+      const addRecipient = (email?: string | null, name?: string | null) => {
+        const e = (email || "").trim().toLowerCase();
+        if (!e || seenEmails.has(e)) return;
+        seenEmails.add(e);
+        recipients.push({ email: email!.trim(), name: name?.trim() || undefined });
+      };
 
+      // 1) Tutti i clienti associati
+      for (const cId of clientiIds) {
         try {
-          const emailResponse = await fetch(
-            "/api/email/special-gallery-pin-notification",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                galleryId: newGalleryId,
-                clientEmail: clientEmail.trim(),
-                clientName: clientName.trim() || undefined,
-              }),
-            },
-          );
-
-          if (emailResponse.ok) {
-            console.log("✅ Email PIN inviata con successo");
-            toast.success(
-              `Galleria creata e email PIN inviata a ${clientEmail}`,
-            );
-          } else {
-            const errorData = await emailResponse.json().catch(() => ({}));
-            console.error("❌ Errore invio email PIN", errorData);
-            toast.success("Galleria creata, ma invio email PIN non riuscito");
+          const cliente = await getClienteById(cId);
+          if (cliente?.email) {
+            addRecipient(cliente.email, `${cliente.nome || ""} ${cliente.cognome || ""}`.trim());
           }
-        } catch (emailError) {
-          console.error("❌ Eccezione invio email PIN:", emailError);
-          toast.success("Galleria creata, ma invio email PIN non riuscito");
+        } catch (err) {
+          console.warn(`⚠️ Impossibile recuperare cliente ${cId}:`, err);
         }
       }
-      // Send email notification if selection enabled
-      else if (selectionEnabled && prePopulate?.clienteEmail) {
-        try {
-          const galleryUrl = `${window.location.origin}/gallery/${code}`;
-          const deadlineFormatted = selectionDeadline
-            ? new Date(selectionDeadline).toLocaleDateString("it-IT", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
+      // 2) Email manuale + fallback prePopulate
+      addRecipient(clientEmail, clientName);
+      addRecipient(prePopulate?.clienteEmail, prePopulate?.clienteNome);
+
+      // Determina il tipo di email da inviare
+      const isSpecialPin = specialTheme !== "none" && specialPin.trim();
+      const isSelection = !isSpecialPin && selectionEnabled;
+      const isPassword = !isSpecialPin && !isSelection && specialTheme === "none" && password.trim();
+      const emailType = isSpecialPin ? "PIN" : isSelection ? "Galleria Pronta" : isPassword ? "Password" : null;
+
+      if (emailType && recipients.length > 0) {
+        console.log(`📧 Invio email "${emailType}" a ${recipients.length} destinatario/i...`);
+
+        const galleryUrl = `${window.location.origin}/gallery/${code}`;
+        const deadlineFormatted = selectionDeadline
+          ? new Date(selectionDeadline).toLocaleDateString("it-IT", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          : undefined;
+        const productReqs =
+          isSelection && prePopulate?.availableProducts && selectedProductIndices.length > 0
+            ? selectedProductIndices.map((index) => {
+                const prod = prePopulate.availableProducts![index];
+                return {
+                  prodottoNome: prod.prodottoNome,
+                  prodottoNumeroFoto: prod.prodottoNumeroFoto || 0,
+                };
               })
             : undefined;
 
-          // Build product requirements for email if multi-product mode
-          const productReqs =
-            prePopulate.availableProducts && selectedProductIndices.length > 0
-              ? selectedProductIndices.map((index) => {
-                  const prod = prePopulate.availableProducts![index];
-                  return {
-                    prodottoNome: prod.prodottoNome,
-                    prodottoNumeroFoto: prod.prodottoNumeroFoto || 0,
-                  };
-                })
-              : undefined;
-
-          const emailResponse = await fetch("/api/email/gallery-ready", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              recipientEmail: prePopulate.clienteEmail,
-              clienteNome: prePopulate.clienteNome || "Cliente",
-              galleryName: name.trim(),
-              galleryUrl,
-              requiredPhotoCount: requiredPhotoCount || 0,
-              selectionDeadline: deadlineFormatted,
-              photoCount: 0, // Always 0 on creation
-              productRequirements: productReqs, // NEW: multi-product support
-            }),
-          });
-
-          if (emailResponse.ok) {
-            console.log('✅ Email "Galleria Pronta" inviata al cliente');
-            toast.success("Galleria creata con successo!");
-          } else {
-            console.error("⚠️ Email non inviata:", await emailResponse.text());
-            toast.success("Galleria creata, ma invio email non riuscito");
+        const sendOne = async (r: EmailRecipient): Promise<boolean> => {
+          try {
+            let endpoint = "";
+            let body: any = {};
+            if (isSpecialPin) {
+              endpoint = "/api/email/special-gallery-pin-notification";
+              body = { galleryId: newGalleryId, clientEmail: r.email, clientName: r.name };
+            } else if (isSelection) {
+              endpoint = "/api/email/gallery-ready";
+              body = {
+                recipientEmail: r.email,
+                clienteNome: r.name || "Cliente",
+                galleryName: name.trim(),
+                galleryUrl,
+                requiredPhotoCount: requiredPhotoCount || 0,
+                selectionDeadline: deadlineFormatted,
+                photoCount: 0,
+                productRequirements: productReqs,
+              };
+            } else if (isPassword) {
+              endpoint = "/api/email/gallery-password-notification";
+              body = { galleryId: newGalleryId, clientEmail: r.email, clientName: r.name };
+            }
+            const resp = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+              const errData = await resp.json().catch(() => ({}));
+              console.error(`❌ Errore email ${emailType} → ${r.email}:`, errData);
+              return false;
+            }
+            console.log(`✅ Email ${emailType} inviata a ${r.email}`);
+            return true;
+          } catch (err) {
+            console.error(`❌ Eccezione invio email ${emailType} → ${r.email}:`, err);
+            return false;
           }
-        } catch (emailError) {
-          console.error("⚠️ Errore invio email galleria:", emailError);
-          toast.success("Galleria creata, ma invio email non riuscito");
-        }
-      } 
-      // INVIO AUTOMATICO PASSWORD: Galleria normale con password e cliente con email
-      else if (specialTheme === "none" && password.trim() && (clientEmail.trim() || prePopulate?.clienteEmail)) {
-        const recipientEmail = clientEmail.trim() || prePopulate?.clienteEmail;
-        const recipientName = clientName.trim() || prePopulate?.clienteNome;
-        
-        console.log("📧 Invio automatico password galleria a:", recipientEmail);
-        
-        try {
-          const emailResponse = await fetch("/api/email/gallery-password-notification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              galleryId: newGalleryId,
-              clientEmail: recipientEmail,
-              clientName: recipientName,
-            }),
-          });
+        };
 
-          if (emailResponse.ok) {
-            console.log("✅ Email password inviata con successo");
-            toast.success(`Galleria creata e password inviata a ${recipientEmail}`);
-          } else {
-            console.error("⚠️ Errore invio email password:", await emailResponse.text());
-            toast.success("Galleria creata, ma invio email password non riuscito");
-          }
-        } catch (emailError) {
-          console.error("⚠️ Eccezione invio email password:", emailError);
-          toast.success("Galleria creata, ma invio email password non riuscito");
+        const results = await Promise.all(recipients.map(sendOne));
+        const okCount = results.filter(Boolean).length;
+        const total = results.length;
+        if (okCount === total) {
+          toast.success(
+            total === 1
+              ? `Galleria creata e email ${emailType} inviata a ${recipients[0].email}`
+              : `Galleria creata e ${total} email ${emailType} inviate ai clienti associati`,
+          );
+        } else if (okCount > 0) {
+          toast.success(`Galleria creata. Email inviate: ${okCount}/${total} (vedi console)`);
+        } else {
+          toast.success(`Galleria creata, ma invio email ${emailType} non riuscito`);
         }
       } else {
         toast.success("Galleria creata con successo!");
@@ -839,11 +849,10 @@ export default function NewGalleryModal({
               />
             </div>
 
-            {/* Cliente Selector - permette di associare un cliente alla galleria */}
+            {/* Multi Cliente Selector - permette di associare più clienti alla galleria */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Cliente Associato</Label>
-                {prePopulate?.clienteEmail && !clienteId && (
+              {prePopulate?.clienteEmail && (
+                <div className="flex justify-end">
                   <Button
                     type="button"
                     variant="outline"
@@ -853,14 +862,14 @@ export default function NewGalleryModal({
                       console.log("🔄 Importa da Prenotazione clicked, email:", prePopulate.clienteEmail);
                       try {
                         const cliente = await getClienteByEmail(prePopulate.clienteEmail!);
-                        console.log("🔍 Risultato ricerca:", cliente);
                         if (cliente) {
-                          setClienteId(cliente.id);
-                          setImportedClienteInfo({ nome: cliente.nome, cognome: cliente.cognome });
-                          console.log("✅ ClienteId settato:", cliente.id);
-                          toast.success(`Cliente ${cliente.nome} ${cliente.cognome} associato`);
+                          if (clientiIds.includes(cliente.id)) {
+                            toast.info(`${cliente.nome} ${cliente.cognome} è già associato`);
+                          } else {
+                            setClientiIds([...clientiIds, cliente.id]);
+                            toast.success(`Cliente ${cliente.nome} ${cliente.cognome} aggiunto`);
+                          }
                         } else {
-                          console.log("❌ Cliente non trovato");
                           toast.error("Cliente non trovato nel database");
                         }
                       } catch (error) {
@@ -868,61 +877,20 @@ export default function NewGalleryModal({
                         toast.error("Errore nella ricerca del cliente");
                       }
                     }}
+                    data-testid="button-importa-prenotazione"
                   >
                     <RefreshCw className="w-3 h-3" />
                     Importa da Prenotazione
                   </Button>
-                )}
-              </div>
-              
-              {/* Mostra cliente importato se presente */}
-              {clienteId && importedClienteInfo && (
-                <div className="p-3 bg-white rounded-lg border border-sage/20 shadow-sm flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-sage text-white flex items-center justify-center font-semibold text-sm">
-                      {`${importedClienteInfo.nome[0] || ''}${importedClienteInfo.cognome[0] || ''}`.toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {importedClienteInfo.nome} {importedClienteInfo.cognome}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {prePopulate?.clienteEmail || 'Email non disponibile'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sage/10 text-sage-dark">
-                      Selezionato
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-gray-500 hover:text-gray-700"
-                      onClick={() => {
-                        setClienteId("");
-                        setImportedClienteInfo(null);
-                      }}
-                    >
-                      Cambia
-                    </Button>
-                  </div>
                 </div>
               )}
-              
-              {/* Mostra ClienteSelector solo se non c'è un cliente importato */}
-              {!importedClienteInfo && (
-                <ClienteSelector
-                  value={clienteId}
-                  onChange={(id) => {
-                    setClienteId(id);
-                    setImportedClienteInfo(null); // Clear imported info when manually selecting
-                  }}
-                  placeholder="Cerca e seleziona cliente..."
-                  showCurrentClient={true}
-                />
-              )}
+              <MultiClienteSelector
+                values={clientiIds}
+                onChange={setClientiIds}
+                label="Clienti Associati"
+                placeholder="Cerca e aggiungi cliente..."
+                emptyHint="Nessun cliente associato — le email automatiche non verranno inviate"
+              />
             </div>
 
             {/* Collegamento a Lavoro esistente */}

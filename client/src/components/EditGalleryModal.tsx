@@ -29,7 +29,7 @@ import { queryClient } from "../lib/queryClient";
 import { Info } from 'lucide-react';
 import { createAbsoluteUrl } from "../lib/basePath";
 import { PhotoService, type Photo } from "../lib/photos";
-import { ClienteSelectorWithSave } from "./ClienteSelector";
+import { MultiClienteSelector } from "./MultiClienteSelector";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -181,8 +181,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [isMerging, setIsMerging] = useState(false);
   
   // Stati per associazione cliente
-  const [clienteId, setClienteId] = useState<string>("");
-  const [originalClienteId, setOriginalClienteId] = useState<string>("");
+  const [clientiIds, setClientiIds] = useState<string[]>([]);
+  const [originalClientiIds, setOriginalClientiIds] = useState<string[]>([]);
   const [isSavingCliente, setIsSavingCliente] = useState(false);
 
   // Job Type e collegamento Job
@@ -236,57 +236,77 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       return;
     }
     
-    // Cerca email cliente (da stato o da cliente associato)
-    let recipientEmail = clientEmail.trim();
-    let recipientName = clientName.trim();
-    
-    // Se non c'è email nello stato, prova a recuperarla dal cliente associato
-    if (!recipientEmail && clienteId) {
+    // Raccoglie destinatari da tutti i clienti associati + email manuale (dedup)
+    const recipients: Array<{email: string; name?: string}> = [];
+    const seen = new Set<string>();
+    const addR = (email?: string | null, name?: string | null) => {
+      const e = (email || '').trim().toLowerCase();
+      if (!e || seen.has(e)) return;
+      seen.add(e);
+      recipients.push({ email: email!.trim(), name: name?.trim() || undefined });
+    };
+    for (const cId of clientiIds) {
       try {
-        const clienteDoc = await getDoc(doc(db, "clienti", clienteId));
-        if (clienteDoc.exists()) {
-          const clienteData = clienteDoc.data();
-          recipientEmail = clienteData.email || '';
-          recipientName = recipientName || clienteData.nome || '';
+        const cDoc = await getDoc(doc(db, 'clienti', cId));
+        if (cDoc.exists()) {
+          const cd = cDoc.data();
+          if (cd.email) addR(cd.email, `${cd.nome || ''} ${cd.cognome || ''}`.trim());
         }
       } catch (error) {
-        console.error('Errore recupero dati cliente:', error);
+        console.error(`Errore recupero cliente ${cId}:`, error);
       }
     }
-    
-    if (!recipientEmail) {
+    addR(clientEmail, clientName);
+
+    if (recipients.length === 0) {
       toast({
         title: "Email non disponibile",
-        description: "Associa un cliente con email per inviare la password",
+        description: "Associa almeno un cliente con email per inviare la password",
         variant: "destructive"
       });
       return;
     }
-    
-    setIsSendingPassword(true);
-    
-    try {
-      const response = await fetch("/api/email/gallery-password-notification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          galleryId: gallery.id,
-          clientEmail: recipientEmail,
-          clientName: recipientName,
-        }),
-      });
 
-      if (response.ok) {
+    setIsSendingPassword(true);
+
+    try {
+      const results = await Promise.all(recipients.map(async (r) => {
+        try {
+          const response = await fetch("/api/email/gallery-password-notification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              galleryId: gallery.id,
+              clientEmail: r.email,
+              clientName: r.name,
+            }),
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error(`❌ Errore invio password → ${r.email}:`, errorData);
+            return false;
+          }
+          console.log(`✅ Password inviata a ${r.email}`);
+          return true;
+        } catch (err) {
+          console.error(`❌ Eccezione invio password → ${r.email}:`, err);
+          return false;
+        }
+      }));
+      const ok = results.filter(Boolean).length;
+      const total = results.length;
+      if (ok === total) {
         toast({
           title: "Password inviata",
-          description: `Email inviata con successo a ${recipientEmail}`,
+          description: total === 1
+            ? `Email inviata con successo a ${recipients[0].email}`
+            : `Email inviata a ${total} destinatari`,
         });
       } else {
-        const errorData = await response.json().catch(() => ({}));
         toast({
-          title: "Errore",
-          description: errorData.error || "Impossibile inviare l'email",
-          variant: "destructive"
+          title: ok > 0 ? "Invio parziale" : "Errore",
+          description: `Email inviate: ${ok}/${total}`,
+          variant: ok > 0 ? "default" : "destructive"
         });
       }
     } catch (error) {
@@ -369,7 +389,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   // Usiamo isOpen come trigger principale per garantire dati freschi dopo le modifiche
   useEffect(() => {
     if (isOpen && gallery && gallery.id) {
-      console.log('🔄 Caricamento dati galleria nel modal:', gallery.id, 'clienteId:', (gallery as any).clienteId);
+      console.log('🔄 Caricamento dati galleria nel modal:', gallery.id, 'clientiIds:', (gallery as any).clientiIds || (gallery as any).clienteId);
       currentGalleryId.current = gallery.id;
 
       setName(gallery.name || "");
@@ -380,9 +400,12 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setSpecialTheme(gallery.specialTheme || "none");
       setClientEmail((gallery as any).clientEmail || "");
       setClientName((gallery as any).clientName || "");
-      const loadedClienteId = (gallery as any).clienteId || "";
-      setClienteId(loadedClienteId);
-      setOriginalClienteId(loadedClienteId);
+      const galleryAny = gallery as any;
+      const loadedClientiIds: string[] = Array.isArray(galleryAny.clientiIds) && galleryAny.clientiIds.length > 0
+        ? galleryAny.clientiIds
+        : (galleryAny.clienteId ? [galleryAny.clienteId] : []);
+      setClientiIds(loadedClientiIds);
+      setOriginalClientiIds(loadedClientiIds);
       const loadedJobType = (gallery as any).jobType || 'none';
       const loadedJobId = (gallery as any).jobId || '';
       setJobType(loadedJobType);
@@ -1387,7 +1410,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         // Client info per invio email PIN (opzionale)
         clientEmail: clientEmail.trim() || null,
         clientName: clientName.trim() || null,
-        clienteId: clienteId || null,
+        clienteId: clientiIds[0] || null,
+        clientiIds: clientiIds.length > 0 ? clientiIds : null,
         jobType: jobType !== 'none' ? jobType : null,
         jobId: jobId || null,
         updatedAt: serverTimestamp()
@@ -1430,25 +1454,28 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       // AGGIORNA DOCUMENTO PUBBLICO (senza password/PIN)
       await updateDoc(galleryRef, updateData);
 
-      // SINCRONIZZA clienteId: aggiorna sourceRefs.galleryIds sui clienti
-      if (clienteId !== originalClienteId) {
+      // SINCRONIZZA clientiIds: aggiorna sourceRefs.galleryIds sui clienti aggiunti/rimossi
+      const addedClienti = clientiIds.filter(id => !originalClientiIds.includes(id));
+      const removedClienti = originalClientiIds.filter(id => !clientiIds.includes(id));
+      if (addedClienti.length > 0 || removedClienti.length > 0) {
         const clientePromises: Promise<void>[] = [];
-        if (originalClienteId) {
+        for (const removedId of removedClienti) {
           clientePromises.push(
-            updateDoc(doc(db, 'clienti', originalClienteId), {
+            updateDoc(doc(db, 'clienti', removedId), {
               'sourceRefs.galleryIds': arrayRemove(gallery.id)
             })
           );
         }
-        if (clienteId) {
+        for (const addedId of addedClienti) {
           clientePromises.push(
-            updateDoc(doc(db, 'clienti', clienteId), {
+            updateDoc(doc(db, 'clienti', addedId), {
               'sourceRefs.galleryIds': arrayUnion(gallery.id)
             })
           );
         }
         if (clientePromises.length > 0) await Promise.all(clientePromises);
-        setOriginalClienteId(clienteId);
+        setOriginalClientiIds([...clientiIds]);
+        console.log(`🔗 clientiIds sync galleria: +${addedClienti.length} / -${removedClienti.length}`);
       }
 
       // SINCRONIZZA jobId: aggiorna galleryIds sui job collegati
@@ -1533,46 +1560,70 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       const pinIsChanged = specialPin.trim() !== originalSpecialPin.trim();
       const isNewPin = !originalSpecialPin.trim() && specialPin.trim(); // PIN nuovo (prima non c'era)
       
-      if (specialTheme !== 'none' && specialPin.trim() && clientEmail.trim() && (pinIsChanged || isNewPin)) {
-        console.log('📧 Invio email PIN al cliente (PIN cambiato)...');
-        console.log('📧 Email destinatario:', clientEmail.trim());
-        console.log('📧 Gallery ID:', gallery.id);
-        console.log('📧 PIN cambiato:', pinIsChanged, '| Nuovo PIN:', isNewPin);
-        
+      // Costruisci lista destinatari (clienti associati + email manuale)
+      const pinRecipients: Array<{email: string; name?: string}> = [];
+      const pinSeenEmails = new Set<string>();
+      const addPinRecipient = (email?: string | null, name?: string | null) => {
+        const e = (email || '').trim().toLowerCase();
+        if (!e || pinSeenEmails.has(e)) return;
+        pinSeenEmails.add(e);
+        pinRecipients.push({ email: email!.trim(), name: name?.trim() || undefined });
+      };
+      for (const cId of clientiIds) {
         try {
-          // ATTENDI 500ms per assicurare che Firestore abbia propagato il salvataggio
+          const cDoc = await getDoc(doc(db, 'clienti', cId));
+          if (cDoc.exists()) {
+            const cd = cDoc.data();
+            if (cd.email) addPinRecipient(cd.email, `${cd.nome || ''} ${cd.cognome || ''}`.trim());
+          }
+        } catch (err) { console.warn(`⚠️ Errore recupero cliente ${cId}:`, err); }
+      }
+      addPinRecipient(clientEmail, clientName);
+
+      if (specialTheme !== 'none' && specialPin.trim() && pinRecipients.length > 0 && (pinIsChanged || isNewPin)) {
+        console.log(`📧 Invio email PIN a ${pinRecipients.length} destinatario/i (PIN cambiato)...`);
+
+        try {
           await new Promise(resolve => setTimeout(resolve, 500));
-          
-          console.log('📧 Invio richiesta email...');
-          const emailResponse = await fetch('/api/email/special-gallery-pin-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              galleryId: gallery.id,
-              clientEmail: clientEmail.trim(),
-              clientName: clientName.trim() || undefined
-            })
-          });
 
-          console.log('📧 Risposta server:', emailResponse.status, emailResponse.statusText);
+          const sendResults = await Promise.all(pinRecipients.map(async (r) => {
+            try {
+              const resp = await fetch('/api/email/special-gallery-pin-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  galleryId: gallery.id,
+                  clientEmail: r.email,
+                  clientName: r.name,
+                })
+              });
+              if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                console.error(`❌ Errore email PIN → ${r.email}:`, err);
+                return false;
+              }
+              console.log(`✅ Email PIN inviata a ${r.email}`);
+              return true;
+            } catch (err) {
+              console.error(`❌ Eccezione email PIN → ${r.email}:`, err);
+              return false;
+            }
+          }));
 
-          if (emailResponse.ok) {
-            console.log('✅ Email PIN inviata con successo');
+          const ok = sendResults.filter(Boolean).length;
+          const total = sendResults.length;
+          if (ok === total) {
             toast({
               title: "Galleria aggiornata e email inviata",
-              description: `Email con PIN inviata a ${clientEmail}`,
+              description: total === 1
+                ? `Email con PIN inviata a ${pinRecipients[0].email}`
+                : `Email con PIN inviata a ${total} destinatari`,
             });
           } else {
-            const errorData = await emailResponse.json().catch(() => ({}));
-            console.error('❌ Errore invio email PIN', {
-              status: emailResponse.status,
-              statusText: emailResponse.statusText,
-              error: errorData
-            });
             toast({
               title: "Galleria aggiornata",
-              description: `Galleria salvata, ma l'invio email ha avuto problemi: ${errorData.error || 'Errore sconosciuto'}`,
-              variant: "destructive"
+              description: `Email PIN inviate: ${ok}/${total}`,
+              variant: ok > 0 ? "default" : "destructive"
             });
           }
         } catch (emailError) {
@@ -1592,10 +1643,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         let finalClientEmail = clientEmail.trim();
         let finalClientName = clientName.trim();
         
-        if (!finalClientEmail && clienteId) {
-          // Recupera email dal documento cliente
+        if (!finalClientEmail && clientiIds.length > 0) {
+          // Recupera email dal primo cliente associato (per retrocompat notifiche YouTube)
           try {
-            const clienteDoc = await getDoc(doc(db, 'clienti', clienteId));
+            const clienteDoc = await getDoc(doc(db, 'clienti', clientiIds[0]));
             if (clienteDoc.exists()) {
               const clienteData = clienteDoc.data();
               finalClientEmail = clienteData.email || '';
@@ -1689,7 +1740,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clienteId, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clientiIds, originalClientiIds, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
   // Controlla se un file è già stato caricato (per nome OPPURE per hash contenuto)
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -2029,61 +2080,88 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               />
             </div>
 
-            {/* Cliente Associato - Componente centralizzato */}
-            <ClienteSelectorWithSave
-              value={clienteId}
-              onChange={setClienteId}
-              isSaving={isSavingCliente}
-              onSave={async (newClienteId) => {
-                if (!gallery) return;
-                setIsSavingCliente(true);
-                try {
-                  const galleryRef = doc(db, "galleries", gallery.id);
-                  await updateDoc(galleryRef, {
-                    clienteId: newClienteId || null,
-                    updatedAt: serverTimestamp()
-                  });
-                  // Sync sourceRefs.galleryIds sui clienti
-                  if (newClienteId !== originalClienteId) {
-                    const clientePromises: Promise<void>[] = [];
-                    if (originalClienteId) {
-                      clientePromises.push(
-                        updateDoc(doc(db, 'clienti', originalClienteId), {
-                          'sourceRefs.galleryIds': arrayRemove(gallery.id)
-                        })
-                      );
-                    }
-                    if (newClienteId) {
-                      clientePromises.push(
-                        updateDoc(doc(db, 'clienti', newClienteId), {
-                          'sourceRefs.galleryIds': arrayUnion(gallery.id)
-                        })
-                      );
-                    }
-                    if (clientePromises.length > 0) await Promise.all(clientePromises);
-                    setOriginalClienteId(newClienteId || "");
-                    console.log(`🔗 clienteId sync galleria: ${originalClienteId || 'none'} → ${newClienteId || 'none'}`);
-                  }
-                  toast({
-                    title: newClienteId ? "Cliente associato" : "Associazione rimossa",
-                    description: newClienteId 
-                      ? "Il cliente è stato collegato alla galleria"
-                      : "L'associazione cliente è stata rimossa",
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
-                  queryClient.invalidateQueries({ queryKey: ['galleries'] });
-                } catch (error) {
-                  console.error('Errore associazione cliente:', error);
-                  toast({
-                    title: "Errore",
-                    description: "Impossibile associare il cliente",
-                    variant: "destructive"
-                  });
-                } finally {
-                  setIsSavingCliente(false);
-                }
-              }}
-            />
+            {/* Clienti Associati - Multi-cliente */}
+            <div className="space-y-2">
+              <MultiClienteSelector
+                values={clientiIds}
+                onChange={setClientiIds}
+                label="Clienti Associati"
+                placeholder="Cerca e aggiungi cliente..."
+                emptyHint="Nessun cliente associato — le email automatiche non verranno inviate"
+                disabled={isSavingCliente}
+              />
+              {(() => {
+                const added = clientiIds.filter(id => !originalClientiIds.includes(id));
+                const removed = originalClientiIds.filter(id => !clientiIds.includes(id));
+                const hasChanges = added.length > 0 || removed.length > 0;
+                if (!hasChanges) return null;
+                return (
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-sage-dark">
+                      Modifiche non salvate: {added.length > 0 && `+${added.length} aggiunto/i`}
+                      {added.length > 0 && removed.length > 0 && ', '}
+                      {removed.length > 0 && `-${removed.length} rimosso/i`}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-sage hover:bg-sage/90 text-white h-8"
+                      disabled={isSavingCliente || !gallery}
+                      data-testid="button-save-clienti"
+                      onClick={async () => {
+                        if (!gallery) return;
+                        setIsSavingCliente(true);
+                        try {
+                          const galleryRef = doc(db, "galleries", gallery.id);
+                          await updateDoc(galleryRef, {
+                            clienteId: clientiIds[0] || null,
+                            clientiIds: clientiIds.length > 0 ? clientiIds : null,
+                            updatedAt: serverTimestamp()
+                          });
+                          const clientePromises: Promise<void>[] = [];
+                          for (const removedId of removed) {
+                            clientePromises.push(
+                              updateDoc(doc(db, 'clienti', removedId), {
+                                'sourceRefs.galleryIds': arrayRemove(gallery.id)
+                              })
+                            );
+                          }
+                          for (const addedId of added) {
+                            clientePromises.push(
+                              updateDoc(doc(db, 'clienti', addedId), {
+                                'sourceRefs.galleryIds': arrayUnion(gallery.id)
+                              })
+                            );
+                          }
+                          if (clientePromises.length > 0) await Promise.all(clientePromises);
+                          setOriginalClientiIds([...clientiIds]);
+                          console.log(`🔗 clientiIds sync galleria: +${added.length} / -${removed.length}`);
+                          toast({
+                            title: clientiIds.length > 0 ? "Clienti aggiornati" : "Associazioni rimosse",
+                            description: clientiIds.length > 0
+                              ? `${clientiIds.length} cliente/i ora collegato/i alla galleria`
+                              : "Tutte le associazioni cliente sono state rimosse",
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+                          queryClient.invalidateQueries({ queryKey: ['galleries'] });
+                        } catch (error) {
+                          console.error('Errore associazione clienti:', error);
+                          toast({
+                            title: "Errore",
+                            description: "Impossibile salvare l'associazione clienti",
+                            variant: "destructive"
+                          });
+                        } finally {
+                          setIsSavingCliente(false);
+                        }
+                      }}
+                    >
+                      {isSavingCliente ? "Salvo..." : "Salva associazioni"}
+                    </Button>
+                  </div>
+                );
+              })()}
+            </div>
 
             {/* Tipo Evento e Collegamento Lavoro */}
             <div className="border-t pt-4 mt-2">

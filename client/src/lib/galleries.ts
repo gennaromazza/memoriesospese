@@ -84,7 +84,8 @@ export interface Gallery {
   jobType?: string; // Categoria evento (slug da jobTypes collection)
   
   // Client Association - Collegamento diretto cliente per notifiche
-  clienteId?: string;
+  clienteId?: string; // Primo cliente (retrocompat / cliente principale)
+  clientiIds?: string[]; // Tutti i clienti associati (multi-cliente)
   
   // Workflow Management
   workflowState?: WorkflowState;
@@ -639,6 +640,7 @@ export class GalleryService {
         jobId: galleryData.jobId,
         jobType: galleryData.jobType,
         clienteId: galleryData.clienteId,
+        clientiIds: galleryData.clientiIds || (galleryData.clienteId ? [galleryData.clienteId] : []),
         hasPassword: galleryData.hasPassword === true || !!galleryData.password, // SICURO: solo boolean, mai esporre la password
         // 📚 Capitoli
         chaptersEnabled: galleryData.chaptersEnabled || false,
