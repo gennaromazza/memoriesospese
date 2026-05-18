@@ -7868,4 +7868,163 @@ router.post(
   },
 );
 
+/**
+ * POST /api/email/questionnaire-completed
+ * Notifica admin via email quando un cliente completa il questionario.
+ * Body: { galleryId, questionnaireId, role: 'bride'|'groom' }
+ */
+router.post("/questionnaire-completed", async (req, res) => {
+  try {
+    const { galleryId, questionnaireId, role } = req.body || {};
+    if (!galleryId || !questionnaireId || !role) {
+      return res.status(400).json({
+        error: "galleryId, questionnaireId e role sono obbligatori",
+      });
+    }
+    if (role !== "bride" && role !== "groom") {
+      return res.status(400).json({ error: "role deve essere 'bride' o 'groom'" });
+    }
+
+    // 1) Risposte
+    const answersDoc = await db
+      .doc(`galleries/${galleryId}/questionnaires/${questionnaireId}/answers/${role}`)
+      .get();
+    if (!answersDoc.exists) {
+      return res.status(404).json({ error: "Risposte non trovate" });
+    }
+    const answersData = answersDoc.data() || {};
+    const answers: Record<string, string> = answersData.answers || {};
+
+    // 2) Questionnaire (per faqSetId)
+    const questDoc = await db
+      .doc(`galleries/${galleryId}/questionnaires/${questionnaireId}`)
+      .get();
+    const questData = questDoc.exists ? questDoc.data() : {};
+    const faqSetId: string | undefined = questData?.faqSetId;
+
+    // 3) FaqSet per testi domande
+    let questions: Array<{ key: string; text: string }> = [];
+    if (faqSetId) {
+      const faqDoc = await db.doc(`faqSets/${faqSetId}`).get();
+      if (faqDoc.exists) {
+        const faqData = faqDoc.data();
+        if (Array.isArray(faqData?.questions)) {
+          questions = faqData!.questions.map((q: any) => ({ key: q.key, text: q.text }));
+        }
+      }
+    }
+
+    // 4) Galleria + cliente (per intestazione)
+    const galleryDoc = await db.doc(`galleries/${galleryId}`).get();
+    const galleryData = galleryDoc.exists ? galleryDoc.data() : {};
+    const galleryName = galleryData?.name || "Galleria";
+
+    const clientiIds: string[] = Array.isArray(galleryData?.clientiIds) && galleryData!.clientiIds.length > 0
+      ? galleryData!.clientiIds
+      : (galleryData?.clienteId ? [galleryData.clienteId] : []);
+
+    const clientiInfo: string[] = [];
+    for (const cId of clientiIds) {
+      try {
+        const cDoc = await db.doc(`clienti/${cId}`).get();
+        if (cDoc.exists) {
+          const cd = cDoc.data();
+          const fullName = `${cd?.nome || ""} ${cd?.cognome || ""}`.trim();
+          if (fullName) clientiInfo.push(fullName);
+        }
+      } catch {}
+    }
+    const clientiLabel = clientiInfo.length > 0 ? clientiInfo.join(" & ") : "Cliente";
+    const ruoloLabel = role === "bride" ? "Sposa" : "Sposo";
+
+    // 5) HTML email
+    const studioInfo = await getStudioContactInfo();
+    const escapeHtml = (s: string) =>
+      String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/\n/g, "<br>");
+
+    // Ordina secondo l'ordine del faqSet; aggiungi domande extra non in lista alla fine
+    const seen = new Set<string>();
+    const qaItems: Array<{ q: string; a: string }> = [];
+    for (const q of questions) {
+      const ans = answers[q.key];
+      if (ans && ans.trim()) {
+        qaItems.push({ q: q.text, a: ans });
+      }
+      seen.add(q.key);
+    }
+    for (const [k, v] of Object.entries(answers)) {
+      if (!seen.has(k) && v && v.trim()) {
+        qaItems.push({ q: k, a: v });
+      }
+    }
+
+    const qaHtml = qaItems.length === 0
+      ? `<p style="color:#666;">Nessuna risposta presente.</p>`
+      : qaItems.map((item, i) => `
+          <div style="background:#faf8f5; border-left:4px solid #8b9a7d; padding:14px 16px; margin:0 0 12px; border-radius:6px;">
+            <p style="margin:0 0 6px; font-weight:600; color:#6b7d8a; font-size:13px;">Domanda ${i + 1}</p>
+            <p style="margin:0 0 10px; color:#333; font-size:15px;">${escapeHtml(item.q)}</p>
+            <div style="background:#fff; padding:10px 12px; border-radius:4px; color:#222; font-size:14px; line-height:1.5;">
+              ${escapeHtml(item.a)}
+            </div>
+          </div>
+        `).join("");
+
+    const completedAt = answersData.completedAt
+      ? new Date(answersData.completedAt).toLocaleString("it-IT", { timeZone: "Europe/Rome" })
+      : new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; background:#ffffff;">
+        <h2 style="color:#8b9a7d; text-align:center; margin:0 0 6px;">Questionario Completato</h2>
+        <p style="text-align:center; color:#666; margin:0 0 24px; font-size:14px;">
+          ${escapeHtml(clientiLabel)} &middot; ${escapeHtml(ruoloLabel)}
+        </p>
+
+        <div style="background:#f5f0e8; padding:16px 20px; border-radius:8px; margin:0 0 20px;">
+          <p style="margin:4px 0; font-size:14px;"><strong>Galleria:</strong> ${escapeHtml(galleryName)}</p>
+          <p style="margin:4px 0; font-size:14px;"><strong>Compilato da:</strong> ${escapeHtml(ruoloLabel)}</p>
+          <p style="margin:4px 0; font-size:14px;"><strong>Data invio:</strong> ${escapeHtml(completedAt)}</p>
+          <p style="margin:4px 0; font-size:14px;"><strong>Risposte totali:</strong> ${qaItems.length}</p>
+        </div>
+
+        <h3 style="color:#c17f59; border-bottom:2px solid #c17f59; padding-bottom:6px; margin:24px 0 16px;">
+          Risposte
+        </h3>
+        ${qaHtml}
+
+        <div style="text-align:center; color:#666; font-size:12px; margin-top:30px; border-top:1px solid #e0e0e0; padding-top:16px;">
+          <p style="margin:4px 0; font-weight:600;">${escapeHtml(studioInfo.name)}</p>
+          <p style="margin:4px 0;">${escapeHtml(studioInfo.email)} &middot; ${escapeHtml(studioInfo.phone)}</p>
+        </div>
+      </div>
+    `;
+
+    const ADMIN_EMAIL = "gennaro.mazzacane@gmail.com";
+    await sendGmailEmail(
+      ADMIN_EMAIL,
+      `Questionario completato: ${galleryName} (${ruoloLabel})`,
+      htmlContent,
+      undefined,
+      {
+        type: "questionnaire_completed",
+        relatedDocId: questionnaireId,
+        relatedDocType: "questionnaire",
+        clientName: clientiLabel,
+      },
+    );
+
+    console.log(`✅ Email questionario completato inviata ad admin (${galleryName} / ${role})`);
+    return res.json({ success: true, recipient: ADMIN_EMAIL, answersCount: qaItems.length });
+  } catch (error: any) {
+    console.error("❌ Errore notifica questionario completato:", error);
+    return res.status(500).json({ error: error.message || "Errore invio email" });
+  }
+});
+
 export default router;

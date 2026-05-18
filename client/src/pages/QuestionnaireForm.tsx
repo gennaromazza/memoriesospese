@@ -463,6 +463,22 @@ export default function QuestionnaireForm() {
       
       // Pulisci localStorage
       localStorage.removeItem(LOCAL_STORAGE_KEY);
+
+      // Notifica admin via email (fire-and-forget, non blocca l'utente)
+      fetch('/api/email/questionnaire-completed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          galleryId: params.galleryId,
+          questionnaireId,
+          role: activeRole,
+        }),
+      })
+        .then(r => {
+          if (!r.ok) console.warn('⚠️ Notifica admin questionario non riuscita:', r.status);
+          else console.log('✅ Admin notificato del completamento questionario');
+        })
+        .catch(err => console.warn('⚠️ Errore invio notifica admin:', err));
       
       toast({
         title: "Questionario inviato!",
