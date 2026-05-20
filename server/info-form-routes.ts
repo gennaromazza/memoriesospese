@@ -12,12 +12,94 @@
 
 import express, { Request, Response, Router } from 'express';
 import { db, FieldValue } from './firebase-admin.js';
-import type { InfoFormSubmission } from '../shared/info-form-types.js';
+import type { InfoFormSubmission, InfoFormField } from '../shared/info-form-types.js';
+import { sendGmailEmail } from './email-routes.js';
 
 const router: Router = express.Router();
 
 const SUBMISSIONS_COL = 'infoFormSubmissions';
 const NOTIFICATIONS_COL = 'infoFormNotifications';
+const ADMIN_EMAIL = 'gennaro.mazzacane@gmail.com';
+
+function escapeHtml(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br>');
+}
+
+function formatAnswerValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '<em style="color:#888;">—</em>';
+  if (Array.isArray(value)) return escapeHtml(value.join(', '));
+  if (typeof value === 'boolean') return value ? 'Sì' : 'No';
+  return escapeHtml(value);
+}
+
+function buildAdminEmailHtml(params: {
+  clientName: string;
+  clientEmail: string;
+  templateName: string;
+  jobId: string;
+  templateFields: InfoFormField[];
+  answers: Record<string, any>;
+  siteUrl: string;
+}): string {
+  const { clientName, clientEmail, templateName, jobId, templateFields, answers, siteUrl } = params;
+
+  const seen = new Set<string>();
+  const rows: string[] = [];
+
+  for (const f of templateFields) {
+    seen.add(f.id);
+    rows.push(`
+      <div style="background:#faf8f5; border-left:4px solid #8b9a7d; padding:14px 16px; margin:0 0 12px; border-radius:6px;">
+        <p style="margin:0 0 6px; font-weight:600; color:#6b7d8a; font-size:13px;">${escapeHtml(f.label)}</p>
+        <p style="margin:0; color:#333; font-size:15px;">${formatAnswerValue(answers[f.id])}</p>
+      </div>
+    `);
+  }
+  for (const [k, v] of Object.entries(answers)) {
+    if (seen.has(k)) continue;
+    rows.push(`
+      <div style="background:#faf8f5; border-left:4px solid #c0a080; padding:14px 16px; margin:0 0 12px; border-radius:6px;">
+        <p style="margin:0 0 6px; font-weight:600; color:#6b7d8a; font-size:13px;">${escapeHtml(k)}</p>
+        <p style="margin:0; color:#333; font-size:15px;">${formatAnswerValue(v)}</p>
+      </div>
+    `);
+  }
+
+  const deepLink = `${siteUrl}/admin/jobs/${jobId}?tab=moduli`;
+
+  return `
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0; padding:0; background:#f4f1ec; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:620px; margin:0 auto; padding:24px;">
+    <div style="background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <div style="background:#8b9a7d; color:#fff; padding:20px 24px;">
+        <h1 style="margin:0; font-size:20px;">Modulo informativo compilato</h1>
+        <p style="margin:6px 0 0; opacity:0.9; font-size:14px;">${escapeHtml(templateName)}</p>
+      </div>
+      <div style="padding:24px;">
+        <p style="margin:0 0 16px; color:#333;">
+          <strong>${escapeHtml(clientName)}</strong>${clientEmail ? ` (<a href="mailto:${escapeHtml(clientEmail)}" style="color:#8b9a7d;">${escapeHtml(clientEmail)}</a>)` : ''} ha appena inviato le risposte al modulo.
+        </p>
+        <div style="margin:20px 0;">
+          ${rows.join('\n') || '<p style="color:#888;">Nessuna risposta presente.</p>'}
+        </div>
+        <div style="text-align:center; margin-top:24px;">
+          <a href="${deepLink}" style="display:inline-block; background:#8b9a7d; color:#fff; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:600;">Apri il job nella dashboard</a>
+        </div>
+      </div>
+      <div style="background:#f4f1ec; padding:14px 24px; font-size:12px; color:#888; text-align:center;">
+        Image Studio Fotografico — notifica automatica
+      </div>
+    </div>
+  </div>
+</body></html>`;
+}
 
 /**
  * GET /api/info-forms/by-token/:token
@@ -125,6 +207,43 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
       isRead: false,
       deepLink: `/admin/jobs/${data.jobId}?tab=moduli`,
     });
+
+    // Notifica admin via email — fire-and-forget: NON attendiamo Gmail per non
+    // bloccare la risposta HTTP al client. L'errore viene loggato; la notifica
+    // in-app è già stata creata sopra, quindi l'admin vede comunque l'evento.
+    try {
+      const siteUrl =
+        process.env.SITE_URL ||
+        process.env.PUBLIC_SITE_URL ||
+        'https://imagestudiofotografico.com';
+      const clientName = data.clientName || 'Cliente';
+      const templateName = data.templateName || 'Modulo informativo';
+      const html = buildAdminEmailHtml({
+        clientName,
+        clientEmail: data.clientEmail || '',
+        templateName,
+        jobId: data.jobId || '',
+        templateFields: data.templateFields || [],
+        answers: answers as Record<string, any>,
+        siteUrl,
+      });
+      void sendGmailEmail(
+        ADMIN_EMAIL,
+        `📋 Modulo compilato: ${templateName} — ${clientName}`,
+        html,
+        undefined,
+        {
+          type: 'info_form_submission',
+          relatedDocId: docSnap.id,
+          relatedDocType: 'infoFormSubmission',
+          clientName,
+        },
+      ).catch((emailError) => {
+        console.error('[info-forms] Errore invio email admin (notifica creata comunque):', emailError);
+      });
+    } catch (emailError) {
+      console.error('[info-forms] Errore preparazione email admin:', emailError);
+    }
 
     return res.json({ ok: true });
   } catch (error) {
