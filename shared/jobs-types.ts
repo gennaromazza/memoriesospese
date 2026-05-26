@@ -73,6 +73,7 @@ export interface NoteFotoItem {
   imageUrl: string;
   nota: string;
   createdAt: Timestamp;
+  storagePath?: string; // Path interno Firebase Storage per delete affidabile (presente sui nuovi upload)
 }
 
 /**
