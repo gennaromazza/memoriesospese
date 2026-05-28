@@ -1416,6 +1416,14 @@ export default function QuotePublicViewPage() {
                     const showCheckbox =
                       quote.type === "variabile" && product.selectable;
 
+                    // Prodotto "Fisso" (Sempre incluso): non selezionabile, non omaggio, non benefit sbloccato
+                    // Mostra checkbox disabilitata + badge "Sempre incluso"
+                    const isAlwaysIncluded =
+                      quote.type === "variabile" &&
+                      product.selectable === false &&
+                      !product.isOmaggio &&
+                      !isOmaggioUnlocked;
+
                     // Un prodotto è "Servizio Incluso" se: admin l'ha marcato isOmaggio (fisso)
                     // OPPURE la regola benefit è sbloccata e il prodotto è selezionato (auto o manuale)
                     const isServizioIncluso =
@@ -1491,6 +1499,25 @@ export default function QuotePublicViewPage() {
                             </div>
                           )}
 
+                          {/* Prodotto "Fisso" sempre incluso (mobile) */}
+                          {isAlwaysIncluded && (
+                            <div className="sm:hidden flex items-center gap-2 mb-2">
+                              <Checkbox
+                                checked
+                                disabled
+                                aria-label="Sempre incluso"
+                                className="opacity-100 cursor-not-allowed"
+                                data-testid={`checkbox-always-included-mobile-${idx}`}
+                              />
+                              <span
+                                className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded text-white"
+                                style={{ backgroundColor: primaryColor }}
+                              >
+                                Sempre incluso
+                              </span>
+                            </div>
+                          )}
+
                           {/* Desktop checkbox */}
                           {showCheckbox && (
                             <Checkbox
@@ -1505,6 +1532,25 @@ export default function QuotePublicViewPage() {
                               className="mt-1 hidden sm:flex"
                               data-testid={`checkbox-product-${idx}`}
                             />
+                          )}
+
+                          {/* Prodotto "Fisso" sempre incluso (desktop) */}
+                          {isAlwaysIncluded && (
+                            <div className="mt-1 hidden sm:flex flex-col items-center gap-1 flex-shrink-0">
+                              <Checkbox
+                                checked
+                                disabled
+                                aria-label="Sempre incluso"
+                                className="opacity-100 cursor-not-allowed"
+                                data-testid={`checkbox-always-included-${idx}`}
+                              />
+                              <span
+                                className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded text-white whitespace-nowrap"
+                                style={{ backgroundColor: primaryColor }}
+                              >
+                                Incluso
+                              </span>
+                            </div>
                           )}
 
                           {/* Header mobile: immagine + nome + prezzo */}
