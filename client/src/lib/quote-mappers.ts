@@ -14,6 +14,8 @@ import type { QuoteProduct } from '@shared/quotes-types';
 export type CatalogProductOverride = {
   prezzo?: number;
   selectable?: boolean;
+  /** Se true, il prodotto è marcato come Omaggio: prezzo=0, sempre incluso, non deselezionabile */
+  isOmaggio?: boolean;
 };
 
 /**
@@ -24,12 +26,18 @@ export function catalogProductToQuoteProduct(
   quoteType: 'fisso' | 'variabile',
   override?: CatalogProductOverride
 ): QuoteProduct {
-  const selectable = override?.selectable !== undefined
-    ? !!override.selectable
-    : quoteType === 'variabile';
-  const prezzo = override?.prezzo !== undefined
-    ? override.prezzo
-    : (product.prezzoFinale || product.prezzo);
+  const isOmaggio = override?.isOmaggio === true;
+  // Omaggio forza: selectable=false, prezzo=0, selected=true
+  const selectable = isOmaggio
+    ? false
+    : (override?.selectable !== undefined
+      ? !!override.selectable
+      : quoteType === 'variabile');
+  const prezzo = isOmaggio
+    ? 0
+    : (override?.prezzo !== undefined
+      ? override.prezzo
+      : (product.prezzoFinale || product.prezzo));
 
   const quoteProduct: QuoteProduct = {
     productId: product.id,
@@ -41,8 +49,11 @@ export function catalogProductToQuoteProduct(
     categoria: product.categoria,
     immagini: product.immagini || []
   };
-  // Prodotti non-selezionabili in preventivo variabile = sempre inclusi (selected=true)
-  if (!selectable) {
+  if (isOmaggio) {
+    quoteProduct.isOmaggio = true;
+    quoteProduct.selected = true;
+  } else if (!selectable) {
+    // Prodotti non-selezionabili in preventivo variabile = sempre inclusi (selected=true)
     quoteProduct.selected = true;
   }
   // Include bundle information if product is a bundle
@@ -140,16 +151,17 @@ export function calculateQuoteTotal(
   allCatalogProducts: Product[],
   catalogOverrides?: Record<string, CatalogProductOverride>
 ): number {
-  // Catalog products total (con override prezzo se presente)
+  // Catalog products total (con override prezzo se presente; omaggio = 0)
   const catalogTotal = catalogProductIds.reduce((sum, id) => {
     const override = catalogOverrides?.[id];
+    if (override?.isOmaggio) return sum;
     if (override?.prezzo !== undefined) return sum + override.prezzo;
     const product = allCatalogProducts.find(p => p.id === id);
     return sum + (product?.prezzoFinale || product?.prezzo || 0);
   }, 0);
 
-  // Custom products total
-  const customTotal = customProducts.reduce((sum, p) => sum + (p.prezzo || 0), 0);
+  // Custom products total (omaggio = 0)
+  const customTotal = customProducts.reduce((sum, p) => sum + (p.isOmaggio ? 0 : (p.prezzo || 0)), 0);
 
   return catalogTotal + customTotal;
 }

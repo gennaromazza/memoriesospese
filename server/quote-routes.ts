@@ -2820,27 +2820,37 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
 
     // 3. Crea Quote dal template
     const products = template.defaultProducts || [];
+    const defaultSelectableTmpl = template.type === "variabile";
     const quoteProducts = products.map((p: any) => {
+      const isOmaggio = p.isOmaggio === true;
+      // Preserva selectable per-prodotto (Fisso/Extra) impostato sul template;
+      // fallback al default-by-type solo se non definito. Omaggio = sempre non-selectable.
+      const selectable = isOmaggio
+        ? false
+        : (p.selectable !== undefined ? !!p.selectable : defaultSelectableTmpl);
       const result: any = {
         ...p,
-        selectable: template.type === "variabile",
+        prezzo: isOmaggio ? 0 : (p.prezzo || 0),
+        selectable,
       };
-      if (template.type === "variabile") {
+      if (isOmaggio) {
+        result.isOmaggio = true;
+        result.selected = true;
+      } else if (!selectable) {
+        // Prodotti Fisso: sempre inclusi
+        result.selected = true;
+      } else {
+        // Prodotti Extra (selectable): dipende dalla scelta cliente
         result.selected = selectedProducts?.includes(p.productId || p.nome) || false;
       }
       return result;
     });
 
     let subtotale = 0;
-    if (template.type === "variabile") {
-      quoteProducts.forEach((p: any) => {
-        if (p.selected) subtotale += p.prezzo || 0;
-      });
-    } else {
-      quoteProducts.forEach((p: any) => {
-        subtotale += p.prezzo || 0;
-      });
-    }
+    quoteProducts.forEach((p: any) => {
+      if (p.isOmaggio) return;
+      if (p.selected) subtotale += p.prezzo || 0;
+    });
 
     const discountType = template.discountType;
     const discountValue = template.discountValue !== undefined ? Number(template.discountValue) || 0 : 0;
@@ -2885,6 +2895,8 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       createdBy: "preventivo-rapido",
+      templateId: templateDoc.id,
+      templateName: template.nome || "",
       revokedTokens: [],
       auditLog: [
         {

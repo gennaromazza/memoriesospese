@@ -26,7 +26,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ArrowUpDown, Tag, RotateCcw } from 'lucide-react';
+import { GripVertical, ArrowUpDown, Tag, RotateCcw, Gift } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export interface OrderableProduct {
@@ -53,9 +53,11 @@ interface SortableRowProps {
   showSelectableToggle?: boolean;
   /** Callback per riportare il prezzo al valore di listino (rimuove l'override) */
   onResetPrice?: (key: string) => void;
+  /** Callback per marcare/smarcare il prodotto come Omaggio (forza prezzo=0 e sempre incluso) */
+  onOmaggioChange?: (key: string, isOmaggio: boolean) => void;
 }
 
-function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice }: SortableRowProps) {
+function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -182,6 +184,26 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
       )}
       {product.isOmaggio && (
         <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 flex-shrink-0">incluso</Badge>
+      )}
+
+      {/* Toggle Omaggio — sempre disponibile quando onOmaggioChange è fornito */}
+      {onOmaggioChange && (
+        <button
+          type="button"
+          onClick={() => onOmaggioChange(product.key, !product.isOmaggio)}
+          title={product.isOmaggio
+            ? 'Prodotto in omaggio (clicca per rimuovere)'
+            : 'Marca come omaggio (prezzo a 0, sempre incluso nel preventivo)'}
+          className={`flex items-center gap-1 text-[10px] font-semibold rounded px-1.5 py-0.5 flex-shrink-0 transition-colors border ${
+            product.isOmaggio
+              ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200'
+              : 'bg-white text-gray-500 border-gray-200 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700'
+          }`}
+          data-testid={`button-toggle-omaggio-${product.key}`}
+        >
+          <Gift className="h-3 w-3" />
+          {product.isOmaggio ? 'OMAGGIO' : 'Omaggio'}
+        </button>
       )}
 
       {/* Toggle Fisso / Extra — solo per template variabili e prodotti non-omaggio */}
@@ -322,9 +344,11 @@ interface ProductOrderEditorProps {
   showSelectableToggle?: boolean;
   /** Se fornito, mostra il bottone "reset al listino" quando c'è override prezzo */
   onResetPrice?: (key: string) => void;
+  /** Se fornito, mostra il toggle Omaggio per ogni prodotto */
+  onOmaggioChange?: (key: string, isOmaggio: boolean) => void;
 }
 
-export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice }: ProductOrderEditorProps) {
+export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice, onOmaggioChange }: ProductOrderEditorProps) {
   const buildItems = (prods: OrderableProduct[], keys?: string[]): OrderableProduct[] => {
     if (!keys || keys.length === 0) return prods;
     const map = new Map(prods.map(p => [p.key, p]));
@@ -424,6 +448,7 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
                     onSelectableChange={onSelectableChange}
                     showSelectableToggle={showSelectableToggle}
                     onResetPrice={onResetPrice}
+                    onOmaggioChange={onOmaggioChange}
                   />
                 </div>
               );

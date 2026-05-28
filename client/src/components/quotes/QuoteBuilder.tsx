@@ -383,7 +383,7 @@ export default function QuoteBuilder({
   const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
   // Override per-quote dei prodotti catalogo (prezzo snapshot + selectable Fisso/Extra).
   // Inizializzati dal template selezionato o dal preventivo esistente.
-  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean }>>({});
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }>>({});
   // Ref usata per saltare il reset auto del selectable quando type viene cambiato
   // programmaticamente (caricamento template o preventivo esistente).
   const skipNextSelectableResetRef = useRef(false);
@@ -515,7 +515,7 @@ export default function QuoteBuilder({
 
     // Protezione struttura array per evitare crash se schema cambia
     // Override per prodotti catalogo (prezzo/selectable) presi dallo snapshot del preventivo
-    const initialCatalogOverridesFromQuote: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    const initialCatalogOverridesFromQuote: Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }> = {};
     const quoteTypeFromExisting: 'fisso' | 'variabile' = (existingQuote.type as any) || 'fisso';
     const defaultSelectableExisting = quoteTypeFromExisting === 'variabile';
 
@@ -527,14 +527,16 @@ export default function QuoteBuilder({
           // Calcola override
           const catalogP = catalogProducts?.find((cp: any) => cp.id === catId);
           const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
-          const ov: { prezzo?: number; selectable?: boolean } = {};
-          if (catalogPrice !== undefined && Math.round((product.prezzo || 0) * 100) !== Math.round(catalogPrice * 100)) {
+          const ov: { prezzo?: number; selectable?: boolean; isOmaggio?: boolean } = {};
+          if (product.isOmaggio === true) {
+            ov.isOmaggio = true;
+          } else if (catalogPrice !== undefined && Math.round((product.prezzo || 0) * 100) !== Math.round(catalogPrice * 100)) {
             ov.prezzo = product.prezzo || 0;
           }
-          if (product.selectable !== undefined && product.selectable !== defaultSelectableExisting) {
+          if (!ov.isOmaggio && product.selectable !== undefined && product.selectable !== defaultSelectableExisting) {
             ov.selectable = !!product.selectable;
           }
-          if (ov.prezzo !== undefined || ov.selectable !== undefined) {
+          if (ov.prezzo !== undefined || ov.selectable !== undefined || ov.isOmaggio !== undefined) {
             initialCatalogOverridesFromQuote[catId] = ov;
           }
         } else {
@@ -749,14 +751,16 @@ export default function QuoteBuilder({
       const ov = catalogOverrides[id];
       const basePrice = p?.prezzoFinale || p?.prezzo || 0;
       const selectable = ov?.selectable !== undefined ? ov.selectable : defaultSelectable;
+      const isOmaggio = ov?.isOmaggio === true;
       return {
         key: `cat:${id}`,
         nome: p?.nome || id,
-        prezzo: ov?.prezzo !== undefined ? ov.prezzo : basePrice,
+        prezzo: isOmaggio ? 0 : (ov?.prezzo !== undefined ? ov.prezzo : basePrice),
         originalPrice: basePrice,
         isFromCatalog: true,
         sezione: sezione || undefined,
-        selectable,
+        selectable: isOmaggio ? false : selectable,
+        isOmaggio,
       };
     });
     const cust: OrderableProduct[] = (watchedProducts || [])
@@ -764,9 +768,10 @@ export default function QuoteBuilder({
       .map((f: any) => ({
         key: `cust:${f.nome.trim()}`,
         nome: f.nome,
-        prezzo: f.prezzo || 0,
+        prezzo: f.isOmaggio ? 0 : (f.prezzo || 0),
         sezione: f.sezione || undefined,
-        selectable: f.selectable !== undefined ? !!f.selectable : defaultSelectable,
+        selectable: f.isOmaggio ? false : (f.selectable !== undefined ? !!f.selectable : defaultSelectable),
+        isOmaggio: f.isOmaggio === true,
       }));
     return [...cat, ...cust];
   }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections, catalogOverrides, quoteTypeForEditor]);
@@ -797,6 +802,29 @@ export default function QuoteBuilder({
       return next;
     });
   }, []);
+
+  // Handler toggle Omaggio (sia catalogo che custom)
+  const handleEditorOmaggioChange = useCallback((key: string, isOmaggio: boolean) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => {
+        const curr = prev[id] || {};
+        if (isOmaggio) {
+          return { ...prev, [id]: { ...curr, isOmaggio: true } };
+        }
+        const { isOmaggio: _, ...rest } = curr;
+        const next = { ...prev };
+        if (Object.keys(rest).length > 0) next[id] = rest;
+        else delete next[id];
+        return next;
+      });
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      if (idx >= 0) form.setValue(`products.${idx}.isOmaggio` as any, isOmaggio, { shouldDirty: true });
+    }
+  }, [form]);
 
   // Handler toggle Fisso/Extra (solo per preventivi variabili)
   const handleEditorSelectableChange = useCallback((key: string, selectable: boolean) => {
@@ -918,6 +946,7 @@ export default function QuoteBuilder({
   const totaleCatalogo = useMemo(() => {
     return catalogProductIds.reduce((sum, id) => {
       const ov = catalogOverrides[id];
+      if (ov?.isOmaggio) return sum;
       if (ov?.prezzo !== undefined) return sum + ov.prezzo;
       const product = catalogProducts.find(p => p.id === id);
       return sum + (product?.prezzoFinale || product?.prezzo || 0);
@@ -927,7 +956,7 @@ export default function QuoteBuilder({
   const totaleCustom = useMemo(() => {
     return customProducts
       .filter(p => p.nome?.trim())
-      .reduce((sum, p) => sum + (p.prezzo || 0), 0);
+      .reduce((sum, p) => sum + ((p as any).isOmaggio ? 0 : (p.prezzo || 0)), 0);
   }, [customProducts]);
 
   const subtotale = totaleCatalogo + totaleCustom;
@@ -993,21 +1022,23 @@ export default function QuoteBuilder({
       }));
 
     // Costruisci catalogOverrides dal template (prezzo + selectable per prodotti catalogo)
-    const tmplOverrides: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    const tmplOverrides: Record<string, { prezzo?: number; selectable?: boolean; isOmaggio?: boolean }> = {};
     const defaultSelectableTmpl = template.type === 'variabile';
     template.defaultProducts
       .filter(p => p.productId)
       .forEach(p => {
         const catalogP = catalogProducts?.find((cp: any) => cp.id === p.productId);
         const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
-        const ov: { prezzo?: number; selectable?: boolean } = {};
-        if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
+        const ov: { prezzo?: number; selectable?: boolean; isOmaggio?: boolean } = {};
+        if ((p as any).isOmaggio === true) {
+          ov.isOmaggio = true;
+        } else if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
           ov.prezzo = p.prezzo;
         }
-        if (p.selectable !== undefined && p.selectable !== defaultSelectableTmpl) {
+        if (!ov.isOmaggio && p.selectable !== undefined && p.selectable !== defaultSelectableTmpl) {
           ov.selectable = !!p.selectable;
         }
-        if (ov.prezzo !== undefined || ov.selectable !== undefined) {
+        if (ov.prezzo !== undefined || ov.selectable !== undefined || ov.isOmaggio !== undefined) {
           tmplOverrides[p.productId!] = ov;
         }
       });
@@ -2158,6 +2189,7 @@ export default function QuoteBuilder({
                     onResetPrice={handleEditorResetPrice}
                     onSelectableChange={handleEditorSelectableChange}
                     showSelectableToggle={quoteType === 'variabile'}
+                    onOmaggioChange={handleEditorOmaggioChange}
                   />
                 </div>
               </>
