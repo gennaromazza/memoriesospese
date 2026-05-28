@@ -1058,6 +1058,12 @@ export default function QuoteBuilder({
     });
     setCatalogProductSections(templateCatalogSections);
 
+    // Ripristina l'ordine prodotti (catalogo + custom interleaved) dal template
+    const templateOrderKeys = template.defaultProducts
+      .map((p: any) => p.productId ? `cat:${p.productId}` : `cust:${(p.nome || '').trim()}`)
+      .filter((k: string) => k !== 'cust:');
+    setProductOrderKeys(templateOrderKeys);
+
     // Carica anche lo sconto dal template (coercizione a number per sicurezza)
     const tmplDiscountType = (template as any).discountType;
     const tmplDiscountValue = (template as any).discountValue;
