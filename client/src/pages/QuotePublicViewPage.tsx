@@ -424,8 +424,9 @@ export default function QuotePublicViewPage() {
     return map;
   }, [benefitStates]);
 
-  // Raggruppa prodotti per sezione.
-  // Il gruppo null (senza sezione) è sempre il PRIMO, poi le sezioni named in ordine di prima apparizione.
+  // Raggruppa prodotti per sezione mantenendo l'ordine di prima apparizione.
+  // L'ordine dei prodotti nell'array `quote.products` (impostato dall'admin nel
+  // template o nel ProductOrderEditor) è la fonte di verità per l'ordinamento.
   const productSections = useMemo(() => {
     const products = quote?.products ?? [];
     type SectionGroup = {
@@ -435,7 +436,6 @@ export default function QuotePublicViewPage() {
     const sections: SectionGroup[] = [];
     const sectionMap = new Map<string | null, SectionGroup>();
 
-    // Primo passaggio: costruisci tutti i gruppi (mantenendo l'ordine di prima apparizione)
     products.forEach((product, idx) => {
       const key = product.sezione?.trim() || null;
       if (!sectionMap.has(key)) {
@@ -445,13 +445,6 @@ export default function QuotePublicViewPage() {
       }
       sectionMap.get(key)!.items.push({ product, idx });
     });
-
-    // Assicura che il gruppo null sia sempre primo
-    const nullIdx = sections.findIndex((s) => s.sezione === null);
-    if (nullIdx > 0) {
-      const [nullGroup] = sections.splice(nullIdx, 1);
-      sections.unshift(nullGroup);
-    }
 
     return sections;
   }, [quote?.products]);
