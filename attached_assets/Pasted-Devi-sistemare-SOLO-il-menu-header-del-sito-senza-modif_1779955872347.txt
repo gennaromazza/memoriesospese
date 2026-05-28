@@ -1,0 +1,71 @@
+Devi sistemare SOLO il menu/header del sito, senza modificare contenuti, sezioni o logica generale.
+
+Obiettivo:
+rendere la navbar più pulita, premium e meno caotica, soprattutto sulla landing /fotografo-aversa.
+
+Problemi attuali:
+- troppe voci visibili nella navbar
+- Admin, Profilo, Esci e avatar sono visibili nel frontend pubblico e rovinano la percezione premium
+- “Prenota Ora” compete visivamente con altri elementi
+- il menu è troppo alto e pesante
+- da mobile deve restare semplice e chiaro
+
+Nuova struttura desktop:
+- Logo a sinistra
+- Menu centrale con SOLO:
+  - Portfolio
+  - Experience
+  - Blog
+  - Recensioni
+- A destra:
+  - bottone principale “Prenota una chiamata”
+  - eventuale icona WhatsApp, se già presente nel progetto
+
+Regole:
+- Nascondere completamente dal frontend pubblico:
+  - Admin
+  - Profilo
+  - Esci
+  - Avatar utente
+- Questi elementi devono restare accessibili solo se davvero necessari in area privata/admin, non nella navbar pubblica.
+- Non eliminare la logica di autenticazione: spostala in una piccola area admin separata oppure in un dropdown nascosto solo per utenti admin.
+- La CTA principale deve essere una sola: “Prenota una chiamata”.
+- Evitare doppie CTA tipo “Contattami” + “Prenota Ora”.
+
+Stile:
+- Navbar più bassa, compatta, elegante.
+- Background bianco/avorio leggermente traslucido oppure trasparente sopra hero e pieno allo scroll, se già semplice da implementare.
+- Font pulito, spaziatura ampia, niente effetto dashboard.
+- Bottone CTA con palette coerente October Mist / verde salvia.
+- Hover morbidi.
+- Border radius elegante.
+- Ombra molto leggera, non pesante.
+
+Mobile:
+- Logo a sinistra
+- Hamburger a destra
+- Nel menu mobile mostra solo:
+  - Portfolio
+  - Experience
+  - Blog
+  - Recensioni
+  - Prenota una chiamata
+- Nessun Admin / Profilo / Esci nel menu pubblico mobile.
+
+Importante:
+- Prima individua il componente Header/Navbar principale.
+- Controlla se viene usato globalmente.
+- Non rompere routing, link esistenti o login admin.
+- Fai refactor pulito e minimale.
+- Dopo la modifica verifica:
+  - desktop
+  - mobile
+  - pagina home
+  - pagina /fotografo-aversa
+  - area admin/login, se presente
+
+Output richiesto:
+1. Elenco file modificati
+2. Breve spiegazione delle modifiche
+3. Screenshot o descrizione del risultato finale
+4. Conferma che Admin/Profile/Logout non compaiono più nella navbar pubblica
