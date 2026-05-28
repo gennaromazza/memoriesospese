@@ -302,29 +302,24 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
 }
 
 /**
- * Group items using the same algorithm as the client portal:
- * null-section group first, then named sections by first appearance.
+ * Group items by section preserving the original order of first appearance.
  * Items within each group keep their relative order from `flat`.
+ * Mirrors the public client view grouping (no forced null-first).
  */
 function groupItems(flat: OrderableProduct[]): OrderableProduct[] {
-  const nullItems: OrderableProduct[] = [];
-  const sections = new Map<string, OrderableProduct[]>();
-  const sectionOrder: string[] = [];
+  const sections = new Map<string | null, OrderableProduct[]>();
+  const sectionOrder: (string | null)[] = [];
 
   flat.forEach(p => {
     const key = p.sezione?.trim() || null;
-    if (key === null) {
-      nullItems.push(p);
-    } else {
-      if (!sections.has(key)) {
-        sections.set(key, []);
-        sectionOrder.push(key);
-      }
-      sections.get(key)!.push(p);
+    if (!sections.has(key)) {
+      sections.set(key, []);
+      sectionOrder.push(key);
     }
+    sections.get(key)!.push(p);
   });
 
-  return [...nullItems, ...sectionOrder.flatMap(k => sections.get(k)!)];
+  return sectionOrder.flatMap(k => sections.get(k)!);
 }
 
 interface ProductOrderEditorProps {
@@ -359,10 +354,15 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
 
   const [items, setItems] = useState<OrderableProduct[]>(() => buildItems(products, orderKeys));
 
-  const userHasReordered = useRef(false);
+  // Tracks the last orderKeys signature we've already applied (or just emitted via drag).
+  // This lets us ignore the parent's echo of our own onOrderChange call, while still
+  // accepting genuinely new orderKeys from the parent (e.g. template switch).
+  const lastAppliedOrderKeysSig = useRef<string>(JSON.stringify(orderKeys || []));
 
   useEffect(() => {
-    if (userHasReordered.current) return;
+    const sig = JSON.stringify(orderKeys || []);
+    if (sig === lastAppliedOrderKeysSig.current) return;
+    lastAppliedOrderKeysSig.current = sig;
     setItems(buildItems(products, orderKeys));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKeys]);
@@ -395,7 +395,7 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Grouped display order: null group first, then named sections by first appearance.
+  // Grouped display: sections by first appearance (no forced null-first).
   // This mirrors the client portal grouping algorithm exactly.
   const groupedItems = useMemo(() => groupItems(items), [items]);
 
@@ -405,9 +405,11 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
       const oldIdx = groupedItems.findIndex(p => p.key === active.id);
       const newIdx = groupedItems.findIndex(p => p.key === over.id);
       const reordered = arrayMove(groupedItems, oldIdx, newIdx);
-      userHasReordered.current = true;
+      const newKeys = reordered.map(p => p.key);
+      // Record what we're about to emit so the parent's echo doesn't re-trigger the sync effect
+      lastAppliedOrderKeysSig.current = JSON.stringify(newKeys);
       setItems(reordered);
-      onOrderChange(reordered.map(p => p.key));
+      onOrderChange(newKeys);
     }
   };
 

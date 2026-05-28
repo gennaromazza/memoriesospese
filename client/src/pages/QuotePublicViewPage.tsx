@@ -1857,79 +1857,49 @@ export default function QuotePublicViewPage() {
                 </button>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Basato sui servizi selezionati — aggiornato in tempo reale
+                Una panoramica generale di come si svolgeranno i pagamenti
               </p>
             </CardHeader>
 
             <CardContent
               className={`space-y-4 ${paymentPlanCollapsed ? "hidden sm:block" : ""}`}
             >
-              {/* Timeline rate */}
-              <div className="relative">
-                {/* Linea verticale */}
-                <div className="absolute left-5 top-5 bottom-5 w-px bg-sage/20 hidden sm:block" />
+              <div className="space-y-3">
+                <div className="flex items-start gap-4 relative">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold z-10 bg-sage text-white">
+                    1
+                  </div>
+                  <div className="flex-1 rounded-xl border border-sage/30 bg-sage/5 px-4 py-3">
+                    <p className="font-semibold text-blue-gray text-sm">
+                      Acconto alla firma
+                    </p>
+                    <p className="text-sm text-dark-sage mt-1 leading-relaxed">
+                      Al momento della firma è previsto un acconto compreso
+                      indicativamente tra <span className="font-semibold">100€ e 300€</span>,
+                      concordato direttamente con il fotografo.
+                    </p>
+                  </div>
+                </div>
 
-                <div className="space-y-3">
-                  {indicativePaymentPlan.payments.map((payment, idx) => {
-                    const isFirst = idx === 0;
-                    const isLast =
-                      idx === indicativePaymentPlan.payments.length - 1;
-                    const iconBg =
-                      payment.tipo === "acconto"
-                        ? "bg-sage text-white"
-                        : payment.tipo === "saldo"
-                          ? "bg-blue-gray text-white"
-                          : "bg-mint/50 text-blue-gray";
-
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-start gap-4 relative"
-                      >
-                        {/* Numero/Icona step */}
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold z-10 ${iconBg}`}
-                        >
-                          {idx + 1}
-                        </div>
-                        {/* Contenuto */}
-                        <div
-                          className={`flex-1 rounded-xl border px-4 py-3 ${
-                            isFirst
-                              ? "border-sage/30 bg-sage/5"
-                              : isLast
-                                ? "border-blue-gray/20 bg-blue-gray/5"
-                                : "border-mint/30 bg-white"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2 flex-wrap">
-                            <div>
-                              <p className="font-semibold text-blue-gray text-sm">
-                                {payment.descrizione}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                Entro il {formatDueDate(payment.dataScadenza)}
-                              </p>
-                            </div>
-                            <span
-                              className="font-bold text-lg text-blue-gray"
-                              style={{ color: primaryColor }}
-                            >
-                              {formatCurrency(payment.importo)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-start gap-4 relative">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold z-10 bg-mint/50 text-blue-gray">
+                    2
+                  </div>
+                  <div className="flex-1 rounded-xl border border-mint/30 bg-white px-4 py-3">
+                    <p className="font-semibold text-blue-gray text-sm">
+                      Tre rate successive
+                    </p>
+                    <p className="text-sm text-dark-sage mt-1 leading-relaxed">
+                      Il restante importo verrà suddiviso in <span className="font-semibold">tre rate</span>,
+                      con importi e scadenze concordati con il fotografo dopo la firma del contratto.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Nota legale discreta */}
               <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-2 border-t border-sage/10">
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                Piano indicativo — gli importi e le scadenze esatte verranno
-                confermati alla firma del contratto.
+                Le cifre e le scadenze precise verranno definite insieme al fotografo alla firma del contratto.
               </p>
             </CardContent>
           </Card>
