@@ -2132,19 +2132,21 @@ export default function QuoteBuilder({
               </DndContext>
             </div>
 
-            {/* Sezione Ordine Prodotti - visibile quando ci sono 2+ prodotti */}
-            {mergedForOrderEditor.length > 1 && (
+            {/* Sezione Prodotti - ordina, modifica prezzo (solo per questo preventivo) e marca Fisso/Extra */}
+            {mergedForOrderEditor.length >= 1 && (
               <>
                 <Separator />
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <GripVertical className="h-4 w-4 text-muted-foreground" />
                     <h3 className="text-sm font-semibold text-sage-800">
-                      Ordine di visualizzazione prodotti
+                      Prodotti del preventivo
                     </h3>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Trascina per definire l'ordine in cui i prodotti appariranno nel preventivo.
+                    {mergedForOrderEditor.length > 1 && 'Trascina per riordinare. '}
+                    Clicca sul prezzo per modificarlo <strong>solo per questo preventivo</strong> (il listino non viene toccato).
+                    {quoteType === 'variabile' && ' Usa il toggle FISSO/EXTRA per scegliere quali prodotti il cliente può deselezionare.'}
                   </p>
                   <ProductOrderEditor
                     products={mergedForOrderEditor}
