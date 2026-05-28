@@ -1,4 +1,4 @@
-import { Home, Camera, BookOpen, Video, Mail, Calendar, Image } from 'lucide-react';
+import { Camera, BookOpen, Sparkles, Star, Phone, Image } from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -20,38 +20,22 @@ export interface SocialLink {
 
 export const mainNavItems: NavItem[] = [
   {
-    label: 'Home',
-    href: '/',
-    icon: Home,
-    showInHeader: true,
-    showInFooter: true,
-    showInMobile: true,
-    mobileOrder: 1,
-  },
-  {
-    label: 'Come Funziona',
-    href: '#about',
-    showInHeader: false,
-    showInFooter: true,
-    showInMobile: false,
-  },
-  {
     label: 'Portfolio',
     href: '/portfolio',
     icon: Camera,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 2,
+    mobileOrder: 1,
   },
   {
-    label: 'La Mia Storia',
+    label: 'Experience',
     href: '/storie',
-    icon: BookOpen,
+    icon: Sparkles,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 3,
+    mobileOrder: 2,
   },
   {
     label: 'Blog',
@@ -60,34 +44,25 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
+    mobileOrder: 3,
+  },
+  {
+    label: 'Recensioni',
+    href: '/#recensioni',
+    icon: Star,
+    showInHeader: true,
+    showInFooter: true,
+    showInMobile: true,
     mobileOrder: 4,
   },
   {
-    label: 'iMaGe Vision',
-    href: '/vision',
-    icon: Video,
-    showInHeader: true,
-    showInFooter: true,
-    showInMobile: true,
-    mobileOrder: 5,
-  },
-  {
-    label: 'Contattami',
+    label: 'Prenota una chiamata',
     href: '/consulenze',
-    icon: Mail,
-    showInHeader: true,
-    showInFooter: true,
-    showInMobile: true,
-    mobileOrder: 6,
-  },
-  {
-    label: 'Prenota Ora',
-    href: '/prenota',
-    icon: Calendar,
+    icon: Phone,
     showInHeader: true,
     showInFooter: false,
     showInMobile: true,
-    mobileOrder: 7,
+    mobileOrder: 5,
     highlight: true,
   },
   {
@@ -97,7 +72,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: false,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 8,
+    mobileOrder: 6,
   },
 ];
 
@@ -116,7 +91,7 @@ export const socialLinks: SocialLink[] = [
 
 export const getHeaderItems = () => mainNavItems.filter(item => item.showInHeader);
 export const getFooterItems = () => mainNavItems.filter(item => item.showInFooter);
-export const getMobileItems = () => 
+export const getMobileItems = () =>
   mainNavItems
     .filter(item => item.showInMobile)
     .sort((a, b) => (a.mobileOrder || 99) - (b.mobileOrder || 99));
