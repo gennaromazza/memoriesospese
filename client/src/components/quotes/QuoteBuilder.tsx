@@ -381,6 +381,12 @@ export default function QuoteBuilder({
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
   // Sezioni per i prodotti da catalogo (non hanno form field proprio)
   const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
+  // Override per-quote dei prodotti catalogo (prezzo snapshot + selectable Fisso/Extra).
+  // Inizializzati dal template selezionato o dal preventivo esistente.
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean }>>({});
+  // Ref usata per saltare il reset auto del selectable quando type viene cambiato
+  // programmaticamente (caricamento template o preventivo esistente).
+  const skipNextSelectableResetRef = useRef(false);
 
   // Query job per eventDate
   const { data: job } = useQuery({
@@ -491,25 +497,53 @@ export default function QuoteBuilder({
     }
   }, [clauseTemplates, selectedClauseTemplateId, form]);
 
-  // Carica dati preventivo esistente nel form quando disponibile
+  // Carica dati preventivo esistente nel form quando disponibile.
+  // ⚠️ Dipende anche da catalogProducts: se i prodotti catalogo arrivano DOPO il quote,
+  // ri-idriata gli override per evitare di trattare catalog products come custom.
+  // Nota: se il preventivo NON contiene catalogProductId (solo custom), procediamo
+  // anche con catalogProducts vuoto per non bloccare l'hydration dei campi base.
   useEffect(() => {
     if (!existingQuote || !editQuoteId) return;
+    const hasCatalogRefs = Array.isArray(existingQuote.products)
+      && existingQuote.products.some((p: any) => p?.catalogProductId || p?.productId);
+    // Aspetta catalogProducts SOLO se il quote referenzia prodotti catalogo
+    if (hasCatalogRefs && (!catalogProducts || catalogProducts.length === 0)) return;
 
     // Separa prodotti catalogo da custom
     const catalogIds: string[] = [];
     const customProducts: any[] = [];
 
     // Protezione struttura array per evitare crash se schema cambia
+    // Override per prodotti catalogo (prezzo/selectable) presi dallo snapshot del preventivo
+    const initialCatalogOverridesFromQuote: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    const quoteTypeFromExisting: 'fisso' | 'variabile' = (existingQuote.type as any) || 'fisso';
+    const defaultSelectableExisting = quoteTypeFromExisting === 'variabile';
+
     if (Array.isArray(existingQuote.products)) {
       existingQuote.products.forEach((product: any) => {
-        if (product.catalogProductId) {
-          catalogIds.push(product.catalogProductId);
+        const catId = product.catalogProductId || (product.productId && catalogProducts?.find((cp: any) => cp.id === product.productId) ? product.productId : null);
+        if (catId) {
+          catalogIds.push(catId);
+          // Calcola override
+          const catalogP = catalogProducts?.find((cp: any) => cp.id === catId);
+          const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+          const ov: { prezzo?: number; selectable?: boolean } = {};
+          if (catalogPrice !== undefined && Math.round((product.prezzo || 0) * 100) !== Math.round(catalogPrice * 100)) {
+            ov.prezzo = product.prezzo || 0;
+          }
+          if (product.selectable !== undefined && product.selectable !== defaultSelectableExisting) {
+            ov.selectable = !!product.selectable;
+          }
+          if (ov.prezzo !== undefined || ov.selectable !== undefined) {
+            initialCatalogOverridesFromQuote[catId] = ov;
+          }
         } else {
           customProducts.push({
             nome: product.nome || '',
             descrizione: product.descrizione || '',
             prezzo: product.prezzo || 0,
-            selectable: product.selectable || false,
+            // Preserva selectable salvato (incl. false esplicito) — usato per Fisso/Extra
+            selectable: product.selectable !== undefined ? !!product.selectable : false,
             numeroFoto: product.numeroFoto || 0,
             categoria: product.categoria || '',
             sezione: product.sezione || '',
@@ -519,9 +553,17 @@ export default function QuoteBuilder({
         }
       });
     }
+    setCatalogOverrides(initialCatalogOverridesFromQuote);
+
+    // Skip il reset auto del selectable SOLO se type sta effettivamente cambiando
+    // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
+    const targetType = existingQuote.type || 'fisso';
+    if (form.getValues('type') !== targetType) {
+      skipNextSelectableResetRef.current = true;
+    }
 
     // Popola form
-    form.setValue('type', existingQuote.type || 'fisso');
+    form.setValue('type', targetType);
     form.setValue('catalogProductIds', catalogIds);
     form.setValue('products', customProducts.length > 0 ? customProducts : [{
       nome: '',
@@ -588,7 +630,7 @@ export default function QuoteBuilder({
       title: 'Preventivo caricato',
       description: 'Modifica i campi e salva per aggiornare'
     });
-  }, [existingQuote, editQuoteId, form, toast]);
+  }, [existingQuote, editQuoteId, form, toast, catalogProducts]);
 
   // Fallback benefit rules: se il preventivo non ha benefitRules propri ma ha un templateId,
   // carica i benefit dal template aggiornato (utile se i benefit sono stati aggiunti
@@ -742,20 +784,47 @@ export default function QuoteBuilder({
   const discountValue = form.watch('discountValue') || 0;
   const quoteType = form.watch('type');
 
-  // Aggiorna selectable su tutti i prodotti quando cambia il tipo preventivo
+  // Aggiorna selectable su tutti i prodotti quando l'admin cambia il tipo preventivo.
+  // ⚠️ NON deve scattare al mount né dopo caricamento di template/preventivo esistente,
+  // altrimenti distruggerebbe il flag Fisso/Extra impostato per-prodotto dal template.
+  const prevQuoteTypeRef = useRef<string | undefined>(undefined);
   useEffect(() => {
+    // Primo render: registra senza resettare
+    if (prevQuoteTypeRef.current === undefined) {
+      prevQuoteTypeRef.current = quoteType;
+      return;
+    }
+    // Salta se template/quote loader ha appena cambiato type programmaticamente
+    if (skipNextSelectableResetRef.current) {
+      skipNextSelectableResetRef.current = false;
+      prevQuoteTypeRef.current = quoteType;
+      return;
+    }
+    // Stesso valore: niente da fare
+    if (prevQuoteTypeRef.current === quoteType) return;
+    prevQuoteTypeRef.current = quoteType;
+    // Solo qui = cambio reale dell'utente: riallinea il default ai nuovi prodotti
     const products = form.getValues('products');
     if (products && products.length > 0) {
       const shouldBeSelectable = quoteType === 'variabile';
-      const needsUpdate = products.some(p => p.selectable !== shouldBeSelectable);
-      if (needsUpdate) {
-        const updatedProducts = products.map(p => ({
-          ...p,
-          selectable: shouldBeSelectable
-        }));
-        form.setValue('products', updatedProducts, { shouldDirty: true, shouldTouch: false, shouldValidate: false });
-      }
+      const updatedProducts = products.map(p => ({ ...p, selectable: shouldBeSelectable }));
+      form.setValue('products', updatedProducts, { shouldDirty: true, shouldTouch: false, shouldValidate: false });
     }
+    // Reset anche gli override selectable dei prodotti catalogo
+    setCatalogOverrides(prev => {
+      let changed = false;
+      const next: typeof prev = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        if (v.selectable !== undefined) {
+          changed = true;
+          const { selectable, ...rest } = v;
+          if (Object.keys(rest).length > 0) next[k] = rest;
+        } else {
+          next[k] = v;
+        }
+      });
+      return changed ? next : prev;
+    });
   }, [quoteType, form]);
 
   // Watch payment schedule config for simulator - watch individual fields to ensure updates
@@ -791,12 +860,15 @@ export default function QuoteBuilder({
   const autoGenerate = paymentConfig?.autoGenerate || false;
 
   // Calcola totale unificato (catalog + custom) - wrapped in useMemo to prevent loop
+  // Applica override prezzo del template/quote se presente (snapshot)
   const totaleCatalogo = useMemo(() => {
     return catalogProductIds.reduce((sum, id) => {
+      const ov = catalogOverrides[id];
+      if (ov?.prezzo !== undefined) return sum + ov.prezzo;
       const product = catalogProducts.find(p => p.id === id);
       return sum + (product?.prezzoFinale || product?.prezzo || 0);
     }, 0);
-  }, [catalogProductIds, catalogProducts]);
+  }, [catalogProductIds, catalogProducts, catalogOverrides]);
 
   const totaleCustom = useMemo(() => {
     return customProducts
@@ -847,6 +919,11 @@ export default function QuoteBuilder({
     if (!template) return;
 
     setSelectedTemplateId(templateId);
+    // Evita il reset automatico del selectable SOLO se type cambia davvero
+    // (altrimenti l'useEffect non scatta e il flag resterebbe armato per il prossimo cambio utente).
+    if (form.getValues('type') !== template.type) {
+      skipNextSelectableResetRef.current = true;
+    }
     form.setValue('type', template.type);
 
     // Separa prodotti catalogo (hanno productId) da prodotti custom
@@ -857,8 +934,30 @@ export default function QuoteBuilder({
       .filter(p => !p.productId)
       .map(p => ({
         ...p,
-        selectable: template.type === 'variabile',
+        // Preserva selectable dal template (Fisso/Extra impostato dall'admin); fallback al default
+        selectable: p.selectable !== undefined ? !!p.selectable : template.type === 'variabile',
       }));
+
+    // Costruisci catalogOverrides dal template (prezzo + selectable per prodotti catalogo)
+    const tmplOverrides: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    const defaultSelectableTmpl = template.type === 'variabile';
+    template.defaultProducts
+      .filter(p => p.productId)
+      .forEach(p => {
+        const catalogP = catalogProducts?.find((cp: any) => cp.id === p.productId);
+        const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+        const ov: { prezzo?: number; selectable?: boolean } = {};
+        if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
+          ov.prezzo = p.prezzo;
+        }
+        if (p.selectable !== undefined && p.selectable !== defaultSelectableTmpl) {
+          ov.selectable = !!p.selectable;
+        }
+        if (ov.prezzo !== undefined || ov.selectable !== undefined) {
+          tmplOverrides[p.productId!] = ov;
+        }
+      });
+    setCatalogOverrides(tmplOverrides);
     form.setValue('catalogProductIds', catalogIds);
     form.setValue('products', customProds.length > 0 ? customProds : [{
       nome: '', descrizione: '', prezzo: 0, selectable: false, numeroFoto: 0, categoria: '', immagini: [], isOmaggio: false
@@ -968,7 +1067,8 @@ export default function QuoteBuilder({
           data.catalogProductIds,
           data.products.filter(p => p.nome.trim()),
           catalogProducts,
-          data.type
+          data.type,
+          catalogOverrides
         ));
 
         // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
@@ -1056,7 +1156,8 @@ export default function QuoteBuilder({
         data.catalogProductIds,
         data.products.filter(p => p.nome.trim()), // Solo custom con nome
         catalogProducts,
-        data.type
+        data.type,
+        catalogOverrides
       );
 
       // Applica le sezioni ai prodotti da catalogo (gestite separatamente dal form)
@@ -1240,6 +1341,9 @@ export default function QuoteBuilder({
       });
       setCatalogProductSections({});
       setProductOrderKeys([]);
+      // Reset anche gli override per evitare leak su sessioni successive
+      setCatalogOverrides({});
+      skipNextSelectableResetRef.current = false;
       onClose();
     },
     onError: (error: any) => {

@@ -7,24 +7,42 @@ import type { Product } from '@shared/booking-types';
 import type { QuoteProduct } from '@shared/quotes-types';
 
 /**
+ * Override per-template / per-quote di un prodotto catalogo.
+ * Se prezzo è settato, sovrascrive il prezzo del catalogo (snapshot locale).
+ * Se selectable è settato, sovrascrive il default derivato dal tipo preventivo.
+ */
+export type CatalogProductOverride = {
+  prezzo?: number;
+  selectable?: boolean;
+};
+
+/**
  * Convert catalog Product to QuoteProduct
  */
 export function catalogProductToQuoteProduct(
   product: Product,
-  quoteType: 'fisso' | 'variabile'
+  quoteType: 'fisso' | 'variabile',
+  override?: CatalogProductOverride
 ): QuoteProduct {
+  const selectable = override?.selectable !== undefined
+    ? !!override.selectable
+    : quoteType === 'variabile';
+  const prezzo = override?.prezzo !== undefined
+    ? override.prezzo
+    : (product.prezzoFinale || product.prezzo);
+
   const quoteProduct: QuoteProduct = {
     productId: product.id,
     nome: product.nome,
     descrizione: product.descrizione,
-    prezzo: product.prezzoFinale || product.prezzo, // Use discounted price if available
-    selectable: quoteType === 'variabile',
+    prezzo,
+    selectable,
     numeroFoto: product.numeroFoto,
     categoria: product.categoria,
     immagini: product.immagini || []
   };
-  // Only add selected field if it's true (Firestore doesn't accept undefined)
-  if (quoteType === 'fisso') {
+  // Prodotti non-selezionabili in preventivo variabile = sempre inclusi (selected=true)
+  if (!selectable) {
     quoteProduct.selected = true;
   }
   // Include bundle information if product is a bundle
@@ -46,7 +64,8 @@ export function catalogProductToQuoteProduct(
 export function catalogProductsToQuoteProducts(
   productIds: string[],
   allProducts: Product[],
-  quoteType: 'fisso' | 'variabile'
+  quoteType: 'fisso' | 'variabile',
+  overrides?: Record<string, CatalogProductOverride>
 ): QuoteProduct[] {
   return productIds
     .map(id => {
@@ -55,26 +74,32 @@ export function catalogProductsToQuoteProducts(
         console.warn(`⚠️ Product ${id} not found in catalog`);
         return null;
       }
-      return catalogProductToQuoteProduct(product, quoteType);
+      return catalogProductToQuoteProduct(product, quoteType, overrides?.[id]);
     })
     .filter((p): p is QuoteProduct => p !== null);
 }
 
 /**
  * Merge catalog + custom products into single QuoteProduct array
+ *
+ * Per i custom products: se `selectable` è esplicitamente impostato (incl. false)
+ * viene rispettato, altrimenti deriva dal `quoteType`. Prodotti con `selectable=false`
+ * (non omaggio) vengono marcati come `selected: true` per essere sempre inclusi.
  */
 export function mergeQuoteProducts(
   catalogProductIds: string[],
   customProducts: QuoteProduct[],
   allCatalogProducts: Product[],
-  quoteType: 'fisso' | 'variabile'
+  quoteType: 'fisso' | 'variabile',
+  catalogOverrides?: Record<string, CatalogProductOverride>
 ): QuoteProduct[] {
   const catalogQuoteProducts = catalogProductsToQuoteProducts(
     catalogProductIds,
     allCatalogProducts,
-    quoteType
+    quoteType,
+    catalogOverrides
   );
-  
+
   // Custom products already in QuoteProduct format
   // Note: Firestore doesn't accept undefined, so we only set selected when it's true
   const customQuoteProducts = customProducts.map(p => {
@@ -88,17 +113,21 @@ export function mergeQuoteProducts(
       };
       return product;
     }
+    // Rispetta selectable se esplicito sul prodotto custom, altrimenti deriva da quoteType
+    const selectable = p.selectable === true || p.selectable === false
+      ? p.selectable
+      : quoteType === 'variabile';
     const product: QuoteProduct = {
       ...p,
-      selectable: quoteType === 'variabile',
+      selectable,
     };
-    // Only add selected field if it's true (Firestore doesn't accept undefined)
-    if (quoteType === 'fisso') {
+    // Non-selectable (fisso): sempre incluso
+    if (!selectable) {
       product.selected = true;
     }
     return product;
   });
-  
+
   return [...catalogQuoteProducts, ...customQuoteProducts];
 }
 
@@ -108,16 +137,19 @@ export function mergeQuoteProducts(
 export function calculateQuoteTotal(
   catalogProductIds: string[],
   customProducts: QuoteProduct[],
-  allCatalogProducts: Product[]
+  allCatalogProducts: Product[],
+  catalogOverrides?: Record<string, CatalogProductOverride>
 ): number {
-  // Catalog products total
+  // Catalog products total (con override prezzo se presente)
   const catalogTotal = catalogProductIds.reduce((sum, id) => {
+    const override = catalogOverrides?.[id];
+    if (override?.prezzo !== undefined) return sum + override.prezzo;
     const product = allCatalogProducts.find(p => p.id === id);
     return sum + (product?.prezzoFinale || product?.prezzo || 0);
   }, 0);
-  
+
   // Custom products total
   const customTotal = customProducts.reduce((sum, p) => sum + (p.prezzo || 0), 0);
-  
+
   return catalogTotal + customTotal;
 }

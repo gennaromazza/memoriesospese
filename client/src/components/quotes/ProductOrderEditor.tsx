@@ -36,6 +36,8 @@ export interface OrderableProduct {
   isOmaggio?: boolean;
   isFromCatalog?: boolean;
   sezione?: string;
+  /** Solo per template variabili: se false, prodotto sempre incluso (Fisso) */
+  selectable?: boolean;
 }
 
 interface SortableRowProps {
@@ -43,9 +45,13 @@ interface SortableRowProps {
   index: number;
   onSectionChange?: (key: string, sezione: string) => void;
   sectionSuggestions?: string[];
+  onPriceChange?: (key: string, prezzo: number) => void;
+  onSelectableChange?: (key: string, selectable: boolean) => void;
+  /** Mostra il toggle Fisso/Extra (solo per template variabili) */
+  showSelectableToggle?: boolean;
 }
 
-function SortableRow({ product, index, onSectionChange, sectionSuggestions }: SortableRowProps) {
+function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -59,6 +65,11 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions }: So
   const [draft, setDraft] = useState(product.sezione || '');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Stato editing prezzo inline
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(String(product.prezzo ?? 0));
+  const priceInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setDraft(product.sezione || '');
   }, [product.sezione]);
@@ -67,9 +78,28 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions }: So
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
+  useEffect(() => {
+    if (!editingPrice) setPriceDraft(String(product.prezzo ?? 0));
+  }, [product.prezzo, editingPrice]);
+
+  useEffect(() => {
+    if (editingPrice) {
+      priceInputRef.current?.focus();
+      priceInputRef.current?.select();
+    }
+  }, [editingPrice]);
+
   const commitEdit = () => {
     setEditing(false);
     if (onSectionChange) onSectionChange(product.key, draft.trim());
+  };
+
+  const commitPriceEdit = () => {
+    setEditingPrice(false);
+    if (!onPriceChange) return;
+    const parsed = parseFloat(priceDraft.replace(',', '.'));
+    const next = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    if (next !== product.prezzo) onPriceChange(product.key, next);
   };
 
   const style = {
@@ -144,9 +174,66 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions }: So
       {product.isOmaggio && (
         <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 flex-shrink-0">incluso</Badge>
       )}
-      <span className={`text-sm font-semibold flex-shrink-0 ${product.isOmaggio ? 'text-emerald-600' : 'text-gray-700'}`}>
-        {formatPrice(product.prezzo)}
-      </span>
+
+      {/* Toggle Fisso / Extra — solo per template variabili e prodotti non-omaggio */}
+      {showSelectableToggle && onSelectableChange && !product.isOmaggio && (
+        <button
+          type="button"
+          onClick={() => onSelectableChange(product.key, !(product.selectable !== false))}
+          title={
+            product.selectable === false
+              ? 'Prodotto sempre incluso (clicca per renderlo opzionale)'
+              : 'Prodotto opzionale, il cliente può deselezionarlo (clicca per renderlo sempre incluso)'
+          }
+          className={`text-[10px] font-semibold rounded px-1.5 py-0.5 flex-shrink-0 transition-colors border ${
+            product.selectable === false
+              ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+              : 'bg-sage/10 text-sage border-sage/30 hover:bg-sage/20'
+          }`}
+          data-testid={`button-toggle-selectable-${product.key}`}
+        >
+          {product.selectable === false ? '🔒 FISSO' : '✓ EXTRA'}
+        </button>
+      )}
+
+      {/* Prezzo: input inline se onPriceChange è fornito e non è un omaggio, altrimenti label */}
+      {onPriceChange && !product.isOmaggio ? (
+        editingPrice ? (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-sm text-gray-500">€</span>
+            <input
+              ref={priceInputRef}
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={priceDraft}
+              onChange={(e) => setPriceDraft(e.target.value)}
+              onBlur={commitPriceEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitPriceEdit();
+                if (e.key === 'Escape') { setEditingPrice(false); setPriceDraft(String(product.prezzo ?? 0)); }
+              }}
+              className="w-20 text-sm font-semibold text-right border border-sage/40 rounded px-1.5 py-0.5 focus:outline-none focus:border-sage"
+              data-testid={`input-price-${product.key}`}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingPrice(true)}
+            title="Clicca per modificare il prezzo (solo per questo template)"
+            className="text-sm font-semibold flex-shrink-0 text-gray-700 hover:text-sage hover:underline decoration-dotted underline-offset-2"
+            data-testid={`button-edit-price-${product.key}`}
+          >
+            {formatPrice(product.prezzo)}
+          </button>
+        )
+      ) : (
+        <span className={`text-sm font-semibold flex-shrink-0 ${product.isOmaggio ? 'text-emerald-600' : 'text-gray-700'}`}>
+          {formatPrice(product.prezzo)}
+        </span>
+      )}
     </div>
   );
 }
@@ -186,9 +273,15 @@ interface ProductOrderEditorProps {
   onSectionChange?: (key: string, sezione: string) => void;
   /** Suggerimenti sezione per l'autocomplete inline (sezioni già usate nel preventivo) */
   sectionSuggestions?: string[];
+  /** Se fornito, il prezzo diventa modificabile inline (override solo per questo template) */
+  onPriceChange?: (key: string, prezzo: number) => void;
+  /** Se fornito, mostra il toggle Fisso/Extra per marcare prodotti sempre inclusi */
+  onSelectableChange?: (key: string, selectable: boolean) => void;
+  /** Mostra il toggle Fisso/Extra (true solo per template di tipo variabile) */
+  showSelectableToggle?: boolean;
 }
 
-export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions }: ProductOrderEditorProps) {
+export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle }: ProductOrderEditorProps) {
   const buildItems = (prods: OrderableProduct[], keys?: string[]): OrderableProduct[] => {
     if (!keys || keys.length === 0) return prods;
     const map = new Map(prods.map(p => [p.key, p]));
@@ -279,7 +372,15 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
                       <div className="h-px flex-1 bg-sage/20" />
                     </div>
                   )}
-                  <SortableRow product={product} index={index} onSectionChange={onSectionChange} sectionSuggestions={sectionSuggestions} />
+                  <SortableRow
+                    product={product}
+                    index={index}
+                    onSectionChange={onSectionChange}
+                    sectionSuggestions={sectionSuggestions}
+                    onPriceChange={onPriceChange}
+                    onSelectableChange={onSelectableChange}
+                    showSelectableToggle={showSelectableToggle}
+                  />
                 </div>
               );
             })}

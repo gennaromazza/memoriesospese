@@ -147,6 +147,8 @@ const templateSchema = z
         sezione: z.string().optional(),
         numeroFoto: z.number().optional(),
         categoria: z.string().optional(),
+        // Per template variabili: false = prodotto sempre incluso (Fisso)
+        selectable: z.boolean().optional(),
       }),
     ),
     discountType: z.preprocess(
@@ -403,6 +405,14 @@ export default function QuoteTemplatesManager() {
 
   // Sections for catalog products (managed outside form — same pattern as QuoteBuilder)
   const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
+  // Override per prodotti catalogo: prezzo (snapshot solo nel template) e selectable (Fisso/Extra).
+  // Le chiavi sono productId. Non tocca il catalogo prodotti.
+  const [catalogOverrides, setCatalogOverrides] = useState<Record<string, { prezzo?: number; selectable?: boolean }>>({});
+  // Tiene traccia del template in editing per re-idratare gli override quando catalogProducts arriva tardi
+  const pendingEditTemplateRef = useRef<(QuoteTemplate & { id: string }) | null>(null);
+  const lastHydratedTemplateIdRef = useRef<string | null>(null);
+
+  // Query catalogo prodotti (necessaria PRIMA del re-hydration effect)
 
   // Query templates
   const { data: templatesData = [], isLoading } = useQuery({
@@ -433,6 +443,35 @@ export default function QuoteTemplatesManager() {
     queryKey: ["products"],
     queryFn: getAllProducts,
   });
+
+  // Re-hydration override quando catalogProducts arriva dopo handleEditTemplate
+  // (race: editor aperto prima che la query products sia risolta).
+  useEffect(() => {
+    const tmpl = pendingEditTemplateRef.current;
+    if (!tmpl) return;
+    if (!catalogProducts || catalogProducts.length === 0) return;
+    if (lastHydratedTemplateIdRef.current === tmpl.id) return;
+    const rebuilt: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    const defaultSelectable = tmpl.type === 'variabile';
+    tmpl.defaultProducts
+      .filter(p => p.productId)
+      .forEach(p => {
+        const catalogP = catalogProducts.find(cp => cp.id === p.productId);
+        const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+        const ov: { prezzo?: number; selectable?: boolean } = {};
+        if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
+          ov.prezzo = p.prezzo;
+        }
+        if (p.selectable !== undefined && p.selectable !== defaultSelectable) {
+          ov.selectable = !!p.selectable;
+        }
+        if (ov.prezzo !== undefined || ov.selectable !== undefined) {
+          rebuilt[p.productId!] = ov;
+        }
+      });
+    setCatalogOverrides(rebuilt);
+    lastHydratedTemplateIdRef.current = tmpl.id;
+  }, [catalogProducts]);
 
   const handleGenerateLink = useCallback(async (template: QuoteTemplate & { id: string }) => {
     try {
@@ -558,11 +597,39 @@ export default function QuoteTemplatesManager() {
         sezione: (p as any).sezione || "",
         numeroFoto: p.numeroFoto || 0,
         categoria: p.categoria || "",
+        // Preserva selectable salvato (solo per template variabili è significativo)
+        selectable: p.selectable,
       }));
 
     const catalogProductIdsData = template.defaultProducts
       .filter((p) => p.productId)
       .map((p) => p.productId!);
+
+    // Ricostruisci gli override (prezzo + selectable) dai prodotti catalogo salvati
+    const initialCatalogOverrides: Record<string, { prezzo?: number; selectable?: boolean }> = {};
+    template.defaultProducts
+      .filter((p) => p.productId)
+      .forEach((p) => {
+        const catalogP = catalogProducts.find((cp) => cp.id === p.productId);
+        const catalogPrice = catalogP ? (catalogP.prezzoFinale || catalogP.prezzo || 0) : undefined;
+        const override: { prezzo?: number; selectable?: boolean } = {};
+        // Considera override prezzo se differisce dal listino (tolleranza centesimi)
+        if (catalogPrice !== undefined && Math.round(p.prezzo * 100) !== Math.round(catalogPrice * 100)) {
+          override.prezzo = p.prezzo;
+        }
+        // Override selectable: salva se differisce dal default-by-type
+        const defaultSelectable = template.type === 'variabile';
+        if (p.selectable !== undefined && p.selectable !== defaultSelectable) {
+          override.selectable = p.selectable;
+        }
+        if (override.prezzo !== undefined || override.selectable !== undefined) {
+          initialCatalogOverrides[p.productId!] = override;
+        }
+      });
+    setCatalogOverrides(initialCatalogOverrides);
+    // Marca il template attualmente in editing per consentire re-hydration
+    // quando catalogProducts arriva tardi (vedi useEffect più sotto).
+    pendingEditTemplateRef.current = template;
 
     // Reset form with template data
     form.reset({
@@ -609,7 +676,7 @@ export default function QuoteTemplatesManager() {
     // Store template for update mutation (to preserve defaultClauses)
     setCurrentTemplate(template);
     setEditModalOpen(true);
-  }, [form]);
+  }, [form, catalogProducts]);
 
   // Handle create modal open
   const handleCreateTemplate = useCallback(() => {
@@ -641,6 +708,10 @@ export default function QuoteTemplatesManager() {
     setExpandedBenefitRules(new Set());
     setProductOrderKeys([]);
     setCatalogProductSections({});
+    setCatalogOverrides({});
+    // Resetta i ref di tracking per evitare re-hydration spuria
+    pendingEditTemplateRef.current = null;
+    lastHydratedTemplateIdRef.current = null;
     setCreateModalOpen(true);
   }, [form]);
 
@@ -674,18 +745,72 @@ export default function QuoteTemplatesManager() {
   }, [form]);
 
   // Merged product list for ProductOrderEditor (catalog + custom)
-  // Usa fields (da useFieldArray) per i custom products, catalogProductIds per i catalog
+  // Usa fields (da useFieldArray) per i custom products, catalogProductIds per i catalog.
+  // Applica gli override del template (prezzo + selectable) sui prodotti catalogo.
   const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
+    const defaultSelectable = quoteType === 'variabile';
     const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
       const p = catalogProducts.find((cp) => cp.id === id);
       const sezione = catalogProductSections[id];
-      return { key: `cat:${id}`, nome: p?.nome || id, prezzo: p?.prezzoFinale || p?.prezzo || 0, isFromCatalog: true, sezione: sezione || undefined };
+      const ov = catalogOverrides[id];
+      const basePrice = p?.prezzoFinale || p?.prezzo || 0;
+      const selectable = ov?.selectable !== undefined ? ov.selectable : defaultSelectable;
+      return {
+        key: `cat:${id}`,
+        nome: p?.nome || id,
+        prezzo: ov?.prezzo !== undefined ? ov.prezzo : basePrice,
+        isFromCatalog: true,
+        sezione: sezione || undefined,
+        selectable,
+      };
     });
     const cust: OrderableProduct[] = fields
       .filter((f) => f.nome?.trim())
-      .map((f) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: (f as any).sezione || undefined }));
+      .map((f) => ({
+        key: `cust:${f.nome.trim()}`,
+        nome: f.nome,
+        prezzo: f.prezzo || 0,
+        sezione: (f as any).sezione || undefined,
+        selectable: (f as any).selectable !== undefined ? (f as any).selectable : defaultSelectable,
+      }));
     return [...cat, ...cust];
-  }, [catalogProductIds, fields, catalogProducts, catalogProductSections]);
+  }, [catalogProductIds, fields, catalogProducts, catalogProductSections, catalogOverrides, quoteType]);
+
+  // Handler per modifica prezzo inline (override solo per questo template)
+  const handlePriceChange = useCallback((key: string, prezzo: number) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => {
+        const next = { ...prev };
+        const cur = next[id] || {};
+        next[id] = { ...cur, prezzo };
+        return next;
+      });
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('customProducts');
+      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      if (idx >= 0) form.setValue(`customProducts.${idx}.prezzo`, prezzo, { shouldDirty: true });
+    }
+  }, [form]);
+
+  // Handler per toggle Fisso/Extra (solo template variabili)
+  const handleSelectableChange = useCallback((key: string, selectable: boolean) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => {
+        const next = { ...prev };
+        const cur = next[id] || {};
+        next[id] = { ...cur, selectable };
+        return next;
+      });
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('customProducts');
+      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      if (idx >= 0) form.setValue(`customProducts.${idx}.selectable` as any, selectable, { shouldDirty: true });
+    }
+  }, [form]);
 
   // Lista sezioni usate (per autocomplete)
   const sectionSuggestions = useMemo<string[]>(() => {
@@ -695,7 +820,10 @@ export default function QuoteTemplatesManager() {
   }, [mergedForOrderEditor]);
 
   // Calculate totals — usa fields (da useFieldArray) invece di useWatch per customProducts
+  // Applica override prezzo del template se presente
   const totaleCatalogo = catalogProductIds.reduce((sum, id) => {
+    const ov = catalogOverrides[id];
+    if (ov?.prezzo !== undefined) return sum + ov.prezzo;
     const product = catalogProducts.find((p) => p.id === id);
     return sum + (product?.prezzoFinale || product?.prezzo || 0);
   }, 0);
@@ -716,12 +844,12 @@ export default function QuoteTemplatesManager() {
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      // Merge catalog + custom products
+      // Merge catalog + custom products — applica override prezzo/selectable del template
       const catalogQuoteProducts: QuoteProduct[] = data.catalogProductIds.map(
         (id) => {
           const product = catalogProducts.find((p) => p.id === id);
           if (!product) throw new Error(`Prodotto ${id} non trovato`);
-          const qp = catalogProductToQuoteProduct(product, data.type);
+          const qp = catalogProductToQuoteProduct(product, data.type, catalogOverrides[id]);
           const sezione = catalogProductSections[id];
           if (sezione) (qp as any).sezione = sezione;
           return qp;
@@ -730,15 +858,24 @@ export default function QuoteTemplatesManager() {
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
         .filter((p) => p.nome.trim())
-        .map((p) => ({
-          nome: p.nome,
-          descrizione: p.descrizione,
-          prezzo: p.prezzo,
-          selectable: data.type === "variabile",
-          numeroFoto: p.numeroFoto,
-          categoria: p.categoria,
-          ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
-        }));
+        .map((p) => {
+          // Rispetta selectable esplicito dal form, altrimenti deriva da quoteType
+          const selectable = (p as any).selectable !== undefined
+            ? !!(p as any).selectable
+            : data.type === "variabile";
+          const qp: QuoteProduct = {
+            nome: p.nome,
+            descrizione: p.descrizione,
+            prezzo: p.prezzo,
+            selectable,
+            numeroFoto: p.numeroFoto,
+            categoria: p.categoria,
+            ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
+          };
+          // Prodotti non selezionabili (Fisso) sono sempre inclusi
+          if (!selectable) qp.selected = true;
+          return qp;
+        });
 
       // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
       const catalogMap = new Map(
@@ -826,7 +963,7 @@ export default function QuoteTemplatesManager() {
         (prodId) => {
           const product = catalogProducts.find((p) => p.id === prodId);
           if (!product) throw new Error(`Prodotto ${prodId} non trovato`);
-          const qp2 = catalogProductToQuoteProduct(product, data.type);
+          const qp2 = catalogProductToQuoteProduct(product, data.type, catalogOverrides[prodId]);
           const sezione2 = catalogProductSections[prodId];
           if (sezione2) (qp2 as any).sezione = sezione2;
           return qp2;
@@ -835,15 +972,22 @@ export default function QuoteTemplatesManager() {
 
       const customQuoteProducts: QuoteProduct[] = data.customProducts
         .filter((p) => p.nome.trim())
-        .map((p) => ({
-          nome: p.nome,
-          descrizione: p.descrizione,
-          prezzo: p.prezzo,
-          selectable: data.type === "variabile",
-          numeroFoto: p.numeroFoto,
-          categoria: p.categoria,
-          ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
-        }));
+        .map((p) => {
+          const selectable = (p as any).selectable !== undefined
+            ? !!(p as any).selectable
+            : data.type === "variabile";
+          const qp: QuoteProduct = {
+            nome: p.nome,
+            descrizione: p.descrizione,
+            prezzo: p.prezzo,
+            selectable,
+            numeroFoto: p.numeroFoto,
+            categoria: p.categoria,
+            ...((p as any).sezione ? { sezione: (p as any).sezione } : {}),
+          };
+          if (!selectable) qp.selected = true;
+          return qp;
+        });
 
       // Applica l'ordine scelto dall'admin tramite ProductOrderEditor
       const catalogMap2 = new Map(
@@ -1356,6 +1500,9 @@ export default function QuoteTemplatesManager() {
                     Trascina per definire l'ordine in cui i prodotti appariranno nel preventivo.
                   </p>
                   <ProductOrderEditor
+                    onPriceChange={handlePriceChange}
+                    onSelectableChange={handleSelectableChange}
+                    showSelectableToggle={quoteType === 'variabile'}
                     products={mergedForOrderEditor}
                     orderKeys={productOrderKeys}
                     onOrderChange={setProductOrderKeys}

@@ -161,8 +161,22 @@ export default function QuickQuotePage() {
   const dataNonDefinita = form.watch('dataNonDefinita');
 
   useEffect(() => {
-    if (template?.type === 'fisso') {
+    if (!template) return;
+    if (template.type === 'fisso') {
       setSelectedProducts(template.defaultProducts.map(p => p.productId || p.nome));
+    } else {
+      // Per template variabili: pre-seleziona i prodotti "Fissi" (selectable === false)
+      // così sono sempre inclusi nel totale, come definito dall'admin nel template.
+      const fixedKeys = template.defaultProducts
+        .filter(p => p.selectable === false)
+        .map(p => p.productId || p.nome);
+      if (fixedKeys.length > 0) {
+        setSelectedProducts(prev => {
+          // Unione: mantieni eventuali scelte già fatte dall'utente
+          const set = new Set([...prev, ...fixedKeys]);
+          return Array.from(set);
+        });
+      }
     }
   }, [template]);
 
@@ -954,18 +968,36 @@ export default function QuickQuotePage() {
                     >
                       <div className="flex items-start gap-3">
                         {template.type === 'variabile' && (
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              const key = product.productId || product.nome;
-                              if (checked) {
-                                setSelectedProducts([...selectedProducts, key]);
-                              } else {
-                                setSelectedProducts(selectedProducts.filter(p => p !== key));
-                              }
-                            }}
-                            className="mt-1 flex-shrink-0"
-                          />
+                          product.selectable === false ? (
+                            // Prodotto "Fisso": sempre incluso, checkbox disabilitata + badge
+                            <div className="mt-1 flex flex-col items-center gap-1 flex-shrink-0">
+                              <Checkbox
+                                checked
+                                disabled
+                                aria-label="Sempre incluso"
+                                className="opacity-100 cursor-not-allowed"
+                              />
+                              <span
+                                className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: primaryColor, color: 'white' }}
+                              >
+                                Incluso
+                              </span>
+                            </div>
+                          ) : (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                const key = product.productId || product.nome;
+                                if (checked) {
+                                  setSelectedProducts([...selectedProducts, key]);
+                                } else {
+                                  setSelectedProducts(selectedProducts.filter(p => p !== key));
+                                }
+                              }}
+                              className="mt-1 flex-shrink-0"
+                            />
+                          )
                         )}
                         
                         {product.immagini?.[0] && (
