@@ -183,6 +183,9 @@ export default function QuotePublicViewPage() {
       return response.json();
     },
     enabled: !!token,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const portalData = data?.data;
