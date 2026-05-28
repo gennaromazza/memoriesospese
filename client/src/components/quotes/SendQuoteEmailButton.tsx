@@ -51,7 +51,7 @@ export default function SendQuoteEmailButton({ quote, onEmailSent }: SendQuoteEm
       variant={isAlreadySent ? "outline" : "default"}
       size="sm"
       className="gap-2"
-      title={isAlreadySent ? `Email inviata il ${new Date(quote.emailSentAt).toLocaleDateString('it-IT')}` : 'Invia email preventivo al cliente'}
+      title={isAlreadySent && quote.emailSentAt ? `Email inviata il ${quote.emailSentAt.toDate().toLocaleDateString('it-IT')}` : 'Invia email preventivo al cliente'}
     >
       <Mail className="w-4 h-4" />
       {sendMutation.isPending ? (

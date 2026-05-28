@@ -586,7 +586,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       // Piano pagamenti indicativo (configurazione per anteprima pre-firma nel portale)
       paymentScheduleConfig: quote.paymentScheduleConfig ?? null,
       ...(quote.status === 'firmato' && {
-        signedAt: serializeTimestamp(quote.signedAt),
+        signedAt: serializeTimestamp(quote.signature?.signedAt),
         signature: quote.signature
           ? { clientName: quote.signature.clientName ?? null }
           : null,
@@ -2694,6 +2694,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     let clienteId: string;
     let jobRef: FirebaseFirestore.DocumentReference;
     let jobId: string;
+    const isDND = dataNonDefinita === true;
 
     if (existingJobId && existingClienteId) {
       // ✅ Job e cliente già creati da save-draft — riusa gli ID
@@ -2741,7 +2742,6 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
 
       // 2. Cerca job lead preesistente (stessa logica dedup di save-draft)
       // Evita di creare un secondo job se save-draft ha già creato il lead
-      const isDND = dataNonDefinita === true;
       const candidateLeads = await db.collection("jobs")
         .where("clientiIds", "array-contains", clienteId)
         .where("provenance", "==", "preventivo-rapido")
@@ -3235,7 +3235,7 @@ router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
 
     // Carica info studio per branding email
     const studioInfo = await getStudioContactInfo();
-    const studioName = studioInfo?.studioName || "Image Studio";
+    const studioName = studioInfo?.name || "Image Studio";
 
     const html = `
 <!DOCTYPE html>
@@ -3476,9 +3476,9 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       if (!email) return;
       try {
         const studioInfo = await getStudioContactInfo();
-        const studioNome = studioInfo?.nome || "Image Studio";
+        const studioNome = studioInfo?.name || "Image Studio";
         const studioEmailAddr = studioInfo?.email || "";
-        const studioTel = studioInfo?.telefono || "";
+        const studioTel = studioInfo?.phone || "";
         const baseUrl = process.env.REPLIT_DOMAINS
           ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
           : "http://localhost:5000";
