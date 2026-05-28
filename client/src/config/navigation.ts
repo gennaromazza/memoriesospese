@@ -71,7 +71,7 @@ export const mainNavItems: NavItem[] = [
     icon: Image,
     showInHeader: false,
     showInFooter: true,
-    showInMobile: true,
+    showInMobile: false,
     mobileOrder: 6,
   },
 ];
