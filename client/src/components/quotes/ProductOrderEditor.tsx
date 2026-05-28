@@ -26,7 +26,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ArrowUpDown, Tag } from 'lucide-react';
+import { GripVertical, ArrowUpDown, Tag, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export interface OrderableProduct {
@@ -38,6 +38,8 @@ export interface OrderableProduct {
   sezione?: string;
   /** Solo per template variabili: se false, prodotto sempre incluso (Fisso) */
   selectable?: boolean;
+  /** Prezzo originale del catalogo (listino). Se differisce da `prezzo` significa override attivo. */
+  originalPrice?: number;
 }
 
 interface SortableRowProps {
@@ -49,9 +51,11 @@ interface SortableRowProps {
   onSelectableChange?: (key: string, selectable: boolean) => void;
   /** Mostra il toggle Fisso/Extra (solo per template variabili) */
   showSelectableToggle?: boolean;
+  /** Callback per riportare il prezzo al valore di listino (rimuove l'override) */
+  onResetPrice?: (key: string) => void;
 }
 
-function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle }: SortableRowProps) {
+function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -111,6 +115,11 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
 
   const formatPrice = (p: number) =>
     product.isOmaggio ? '✓ Incluso' : `€${p.toLocaleString('it-IT', { minimumFractionDigits: 2 })}`;
+
+  // Override prezzo attivo: il prezzo corrente differisce dal listino (tolleranza centesimi)
+  const hasPriceOverride =
+    product.originalPrice !== undefined &&
+    Math.round((product.prezzo || 0) * 100) !== Math.round(product.originalPrice * 100);
 
   return (
     <div
@@ -219,15 +228,47 @@ function SortableRow({ product, index, onSectionChange, sectionSuggestions, onPr
             />
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setEditingPrice(true)}
-            title="Clicca per modificare il prezzo (solo per questo template)"
-            className="text-sm font-semibold flex-shrink-0 text-gray-700 hover:text-sage hover:underline decoration-dotted underline-offset-2"
-            data-testid={`button-edit-price-${product.key}`}
-          >
-            {formatPrice(product.prezzo)}
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Listino barrato + badge "modificato" + reset (solo se override attivo) */}
+            {hasPriceOverride && (
+              <>
+                <span
+                  className="text-xs text-gray-400 line-through"
+                  title="Prezzo di listino"
+                  data-testid={`text-list-price-${product.key}`}
+                >
+                  €{(product.originalPrice ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                </span>
+                <Badge className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 px-1 py-0">
+                  modificato
+                </Badge>
+                {onResetPrice && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onResetPrice(product.key); }}
+                    title="Ripristina prezzo di listino"
+                    className="text-gray-400 hover:text-sage transition-colors p-0.5"
+                    data-testid={`button-reset-price-${product.key}`}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditingPrice(true)}
+              title={hasPriceOverride
+                ? 'Prezzo modificato solo per questo template (clicca per modificare di nuovo)'
+                : 'Clicca per modificare il prezzo (solo per questo template, il listino non viene toccato)'}
+              className={`text-sm font-semibold hover:underline decoration-dotted underline-offset-2 ${
+                hasPriceOverride ? 'text-amber-700 hover:text-amber-800' : 'text-gray-700 hover:text-sage'
+              }`}
+              data-testid={`button-edit-price-${product.key}`}
+            >
+              {formatPrice(product.prezzo)}
+            </button>
+          </div>
         )
       ) : (
         <span className={`text-sm font-semibold flex-shrink-0 ${product.isOmaggio ? 'text-emerald-600' : 'text-gray-700'}`}>
@@ -279,9 +320,11 @@ interface ProductOrderEditorProps {
   onSelectableChange?: (key: string, selectable: boolean) => void;
   /** Mostra il toggle Fisso/Extra (true solo per template di tipo variabile) */
   showSelectableToggle?: boolean;
+  /** Se fornito, mostra il bottone "reset al listino" quando c'è override prezzo */
+  onResetPrice?: (key: string) => void;
 }
 
-export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle }: ProductOrderEditorProps) {
+export default function ProductOrderEditor({ products, orderKeys, onOrderChange, onSectionChange, sectionSuggestions, onPriceChange, onSelectableChange, showSelectableToggle, onResetPrice }: ProductOrderEditorProps) {
   const buildItems = (prods: OrderableProduct[], keys?: string[]): OrderableProduct[] => {
     if (!keys || keys.length === 0) return prods;
     const map = new Map(prods.map(p => [p.key, p]));
@@ -380,6 +423,7 @@ export default function ProductOrderEditor({ products, orderKeys, onOrderChange,
                     onPriceChange={onPriceChange}
                     onSelectableChange={onSelectableChange}
                     showSelectableToggle={showSelectableToggle}
+                    onResetPrice={onResetPrice}
                   />
                 </div>
               );

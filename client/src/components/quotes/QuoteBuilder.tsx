@@ -737,25 +737,79 @@ export default function QuoteBuilder({
   
   // Watch products for performance optimization in render loop
   const watchedProducts = useWatch({ control: form.control, name: 'products' });
+  const quoteTypeForEditor = form.watch('type');
 
   // Merged product list per ProductOrderEditor (catalog + custom products)
+  // Applica override prezzo/selectable e include originalPrice (listino) per i prodotti catalogo.
   const mergedForOrderEditor = useMemo<OrderableProduct[]>(() => {
+    const defaultSelectable = quoteTypeForEditor === 'variabile';
     const cat: OrderableProduct[] = catalogProductIds.map((id: string) => {
       const p = catalogProducts?.find((cp: any) => cp.id === id);
       const sezione = catalogProductSections[id];
+      const ov = catalogOverrides[id];
+      const basePrice = p?.prezzoFinale || p?.prezzo || 0;
+      const selectable = ov?.selectable !== undefined ? ov.selectable : defaultSelectable;
       return {
         key: `cat:${id}`,
         nome: p?.nome || id,
-        prezzo: p?.prezzoFinale || p?.prezzo || 0,
+        prezzo: ov?.prezzo !== undefined ? ov.prezzo : basePrice,
+        originalPrice: basePrice,
         isFromCatalog: true,
-        sezione: sezione || undefined
+        sezione: sezione || undefined,
+        selectable,
       };
     });
     const cust: OrderableProduct[] = (watchedProducts || [])
       .filter((f: any) => f.nome?.trim())
-      .map((f: any) => ({ key: `cust:${f.nome.trim()}`, nome: f.nome, prezzo: f.prezzo || 0, sezione: f.sezione || undefined }));
+      .map((f: any) => ({
+        key: `cust:${f.nome.trim()}`,
+        nome: f.nome,
+        prezzo: f.prezzo || 0,
+        sezione: f.sezione || undefined,
+        selectable: f.selectable !== undefined ? !!f.selectable : defaultSelectable,
+      }));
     return [...cat, ...cust];
-  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections]);
+  }, [catalogProductIds, watchedProducts, catalogProducts, catalogProductSections, catalogOverrides, quoteTypeForEditor]);
+
+  // Handler modifica prezzo inline (override solo per questo preventivo)
+  const handleEditorPriceChange = useCallback((key: string, prezzo: number) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), prezzo } }));
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      if (idx >= 0) form.setValue(`products.${idx}.prezzo` as any, prezzo, { shouldDirty: true });
+    }
+  }, [form]);
+
+  // Handler ripristino prezzo listino (rimuove override prezzo)
+  const handleEditorResetPrice = useCallback((key: string) => {
+    if (!key.startsWith('cat:')) return;
+    const id = key.slice(4);
+    setCatalogOverrides(prev => {
+      if (!prev[id] || prev[id].prezzo === undefined) return prev;
+      const { prezzo, ...rest } = prev[id];
+      const next = { ...prev };
+      if (Object.keys(rest).length > 0) next[id] = rest;
+      else delete next[id];
+      return next;
+    });
+  }, []);
+
+  // Handler toggle Fisso/Extra (solo per preventivi variabili)
+  const handleEditorSelectableChange = useCallback((key: string, selectable: boolean) => {
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4);
+      setCatalogOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), selectable } }));
+    } else if (key.startsWith('cust:')) {
+      const nome = key.slice(5);
+      const products = form.getValues('products') || [];
+      const idx = products.findIndex((p: any) => p.nome?.trim() === nome);
+      if (idx >= 0) form.setValue(`products.${idx}.selectable` as any, selectable, { shouldDirty: true });
+    }
+  }, [form]);
   // Lista sezioni già usate nel preventivo corrente (per autocomplete)
   const sectionSuggestions = useMemo<string[]>(() => {
     const seen = new Set<string>();
@@ -2098,6 +2152,10 @@ export default function QuoteBuilder({
                     onOrderChange={setProductOrderKeys}
                     onSectionChange={quoteType === 'variabile' ? handleSectionChange : undefined}
                     sectionSuggestions={quoteType === 'variabile' ? sectionSuggestions : undefined}
+                    onPriceChange={handleEditorPriceChange}
+                    onResetPrice={handleEditorResetPrice}
+                    onSelectableChange={handleEditorSelectableChange}
+                    showSelectableToggle={quoteType === 'variabile'}
                   />
                 </div>
               </>

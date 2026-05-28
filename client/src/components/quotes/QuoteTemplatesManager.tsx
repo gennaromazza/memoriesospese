@@ -3,7 +3,7 @@
  * Interfaccia admin per gestire template preventivi riutilizzabili
  */
 
-import { useState, useMemo, useCallback, memo, useEffect } from "react";
+import { useState, useMemo, useCallback, memo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -759,6 +759,7 @@ export default function QuoteTemplatesManager() {
         key: `cat:${id}`,
         nome: p?.nome || id,
         prezzo: ov?.prezzo !== undefined ? ov.prezzo : basePrice,
+        originalPrice: basePrice,
         isFromCatalog: true,
         sezione: sezione || undefined,
         selectable,
@@ -793,6 +794,20 @@ export default function QuoteTemplatesManager() {
       if (idx >= 0) form.setValue(`customProducts.${idx}.prezzo`, prezzo, { shouldDirty: true });
     }
   }, [form]);
+
+  // Handler per ripristinare il prezzo al valore di listino (rimuove l'override prezzo)
+  const handleResetPrice = useCallback((key: string) => {
+    if (!key.startsWith('cat:')) return;
+    const id = key.slice(4);
+    setCatalogOverrides(prev => {
+      if (!prev[id] || prev[id].prezzo === undefined) return prev;
+      const { prezzo, ...rest } = prev[id];
+      const next = { ...prev };
+      if (Object.keys(rest).length > 0) next[id] = rest;
+      else delete next[id];
+      return next;
+    });
+  }, []);
 
   // Handler per toggle Fisso/Extra (solo template variabili)
   const handleSelectableChange = useCallback((key: string, selectable: boolean) => {
@@ -1501,6 +1516,7 @@ export default function QuoteTemplatesManager() {
                   </p>
                   <ProductOrderEditor
                     onPriceChange={handlePriceChange}
+                    onResetPrice={handleResetPrice}
                     onSelectableChange={handleSelectableChange}
                     showSelectableToggle={quoteType === 'variabile'}
                     products={mergedForOrderEditor}
