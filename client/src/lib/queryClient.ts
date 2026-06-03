@@ -61,6 +61,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: { signal?: AbortSignal },
 ): Promise<Response> {
   // Se l'app è in sottocartella, anche le API devono avere il base path
   const finalUrl = url.startsWith('/api') ? createUrl(url) : url;
@@ -122,6 +123,7 @@ export async function apiRequest(
     headers,
     body: enhancedData ? JSON.stringify(enhancedData) : undefined,
     credentials: "include",
+    signal: options?.signal,
   });
 
   await throwIfResNotOk(res);

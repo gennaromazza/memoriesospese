@@ -247,42 +247,79 @@ export default function JobDetailPage() {
     return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) });
   }, [consultationDateRange]);
 
-  // Anteprima degli slot che vedrebbe il cliente (primi 3 giorni del range)
+  // Range "debounced" per l'anteprima slot: evita overfetch mentre il fotografo
+  // trascina/aggiorna rapidamente l'intervallo nel calendario.
+  const [debouncedConsultationRange, setDebouncedConsultationRange] = useState(consultationDateRange);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedConsultationRange(consultationDateRange), 400);
+    return () => clearTimeout(t);
+  }, [consultationDateRange]);
+
+  // Numero massimo di giorni coperti dall'anteprima (cap di sicurezza per range molto lunghi)
+  const CONSULTATION_PREVIEW_MAX_DAYS = 31;
+
+  // Giorni effettivamente coperti dall'anteprima (tutto il range, fino al cap)
+  const consultationPreviewDays = useMemo(() => {
+    const from = debouncedConsultationRange.from;
+    if (!from) return [] as Date[];
+    const to = debouncedConsultationRange.to ?? from;
+    return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) }).slice(
+      0,
+      CONSULTATION_PREVIEW_MAX_DAYS,
+    );
+  }, [debouncedConsultationRange]);
+
+  // Anteprima degli slot che vedrebbe il cliente (tutti i giorni del range, in batch a concorrenza limitata)
   const { data: consultationSlotPreview = [], isLoading: loadingConsultationSlotPreview } = useQuery<
     { date: string; count: number; labels: string[]; message?: string }[]
   >({
     queryKey: [
       'consultation-slot-preview',
       selectedTemplateId,
-      consultationDateRange.from?.toISOString(),
-      consultationDateRange.to?.toISOString(),
+      debouncedConsultationRange.from?.toISOString(),
+      debouncedConsultationRange.to?.toISOString(),
     ],
-    queryFn: async () => {
-      const days = consultationRangeDays.slice(0, 3);
-      const settled = await Promise.allSettled(
-        days.map(async (day) => {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          const res = await apiRequest('POST', '/api/consultations/v2/available-slots', {
-            date: dateStr,
-            templateId: selectedTemplateId,
-          });
-          const data = await res.json();
-          const available = (data.slots || []).filter((s: any) => s.available);
-          return {
-            date: dateStr,
-            count: available.length,
-            labels: available.slice(0, 4).map((s: any) => s.label),
-            message: data.message,
-          };
-        }),
-      );
-      return settled.map((r, i) =>
-        r.status === 'fulfilled'
-          ? r.value
-          : { date: format(days[i], 'yyyy-MM-dd'), count: 0, labels: [], message: 'Errore nel calcolo' },
-      );
+    queryFn: async ({ signal }) => {
+      const days = consultationPreviewDays;
+      const CONCURRENCY = 5;
+      const fetchDay = async (day: Date) => {
+        const dateStr = format(day, 'yyyy-MM-dd');
+        const res = await apiRequest(
+          'POST',
+          '/api/consultations/v2/available-slots',
+          { date: dateStr, templateId: selectedTemplateId },
+          { signal },
+        );
+        const data = await res.json();
+        const available = (data.slots || []).filter((s: any) => s.available);
+        return {
+          date: dateStr,
+          count: available.length,
+          labels: available.slice(0, 4).map((s: any) => s.label),
+          message: data.message,
+        };
+      };
+      const results: { date: string; count: number; labels: string[]; message?: string }[] = [];
+      // Carica i giorni a blocchi per evitare di sommergere il server di richieste parallele
+      for (let i = 0; i < days.length; i += CONCURRENCY) {
+        if (signal?.aborted) break;
+        const chunk = days.slice(i, i + CONCURRENCY);
+        const settled = await Promise.allSettled(chunk.map(fetchDay));
+        settled.forEach((r, j) => {
+          results.push(
+            r.status === 'fulfilled'
+              ? r.value
+              : { date: format(chunk[j], 'yyyy-MM-dd'), count: 0, labels: [], message: 'Errore nel calcolo' },
+          );
+        });
+      }
+      return results;
     },
-    enabled: showConsultationDialog && !!selectedTemplateId && consultationRangeDays.length > 0,
+    enabled:
+      showConsultationDialog &&
+      !!selectedTemplateId &&
+      !!consultationDateRange.from &&
+      consultationPreviewDays.length > 0,
     staleTime: 60 * 1000,
   });
 
@@ -1987,9 +2024,9 @@ export default function JobDetailPage() {
                           ))}
                         </ul>
                       )}
-                      {consultationRangeDays.length > 3 && (
+                      {consultationRangeDays.length > CONSULTATION_PREVIEW_MAX_DAYS && (
                         <p className="text-[10px] text-muted-foreground">
-                          Anteprima dei primi 3 giorni del periodo selezionato.
+                          Anteprima dei primi {CONSULTATION_PREVIEW_MAX_DAYS} giorni del periodo selezionato.
                         </p>
                       )}
                     </div>
