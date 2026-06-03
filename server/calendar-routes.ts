@@ -63,6 +63,7 @@ interface CalendarEventDTO {
   description?: string;
   start: string; // ISO date
   end: string;
+  allDay?: boolean; // true per eventi "tutto il giorno" (Google start.date senza orario, o Job allDay)
   location?: string;
   type: 'google' | 'consulenza' | 'job';
   clientName?: string;
@@ -129,6 +130,7 @@ router.get('/events', authenticateFirebase, async (req, res) => {
           description: event.description || undefined,
           start: event.start?.dateTime || event.start?.date || '',
           end: event.end?.dateTime || event.end?.date || '',
+          allDay: !event.start?.dateTime && !!event.start?.date,
           location: event.location || undefined,
           type: 'google',
           googleEventId: event.id || undefined,
@@ -258,6 +260,7 @@ router.get('/events', authenticateFirebase, async (req, res) => {
             description: `⚠️ Google Calendar offline - impossibile verificare sincronizzazione\n\n${job.noteInterne || job.note || ''}`,
             start: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
             end: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
+            allDay: job.allDay === true,
             type: 'job',
             entityId: doc.id,
             clientName: clienteNome,
@@ -308,6 +311,7 @@ router.get('/events', authenticateFirebase, async (req, res) => {
               : job.noteInterne || job.note || undefined,
             start: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
             end: job.eventDate?.toDate?.()?.toISOString() || job.eventDate,
+            allDay: job.allDay === true,
             type: 'job',
             entityId: doc.id,
             clientName: clienteNome,

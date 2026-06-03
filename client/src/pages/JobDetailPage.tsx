@@ -189,6 +189,7 @@ export default function JobDetailPage() {
     title: string;
     start: string;
     end: string;
+    allDay?: boolean;
     type: 'google' | 'consulenza' | 'job';
     entityStatus?: string;
   };
@@ -1924,7 +1925,9 @@ export default function JobDetailPage() {
                         {consultationEventsInRange.map((ev) => (
                           <li key={ev.id} className="flex items-center gap-2 text-xs">
                             <span className="font-medium tabular-nums whitespace-nowrap">
-                              {format(new Date(ev.start), 'dd MMM HH:mm', { locale: it })}
+                              {ev.allDay
+                                ? `${format(new Date(ev.start), 'dd MMM', { locale: it })} • Tutto il giorno`
+                                : format(new Date(ev.start), 'dd MMM HH:mm', { locale: it })}
                             </span>
                             <span className="truncate">{ev.title}</span>
                             <Badge variant="outline" className="ml-auto shrink-0 text-[10px] capitalize">
