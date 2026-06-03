@@ -1931,7 +1931,7 @@ export default function JobDetailPage() {
                     onSelect={(range) => setConsultationDateRange({ from: range?.from, to: range?.to })}
                     numberOfMonths={2}
                     locale={it}
-                    disabled={(date) => date < new Date()}
+                    disabled={(date) => date < startOfDay(new Date())}
                     modifiers={{ busy: (date) => busyDaySet.has(format(date, 'yyyy-MM-dd')) }}
                     modifiersClassNames={{
                       busy: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-amber-500",
