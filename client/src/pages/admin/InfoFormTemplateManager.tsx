@@ -42,14 +42,20 @@ interface Preset {
 const PRESETS: Preset[] = PRESETS_RAW as Preset[];
 
 function normalizeImportedFields(raw: any[]): InfoFormField[] {
-  return raw.map(f => ({
-    id: crypto.randomUUID(),
-    label: typeof f.label === 'string' ? f.label : '',
-    type: ['text','textarea','number','select','radio','checkbox'].includes(f.type) ? f.type : 'text',
-    required: !!f.required,
-    placeholder: typeof f.placeholder === 'string' ? f.placeholder : '',
-    options: Array.isArray(f.options) ? f.options.map(String) : [],
-  }));
+  return raw.map(f => {
+    const type: InfoFormField['type'] = ['text','textarea','number','select','radio','checkbox','instagram'].includes(f.type) ? f.type : 'text';
+    return {
+      id: crypto.randomUUID(),
+      label: typeof f.label === 'string' ? f.label : '',
+      type,
+      required: !!f.required,
+      placeholder: typeof f.placeholder === 'string' ? f.placeholder : '',
+      options: Array.isArray(f.options) ? f.options.map(String) : [],
+      ...(type === 'instagram'
+        ? { clientTarget: f.clientTarget === 'client2' ? 'client2' : 'client1' as const }
+        : {}),
+    };
+  });
 }
 
 const FIELD_TYPE_LABELS: Record<InfoFormField['type'], string> = {
@@ -59,6 +65,7 @@ const FIELD_TYPE_LABELS: Record<InfoFormField['type'], string> = {
   select: 'Menu a tendina',
   radio: 'Scelta singola',
   checkbox: 'Scelte multiple',
+  instagram: 'Account Instagram',
 };
 
 function newField(): InfoFormField {
@@ -137,7 +144,19 @@ function FieldEditor({
 
         <div className="space-y-1">
           <Label className="text-xs">Tipo campo</Label>
-          <Select value={field.type} onValueChange={v => onChange({ ...field, type: v as InfoFormField['type'], options: [] })}>
+          <Select
+            value={field.type}
+            onValueChange={v => {
+              const type = v as InfoFormField['type'];
+              const next: InfoFormField = { ...field, type, options: [] };
+              if (type === 'instagram') {
+                next.clientTarget = field.clientTarget || 'client1';
+              } else {
+                delete next.clientTarget;
+              }
+              onChange(next);
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -157,6 +176,27 @@ function FieldEditor({
             placeholder="Testo di aiuto..."
           />
         </div>
+
+        {field.type === 'instagram' && (
+          <div className="col-span-2 space-y-1">
+            <Label className="text-xs">Profilo di quale cliente?</Label>
+            <Select
+              value={field.clientTarget || 'client1'}
+              onValueChange={v => onChange({ ...field, clientTarget: v as 'client1' | 'client2' })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="client1">Cliente 1 (primo del job)</SelectItem>
+                <SelectItem value="client2">Cliente 2 (secondo del job)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              L'username inserito qui aggiornerà automaticamente il profilo Instagram del cliente selezionato.
+            </p>
+          </div>
+        )}
 
         <div className="col-span-2 flex items-center gap-2">
           <input

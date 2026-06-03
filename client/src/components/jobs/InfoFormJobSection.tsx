@@ -59,6 +59,7 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   select: 'Selezione',
   radio: 'Scelta singola',
   checkbox: 'Scelte multiple',
+  instagram: 'Account Instagram',
 };
 
 function formatAnswer(type: string, value: any): string {

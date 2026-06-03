@@ -1,1 +1,1 @@
-- [Questionario question types](questionnaire-question-types.md) — il tipo domanda FaqSet è vincolato in 3 punti che vanno tenuti allineati, più sync Instagram→cliente.
+- [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.

@@ -208,6 +208,80 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
       deepLink: `/admin/jobs/${data.jobId}?tab=moduli`,
     });
 
+    // Sincronizza i profili Instagram dei clienti dai campi di tipo "instagram".
+    // clientTarget client1/client2 → primo/secondo cliente del job (job.clientiIds);
+    // in mancanza di clientTarget si usa il cliente destinatario del modulo
+    // (submission.clienteId). L'handle viene normalizzato a username puro (senza @,
+    // gestendo anche URL instagram.com). Non bloccante: un errore qui non deve
+    // impedire la conferma di invio al cliente.
+    try {
+      const fields: InfoFormField[] = Array.isArray(data.templateFields) ? data.templateFields : [];
+      const instagramFields = fields.filter((f) => f && f.type === 'instagram');
+      if (instagramFields.length > 0) {
+        const normalizeInstagramHandle = (raw: any): string => {
+          let v = String(raw || '').trim();
+          if (!v) return '';
+          const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/i);
+          if (urlMatch) v = urlMatch[1];
+          return v.replace(/^@+/, '').replace(/\/+$/, '').trim();
+        };
+
+        // Carica i clientiIds del job solo se almeno un campo usa client1/client2.
+        let jobClientiIds: string[] = [];
+        const needsJobClients = instagramFields.some((f) => !!f.clientTarget);
+        if (needsJobClients && data.jobId) {
+          try {
+            const jobDoc = await db.collection('jobs').doc(data.jobId).get();
+            const jobData = jobDoc.exists ? jobDoc.data() : undefined;
+            if (jobData && Array.isArray(jobData.clientiIds)) {
+              jobClientiIds = jobData.clientiIds as string[];
+            }
+          } catch (jobErr) {
+            console.error('[info-forms] Errore lettura job per sync Instagram:', jobErr);
+          }
+        }
+
+        // Username Instagram: lettere/numeri/punto/underscore, max 30 caratteri.
+        const isValidInstagramHandle = (h: string): boolean => /^[A-Za-z0-9._]{1,30}$/.test(h);
+
+        for (const f of instagramFields) {
+          // try/catch per-campo: il fallimento di un singolo update non deve
+          // impedire la sincronizzazione degli altri campi Instagram.
+          try {
+            const handle = normalizeInstagramHandle((answers as Record<string, any>)[f.id]);
+            if (!handle) continue;
+            if (!isValidInstagramHandle(handle)) {
+              console.log(
+                `ℹ️ [info-forms] Instagram ignorato (campo ${f.id}): handle non valido "${handle}"`,
+              );
+              continue;
+            }
+            const targetId =
+              f.clientTarget === 'client1'
+                ? jobClientiIds[0]
+                : f.clientTarget === 'client2'
+                  ? jobClientiIds[1]
+                  : data.clienteId || undefined;
+            if (!targetId) {
+              console.log(
+                `ℹ️ [info-forms] Instagram non sincronizzato (campo ${f.id}): cliente target assente (clientTarget=${f.clientTarget || 'destinatario'})`,
+              );
+              continue;
+            }
+            await db.collection('clienti').doc(targetId).update({
+              instagram: handle,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+            console.log(`✅ [info-forms] Instagram → cliente ${targetId}: @${handle}`);
+          } catch (perFieldErr) {
+            console.error(`[info-forms] Errore sync Instagram campo ${f.id} (ignorato):`, perFieldErr);
+          }
+        }
+      }
+    } catch (instaErr) {
+      console.warn('⚠️ [info-forms] Sync Instagram da modulo fallito (non bloccante):', instaErr);
+    }
+
     // Notifica admin via email — fire-and-forget: NON attendiamo Gmail per non
     // bloccare la risposta HTTP al client. L'errore viene loggato; la notifica
     // in-app è già stata creata sopra, quindi l'admin vede comunque l'evento.

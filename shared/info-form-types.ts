@@ -6,10 +6,13 @@
 export interface InfoFormField {
   id: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number';
+  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'instagram';
   required: boolean;
   options?: string[];
   placeholder?: string;
+  // Solo per type === 'instagram': indica di quale cliente del job aggiornare
+  // automaticamente il profilo Instagram (client1 = primo, client2 = secondo).
+  clientTarget?: 'client1' | 'client2';
 }
 
 export interface InfoFormTemplate {

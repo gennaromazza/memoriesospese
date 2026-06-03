@@ -685,18 +685,16 @@ export default function QuestionnaireForm() {
                     id="answer"
                     value={formState.answers[currentQuestion.key] || ''}
                     onChange={(e) => handleAnswerChange(e.target.value)}
-                    placeholder={currentQuestion.type === 'instagram' ? '@nomeutente' : 'Inserisci la tua risposta...'}
+                    placeholder="Inserisci la tua risposta..."
                     className="mt-2 text-base"
-                    maxLength={currentQuestion.type === 'instagram' ? 100 : 200}
+                    maxLength={200}
                   />
                 )}
                 <div className="flex justify-between mt-2">
                   <p className="text-sm text-gray-500">
                     {currentQuestion.type === 'textarea' 
                       ? 'Massimo 1500 caratteri' 
-                      : currentQuestion.type === 'instagram'
-                        ? 'Inserisci il nome utente Instagram (es. @nomeutente)'
-                        : 'Massimo 200 caratteri'
+                      : 'Massimo 200 caratteri'
                     }
                   </p>
                   <p className="text-sm text-gray-500">

@@ -176,6 +176,23 @@ export default function InfoFormPublic() {
             className={`text-lg h-12 ${baseInput}`}
           />
         );
+      case 'instagram':
+        return (
+          <div>
+            <Input
+              autoFocus
+              value={answers[field.id] || ''}
+              onChange={e => handleChange(field.id, e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={field.placeholder || '@nomeutente'}
+              maxLength={100}
+              className={`text-lg h-12 ${baseInput}`}
+            />
+            <p className="mt-2 text-sm text-gray-400">
+              Inserisci il nome utente Instagram (es. @nomeutente)
+            </p>
+          </div>
+        );
       case 'textarea':
         return (
           <Textarea
