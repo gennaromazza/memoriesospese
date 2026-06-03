@@ -1925,9 +1925,17 @@ export default function JobDetailPage() {
                         {consultationEventsInRange.map((ev) => (
                           <li key={ev.id} className="flex items-center gap-2 text-xs">
                             <span className="font-medium tabular-nums whitespace-nowrap">
-                              {ev.allDay
-                                ? `${format(new Date(ev.start), 'dd MMM', { locale: it })} • Tutto il giorno`
-                                : format(new Date(ev.start), 'dd MMM HH:mm', { locale: it })}
+                              {(() => {
+                                if (ev.allDay) {
+                                  return `${format(new Date(ev.start), 'dd MMM', { locale: it })} • Tutto il giorno`;
+                                }
+                                const startD = new Date(ev.start);
+                                const endD = ev.end ? new Date(ev.end) : null;
+                                const base = format(startD, 'dd MMM HH:mm', { locale: it });
+                                return endD && endD.getTime() > startD.getTime()
+                                  ? `${base} - ${format(endD, 'HH:mm', { locale: it })}`
+                                  : base;
+                              })()}
                             </span>
                             <span className="truncate">{ev.title}</span>
                             <Badge variant="outline" className="ml-auto shrink-0 text-[10px] capitalize">
