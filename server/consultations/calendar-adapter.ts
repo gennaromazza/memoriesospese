@@ -222,7 +222,10 @@ export async function getAllExistingEvents(
     for (const doc of jobsSnap.docs) {
       const data = doc.data();
       
-      if (!blockingStatuses.includes(data.stato)) {
+      // FIX: il campo corretto sul Job è `status` (non `stato`).
+      // Prima si leggeva `data.stato` (undefined) → ogni job veniva saltato,
+      // quindi i Job bloccanti (anche all-day) non bloccavano mai gli slot.
+      if (!blockingStatuses.includes(data.status)) {
         continue;
       }
       

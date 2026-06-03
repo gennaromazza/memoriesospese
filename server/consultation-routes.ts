@@ -2579,9 +2579,8 @@ router.post("/v2/available-slots", async (req, res) => {
     }
 
     // Step 2: Import Calendar Engine modules
-    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate } = await import('./consultations/calendar-adapter.js');
+    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate, getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
     const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
-    const { checkGoogleCalendarBusyPeriods, hasAllDayEvent } = await import('./calendar-engine/google-sync.js');
     // Step 3: Validate template
     if (!validateConsultationTemplate(template)) {
       return res.status(400).json({
@@ -2604,11 +2603,19 @@ router.post("/v2/available-slots", async (req, res) => {
     const dayStart = dateObj.startOf("day").toJSDate();
     const dayEnd = dateObj.endOf("day").toJSDate();
 
-    // Step 6: Check for all-day events
-    const hasAllDay = await hasAllDayEvent(dayStart);
+    // Step 6: Load all existing events via centralized adapter
+    // (Google Calendar busy periods + Job/Booking Firestore bloccanti)
+    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
+
+    // Step 7: Check for all-day closures
+    // Lo studio è chiuso tutto il giorno se ESISTE un evento all-day, sia esso
+    // un evento Google all-day OPPURE un Job all-day del CRM in stato bloccante.
+    // Prima si controllava solo Google (hasAllDayEvent): i Job all-day la cui copia
+    // Google vive in un calendario non scansionato sfuggivano e lasciavano slot liberi.
+    const hasAllDay = existingEvents.some((event) => event.allDay === true);
 
     if (hasAllDay) {
-      console.log("[POST /v2/available-slots] 🚫 All-day event detected");
+      console.log("[POST /v2/available-slots] 🚫 All-day event/job detected");
       const unavailabilityInfo = getUnavailabilityReason(dayStart, config, true);
 
       return res.json({
@@ -2618,10 +2625,6 @@ router.post("/v2/available-slots", async (req, res) => {
         message: unavailabilityInfo.message
       } as SlotsResponse);
     }
-
-    // Step 7: Load all existing events via centralized adapter
-    const { getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
-    const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
 
     // Step 8: Generate slots using Calendar Engine
     const slots = await getAvailableSlotsForDate(dayStart, config, existingEvents);
