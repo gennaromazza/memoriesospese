@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList } from 'lucide-react';
@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Job, CostoLavoro } from '@shared/jobs-types';
 import { Cliente } from '@shared/clienti-types';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { getJob, deleteJob, updateJob, getJobTimeline } from '@/lib/jobs';
 import type { JobTimelineEvent } from '@shared/jobs-types';
@@ -172,7 +172,119 @@ export default function JobDetailPage() {
     from: Date | undefined;
     to: Date | undefined;
   }>({ from: undefined, to: undefined });
-  
+
+  // --- Anteprima Google Calendar nel dialog consulenze ---
+  // Finestra per recuperare gli impegni reali e marcare i giorni occupati.
+  // Base di 90gg, estesa dinamicamente se il range selezionato va oltre (evita "falsi liberi").
+  const calendarWindowStart = useMemo(() => startOfDay(new Date()), []);
+  const calendarWindowEnd = useMemo(() => {
+    const base = addDays(startOfDay(new Date()), 90);
+    const rangeEnd = consultationDateRange.to ?? consultationDateRange.from;
+    if (rangeEnd && endOfDay(rangeEnd) > base) return endOfDay(rangeEnd);
+    return base;
+  }, [consultationDateRange]);
+
+  type ConsultationCalendarEvent = {
+    id: string;
+    title: string;
+    start: string;
+    end: string;
+    type: 'google' | 'consulenza' | 'job';
+    entityStatus?: string;
+  };
+
+  const {
+    data: consultationCalendarData,
+    isLoading: loadingConsultationCalendar,
+    isError: consultationCalendarError,
+  } = useQuery<{ events: ConsultationCalendarEvent[]; warnings: string[] }>({
+    queryKey: ['consultation-calendar-events', calendarWindowStart.toISOString(), calendarWindowEnd.toISOString()],
+    queryFn: async () => {
+      const res = await apiRequest(
+        'GET',
+        `/api/calendar/events?startDate=${encodeURIComponent(calendarWindowStart.toISOString())}&endDate=${encodeURIComponent(calendarWindowEnd.toISOString())}`,
+      );
+      return res.json();
+    },
+    enabled: showConsultationDialog,
+    staleTime: 60 * 1000,
+  });
+
+  const consultationCalendarEvents = consultationCalendarData?.events ?? [];
+
+  // Set di giorni (yyyy-MM-dd) che contengono almeno un impegno reale
+  const busyDaySet = useMemo(() => {
+    const set = new Set<string>();
+    for (const ev of consultationCalendarEvents) {
+      if (!ev.start) continue;
+      const d = new Date(ev.start);
+      if (!isNaN(d.getTime())) set.add(format(d, 'yyyy-MM-dd'));
+    }
+    return set;
+  }, [consultationCalendarEvents]);
+
+  // Impegni reali che cadono nel range selezionato
+  const consultationEventsInRange = useMemo(() => {
+    const from = consultationDateRange.from;
+    if (!from) return [] as ConsultationCalendarEvent[];
+    const to = consultationDateRange.to ?? from;
+    const start = startOfDay(from);
+    const end = endOfDay(to);
+    return consultationCalendarEvents
+      .filter((ev) => {
+        const d = new Date(ev.start);
+        return !isNaN(d.getTime()) && d >= start && d <= end;
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  }, [consultationCalendarEvents, consultationDateRange]);
+
+  // Giorni del range selezionato (per anteprima slot)
+  const consultationRangeDays = useMemo(() => {
+    const from = consultationDateRange.from;
+    if (!from) return [] as Date[];
+    const to = consultationDateRange.to ?? from;
+    return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) });
+  }, [consultationDateRange]);
+
+  // Anteprima degli slot che vedrebbe il cliente (primi 3 giorni del range)
+  const { data: consultationSlotPreview = [], isLoading: loadingConsultationSlotPreview } = useQuery<
+    { date: string; count: number; labels: string[]; message?: string }[]
+  >({
+    queryKey: [
+      'consultation-slot-preview',
+      selectedTemplateId,
+      consultationDateRange.from?.toISOString(),
+      consultationDateRange.to?.toISOString(),
+    ],
+    queryFn: async () => {
+      const days = consultationRangeDays.slice(0, 3);
+      const settled = await Promise.allSettled(
+        days.map(async (day) => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const res = await apiRequest('POST', '/api/consultations/v2/available-slots', {
+            date: dateStr,
+            templateId: selectedTemplateId,
+          });
+          const data = await res.json();
+          const available = (data.slots || []).filter((s: any) => s.available);
+          return {
+            date: dateStr,
+            count: available.length,
+            labels: available.slice(0, 4).map((s: any) => s.label),
+            message: data.message,
+          };
+        }),
+      );
+      return settled.map((r, i) =>
+        r.status === 'fulfilled'
+          ? r.value
+          : { date: format(days[i], 'yyyy-MM-dd'), count: 0, labels: [], message: 'Errore nel calcolo' },
+      );
+    },
+    enabled: showConsultationDialog && !!selectedTemplateId && consultationRangeDays.length > 0,
+    staleTime: 60 * 1000,
+  });
+
   // Add cliente state
   const [showAddClienteDialog, setShowAddClienteDialog] = useState(false);
 
@@ -1706,7 +1818,7 @@ export default function JobDetailPage() {
         }
       }}>
         <DialogContent 
-          className="max-w-md"
+          className="max-w-lg max-h-[90vh] overflow-y-auto"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
@@ -1756,6 +1868,10 @@ export default function JobDetailPage() {
                     numberOfMonths={2}
                     locale={it}
                     disabled={(date) => date < new Date()}
+                    modifiers={{ busy: (date) => busyDaySet.has(format(date, 'yyyy-MM-dd')) }}
+                    modifiersClassNames={{
+                      busy: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1.5 after:w-1.5 after:rounded-full after:bg-amber-500",
+                    }}
                   />
                   {consultationDateRange.from && (
                     <div className="p-2 border-t">
@@ -1771,6 +1887,104 @@ export default function JobDetailPage() {
                   )}
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {/* Contesto calendario reale: impegni Google + anteprima slot cliente */}
+            <div className="space-y-3" data-testid="consultation-calendar-context">
+              {loadingConsultationCalendar ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Carico i tuoi impegni da Google Calendar…
+                </div>
+              ) : consultationCalendarError ? (
+                <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-2 text-xs text-amber-700 dark:text-amber-400">
+                  Impossibile verificare Google Calendar in questo momento. Puoi comunque inviare la richiesta.
+                </div>
+              ) : (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  I giorni con il puntino hanno già impegni sul tuo calendario
+                </p>
+              )}
+
+              {consultationDateRange.from && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                  {/* Impegni reali nel range */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium flex items-center gap-1.5">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      I tuoi impegni in queste date
+                    </p>
+                    {consultationEventsInRange.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Nessun impegno: queste date sono libere sul tuo calendario.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1 max-h-32 overflow-y-auto pr-1" data-testid="consultation-events-list">
+                        {consultationEventsInRange.map((ev) => (
+                          <li key={ev.id} className="flex items-center gap-2 text-xs">
+                            <span className="font-medium tabular-nums whitespace-nowrap">
+                              {format(new Date(ev.start), 'dd MMM HH:mm', { locale: it })}
+                            </span>
+                            <span className="truncate">{ev.title}</span>
+                            <Badge variant="outline" className="ml-auto shrink-0 text-[10px] capitalize">
+                              {ev.type === 'google' ? 'Google' : ev.type === 'consulenza' ? 'Consulenza' : 'Lavoro'}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Anteprima slot che vedrebbe il cliente */}
+                  {selectedTemplateId && (
+                    <div className="space-y-1.5 border-t pt-2">
+                      <p className="text-xs font-medium flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5" />
+                        Slot che vedrebbe il cliente
+                      </p>
+                      {loadingConsultationSlotPreview ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Calcolo gli slot disponibili…
+                        </div>
+                      ) : consultationSlotPreview.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">—</p>
+                      ) : (
+                        <ul className="space-y-1.5" data-testid="consultation-slot-preview">
+                          {consultationSlotPreview.map((d) => (
+                            <li key={d.date} className="text-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="capitalize">
+                                  {format(parseISO(d.date), 'EEE dd MMM', { locale: it })}
+                                </span>
+                                {d.count > 0 ? (
+                                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                    {d.count} slot liberi
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">{d.message || 'Nessuno slot'}</span>
+                                )}
+                              </div>
+                              {d.labels.length > 0 && (
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {d.labels.join(' · ')}
+                                  {d.count > d.labels.length ? ' …' : ''}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {consultationRangeDays.length > 3 && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Anteprima dei primi 3 giorni del periodo selezionato.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <Separator />
