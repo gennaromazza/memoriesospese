@@ -7980,9 +7980,32 @@ router.post("/questionnaire-completed", async (req, res) => {
           const couple: any = questData?.couple || {};
           const roleEmail: string = (role === "bride" ? couple.emailBride : couple.emailGroom) || "";
           const roleEmailNorm = roleEmail.trim().toLowerCase();
+          // 1) Abbinamento per email del ruolo (più affidabile)
           let target = roleEmailNorm
             ? clientiRecords.find((c) => (c.email || "").trim().toLowerCase() === roleEmailNorm)
             : undefined;
+          // 2) Fallback per nome del ruolo: utile per i matrimoni con 2 clienti quando
+          //    l'email del ruolo non è impostata o non coincide. Aggiorna solo se il nome
+          //    individua un UNICO cliente, altrimenti si astiene per non sbagliare persona.
+          if (!target) {
+            const roleName: string = (role === "bride" ? couple.brideName : couple.groomName) || "";
+            const roleNameNorm = roleName.trim().toLowerCase();
+            if (roleNameNorm) {
+              const nameMatches = clientiRecords.filter((c) => {
+                const full = `${c.nome || ""} ${c.cognome || ""}`.trim().toLowerCase();
+                const first = (c.nome || "").trim().toLowerCase();
+                return (
+                  full !== "" &&
+                  (full === roleNameNorm ||
+                    first === roleNameNorm ||
+                    full.includes(roleNameNorm) ||
+                    roleNameNorm.includes(full))
+                );
+              });
+              if (nameMatches.length === 1) target = nameMatches[0];
+            }
+          }
+          // 3) Fallback finale: se la galleria ha un solo cliente, è quello.
           if (!target && clientiRecords.length === 1) target = clientiRecords[0];
           if (target) {
             await db.doc(`clienti/${target.id}`).update({
