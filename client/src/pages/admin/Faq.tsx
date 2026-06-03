@@ -17,12 +17,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, Trash2, Check, X, Eye, Settings, Save, Power, PowerOff, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { QuestionnaireService } from '@/lib/questionnaire';
 import { initializeDefaultFaqSet } from '@/lib/questionnaireDefaults';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FaqSet, QuestionKey, insertFaqSetSchema } from '@shared/schema';
 
 interface QuestionFormData {
   key: QuestionKey;
   text: string;
-  type: "text" | "textarea";
+  type: "text" | "textarea" | "instagram";
+  clientTarget?: "client1" | "client2";
 }
 
 export default function Faq() {
@@ -140,7 +142,8 @@ export default function Faq() {
         questions: formQuestions.map(q => ({
           key: q.key,
           text: q.text.trim(),
-          type: q.type
+          type: q.type,
+          ...(q.type === 'instagram' && q.clientTarget ? { clientTarget: q.clientTarget } : {})
         }))
       };
 
@@ -256,6 +259,23 @@ export default function Faq() {
   const updateQuestion = (index: number, field: keyof QuestionFormData, value: string) => {
     const updated = [...formQuestions];
     updated[index] = { ...updated[index], [field]: value };
+    setFormQuestions(updated);
+  };
+
+  const updateQuestionType = (index: number, type: QuestionFormData['type']) => {
+    const updated = [...formQuestions];
+    updated[index] = {
+      ...updated[index],
+      type,
+      // clientTarget ha senso solo per il tipo Instagram: imposta un default o lo rimuove
+      clientTarget: type === 'instagram' ? (updated[index].clientTarget || 'client1') : undefined,
+    };
+    setFormQuestions(updated);
+  };
+
+  const updateClientTarget = (index: number, clientTarget: 'client1' | 'client2') => {
+    const updated = [...formQuestions];
+    updated[index] = { ...updated[index], clientTarget };
     setFormQuestions(updated);
   };
 
@@ -623,6 +643,47 @@ export default function Faq() {
                           {question.text.length}/200 caratteri
                         </p>
                       </div>
+                      <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1">
+                          <Label>Tipo di risposta</Label>
+                          <Select
+                            value={question.type}
+                            onValueChange={(v) => updateQuestionType(index, v as QuestionFormData['type'])}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="textarea">Testo lungo</SelectItem>
+                              <SelectItem value="text">Testo breve</SelectItem>
+                              <SelectItem value="instagram">Account Instagram</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {question.type === 'instagram' && (
+                          <div className="flex-1">
+                            <Label>Profilo di quale cliente?</Label>
+                            <Select
+                              value={question.clientTarget || 'client1'}
+                              onValueChange={(v) => updateClientTarget(index, v as 'client1' | 'client2')}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="client1">Cliente 1 (primo)</SelectItem>
+                                <SelectItem value="client2">Cliente 2 (secondo)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                      {question.type === 'instagram' && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          L'username inserito qui aggiornerà automaticamente il profilo Instagram
+                          del cliente selezionato.
+                        </p>
+                      )}
                     </Card>
                   ))}
                 </div>

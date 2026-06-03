@@ -1,0 +1,1 @@
+- [Questionario question types](questionnaire-question-types.md) — il tipo domanda FaqSet è vincolato in 3 punti che vanno tenuti allineati, più sync Instagram→cliente.

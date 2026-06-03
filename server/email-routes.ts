@@ -7922,13 +7922,13 @@ router.post("/questionnaire-completed", async (req, res) => {
     const faqSetId: string | undefined = questData?.faqSetId;
 
     // 3) FaqSet per testi domande
-    let questions: Array<{ key: string; text: string }> = [];
+    let questions: Array<{ key: string; text: string; type?: string; clientTarget?: string }> = [];
     if (faqSetId) {
       const faqDoc = await db.doc(`faqSets/${faqSetId}`).get();
       if (faqDoc.exists) {
         const faqData = faqDoc.data();
         if (Array.isArray(faqData?.questions)) {
-          questions = faqData!.questions.map((q: any) => ({ key: q.key, text: q.text }));
+          questions = faqData!.questions.map((q: any) => ({ key: q.key, text: q.text, type: q.type, clientTarget: q.clientTarget }));
         }
       }
     }
@@ -7959,66 +7959,95 @@ router.post("/questionnaire-completed", async (req, res) => {
     const ruoloLabel = role === "bride" ? "Sposa" : "Sposo";
 
     // 4b) Sincronizza il profilo Instagram dal questionario al cliente corrispondente.
-    // La domanda Instagram è individuata dal testo (deve contenere "instagram"); il cliente
-    // giusto è individuato confrontando l'email del ruolo (couple.emailBride/emailGroom) con
-    // l'email dei clienti della galleria, con fallback al cliente unico. Non bloccante: un
-    // eventuale errore qui non deve impedire l'invio della notifica admin.
+    // Metodo preferito (esplicito): domande di tipo "instagram" con clientTarget
+    // (client1 = primo cliente, client2 = secondo cliente della galleria).
+    // Fallback legacy: domanda riconosciuta dal testo che contiene "instagram", abbinata
+    // al cliente per email/nome del ruolo. Non bloccante: un errore qui non deve impedire
+    // l'invio della notifica admin.
     try {
-      const instaQuestion = questions.find((q) =>
-        (q.text || "").toLowerCase().includes("instagram"),
-      );
-      if (instaQuestion) {
-        const normalizeInstagramHandle = (raw: string): string => {
-          let v = (raw || "").trim();
-          if (!v) return "";
-          const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/i);
-          if (urlMatch) v = urlMatch[1];
-          return v.replace(/^@+/, "").replace(/\/+$/, "").trim();
-        };
-        const handle = normalizeInstagramHandle(answers[instaQuestion.key] || "");
-        if (handle) {
-          const couple: any = questData?.couple || {};
-          const roleEmail: string = (role === "bride" ? couple.emailBride : couple.emailGroom) || "";
-          const roleEmailNorm = roleEmail.trim().toLowerCase();
-          // 1) Abbinamento per email del ruolo (più affidabile)
-          let target = roleEmailNorm
-            ? clientiRecords.find((c) => (c.email || "").trim().toLowerCase() === roleEmailNorm)
-            : undefined;
-          // 2) Fallback per nome del ruolo: utile per i matrimoni con 2 clienti quando
-          //    l'email del ruolo non è impostata o non coincide. Aggiorna solo se il nome
-          //    individua un UNICO cliente, altrimenti si astiene per non sbagliare persona.
-          if (!target) {
-            const roleName: string = (role === "bride" ? couple.brideName : couple.groomName) || "";
-            const roleNameNorm = roleName.trim().toLowerCase();
-            if (roleNameNorm) {
-              const nameMatches = clientiRecords.filter((c) => {
-                const full = `${c.nome || ""} ${c.cognome || ""}`.trim().toLowerCase();
-                const first = (c.nome || "").trim().toLowerCase();
-                return (
-                  full !== "" &&
-                  (full === roleNameNorm ||
-                    first === roleNameNorm ||
-                    full.includes(roleNameNorm) ||
-                    roleNameNorm.includes(full))
-                );
-              });
-              if (nameMatches.length === 1) target = nameMatches[0];
-            }
-          }
-          // 3) Fallback finale: se la galleria ha un solo cliente, è quello.
-          if (!target && clientiRecords.length === 1) target = clientiRecords[0];
-          if (target) {
+      const normalizeInstagramHandle = (raw: string): string => {
+        let v = (raw || "").trim();
+        if (!v) return "";
+        const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/i);
+        if (urlMatch) v = urlMatch[1];
+        return v.replace(/^@+/, "").replace(/\/+$/, "").trim();
+      };
+
+      const instagramTypedQuestions = questions.filter((q) => q.type === "instagram");
+
+      if (instagramTypedQuestions.length > 0) {
+        // Approccio esplicito: ogni domanda Instagram dichiara il cliente target.
+        for (const q of instagramTypedQuestions) {
+          const handle = normalizeInstagramHandle(answers[q.key] || "");
+          if (!handle) continue;
+          const target =
+            q.clientTarget === "client1"
+              ? clientiRecords[0]
+              : q.clientTarget === "client2"
+                ? clientiRecords[1]
+                : clientiRecords.length === 1
+                  ? clientiRecords[0]
+                  : undefined;
+          if (target?.id) {
             await db.doc(`clienti/${target.id}`).update({
               instagram: handle,
               updatedAt: new Date(),
             });
             console.log(
-              `✅ Instagram sincronizzato dal questionario → cliente ${target.id}: @${handle}`,
+              `✅ Instagram (esplicito, ${q.clientTarget || "cliente unico"}) → cliente ${target.id}: @${handle}`,
             );
           } else {
             console.log(
-              `ℹ️ Instagram dal questionario non sincronizzato: nessun cliente corrispondente (role=${role}, email=${roleEmailNorm || "n/d"})`,
+              `ℹ️ Instagram (esplicito) non sincronizzato per ${q.key}: cliente target assente (clientTarget=${q.clientTarget || "n/d"}, clienti=${clientiRecords.length})`,
             );
+          }
+        }
+      } else {
+        // Fallback legacy: riconoscimento dal testo + abbinamento per ruolo (email/nome).
+        const instaQuestion = questions.find((q) =>
+          (q.text || "").toLowerCase().includes("instagram"),
+        );
+        if (instaQuestion) {
+          const handle = normalizeInstagramHandle(answers[instaQuestion.key] || "");
+          if (handle) {
+            const couple: any = questData?.couple || {};
+            const roleEmail: string = (role === "bride" ? couple.emailBride : couple.emailGroom) || "";
+            const roleEmailNorm = roleEmail.trim().toLowerCase();
+            let target = roleEmailNorm
+              ? clientiRecords.find((c) => (c.email || "").trim().toLowerCase() === roleEmailNorm)
+              : undefined;
+            if (!target) {
+              const roleName: string = (role === "bride" ? couple.brideName : couple.groomName) || "";
+              const roleNameNorm = roleName.trim().toLowerCase();
+              if (roleNameNorm) {
+                const nameMatches = clientiRecords.filter((c) => {
+                  const full = `${c.nome || ""} ${c.cognome || ""}`.trim().toLowerCase();
+                  const first = (c.nome || "").trim().toLowerCase();
+                  return (
+                    full !== "" &&
+                    (full === roleNameNorm ||
+                      first === roleNameNorm ||
+                      full.includes(roleNameNorm) ||
+                      roleNameNorm.includes(full))
+                  );
+                });
+                if (nameMatches.length === 1) target = nameMatches[0];
+              }
+            }
+            if (!target && clientiRecords.length === 1) target = clientiRecords[0];
+            if (target) {
+              await db.doc(`clienti/${target.id}`).update({
+                instagram: handle,
+                updatedAt: new Date(),
+              });
+              console.log(
+                `✅ Instagram (legacy) → cliente ${target.id}: @${handle}`,
+              );
+            } else {
+              console.log(
+                `ℹ️ Instagram (legacy) non sincronizzato: nessun cliente corrispondente (role=${role}, email=${roleEmailNorm || "n/d"})`,
+              );
+            }
           }
         }
       }

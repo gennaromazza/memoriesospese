@@ -220,7 +220,8 @@ export interface FaqSet {
   questions: Array<{
     key: QuestionKey;
     text: string;
-    type: "text" | "textarea";
+    type: "text" | "textarea" | "instagram";
+    clientTarget?: "client1" | "client2";
   }>;
   createdAt: number; // Unix timestamp
   updatedAt: number;
@@ -234,8 +235,12 @@ export const insertFaqSetSchema = z.object({
   questions: z.array(z.object({
     key: z.string().regex(/^q([1-9]|1[0-9]|20)$/, "Chiave domanda non valida (q1-q20)"),
     text: z.string().min(1, "Il testo della domanda è obbligatorio").max(200, "Massimo 200 caratteri"),
-    type: z.enum(["text", "textarea"]).default("textarea")
-  })).min(1, "Almeno 1 domanda richiesta").max(20, "Massimo 20 domande consentite")
+    type: z.enum(["text", "textarea", "instagram"]).default("textarea"),
+    clientTarget: z.enum(["client1", "client2"]).optional()
+  }).refine(
+    (q) => q.type !== "instagram" || !!q.clientTarget,
+    { message: "Seleziona il cliente per la domanda Instagram", path: ["clientTarget"] }
+  )).min(1, "Almeno 1 domanda richiesta").max(20, "Massimo 20 domande consentite")
 });
 
 export type InsertFaqSet = z.infer<typeof insertFaqSetSchema>;
