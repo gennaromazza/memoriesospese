@@ -239,14 +239,6 @@ export default function JobDetailPage() {
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [consultationCalendarEvents, consultationDateRange]);
 
-  // Giorni del range selezionato (per anteprima slot)
-  const consultationRangeDays = useMemo(() => {
-    const from = consultationDateRange.from;
-    if (!from) return [] as Date[];
-    const to = consultationDateRange.to ?? from;
-    return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) });
-  }, [consultationDateRange]);
-
   // Range "debounced" per l'anteprima slot: evita overfetch mentre il fotografo
   // trascina/aggiorna rapidamente l'intervallo nel calendario.
   const [debouncedConsultationRange, setDebouncedConsultationRange] = useState(consultationDateRange);
@@ -255,22 +247,45 @@ export default function JobDetailPage() {
     return () => clearTimeout(t);
   }, [consultationDateRange]);
 
-  // Numero massimo di giorni coperti dall'anteprima (cap di sicurezza per range molto lunghi)
-  const CONSULTATION_PREVIEW_MAX_DAYS = 31;
-
-  // Giorni effettivamente coperti dall'anteprima (tutto il range, fino al cap)
-  const consultationPreviewDays = useMemo(() => {
+  // Tutti i giorni del range (debounced), usati come base per l'anteprima progressiva
+  const consultationAllPreviewDays = useMemo(() => {
     const from = debouncedConsultationRange.from;
     if (!from) return [] as Date[];
     const to = debouncedConsultationRange.to ?? from;
-    return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) }).slice(
-      0,
-      CONSULTATION_PREVIEW_MAX_DAYS,
-    );
+    return eachDayOfInterval({ start: startOfDay(from), end: startOfDay(to) });
   }, [debouncedConsultationRange]);
 
-  // Anteprima degli slot che vedrebbe il cliente (tutti i giorni del range, in batch a concorrenza limitata)
-  const { data: consultationSlotPreview = [], isLoading: loadingConsultationSlotPreview } = useQuery<
+  // Caricamento progressivo: quanti giorni mostrare/caricare per volta
+  const CONSULTATION_PREVIEW_PAGE_SIZE = 14;
+  const [consultationPreviewLimit, setConsultationPreviewLimit] = useState(CONSULTATION_PREVIEW_PAGE_SIZE);
+
+  // Cache per giorno (dateStr -> risultato) per non rifare le chiamate già eseguite quando si carica altro
+  const slotPreviewCacheRef = useRef<Map<string, { date: string; count: number; labels: string[]; message?: string }>>(
+    new Map(),
+  );
+
+  // Reset cache + limite quando cambia template o range selezionato
+  useEffect(() => {
+    slotPreviewCacheRef.current = new Map();
+    setConsultationPreviewLimit(CONSULTATION_PREVIEW_PAGE_SIZE);
+  }, [
+    selectedTemplateId,
+    debouncedConsultationRange.from?.getTime(),
+    debouncedConsultationRange.to?.getTime(),
+  ]);
+
+  // Giorni effettivamente coperti dall'anteprima finora (porzione progressiva del range completo)
+  const consultationPreviewDays = useMemo(
+    () => consultationAllPreviewDays.slice(0, consultationPreviewLimit),
+    [consultationAllPreviewDays, consultationPreviewLimit],
+  );
+  const consultationRemainingDays = Math.max(
+    0,
+    consultationAllPreviewDays.length - consultationPreviewDays.length,
+  );
+
+  // Anteprima degli slot che vedrebbe il cliente (giorni caricati progressivamente, in batch a concorrenza limitata)
+  const { data: consultationSlotPreview = [], isLoading: loadingConsultationSlotPreview, isFetching: fetchingConsultationSlotPreview } = useQuery<
     { date: string; count: number; labels: string[]; message?: string }[]
   >({
     queryKey: [
@@ -278,9 +293,11 @@ export default function JobDetailPage() {
       selectedTemplateId,
       debouncedConsultationRange.from?.toISOString(),
       debouncedConsultationRange.to?.toISOString(),
+      consultationPreviewLimit,
     ],
     queryFn: async ({ signal }) => {
       const days = consultationPreviewDays;
+      const cache = slotPreviewCacheRef.current;
       const CONCURRENCY = 5;
       const fetchDay = async (day: Date) => {
         const dateStr = format(day, 'yyyy-MM-dd');
@@ -299,21 +316,30 @@ export default function JobDetailPage() {
           message: data.message,
         };
       };
-      const results: { date: string; count: number; labels: string[]; message?: string }[] = [];
-      // Carica i giorni a blocchi per evitare di sommergere il server di richieste parallele
-      for (let i = 0; i < days.length; i += CONCURRENCY) {
+      // Carica solo i giorni non ancora in cache, a blocchi, per evitare overfetch
+      const toFetch = days.filter((d) => !cache.has(format(d, 'yyyy-MM-dd')));
+      for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
         if (signal?.aborted) break;
-        const chunk = days.slice(i, i + CONCURRENCY);
+        const chunk = toFetch.slice(i, i + CONCURRENCY);
         const settled = await Promise.allSettled(chunk.map(fetchDay));
         settled.forEach((r, j) => {
-          results.push(
-            r.status === 'fulfilled'
-              ? r.value
-              : { date: format(chunk[j], 'yyyy-MM-dd'), count: 0, labels: [], message: 'Errore nel calcolo' },
-          );
+          const dateStr = format(chunk[j], 'yyyy-MM-dd');
+          if (r.status === 'fulfilled') {
+            cache.set(dateStr, r.value);
+            return;
+          }
+          // Non cachare i risultati di richieste annullate (abort): andrebbero persi
+          // come falsi "nessuno slot" e non verrebbero più ricaricati per lo stesso range.
+          const reason = r.reason as any;
+          const isAbort = signal?.aborted || reason?.name === 'AbortError';
+          if (!isAbort) {
+            cache.set(dateStr, { date: dateStr, count: 0, labels: [], message: 'Errore nel calcolo' });
+          }
         });
       }
-      return results;
+      return days
+        .map((d) => cache.get(format(d, 'yyyy-MM-dd')))
+        .filter((x): x is { date: string; count: number; labels: string[]; message?: string } => !!x);
     },
     enabled:
       showConsultationDialog &&
@@ -2024,10 +2050,27 @@ export default function JobDetailPage() {
                           ))}
                         </ul>
                       )}
-                      {consultationRangeDays.length > CONSULTATION_PREVIEW_MAX_DAYS && (
-                        <p className="text-[10px] text-muted-foreground">
-                          Anteprima dei primi {CONSULTATION_PREVIEW_MAX_DAYS} giorni del periodo selezionato.
-                        </p>
+                      {consultationRemainingDays > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-full text-[11px] text-muted-foreground"
+                          disabled={fetchingConsultationSlotPreview}
+                          onClick={() =>
+                            setConsultationPreviewLimit((prev) => prev + CONSULTATION_PREVIEW_PAGE_SIZE)
+                          }
+                          data-testid="button-load-more-slot-preview"
+                        >
+                          {fetchingConsultationSlotPreview ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                              Carico altri giorni…
+                            </>
+                          ) : (
+                            `Carica altri giorni (${consultationRemainingDays} rimanenti)`
+                          )}
+                        </Button>
                       )}
                     </div>
                   )}
