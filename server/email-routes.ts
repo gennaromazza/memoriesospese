@@ -7942,19 +7942,66 @@ router.post("/questionnaire-completed", async (req, res) => {
       ? galleryData!.clientiIds
       : (galleryData?.clienteId ? [galleryData.clienteId] : []);
 
-    const clientiInfo: string[] = [];
+    const clientiRecords: Array<{ id: string; nome?: string; cognome?: string; email?: string }> = [];
     for (const cId of clientiIds) {
       try {
         const cDoc = await db.doc(`clienti/${cId}`).get();
         if (cDoc.exists) {
-          const cd = cDoc.data();
-          const fullName = `${cd?.nome || ""} ${cd?.cognome || ""}`.trim();
-          if (fullName) clientiInfo.push(fullName);
+          const cd = cDoc.data() || {};
+          clientiRecords.push({ id: cId, nome: cd.nome, cognome: cd.cognome, email: cd.email });
         }
       } catch {}
     }
+    const clientiInfo = clientiRecords
+      .map((c) => `${c.nome || ""} ${c.cognome || ""}`.trim())
+      .filter(Boolean);
     const clientiLabel = clientiInfo.length > 0 ? clientiInfo.join(" & ") : "Cliente";
     const ruoloLabel = role === "bride" ? "Sposa" : "Sposo";
+
+    // 4b) Sincronizza il profilo Instagram dal questionario al cliente corrispondente.
+    // La domanda Instagram è individuata dal testo (deve contenere "instagram"); il cliente
+    // giusto è individuato confrontando l'email del ruolo (couple.emailBride/emailGroom) con
+    // l'email dei clienti della galleria, con fallback al cliente unico. Non bloccante: un
+    // eventuale errore qui non deve impedire l'invio della notifica admin.
+    try {
+      const instaQuestion = questions.find((q) =>
+        (q.text || "").toLowerCase().includes("instagram"),
+      );
+      if (instaQuestion) {
+        const normalizeInstagramHandle = (raw: string): string => {
+          let v = (raw || "").trim();
+          if (!v) return "";
+          const urlMatch = v.match(/instagram\.com\/([^/?#\s]+)/i);
+          if (urlMatch) v = urlMatch[1];
+          return v.replace(/^@+/, "").replace(/\/+$/, "").trim();
+        };
+        const handle = normalizeInstagramHandle(answers[instaQuestion.key] || "");
+        if (handle) {
+          const couple: any = questData?.couple || {};
+          const roleEmail: string = (role === "bride" ? couple.emailBride : couple.emailGroom) || "";
+          const roleEmailNorm = roleEmail.trim().toLowerCase();
+          let target = roleEmailNorm
+            ? clientiRecords.find((c) => (c.email || "").trim().toLowerCase() === roleEmailNorm)
+            : undefined;
+          if (!target && clientiRecords.length === 1) target = clientiRecords[0];
+          if (target) {
+            await db.doc(`clienti/${target.id}`).update({
+              instagram: handle,
+              updatedAt: new Date(),
+            });
+            console.log(
+              `✅ Instagram sincronizzato dal questionario → cliente ${target.id}: @${handle}`,
+            );
+          } else {
+            console.log(
+              `ℹ️ Instagram dal questionario non sincronizzato: nessun cliente corrispondente (role=${role}, email=${roleEmailNorm || "n/d"})`,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Sync Instagram da questionario fallito (non bloccante):", e);
+    }
 
     // 5) HTML email
     const studioInfo = await getStudioContactInfo();
