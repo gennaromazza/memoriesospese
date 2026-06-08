@@ -954,11 +954,13 @@ export default function AdminDashboard() {
     }
 
     try {
-      // Riferimento allo storage per il logo
-      const logoRef = ref(storage, `settings/logo`);
+      // Riferimento allo storage per il logo (path admin: autorizzato dalle Storage Rules).
+      // Path fisso: l'overwrite evita l'accumulo di file orfani; Firebase rigenera
+      // il token di download ad ogni upload, quindi la cache resta valida.
+      const logoRef = ref(storage, `admin/studio-logo`);
 
       // Upload del file
-      await uploadBytes(logoRef, file);
+      await uploadBytes(logoRef, file, { contentType: file.type });
 
       // Ottieni URL di download
       const downloadUrl = await getDownloadURL(logoRef);
@@ -974,10 +976,12 @@ export default function AdminDashboard() {
         description: "Il logo è stato caricato con successo.",
       });
     } catch (error) {
+      console.error("[handleLogoUpload] Errore upload logo:", error);
+      const message =
+        error instanceof Error ? error.message : "Errore sconosciuto";
       toast({
         title: "Errore",
-        description:
-          "Si è verificato un errore durante il caricamento del logo.",
+        description: `Caricamento logo non riuscito: ${message}`,
         variant: "destructive",
       });
     }
