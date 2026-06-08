@@ -9,6 +9,9 @@ import {
   MessageCircle,
   Camera,
   ArrowRight,
+  Image as ImageIcon,
+  Film,
+  CalendarHeart,
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import GallerySearch from "@/components/GallerySearch";
@@ -126,6 +129,64 @@ export default function OspitiPage() {
               email.
             </p>
           </div>
+        </section>
+
+        {/* ── Esplora il nostro mondo ── */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">
+            Scopri il nostro mondo
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/portfolio"
+              data-testid="link-ospiti-portfolio"
+              className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-sage/15 bg-white px-4 py-6 text-center shadow-sm transition active:scale-[0.98]"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-terracotta/15 text-terracotta">
+                <ImageIcon className="h-6 w-6" />
+              </span>
+              <span className="font-playfair text-lg text-blue-gray">
+                Portfolio
+              </span>
+              <span className="text-xs text-gray-400">I nostri scatti</span>
+            </Link>
+
+            <Link
+              href="/vision"
+              data-testid="link-ospiti-vision"
+              className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-sage/15 bg-white px-4 py-6 text-center shadow-sm transition active:scale-[0.98]"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-sage/15 text-dark-sage">
+                <Film className="h-6 w-6" />
+              </span>
+              <span className="font-playfair text-lg text-blue-gray">
+                Image Vision
+              </span>
+              <span className="text-xs text-gray-400">I nostri video</span>
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Richiedi una consulenza ── */}
+        <section className="mt-6">
+          <Link
+            href="/consulenze"
+            data-testid="link-ospiti-consulenza"
+            className="flex items-center gap-4 rounded-2xl border border-terracotta/20 bg-gradient-to-br from-terracotta/10 via-terracotta/5 to-cream/40 px-5 py-5 shadow-sm transition active:scale-[0.98]"
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-terracotta text-white shadow-md">
+              <CalendarHeart className="h-6 w-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-playfair text-lg text-blue-gray">
+                Richiedi una consulenza
+              </span>
+              <span className="block text-sm text-gray-500">
+                Raccontaci il tuo evento, ne parliamo insieme
+              </span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-terracotta" />
+          </Link>
         </section>
 
         {/* ── Contatti ── */}
