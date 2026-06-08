@@ -152,6 +152,7 @@ import TodayJobsSummary from "@/components/admin/TodayJobsSummary";
 import BulkEmailSender from "./BulkEmailSender";
 import QuoteTemplatesManager from "@/components/quotes/QuoteTemplatesManager";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
+import OspitiQrCard from "@/components/admin/OspitiQrCard";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(
   () => import("@/components/studio-assistant/StudioAssistant"),
@@ -3255,6 +3256,9 @@ export default function AdminDashboard() {
                           Salva modifiche
                         </Button>
                       </div>
+
+                      {/* ── QR Code Pagina Ospiti ── */}
+                      <OspitiQrCard />
 
                       {/* ── SEZIONE 1: Identità dello Studio ── */}
                       <div className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden">

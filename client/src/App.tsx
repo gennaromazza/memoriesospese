@@ -32,6 +32,7 @@ function lazyWithRetry(importFn: () => Promise<any>) {
 }
 
 const GalleryAccessPage = lazyWithRetry(() => import("./pages/public/GalleryAccessPage"));
+const OspitiPage = lazyWithRetry(() => import("./pages/public/OspitiPage"));
 const PortfolioPage = lazyWithRetry(() => import("./pages/public/PortfolioPage"));
 const PortfolioCategoryPage = lazyWithRetry(() => import("./pages/public/PortfolioCategoryPage"));
 const StoriePage = lazyWithRetry(() => import("./pages/public/StoriePage"));
@@ -126,6 +127,9 @@ function AppRoutes() {
 
         {/* Gallery Access (moved from /) */}
         <Route path="/accesso-galleria" component={GalleryAccessPage} />
+
+        {/* Pagina pubblica ospiti via QR code (mobile-first) */}
+        <Route path="/ospiti" component={OspitiPage} />
 
         <Route path="/privacy" component={Privacy} />
         <Route path="/cookie-policy" component={CookiePolicy} />
