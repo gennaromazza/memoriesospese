@@ -32,6 +32,13 @@ service firebase.storage {
       allow read: if true; // Public read for gallery access
       allow write: if isSignedIn() && isValidImageFile();
     }
+
+    // Gallery thumbnails - miniature leggere generate lato server (admin SDK).
+    // Percorso separato da galleries/ per non essere indicizzato dai tool di recovery/sync.
+    match /thumbnails/{galleryId}/{allPaths=**} {
+      allow read: if true; // Public read per la griglia galleria
+      allow write: if isSignedIn() && isValidImageFile();
+    }
     
     // Global photos collection
     match /photos/{photoId} {

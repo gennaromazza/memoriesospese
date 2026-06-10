@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "../hooks/use-toast";
 import { uploadPhotos, computeFileHash, UploadSummary, UploadProgressInfo, UploadedPhoto } from "../lib/photoUploader";
+import { generateGalleryThumbnails } from "../lib/thumbnails";
 import { notifyNewPhotos } from "../lib/email";
 import { UploadCloud, Image, Trash, Eye, EyeOff, Mail, Loader2, Link2, X as XIcon, Briefcase, RefreshCw, AlertTriangle, Zap, Monitor, Smartphone, Crosshair, Check, GalleryHorizontal, Palette } from "lucide-react";
 import { GALLERY_HEADER_THEMES } from '@/lib/gallery-header-themes';
@@ -165,6 +166,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: any}>({});
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingThumbs, setIsGeneratingThumbs] = useState(false);
+  const [thumbProgress, setThumbProgress] = useState<{ generated: number; remaining: number } | null>(null);
   const [photoToDelete, setPhotoToDelete] = useState<PhotoData | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
@@ -1766,6 +1769,48 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   };
 
   // Carica nuove foto alla galleria
+  const handleGenerateThumbnails = async () => {
+    if (!gallery?.id) return;
+    setIsGeneratingThumbs(true);
+    setThumbProgress(null);
+    try {
+      const result = await generateGalleryThumbnails(gallery.id, (p) => {
+        setThumbProgress({ generated: p.generated, remaining: p.remaining });
+      });
+
+      if (result.generated === 0 && result.remaining === 0) {
+        toast({
+          title: "Miniature già presenti",
+          description: "Tutte le foto di questa galleria hanno già una miniatura.",
+        });
+      } else {
+        const parts = [`${result.generated} miniature create`];
+        if (result.failed) parts.push(`${result.failed} non riuscite`);
+        if (result.remaining) parts.push(`${result.remaining} ancora da generare (riprova)`);
+        toast({
+          title: "Miniature generate",
+          description: parts.join(", ") + ".",
+        });
+      }
+
+      // Aggiorna la vista così le nuove miniature compaiono subito
+      window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+      queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+      queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
+      loadPhotos();
+    } catch (error: any) {
+      console.error('❌ Errore generazione miniature:', error);
+      toast({
+        title: "Errore",
+        description: "Generazione miniature non riuscita. " + (error?.message || ''),
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingThumbs(false);
+      setThumbProgress(null);
+    }
+  };
+
   const handleUploadPhotos = async () => {
     if (!gallery || selectedFiles.length === 0) return;
 
@@ -1907,6 +1952,19 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
       queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
       queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
+
+      // Genera le miniature per le nuove foto in background (best-effort, non blocca la UI).
+      // Quando finisce, aggiorna la vista così le miniature compaiono automaticamente.
+      generateGalleryThumbnails(gallery.id)
+        .then((p) => {
+          if (p.generated > 0) {
+            window.dispatchEvent(new CustomEvent('galleryPhotosUpdated'));
+            queryClient.invalidateQueries({ queryKey: ['gallery', gallery.id] });
+            queryClient.invalidateQueries({ queryKey: ['gallery-photos', gallery.id] });
+            loadPhotos();
+          }
+        })
+        .catch((err) => console.warn('⚠️ Generazione miniature in background fallita (non blocca upload):', err));
 
       // Mostra modale di conferma con statistiche
       setUploadStats({
@@ -3052,6 +3110,25 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">Tutte le Foto della Galleria ({photos.length})</h4>
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateThumbnails}
+                    disabled={isGeneratingThumbs || isLoading || photos.length === 0}
+                    title="Crea anteprime leggere per velocizzare il caricamento della galleria. Non modifica le foto originali."
+                  >
+                    {isGeneratingThumbs ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        {thumbProgress ? `Genero… ${thumbProgress.generated}` : "Genero…"}
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-1" />
+                        Genera miniature
+                      </>
+                    )}
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 

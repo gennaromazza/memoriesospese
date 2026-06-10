@@ -9,8 +9,44 @@ import { triggerManualRetry } from './workers/cancellation-retry.js';
 import { ensureJobCalendarEvent } from './job-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { authenticateFirebase } from './email-routes.js';
+import { generateGalleryThumbnails } from './thumbnails.js';
 
 const router = express.Router();
+
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+/**
+ * POST /api/admin/galleries/:galleryId/generate-thumbnails
+ * Genera le miniature mancanti per una galleria (lato server, admin SDK).
+ * Body: { limit?: number }  -> processa fino a `limit` foto per chiamata.
+ * Ritorna: { success, totalMissing, processed, generated, failed, remaining }
+ * Chiamare ripetutamente finché remaining === 0 (o generated === 0).
+ */
+router.post('/galleries/:galleryId/generate-thumbnails', authenticateFirebase, async (req: any, res) => {
+  try {
+    if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+      return res.status(403).json({ error: 'Accesso negato: solo admin' });
+    }
+
+    const { galleryId } = req.params;
+    if (!galleryId) {
+      return res.status(400).json({ error: 'galleryId mancante' });
+    }
+
+    const limit = Number(req.body?.limit) || undefined;
+    const result = await generateGalleryThumbnails(galleryId, limit as number);
+
+    console.log(
+      `🖼️  Thumbnails galleria ${galleryId}: ${result.generated} generate, ` +
+      `${result.failed} fallite, ${result.remaining} rimanenti`
+    );
+
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    console.error(`❌ Errore generazione miniature galleria ${req.params.galleryId}:`, error);
+    res.status(500).json({ error: 'Errore durante la generazione delle miniature', details: error.message });
+  }
+});
 
 /**
  * GET /api/admin/pending-cancellations

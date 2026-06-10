@@ -1,1 +1,2 @@
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
+- [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.

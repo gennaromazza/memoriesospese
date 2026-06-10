@@ -341,7 +341,7 @@ export const uploadPhotos = async (
   flushProgress(); // Aggiornamento finale garantito
 
   if (isBulk) {
-    console.log(`📦 Modalità bulk (${files.length} file): thumbnail saltate per velocità. Saranno generate al prossimo accesso.`);
+    console.log(`📦 Modalità bulk (${files.length} file): thumbnail saltate durante l'upload. Verranno generate lato server al termine.`);
   }
   console.log(`📈 Upload completato: ${successfulUploads} successi, ${failedUploads} errori su ${files.length} file`);
 
