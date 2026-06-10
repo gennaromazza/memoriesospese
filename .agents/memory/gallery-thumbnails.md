@@ -14,7 +14,18 @@ Le miniature si generano SEMPRE lato server (`server/thumbnails.ts`, Firebase Ad
 - Collezione moderna `photos` (con campo `galleryId`).
 - Subcollection legacy `galleries/{galleryId}/photos`.
 I path Storage variano: `galleries/{id}/...`, `galleries/{id}/photos/...`, `gallery-photos/{id}/...`.
-**How to apply:** qualunque operazione batch sulle foto deve gestire ENTRAMBE le collezioni e non assumere un singolo prefisso di path. Il path Storage si ricava dal download URL (parte tra `/o/` e `?`, url-decoded), non dal nome galleria.
+**How to apply:** qualunque operazione batch sulle foto deve gestire ENTRAMBE le collezioni e non assumere un singolo prefisso di path.
+
+## Gli URL delle foto hanno PIÙ formati: il parser del path deve gestirli tutti
+Nei dati convivono almeno due formati di URL per lo stesso bucket:
+- Firebase download URL: `https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path-url-encoded>?alt=media&token=...` → path dopo `/o/`, poi `decodeURIComponent`.
+- GCS signed/public URL: `https://storage.googleapis.com/<bucket>/<path>?GoogleAccessId=...&Signature=...` → path = pathname dopo il segmento bucket (NON c'è `/o/`).
+**Why:** un parser che cerca solo `/o/` ritorna null sui signed URL; nel sistema miniature questo marcava per errore TUTTE le foto di una galleria come `thumbnailFailed` (224 foto poisonate in produzione). Galleria diversa = formato URL diverso, quindi una galleria può funzionare e un'altra no.
+**How to apply:** estrai il path con `new URL()` gestendo sia `/o/` sia path-style/virtual-hosted (`storage.googleapis.com/<bucket>/...` e `<bucket>.storage.googleapis.com/...`). Se marchi fallimenti permanenti, ricordati che un bug del parser può richiedere di azzerare i marker (`thumbnailFailed`) via query `collection('photos').where('thumbnailFailed','==',true)`.
+
+## La UI di upload/gestione foto che usa l'admin è GalleryManagementWorkspace, non EditGalleryModal
+La pagina a tutto schermo `/admin/gallery/:id/manage` (`pages/GalleryManagementWorkspace.tsx`, "Gestisci Galleria" / "Carica Foto Bulk") è il vero flusso di caricamento e gestione foto. `EditGalleryModal` è una modale secondaria.
+**How to apply:** per feature legate alle foto (pulsanti in toolbar "Foto Caricate", auto-trigger dopo upload), lavora in GalleryManagementWorkspace; mettere roba solo nella modale fa sì che l'admin non la trovi.
 
 ## La qualità per il cliente non cala mai
 Griglia usa `thumbnailUrl || url`; lightbox (`ImageLightbox`) e download usano SEMPRE l'originale `currentPhoto.url`. La miniatura è un file separato in `thumbnails/{galleryId}/{docId}.jpg`, l'originale non viene mai toccato.

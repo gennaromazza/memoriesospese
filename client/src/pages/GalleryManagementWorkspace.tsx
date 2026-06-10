@@ -10,6 +10,7 @@ import { useDropzone, type FileRejection } from 'react-dropzone';
 import { GalleryService, type Gallery, type SelectionSnapshot } from '@/lib/galleries';
 import { PhotoService } from '@/lib/photos';
 import { computeFileHash } from '@/lib/photoUploader';
+import { generateGalleryThumbnails } from '@/lib/thumbnails';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -188,6 +189,46 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const [enableCompression, setEnableCompression] = useState(true);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [isGeneratingThumbs, setIsGeneratingThumbs] = useState(false);
+  const [thumbProgress, setThumbProgress] = useState<{ generated: number; remaining: number } | null>(null);
+
+  // Genera le miniature mancanti della galleria (anteprime leggere per la vista pubblica).
+  // Gli originali NON vengono toccati: lightbox e download usano sempre la foto a piena risoluzione.
+  const handleGenerateThumbnails = async () => {
+    if (!galleryId) return;
+    setIsGeneratingThumbs(true);
+    setThumbProgress(null);
+    try {
+      const result = await generateGalleryThumbnails(galleryId, (p) => {
+        setThumbProgress({ generated: p.generated, remaining: p.remaining });
+      });
+
+      if (result.generated === 0 && result.remaining === 0) {
+        toast({
+          title: '✅ Miniature già pronte',
+          description: 'Tutte le foto hanno già un\u2019anteprima leggera.',
+        });
+      } else {
+        const parts = [`${result.generated} miniature create`];
+        if (result.failed > 0) parts.push(`${result.failed} non riuscite`);
+        if (result.remaining > 0) parts.push(`${result.remaining} ancora da generare: premi di nuovo`);
+        toast({
+          title: '✅ Miniature generate',
+          description: parts.join(', ') + '.',
+        });
+      }
+      await refetchPhotos();
+    } catch (error: any) {
+      toast({
+        title: '❌ Errore miniature',
+        description: error?.message || 'Impossibile generare le miniature.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingThumbs(false);
+      setThumbProgress(null);
+    }
+  };
 
   // Query gallery data
   const { data: gallery, isLoading } = useQuery<Gallery | null>({
@@ -445,6 +486,14 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
       // Invalida anche cache galleria per aggiornare photoCount
       await queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
+
+      // 🖼️ Genera miniature in background per le nuove foto (best-effort, non blocca l'utente).
+      // Aggiorna le foto al termine così le anteprime leggere compaiono da sole.
+      if (galleryId) {
+        generateGalleryThumbnails(galleryId)
+          .then(() => refetchPhotos())
+          .catch(() => { /* best-effort: l'admin può sempre usare il pulsante "Genera miniature" */ });
+      }
 
       // Reset progress after 3s (revocando gli object URL per evitare memory leak)
       setTimeout(() => {
@@ -1073,6 +1122,25 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                           ) : (
                             <>
                               🔄 Ricarica Foto
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateThumbnails}
+                          disabled={isGeneratingThumbs}
+                          title="Crea anteprime leggere per velocizzare la galleria pubblica. Gli originali restano intatti."
+                        >
+                          {isGeneratingThumbs ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              {thumbProgress ? `Miniature: ${thumbProgress.generated}…` : 'Generazione…'}
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="w-4 h-4 mr-1" />
+                              Genera miniature
                             </>
                           )}
                         </Button>

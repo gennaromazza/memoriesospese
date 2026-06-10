@@ -1,0 +1,150 @@
+react-dom.development.js:29895 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:50 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:51 📋 Questionari e token validation: produzione Firebase
+seed-job-types.ts:67 💡 Per eseguire il seed dei jobTypes, digita: window.seedJobTypes()
+seed-product-categories.ts:67 💡 Per eseguire il seed delle categorie prodotti, digita: window.seedProductCategories()
+/admin:1 [Intervention] Images loaded lazily and replaced with placeholders. Load events are deferred. See https://go.microsoft.com/fwlink/?linkid=2048113
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+/api/reminders/status:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)
+query.ts:446 Error: 401: {"error":{"code":"unauthenticated","message":"Missing Authorization Bearer token"}}
+    at throwIfResNotOk (queryClient.ts:8:11)
+    at async Object.queryFn (queryClient.ts:190:5)
+error @ query.ts:446
+galleries.ts:171 [GalleryService] Documenti trovati in 'galleries': 262
+galleries.ts:190 [GalleryService] Gallerie valide dopo filtro: 262
+GalleryAccess.tsx:66 ✅ Admin bypass in GalleryAccess: accesso diretto alla galleria _XeNNFVG
+GalleryAccess.tsx:66 ✅ Admin bypass in GalleryAccess: accesso diretto alla galleria _XeNNFVG
+galleries.ts:552 [GalleryService] Cercando galleria con code: "_XeNNFVG"
+storyService.ts:34 🔍 [GET] ROBUSTO: Caricamento storia per galleryId: _XeNNFVG
+storyService.ts:35 📍 [GET] Collection: coupleStories, Document ID: _XeNNFVG
+storyService.ts:40 📄 [GET] Document reference creato: Object
+Gallery.tsx:654 🔄 Gallery changed - reset selection state: Object
+Gallery.tsx:654 🔄 Gallery changed - reset selection state: Object
+galleries.ts:557 [GalleryService] Query code esatto: 1 risultati
+galleries.ts:586 [GalleryService] Galleria trovata per code field, docId: Cs2zKbifM3VHL73ZzWWi
+storyService.ts:43 🔎 [GET] getDoc() completato: Object
+storyService.ts:69 🔎 [GET] Fallback: Query per galleryId field...
+Gallery.tsx:628 🔍 SELECTION MODE - _XeNNFVG | enabled: false | mode: false
+Gallery.tsx:630 ❌ selectionEnabled è FALSE o undefined
+(anonymous) @ Gallery.tsx:630
+Gallery.tsx:693 ✅ Inizializzazione galleria completata (single: false multi: false legacy: false )
+Gallery.tsx:731 🗑️ Cleared saved selection (empty)
+storyService.ts:92 ❌ [GET] Nessuna storia trovata
+logger.ts:94 [2026-06-10T13:32:46.762Z] [INFO] [Gallery:Cs2zKbifM3VHL73ZzWWi] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2026-06-10T13:32:46.765Z] [INFO] [Gallery:Cs2zKbifM3VHL73ZzWWi] Foto totali nella galleria (new + legacy)
+logger.ts:94 [2026-06-10T13:32:47.179Z] [INFO] [Gallery:Cs2zKbifM3VHL73ZzWWi] Top foto per like
+logger.ts:94 [2026-06-10T13:32:47.179Z] [INFO] [Gallery:Cs2zKbifM3VHL73ZzWWi] Top foto per like
+client:536 WebSocket connection to 'wss://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:24678/?token=ebpp94P0MQaw' failed: Error in connection establishment: net::ERR_CONNECTION_TIMED_OUT
+setupWebSocket @ client:536
+client:560 [vite] server connection lost. Polling for restart...
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+react-dom.development.js:86 Warning: validateDOMNesting(...): <button> cannot appear as a descendant of <button>.
+    at button
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=a6da39e7:140:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=a6da39e7:97:6
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=a6da39e7:38:15)
+    at CheckboxProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=a6da39e7:44:5)
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=a6da39e7:151:7
+    at _c (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/checkbox.tsx:22:11)
+    at button
+    at _c (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/button.tsx:47:11)
+    at div
+    at div
+    at div
+    at div
+    at _c9 (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/card.tsx:106:12)
+    at div
+    at _c (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/card.tsx:20:11)
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=a6da39e7:140:13
+    at Presence (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-UK46CMUN.js?v=a6da39e7:24:11)
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=a6da39e7:176:13
+    at _c5 (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/tabs.tsx:68:12)
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=a6da39e7:140:13
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=a6da39e7:38:15)
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=a6da39e7:53:7
+    at div
+    at div
+    at GalleryManagementWorkspace (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/GalleryManagementWorkspace.tsx:238:22)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=a6da39e7:226:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=a6da39e7:283:17)
+    at Suspense
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx:197:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:58:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=a6da39e7:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=a6da39e7:160:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=a6da39e7:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=a6da39e7:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=a6da39e7:2764:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=a6da39e7:180:17)
+printWarning @ react-dom.development.js:86
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+NewGalleryModal.tsx:211 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:838 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+EditGalleryModal.tsx:395 🔄 Caricamento dati galleria nel modal: Cs2zKbifM3VHL73ZzWWi clientiIds: Array(2)
+EditGalleryModal.tsx:473 🔐 Caricamento secrets da server per galleria: Cs2zKbifM3VHL73ZzWWi
+EditGalleryModal.tsx:665 🔄 Modal aperto - caricamento foto per galleria: Cs2zKbifM3VHL73ZzWWi
+EditGalleryModal.tsx:348 🔄 [EditGalleryModal] Caricamento foto per galleria: Cs2zKbifM3VHL73ZzWWi
+dialog.tsx:543 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ dialog.tsx:543
+dialog.tsx:543 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ dialog.tsx:543
+EditGalleryModal.tsx:370 📸 [EditGalleryModal] Foto caricate via PhotoService: 224
+EditGalleryModal.tsx:371 📊 Breakdown: Object
+EditGalleryModal.tsx:496 ✅ Secrets caricati: Object
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+:24678/:1  Failed to load resource: net::ERR_CONNECTION_TIMED_OUT
+/api/admin/galleries/Cs2zKbifM3VHL73ZzWWi/generate-thumbnails:1  Failed to load resource: the server responded with a status of 502 (Bad Gateway)
+EditGalleryModal.tsx:1802 ❌ Errore generazione miniature: Error: 502: Bad Gateway
+    at throwIfResNotOk (queryClient.ts:8:11)
+    at async apiRequest (queryClient.ts:129:3)
+    at async generateGalleryThumbnails (thumbnails.ts:39:17)
+    at async handleGenerateThumbnails (EditGalleryModal.tsx:1777:22)
+(anonymous) @ EditGalleryModal.tsx:1802
+[NEW] Explain Console errors by using Copilot in Edge: click  to explain an error. Learn moreDon't show again
+manifest.json:1  Failed to load resource: the server responded with a status of 502 (Bad Gateway)

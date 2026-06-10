@@ -17,7 +17,7 @@ import { db, storage } from './firebase-admin.js';
 const THUMB_MAX_DIM = 400; // lato lungo massimo
 const THUMB_JPEG_QUALITY = 72; // ~40KB per foto, qualità adeguata per griglia
 const CONCURRENCY = 6;
-const DEFAULT_LIMIT = 120; // miniature generate per chiamata (evita timeout HTTP su gallerie grandi)
+const DEFAULT_LIMIT = 30; // miniature generate per chiamata HTTP (basso per evitare timeout 502 del proxy; il client cicla automaticamente)
 const MAX_LIMIT = 300;
 
 interface PhotoRef {
@@ -36,16 +36,51 @@ export interface ThumbnailRunResult {
 }
 
 /**
- * Estrae il path dell'oggetto Storage da un download URL di Firebase.
- * es. ".../o/galleries%2Fabc%2Ffile.jpg?alt=media&token=..." -> "galleries/abc/file.jpg"
+ * Estrae il path dell'oggetto Storage da un URL, gestendo i formati usati nel progetto:
+ *  1) Firebase download URL:
+ *     https://firebasestorage.googleapis.com/v0/b/<bucket>/o/galleries%2Fabc%2Ffile.jpg?alt=media&token=...
+ *     -> "galleries/abc/file.jpg"
+ *  2) GCS signed/public URL (path-style):
+ *     https://storage.googleapis.com/<bucket>/galleries/abc/file.jpg?GoogleAccessId=...&Signature=...
+ *     -> "galleries/abc/file.jpg"
+ *  3) GCS virtual-hosted style:
+ *     https://<bucket>.storage.googleapis.com/galleries/abc/file.jpg?...
+ *     -> "galleries/abc/file.jpg"
  */
 export function parseStoragePath(downloadUrl: string): string | null {
   try {
-    const m = downloadUrl.match(/\/o\/([^?]+)/);
-    if (!m) return null;
-    return decodeURIComponent(m[1]);
-  } catch {
+    const u = new URL(downloadUrl);
+    const pathname = u.pathname; // esclude la query string
+
+    // 1) Firebase download URL: tutto ciò che segue "/o/"
+    const oMatch = pathname.match(/\/o\/(.+)$/);
+    if (oMatch) {
+      return decodeURIComponent(oMatch[1]);
+    }
+
+    const host = u.hostname;
+
+    // 2) Path-style: storage.googleapis.com/<bucket>/<object-path>
+    if (host === 'storage.googleapis.com' || host === 'www.googleapis.com') {
+      const parts = pathname.replace(/^\/+/, '').split('/');
+      if (parts.length >= 2) {
+        // parts[0] = nome bucket, il resto è il path dell'oggetto
+        return decodeURIComponent(parts.slice(1).join('/'));
+      }
+      return null;
+    }
+
+    // 3) Virtual-hosted style: <bucket>.storage.googleapis.com/<object-path>
+    if (host.endsWith('.storage.googleapis.com')) {
+      const objectPath = pathname.replace(/^\/+/, '');
+      return objectPath ? decodeURIComponent(objectPath) : null;
+    }
+
     return null;
+  } catch {
+    // Fallback per URL non standard: prova comunque a estrarre dopo "/o/"
+    const m = downloadUrl.match(/\/o\/([^?]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
   }
 }
 
