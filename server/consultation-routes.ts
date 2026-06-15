@@ -2579,8 +2579,8 @@ router.post("/v2/available-slots", async (req, res) => {
     }
 
     // Step 2: Import Calendar Engine modules
-    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate, getAllExistingEvents } = await import('./consultations/calendar-adapter.js');
-    const { getAvailableSlotsForDate, getUnavailabilityReason } = await import('./calendar-engine/index.js');
+    const { consultationTemplateToAvailabilityConfig, validateConsultationTemplate, getAllExistingEvents, getAllDayDatesInRange } = await import('./consultations/calendar-adapter.js');
+    const { getAvailableSlotsForDate, getUnavailabilityReason, computeEarliestBookableDate } = await import('./calendar-engine/index.js');
     // Step 3: Validate template
     if (!validateConsultationTemplate(template)) {
       return res.status(400).json({
@@ -2624,6 +2624,54 @@ router.post("/v2/available-slots", async (req, res) => {
         unavailableReason: unavailabilityInfo.reason,
         message: unavailabilityInfo.message
       } as SlotsResponse);
+    }
+
+    // Step 7.5: Blocca il giorno SUCCESSIVO a un evento all-day (se configurato)
+    if (config.blockDayAfterAllDayEvent) {
+      const prevDay = dateObj.minus({ days: 1 });
+      const prevStart = prevDay.startOf("day").toJSDate();
+      const prevEnd = prevDay.endOf("day").toJSDate();
+      const prevAllDayDates = await getAllDayDatesInRange(prevStart, prevEnd, db);
+      if (prevAllDayDates.has(prevDay.toFormat("yyyy-MM-dd"))) {
+        console.log("[POST /v2/available-slots] 🚫 Giorno successivo a evento all-day bloccato");
+        return res.json({
+          date,
+          slots: [],
+          unavailableReason: 'day-after-all-day',
+          message: 'Lo studio non è disponibile il giorno successivo a un evento che dura tutta la giornata'
+        } as SlotsResponse);
+      }
+    }
+
+    // Step 7.6: Lead minimo di post-produzione (gg lavorativi, salta domeniche + giorni con all-day)
+    if (config.minLeadWorkingDays && config.minLeadWorkingDays > 0) {
+      const nowRome = DateTime.now().setZone("Europe/Rome");
+      const calendarDaysUntil = dateObj.startOf("day").diff(nowRome.startOf("day"), "days").days;
+      // Enforcement preciso solo quando la data è abbastanza vicina da poter essere bloccata dal lead
+      if (calendarDaysUntil <= config.minLeadWorkingDays + 14) {
+        const windowStart = nowRome.startOf("day").toJSDate();
+        const windowEnd = nowRome
+          .plus({ days: config.minLeadWorkingDays * 2 + 21 })
+          .endOf("day")
+          .toJSDate();
+        const leadAllDayDates = await getAllDayDatesInRange(windowStart, windowEnd, db);
+        const earliest = computeEarliestBookableDate(
+          nowRome.toJSDate(),
+          config.minLeadWorkingDays,
+          leadAllDayDates
+        );
+        if (dateObj.startOf("day") < earliest) {
+          console.log(
+            `[POST /v2/available-slots] 🚫 Data prima della prima prenotabile (${earliest.toFormat("yyyy-MM-dd")})`
+          );
+          return res.json({
+            date,
+            slots: [],
+            unavailableReason: 'too-soon',
+            message: 'Questa data non è ancora prenotabile: è necessario lasciare il tempo per la post-produzione'
+          } as SlotsResponse);
+        }
+      }
     }
 
     // Step 8: Generate slots using Calendar Engine

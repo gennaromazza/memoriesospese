@@ -782,16 +782,17 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
     
     // 4. Genera link consulenza con dominio corretto (sviluppo/produzione)
     const baseUrl = getSiteBaseUrl(req);
-    
+
     // Route corretto: /consulenze/:tipo/:id/prenota con parametri opzionali dateFrom/dateTo
-    let consultationLink = `${baseUrl}/consulenze/${encodeURIComponent(job.jobType)}/${templateId}/prenota`;
-    
-    // Aggiungi parametri: date range + jobId per pre-compilazione cliente
-    const queryParams: string[] = [];
-    queryParams.push(`jobId=${encodeURIComponent(id)}`); // Sempre includi jobId per pre-popolare dati cliente
-    if (dateFrom) queryParams.push(`dateFrom=${encodeURIComponent(dateFrom)}`);
-    if (dateTo) queryParams.push(`dateTo=${encodeURIComponent(dateTo)}`);
-    consultationLink += `?${queryParams.join('&')}`;
+    const { buildConsultationLink } = await import('./consultations/consultation-invite.js');
+    const consultationLink = buildConsultationLink({
+      baseUrl,
+      jobType: job.jobType,
+      templateId,
+      jobId: id,
+      dateFrom,
+      dateTo,
+    });
     
     // 5. Invia notifica
     let eventMetadata: any = {

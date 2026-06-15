@@ -173,6 +173,10 @@ export default function ConsultationTemplatesManager() {
       attiva: true,
       ordine: 0,
       giorniPreparazione: 0,
+      autoInvioVisioneAttivo: false,
+      autoInvioVisioneGiorniDopoEvento: 7,
+      giorniPostproduzione: 0,
+      bloccaGiornoDopoEventoGiornataIntera: false,
     });
     setDialogOpen(true);
   };
@@ -190,6 +194,10 @@ export default function ConsultationTemplatesManager() {
       attiva: template.attiva,
       ordine: template.ordine || 0,
       giorniPreparazione: template.giorniPreparazione || 0,
+      autoInvioVisioneAttivo: template.autoInvioVisioneAttivo ?? false,
+      autoInvioVisioneGiorniDopoEvento: template.autoInvioVisioneGiorniDopoEvento ?? 7,
+      giorniPostproduzione: template.giorniPostproduzione ?? 0,
+      bloccaGiornoDopoEventoGiornataIntera: template.bloccaGiornoDopoEventoGiornataIntera ?? false,
     });
     setDialogOpen(true);
   };
@@ -301,6 +309,10 @@ export default function ConsultationTemplatesManager() {
         attiva: false,
         ordine: (template.ordine || 0) + 1,
         giorniPreparazione: template.giorniPreparazione || 0,
+        autoInvioVisioneAttivo: template.autoInvioVisioneAttivo ?? false,
+        autoInvioVisioneGiorniDopoEvento: template.autoInvioVisioneGiorniDopoEvento ?? 7,
+        giorniPostproduzione: template.giorniPostproduzione ?? 0,
+        bloccaGiornoDopoEventoGiornataIntera: template.bloccaGiornoDopoEventoGiornataIntera ?? false,
       };
 
       await createMutation.mutateAsync(duplicatedTemplate);
@@ -1134,6 +1146,103 @@ export default function ConsultationTemplatesManager() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-4 rounded-lg border border-[#A8B5A0]/40 bg-[#F7F5F0] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <Label htmlFor="autoInvioVisioneAttivo" className="text-base font-medium">
+                      Invito automatico post-evento
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Invia automaticamente al cliente l'email con il link per prenotare questa
+                      consulenza, alcuni giorni dopo l'evento. L'approvazione manuale resta invariata.
+                    </p>
+                  </div>
+                  <Switch
+                    id="autoInvioVisioneAttivo"
+                    checked={formData.autoInvioVisioneAttivo ?? false}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, autoInvioVisioneAttivo: checked }))
+                    }
+                    data-testid="switch-auto-invio-visione"
+                  />
+                </div>
+
+                {formData.autoInvioVisioneAttivo && (
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="autoInvioVisioneGiorniDopoEvento">
+                          Giorni dopo l'evento
+                        </Label>
+                        <Input
+                          id="autoInvioVisioneGiorniDopoEvento"
+                          type="number"
+                          min="0"
+                          max="180"
+                          value={formData.autoInvioVisioneGiorniDopoEvento ?? 7}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              autoInvioVisioneGiorniDopoEvento: parseInt(e.target.value) || 0,
+                            }))
+                          }
+                          data-testid="input-auto-invio-giorni-dopo-evento"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Quanti giorni dopo l'evento inviare l'invito.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="giorniPostproduzione">
+                          Lead post-produzione (gg lavorativi)
+                        </Label>
+                        <Input
+                          id="giorniPostproduzione"
+                          type="number"
+                          min="0"
+                          max="60"
+                          value={formData.giorniPostproduzione ?? 0}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              giorniPostproduzione: parseInt(e.target.value) || 0,
+                            }))
+                          }
+                          data-testid="input-giorni-postproduzione"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Prima data prenotabile = oggi + N giorni lavorativi (salta domeniche e
+                          giorni con eventi a giornata intera).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <div>
+                        <Label htmlFor="bloccaGiornoDopoEventoGiornataIntera" className="font-medium">
+                          Blocca il giorno dopo un evento a giornata intera
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Rende non prenotabile il giorno successivo a un evento "tutto il giorno".
+                        </p>
+                      </div>
+                      <Switch
+                        id="bloccaGiornoDopoEventoGiornataIntera"
+                        checked={formData.bloccaGiornoDopoEventoGiornataIntera ?? false}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            bloccaGiornoDopoEventoGiornataIntera: checked,
+                          }))
+                        }
+                        data-testid="switch-blocca-giorno-dopo-allday"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
 

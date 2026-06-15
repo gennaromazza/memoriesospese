@@ -7,12 +7,13 @@
  */
 
 import { Router } from "express";
-import { db, Timestamp } from "./firebase-admin.js";
+import { db, Timestamp, FieldValue } from "./firebase-admin.js";
 import { 
   sendGmailEmail, 
   getStudioContactInfo,
   createConsultationReminderEmailHTML,
   generateGoogleCalendarLink,
+  getSiteBaseUrl,
   authenticateFirebase
 } from "./email-routes.js";
 import { DateTime } from "luxon";
@@ -441,6 +442,252 @@ export async function runReminderCheck(): Promise<{
   }
 
   console.log("[Reminders] ✅ Completato!", results);
+  return results;
+}
+
+/**
+ * AUTO-INVITO CONSULENZA VISIONE
+ *
+ * Trova i job il cui evento è passato da almeno N giorni (configurabile per template)
+ * e invia automaticamente al cliente l'email "solo pulsante" con il link di prenotazione
+ * della consulenza visione.
+ *
+ * Garanzie:
+ * - Invio una-tantum per job (marker atomico `visioneAutoInviteSentAt` via transaction).
+ * - Rispetta gli invii MANUALI della stessa consulenza (workflowEvent consulenza_inviata
+ *   con metadata.templateId === template visione).
+ * - Disponibilità con lead post-produzione (dateFrom calcolato sul link).
+ */
+export async function runVisioneAutoInviteCheck(): Promise<{
+  checked: number;
+  sent: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const results = { checked: 0, sent: 0, skipped: 0, errors: [] as string[] };
+  const nowRome = DateTime.now().setZone("Europe/Rome");
+
+  // 1. Template visione con auto-invito attivo (collezione piccola → filtro in codice)
+  const templatesSnap = await db.collection("consultationTemplates").get();
+  const activeTemplates = templatesSnap.docs
+    .map((d: any) => ({ id: d.id, ...(d.data() as any) }))
+    .filter((t: any) => t.autoInvioVisioneAttivo === true && t.attiva === true);
+
+  if (activeTemplates.length === 0) {
+    return results;
+  }
+
+  // jobType → template visione (se più di uno per tipo, scegli il più basso per `ordine`)
+  const templateByJobType = new Map<string, any>();
+  for (const t of activeTemplates) {
+    const existing = templateByJobType.get(t.jobType);
+    if (!existing || (t.ordine ?? 0) < (existing.ordine ?? 0)) {
+      templateByJobType.set(t.jobType, t);
+    }
+  }
+
+  const LOOKBACK_DAYS = 30; // non invitare per eventi più vecchi di (soglia + 30 giorni)
+  const maxGiorniDopo = Math.max(
+    ...activeTemplates.map((t: any) => Number(t.autoInvioVisioneGiorniDopoEvento) || 0)
+  );
+
+  // 2. Finestra globale eventi passati: [now - (maxG + LOOKBACK), now]
+  //    Range su singolo campo eventDate → usa l'indice automatico (no indice composito)
+  const lowerBound = nowRome.minus({ days: maxGiorniDopo + LOOKBACK_DAYS }).startOf("day");
+  const upperBound = nowRome.endOf("day");
+
+  const jobsSnap = await db
+    .collection("jobs")
+    .where("eventDate", ">=", Timestamp.fromDate(lowerBound.toJSDate()))
+    .where("eventDate", "<=", Timestamp.fromDate(upperBound.toJSDate()))
+    .get();
+
+  results.checked = jobsSnap.size;
+
+  // Helper condivisi (import lazy, coerente con il resto del codice)
+  const { buildConsultationLink, buildConsultationInviteEmailHTML } = await import(
+    "./consultations/consultation-invite.js"
+  );
+  const { getAllDayDatesInRange } = await import("./consultations/calendar-adapter.js");
+  const { computeEarliestBookableDate } = await import("./calendar-engine/index.js");
+
+  const studioInfo = await getStudioContactInfo();
+  const baseUrl = getSiteBaseUrl();
+
+  for (const doc of jobsSnap.docs) {
+    const job: any = { id: doc.id, ...doc.data() };
+
+    // Filtri base
+    if (job.dataNonDefinita || !job.eventDate) { results.skipped++; continue; }
+    if (job.deletedAt) { results.skipped++; continue; }
+    if (["consegnato", "archiviato"].includes(job.status)) { results.skipped++; continue; }
+    if (job.visioneAutoInviteSentAt) { results.skipped++; continue; }
+
+    const template = templateByJobType.get(job.jobType);
+    if (!template) { results.skipped++; continue; }
+
+    const eventDateJs = job.eventDate.toDate ? job.eventDate.toDate() : new Date(job.eventDate);
+    const eventDT = DateTime.fromJSDate(eventDateJs).setZone("Europe/Rome");
+
+    const giorniDopo = Number(template.autoInvioVisioneGiorniDopoEvento) || 0;
+    const threshold = nowRome.minus({ days: giorniDopo });
+
+    // Evento non ancora "maturo" (non sono passati abbastanza giorni dall'evento)
+    if (eventDT.startOf("day") > threshold.startOf("day")) { results.skipped++; continue; }
+    // Evento troppo vecchio (oltre la finestra di lookback) — confronto a livello di giorno
+    if (eventDT.startOf("day") < threshold.minus({ days: LOOKBACK_DAYS }).startOf("day")) { results.skipped++; continue; }
+
+    // Rispetta invio MANUALE della stessa consulenza visione
+    const workflowEvents: any[] = Array.isArray(job.workflowEvents) ? job.workflowEvents : [];
+    const alreadySentManual = workflowEvents.some(
+      (e) => e?.tipo === "consulenza_inviata" && e?.metadata?.templateId === template.id
+    );
+    if (alreadySentManual) { results.skipped++; continue; }
+
+    // Email primo cliente
+    const clienteId = Array.isArray(job.clientiIds) ? job.clientiIds[0] : undefined;
+    if (!clienteId) { results.skipped++; continue; }
+    const clienteDoc = await db.collection("clienti").doc(clienteId).get();
+    const cliente: any = clienteDoc.exists ? clienteDoc.data() : null;
+    if (!cliente?.email) { results.skipped++; continue; }
+
+    // Prima data prenotabile (lead post-produzione) → dateFrom del link.
+    // Calcolata PRIMA del lock: è solo lettura, non muta dati e può fallire senza rischi.
+    let dateFrom: string | undefined;
+    const leadDays = Number(template.giorniPostproduzione) || 0;
+    if (leadDays > 0) {
+      try {
+        const windowStart = nowRome.startOf("day").toJSDate();
+        const windowEnd = nowRome.plus({ days: leadDays * 2 + 31 }).endOf("day").toJSDate();
+        const allDayDates = await getAllDayDatesInRange(windowStart, windowEnd, db);
+        let earliest = computeEarliestBookableDate(nowRome.toJSDate(), leadDays, allDayDates);
+        // Allinea dateFrom alle stesse regole applicate dall'endpoint /v2/available-slots:
+        // niente domeniche, niente giorni all-day, e (se attivo) niente giorno-dopo-all-day.
+        let guard = 0;
+        while (guard < 40) {
+          const isSunday = earliest.weekday === 7;
+          const isAllDay = allDayDates.has(earliest.toFormat("yyyy-MM-dd"));
+          const isDayAfterAllDay =
+            template.bloccaGiornoDopoEventoGiornataIntera === true &&
+            allDayDates.has(earliest.minus({ days: 1 }).toFormat("yyyy-MM-dd"));
+          if (!isSunday && !isAllDay && !isDayAfterAllDay) break;
+          earliest = earliest.plus({ days: 1 });
+          guard++;
+        }
+        dateFrom = earliest.toFormat("yyyy-MM-dd");
+      } catch (err: any) {
+        // dateFrom è solo un suggerimento per il picker: in caso di errore lo omettiamo,
+        // l'endpoint /v2/available-slots applica comunque tutte le regole.
+        console.warn(`[VisioneAutoInvite] dateFrom non calcolato per job ${job.id}: ${err.message}`);
+        dateFrom = undefined;
+      }
+    }
+
+    const consultationLink = buildConsultationLink({
+      baseUrl,
+      jobType: job.jobType,
+      templateId: template.id,
+      jobId: job.id,
+      dateFrom,
+    });
+
+    const emailHTML = buildConsultationInviteEmailHTML({
+      clienteNome: cliente.nome || "Cliente",
+      templateNome: template.nome,
+      nomeEvento: job.nomeEvento || "il tuo evento",
+      consultationLink,
+      studioInfo,
+    });
+
+    // Lock atomico: verifica + marca in un'unica transazione.
+    // Controlla SIA il marker auto SIA un eventuale invio manuale concorrente (snapshot fresco),
+    // così la dedup vs invio manuale non ha race tra la query iniziale e il lock.
+    let locked = false;
+    try {
+      locked = await db.runTransaction(async (tx: any) => {
+        const fresh = await tx.get(db.collection("jobs").doc(job.id));
+        if (!fresh.exists) return false;
+        const data = fresh.data() || {};
+        if (data.visioneAutoInviteSentAt) return false;
+        const freshEvents: any[] = Array.isArray(data.workflowEvents) ? data.workflowEvents : [];
+        const manualSent = freshEvents.some(
+          (e) => e?.tipo === "consulenza_inviata" && e?.metadata?.templateId === template.id
+        );
+        if (manualSent) return false;
+        tx.update(db.collection("jobs").doc(job.id), {
+          visioneAutoInviteSentAt: Timestamp.now(),
+          visioneAutoInviteTemplateId: template.id,
+        });
+        return true;
+      });
+    } catch (err: any) {
+      results.errors.push(`Job ${job.id}: lock ${err.message}`);
+      continue;
+    }
+    if (!locked) { results.skipped++; continue; }
+
+    // Invio email: SOLO un fallimento dell'invio giustifica il rollback del marker.
+    try {
+      await sendGmailEmail(
+        cliente.email,
+        `Prenota la tua ${template.nome}`,
+        emailHTML,
+        undefined,
+        {
+          type: "consultation_auto_invite",
+          relatedDocId: job.id,
+          relatedDocType: "job",
+          clientName: cliente.nome,
+        }
+      );
+    } catch (err: any) {
+      // Email NON inviata → rollback marker per ritentare al prossimo giro
+      try {
+        await db.collection("jobs").doc(job.id).update({
+          visioneAutoInviteSentAt: null,
+          visioneAutoInviteTemplateId: null,
+        });
+      } catch (_) {}
+      results.errors.push(`Job ${job.id}: invio ${err.message}`);
+      console.error(`[VisioneAutoInvite] ❌ Invio fallito job ${job.id}:`, err.message);
+      continue;
+    }
+
+    // Email INVIATA con successo: il marker NON va più annullato (evita doppi invii).
+    results.sent++;
+    console.log(`[VisioneAutoInvite] ✅ Inviato job ${job.id} → ${cliente.email}`);
+
+    // Persistenza timeline best-effort: un errore qui NON deve causare un reinvio,
+    // quindi viene solo loggato (il marker resta impostato).
+    try {
+      const timelineEvent = {
+        id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        jobId: job.id,
+        tipo: "consulenza_inviata",
+        descrizione: `Consulenza "${template.nome}" inviata automaticamente via email`,
+        data: Timestamp.now(),
+        metadata: {
+          templateId: template.id,
+          templateNome: template.nome,
+          channel: "email",
+          consultationLink,
+          auto: true,
+        },
+      };
+      await db.collection("jobs").doc(job.id).update({
+        workflowEvents: FieldValue.arrayUnion(timelineEvent),
+        updatedAt: Timestamp.now(),
+      });
+      await db.collection("jobTimeline").add(timelineEvent);
+    } catch (err: any) {
+      results.errors.push(`Job ${job.id}: timeline ${err.message} (email già inviata)`);
+      console.error(`[VisioneAutoInvite] ⚠️ Timeline non salvata job ${job.id} (email inviata):`, err.message);
+    }
+  }
+
+  if (results.sent > 0 || results.errors.length > 0 || results.checked > 0) {
+    console.log("[VisioneAutoInvite] Completato:", results);
+  }
   return results;
 }
 

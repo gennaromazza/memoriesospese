@@ -127,6 +127,49 @@ export async function getAvailableSlotsForDate(
 }
 
 /**
+ * Compute the earliest bookable date (start of day, Europe/Rome) given a number
+ * of postproduction lead WORKING days.
+ *
+ * Counting starts the day AFTER `now` and skips:
+ *  - Sundays (Luxon weekday 7)
+ *  - any day present in `allDayDates` (an all-day event blocks that day)
+ *
+ * After `leadWorkingDays` working days have been counted, the earliest viewing
+ * is the following calendar day. With leadWorkingDays <= 0 the rule is disabled
+ * and "today" is returned.
+ *
+ * @param now Reference "today"
+ * @param leadWorkingDays Required postproduction working days
+ * @param allDayDates Set of "yyyy-MM-dd" (Europe/Rome) days with an all-day event
+ * @returns DateTime at start of the earliest bookable day (Europe/Rome)
+ */
+export function computeEarliestBookableDate(
+  now: Date | string,
+  leadWorkingDays: number,
+  allDayDates: Set<string>
+): DateTime {
+  let cursor = toRome(now).startOf('day');
+  if (!leadWorkingDays || leadWorkingDays <= 0) {
+    return cursor;
+  }
+
+  let counted = 0;
+  let guard = 0;
+  while (counted < leadWorkingDays && guard < 366) {
+    cursor = cursor.plus({ days: 1 });
+    const isSunday = cursor.weekday === 7;
+    const isAllDay = allDayDates.has(cursor.toFormat('yyyy-MM-dd'));
+    if (!isSunday && !isAllDay) {
+      counted++;
+    }
+    guard++;
+  }
+
+  // After the last postproduction working day, the earliest viewing is the next day.
+  return cursor.plus({ days: 1 }).startOf('day');
+}
+
+/**
  * Check if a specific date has any available slots
  */
 export async function hasAvailableSlots(

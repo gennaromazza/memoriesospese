@@ -26,7 +26,8 @@ export {
 export {
   getAvailableSlotsForDate,
   hasAvailableSlots,
-  getUnavailabilityReason
+  getUnavailabilityReason,
+  computeEarliestBookableDate
 } from './slots';
 
 // Export Google Calendar wrappers

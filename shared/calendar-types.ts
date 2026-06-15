@@ -34,6 +34,19 @@ export interface AvailabilityConfig {
   
   /** Buffer time after each slot (minutes) */
   bufferAfterMinutes?: number;
+
+  /**
+   * Minimum lead time in WORKING days before a date is bookable.
+   * Counting starts the day after "today" and skips Sundays and any day that
+   * has an all-day event (postproduction lead). Used by the consultation
+   * "visione" flow. When 0/undefined the rule is disabled.
+   */
+  minLeadWorkingDays?: number;
+
+  /**
+   * When true, the day immediately following an all-day event is not bookable.
+   */
+  blockDayAfterAllDayEvent?: boolean;
 }
 
 /**
@@ -88,7 +101,7 @@ export interface SlotsResponse {
   slots: TimeSlot[];
   
   /** Reason why no slots are available (if applicable) */
-  unavailableReason?: 'all-day-event' | 'day-closed' | 'all-booked' | 'excluded-date';
+  unavailableReason?: 'all-day-event' | 'day-closed' | 'all-booked' | 'excluded-date' | 'too-soon' | 'day-after-all-day';
   
   /** User-friendly message explaining unavailability */
   message?: string;

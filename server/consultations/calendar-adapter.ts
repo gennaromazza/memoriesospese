@@ -76,8 +76,51 @@ export function consultationTemplateToAvailabilityConfig(
     excludedWeekdays,
     excludedDates: [], // Consultations don't have specific excluded dates
     bufferBeforeMinutes: 0, // No buffer for consultations
-    bufferAfterMinutes: 0
+    bufferAfterMinutes: 0,
+    // Auto-invito consulenza visione: lead postproduzione + blocco giorno dopo all-day
+    minLeadWorkingDays: template.giorniPostproduzione && template.giorniPostproduzione > 0
+      ? template.giorniPostproduzione
+      : undefined,
+    blockDayAfterAllDayEvent: template.bloccaGiornoDopoEventoGiornataIntera === true
   };
+}
+
+/**
+ * Build a Set of "yyyy-MM-dd" (Europe/Rome) for every day that has at least one
+ * all-day event in [rangeStart, rangeEnd]. Aggregates Google Calendar all-day
+ * events and CRM all-day Jobs (consultations/bookings are never all-day).
+ *
+ * Used to compute the postproduction lead (which skips all-day days) and to
+ * detect the day-after-all-day block.
+ */
+export async function getAllDayDatesInRange(
+  rangeStart: Date,
+  rangeEnd: Date,
+  db: any
+): Promise<Set<string>> {
+  const { DateTime } = await import('luxon');
+  const events = await getAllExistingEvents(rangeStart, rangeEnd, db, {
+    includeConsultations: false,
+    includeBookings: false,
+    includeJobs: true
+  });
+
+  const allDayDates = new Set<string>();
+  for (const event of events) {
+    if (!event.allDay) continue;
+    let cursor = DateTime.fromJSDate(event.start).setZone('Europe/Rome').startOf('day');
+    const endExclusive = DateTime.fromJSDate(event.end).setZone('Europe/Rome');
+    // Google all-day events end at next-day midnight (exclusive); CRM all-day jobs
+    // end at endOf('day') (same day) → loop runs exactly once.
+    let guard = 0;
+    while (cursor < endExclusive && guard < 366) {
+      allDayDates.add(cursor.toFormat('yyyy-MM-dd'));
+      cursor = cursor.plus({ days: 1 });
+      guard++;
+    }
+  }
+
+  return allDayDates;
 }
 
 /**

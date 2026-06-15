@@ -118,7 +118,13 @@ export interface ConsultationTemplate {
   // Studio Assistant - Configurazione intelligente
   giorniPreparazione?: number;            // Giorni lavorativi necessari per preparare (default 0)
   weight?: 1 | 2 | 3;                     // Peso carico lavoro: 1=leggero, 2=medio, 3=pesante (default 1)
-  
+
+  // Auto-invito consulenza visione (invio automatico link prenotazione dopo l'evento)
+  autoInvioVisioneAttivo?: boolean;             // Se true, invia automaticamente il link X giorni dopo l'evento
+  autoInvioVisioneGiorniDopoEvento?: number;    // Giorni dopo eventDate per inviare l'email (default 0)
+  giorniPostproduzione?: number;                // Giorni lavorativi di lead (salta domeniche + eventi all-day) prima della prima data prenotabile
+  bloccaGiornoDopoEventoGiornataIntera?: boolean; // Blocca il giorno successivo a un evento all-day
+
   attiva: boolean;                        // Template disponibile per prenotazione
   ordine: number;                         // Ordinamento display (default 0)
   
@@ -140,6 +146,10 @@ export interface InsertConsultationTemplate {
   imageUrls?: string[];
   giorniPreparazione?: number;
   weight?: 1 | 2 | 3;
+  autoInvioVisioneAttivo?: boolean;
+  autoInvioVisioneGiorniDopoEvento?: number;
+  giorniPostproduzione?: number;
+  bloccaGiornoDopoEventoGiornataIntera?: boolean;
   attiva: boolean;
   ordine: number;
 }
@@ -157,6 +167,10 @@ export interface UpdateConsultationTemplate {
   imageUrls?: string[];
   giorniPreparazione?: number;
   weight?: 1 | 2 | 3;
+  autoInvioVisioneAttivo?: boolean;
+  autoInvioVisioneGiorniDopoEvento?: number;
+  giorniPostproduzione?: number;
+  bloccaGiornoDopoEventoGiornataIntera?: boolean;
   attiva?: boolean;
   ordine?: number;
 }
@@ -344,6 +358,12 @@ export const InsertConsultationTemplateSchema = z.object({
   excludedDays: z.array(z.number().min(0).max(6)).optional(),
   customWorkingHours: z.array(ConsultationWorkingHoursSchema).min(7, "Orari personalizzati obbligatori (7 giorni)"), // OBBLIGATORIO
   imageUrls: z.array(z.string().url()).optional(),
+  giorniPreparazione: z.number().int().min(0).optional(),
+  weight: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+  autoInvioVisioneAttivo: z.boolean().optional(),
+  autoInvioVisioneGiorniDopoEvento: z.number().int().min(0).optional(),
+  giorniPostproduzione: z.number().int().min(0).optional(),
+  bloccaGiornoDopoEventoGiornataIntera: z.boolean().optional(),
   attiva: z.boolean(),
   ordine: z.number().int().default(0),
 });

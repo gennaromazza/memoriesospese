@@ -20,7 +20,7 @@ import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
 import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
-import reminderRoutes, { runReminderCheck } from './reminder-routes.js';
+import reminderRoutes, { runReminderCheck, runVisioneAutoInviteCheck } from './reminder-routes.js';
 import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
@@ -228,6 +228,15 @@ async function startServer() {
           }
         } catch (err: any) {
           console.error('⏰ Reminder scheduler errore:', err.message);
+        }
+        // Auto-invito consulenza visione (idempotente: marker atomico per job)
+        try {
+          const v = await runVisioneAutoInviteCheck();
+          if (v.sent > 0) {
+            console.log(`⏰ Auto-invito visione: ${v.sent} invii inviati (${v.errors.length} errori)`);
+          }
+        } catch (err: any) {
+          console.error('⏰ Auto-invito visione errore:', err.message);
         }
       };
       setTimeout(runRemindersWithLog, 2 * 60 * 1000);

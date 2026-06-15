@@ -156,7 +156,14 @@ export interface Job {
   
   // Eventi calendario collegati (Google Calendar event IDs)
   linkedCalendarEventIds?: string[];
-  
+
+  // Auto-invito consulenza visione: marker per invio una-tantum
+  visioneAutoInviteSentAt?: Timestamp;   // Timestamp invio automatico link consulenza visione
+  visioneAutoInviteTemplateId?: string;  // ID template visione usato per l'invio automatico
+
+  // Soft delete
+  deletedAt?: Timestamp | null;
+
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
