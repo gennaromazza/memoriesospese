@@ -717,6 +717,8 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
   try {
     const { id } = req.params;
     const { channel, templateId, dateFrom, dateTo } = req.body;
+    // force=true → reinvio deliberato dell'admin: salta il lock anti-race (vedi sotto).
+    const force = req.body.force === true;
     
     if (!channel || !['email', 'whatsapp'].includes(channel)) {
       return res.status(400).json({ error: 'channel richiesto (email | whatsapp)' });
@@ -881,16 +883,62 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
       metadata: eventMetadata
     };
     
-    // IDEMPOTENZA: scrivi il record di dedup in job.workflowEvents PRIMA di inviare
-    // l'email. Lo scheduler auto-invito (reminder-routes.ts) ricontrolla questo stesso
-    // workflowEvent (per metadata.templateId) nella sua transazione di lock: vedendolo,
-    // salta l'invio automatico ed evita un doppione anche se una scrittura successiva
-    // fallisce o lo scheduler parte proprio nella finestra di invio. Rollback SOLO se
-    // l'invio email vero e proprio fallisce.
-    await db.collection('jobs').doc(id).update({
-      workflowEvents: FieldValue.arrayUnion(timelineEvent),
-      updatedAt: Timestamp.now()
-    });
+    // IDEMPOTENZA + ANTI-RACE: il record di dedup (workflowEvent consulenza_inviata)
+    // va scritto su job.workflowEvents PRIMA dell'invio email — è ciò che lo scheduler
+    // auto-invito (reminder-routes.ts) ricontrolla nella sua transazione di lock.
+    // Per il template con invito automatico (autoInvioVisioneAttivo) il PRIMO invio
+    // manuale usa una transazione sullo STESSO job doc condivisa con lo scheduler:
+    // scrive il record SOLO se né il marker auto (visioneAutoInviteSentAt) né un invio
+    // precedente esistono già. Così manuale e scheduler si serializzano sul documento ed
+    // esattamente UNO invia, anche se partono nello stesso istante. Un reinvio deliberato
+    // dell'admin (force=true, pulsante "Rinvia invito") salta il controllo e invia comunque.
+    const isVisioneAutoTemplate = templateData.autoInvioVisioneAttivo === true;
+    const useRaceLock = isVisioneAutoTemplate && !force;
+
+    if (useRaceLock) {
+      let claimed = false;
+      try {
+        claimed = await db.runTransaction(async (tx: any) => {
+          const fresh = await tx.get(db.collection('jobs').doc(id));
+          if (!fresh.exists) return false;
+          const data: any = fresh.data() || {};
+          // Lo scheduler ha già impostato il marker (auto in corso/inviato) → non doppiare.
+          if (data.visioneAutoInviteSentAt) return false;
+          // Invito (auto o manuale) già registrato per questo template → non doppiare.
+          const events: any[] = Array.isArray(data.workflowEvents) ? data.workflowEvents : [];
+          const already = events.some(
+            (e) => e?.tipo === 'consulenza_inviata' && e?.metadata?.templateId === templateId
+          );
+          if (already) return false;
+          tx.update(db.collection('jobs').doc(id), {
+            workflowEvents: FieldValue.arrayUnion(timelineEvent),
+            updatedAt: Timestamp.now()
+          });
+          return true;
+        });
+      } catch (lockError: any) {
+        console.error(`[Send Consultation Request] ❌ Lock fallito per job ${id}:`, lockError.message);
+        return res.status(500).json({
+          error: 'Errore durante invio richiesta consulenza',
+          details: lockError.message
+        });
+      }
+      if (!claimed) {
+        // Lo scheduler (o un invio precedente) ha già "vinto": evita il doppio invito.
+        return res.status(409).json({
+          error: 'Invito consulenza già inviato',
+          details: 'L\'invito alla consulenza risulta già inviato (automaticamente o manualmente). Aggiorna la pagina per vedere lo stato; usa "Rinvia invito" per inviarlo di nuovo.',
+          alreadySent: true
+        });
+      }
+    } else {
+      // Reinvio forzato o template senza invito automatico: nessuna corsa con lo
+      // scheduler, ma scrivi comunque il record di dedup PRIMA dell'invio email.
+      await db.collection('jobs').doc(id).update({
+        workflowEvents: FieldValue.arrayUnion(timelineEvent),
+        updatedAt: Timestamp.now()
+      });
+    }
     
     if (channel === 'email') {
       try {

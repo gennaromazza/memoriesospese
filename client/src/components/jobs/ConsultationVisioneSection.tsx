@@ -88,7 +88,9 @@ export default function ConsultationVisioneSection({
       const res = await apiRequest(
         'POST',
         `/api/jobs/${jobId}/send-consultation-request`,
-        { templateId, channel: 'email' },
+        // force=true solo per il reinvio deliberato (stato già inviato): il PRIMO invio
+        // resta protetto dal lock anti-race lato server contro l'invio automatico.
+        { templateId, channel: 'email', force: autoSent || manualSent },
       );
       return res.json();
     },
@@ -102,6 +104,9 @@ export default function ConsultationVisioneSection({
     },
     onError: (error: unknown) => {
       const message = error instanceof Error ? error.message : 'Invio non riuscito';
+      // Se l'invito risultava "già inviato" (race con lo scheduler), aggiorna lo stato
+      // mostrato così la card riflette l'invio effettivo.
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
       toast({
         variant: 'destructive',
         title: 'Errore invio',
