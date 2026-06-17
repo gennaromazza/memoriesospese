@@ -63,4 +63,4 @@ GOOGLE_CALENDAR_ID = "gennaro.mazzacane@gmail.com"
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 20000
+timeoutMs = 180000
