@@ -802,12 +802,15 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
       consultationLink
     };
     
+    let emailSubject: string | null = null;
+    let emailHtml: string | null = null;
+
     if (channel === 'email') {
-      // Invia email
+      // Prepara email (l'invio avviene DOPO aver scritto il record di dedup, vedi sotto)
       const studioInfo = await getStudioContactInfo();
       
-      const subject = `Prenota la tua consulenza - ${template.data.nome}`;
-      const htmlContent = `
+      emailSubject = `Prenota la tua consulenza - ${template.data.nome}`;
+      emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #8b5a3c; text-align: center;">📸 Prenota la tua Consulenza</h2>
           <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
@@ -854,12 +857,6 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
         </div>
       `;
       
-      await sendGmailEmail(
-        cliente.email,
-        subject,
-        htmlContent
-      );
-      
       eventMetadata.emailSent = true;
     } else {
       // WhatsApp - usa whatsapp, cellulare1 o cellulare2 come fallback
@@ -874,7 +871,7 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
       eventMetadata.whatsappLink = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
     }
     
-    // 6. Salva evento timeline
+    // 6. Crea evento timeline (funge anche da record di dedup per lo scheduler auto-invito)
     const timelineEvent = {
       id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       jobId: id,
@@ -884,14 +881,47 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
       metadata: eventMetadata
     };
     
-    // Salva in job.workflowEvents
+    // IDEMPOTENZA: scrivi il record di dedup in job.workflowEvents PRIMA di inviare
+    // l'email. Lo scheduler auto-invito (reminder-routes.ts) ricontrolla questo stesso
+    // workflowEvent (per metadata.templateId) nella sua transazione di lock: vedendolo,
+    // salta l'invio automatico ed evita un doppione anche se una scrittura successiva
+    // fallisce o lo scheduler parte proprio nella finestra di invio. Rollback SOLO se
+    // l'invio email vero e proprio fallisce.
     await db.collection('jobs').doc(id).update({
       workflowEvents: FieldValue.arrayUnion(timelineEvent),
       updatedAt: Timestamp.now()
     });
     
-    // Salva anche in jobTimeline collection (per "Attività Recenti")
-    await db.collection('jobTimeline').add(timelineEvent);
+    if (channel === 'email') {
+      try {
+        await sendGmailEmail(cliente.email, emailSubject!, emailHtml!);
+      } catch (emailError: any) {
+        // Invio fallito DOPO la scrittura del record di dedup: rollback così lo scheduler
+        // potrà riprovare l'invio automatico al ciclo successivo (meglio un invio mancato
+        // e ritentabile che un doppio invio al cliente).
+        try {
+          await db.collection('jobs').doc(id).update({
+            workflowEvents: FieldValue.arrayRemove(timelineEvent),
+            updatedAt: Timestamp.now()
+          });
+        } catch (rollbackError: any) {
+          console.error(`[Send Consultation Request] ⚠️ Rollback workflowEvent fallito per job ${id}:`, rollbackError.message);
+        }
+        console.error(`[Send Consultation Request] ❌ Invio email fallito per job ${id}:`, emailError.message);
+        return res.status(500).json({
+          error: 'Errore durante invio email consulenza',
+          details: emailError.message
+        });
+      }
+    }
+    
+    // Persistenza accessoria in jobTimeline (per "Attività Recenti"): best-effort, un suo
+    // fallimento NON causa rollback né errore (il record di dedup è già su job.workflowEvents).
+    try {
+      await db.collection('jobTimeline').add(timelineEvent);
+    } catch (timelineError: any) {
+      console.error(`[Send Consultation Request] ⚠️ jobTimeline non salvata per job ${id} (record dedup già presente):`, timelineError.message);
+    }
     
     console.log(`✅ [Job ${id}] Richiesta consulenza inviata via ${channel}`);
     
