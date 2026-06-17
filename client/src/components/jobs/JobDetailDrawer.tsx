@@ -51,6 +51,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import InfoFormJobSection from './InfoFormJobSection';
+import ConsultationVisioneSection from './ConsultationVisioneSection';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { JobStatus } from '@shared/jobs-types';
@@ -587,6 +588,15 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
 
             {/* Moduli Informativi */}
             <TabsContent value="moduli" className="space-y-3 pt-2">
+              {job && (
+                <ConsultationVisioneSection
+                  jobId={jobId}
+                  jobType={job.jobType}
+                  visioneAutoInviteSentAt={job.visioneAutoInviteSentAt}
+                  visioneAutoInviteTemplateId={job.visioneAutoInviteTemplateId}
+                  workflowEvents={job.workflowEvents}
+                />
+              )}
               <InfoFormJobSection
                 jobId={jobId}
                 jobName={job?.nomeEvento}
