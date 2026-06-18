@@ -299,6 +299,7 @@ export default function JobsManager() {
   const { data: listAggregates } = useQuery<{
     transactionCounts: Record<string, number>;
     quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>;
+    financialsByJob: Record<string, { totalePagato: number; saldoResiduo: number }>;
   }>({
     queryKey: ['jobListAggregates'],
     queryFn: async () => {
@@ -307,6 +308,7 @@ export default function JobsManager() {
       return {
         transactionCounts: data.transactionCounts || {},
         quotesStatus: data.quotesStatus || {},
+        financialsByJob: data.financialsByJob || {},
       };
     },
     staleTime: 3 * 60 * 1000,
@@ -316,6 +318,8 @@ export default function JobsManager() {
   const transazioniPerJob = listAggregates?.transactionCounts ?? {};
   // jobId -> stato preventivo (usato dal filtro stato preventivo e dai badge)
   const quotesByJob = listAggregates?.quotesStatus ?? {};
+  // jobId -> incassato/da incassare reali (calcolati dai paymentSchedules lato server)
+  const financialsByJob = listAggregates?.financialsByJob ?? {};
   
   // Crea mappa slug -> JobType per lookup veloci
   const jobTypeMap = useMemo(() => {
@@ -580,19 +584,27 @@ export default function JobsManager() {
   const stats = useMemo(() => {
     // Escludi gli archiviati da conteggio e totali (possono rientrare in filteredJobs durante una ricerca)
     const activeJobs = filteredJobs.filter(j => j.status !== 'archiviato');
+    let totalePreventivato = 0;
+    let totalePagato = 0;
+    let saldoResiduo = 0;
+    for (const j of activeJobs) {
+      const prev = j.financials?.totalePreventivato || 0;
+      // Incassato/Da Incassare reali: dai paymentSchedules (calcolati lato server),
+      // con fallback ai campi denormalizzati del job per i lavori legacy senza schedule.
+      const agg = financialsByJob[j.id];
+      const pagato = agg?.totalePagato ?? (j.financials?.totalePagato || 0);
+      totalePreventivato += prev;
+      totalePagato += pagato;
+      saldoResiduo += agg?.saldoResiduo ?? Math.max(0, prev - pagato);
+    }
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     return {
       totalJobs: activeJobs.length,
-      totalePreventivato: activeJobs.reduce((sum, j) => 
-        sum + (j.financials?.totalePreventivato || 0), 0
-      ),
-      totalePagato: activeJobs.reduce((sum, j) => 
-        sum + (j.financials?.totalePagato || 0), 0
-      ),
-      saldoResiduo: activeJobs.reduce((sum, j) => 
-        sum + (j.financials?.saldoResiduo || 0), 0
-      )
+      totalePreventivato: round2(totalePreventivato),
+      totalePagato: round2(totalePagato),
+      saldoResiduo: round2(saldoResiduo),
     };
-  }, [filteredJobs]);
+  }, [filteredJobs, financialsByJob]);
   
   const toggleSelectJob = (jobId: string) => {
     const newSelected = new Set(selectedJobs);

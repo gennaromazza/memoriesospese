@@ -500,21 +500,48 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
  * Aggregati leggeri per la pagina "Lista Lavori":
  *  - transactionCounts: jobId -> numero totale transazioni sugli ordini collegati
  *  - quotesStatus: jobId -> { hasQuote, isSigned, isEmailSent }
- * Letti dai campi denormalizzati sui documenti 'jobs' (aggiornati sui write-path),
- * così non si scorrono più le intere collezioni 'orders' e 'quotes'.
+ *  - financialsByJob: jobId -> { totalePagato (incassato), saldoResiduo (da incassare) }
+ * transactionCount/quoteStatus sono letti dai campi denormalizzati sui 'jobs' (aggiornati
+ * sui write-path), così non si scorrono le intere collezioni 'orders'/'quotes'; gli incassi
+ * reali sono sommati dai 'paymentSchedules' (fonte di verità per gli importi pagati).
  * DEVE restare definita PRIMA di GET '/:id'.
  */
 router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
   try {
-    // Legge i campi denormalizzati direttamente dai documenti 'jobs' (quoteStatus,
-    // transactionCount), aggiornati sui write-path. Non scorre più le intere collezioni
-    // 'orders' e 'quotes' (che crescono più velocemente dei jobs).
-    const jobsSnap = await db.collection('jobs').select('quoteStatus', 'transactionCount').get();
+    // Legge i campi denormalizzati dai 'jobs' (quoteStatus, transactionCount, financials)
+    // — niente scan di 'orders'/'quotes' — e somma gli incassi reali dai 'paymentSchedules'
+    // (una sola collezione, fonte di verità per gli importi pagati).
+    const [jobsSnap, schedulesSnap] = await Promise.all([
+      db.collection('jobs').select('quoteStatus', 'transactionCount', 'financials').get(),
+      db.collection('paymentSchedules').select('jobId', 'payments').get(),
+    ]);
+
+    // jobId -> totale realmente incassato dai payment schedules (somma di importoPagato).
+    // È la stessa fonte usata da useJobFinancials: gestisce schedule duplicati e pagamenti
+    // parziali. Tracciamo anche quali job hanno almeno uno schedule, per distinguere
+    // "schedule con 0 incassato" (usa 0) da "nessuno schedule" (fallback denormalizzato).
+    const paidByJob: Record<string, number> = {};
+    const jobsWithSchedule = new Set<string>();
+    schedulesSnap.docs.forEach(doc => {
+      const data = doc.data() as any;
+      const jobId = data.jobId;
+      if (!jobId) return;
+      jobsWithSchedule.add(jobId);
+      const paid = (Array.isArray(data.payments) ? data.payments : []).reduce(
+        (sum: number, p: any) => sum + (typeof p?.importoPagato === 'number' && p.importoPagato > 0 ? p.importoPagato : 0),
+        0
+      );
+      paidByJob[jobId] = (paidByJob[jobId] || 0) + paid;
+    });
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
 
     // jobId -> numero totale transazioni sugli ordini collegati
     const transactionCounts: Record<string, number> = {};
     // jobId -> stato preventivo aggregato
     const quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }> = {};
+    // jobId -> { totalePagato (incassato), saldoResiduo (da incassare) }
+    const financialsByJob: Record<string, { totalePagato: number; saldoResiduo: number }> = {};
 
     jobsSnap.docs.forEach(doc => {
       const data = doc.data() as any;
@@ -528,9 +555,25 @@ router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
           isEmailSent: !!data.quoteStatus.isEmailSent,
         };
       }
+
+      // Incassato: se il job ha payment schedules usa SEMPRE la loro somma (anche se 0),
+      // altrimenti fallback al campo denormalizzato (job legacy senza schedule).
+      // Da incassare = max(0, preventivato - incassato) (clamp per overpayment).
+      const fin = data.financials || {};
+      const prev = typeof fin.totalePreventivato === 'number' ? fin.totalePreventivato : 0;
+      const totalePagato = jobsWithSchedule.has(doc.id)
+        ? (paidByJob[doc.id] || 0)
+        : Math.max(0, typeof fin.totalePagato === 'number' ? fin.totalePagato : 0);
+      const saldoResiduo = Math.max(0, prev - totalePagato);
+      // Emette un record quando c'è incassato/residuo, e SEMPRE per i job con schedule
+      // (anche 0/0): così il client non fa fallback al totalePagato denormalizzato stale
+      // per un job che ha invece uno schedule (fonte di verità).
+      if (totalePagato > 0 || saldoResiduo > 0 || jobsWithSchedule.has(doc.id)) {
+        financialsByJob[doc.id] = { totalePagato: round2(totalePagato), saldoResiduo: round2(saldoResiduo) };
+      }
     });
 
-    res.json({ success: true, transactionCounts, quotesStatus });
+    res.json({ success: true, transactionCounts, quotesStatus, financialsByJob });
   } catch (error: any) {
     console.error('❌ Errore get job list aggregates:', error);
     res.status(500).json({ error: error.message });
