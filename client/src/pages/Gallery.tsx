@@ -29,6 +29,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import ImageLightbox from "@/components/ImageLightbox";
+import { MasonryColumns } from "@/components/gallery/MasonryColumns";
 import SelectionConfirmModal, { SelectedPhoto, PhotoWithNote } from "@/components/SelectionConfirmModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -136,10 +137,6 @@ const PhotoCard = memo(({
   const showPlaceholder = !isLoaded && !isErrored;
 
   return (
-    <div
-      className="masonry-item"
-      style={!isAboveTheFold ? { contentVisibility: 'auto', containIntrinsicSize: '0 400px' } : undefined}
-    >
       <div
         className={`gallery-image cursor-pointer relative group overflow-hidden rounded-lg ${
           showPlaceholder ? '' : 'shadow-md hover:shadow-lg'
@@ -236,7 +233,6 @@ const PhotoCard = memo(({
           </div>
         )}
       </div>
-    </div>
   );
 }, (prevProps, nextProps) => {
   // Custom comparator: re-render solo se cambiano ID, index, isSelected o assignedProducts
@@ -1517,6 +1513,9 @@ export default function Gallery() {
     return [...photos, ...guestPhotos];
   }, [photos, guestPhotos]);
 
+  // 🪟 Finestra di rendering: quante card montare nel DOM (vedi displayPhotosForGrid).
+  const [visiblePhotoLimit, setVisiblePhotoLimit] = useState(60);
+
   // 🔍 UX Enhancement: Apre lightbox usando displayPhotos (supporta filtro "Solo Selezionate")
   // Quando sourcePhotos è passato (es. da un capitolo), la lightbox naviga SOLO in quelle foto
   const openLightbox = (index: number, sourcePhotos?: any[]) => {
@@ -1533,6 +1532,7 @@ export default function Gallery() {
   // Funzione per applicare i filtri
   const handleFilterChange = (newFilters: FilterCriteria) => {
     setFilters(newFilters);
+    setVisiblePhotoLimit(60); // reset finestra di rendering quando cambiano i filtri
 
     // Verifica se c'è almeno un filtro attivo
     const hasActiveFilter =
@@ -1547,6 +1547,7 @@ export default function Gallery() {
 
   // Funzione per resettare i filtri
   const resetFilters = () => {
+    setVisiblePhotoLimit(60); // reset finestra di rendering
     setFilters({
       startDate: undefined,
       endDate: undefined,
@@ -1630,6 +1631,17 @@ export default function Gallery() {
   // 📄 Con paginazione Firestore, tutte le foto caricate sono da visualizzare (niente slice client-side)
   const displayPhotos = allDisplayPhotos;
 
+  // 🪟 Finestra di rendering: i METADATI di tutte le foto restano in `displayPhotos`
+  // (necessari a lightbox e selezione), ma nel DOM montiamo solo le prime N card,
+  // aumentate dalla sentinella mentre l'utente scorre. Meno nodi nel DOM = scroll più
+  // leggero, senza perdere completezza per visualizzatore/selezione.
+  const RENDER_WINDOW_STEP = 40;
+  const displayPhotosForGrid = useMemo(
+    () => displayPhotos.slice(0, visiblePhotoLimit),
+    [displayPhotos, visiblePhotoLimit],
+  );
+  const hasMoreToRender = visiblePhotoLimit < displayPhotos.length;
+
   // 📚 Foto raggruppate per capitolo (per visualizzazione client)
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
   
@@ -1702,25 +1714,29 @@ export default function Gallery() {
     });
   }, [photosByChapter, collapsedChapters]);
 
-  // 📊 Check se ci sono altre foto da caricare (Firestore ha più pagine)
-  const hasMorePhotosToShow = !!hasNextPage;
+  // 📊 La sentinella resta montata finché ci sono altre card da rivelare (finestra di
+  // rendering) OPPURE altri metadati ancora in arrivo da Firestore (auto-fetch HYBRID).
+  const hasMorePhotosToShow = hasMoreToRender || !!hasNextPage;
 
-  // Intersection Observer per auto-load pagine successive da Firestore
+  // Intersection Observer per la FINESTRA DI RENDERING: avvicinandosi al fondo rivela
+  // altre card già disponibili. Il fetch dei metadati è gestito UNICAMENTE dall'effetto
+  // HYBRID (scarica tutte le pagine in background): qui non chiamiamo più fetchNextPage,
+  // eliminando il doppio meccanismo di paginazione.
   useEffect(() => {
-    if (!sentinelRef.current || !hasNextPage) return;
+    if (!sentinelRef.current || !hasMoreToRender) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isFetchingNextPage) {
-          fetchNextPage();
+        if (entries[0].isIntersecting) {
+          setVisiblePhotoLimit((prev) => prev + RENDER_WINDOW_STEP);
         }
       },
-      { rootMargin: '400px' }
+      { rootMargin: '600px' }
     );
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasNextPage, fetchNextPage, isFetchingNextPage]);
+  }, [hasMoreToRender, RENDER_WINDOW_STEP]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
@@ -3841,69 +3857,73 @@ export default function Gallery() {
                                 )}
                                 
                                 {/* Griglia Foto del Capitolo */}
-                                <div className="masonry-grid">
-                                  {group.photos.map((photo, chapterIndex) => {
-                                    return (
-                                      <React.Fragment key={photo.id}>
-                                        <PhotoCard
-                                          photo={photo}
-                                          index={chapterIndex}
-                                          isSelected={selectedPhotoIdsSet.has(photo.id)}
-                                          isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
-                                          assignedProducts={photoAssignments[photo.id] || []}
-                                          isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
-                                          isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
-                                          isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                          onClick={() => openLightbox(chapterIndex, group.allPhotos)}
-                                        />
-                                        {!isSelectionMode && (
-                                          <div className="mt-2">
-                                            <LazyInteractionPanel
-                                              itemId={photo.id}
-                                              itemType="photo"
-                                              galleryId={galleryData.id}
-                                              isAdmin={isAdmin}
-                                              variant="default"
-                                            />
-                                          </div>
-                                        )}
-                                      </React.Fragment>
-                                    );
-                                  })}
-                                </div>
+                                <MasonryColumns
+                                  items={group.photos}
+                                  getKey={(photo) => photo.id}
+                                  renderItem={(photo, chapterIndex) => (
+                                    <>
+                                      <PhotoCard
+                                        photo={photo}
+                                        index={chapterIndex}
+                                        isSelected={selectedPhotoIdsSet.has(photo.id)}
+                                        isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                        assignedProducts={photoAssignments[photo.id] || []}
+                                        isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
+                                        isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
+                                        isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
+                                        onClick={() => openLightbox(chapterIndex, group.allPhotos)}
+                                      />
+                                      {!isSelectionMode && (
+                                        <div className="mt-2">
+                                          <LazyInteractionPanel
+                                            itemId={photo.id}
+                                            itemType="photo"
+                                            galleryId={galleryData.id}
+                                            isAdmin={isAdmin}
+                                            variant="default"
+                                          />
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                />
                               </div>
                             );
                           })}
                         </div>
                       ) : (
                         /* Vista Standard (senza capitoli) */
-                        <div ref={galleryGridRef} className="masonry-grid">
-                          {displayPhotos.map((photo, index) => (
-                            <React.Fragment key={photo.id}>
-                              <PhotoCard
-                                photo={photo}
-                                index={index}
-                                isSelected={selectedPhotoIdsSet.has(photo.id)}
-                                isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
-                                assignedProducts={photoAssignments[photo.id] || []}
-                                isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
-                                isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
-                                isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                onClick={() => openLightbox(index)}
-                              />
-                              {!isSelectionMode && (
-                                <div className="mt-2">
-                                  <LazyInteractionPanel
-                                    itemId={photo.id}
-                                    itemType="photo"
-                                    galleryId={galleryData.id}
-                                    isAdmin={isAdmin}
-                                    variant="default"
-                                  />
-                                </div>
-                              )}
-                            </React.Fragment>
-                          ))}
+                        <div ref={galleryGridRef}>
+                          <MasonryColumns
+                            items={displayPhotosForGrid}
+                            getKey={(photo) => photo.id}
+                            renderItem={(photo, index) => (
+                              <>
+                                <PhotoCard
+                                  photo={photo}
+                                  index={index}
+                                  isSelected={selectedPhotoIdsSet.has(photo.id)}
+                                  isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                  assignedProducts={photoAssignments[photo.id] || []}
+                                  isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
+                                  isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
+                                  isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
+                                  onClick={() => openLightbox(index, displayPhotos)}
+                                />
+                                {!isSelectionMode && (
+                                  <div className="mt-2">
+                                    <LazyInteractionPanel
+                                      itemId={photo.id}
+                                      itemType="photo"
+                                      galleryId={galleryData.id}
+                                      isAdmin={isAdmin}
+                                      variant="default"
+                                    />
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          />
                         </div>
                       )}
 
@@ -4154,42 +4174,38 @@ export default function Gallery() {
                       </div>
                     </div>
                   ) : (
-                    <div className="masonry-grid">
-                      {guestPhotos.map((photo, index) => (
+                    <MasonryColumns
+                      items={guestPhotos}
+                      getKey={(photo) => photo.id}
+                      renderItem={(photo, index) => (
                         <div
-                          key={photo.id}
-                          className="masonry-item"
-                          style={{ contentVisibility: index < 8 ? 'visible' : 'auto', containIntrinsicSize: '300px 400px' }}
+                          className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg"
+                          onClick={() => openLightbox(photos.length + index)}
                         >
-                          <div
-                            className="gallery-image cursor-pointer relative group overflow-hidden rounded-lg shadow-md hover:shadow-lg"
-                            onClick={() => openLightbox(photos.length + index)}
-                          >
-                            <img
-                              src={photo.thumbnailUrl || photo.url}
-                              alt={photo.name || `Foto ospite ${index + 1}`}
-                              className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
-                              loading={index < 8 ? 'eager' : 'lazy'}
-                              decoding="async"
-                              style={{
-                                backgroundColor: "transparent",
-                              }}
-                              title={`Caricata da: ${photo.uploaderName || "Ospite"} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString("it-IT") : ""}`}
-                            />
-                            {/* Badge per indicare che è una foto ospite */}
-                            <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
-                              Ospite
-                            </div>
-                            {/* Nome dell'uploader in basso a sinistra */}
-                            {photo.uploaderName && (
-                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                                {photo.uploaderName}
-                              </div>
-                            )}
+                          <img
+                            src={photo.thumbnailUrl || photo.url}
+                            alt={photo.name || `Foto ospite ${index + 1}`}
+                            className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
+                            loading={index < 8 ? 'eager' : 'lazy'}
+                            decoding="async"
+                            style={{
+                              backgroundColor: "transparent",
+                            }}
+                            title={`Caricata da: ${photo.uploaderName || "Ospite"} - ${photo.createdAt ? new Date(photo.createdAt).toLocaleString("it-IT") : ""}`}
+                          />
+                          {/* Badge per indicare che è una foto ospite */}
+                          <div className="absolute top-2 right-2 bg-rose-600 text-white text-xs px-2 py-1 rounded-full">
+                            Ospite
                           </div>
+                          {/* Nome dell'uploader in basso a sinistra */}
+                          {photo.uploaderName && (
+                            <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                              {photo.uploaderName}
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   )}
                 </div>
               )}

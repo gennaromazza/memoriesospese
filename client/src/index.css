@@ -156,43 +156,44 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
     @apply transform scale-[1.02];
   }
 
-  /* Masonry grid layout */
+  /* Masonry a colonne flexbox ad assegnazione fissa.
+     Ogni colonna è un contenitore indipendente: aggiungere foto in fondo a una
+     colonna non ribilancia le altre, eliminando il reflow globale (causa degli
+     scatti) tipico di `column-count`. */
   .masonry-grid {
-    column-count: 2;
-    column-gap: 0.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .masonry-column {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   @media (min-width: 640px) {
     .masonry-grid {
-      column-count: 3;
-      column-gap: 1rem;
+      gap: 1rem;
+    }
+    .masonry-column {
+      gap: 1rem;
     }
   }
 
   @media (min-width: 1024px) {
     .masonry-grid {
-      column-count: 4;
-      column-gap: 1.5rem;
+      gap: 1.5rem;
+    }
+    .masonry-column {
+      gap: 1.5rem;
     }
   }
 
   .masonry-item {
-    display: inline-block;
     width: 100%;
-    margin-bottom: 0.5rem;
-    break-inside: avoid;
-  }
-
-  @media (min-width: 640px) {
-    .masonry-item {
-      margin-bottom: 1rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .masonry-item {
-      margin-bottom: 1.5rem;
-    }
   }
 
   .btn-primary {
