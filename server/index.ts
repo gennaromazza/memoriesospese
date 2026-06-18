@@ -19,6 +19,7 @@ import collaboratoriRoutes from './collaboratori-routes.js';
 import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
+import galleryRoutes from './gallery-routes.js';
 import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
 import reminderRoutes, { runReminderCheck, runVisioneAutoInviteCheck } from './reminder-routes.js';
 import backupRoutes from './backup-routes.js';
@@ -125,6 +126,10 @@ async function startServer() {
     // Admin routes
     app.use('/api/admin', adminRoutes);
     console.log('🔐 Admin API routes mounted at /api/admin');
+
+    // Gallery routes (gallery-scoped, non-admin: es. ospiti che innescano le miniature)
+    app.use('/api/galleries', galleryRoutes);
+    console.log('🖼️  Gallery API routes mounted at /api/galleries');
 
     // Bulk Email routes
     app.use('/api/bulk-email', bulkEmailRoutes);

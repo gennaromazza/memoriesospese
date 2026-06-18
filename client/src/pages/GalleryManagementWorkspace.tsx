@@ -191,6 +191,7 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isGeneratingThumbs, setIsGeneratingThumbs] = useState(false);
   const [thumbProgress, setThumbProgress] = useState<{ generated: number; remaining: number } | null>(null);
+  const autoThumbRanFor = useRef<string | null>(null);
 
   // Genera le miniature mancanti della galleria (anteprime leggere per la vista pubblica).
   // Gli originali NON vengono toccati: lightbox e download usano sempre la foto a piena risoluzione.
@@ -293,6 +294,21 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
       setExistingPhotoHashes(hashes);
     }
   }, [allPhotos]);
+
+  // 🖼️ Auto-riparazione miniature: all'apertura della galleria, se esistono foto
+  // senza miniatura (es. caricate dagli ospiti, o residui di upload precedenti),
+  // genera le miniature mancanti lato server. Una sola volta per galleria.
+  // Gli originali NON vengono toccati; è idempotente e best-effort.
+  useEffect(() => {
+    if (!galleryId || isLoadingPhotos || allPhotos.length === 0) return;
+    if (autoThumbRanFor.current === galleryId) return;
+    autoThumbRanFor.current = galleryId;
+    const hasMissing = allPhotos.some((p: any) => !p.thumbnailUrl);
+    if (!hasMissing) return;
+    generateGalleryThumbnails(galleryId)
+      .then((r) => { if (r.generated > 0) refetchPhotos(); })
+      .catch(() => { /* best-effort: l'admin può usare il pulsante "Genera miniature" */ });
+  }, [galleryId, isLoadingPhotos, allPhotos, refetchPhotos]);
 
   // Redirect automatico se la galleria viene eliminata mentre siamo nel workspace
   useEffect(() => {

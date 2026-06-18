@@ -22,12 +22,20 @@ export interface ThumbnailProgress {
  * @param galleryId id della galleria
  * @param onProgress callback chiamato dopo ogni batch con i totali cumulativi
  * @param limit numero di foto per chiamata (default lato server: 120)
+ * @param opts.scope 'admin' (default) usa l'endpoint admin-only; 'gallery' usa
+ *   l'endpoint gallery-scoped (/api/galleries/...), utilizzabile anche dagli ospiti
+ *   autenticati che hanno caricato foto nella galleria.
  */
 export async function generateGalleryThumbnails(
   galleryId: string,
   onProgress?: (p: ThumbnailProgress) => void,
   limit?: number,
+  opts?: { scope?: "admin" | "gallery" },
 ): Promise<ThumbnailProgress> {
+  const endpoint =
+    opts?.scope === "gallery"
+      ? `/api/galleries/${galleryId}/generate-thumbnails`
+      : `/api/admin/galleries/${galleryId}/generate-thumbnails`;
   let totalGenerated = 0;
   let totalFailed = 0;
   let remaining = 0;
@@ -38,7 +46,7 @@ export async function generateGalleryThumbnails(
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const res = await apiRequest(
       "POST",
-      `/api/admin/galleries/${galleryId}/generate-thumbnails`,
+      endpoint,
       limit ? { limit } : {},
     );
     const data: ThumbnailRunResult = await res.json();

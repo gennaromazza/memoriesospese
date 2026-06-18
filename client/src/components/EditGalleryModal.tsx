@@ -3226,7 +3226,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     .map((photo) => (
                 <div key={photo.id} className="relative group">
                   <img
-                    src={photo.url}
+                    src={photo.thumbnailUrl || photo.url}
                     alt={photo.name}
                     className="w-full h-24 object-cover rounded border"
                   />
@@ -3550,7 +3550,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                               }}
                               className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
                             >
-                              <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                              <img src={photo.thumbnailUrl || photo.url} alt={photo.name} className="w-full h-full object-cover" />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                                 <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                               </div>
@@ -3581,7 +3581,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                             }}
                             className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
                           >
-                            <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                            <img src={photo.thumbnailUrl || photo.url} alt={photo.name} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                               <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                             </div>
@@ -3613,7 +3613,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     }}
                     className="relative group aspect-square overflow-hidden rounded-md border-2 border-transparent hover:border-[#6b7f6b] transition-all"
                   >
-                    <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                    <img src={photo.thumbnailUrl || photo.url} alt={photo.name} className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                       <Check className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                     </div>

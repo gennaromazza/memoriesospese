@@ -97,6 +97,7 @@ export async function apiRequest(
     '/api/payment-schedules/', // Payment schedule management endpoints requiring auth
     '/api/collaboratori', // Collaborator management endpoints requiring auth
     '/api/admin/', // Admin endpoints requiring auth
+    '/api/galleries/', // Gallery-scoped endpoints requiring auth (es. generazione miniature ospiti)
     '/api/bulk-email/', // Bulk email endpoints requiring auth
     '/api/receipts/', // Receipt endpoints requiring auth
     '/api/reminders/', // Reminder endpoints requiring auth

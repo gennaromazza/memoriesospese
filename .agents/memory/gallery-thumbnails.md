@@ -27,6 +27,15 @@ Nei dati convivono almeno due formati di URL per lo stesso bucket:
 La pagina a tutto schermo `/admin/gallery/:id/manage` (`pages/GalleryManagementWorkspace.tsx`, "Gestisci Galleria" / "Carica Foto Bulk") è il vero flusso di caricamento e gestione foto. `EditGalleryModal` è una modale secondaria.
 **How to apply:** per feature legate alle foto (pulsanti in toolbar "Foto Caricate", auto-trigger dopo upload), lavora in GalleryManagementWorkspace; mettere roba solo nella modale fa sì che l'admin non la trovi.
 
+## Esistono TRE schermate di upload foto galleria; gli ospiti non possono usare l'endpoint admin
+Schermate: `GalleryManagementWorkspace` (admin, principale), `EditGalleryModal` (admin, modale), `GuestUpload` (ospiti/clienti autenticati ma NON admin). L'endpoint admin `/api/admin/galleries/:id/generate-thumbnails` è admin-only (403 per gli ospiti).
+**Why:** gli ospiti devono comunque ottenere miniature affidabili (quelle client-side falliscono in prod), ma esporre un endpoint a qualsiasi utente loggato sarebbe abuso di calcolo/enumeration di galleryId.
+**How to apply:** per i trigger non-admin usa l'endpoint gallery-scoped `/api/galleries/:id/generate-thumbnails` (`server/gallery-routes.ts`): autorizza se admin OPPURE l'utente ha già una foto propria nella galleria (`photos where galleryId==X && uploaderUid==uid` — sole uguaglianze, niente indice composito). Il client sceglie l'endpoint via `generateGalleryThumbnails(..., {scope:'gallery'})`. NB: `apiRequest` allega il Bearer token solo per i prefissi nella whitelist `firebaseAuthEndpoints` in `client/src/lib/queryClient.ts`: ogni nuovo endpoint autenticato va aggiunto lì o riceve 401. Rete di sicurezza: auto-riparazione one-shot in GalleryManagementWorkspace che genera le miniature mancanti all'apertura della galleria.
+
+## Le copertine NON passano dal generatore miniature
+Le copertine standalone sono caricate già compresse in `galleries/{id}/covers/...`, NON sono nella collezione `photos` e si vedono solo nell'hero (`GalleryHeader`) a piena risoluzione: nessuna miniatura necessaria.
+**How to apply:** nel cover picker / griglie usa `photo.thumbnailUrl || photo.url` per il display, ma salva sempre `photo.url` come copertina (l'hero deve restare full-res).
+
 ## La qualità per il cliente non cala mai
 Griglia usa `thumbnailUrl || url`; lightbox (`ImageLightbox`) e download usano SEMPRE l'originale `currentPhoto.url`. La miniatura è un file separato in `thumbnails/{galleryId}/{docId}.jpg`, l'originale non viene mai toccato.
 **How to apply:** non sostituire mai `url` con la miniatura; le miniature sono solo per anteprime in griglia.

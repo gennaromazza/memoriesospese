@@ -12,6 +12,7 @@ import { AuthService } from '@/lib/auth';
 import { PhotoService } from '@/lib/photos';
 import { StorageService } from '@/lib/storage';
 import { GalleryService } from '@/lib/galleries';
+import { generateGalleryThumbnails } from '@/lib/thumbnails';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -300,6 +301,15 @@ export default function GuestUpload({ galleryId, galleryName, onPhotosUploaded }
 
       // Aggiorna conteggio foto nella galleria
       await GalleryService.incrementPhotoCount(galleryId, uploadedPhotos.length);
+
+      // Genera le miniature lato server (admin SDK) per le foto appena caricate.
+      // Le miniature client-side non sono affidabili in produzione, quindi usiamo
+      // l'endpoint gallery-scoped: l'ospite è autorizzato perché ha appena caricato
+      // foto in questa galleria. Best-effort, non blocca l'utente.
+      if (uploadedPhotos.length > 0) {
+        generateGalleryThumbnails(galleryId, undefined, undefined, { scope: 'gallery' })
+          .catch((err) => console.warn('⚠️ Generazione miniature ospite non riuscita (non blocca):', err));
+      }
 
       toast({
         title: "Upload completato!",
