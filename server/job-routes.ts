@@ -1058,7 +1058,7 @@ router.get('/', authenticateFirebase, async (req: any, res) => {
     const snapshot = await db.collection('jobs').get();
     
     let jobs = snapshot.docs
-      .filter(doc => doc.data().deleted !== true) // Escludi eliminati
+      .filter(doc => doc.data().deleted !== true && !doc.data().deletedAt) // Escludi eliminati (hard flag + soft-delete deletedAt)
       .map(doc => ({
         id: doc.id,
         ...doc.data()

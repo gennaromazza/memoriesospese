@@ -16,10 +16,10 @@ import type { Order } from '@shared/booking-types';
 import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import type { Quote } from '@shared/quotes-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
-import type { Job, JobStatus, JobFilters } from '@shared/jobs-types';
+import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -75,7 +75,6 @@ import {
   Filter,
   Calendar,
   MapPin,
-  Euro,
   User,
   Users,
   FileText,
@@ -89,7 +88,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { format, isWithinInterval, startOfYear, endOfYear, differenceInDays, isFuture, isToday, isPast } from 'date-fns';
+import { format, isWithinInterval, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -638,15 +637,17 @@ export default function JobsManager() {
   
   // Stats
   const stats = useMemo(() => {
+    // Escludi gli archiviati da conteggio e totali (possono rientrare in filteredJobs durante una ricerca)
+    const activeJobs = filteredJobs.filter(j => j.status !== 'archiviato');
     return {
-      totalJobs: filteredJobs.length,
-      totalePreventivato: filteredJobs.reduce((sum, j) => 
+      totalJobs: activeJobs.length,
+      totalePreventivato: activeJobs.reduce((sum, j) => 
         sum + (j.financials?.totalePreventivato || 0), 0
       ),
-      totalePagato: filteredJobs.reduce((sum, j) => 
+      totalePagato: activeJobs.reduce((sum, j) => 
         sum + (j.financials?.totalePagato || 0), 0
       ),
-      saldoResiduo: filteredJobs.reduce((sum, j) => 
+      saldoResiduo: activeJobs.reduce((sum, j) => 
         sum + (j.financials?.saldoResiduo || 0), 0
       )
     };
@@ -663,11 +664,16 @@ export default function JobsManager() {
   };
   
   const toggleSelectAll = () => {
-    if (selectedJobs.size === sortedJobs.length) {
-      setSelectedJobs(new Set());
+    // Seleziona/deseleziona solo i lavori visibili nella pagina corrente (evita di selezionare lavori non visibili)
+    const pageIds = paginatedJobs.map(j => j.id);
+    const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedJobs.has(id));
+    const newSelected = new Set(selectedJobs);
+    if (allPageSelected) {
+      pageIds.forEach(id => newSelected.delete(id));
     } else {
-      setSelectedJobs(new Set(sortedJobs.map(j => j.id)));
+      pageIds.forEach(id => newSelected.add(id));
     }
+    setSelectedJobs(newSelected);
   };
   
   const handleDeleteSelected = () => {
@@ -1037,7 +1043,7 @@ export default function JobsManager() {
           </Popover>
           
           {/* Clear Filters Button */}
-          {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterSemester !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from || searchQuery) && (
+          {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterSemester !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || timeFilter !== 'upcoming' || customDateRange.from || searchQuery) && (
             <Button
               variant="ghost"
               onClick={() => {
@@ -1045,7 +1051,9 @@ export default function JobsManager() {
                 setFilterYear('all');
                 setFilterMonth('all');
                 setFilterSemester('all');
-                setFilterQuoteStatus('firmato');
+                setFilterQuoteStatus('all');
+                setFilterCollaboratore('all');
+                setTimeFilter('upcoming');
                 setCustomDateRange({ from: undefined, to: undefined });
                 setSearchQuery('');
               }}
@@ -1059,7 +1067,7 @@ export default function JobsManager() {
         </div>
         
         {/* Active Filters Summary */}
-        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'firmato' || customDateRange.from || timeFilter !== 'all') && (
+        {(filterType !== 'matrimonio' || filterYear !== 'all' || filterMonth !== 'all' || filterQuoteStatus !== 'all' || filterCollaboratore !== 'all' || customDateRange.from || timeFilter !== 'upcoming') && (
           <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
             <Filter className="w-4 h-4" />
             <span>Filtri attivi:</span>
@@ -1068,14 +1076,21 @@ export default function JobsManager() {
                 {filterType === 'all' ? 'Tutti i tipi' : (jobTypeMap[filterType]?.nome || filterType)}
               </Badge>
             )}
-            {filterQuoteStatus !== 'firmato' && (
+            {filterQuoteStatus !== 'all' && (
               <Badge variant="secondary">
-                {filterQuoteStatus === 'all' ? 'Tutti prev.' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Non inviato'}
+                {filterQuoteStatus === 'firmato' ? 'Firmato' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Non inviato'}
               </Badge>
             )}
-            {timeFilter !== 'all' && (
+            {timeFilter !== 'upcoming' && (
               <Badge variant="secondary">
-                {timeFilter === 'upcoming' ? 'Prossimi impegni' : 'Impegni passati'}
+                {timeFilter === 'past' ? 'Impegni passati' : 'Tutti i periodi'}
+              </Badge>
+            )}
+            {filterCollaboratore !== 'all' && (
+              <Badge variant="secondary">
+                {filterCollaboratore === 'non_assegnato'
+                  ? 'Senza collaboratore'
+                  : (allCollaboratori.find(c => c.id === filterCollaboratore)?.nome || 'Collaboratore')}
               </Badge>
             )}
             {filterYear !== 'all' && !customDateRange.from && (
@@ -1113,7 +1128,13 @@ export default function JobsManager() {
               <TableRow>
                 <TableHead className="w-10">
                   <Checkbox
-                    checked={selectedJobs.size === sortedJobs.length && sortedJobs.length > 0}
+                    checked={
+                      paginatedJobs.length > 0 && paginatedJobs.every(j => selectedJobs.has(j.id))
+                        ? true
+                        : paginatedJobs.some(j => selectedJobs.has(j.id))
+                          ? 'indeterminate'
+                          : false
+                    }
                     onCheckedChange={toggleSelectAll}
                     aria-label="Seleziona tutti"
                     data-testid="checkbox-select-all"
@@ -1133,7 +1154,16 @@ export default function JobsManager() {
               {(() => {
                 const now = new Date();
                 const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                let pastSeparatorShown = false;
+                // Indice globale (su tutte le pagine) del primo lavoro passato, solo in vista "Tutti i periodi".
+                // Così il separatore appare una sola volta, nella pagina giusta, e solo se ci sono sia lavori futuri che passati.
+                const firstPastIndexGlobal = timeFilter === 'all'
+                  ? sortedJobs.findIndex(j => {
+                      const d = convertFirestoreTimestamp(j.eventDate);
+                      // Solo i lavori con data evento valida e passata contano come "passati":
+                      // i lavori senza data non devono attivare il separatore.
+                      return d != null && !isNaN(d.getTime()) && d < startOfToday;
+                    })
+                  : -1;
                 
                 return paginatedJobs.map((job, index) => {
                   const jobTypeInfo = jobTypeMap[job.jobType];
@@ -1142,20 +1172,17 @@ export default function JobsManager() {
                   const rawCreatedAt = convertFirestoreTimestamp((job as any).createdAt);
                   const createdAtDate = rawCreatedAt && !isNaN(rawCreatedAt.getTime()) ? rawCreatedAt : null;
                   const isSelected = selectedJobs.has(job.id);
-                  const jobDate = eventDate ? new Date(eventDate) : new Date(0);
-                  const isJobPast = jobDate < startOfToday;
                   
-                  // Check if this is the first past job
-                  const showPastSeparator = isJobPast && !pastSeparatorShown;
-                  if (showPastSeparator) {
-                    pastSeparatorShown = true;
-                  }
+                  // Mostra il separatore esattamente prima del primo lavoro passato (indice globale),
+                  // solo se esiste almeno un lavoro futuro prima di esso.
+                  const globalIndex = (currentPage - 1) * itemsPerPage + index;
+                  const showPastSeparator = firstPastIndexGlobal > 0 && globalIndex === firstPastIndexGlobal;
                   
                   return (
                     <Fragment key={job.id}>
                       {showPastSeparator && (
                         <TableRow key="past-separator" className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
-                          <TableCell colSpan={8} className="py-2 text-center">
+                          <TableCell colSpan={9} className="py-2 text-center">
                             <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
                               <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600" />
                               <span className="font-medium">📅 Lavori Passati</span>
@@ -1199,14 +1226,19 @@ export default function JobsManager() {
                     
                     {/* Cliente/i */}
                     <TableCell className="hidden md:table-cell">
-                      {job.clientiIds && job.clientiIds.length > 0 ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <User className="w-3 h-3" />
-                          {job.clientiIds.length} client{job.clientiIds.length === 1 ? 'e' : 'i'}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
+                      {(() => {
+                        const clientCount = job.clientiIds?.length
+                          ? job.clientiIds.length
+                          : (job.clienteId ? 1 : 0);
+                        return clientCount > 0 ? (
+                          <div className="flex items-center gap-1 text-sm">
+                            <User className="w-3 h-3" />
+                            {clientCount} client{clientCount === 1 ? 'e' : 'i'}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        );
+                      })()}
                     </TableCell>
                     
                     {/* Location */}
@@ -1310,7 +1342,7 @@ export default function JobsManager() {
                             updateJobTypeMutation.mutate({ jobId: job.id, newJobType: newType });
                           }
                         }}
-                        disabled={updateJobTypeMutation.isPending}
+                        disabled={updateJobTypeMutation.isPending && updateJobTypeMutation.variables?.jobId === job.id}
                       >
                         <SelectTrigger 
                           className="h-8 min-w-[130px] border-2 text-xs font-medium"
@@ -1339,8 +1371,8 @@ export default function JobsManager() {
                     
                     {/* Status */}
                     <TableCell>
-                      <Badge className={STATUS_COLORS[job.status]}>
-                        {STATUS_LABELS[job.status]}
+                      <Badge className={STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-700 border-gray-300'}>
+                        {STATUS_LABELS[job.status] || job.status || '—'}
                       </Badge>
                     </TableCell>
                     
@@ -1637,115 +1669,5 @@ export default function JobsManager() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-/**
- * Job Card - Singola card nel Kanban
- */
-interface JobCardProps {
-  job: Job;
-  onClick: () => void;
-}
-
-interface JobCardInternalProps extends JobCardProps {
-  jobTypeMap: Record<string, JobTypeDoc>;
-}
-
-function JobCard({ job, onClick, jobTypeMap }: JobCardInternalProps) {
-  const jobTypeInfo = jobTypeMap[job.jobType];
-  
-  return (
-    <Card
-      className="cursor-pointer hover:shadow-lg transition-all border-l-4"
-      style={{
-        borderLeftColor: STATUS_COLORS[job.status].split(' ').find(c => c.includes('border-'))
-      }}
-      onClick={onClick}
-      data-testid={`job-card-${job.id}`}
-    >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-sm font-semibold line-clamp-1">
-            {job.nomeEvento}
-          </CardTitle>
-          <Badge variant="outline" className="text-xs shrink-0 gap-1">
-            <JobTypeIcon slug={job.jobType} size="sm" />
-            {jobTypeInfo?.nome || job.jobType}
-          </Badge>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-2 pt-0">
-        {/* Clienti */}
-        {job.clientiIds && job.clientiIds.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <User className="w-3 h-3" />
-            <span>{job.clientiIds.length} client{job.clientiIds.length === 1 ? 'e' : 'i'}</span>
-          </div>
-        )}
-        
-        {/* Data evento */}
-        {job.eventDate && (() => {
-          const eventDateObj = convertFirestoreTimestamp(job.eventDate);
-          if (!eventDateObj || isNaN(eventDateObj.getTime())) return null;
-          return (
-            <div className="flex items-center gap-2 text-xs text-gray-600">
-              <Calendar className="w-3 h-3" />
-              <span>
-                {format(eventDateObj, 'd MMM yyyy', { locale: it })}
-                {!job.allDay && job.startTime && (
-                  <span className="ml-1 text-gray-500">
-                    • {job.startTime}{job.endTime && `-${job.endTime}`}
-                  </span>
-                )}
-              </span>
-            </div>
-          );
-        })()}
-        
-        {/* Location */}
-        {job.eventLocation && (
-          <div className="flex items-center gap-2 text-xs text-gray-600">
-            <MapPin className="w-3 h-3" />
-            <span className="line-clamp-1">{job.eventLocation}</span>
-          </div>
-        )}
-        
-        {/* Financials */}
-        <div className="pt-2 border-t border-gray-100">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Preventivato:</span>
-            <span className="font-semibold text-green-600">
-              €{job.financials?.totalePreventivato || 0}
-            </span>
-          </div>
-          {(job.financials?.saldoResiduo || 0) > 0 && (
-            <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-gray-500">Da incassare:</span>
-              <span className="font-semibold text-orange-600">
-                €{job.financials?.saldoResiduo || 0}
-              </span>
-            </div>
-          )}
-        </div>
-        
-        {/* Badges */}
-        <div className="flex flex-wrap gap-1 pt-2">
-          {job.quoteIds.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              <FileText className="w-3 h-3 mr-1" />
-              {job.quoteIds.length} preventiv{job.quoteIds.length === 1 ? 'o' : 'i'}
-            </Badge>
-          )}
-          {job.orderIds.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              <Euro className="w-3 h-3 mr-1" />
-              {job.orderIds.length} ordin{job.orderIds.length === 1 ? 'e' : 'i'}
-            </Badge>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
