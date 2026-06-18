@@ -12,17 +12,12 @@
  *
  * IMPORTANTE: Richiede Firebase Admin SDK.
  * Eseguire con: npx tsx scripts/backfill-job-aggregates.ts
+ *
+ * Le credenziali Admin vengono prese dall'helper centralizzato server/firebase-admin.ts
+ * (env FIREBASE_ADMIN_CREDENTIALS), così lo script usa lo stesso progetto del server.
  */
 
-import * as admin from 'firebase-admin';
-
-if (!admin.apps?.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
-}
-
-const db = admin.firestore();
+import { db, FieldValue } from '../server/firebase-admin.js';
 
 interface JobQuoteStatus {
   hasQuote: boolean;
@@ -109,7 +104,7 @@ async function runBackfill(): Promise<void> {
       batch.update(jobDoc.ref, {
         quoteStatus,
         transactionCount,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
       stats.jobsUpdated++;
       batchCount++;

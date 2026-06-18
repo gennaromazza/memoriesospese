@@ -18,3 +18,5 @@ Ogni documento `jobs` porta due campi riassuntivi letti dalla pagina "Lista Lavo
 **Why:** la collezione `orders`/`quotes` cresce più dei jobs; la scansione completa ad ogni load costava Firestore reads/latenza.
 
 **Note:** ordini walk-in non hanno `jobId` (nessun ricalcolo necessario). Pagamenti client passano sempre dall'endpoint server `register-payment` (già ricalcola). Esiste `scripts/backfill-job-aggregates.ts` (`npx tsx`) per popolare i job esistenti una-tantum.
+
+**Script standalone & credenziali:** gli script tsx devono importare `db`/`FieldValue` da `server/firebase-admin.ts` (usa env `FIREBASE_ADMIN_CREDENTIALS`). NON usare `admin.credential.applicationDefault()`: `GOOGLE_APPLICATION_CREDENTIALS` non è settato e fallisce. L'app usa UN'UNICA istanza Firestore (progetto `wedding-gallery-397b6`) condivisa tra dev e produzione: un backfill one-shot copre già entrambi gli ambienti.
