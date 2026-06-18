@@ -1640,10 +1640,15 @@ export default function Gallery() {
     () => displayPhotos.slice(0, visiblePhotoLimit),
     [displayPhotos, visiblePhotoLimit],
   );
-  const hasMoreToRender = visiblePhotoLimit < displayPhotos.length;
-
-  // 📚 Foto raggruppate per capitolo (per visualizzazione client)
+  // 📚 Capitoli attivi? (serve anche a delimitare la finestra di rendering qui sotto)
   const chaptersEnabled = galleryData?.chaptersEnabled && (galleryData?.chapters?.length ?? 0) > 0;
+
+  // 🪟 La finestra di rendering guida SOLO la vista standard del fotografo (senza capitoli).
+  // I capitoli (group.photos) e il tab Ospiti (guestPhotos) renderizzano già le liste
+  // complete, quindi lì la finestra non serve: limitandola evitiamo che l'observer
+  // incrementi a vuoto `visiblePhotoLimit` (stato non visualizzato) con re-render inutili.
+  const renderWindowActive = activeTab === "photographer" && !chaptersEnabled;
+  const hasMoreToRender = renderWindowActive && visiblePhotoLimit < displayPhotos.length;
   
   // Reset collapsed chapters quando cambiano i capitoli della galleria
   // 📚 LAZY LOADING: Tutti i capitoli iniziano collassati di default
@@ -1722,21 +1727,30 @@ export default function Gallery() {
   // altre card già disponibili. Il fetch dei metadati è gestito UNICAMENTE dall'effetto
   // HYBRID (scarica tutte le pagine in background): qui non chiamiamo più fetchNextPage,
   // eliminando il doppio meccanismo di paginazione.
+  //
+  // ⚠️ L'effetto si RI-ESEGUE ad ogni incremento (visiblePhotoLimit) e ad ogni nuovo
+  // batch di metadati (displayPhotos.length): ricreare l'observer forza una nuova
+  // valutazione dell'intersezione. Senza questo, un IntersectionObserver a istanza
+  // singola scatta solo sulle transizioni e si bloccava dopo il primo incremento
+  // (es. fermo a 100 foto). Ricreandolo, la finestra "riempie" fino a coprire
+  // viewport + margine, poi prosegue in modo affidabile mentre l'utente scorre.
   useEffect(() => {
     if (!sentinelRef.current || !hasMoreToRender) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisiblePhotoLimit((prev) => prev + RENDER_WINDOW_STEP);
+          setVisiblePhotoLimit((prev) =>
+            prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
+          );
         }
       },
-      { rootMargin: '600px' }
+      { rootMargin: '800px' }
     );
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMoreToRender, RENDER_WINDOW_STEP]);
+  }, [hasMoreToRender, visiblePhotoLimit, displayPhotos.length]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
