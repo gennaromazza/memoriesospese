@@ -846,9 +846,9 @@ export default function JobsManager() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti i preventivi</SelectItem>
-              <SelectItem value="firmato">Firmato</SelectItem>
+              <SelectItem value="firmato">Firmato/Confermato</SelectItem>
               <SelectItem value="non_firmato">Non firmato</SelectItem>
-              <SelectItem value="non_inviato">Non inviato</SelectItem>
+              <SelectItem value="non_inviato">Da inviare / senza preventivo</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1035,7 +1035,7 @@ export default function JobsManager() {
             )}
             {filterQuoteStatus !== 'all' && (
               <Badge variant="secondary">
-                {filterQuoteStatus === 'firmato' ? 'Firmato' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Non inviato'}
+                {filterQuoteStatus === 'firmato' ? 'Firmato/Confermato' : filterQuoteStatus === 'non_firmato' ? 'Non firmato' : 'Da inviare / senza preventivo'}
               </Badge>
             )}
             {timeFilter !== 'upcoming' && (
