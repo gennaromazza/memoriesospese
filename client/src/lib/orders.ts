@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { apiRequest } from "@/lib/queryClient";
+import { recomputeJobAggregates } from "@/lib/jobs";
 import type { Order, InsertOrder, Transaction } from "@shared/booking-types";
 
 const COLLECTION = "orders";
@@ -501,6 +502,11 @@ export async function createOrder(data: InsertOrder): Promise<string> {
     }
   }
 
+  // Aggiorna conteggio transazioni denormalizzato sul job collegato
+  if (data.jobId) {
+    await recomputeJobAggregates(data.jobId);
+  }
+
   console.log("✅ Ordine creato con successo, ID:", orderId);
   return orderId;
 }
@@ -602,6 +608,12 @@ export async function updateOrder(
 
   // Sanitizza dati (rimuovi undefined) prima di salvare
   await updateDoc(docRef, sanitizeData(updateData));
+
+  // Aggiorna conteggio transazioni denormalizzato su vecchio e nuovo job collegato
+  if (newJobId !== undefined && newJobId !== oldJobId) {
+    if (oldJobId) await recomputeJobAggregates(oldJobId);
+    if (newJobId) await recomputeJobAggregates(newJobId);
+  }
 }
 
 /**
@@ -639,6 +651,11 @@ export async function deleteOrder(orderId: string): Promise<void> {
   
   // 4. Elimina l'ordine
   await deleteDoc(docRef);
+
+  // 5. Aggiorna conteggio transazioni denormalizzato sui job collegati
+  for (const jobDoc of jobsSnapshot.docs) {
+    await recomputeJobAggregates(jobDoc.id);
+  }
 }
 
 /**

@@ -294,10 +294,10 @@ export default function JobsManager() {
     return result;
   }, [allAssignments]);
   
-  // Aggregati leggeri (conteggio transazioni per ordine + stato preventivo per job)
-  // calcolati server-side: evita di scaricare le intere collezioni 'orders' e 'quotes' nel browser.
+  // Aggregati leggeri (conteggio transazioni + stato preventivo per job) letti dai
+  // campi denormalizzati sui job: evita di scansionare le collezioni 'orders' e 'quotes'.
   const { data: listAggregates } = useQuery<{
-    ordersTransactionCounts: Record<string, number>;
+    transactionCounts: Record<string, number>;
     quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>;
   }>({
     queryKey: ['jobListAggregates'],
@@ -305,34 +305,17 @@ export default function JobsManager() {
       const response = await apiRequest('GET', '/api/jobs/list-aggregates');
       const data = await response.json();
       return {
-        ordersTransactionCounts: data.ordersTransactionCounts || {},
+        transactionCounts: data.transactionCounts || {},
         quotesStatus: data.quotesStatus || {},
       };
     },
     staleTime: 3 * 60 * 1000,
   });
   
-  // orderId -> numero transazioni (usato da transazioniPerJob via job.orderIds)
-  const pagamentiByJob = listAggregates?.ordersTransactionCounts ?? {};
+  // jobId -> numero transazioni (campo denormalizzato sul job)
+  const transazioniPerJob = listAggregates?.transactionCounts ?? {};
   // jobId -> stato preventivo (usato dal filtro stato preventivo e dai badge)
   const quotesByJob = listAggregates?.quotesStatus ?? {};
-  
-  // Deriva conteggio transazioni per job dai dati caricati
-  const transazioniPerJob = useMemo(() => {
-    const counts: Record<string, number> = {};
-    jobs.forEach(job => {
-      if (job.orderIds && job.orderIds.length > 0) {
-        let total = 0;
-        job.orderIds.forEach(orderId => {
-          total += pagamentiByJob[orderId] || 0;
-        });
-        if (total > 0) {
-          counts[job.id] = total;
-        }
-      }
-    });
-    return counts;
-  }, [jobs, pagamentiByJob]);
   
   // Crea mappa slug -> JobType per lookup veloci
   const jobTypeMap = useMemo(() => {

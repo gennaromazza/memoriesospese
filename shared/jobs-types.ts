@@ -96,6 +96,17 @@ export interface JobFinancials {
 }
 
 /**
+ * Stato preventivo denormalizzato sul job (aggregato OR sui preventivi collegati).
+ * Aggiornato sui write-path dei preventivi (creazione/firma/invio/eliminazione) per
+ * evitare di scaricare l'intera collezione 'quotes' nella pagina "Lista Lavori".
+ */
+export interface JobQuoteStatus {
+  hasQuote: boolean;     // Esiste almeno un preventivo collegato
+  isSigned: boolean;     // Almeno un preventivo firmato
+  isEmailSent: boolean;  // Almeno un preventivo inviato via email
+}
+
+/**
  * JOB - Lavoro fotografico completo
  */
 export interface Job {
@@ -136,6 +147,10 @@ export interface Job {
   
   // Snapshot economico (calcolato da orders e payment schedules)
   financials: JobFinancials;
+
+  // Aggregati denormalizzati per la pagina "Lista Lavori" (evitano scan di orders/quotes)
+  quoteStatus?: JobQuoteStatus;   // Stato preventivo aggregato (OR sui preventivi collegati)
+  transactionCount?: number;      // Numero totale transazioni sugli ordini collegati
   
   // PDF moduli allegati
   pdfs: JobPDF[];

@@ -7,6 +7,7 @@ import { sendGmailEmail, createOrderPaymentReceivedEmailHTML, authenticateFireba
 import { db, FieldValue } from './firebase-admin.js';
 import { nowRomeDate, toRomeDateTime } from './utils/timezone.js';
 import { normalizeEmail } from './utils/normalize.js';
+import { recomputeJobTransactionCount } from './job-aggregates.js';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -1073,6 +1074,9 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     console.log(`✅ Pagamento ${tipo} registrato per ordine ${orderId}: €${paymentAmount} (${metodoPagamento})`);
     console.log(`✅ Movimento cassa creato: ${cashMovementRef.id}`);
 
+    // Aggiorna conteggio transazioni denormalizzato sul job collegato
+    await recomputeJobTransactionCount(orderData.jobId);
+
     res.json({
       success: true,
       orderId,
@@ -1222,6 +1226,9 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
         console.warn('⚠️ Errore invio email storno:', emailErr.message);
       }
     }
+
+    // Aggiorna conteggio transazioni denormalizzato sul job collegato
+    await recomputeJobTransactionCount(orderData.jobId);
 
     res.json({
       success: true,
@@ -1447,6 +1454,11 @@ router.delete('/:id', authenticateFirebase, async (req: any, res: Response) => {
     // Elimina ordine
     await orderRef.delete();
     console.log(`✅ Ordine ${id} eliminato`);
+
+    // Aggiorna conteggio transazioni denormalizzato sul job collegato
+    if (order.jobId) {
+      await recomputeJobTransactionCount(order.jobId);
+    }
 
     res.json({ success: true, message: 'Ordine eliminato con successo' });
   } catch (error: any) {

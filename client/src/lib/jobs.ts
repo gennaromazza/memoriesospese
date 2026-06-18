@@ -74,6 +74,8 @@ export async function createJob(
       costi: [],
       pdfs: [],
       workflowEvents: [],
+      quoteStatus: { hasQuote: false, isSigned: false, isEmailSent: false },
+      transactionCount: 0,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       createdBy: userId,
@@ -556,6 +558,19 @@ export async function addTimelineEvent(
 }
 
 /**
+ * Ricalcola i campi aggregati denormalizzati (quoteStatus / transactionCount)
+ * sul job tramite l'endpoint server. Best-effort: non blocca il flusso chiamante.
+ */
+export async function recomputeJobAggregates(jobId: string): Promise<void> {
+  if (!jobId) return;
+  try {
+    await apiRequest('POST', `/api/jobs/${jobId}/recompute-aggregates`);
+  } catch (error) {
+    console.warn('⚠️ Ricalcolo aggregati job non riuscito:', jobId, error);
+  }
+}
+
+/**
  * Link ordine a job
  */
 export async function linkOrderToJob(
@@ -579,6 +594,9 @@ export async function linkOrderToJob(
       jobId,
       updatedAt: Timestamp.now()
     });
+    
+    // Aggiorna conteggio transazioni denormalizzato sul job collegato
+    await recomputeJobAggregates(jobId);
     
     console.log('✅ Ordine linkato a job:', orderId, jobId);
   } catch (error) {

@@ -18,6 +18,7 @@ import {
 import { nanoid } from "nanoid";
 import { nowRomeDate, toRomeDateTime, daysFromNowRome, formatRomeDateLocale } from "./utils/timezone.js";
 import { normalizeEmail } from "./utils/normalize.js";
+import { recomputeJobQuoteStatus } from "./job-aggregates.js";
 
 const router = Router();
 
@@ -1117,6 +1118,9 @@ router.delete("/:id", verifyAdminAuth, async (req: Request, res: Response) => {
       } catch (calendarError) {
         console.warn(`⚠️ Errore sync Calendar dopo eliminazione (non critico):`, calendarError);
       }
+
+      // Ricalcola stato preventivo denormalizzato sui preventivi rimanenti del job
+      await recomputeJobQuoteStatus(deletedQuoteJobId);
     }
 
     return res.status(200).json({
@@ -1409,6 +1413,9 @@ router.post("/send-quote", async (req: Request, res: Response) => {
     console.log(
       `✅ Preventivo ${quoteId} inviato via email a ${recipientEmails.join(", ")}`,
     );
+
+    // Aggiorna stato preventivo denormalizzato sul job (isEmailSent)
+    await recomputeJobQuoteStatus(quote.jobId);
 
     return res.status(200).json({
       success: true,
@@ -2247,6 +2254,9 @@ router.patch(
         }
       }
 
+      // Aggiorna stato preventivo denormalizzato sul job (isSigned)
+      await recomputeJobQuoteStatus(quote.jobId);
+
       return res.status(200).json({
         success: true,
         message: "Firma inserita manualmente con successo",
@@ -2496,6 +2506,9 @@ router.post(
       } catch (adminEmailError) {
         console.error("⚠️ Errore invio email admin:", adminEmailError);
       }
+
+      // Aggiorna stato preventivo denormalizzato sul job (isSigned)
+      await recomputeJobQuoteStatus(quote.jobId);
 
       return res.status(200).json({
         success: true,
@@ -2987,6 +3000,9 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+
+    // Aggiorna stato preventivo denormalizzato sul job (hasQuote/isSigned/isEmailSent)
+    await recomputeJobQuoteStatus(jobId);
 
     // 4. Invia email di notifica
     try {
@@ -3480,6 +3496,8 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
         "financials.totalePreventivato": draftTotalAfterDiscount,
         updatedAt: FieldValue.serverTimestamp(),
       });
+      // Aggiorna stato preventivo denormalizzato sul job (hasQuote/isEmailSent)
+      await recomputeJobQuoteStatus(jobId);
       return { quoteId: quoteRef.id, publicToken: initialPublicToken };
     };
 
@@ -3866,6 +3884,9 @@ router.post(
         "financials.totalePreventivato": totalAfterDiscount,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // Aggiorna stato preventivo denormalizzato sul job (hasQuote/isEmailSent)
+      await recomputeJobQuoteStatus(jobId);
 
       console.log(`✅ activate-admin: job=${jobId} quote=${quoteRef.id} cliente=${clienteId}`);
       return res.json({ success: true, jobId, quoteId: quoteRef.id, clienteId });

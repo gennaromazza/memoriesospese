@@ -30,7 +30,7 @@ import type {
   PaymentScheduleConfig
 } from '@shared/quotes-types';
 import { nanoid } from 'nanoid';
-import { addTimelineEvent, updateJobStatus } from './jobs';
+import { addTimelineEvent, updateJobStatus, recomputeJobAggregates } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import type { QuoteProduct } from '@shared/quotes-types';
 import type { Product } from '@shared/booking-types';
@@ -234,6 +234,9 @@ export async function createQuote(
       userId,
       metadata: { quoteId: docRef.id }
     });
+
+    // Aggiorna stato preventivo denormalizzato sul job collegato
+    await recomputeJobAggregates(data.jobId);
 
     console.log('✅ Preventivo creato:', docRef.id);
     return docRef.id;

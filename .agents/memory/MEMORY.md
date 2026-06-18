@@ -3,3 +3,4 @@
 - [Job REST API timestamp serialization](job-rest-timestamp-serialization.md) — getJob/GET /api/jobs/:id ritorna i Timestamp come {_seconds,_nanoseconds}: convertire con convertFirestoreTimestamp, mai .toDate() diretto.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
+- [Job denormalized aggregates](job-denormalized-aggregates.md) — jobs portano quoteStatus/transactionCount; ogni write-path quotes/orders deve ricalcolarli o la Lista Lavori resta stale.

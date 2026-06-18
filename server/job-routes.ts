@@ -9,6 +9,7 @@ import { getEvents, createEvent, updateEvent, createEuropeRomeDate, getEventById
 import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { recomputeJobAggregates } from './job-aggregates.js';
 
 const router = express.Router();
 
@@ -497,57 +498,59 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
 /**
  * GET /api/jobs/list-aggregates
  * Aggregati leggeri per la pagina "Lista Lavori":
- *  - ordersTransactionCounts: orderId -> numero transazioni
+ *  - transactionCounts: jobId -> numero totale transazioni sugli ordini collegati
  *  - quotesStatus: jobId -> { hasQuote, isSigned, isEmailSent }
- * Calcolati server-side (Admin SDK) per evitare di scaricare le intere collezioni
- * 'orders' e 'quotes' nel browser. DEVE restare definita PRIMA di GET '/:id'.
+ * Letti dai campi denormalizzati sui documenti 'jobs' (aggiornati sui write-path),
+ * così non si scorrono più le intere collezioni 'orders' e 'quotes'.
+ * DEVE restare definita PRIMA di GET '/:id'.
  */
 router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
   try {
-    const [ordersSnap, quotesSnap] = await Promise.all([
-      db.collection('orders').get(),
-      db.collection('quotes').get(),
-    ]);
+    // Legge i campi denormalizzati direttamente dai documenti 'jobs' (quoteStatus,
+    // transactionCount), aggiornati sui write-path. Non scorre più le intere collezioni
+    // 'orders' e 'quotes' (che crescono più velocemente dei jobs).
+    const jobsSnap = await db.collection('jobs').select('quoteStatus', 'transactionCount').get();
 
-    // orderId -> numero transazioni (stessa semantica del client, include legacy acconto)
-    const ordersTransactionCounts: Record<string, number> = {};
-    ordersSnap.docs.forEach(doc => {
-      const data = doc.data() as any;
-      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
-        ordersTransactionCounts[doc.id] = data.transactions.length;
-      } else if (data.acconto && data.acconto > 0) {
-        ordersTransactionCounts[doc.id] = 1;
-      } else {
-        ordersTransactionCounts[doc.id] = 0;
-      }
-    });
-
-    // jobId -> stato preventivo (OR logico su preventivi multipli dello stesso job)
+    // jobId -> numero totale transazioni sugli ordini collegati
+    const transactionCounts: Record<string, number> = {};
+    // jobId -> stato preventivo aggregato
     const quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }> = {};
-    quotesSnap.docs.forEach(doc => {
-      const quote = doc.data() as any;
-      const jobId = quote.jobId;
-      if (!jobId) return;
 
-      const quoteIsSigned = !!quote.signature || quote.status === 'firmato';
-      const quoteIsEmailSent = !!quote.emailSentAt || !!quote.sentTo ||
-        (!!quote.status && quote.status !== 'bozza');
-
-      if (!quotesStatus[jobId]) {
-        quotesStatus[jobId] = {
-          hasQuote: true,
-          isSigned: quoteIsSigned,
-          isEmailSent: quoteIsEmailSent,
+    jobsSnap.docs.forEach(doc => {
+      const data = doc.data() as any;
+      if (typeof data.transactionCount === 'number' && data.transactionCount > 0) {
+        transactionCounts[doc.id] = data.transactionCount;
+      }
+      if (data.quoteStatus && data.quoteStatus.hasQuote) {
+        quotesStatus[doc.id] = {
+          hasQuote: !!data.quoteStatus.hasQuote,
+          isSigned: !!data.quoteStatus.isSigned,
+          isEmailSent: !!data.quoteStatus.isEmailSent,
         };
-      } else {
-        if (quoteIsSigned) quotesStatus[jobId].isSigned = true;
-        if (quoteIsEmailSent) quotesStatus[jobId].isEmailSent = true;
       }
     });
 
-    res.json({ success: true, ordersTransactionCounts, quotesStatus });
+    res.json({ success: true, transactionCounts, quotesStatus });
   } catch (error: any) {
     console.error('❌ Errore get job list aggregates:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/jobs/:id/recompute-aggregates
+ * Ricalcola gli aggregati denormalizzati (quoteStatus + transactionCount) del job.
+ * Chiamato dai write-path lato client (Web SDK) dopo che hanno modificato quotes/orders,
+ * così la logica di aggregazione resta centralizzata server-side. DEVE restare definita
+ * PRIMA di GET '/:id' per non essere catturata dalla rotta dinamica.
+ */
+router.post('/:id/recompute-aggregates', authenticateFirebase, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    await recomputeJobAggregates(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('❌ Errore recompute job aggregates:', error);
     res.status(500).json({ error: error.message });
   }
 });
