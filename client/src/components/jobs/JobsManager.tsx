@@ -10,6 +10,7 @@ import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
 import { apiRequest } from '@/lib/queryClient';
+import { createAbsoluteUrl } from '@/lib/basePath';
 import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus } from '@shared/jobs-types';
@@ -1156,11 +1157,25 @@ export default function JobsManager() {
                         style={{
                           boxShadow: jobTypeInfo?.colore ? `inset 4px 0 0 ${jobTypeInfo.colore}` : undefined
                         }}
-                        onClick={() => navigate(`/admin/jobs/${job.id}`)}
+                        onClick={(e) => {
+                          // Ctrl/Cmd+click → apri il lavoro in una nuova scheda
+                          if (e.metaKey || e.ctrlKey) {
+                            window.open(createAbsoluteUrl(`/admin/jobs/${job.id}`), '_blank', 'noopener');
+                          } else {
+                            navigate(`/admin/jobs/${job.id}`);
+                          }
+                        }}
+                        onAuxClick={(e) => {
+                          // Tasto centrale del mouse → apri il lavoro in una nuova scheda
+                          if (e.button === 1) {
+                            e.preventDefault();
+                            window.open(createAbsoluteUrl(`/admin/jobs/${job.id}`), '_blank', 'noopener');
+                          }
+                        }}
                         data-testid={`job-row-${job.id}`}
                       >
                     {/* Checkbox */}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={(e) => e.stopPropagation()} onAuxClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleSelectJob(job.id)}
@@ -1291,7 +1306,7 @@ export default function JobsManager() {
                     </TableCell>
                     
                     {/* Tipo - Select inline */}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell onClick={(e) => e.stopPropagation()} onAuxClick={(e) => e.stopPropagation()}>
                       <Select
                         value={job.jobType}
                         onValueChange={(newType) => {
@@ -1334,7 +1349,7 @@ export default function JobsManager() {
                     </TableCell>
                     
                     {/* Collaboratori - visibile solo se ci sono collaboratori attivi (non rifiutati) */}
-                    <TableCell className="hidden lg:table-cell text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="hidden lg:table-cell text-center" onClick={(e) => e.stopPropagation()} onAuxClick={(e) => e.stopPropagation()}>
                       {(() => {
                         const details = collaboratoriByJob[job.id];
                         const count = details?.count || 0;
