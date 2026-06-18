@@ -10,11 +10,7 @@ import { getAllJobs, deleteMultipleJobs, updateJob } from '@/lib/jobs';
 import { getJobTypes } from '@/lib/job-types';
 import { getAllClienti } from '@/lib/clienti';
 import { apiRequest } from '@/lib/queryClient';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
-import type { Order } from '@shared/booking-types';
 import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
-import type { Quote } from '@shared/quotes-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
@@ -178,6 +174,7 @@ export default function JobsManager() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['galleries'] });
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['jobListAggregates'] });
       
       if (result.errors.length > 0) {
         toast({
@@ -296,68 +293,28 @@ export default function JobsManager() {
     return result;
   }, [allAssignments]);
   
-  // Query pagamenti per job - carica tutti gli ordini in un'unica query
-  const { data: pagamentiByJob = {} } = useQuery<Record<string, number>>({
-    queryKey: ['jobPagamentiCounts'],
+  // Aggregati leggeri (conteggio transazioni per ordine + stato preventivo per job)
+  // calcolati server-side: evita di scaricare le intere collezioni 'orders' e 'quotes' nel browser.
+  const { data: listAggregates } = useQuery<{
+    ordersTransactionCounts: Record<string, number>;
+    quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>;
+  }>({
+    queryKey: ['jobListAggregates'],
     queryFn: async () => {
-      // Carica tutti gli ordini una volta sola
-      const ordersSnapshot = await getDocs(collection(db, 'orders'));
-      const ordersMap: Record<string, number> = {};
-      
-      // Mappa orderId -> numero transazioni (include legacy)
-      ordersSnapshot.docs.forEach(doc => {
-        const data = doc.data() as Order;
-        // Usa transactions se presente, altrimenti conta legacy acconto
-        if (data.transactions && data.transactions.length > 0) {
-          ordersMap[doc.id] = data.transactions.length;
-        } else if (data.acconto && data.acconto > 0) {
-          // Legacy: se c'è un acconto senza transactions, conta come 1
-          ordersMap[doc.id] = 1;
-        } else {
-          ordersMap[doc.id] = 0;
-        }
-      });
-      
-      return ordersMap;
+      const response = await apiRequest('GET', '/api/jobs/list-aggregates');
+      const data = await response.json();
+      return {
+        ordersTransactionCounts: data.ordersTransactionCounts || {},
+        quotesStatus: data.quotesStatus || {},
+      };
     },
     staleTime: 3 * 60 * 1000,
   });
   
-  const { data: quotesByJob = {} } = useQuery<Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }>>({
-    queryKey: ['jobQuotesStatus'],
-    queryFn: async () => {
-      const quotesSnapshot = await getDocs(collection(db, 'quotes'));
-      const statusMap: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }> = {};
-      
-      quotesSnapshot.docs.forEach(doc => {
-        const quote = doc.data() as Quote;
-        const jobId = quote.jobId;
-        if (!jobId) return;
-        
-        const quoteIsSigned = !!quote.signature || quote.status === 'firmato';
-        const quoteIsEmailSent = !!quote.emailSentAt || !!quote.sentTo || 
-          (quote.status && quote.status !== 'bozza');
-        
-        if (!statusMap[jobId]) {
-          statusMap[jobId] = {
-            hasQuote: true,
-            isSigned: quoteIsSigned,
-            isEmailSent: quoteIsEmailSent
-          };
-        } else {
-          if (quoteIsSigned) {
-            statusMap[jobId].isSigned = true;
-          }
-          if (quoteIsEmailSent) {
-            statusMap[jobId].isEmailSent = true;
-          }
-        }
-      });
-      
-      return statusMap;
-    },
-    staleTime: 3 * 60 * 1000,
-  });
+  // orderId -> numero transazioni (usato da transazioniPerJob via job.orderIds)
+  const pagamentiByJob = listAggregates?.ordersTransactionCounts ?? {};
+  // jobId -> stato preventivo (usato dal filtro stato preventivo e dai badge)
+  const quotesByJob = listAggregates?.quotesStatus ?? {};
   
   // Deriva conteggio transazioni per job dai dati caricati
   const transazioniPerJob = useMemo(() => {

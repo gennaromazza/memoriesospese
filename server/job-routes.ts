@@ -495,6 +495,64 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
 });
 
 /**
+ * GET /api/jobs/list-aggregates
+ * Aggregati leggeri per la pagina "Lista Lavori":
+ *  - ordersTransactionCounts: orderId -> numero transazioni
+ *  - quotesStatus: jobId -> { hasQuote, isSigned, isEmailSent }
+ * Calcolati server-side (Admin SDK) per evitare di scaricare le intere collezioni
+ * 'orders' e 'quotes' nel browser. DEVE restare definita PRIMA di GET '/:id'.
+ */
+router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
+  try {
+    const [ordersSnap, quotesSnap] = await Promise.all([
+      db.collection('orders').get(),
+      db.collection('quotes').get(),
+    ]);
+
+    // orderId -> numero transazioni (stessa semantica del client, include legacy acconto)
+    const ordersTransactionCounts: Record<string, number> = {};
+    ordersSnap.docs.forEach(doc => {
+      const data = doc.data() as any;
+      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+        ordersTransactionCounts[doc.id] = data.transactions.length;
+      } else if (data.acconto && data.acconto > 0) {
+        ordersTransactionCounts[doc.id] = 1;
+      } else {
+        ordersTransactionCounts[doc.id] = 0;
+      }
+    });
+
+    // jobId -> stato preventivo (OR logico su preventivi multipli dello stesso job)
+    const quotesStatus: Record<string, { hasQuote: boolean; isSigned: boolean; isEmailSent: boolean }> = {};
+    quotesSnap.docs.forEach(doc => {
+      const quote = doc.data() as any;
+      const jobId = quote.jobId;
+      if (!jobId) return;
+
+      const quoteIsSigned = !!quote.signature || quote.status === 'firmato';
+      const quoteIsEmailSent = !!quote.emailSentAt || !!quote.sentTo ||
+        (!!quote.status && quote.status !== 'bozza');
+
+      if (!quotesStatus[jobId]) {
+        quotesStatus[jobId] = {
+          hasQuote: true,
+          isSigned: quoteIsSigned,
+          isEmailSent: quoteIsEmailSent,
+        };
+      } else {
+        if (quoteIsSigned) quotesStatus[jobId].isSigned = true;
+        if (quoteIsEmailSent) quotesStatus[jobId].isEmailSent = true;
+      }
+    });
+
+    res.json({ success: true, ordersTransactionCounts, quotesStatus });
+  } catch (error: any) {
+    console.error('❌ Errore get job list aggregates:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/jobs/:id
  * Recupera un singolo lavoro per ID (con verifica admin)
  */
