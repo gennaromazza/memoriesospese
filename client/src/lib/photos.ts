@@ -378,6 +378,84 @@ export class PhotoService {
   }
 
   /**
+   * Recupera TUTTE le foto di una galleria SENZA dipendere dal campo `createdAt`.
+   *
+   * La paginazione (`getGalleryPhotosPaginated`) usa `orderBy('createdAt')`, ma
+   * Firestore esclude dai risultati i documenti privi di quel campo (es. foto
+   * caricate dallo script di import esterno). Questo metodo non ordina e non
+   * limita, quindi nessuna foto viene scartata: serve a RICONCILIARE la
+   * completezza quando la paginazione restituisce meno foto del previsto.
+   * Include anche le foto legacy (sottocollezione) con dedup per nome.
+   */
+  static async getGalleryPhotosComplete(galleryId: string): Promise<Photo[]> {
+    try {
+      const modernQuery = query(
+        collection(db, 'photos'),
+        where('galleryId', '==', galleryId)
+      );
+
+      const [snapshot, legacySnapshot] = await Promise.all([
+        getDocs(modernQuery),
+        getDocs(collection(db, 'galleries', galleryId, 'photos')).catch(
+          () => ({ docs: [] as any[] })
+        ),
+      ]);
+
+      const photos: Photo[] = [];
+      const existingNames = new Set<string>();
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const photo = {
+          id: doc.id,
+          ...data,
+          uploadedBy: data.uploadedBy || 'admin',
+        } as Photo;
+        photos.push(photo);
+        if (photo.name) existingNames.add(photo.name);
+      });
+
+      if (legacySnapshot.docs.length > 0) {
+        legacySnapshot.docs.forEach((doc: any) => {
+          const data = doc.data();
+          const photoName = data.name || '';
+          if (!existingNames.has(photoName)) {
+            photos.push({
+              id: `legacy-${doc.id}`,
+              galleryId,
+              name: photoName,
+              url: data.url || '',
+              thumbnailUrl: data.thumbnailUrl,
+              contentType: data.contentType || 'image/jpeg',
+              size: data.size || 0,
+              uploaderUid: data.uploaderUid || '',
+              uploaderEmail: data.uploaderEmail || 'legacy@system',
+              uploaderName: data.uploaderName || 'Legacy System',
+              uploadedBy: data.uploadedBy || 'legacy',
+              likeCount: data.likeCount || 0,
+              commentCount: data.commentCount || 0,
+              position: data.position,
+              chapterId: data.chapterId,
+              chapterPosition: data.chapterPosition,
+              createdAt: data.createdAt || new Date(),
+              updatedAt: data.updatedAt,
+            } as Photo);
+            existingNames.add(photoName);
+          }
+        });
+      }
+
+      return photos;
+    } catch (error) {
+      console.error('Errore recupero foto complete:', error);
+      // Propaga l'errore: chi riconcilia DEVE distinguere un fallimento
+      // (rete/regole) da "0 foto", per non trattare un errore come completezza
+      // e salvare per sbaglio una selezione/dislike parziale.
+      throw error;
+    }
+  }
+
+  /**
    * Ottieni foto per capitolo (se supportato)
    */
   static async getChapterPhotos(galleryId: string, chapterId: string): Promise<Photo[]> {

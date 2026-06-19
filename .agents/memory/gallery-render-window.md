@@ -22,6 +22,25 @@ durante lo scroll. Il loop è limitato perché le PhotoCard riservano altezza (a
 **How to apply:** se un futuro refactor "ottimizza" le deps dell'observer rimuovendo `visiblePhotoLimit`,
 il bug del blocco a ~100 ritorna. Non rimuoverlo.
 
+## L'IntersectionObserver da solo NON basta: serve un fallback scroll/resize
+L'observer è solo un FAST-PATH. Su gallerie grandi (600-700 foto) la griglia poteva restare bloccata
+pur avendo TUTTI i metadati in memoria (sintomo riportato: la lightbox mostra tutte le foto, la griglia
+no, scrollando "si bugga e non carica"). Cause: lazy-load immagini che cambiano altezza reale dopo il
+placeholder 3/4 (layout churn), scroll anchoring, e — col fetch completo dei metadati — la sentinella
+si SMONTA quando `hasMoreToRender` diventa false (finestra esaurita sulle foto già caricate) e si
+ri-monta solo quando la riconciliazione/auto-fetch aggiunge altre foto: in quella finestra temporale
+l'observer perde la transizione.
+
+**Why:** affidare l'avanzamento della finestra all'UNICO trigger "transizione di intersezione" è fragile.
+
+**How to apply:** mantenere accanto all'observer un effetto fallback (deps
+[renderWindowActive, visiblePhotoLimit, displayPhotos.length]) che su `scroll`(capture)+`resize`
+(passive, rAF) avanza `visiblePhotoLimit` quando `galleryGridRef` bottom è entro ~1200px dal viewport,
+e che chiama l'avanzamento SUBITO ad ogni run (copre il remount sentinella durante la riconciliazione,
+quando i metadati crescono una seconda volta dopo che `hasNextPage` è già false). Clamp con
+`Math.min(prev + step, displayPhotosRef.current.length)` e leggere la lunghezza da ref (no stale closure).
+NON rimuovere la finestra: montare 600-700 PhotoCard insieme su mobile è troppo pesante.
+
 ## La finestra vale SOLO per la vista standard del fotografo
 `hasMoreToRender` è gated da `activeTab === 'photographer' && !chaptersEnabled`. Capitoli (group.photos)
 e tab Ospiti (guestPhotos) renderizzano liste complete e NON usano la finestra: senza il gate, l'observer

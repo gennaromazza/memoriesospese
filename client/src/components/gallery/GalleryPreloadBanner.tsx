@@ -13,7 +13,8 @@ export function GalleryPreloadBanner({ preload, photoUrls }: GalleryPreloadBanne
   const { status, loaded, total, startPreload, cancelPreload, resetPreload } = preload;
 
   const photoCount = photoUrls.length;
-  const estimatedMB = Math.round((photoCount * 300) / 1024 * 10) / 10;
+  // Precarichiamo le ANTEPRIME (miniature), non gli originali: stima ~60KB/foto.
+  const estimatedMB = Math.round((photoCount * 60) / 1024 * 10) / 10;
   const percent = total > 0 ? Math.round((loaded / total) * 100) : 0;
 
   if (photoCount === 0) return null;
@@ -125,8 +126,8 @@ export function GalleryPreloadBanner({ preload, photoUrls }: GalleryPreloadBanne
               <span className="text-gray-400 ml-1">(si libera alla chiusura della scheda)</span>
             </p>
             <p>
-              <span className="font-medium">⚡ Come funziona:</span> le foto vengono scaricate tutte in anticipo.
-              Scrollare, selezionare e fare zoom diventa immediato senza attese di rete.
+              <span className="font-medium">⚡ Come funziona:</span> le anteprime delle foto vengono scaricate
+              tutte in anticipo. Scrollare e selezionare diventa immediato senza attese di rete.
             </p>
           </div>
         )}

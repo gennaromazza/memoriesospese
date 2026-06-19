@@ -97,6 +97,28 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
 
   const currentPhoto = useMemo(() => photos[currentIndex], [photos, currentIndex]);
 
+  // 🧭 Riallinea l'indice se l'elenco foto cambia mentre la lightbox è aperta
+  // (es. riconciliazione che aggiunge foto, cambio filtro): ritrova la foto
+  // corrente per id nel nuovo elenco; se non c'è più, fa il clamp dell'indice.
+  const prevPhotosRef = useRef(photos);
+  useEffect(() => {
+    if (prevPhotosRef.current === photos) return;
+    const prevPhotos = prevPhotosRef.current;
+    prevPhotosRef.current = photos;
+    if (!isOpen) return;
+    const currentId = prevPhotos[currentIndex]?.id;
+    if (currentId) {
+      const newIdx = photos.findIndex((p) => p.id === currentId);
+      if (newIdx >= 0) {
+        if (newIdx !== currentIndex) setCurrentIndex(newIdx);
+        return;
+      }
+    }
+    if (currentIndex >= photos.length) {
+      setCurrentIndex(Math.max(0, photos.length - 1));
+    }
+  }, [photos, isOpen, currentIndex]);
+
   // 🚀 Preload immagini adiacenti (±2) così la navigazione swipe/freccia è istantanea.
   // Anche la thumbnail viene precaricata come fallback rapido.
   useEffect(() => {

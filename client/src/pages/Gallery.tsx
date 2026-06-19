@@ -238,6 +238,8 @@ const PhotoCard = memo(({
   // Custom comparator: re-render solo se cambiano ID, index, isSelected o assignedProducts
   if (
     prevProps.photo.id !== nextProps.photo.id ||
+    prevProps.photo.url !== nextProps.photo.url ||
+    prevProps.photo.thumbnailUrl !== nextProps.photo.thumbnailUrl ||
     prevProps.index !== nextProps.index ||
     prevProps.isSelected !== nextProps.isSelected ||
     prevProps.isSelectionMode !== nextProps.isSelectionMode ||
@@ -373,17 +375,76 @@ export default function Gallery() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // ℹ️ In questa versione dei types di TanStack l'overload di useInfiniteQuery
+  // non infersce la forma delle pagine: fissiamo qui la forma nota (solo tipi,
+  // nessun effetto a runtime) così conteggi/merge restano type-safe.
+  const photoPages =
+    ((infiniteData as unknown as { pages?: Array<{ photos: Photo[] }> })?.pages) ?? [];
+
+  // 🧮 Totale foto già caricate dalla paginazione (per capire se ne mancano).
+  const pagedPhotoCount = useMemo(
+    () => photoPages.reduce((sum, p) => sum + p.photos.length, 0),
+    [photoPages]
+  );
+
+  // 🩹 RICONCILIAZIONE COMPLETEZZA: la query paginata ordina per `createdAt` e
+  // Firestore SCARTA i documenti privi di quel campo (es. foto importate dallo
+  // script esterno). Quando la paginazione è finita ma risultano meno foto del
+  // totale dichiarato dalla galleria (`photoCount`), recuperiamo l'elenco
+  // completo (senza orderBy, così nessuna foto viene esclusa) e uniamo quelle
+  // mancanti. Il gate su `photoCount` evita di raddoppiare le letture sulle
+  // gallerie sane (dove la paginazione ha già caricato tutto).
+  const expectedPhotoCount = galleryData?.photoCount ?? 0;
+  const needsReconciliation =
+    !!galleryData?.id &&
+    hasValidAccess &&
+    !hasNextPage &&
+    !isLoadingPhotos &&
+    expectedPhotoCount > pagedPhotoCount;
+
+  const {
+    data: reconciledPhotos,
+    isFetching: isReconciling,
+    refetch: refetchReconcile,
+  } = useQuery({
+    queryKey: ['gallery-photos-complete', galleryData?.id],
+    queryFn: async () => {
+      if (!galleryData?.id) return [] as Photo[];
+      return PhotoService.getGalleryPhotosComplete(galleryData.id);
+    },
+    enabled: needsReconciliation,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
   const { photos, guestPhotos } = useMemo(() => {
-    if (!infiniteData?.pages) return { photos: [] as Photo[], guestPhotos: [] as Photo[] };
-    const all = infiniteData.pages.flatMap(p => p.photos);
+    const paged = photoPages.flatMap(p => p.photos);
+    let all = paged;
+    // Unisci le foto recuperate dalla riconciliazione (solo quelle non già
+    // presenti, per id o per nome) preservando l'ordine della paginazione.
+    if (reconciledPhotos?.length) {
+      const seenIds = new Set(paged.map(p => p.id));
+      const seenNames = new Set(paged.map(p => p.name));
+      const extras = reconciledPhotos.filter(
+        p => !seenIds.has(p.id) && !(p.name && seenNames.has(p.name))
+      );
+      if (extras.length > 0) all = [...paged, ...extras];
+    }
     return {
       photos: all.filter(p => p.uploadedBy !== 'guest'),
       guestPhotos: all.filter(p => p.uploadedBy === 'guest'),
     };
-  }, [infiniteData]);
+  }, [photoPages, reconciledPhotos]);
+
+  // ✅ Tutte le foto sono caricate? (paginazione finita + eventuale
+  // riconciliazione completata). Serve a non salvare selezioni/dislike parziali.
+  const arePhotosFullyLoaded =
+    !isLoadingPhotos &&
+    !hasNextPage &&
+    (!needsReconciliation || (reconciledPhotos !== undefined && !isReconciling));
 
   // ⚡ PERF: Appena i metadati della prima pagina arrivano, pre-scarica le prime 12 thumbnail.
-  const firstPagePhotos = infiniteData?.pages?.[0]?.photos;
+  const firstPagePhotos = photoPages[0]?.photos;
   useEffect(() => {
     if (!firstPagePhotos?.length) return;
     const urls = firstPagePhotos.slice(0, 12).map(p => p.thumbnailUrl || p.url).filter(Boolean);
@@ -1097,6 +1158,24 @@ export default function Gallery() {
       return;
     }
 
+    // 🛡️ In modalità dislike la selezione finale = tutte le foto NON escluse.
+    // Se non sono ancora caricate tutte, salveremmo una selezione PARZIALE
+    // (escludendo per errore le foto non ancora caricate). Blocchiamo finché
+    // l'elenco non è completo e diamo una spinta al caricamento.
+    if (isDislikeMode && !arePhotosFullyLoaded) {
+      toast({
+        title: "⏳ Attendi un momento",
+        description:
+          "Stiamo ancora caricando tutte le foto della galleria. Riprova tra qualche secondo per non perdere nessuna esclusione.",
+        variant: "destructive",
+      });
+      if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+      // Se la riconciliazione è fallita (es. rete), riprovala: senza questo la
+      // conferma resterebbe bloccata all'infinito.
+      if (needsReconciliation && !isReconciling) refetchReconcile();
+      return;
+    }
+
     // In modalità dislike, non è necessaria nessuna validazione del numero di foto
     // Il cliente può escludere 0 o più foto, non c'è un minimo
 
@@ -1289,6 +1368,13 @@ export default function Gallery() {
     isDislikeMode,
     dislikedPhotoIds,
     photos,
+    arePhotosFullyLoaded,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    needsReconciliation,
+    isReconciling,
+    refetchReconcile,
   ]);
 
   // 📝 Conferma selezione con note (per Selezione Libera)
@@ -1518,11 +1604,11 @@ export default function Gallery() {
 
   // 🔍 UX Enhancement: Apre lightbox usando displayPhotos (supporta filtro "Solo Selezionate")
   // Quando sourcePhotos è passato (es. da un capitolo), la lightbox naviga SOLO in quelle foto
-  const openLightbox = (index: number, sourcePhotos?: any[]) => {
+  const openLightbox = useCallback((index: number, sourcePhotos?: any[]) => {
     setCurrentPhotoIndex(index);
     setLightboxSourcePhotos(sourcePhotos ?? null);
     setLightboxOpen(true);
-  };
+  }, []);
 
   const closeLightbox = () => {
     setLightboxOpen(false);
@@ -1631,6 +1717,20 @@ export default function Gallery() {
   // 📄 Con paginazione Firestore, tutte le foto caricate sono da visualizzare (niente slice client-side)
   const displayPhotos = allDisplayPhotos;
 
+  // 🔒 Click su una card della vista standard: il comparator di PhotoCard ignora
+  // (volutamente) la prop onClick per non re-renderizzare ad ogni cambio di stato.
+  // Per evitare di catturare un `displayPhotos` ORMAI VECCHIO nella closure (es.
+  // dopo la riconciliazione che aggiunge foto), usiamo un handler STABILE che
+  // legge sempre l'elenco aggiornato tramite ref.
+  const displayPhotosRef = useRef(displayPhotos);
+  useEffect(() => {
+    displayPhotosRef.current = displayPhotos;
+  }, [displayPhotos]);
+  const handleStandardPhotoClick = useCallback(
+    (index: number) => openLightbox(index, displayPhotosRef.current),
+    [openLightbox]
+  );
+
   // 🪟 Finestra di rendering: i METADATI di tutte le foto restano in `displayPhotos`
   // (necessari a lightbox e selezione), ma nel DOM montiamo solo le prime N card,
   // aumentate dalla sentinella mentre l'utente scorre. Meno nodi nel DOM = scroll più
@@ -1719,6 +1819,25 @@ export default function Gallery() {
     });
   }, [photosByChapter, collapsedChapters]);
 
+  // 🔒 Stesso fix dello stale-closure della vista standard, ma per i capitoli:
+  // l'onClick inline cattura `group.allPhotos` e il comparator di PhotoCard lo
+  // ignora, quindi una card non re-renderizzata terrebbe un array VECCHIO dopo
+  // la riconciliazione. L'handler stabile rilegge l'elenco aggiornato del
+  // capitolo da una ref, usando l'id del capitolo (stabile) come chiave.
+  const photosByChapterDisplayedRef = useRef(photosByChapterDisplayed);
+  useEffect(() => {
+    photosByChapterDisplayedRef.current = photosByChapterDisplayed;
+  }, [photosByChapterDisplayed]);
+  const handleChapterPhotoClick = useCallback(
+    (chapterId: string, index: number) => {
+      const group = photosByChapterDisplayedRef.current?.find(
+        (g) => g.chapter.id === chapterId
+      );
+      openLightbox(index, group?.allPhotos);
+    },
+    [openLightbox]
+  );
+
   // 📊 La sentinella resta montata finché ci sono altre card da rivelare (finestra di
   // rendering) OPPURE altri metadati ancora in arrivo da Firestore (auto-fetch HYBRID).
   const hasMorePhotosToShow = hasMoreToRender || !!hasNextPage;
@@ -1751,6 +1870,49 @@ export default function Gallery() {
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
   }, [hasMoreToRender, visiblePhotoLimit, displayPhotos.length]);
+
+  // 🪟 FALLBACK ROBUSTO di avanzamento finestra (indipendente dall'observer).
+  // L'IntersectionObserver sopra è solo un fast-path: su gallerie grandi può
+  // perdere le transizioni (lazy-load immagini che cambiano altezza, scroll
+  // anchoring, smontaggio/rimontaggio della sentinella durante la
+  // riconciliazione) lasciando la griglia BLOCCATA pur avendo già tutti i
+  // metadati in memoria (sintomo: la lightbox mostra tutte le foto, la griglia
+  // no). Qui avanziamo su scroll/resize (rAF, passive) e SUBITO quando
+  // displayPhotos cresce, così la finestra non resta mai ferma. Usa il capture
+  // sullo scroll per intercettare anche eventuali container interni scrollabili.
+  useEffect(() => {
+    if (!renderWindowActive || visiblePhotoLimit >= displayPhotos.length) return;
+
+    let raf = 0;
+    const maybeAdvance = () => {
+      raf = 0;
+      const grid = galleryGridRef.current;
+      if (!grid) return;
+      const distanceToBottom =
+        grid.getBoundingClientRect().bottom - window.innerHeight;
+      // Soglia ~1200px: rivela in anticipo prima che il fondo entri nel viewport.
+      if (distanceToBottom < 1200) {
+        setVisiblePhotoLimit((prev) =>
+          Math.min(prev + RENDER_WINDOW_STEP, displayPhotosRef.current.length),
+        );
+      }
+    };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(maybeAdvance);
+    };
+
+    // Avanza subito: copre riconciliazione/auto-fetch e il primo mount, anche
+    // quando la sentinella era smontata al momento della transizione.
+    maybeAdvance();
+    document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      document.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [renderWindowActive, visiblePhotoLimit, displayPhotos.length]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {
@@ -2253,7 +2415,7 @@ export default function Gallery() {
                   {/* Banner precaricamento galleria */}
                   <GalleryPreloadBanner
                     preload={galleryPreload}
-                    photoUrls={allDisplayPhotos.map(p => p.url).filter(Boolean)}
+                    photoUrls={allDisplayPhotos.map(p => p.thumbnailUrl || p.url).filter(Boolean)}
                   />
                 </div>
               )}
@@ -3885,7 +4047,7 @@ export default function Gallery() {
                                         isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                         isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
                                         isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                        onClick={() => openLightbox(chapterIndex, group.allPhotos)}
+                                        onClick={() => handleChapterPhotoClick(group.chapter.id, chapterIndex)}
                                       />
                                       {!isSelectionMode && (
                                         <div className="mt-2">
@@ -3922,7 +4084,7 @@ export default function Gallery() {
                                   isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                   isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
                                   isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
-                                  onClick={() => openLightbox(index, displayPhotos)}
+                                  onClick={handleStandardPhotoClick}
                                 />
                                 {!isSelectionMode && (
                                   <div className="mt-2">
