@@ -52,3 +52,12 @@ l'auto-fetch HYBRID scarica le pagine restanti. Leggerlo UNA volta all'apertura 
 PARZIALE (osservato: 232 mentre il totale reale era 582). Per un test deterministico (niente totale
 hardcoded) far CONVERGERE masonry e totale: alternare scroll (avanza la finestra) e ri-lettura del
 denominatore finché `count(.gallery-image) >= totale - tolleranza`. Vedi `e2e/gallery-render-window.spec.ts`.
+
+## Test e2e: la galleria grande è auto-seedata, non più una galleria reale del dev DB
+Il test crea da sé la galleria fixture in `beforeAll` (Admin SDK, `e2e/fixtures/large-gallery.ts`,
+solo metadati nella collezione moderna `photos` con `createdAt` OBBLIGATORIO e crescente per indice,
+`hasPassword:false`+`chaptersEnabled:false`+`active:true`) e la cancella in `afterAll` riusando il
+cascade-delete server-side condiviso (`server/services/gallery-cascade-delete.ts`: foto moderne +
+sottocollezione legacy + `gallerySecrets` + doc galleria). `E2E_GALLERY_ID` è ora OPZIONALE (solo
+per puntare a una galleria reale e saltare seed/teardown); `E2E_SEED_PHOTOS` (default 150) regola
+quante foto seedare. Importare le fixture richiede `FIREBASE_ADMIN_CREDENTIALS` nell'ambiente.
