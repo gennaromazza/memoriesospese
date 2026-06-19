@@ -45,3 +45,10 @@ NON rimuovere la finestra: montare 600-700 PhotoCard insieme su mobile è troppo
 `hasMoreToRender` è gated da `activeTab === 'photographer' && !chaptersEnabled`. Capitoli (group.photos)
 e tab Ospiti (guestPhotos) renderizzano liste complete e NON usano la finestra: senza il gate, l'observer
 incrementerebbe a vuoto `visiblePhotoLimit` (stato non visualizzato) generando re-render inutili.
+
+## Test e2e: il totale della lightbox cresce in background
+Il denominatore del contatore lightbox ("N / TOTALE") = `displayPhotos.length`, che cresce mentre
+l'auto-fetch HYBRID scarica le pagine restanti. Leggerlo UNA volta all'apertura iniziale dà un totale
+PARZIALE (osservato: 232 mentre il totale reale era 582). Per un test deterministico (niente totale
+hardcoded) far CONVERGERE masonry e totale: alternare scroll (avanza la finestra) e ri-lettura del
+denominatore finché `count(.gallery-image) >= totale - tolleranza`. Vedi `e2e/gallery-render-window.spec.ts`.

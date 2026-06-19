@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 /**
  * Regressione: la galleria pubblica /view/:id con CENTINAIA di foto deve
@@ -16,18 +17,86 @@ import { test, expect } from "@playwright/test";
  * `handleFilterChange`/`resetFilters` con useCallback, così la finestra avanza in
  * modo monotòno fino a coprire tutte le foto.
  *
- * Galleria di test (dev DB Firebase wedding-gallery-397b6):
- * docId "wQPRH6Eunpv34slSGwUV" — 855 foto (723 paginate + ~132 da
- * riconciliazione), SENZA capitoli, SENZA password (la finestra di rendering è
- * attiva solo nella vista standard del fotografo, senza capitoli).
+ * Indipendenza dai dati reali:
+ * Il test NON usa un totale hardcoded. Il "totale atteso" viene letto a runtime
+ * dal denominatore del contatore della lightbox ("N / TOTALE"), che è la fonte di
+ * verità interna del componente (l'elenco completo `displayPhotos`). Così, se la
+ * galleria di test viene modificata nel DB (foto aggiunte/rimosse), il test
+ * continua a verificare l'invariante reale del bug — la masonry deve raggiungere
+ * lo stesso totale che la lightbox conosce — senza rompersi per un numero fisso.
  *
- * Override possibili via env: E2E_GALLERY_ID, E2E_EXPECTED_TOTAL.
+ * Nota: `displayPhotos` cresce nel tempo (la paginazione `useInfiniteQuery`
+ * scarica le pagine restanti in background), quindi il totale è noto con
+ * certezza solo quando il caricamento si è stabilizzato. Per questo il test
+ * alterna scroll (avanza la finestra di rendering) e ri-lettura del totale,
+ * finché la masonry raggiunge il totale che la lightbox conosce.
+ *
+ * Per restare una guardia significativa serve comunque una galleria "grande":
+ * `MIN_PHOTOS` (default 100) è la soglia minima sotto la quale la finestra di
+ * rendering progressiva non è esercitata; se la galleria non la raggiunge il
+ * test fallisce con un messaggio esplicito (dati di test non più adeguati),
+ * invece di passare in modo ingannevole.
+ *
+ * Galleria di test (dev DB Firebase wedding-gallery-397b6):
+ * docId "wQPRH6Eunpv34slSGwUV" — centinaia di foto, SENZA capitoli, SENZA
+ * password (la finestra di rendering è attiva solo nella vista standard del
+ * fotografo, senza capitoli). Sovrascrivibile via env E2E_GALLERY_ID; soglia
+ * minima via E2E_MIN_PHOTOS.
+ *
+ * Esecuzione: `npx playwright test e2e/gallery-render-window.spec.ts`
+ * (nessuno script npm; il dev server sulla porta 5000 viene riusato).
  */
 const GALLERY_ID = process.env.E2E_GALLERY_ID || "wQPRH6Eunpv34slSGwUV";
-const EXPECTED_TOTAL = Number(process.env.E2E_EXPECTED_TOTAL || "855");
+// Soglia minima di foto perché il test sia una guardia valida del bug: sotto
+// questo numero la finestra di rendering progressiva non viene esercitata.
+const MIN_PHOTOS = Number(process.env.E2E_MIN_PHOTOS || "100");
 // Tolleranza minima: il conteggio finale è esatto, ma lasciamo margine per
 // eventuali differenze di dedup/timing.
 const COUNT_TOLERANCE = 3;
+
+/** Legge il contatore della lightbox aperta ("N / TOTALE"). */
+async function readLightboxCounter(page: Page) {
+  const counter = page.getByText(/^\d+ \/ \d+$/).first();
+  await counter.waitFor({ state: "visible", timeout: 15_000 });
+  const text = ((await counter.textContent()) || "").trim();
+  const [currentStr, totalStr] = text.split("/").map((s) => s.trim());
+  return {
+    current: parseInt(currentStr, 10),
+    total: parseInt(totalStr, 10),
+    text,
+  };
+}
+
+/**
+ * Scrolla in fondo ripetutamente finché il numero di card montate si stabilizza
+ * o raggiunge `target`. Restituisce il conteggio finale di .gallery-image.
+ */
+async function scrollUntilStable(page: Page, target: number): Promise<number> {
+  return await page.evaluate(async (goal: number) => {
+    return await new Promise<number>((resolve) => {
+      let last = -1;
+      let stable = 0;
+      let i = 0;
+      const step = () => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        setTimeout(() => {
+          const n = document.querySelectorAll(".gallery-image").length;
+          i += 1;
+          if (n >= goal || i >= 80) return resolve(n);
+          if (n === last) {
+            stable += 1;
+            if (stable >= 12) return resolve(n); // finestra ferma: esci
+          } else {
+            stable = 0;
+            last = n;
+          }
+          step();
+        }, 600);
+      };
+      step();
+    });
+  }, target);
+}
 
 test.describe("Galleria pubblica – finestra di rendering (gallerie grandi)", () => {
   test.beforeEach(async ({ context }) => {
@@ -62,56 +131,66 @@ test.describe("Galleria pubblica – finestra di rendering (gallerie grandi)", (
       .first()
       .waitFor({ state: "attached", timeout: 30_000 });
 
-    // All'inizio la finestra è parziale (molto meno del totale).
+    // All'inizio la finestra è parziale.
     const initialCount = await page.locator(".gallery-image").count();
     expect(initialCount).toBeGreaterThan(0);
-    expect(initialCount).toBeLessThan(EXPECTED_TOTAL);
 
-    // Scrolla fino in fondo ripetutamente finché il conteggio si stabilizza.
-    const finalCount: number = await page.evaluate(async (target: number) => {
-      return await new Promise<number>((resolve) => {
-        let last = -1;
-        let stable = 0;
-        let i = 0;
-        const step = () => {
-          window.scrollTo(0, document.documentElement.scrollHeight);
-          setTimeout(() => {
-            const n = document.querySelectorAll(".gallery-image").length;
-            i += 1;
-            if (n >= target || i >= 80) return resolve(n);
-            if (n === last) {
-              stable += 1;
-              if (stable >= 12) return resolve(n); // bloccata: esci
-            } else {
-              stable = 0;
-              last = n;
-            }
-            step();
-          }, 600);
-        };
-        step();
-      });
-    }, EXPECTED_TOTAL);
+    // Convergenza: la masonry deve raggiungere il totale che la lightbox
+    // conosce. Poiché `displayPhotos` cresce in background, alterniamo
+    // scroll (avanza la finestra) e ri-lettura del totale finché le due
+    // grandezze coincidono o esauriamo i tentativi.
+    let expectedTotal = 0;
+    let finalCount = 0;
+    for (let round = 0; round < 5; round += 1) {
+      finalCount = await scrollUntilStable(page, Number.MAX_SAFE_INTEGER);
 
-    // CONTROLLO PRINCIPALE: la finestra non si blocca, si arriva al totale.
-    expect(finalCount).toBeGreaterThanOrEqual(EXPECTED_TOTAL - COUNT_TOLERANCE);
+      // Leggi il totale dal denominatore della lightbox (fonte di verità:
+      // l'elenco completo `displayPhotos`). Apriamo l'ultima card montata.
+      const cards = page.locator(".gallery-image");
+      const cardCount = await cards.count();
+      await cards.nth(cardCount - 1).click();
+      ({ total: expectedTotal } = await readLightboxCounter(page));
+      await page.keyboard.press("Escape");
+      await page
+        .locator(".gallery-image")
+        .first()
+        .waitFor({ state: "attached", timeout: 15_000 });
+
+      if (finalCount >= expectedTotal - COUNT_TOLERANCE) break;
+      // Sono arrivate altre pagine in background: continua a scrollare per
+      // montarle.
+    }
+
+    // La galleria di test deve essere "grande": altrimenti il test non esercita
+    // la finestra di rendering e non è una guardia valida del bug.
+    expect(
+      expectedTotal,
+      `La galleria ${GALLERY_ID} ha solo ${expectedTotal} foto (< ${MIN_PHOTOS}). ` +
+        "Il test richiede una galleria grande: aggiorna E2E_GALLERY_ID o i dati di test.",
+    ).toBeGreaterThanOrEqual(MIN_PHOTOS);
+
+    // La finestra iniziale era molto meno del totale (partiva parziale).
+    expect(initialCount).toBeLessThan(expectedTotal);
+
+    // CONTROLLO PRINCIPALE: la finestra non si blocca, si arriva al totale che
+    // la lightbox conosce.
+    expect(finalCount).toBeGreaterThanOrEqual(expectedTotal - COUNT_TOLERANCE);
 
     // Lightbox: apri una foto "profonda" (l'ultima card nel DOM).
     const cards = page.locator(".gallery-image");
     const cardCount = await cards.count();
     await cards.nth(cardCount - 1).click();
 
-    // Il contatore della lightbox ha formato "N / TOTALE".
-    const counter = page
-      .getByText(new RegExp(`^\\d+ / ${EXPECTED_TOTAL}$`))
-      .first();
-    await counter.waitFor({ state: "visible", timeout: 15_000 });
-
-    const counterText = ((await counter.textContent()) || "").trim();
-    const startIndex = parseInt(counterText.split("/")[0].trim(), 10);
+    const {
+      current: startIndex,
+      total: lightboxTotal,
+      text: counterText,
+    } = await readLightboxCounter(page);
+    // Il denominatore resta coerente con quello su cui abbiamo fatto convergere.
+    expect(lightboxTotal).toBe(expectedTotal);
     // Abbiamo aperto una card profonda: il denominatore conosce tutte le foto e
     // l'indice di partenza è alto (le foto profonde sono navigabili).
-    expect(startIndex).toBeGreaterThan(EXPECTED_TOTAL - 12);
+    expect(startIndex).toBeGreaterThan(expectedTotal - 12);
 
     // Naviga indietro: il contatore deve cambiare (navigazione funzionante).
     const prevBtn = page
@@ -121,6 +200,7 @@ test.describe("Galleria pubblica – finestra di rendering (gallerie grandi)", (
       await prevBtn.click();
       await page.waitForTimeout(300);
     }
+    const counter = page.getByText(/^\d+ \/ \d+$/).first();
     const afterText = ((await counter.textContent()) || "").trim();
     expect(afterText).not.toBe(counterText);
   });
