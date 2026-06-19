@@ -348,11 +348,34 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     console.log('🔄 [EditGalleryModal] Caricamento foto per galleria:', gallery.id);
     setIsLoading(true);
     try {
-      // Usa PhotoService.getGalleryPhotos() - stesso metodo di GalleryManagementWorkspace
-      const servicePhotos = await PhotoService.getGalleryPhotos(gallery.id);
-      
+      // 🔧 COMPLETEZZA: usa getGalleryPhotosComplete() (query NON ordinata
+      // `where('galleryId','==',id)`) anziché getGalleryPhotos() che usa
+      // `orderBy('createdAt')`. Firestore esclude SILENZIOSAMENTE dai risultati
+      // ordinati i documenti privi del campo `createdAt` (foto importate da
+      // script esterni / upload ospiti legacy), quindi l'editor mostrava meno
+      // foto del reale `photoCount`. La variante completa non ordina e non
+      // dipende da un indice composito, quindi non scarta nulla. Vedi
+      // .agents/memory/gallery-photo-completeness.md.
+      const servicePhotos = await PhotoService.getGalleryPhotosComplete(gallery.id);
+
+      // getGalleryPhotosComplete() non ordina: ordiniamo qui per data decrescente
+      // (più recenti prima) per preservare l'ordine di visualizzazione che
+      // getGalleryPhotos() forniva. Ordiniamo sul createdAt GREZZO (prima del
+      // default sotto), così le foto prive di createdAt → 0 → finiscono in coda.
+      const toMillis = (v: any): number => {
+        if (!v) return 0;
+        if (typeof v.seconds === 'number') return v.seconds * 1000;
+        if (typeof v.toDate === 'function') return v.toDate().getTime();
+        if (v instanceof Date) return v.getTime();
+        const t = new Date(v).getTime();
+        return Number.isNaN(t) ? 0 : t;
+      };
+      const sortedServicePhotos = [...servicePhotos].sort(
+        (a, b) => toMillis(b.createdAt) - toMillis(a.createdAt)
+      );
+
       // Converti da Photo a PhotoData per compatibilità con il resto del componente
-      const loadedPhotos: PhotoData[] = servicePhotos.map(photo => ({
+      const loadedPhotos: PhotoData[] = sortedServicePhotos.map(photo => ({
         id: photo.id,
         name: photo.name || "",
         url: photo.url || "",
