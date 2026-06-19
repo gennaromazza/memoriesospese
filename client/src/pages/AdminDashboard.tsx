@@ -130,6 +130,7 @@ import ProductCategoriesManager from "@/components/product-categories/ProductCat
 import ConsultationTemplatesManager from "./admin/ConsultationTemplatesManager";
 import ConsultationsManager from "./admin/ConsultationsManager";
 import PhotosMigration from "@/components/PhotosMigration";
+import PhotoDatesBackfill from "@/components/PhotoDatesBackfill";
 import SyncClientJobRefs from "@/components/SyncClientJobRefs";
 import GalleryRecoveryTool from "@/components/admin/GalleryRecoveryTool";
 import CalendarioManager from "@/components/admin/CalendarioManager";
@@ -3776,6 +3777,8 @@ export default function AdminDashboard() {
                     <SyncClientJobRefs />
 
                     <PhotosMigration />
+
+                    <PhotoDatesBackfill />
 
                     <GalleryRecoveryTool />
 

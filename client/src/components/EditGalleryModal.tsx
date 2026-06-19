@@ -1212,6 +1212,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
           migratedFrom: gallery.id,
           migratedAt: serverTimestamp(),
           uploadedBy: legacyData.uploadedBy || 'legacy',
+          // Garantisce sempre un createdAt: senza, la foto verrebbe scartata
+          // dalle query paginate orderBy('createdAt') della galleria pubblica.
+          createdAt: legacyData.createdAt || serverTimestamp(),
           updatedAt: serverTimestamp()
         };
         
