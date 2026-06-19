@@ -1,0 +1,43 @@
+Ho analizzato il comparto gallerie. Non toccherei ancora codice alla cieca: il problema “453 foto ma ne vedo 100” può nascere da due punti diversi, e vanno separati.
+Cause Probabili
+In [Gallery.tsx (line 1517)](C:/Users/Gennaro/Downloads/MemorieSospese/client/src/pages/Gallery.tsx:1517) il rendering parte da 60 foto e poi aumenta di 40 con IntersectionObserver. Se il sentinel non viene riattivato correttamente, la griglia resta inchiodata a 100.
+
+In [photos.ts (line 297)](C:/Users/Gennaro/Downloads/MemorieSospese/client/src/lib/photos.ts:297) il caricamento pubblico usa orderBy('createdAt'). Firestore esclude i documenti che non hanno createdAt: quindi una galleria può avere photoCount = 453, ma la query ne vede solo 100.
+
+Il vecchio hook [use-gallery-data.tsx (line 275)](C:/Users/Gennaro/Downloads/MemorieSospese/client/src/hooks/use-gallery-data.tsx:275) aveva una logica di recupero da Storage/legacy quando mancavano foto. La nuova Gallery.tsx non la replica, quindi alcune gallerie vecchie/importate possono risultare incomplete.
+
+Per performance: oggi la galleria carica progressivamente metadata, ma pre-carica troppe immagini originali, non virtualizza davvero la griglia e il context like/commenti può rifare query mentre arrivano nuove pagine.
+
+Piano Di Refactoring
+Diagnostica prima del refactor
+Aggiungere log/dev panel temporaneo con:
+photoCount, foto caricate da Firestore, foto renderizzate, visiblePhotoLimit, hasNextPage, pages.length.
+Fare uno script/check admin per contare:
+foto moderne, foto senza createdAt, foto legacy, foto in Storage.
+Obiettivo: capire se il limite 100 è un bug di rendering o di sorgente dati.
+
+Hotfix caricamento 100 foto
+Sostituire il meccanismo fragile 60 + 40 con un hook dedicato tipo useGalleryRenderWindow.
+Il limite visibile deve crescere in modo deterministico quando arrivano nuove foto, non solo quando il sentinel viene intercettato.
+Aggiungere fallback “carica altre” invisibile/automatico, utile su mobile dove gli observer sono meno prevedibili.
+
+Sorgente foto affidabile
+Estrarre useGalleryPhotos.
+Dedupe per id/url/name.
+Se loaded < gallery.photoCount e non ci sono più pagine, attivare riconciliazione:
+foto senza createdAt, legacy subcollection, eventuale Storage sync.
+Idealmente fare una migrazione/backfill: tutte le foto devono avere createdAt, sortKey, thumbnailUrl, galleryId.
+
+Performance 700 foto
+Griglia: caricare metadata di tutte le foto, ma renderizzare solo una finestra progressiva.
+Su mobile valuterei griglia fissa a ratio stabile, più veloce del masonry.
+Usare sempre thumbnailUrl nella griglia.
+Originali solo in lightbox: foto corrente + 2 vicine.
+Disattivare o riscrivere [GalleryPreloadBanner.tsx (line 87)](C:/Users/Gennaro/Downloads/MemorieSospese/client/src/components/gallery/GalleryPreloadBanner.tsx:87): oggi rischia di pre-caricare originali, pessimo con 700 foto.
+
+Bug da correggere durante il refactor
+Accesso pubblico senza password: logica duplicata tra [Gallery.tsx (line 342)](C:/Users/Gennaro/Downloads/MemorieSospese/client/src/pages/Gallery.tsx:342) e GalleryAccess.
+PhotoCard memo ignora url, thumbnailUrl, onClick: rischio lightbox/stati vecchi.
+Modalità dislike: se non tutte le foto sono caricate, può salvare selezione parziale.
+ImageLightbox deve riallinearsi quando cambia la sorgente foto.
+Selezione: testo “esattamente N” ma logica “almeno N”, va chiarito.
