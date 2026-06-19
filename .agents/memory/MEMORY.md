@@ -1,5 +1,6 @@
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
 - [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.
+- [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).
 - [Gallery render window](gallery-render-window.md) — finestra di rendering masonry: l'observer della sentinella va ri-armato (deps su visiblePhotoLimit) o si blocca dopo il 1° incremento (~100 foto); attiva solo vista standard fotografo.
 - [Gallery public access gate](gallery-public-access-gate.md) — /view/:id mostra 404 globale se aperto diretto: gate redirige a /access/:id (route inesistente); per testare impostare localStorage gallery_auth_<id>.

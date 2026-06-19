@@ -1616,7 +1616,12 @@ export default function Gallery() {
   };
 
   // Funzione per applicare i filtri
-  const handleFilterChange = (newFilters: FilterCriteria) => {
+  // ⚠️ STABILE (useCallback): GalleryFilter chiama onFilterChange dentro un
+  // useEffect che ha onFilterChange tra le dipendenze. Se questa funzione cambiasse
+  // identità ad ogni render, quell'effetto si ri-eseguirebbe in continuazione e
+  // resetterebbe `visiblePhotoLimit` a 60 ogni volta — bloccando la finestra di
+  // rendering della masonry (~58 foto) mentre la lightbox resta completa.
+  const handleFilterChange = useCallback((newFilters: FilterCriteria) => {
     setFilters(newFilters);
     setVisiblePhotoLimit(60); // reset finestra di rendering quando cambiano i filtri
 
@@ -1629,10 +1634,10 @@ export default function Gallery() {
       newFilters.sortOrder !== "newest";
 
     setAreFiltersActive(hasActiveFilter);
-  };
+  }, []);
 
-  // Funzione per resettare i filtri
-  const resetFilters = () => {
+  // Funzione per resettare i filtri (stabile per gli stessi motivi di sopra)
+  const resetFilters = useCallback(() => {
     setVisiblePhotoLimit(60); // reset finestra di rendering
     setFilters({
       startDate: undefined,
@@ -1642,7 +1647,7 @@ export default function Gallery() {
       sortOrder: "newest",
     });
     setAreFiltersActive(false);
-  };
+  }, []);
 
   // Filtra le foto in base ai criteri impostati
   const filteredPhotos = useMemo(() => {
