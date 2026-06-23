@@ -1,5 +1,6 @@
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
 - [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.
+- [Quote price snapshot vs catalog](quote-price-snapshot.md) — la creazione preventivo deve rispettare il prezzo override/omaggio deciso dall'admin; mai ri-leggere il listino catalogo (solo existence check).
 - [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).
 - [Gallery render window](gallery-render-window.md) — finestra di rendering masonry: l'observer della sentinella va ri-armato (deps su visiblePhotoLimit) o si blocca dopo il 1° incremento (~100 foto); attiva solo vista standard fotografo.

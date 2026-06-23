@@ -33,7 +33,6 @@ import { nanoid } from 'nanoid';
 import { addTimelineEvent, updateJobStatus, recomputeJobAggregates } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
 import type { QuoteProduct } from '@shared/quotes-types';
-import type { Product } from '@shared/booking-types';
 import { removeUndefinedFields } from '@shared/firestore-utils';
 
 const QUOTES_COLLECTION = 'quotes';
@@ -90,27 +89,26 @@ export async function createQuote(
     let subtotale = 0;
     
     for (const product of data.products) {
-      // Se productId esiste, recupera prezzo trusted da Firestore
+      // I prodotti catalogo (con productId) possono avere un PREZZO OVERRIDE deciso
+      // dall'admin nel template/builder (badge "modificato") oppure essere in OMAGGIO.
+      // Quel prezzo è lo snapshot voluto dall'admin: NON va sovrascritto col listino
+      // catalogo, altrimenti gli override del template vengono persi (bug prezzi preventivi).
+      // Verifichiamo solo che il prodotto catalogo esista ancora (integrità referenziale).
       if (product.productId) {
         const productDoc = await getDoc(doc(db, 'products', product.productId));
-        if (productDoc.exists()) {
-          const catalogProduct = productDoc.data() as Product;
-          const trustedPrice = catalogProduct.prezzoFinale || catalogProduct.prezzo;
-          
-          // Usa prezzo trusted dal catalog (ignora client-side price)
-          validatedProducts.push({
-            ...product,
-            prezzo: trustedPrice
-          });
-          subtotale += trustedPrice;
-        } else {
+        if (!productDoc.exists()) {
           throw new Error(`Prodotto catalogo non trovato: ${product.productId}`);
         }
-      } else {
-        // Prodotto custom - usa prezzo fornito (già validato lato form)
-        validatedProducts.push(product);
-        subtotale += product.prezzo;
       }
+
+      // Omaggio → prezzo sempre 0; altrimenti rispetta il prezzo (override o listino)
+      // deciso dall'admin in fase di creazione preventivo.
+      const prezzoSnapshot = product.isOmaggio ? 0 : (product.prezzo ?? 0);
+      validatedProducts.push({
+        ...product,
+        prezzo: prezzoSnapshot
+      });
+      subtotale += prezzoSnapshot;
     }
     
     // Valida sconto server-side
