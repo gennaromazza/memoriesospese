@@ -16,6 +16,7 @@ import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
+import labRoutes, { runLabShipmentExpiryCheck } from './lab-routes.js';
 import productsRoutes from './products-routes.js';
 import migrationRoutes from './migration-routes.js';
 import adminRoutes from './admin-routes.js';
@@ -114,6 +115,10 @@ async function startServer() {
     // Registra routes collaboratori
     app.use('/api', collaboratoriRoutes);
     console.log('👥 Collaboratori API routes mounted at /api');
+
+    // Registra routes laboratori (labs + lab-shipments)
+    app.use('/api', labRoutes);
+    console.log('🖨️  Lab API routes mounted at /api');
 
     // Products routes
     app.use('/api/products', productsRoutes);
@@ -242,6 +247,15 @@ async function startServer() {
           }
         } catch (err: any) {
           console.error('⏰ Auto-invito visione errore:', err.message);
+        }
+        // Auto-eliminazione file spedizioni laboratorio scadute
+        try {
+          const lab = await runLabShipmentExpiryCheck();
+          if (lab.expired > 0) {
+            console.log(`⏰ Consegne laboratorio: ${lab.expired} spedizioni scadute eliminate da Drive`);
+          }
+        } catch (err: any) {
+          console.error('⏰ Lab shipment expiry errore:', err.message);
         }
       };
       setTimeout(runRemindersWithLog, 2 * 60 * 1000);

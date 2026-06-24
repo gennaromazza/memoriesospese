@@ -248,3 +248,170 @@ export async function deleteBackupFromDrive(fileId: string): Promise<void> {
   
   console.log(`🗑️ Backup deleted from Google Drive: ${fileId}`);
 }
+
+// ============================================================================
+// CONSEGNE LABORATORIO - Upload file di stampa verso laboratori
+// Cartella dedicata, separata dai backup. Link "chiunque con il link" (reader).
+// File transitori: auto-eliminati dopo la scadenza.
+// IMPORTANTE: il token resta DENTRO questo modulo (getAccessToken), non esce mai.
+// ============================================================================
+
+const LAB_PARENT_FOLDER_NAME = 'Image Studio - Consegne Laboratorio';
+
+/**
+ * Trova o crea la cartella padre dedicata alle consegne laboratorio.
+ * Separata dalla cartella backup ('Image Studio Backups').
+ */
+export async function findOrCreateLabParentFolder(): Promise<string> {
+  const drive = await getGoogleDriveClient();
+
+  const searchResponse = await drive.files.list({
+    q: `name='${LAB_PARENT_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id, name)',
+    spaces: 'drive',
+  });
+
+  if (searchResponse.data.files && searchResponse.data.files.length > 0) {
+    console.log(`📁 Found existing lab parent folder: ${searchResponse.data.files[0].id}`);
+    return searchResponse.data.files[0].id!;
+  }
+
+  const createResponse = await drive.files.create({
+    requestBody: {
+      name: LAB_PARENT_FOLDER_NAME,
+      mimeType: 'application/vnd.google-apps.folder',
+    },
+    fields: 'id',
+  });
+
+  console.log(`📁 Created new lab parent folder: ${createResponse.data.id}`);
+  return createResponse.data.id!;
+}
+
+/**
+ * Crea una sottocartella per una spedizione e la rende condivisibile
+ * "chiunque con il link" (reader). Ritorna id + link condivisibile.
+ */
+export async function createShipmentFolder(
+  parentId: string,
+  name: string
+): Promise<{ folderId: string; webViewLink?: string }> {
+  const drive = await getGoogleDriveClient();
+
+  const createResponse = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    },
+    fields: 'id, webViewLink',
+  });
+
+  const folderId = createResponse.data.id!;
+
+  // Permesso "chiunque con il link" in sola lettura (una volta sola)
+  await drive.permissions.create({
+    fileId: folderId,
+    requestBody: {
+      role: 'reader',
+      type: 'anyone',
+    },
+  });
+
+  // Rileggi il webViewLink dopo aver impostato il permesso
+  const getResponse = await drive.files.get({
+    fileId: folderId,
+    fields: 'webViewLink',
+  });
+
+  console.log(`📁 Created shipment folder: ${folderId}`);
+
+  return {
+    folderId,
+    webViewLink: getResponse.data.webViewLink || createResponse.data.webViewLink || undefined,
+  };
+}
+
+/**
+ * Conia una sessione di upload resumable per il browser.
+ * Il token interno NON esce dal modulo: viene usato qui per ottenere
+ * la session URI (header Location) che viene poi restituita all'admin.
+ * NON loggare né persistere la session URI.
+ */
+export async function createResumableUploadSession(
+  folderId: string,
+  fileName: string,
+  mimeType: string,
+  fileSize: number
+): Promise<string> {
+  const accessToken = await getAccessToken();
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': mimeType,
+        'X-Upload-Content-Length': String(fileSize),
+      },
+      body: JSON.stringify({
+        name: fileName,
+        parents: [folderId],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Google Drive resumable session error: ${response.status} ${errorText}`);
+  }
+
+  const location = response.headers.get('location');
+
+  if (!location) {
+    throw new Error('Google Drive resumable session: header Location mancante');
+  }
+
+  // NON loggare la session URI (contiene credenziali di upload)
+  console.log(`✅ Resumable upload session creata per "${fileName}"`);
+
+  return location;
+}
+
+/**
+ * Elimina un file o cartella da Drive.
+ * Per le cartelle Drive elimina ricorsivamente anche i contenuti.
+ */
+export async function deleteDriveFile(fileId: string): Promise<void> {
+  const drive = await getGoogleDriveClient();
+
+  await drive.files.delete({
+    fileId,
+    supportsAllDrives: true,
+  });
+
+  console.log(`🗑️ Drive file/folder deleted: ${fileId}`);
+}
+
+/**
+ * Diagnostica opzionale: info quota storage dell'account Drive connesso.
+ */
+export async function getDriveStorageInfo(): Promise<{
+  limit?: string;
+  usage?: string;
+  email?: string;
+}> {
+  const drive = await getGoogleDriveClient();
+
+  const response = await drive.about.get({
+    fields: 'storageQuota,user',
+  });
+
+  return {
+    limit: response.data.storageQuota?.limit || undefined,
+    usage: response.data.storageQuota?.usage || undefined,
+    email: response.data.user?.emailAddress || undefined,
+  };
+}

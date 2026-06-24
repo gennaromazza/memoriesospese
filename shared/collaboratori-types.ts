@@ -26,6 +26,31 @@ export type JobAcceptanceStatus =
   | 'declined';    // Rifiutato
 
 /**
+ * Stati montaggio video (traccia operativa videomaker, NON stato commerciale del job)
+ */
+export type MontaggioStatus =
+  | 'non_richiesto'   // montaggio non ancora richiesto
+  | 'richiesto'       // montaggio richiesto al videomaker
+  | 'in_lavorazione'  // videomaker sta montando
+  | 'consegnato';     // montaggio consegnato
+
+/**
+ * Aggiornamento di stato del montaggio (storico con data auto-registrata)
+ */
+export interface MontaggioStatusUpdate {
+  status: MontaggioStatus;
+  data: Timestamp;
+  note?: string;
+}
+
+export const MONTAGGIO_STATUS_LABELS: Record<MontaggioStatus, string> = {
+  non_richiesto: 'Non richiesto',
+  richiesto: 'Montaggio richiesto',
+  in_lavorazione: 'In lavorazione',
+  consegnato: 'Consegnato',
+};
+
+/**
  * Tipo pagamento collaboratore
  */
 export type CollaboratorPaymentType = 'acconto' | 'saldo';
@@ -115,7 +140,13 @@ export interface JobCollaboratoreAssignment {
   // Note
   noteAdmin?: string;
   noteCollaboratore?: string;
-  
+
+  // Traccia montaggio video (operativa, valorizzata tipicamente per ruolo videomaker)
+  montaggioStatus?: MontaggioStatus;
+  montaggioRichiestoAt?: Timestamp;
+  montaggioConsegnatoAt?: Timestamp;
+  montaggioUpdates?: MontaggioStatusUpdate[];
+
   // Reminder
   reminderSent?: boolean;        // Deprecato - usare lastReminderSentAt
   reminderSentAt?: Timestamp;    // Deprecato - usare lastReminderSentAt

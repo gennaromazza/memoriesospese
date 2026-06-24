@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import InfoFormJobSection from './InfoFormJobSection';
 import ConsultationVisioneSection from './ConsultationVisioneSection';
+import OperationalTracksSection from './operativo/OperationalTracksSection';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { JobStatus } from '@shared/jobs-types';
@@ -251,7 +252,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           
           {/* Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview" data-testid="tab-overview" className="text-xs px-1">Overview</TabsTrigger>
               <TabsTrigger value="timeline" data-testid="tab-timeline" className="text-xs px-1">Timeline</TabsTrigger>
               <TabsTrigger value="preventivi" data-testid="tab-preventivi" className="text-xs px-1">Preventivi</TabsTrigger>
@@ -261,6 +262,7 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                 <ClipboardList className="h-3.5 w-3.5 mr-1 inline-block" />
                 Moduli
               </TabsTrigger>
+              <TabsTrigger value="operativo" data-testid="tab-operativo" className="text-xs px-1">Operativo</TabsTrigger>
             </TabsList>
             
             {/* Overview */}
@@ -609,6 +611,11 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   cellulare1: c.cellulare1,
                 }))}
               />
+            </TabsContent>
+
+            {/* Operativo */}
+            <TabsContent value="operativo" className="space-y-3 pt-2">
+              <OperationalTracksSection jobId={jobId} />
             </TabsContent>
 
             {/* Gallerie */}

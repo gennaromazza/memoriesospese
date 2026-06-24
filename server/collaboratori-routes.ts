@@ -15,8 +15,11 @@ import type {
   CollaboratoreStats,
   CollaboratorPayment,
   CollaboratorPaymentType,
-  PaymentMethod
+  PaymentMethod,
+  MontaggioStatus,
+  MontaggioStatusUpdate
 } from '@shared/collaboratori-types';
+import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -1152,6 +1155,167 @@ router.patch('/collaboratori/assignments/:id/respond', authenticateFirebase, asy
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error responding to assignment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/collaboratori/assignments/:id/montaggio
+ * Aggiorna lo stato montaggio video di un'assegnazione (traccia operativa videomaker).
+ * Body: { status: MontaggioStatus, note? }
+ * Invia email di notifica al collaboratore con il nuovo stato.
+ */
+router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body as { status: MontaggioStatus; note?: string };
+
+    const validStatuses: MontaggioStatus[] = ['non_richiesto', 'richiesto', 'in_lavorazione', 'consegnato'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status non valido. Valori ammessi: ${validStatuses.join(', ')}` });
+    }
+
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+
+    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+
+    const now = Timestamp.now();
+    const newUpdate: Omit<MontaggioStatusUpdate, 'data'> & { data: any } = {
+      status,
+      data: now,
+      ...(note ? { note } : {})
+    };
+
+    const montaggioUpdates = Array.isArray(assignment.montaggioUpdates)
+      ? [...assignment.montaggioUpdates, newUpdate]
+      : [newUpdate];
+
+    const updateData: any = {
+      montaggioStatus: status,
+      montaggioUpdates,
+      updatedAt: now
+    };
+
+    // Imposta montaggioRichiestoAt al primo passaggio a 'richiesto'
+    if (status === 'richiesto' && !assignment.montaggioRichiestoAt) {
+      updateData.montaggioRichiestoAt = now;
+    }
+
+    // Imposta montaggioConsegnatoAt quando 'consegnato'
+    if (status === 'consegnato') {
+      updateData.montaggioConsegnatoAt = now;
+    }
+
+    await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);
+
+    // Invia email notifica al collaboratore (fire-and-forget, non bloccante)
+    try {
+      const [collaboratoreDoc, jobDoc] = await Promise.all([
+        db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
+        db.collection('jobs').doc(assignment.jobId).get()
+      ]);
+
+      const collaboratore = collaboratoreDoc.exists ? collaboratoreDoc.data() : null;
+      const job = jobDoc.exists ? jobDoc.data() : null;
+
+      if (collaboratore?.email) {
+        const studioInfo = await getStudioContactInfo();
+        const siteUrl = getSiteBaseUrl(req);
+        const jobNome = job?.nomeEvento || 'Lavoro';
+        const statusLabel = MONTAGGIO_STATUS_LABELS[status] || status;
+
+        const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
+          ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
+          : null;
+
+        const htmlContent = `
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
+            <div style="background: linear-gradient(135deg, #8b5a3c 0%, #6b4a2c 100%); padding: 30px 20px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
+                Aggiornamento Montaggio Video
+              </h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
+                ${studioInfo.name}
+              </p>
+            </div>
+
+            <div style="padding: 30px 25px;">
+              <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
+                Ciao <strong style="color: #8b5a3c;">${collaboratore.nome || ''} ${collaboratore.cognome || ''}</strong>,
+              </p>
+
+              <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+                Lo stato del montaggio video per il lavoro <strong>${jobNome}</strong> è stato aggiornato:
+              </p>
+
+              <div style="background: #f8f5f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #8b5a3c;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px; width: 140px;">Lavoro:</td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${jobNome}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;">Nuovo stato:</td>
+                    <td style="padding: 8px 0; color: #8b5a3c; font-size: 14px; font-weight: 700;">${statusLabel}</td>
+                  </tr>
+                  ${note ? `
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px; vertical-align: top;">Note:</td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px;">${note}</td>
+                  </tr>
+                  ` : ''}
+                </table>
+              </div>
+
+              ${dashboardUrl ? `
+              <div style="background: #e8f4f8; border-radius: 12px; padding: 25px; margin-bottom: 25px; text-align: center;">
+                <p style="font-size: 14px; color: #333; margin: 0 0 15px 0;">
+                  Visualizza tutti i dettagli nella tua dashboard:
+                </p>
+                <a href="${dashboardUrl}"
+                   style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%);
+                          color: #ffffff; padding: 14px 35px; text-decoration: none;
+                          border-radius: 8px; font-weight: 600; font-size: 14px;">
+                  Vai alla Dashboard
+                </a>
+              </div>
+              ` : ''}
+
+              <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
+                Grazie per la collaborazione!<br>
+                <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+              </p>
+            </div>
+
+            <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
+              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
+              <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+            </div>
+          </div>
+        `;
+
+        await sendGmailEmail(
+          collaboratore.email,
+          `Montaggio Video - ${statusLabel}: ${jobNome} | ${studioInfo.name}`,
+          htmlContent
+        );
+
+        console.log(`✅ Email aggiornamento montaggio (${statusLabel}) inviata a ${collaboratore.email}`);
+      } else {
+        console.log('⚠️ Email collaboratore mancante, notifica montaggio non inviata');
+      }
+    } catch (emailErr: any) {
+      console.error('❌ Email notifica montaggio fallita (non bloccante):', emailErr.message);
+    }
+
+    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    res.json({ id: updated.id, ...updated.data() });
+  } catch (error: any) {
+    console.error('❌ Error updating montaggio status:', error);
     res.status(500).json({ error: error.message });
   }
 });

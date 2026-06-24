@@ -96,6 +96,8 @@ export async function apiRequest(
     '/api/orders/', // Order management endpoints requiring auth
     '/api/payment-schedules/', // Payment schedule management endpoints requiring auth
     '/api/collaboratori', // Collaborator management endpoints requiring auth
+    '/api/labs', // Lab anagrafica endpoints requiring auth (matches /api/labs, /api/labs/, /api/labs?...)
+    '/api/lab-shipments', // Lab shipment endpoints requiring auth
     '/api/admin/', // Admin endpoints requiring auth
     '/api/galleries/', // Gallery-scoped endpoints requiring auth (es. generazione miniature ospiti)
     '/api/bulk-email/', // Bulk email endpoints requiring auth

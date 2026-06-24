@@ -69,6 +69,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import { AssegnaClienteDialog } from '@/components/clienti/AssegnaClienteDialog';
 import { JobCollaboratoriSection } from '@/components/jobs/JobCollaboratoriSection';
+import OperationalTracksSection from '@/components/jobs/operativo/OperationalTracksSection';
 import FinancialSummaryCard from '@/components/jobs/FinancialSummaryCard';
 import { useJobFinancials } from '@/hooks/useJobFinancials';
 import JobCompletedToggle from '@/components/jobs/JobCompletedToggle';
@@ -1413,6 +1414,16 @@ export default function JobDetailPage() {
 
               {/* Collaboratori */}
               <JobCollaboratoriSection jobId={job.id} />
+
+              {/* Tracce Operative */}
+              <Card className="shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-[#8b5a3c]/10 to-transparent">
+                  <CardTitle>Tracce Operative</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <OperationalTracksSection jobId={job.id} />
+                </CardContent>
+              </Card>
 
               {/* Costi */}
               <Card className="shadow-sm hover:shadow-md transition-shadow">

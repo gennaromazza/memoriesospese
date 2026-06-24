@@ -124,6 +124,7 @@ import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 import JobTypesManager from "@/components/job-types/JobTypesManager";
+import LabsManager from "@/components/labs/LabsManager";
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import ProductCategoriesManager from "@/components/product-categories/ProductCategoriesManager";
@@ -546,6 +547,7 @@ export default function AdminDashboard() {
     | "jobs-list"
     | "clienti"
     | "job-types"
+    | "laboratori"
     | "contract-clauses"
     | "quote-templates"
     | "moduli-informativi"
@@ -2976,7 +2978,7 @@ export default function AdminDashboard() {
                 onValueChange={(v) => setActiveJobSection(v as any)}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 gap-1 mb-4">
+                <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7 gap-1 mb-4">
                   <TabsTrigger value="jobs-list" data-testid="subtab-jobs-list">
                     Lista Lavori
                   </TabsTrigger>
@@ -2985,6 +2987,9 @@ export default function AdminDashboard() {
                   </TabsTrigger>
                   <TabsTrigger value="job-types" data-testid="subtab-job-types">
                     Tipi di Lavoro
+                  </TabsTrigger>
+                  <TabsTrigger value="laboratori" data-testid="subtab-laboratori">
+                    Laboratori
                   </TabsTrigger>
                   <TabsTrigger
                     value="contract-clauses"
@@ -3053,6 +3058,12 @@ export default function AdminDashboard() {
                 <TabsContent value="job-types">
                   <div className="bg-white shadow sm:rounded-lg p-5">
                     <JobTypesManager />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="laboratori">
+                  <div className="bg-white shadow sm:rounded-lg p-5">
+                    <LabsManager />
                   </div>
                 </TabsContent>
 

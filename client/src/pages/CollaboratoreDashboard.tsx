@@ -29,6 +29,7 @@ import { it } from 'date-fns/locale';
 import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct } from '@shared/collaboratori-types';
+import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
@@ -337,6 +338,11 @@ export default function CollaboratoreDashboard() {
                                 {STATUS_LABELS[assignment.status].label}
                               </Badge>
                               <Badge variant="outline">{RUOLI_LABELS[assignment.ruoloInJob] || assignment.ruoloInJob}</Badge>
+                              {assignment.ruoloInJob === 'videomaker' && assignment.montaggioStatus && assignment.montaggioStatus !== 'non_richiesto' && (
+                                <Badge variant="secondary" data-testid={`badge-montaggio-${assignment.id}`}>
+                                  🎬 {MONTAGGIO_STATUS_LABELS[assignment.montaggioStatus]}
+                                </Badge>
+                              )}
                             </div>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">

@@ -24,6 +24,7 @@ import type {
   CollaboratoreStats,
   CollaboratorPaymentType,
   PaymentMethod,
+  MontaggioStatus,
 } from "@shared/collaboratori-types";
 
 const COLLABORATORI_COLLECTION = "collaboratori";
@@ -537,6 +538,34 @@ export async function sendCollaboratorReminders(): Promise<{
     return await response.json();
   } catch (error) {
     console.error("❌ Errore invio reminder:", error);
+    throw error;
+  }
+}
+
+/**
+ * Aggiorna lo stato montaggio di un'assegnazione (traccia operativa videomaker).
+ * Invia notifica email al collaboratore lato server.
+ */
+export async function updateMontaggioStatus(
+  assignmentId: string,
+  status: MontaggioStatus,
+  note?: string,
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "PATCH",
+      `/api/collaboratori/assignments/${assignmentId}/montaggio`,
+      { status, note },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Errore aggiornamento montaggio");
+    }
+
+    console.log("✅ Stato montaggio aggiornato:", assignmentId, status);
+  } catch (error) {
+    console.error("❌ Errore aggiornamento montaggio:", error);
     throw error;
   }
 }
