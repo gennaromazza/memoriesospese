@@ -15,6 +15,13 @@ const router = express.Router();
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 /**
  * POST /api/admin/galleries/:galleryId/generate-thumbnails
  * Genera le miniature mancanti per una galleria (lato server, admin SDK).
@@ -22,7 +29,7 @@ const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
  * Ritorna: { success, totalMissing, processed, generated, failed, remaining }
  * Chiamare ripetutamente finché remaining === 0 (o generated === 0).
  */
-router.post('/galleries/:galleryId/generate-thumbnails', authenticateFirebase, async (req: any, res) => {
+router.post('/galleries/:galleryId/generate-thumbnails', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
       return res.status(403).json({ error: 'Accesso negato: solo admin' });
@@ -52,7 +59,7 @@ router.post('/galleries/:galleryId/generate-thumbnails', authenticateFirebase, a
  * GET /api/admin/pending-cancellations
  * Lista bookings in cancellation_pending per admin monitoring
  */
-router.get('/pending-cancellations', authenticateFirebase, async (req: any, res) => {
+router.get('/pending-cancellations', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const pendingSnapshot = await db.collection('bookings')
       .where('stato', '==', 'cancellation_pending')
@@ -91,7 +98,7 @@ router.get('/pending-cancellations', authenticateFirebase, async (req: any, res)
  * POST /api/admin/retry-cancellation/:bookingId
  * Manual trigger retry per booking specifico
  */
-router.post('/retry-cancellation/:bookingId', authenticateFirebase, async (req: any, res) => {
+router.post('/retry-cancellation/:bookingId', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { bookingId } = req.params;
     
@@ -112,7 +119,7 @@ router.post('/retry-cancellation/:bookingId', authenticateFirebase, async (req: 
  * GET /api/admin/worker-health
  * Health check del cancellation retry worker
  */
-router.get('/worker-health', authenticateFirebase, async (req: any, res) => {
+router.get('/worker-health', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     // Query stats sullo stato dei pending cancellations
     const pendingSnapshot = await db.collection('bookings')
@@ -160,7 +167,7 @@ router.get('/worker-health', authenticateFirebase, async (req: any, res) => {
  * Backfill googleCalendarEventId per legacy jobs con blocking status
  * Utile dopo migrazioni o per riparazione automatica
  */
-router.post('/jobs/reconcile-calendar', authenticateFirebase, async (req: any, res) => {
+router.post('/jobs/reconcile-calendar', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     console.log('🔄 Avvio reconciliation Calendar events per legacy jobs...');
     
@@ -270,7 +277,7 @@ router.post('/jobs/reconcile-calendar', authenticateFirebase, async (req: any, r
  * con i link corretti (publicToken per preventivi firmati)
  * One-time migration script
  */
-router.post('/fix-calendar-links', authenticateFirebase, async (req: any, res) => {
+router.post('/fix-calendar-links', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     console.log('🔗 Inizio fix link calendario per tutti i job...');
     const { ensureJobCalendarEvent } = await import('./job-routes.js');
@@ -344,7 +351,7 @@ router.post('/fix-calendar-links', authenticateFirebase, async (req: any, res) =
  * Sincronizzazione manuale Google Calendar <-> Firestore
  * Elimina eventi fantasma e ripara inconsistenze
  */
-router.post('/sync-calendar', authenticateFirebase, async (req: any, res) => {
+router.post('/sync-calendar', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     console.log('🔄 Admin triggered manual calendar sync');
     
@@ -384,7 +391,7 @@ router.post('/sync-calendar', authenticateFirebase, async (req: any, res) => {
  * Migra e standardizza tutti i numeri di telefono nel database per WhatsApp
  * Aggiorna clienti, bookings, orders, jobs con numeri formattati correttamente
  */
-router.post('/migrate-phone-numbers', authenticateFirebase, async (req: any, res) => {
+router.post('/migrate-phone-numbers', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     console.log('📱 Inizio migrazione numeri di telefono...');
     
@@ -571,7 +578,7 @@ router.post('/migrate-phone-numbers', authenticateFirebase, async (req: any, res
  * GET /api/admin/phone-migration-preview
  * Anteprima della migrazione: mostra quanti numeri verrebbero aggiornati
  */
-router.get('/phone-migration-preview', authenticateFirebase, async (req: any, res) => {
+router.get('/phone-migration-preview', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     console.log('📱 Anteprima migrazione numeri...');
     

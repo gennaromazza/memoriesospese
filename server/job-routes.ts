@@ -13,6 +13,15 @@ import { recomputeJobAggregates } from './job-aggregates.js';
 
 const router = express.Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 function getJobCalendarColorId(status: string, hasSignedQuote: boolean): string {
   if (hasSignedQuote || status === 'confermato') return '2';
   if (status === 'lead' || status === 'preventivo_inviato') return '6';
@@ -263,7 +272,7 @@ export async function ensureJobCalendarEvent(jobId: string): Promise<{
 let notificationsCache: { data: any[]; timestamp: number } | null = null;
 const NOTIFICATIONS_CACHE_TTL = 60 * 1000; // 1 minuto
 
-router.get('/notifications', authenticateFirebase, async (req: any, res) => {
+router.get('/notifications', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     // Serve da cache se ancora valida
     if (notificationsCache && (Date.now() - notificationsCache.timestamp) < NOTIFICATIONS_CACHE_TTL) {
@@ -364,7 +373,7 @@ router.get('/notifications', authenticateFirebase, async (req: any, res) => {
  * POST /api/jobs/notifications/:id/dismiss
  * Segna una notifica admin come letta
  */
-router.post('/notifications/:id/dismiss', authenticateFirebase, async (req: any, res) => {
+router.post('/notifications/:id/dismiss', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     await db.collection('adminNotifications').doc(id).update({
@@ -390,7 +399,7 @@ router.post('/notifications/:id/dismiss', authenticateFirebase, async (req: any,
  * IMPORTANTE: Questo route DEVE stare prima di /:id per evitare che Express
  * catturi "check-calendar" come parametro :id.
  */
-router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
+router.get('/check-calendar', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { eventDate, allDay, startTime, endTime } = req.query;
     
@@ -506,7 +515,7 @@ router.get('/check-calendar', authenticateFirebase, async (req: any, res) => {
  * reali sono sommati dai 'paymentSchedules' (fonte di verità per gli importi pagati).
  * DEVE restare definita PRIMA di GET '/:id'.
  */
-router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
+router.get('/list-aggregates', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     // Legge i campi denormalizzati dai 'jobs' (quoteStatus, transactionCount, financials)
     // — niente scan di 'orders'/'quotes' — e somma gli incassi reali dai 'paymentSchedules'
@@ -587,7 +596,7 @@ router.get('/list-aggregates', authenticateFirebase, async (req: any, res) => {
  * così la logica di aggregazione resta centralizzata server-side. DEVE restare definita
  * PRIMA di GET '/:id' per non essere catturata dalla rotta dinamica.
  */
-router.post('/:id/recompute-aggregates', authenticateFirebase, async (req: any, res) => {
+router.post('/:id/recompute-aggregates', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     await recomputeJobAggregates(id);
@@ -602,7 +611,7 @@ router.post('/:id/recompute-aggregates', authenticateFirebase, async (req: any, 
  * GET /api/jobs/:id
  * Recupera un singolo lavoro per ID (con verifica admin)
  */
-router.get('/:id', authenticateFirebase, async (req: any, res) => {
+router.get('/:id', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -635,7 +644,7 @@ router.get('/:id', authenticateFirebase, async (req: any, res) => {
  * GET /api/jobs/:id/timeline
  * Recupera la timeline di un lavoro
  */
-router.get('/:id/timeline', authenticateFirebase, async (req: any, res) => {
+router.get('/:id/timeline', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     
@@ -661,7 +670,7 @@ router.get('/:id/timeline', authenticateFirebase, async (req: any, res) => {
  * Elimina evento Google Calendar associato a un job
  * Usato quando: job viene eliminato, dataNonDefinita attivato, status annullato
  */
-router.delete('/:id/calendar-event', authenticateFirebase, async (req: any, res) => {
+router.delete('/:id/calendar-event', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const jobDoc = await db.collection('jobs').doc(id).get();
@@ -704,7 +713,7 @@ router.delete('/:id/calendar-event', authenticateFirebase, async (req: any, res)
 /**
  * Endpoint per sincronizzare il calendario di un lavoro
  */
-router.post('/:id/sync-calendar', authenticateFirebase, async (req: any, res) => {
+router.post('/:id/sync-calendar', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const result = await ensureJobCalendarEvent(id);
@@ -721,7 +730,7 @@ router.post('/:id/sync-calendar', authenticateFirebase, async (req: any, res) =>
  * GET /api/consultation-templates?jobType=Matrimonio
  * Recupera tutti i template di consulenza attivi per un jobType specifico
  */
-router.get('/consultation-templates', authenticateFirebase, async (req: any, res) => {
+router.get('/consultation-templates', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { jobType } = req.query;
     
@@ -758,7 +767,7 @@ router.get('/consultation-templates', authenticateFirebase, async (req: any, res
  * Verifica esistenza evento esistente, ricrea se stale
  * Query params: force=true per forzare ricreazione (elimina evento esistente)
  */
-router.post('/:id/calendar-event', authenticateFirebase, async (req: any, res) => {
+router.post('/:id/calendar-event', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const force = req.query.force === 'true';
@@ -817,7 +826,7 @@ router.post('/:id/calendar-event', authenticateFirebase, async (req: any, res) =
  * Body:
  * - channel: 'email' | 'whatsapp'
  */
-router.post('/:id/send-consultation-request', authenticateFirebase, async (req: any, res) => {
+router.post('/:id/send-consultation-request', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { channel, templateId, dateFrom, dateTo } = req.body;
@@ -1103,7 +1112,7 @@ router.post('/:id/send-consultation-request', authenticateFirebase, async (req: 
  * - descrizione: string
  * - metadata: object (opzionale)
  */
-router.post('/:id/timeline-events', authenticateFirebase, async (req: any, res) => {
+router.post('/:id/timeline-events', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { tipo, descrizione, metadata } = req.body;
@@ -1154,7 +1163,7 @@ router.post('/:id/timeline-events', authenticateFirebase, async (req: any, res) 
  * GET /api/jobs
  * Recupera tutti i lavori con filtri opzionali
  */
-router.get('/', authenticateFirebase, async (req: any, res) => {
+router.get('/', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { status, jobType, clienteId, searchQuery, dateFrom, dateTo } = req.query;
     
@@ -1229,7 +1238,7 @@ router.get('/', authenticateFirebase, async (req: any, res) => {
  * POST /api/jobs/sync-all-calendar
  * Sync batch di tutti i jobs con Google Calendar (aggiorna titoli, colori, descrizioni)
  */
-router.post('/sync-all-calendar', authenticateFirebase, async (req: any, res) => {
+router.post('/sync-all-calendar', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const jobsSnap = await db.collection('jobs')
       .where('deletedAt', '==', null)

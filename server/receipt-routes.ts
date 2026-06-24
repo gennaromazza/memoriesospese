@@ -12,6 +12,15 @@ import { authenticateFirebase } from './email-routes.js';
 
 const router = Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 /**
  * Genera numero progressivo ricevuta
  */
@@ -350,7 +359,7 @@ function createReceiptHTML(receiptData: any): string {
  * POST /api/receipts/send
  * Genera e invia ricevuta fiscale via email o WhatsApp
  */
-router.post('/send', authenticateFirebase, async (req: any, res) => {
+router.post('/send', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { movementId, method, recipient, clienteNome, clienteCognome } = req.body;
 

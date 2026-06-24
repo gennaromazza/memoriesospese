@@ -545,6 +545,14 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
  */
 router.post('/payment-received-notification', authenticateFirebase, async (req: any, res: Response) => {
   try {
+    // Verifica admin
+    const isAdmin = ADMIN_EMAILS.includes(req.user?.email || "");
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: 'Solo gli admin possono inviare notifiche di pagamento'
+      });
+    }
+
     const {
       orderId,
       paymentType,

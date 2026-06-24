@@ -15,12 +15,21 @@ import { it } from 'date-fns/locale';
 
 const router = express.Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 /**
  * GET /api/calendar/status
  * Verifica stato connessione Google Calendar
  * Ritorna info su token, scadenza, e se serve riconnessione
  */
-router.get('/status', authenticateFirebase, async (req, res) => {
+router.get('/status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const status = await getCalendarConnectionStatus();
     res.json(status);
@@ -37,7 +46,7 @@ router.get('/status', authenticateFirebase, async (req, res) => {
  * POST /api/calendar/refresh-token
  * Forza reinizializzazione del client Service Account invalidando la cache
  */
-router.post('/refresh-token', authenticateFirebase, async (req, res) => {
+router.post('/refresh-token', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     invalidateTokenCache();
     const status = await getCalendarConnectionStatus();
@@ -87,7 +96,7 @@ interface CalendarEventDTO {
 const calendarCache = new Map<string, { data: any; timestamp: number }>();
 const CALENDAR_CACHE_TTL = 2 * 60 * 1000; // 2 minuti
 
-router.get('/events', authenticateFirebase, async (req, res) => {
+router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { startDate, endDate, calendarId } = req.query;
     
@@ -386,7 +395,7 @@ const createEventSchema = z.object({
   }
 );
 
-router.post('/create-event', authenticateFirebase, async (req, res) => {
+router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     calendarCache.clear();
     const data = createEventSchema.parse(req.body);
@@ -561,7 +570,7 @@ const updateEventSchema = z.object({
   isAllDay: z.boolean().optional(),
 });
 
-router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
+router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { eventId } = req.params;
     const data = updateEventSchema.parse(req.body);
@@ -703,7 +712,7 @@ router.patch('/events/:eventId', authenticateFirebase, async (req, res) => {
  * Verifica stato connessione Google Calendar via Service Account
  * Con Service Account non ci sono token che scadono
  */
-router.get('/connection-status', authenticateFirebase, async (req, res) => {
+router.get('/connection-status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const status = await getCalendarConnectionStatus();
     const calendarId = process.env.GOOGLE_CALENDAR_ID || 'non configurato';

@@ -25,6 +25,15 @@ import {
 
 const router = Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 /**
  * Template HTML per email Reminder Booking (24h prima dello shooting)
  * Palette October Mist: sage #8b9a7d, terracotta #c17f59, cream #f5f0e8, blue-gray #6b7d8a
@@ -696,7 +705,7 @@ export async function runVisioneAutoInviteCheck(): Promise<{
  * Invia reminder email per tutti gli appuntamenti nelle prossime 20-28 ore
  * (booking + consulenze) — può essere chiamato manualmente dall'admin
  */
-router.post("/send-all", authenticateFirebase, async (req: any, res) => {
+router.post("/send-all", authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const results = await runReminderCheck();
     res.json({ success: true, message: "Reminder process completed", timestamp: new Date().toISOString(), results });
@@ -711,7 +720,7 @@ router.post("/send-all", authenticateFirebase, async (req: any, res) => {
  * GET /api/reminders/status
  * Mostra lo stato dei reminder: quanti appuntamenti sono in arrivo e quanti reminder sono stati inviati
  */
-router.get("/status", authenticateFirebase, async (req: any, res) => {
+router.get("/status", authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const nowRome = DateTime.now().setZone("Europe/Rome");
     const next48h = nowRome.plus({ hours: 48 }).toJSDate();

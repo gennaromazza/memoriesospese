@@ -24,6 +24,15 @@ import {
 
 const router = express.Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 interface CollectionExport {
   name: string;
   count: number;
@@ -183,7 +192,7 @@ async function exportCollection(collectionName: string): Promise<CollectionExpor
  * Esporta TUTTO il database Firestore in formato JSON
  * Richiede autenticazione admin
  */
-router.get('/export', authenticateFirebase, async (req, res) => {
+router.get('/export', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const userEmail = (req as any).user?.email;
     console.log(`📦 Starting full system backup requested by ${userEmail}`);
@@ -238,7 +247,7 @@ router.get('/export', authenticateFirebase, async (req, res) => {
  * GET /api/backup/status
  * Ritorna statistiche sulle collezioni per preview backup
  */
-router.get('/status', authenticateFirebase, async (req, res) => {
+router.get('/status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const stats: Record<string, number> = {};
     let total = 0;
@@ -273,7 +282,7 @@ router.get('/status', authenticateFirebase, async (req, res) => {
  * Importa backup JSON nel database
  * ATTENZIONE: Sovrascrive dati esistenti con stesso ID!
  */
-router.post('/import', authenticateFirebase, async (req, res) => {
+router.post('/import', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const userEmail = (req as any).user?.email;
     const { backup, options } = req.body;
@@ -379,7 +388,7 @@ function deserializeFirestoreData(data: any): any {
  * Valida integrità di un backup senza importarlo
  * Controlla relazioni tra documenti (clienteId esiste, jobId esiste, etc.)
  */
-router.post('/validate', authenticateFirebase, async (req, res) => {
+router.post('/validate', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { backup } = req.body;
     
@@ -454,7 +463,7 @@ router.post('/validate', authenticateFirebase, async (req, res) => {
  * GET /api/backup/drive/status
  * Verifica stato connessione Google Drive
  */
-router.get('/drive/status', authenticateFirebase, async (req, res) => {
+router.get('/drive/status', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const status = await getDriveConnectionStatus();
     res.json(status);
@@ -471,7 +480,7 @@ router.get('/drive/status', authenticateFirebase, async (req, res) => {
  * POST /api/backup/drive/upload
  * Esporta e carica backup su Google Drive
  */
-router.post('/drive/upload', authenticateFirebase, async (req, res) => {
+router.post('/drive/upload', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const userEmail = (req as any).user?.email;
     console.log(`☁️ Starting Google Drive backup upload requested by ${userEmail}`);
@@ -533,7 +542,7 @@ router.post('/drive/upload', authenticateFirebase, async (req, res) => {
  * GET /api/backup/drive/list
  * Lista backup disponibili su Google Drive
  */
-router.get('/drive/list', authenticateFirebase, async (req, res) => {
+router.get('/drive/list', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const backups = await listBackupsFromDrive();
     res.json({
@@ -553,7 +562,7 @@ router.get('/drive/list', authenticateFirebase, async (req, res) => {
  * GET /api/backup/drive/download/:fileId
  * Scarica un backup da Google Drive
  */
-router.get('/drive/download/:fileId', authenticateFirebase, async (req, res) => {
+router.get('/drive/download/:fileId', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.params;
     const backup = await downloadBackupFromDrive(fileId);
@@ -570,7 +579,7 @@ router.get('/drive/download/:fileId', authenticateFirebase, async (req, res) => 
  * DELETE /api/backup/drive/:fileId
  * Elimina un backup da Google Drive
  */
-router.delete('/drive/:fileId', authenticateFirebase, async (req, res) => {
+router.delete('/drive/:fileId', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.params;
     await deleteBackupFromDrive(fileId);

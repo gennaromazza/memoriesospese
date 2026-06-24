@@ -20,6 +20,15 @@ function getTodayRome(): string {
 
 const router = Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 // --- CONFIGURAZIONE ---
 const GMAIL_DAILY_LIMIT = 400; // 400 per bulk email, 100 riservate per notifiche clienti
 const BATCH_SIZE = 30; // Aggiornamento DB ogni 30 email (ridotto per update più frequenti)
@@ -475,7 +484,7 @@ async function releaseQuotaAtomic(
 // ============================================================================
 
 // GET Quota giornaliera
-router.get("/quota", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/quota", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -502,7 +511,7 @@ router.get("/quota", authenticateFirebase, async (req: any, res: Response) => {
 });
 
 // POST Reset quota giornaliera (solo admin)
-router.post("/quota/reset", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/quota/reset", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const today = getTodayRome();
     const quotaRef = db.collection("emailQuota").doc(today);
@@ -532,7 +541,7 @@ router.post("/quota/reset", authenticateFirebase, async (req: any, res: Response
 // ============================================================================
 
 // GET Lista template email
-router.get("/templates", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/templates", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const snapshot = await db.collection("emailTemplates")
       .orderBy("updatedAt", "desc")
@@ -550,7 +559,7 @@ router.get("/templates", authenticateFirebase, async (req: any, res: Response) =
 });
 
 // POST Crea nuovo template
-router.post("/templates", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/templates", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { name, subject, body } = req.body;
     
@@ -581,7 +590,7 @@ router.post("/templates", authenticateFirebase, async (req: any, res: Response) 
 });
 
 // PUT Aggiorna template
-router.put("/templates/:id", authenticateFirebase, async (req: any, res: Response) => {
+router.put("/templates/:id", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { name, subject, body } = req.body;
@@ -600,7 +609,7 @@ router.put("/templates/:id", authenticateFirebase, async (req: any, res: Respons
 });
 
 // DELETE Elimina template
-router.delete("/templates/:id", authenticateFirebase, async (req: any, res: Response) => {
+router.delete("/templates/:id", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     await db.collection("emailTemplates").doc(id).delete();
@@ -615,7 +624,7 @@ router.delete("/templates/:id", authenticateFirebase, async (req: any, res: Resp
 // ============================================================================
 
 // GET Filtri disponibili (anni dinamici + tipi lavoro dai jobs)
-router.get("/filters", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/filters", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
     const jobsSnapshot = await db.collection("jobs").select("dataEvento", "eventDate", "jobType").get();
@@ -691,7 +700,7 @@ router.get("/filters", authenticateFirebase, async (req: any, res: Response) => 
   }
 });
 
-router.get("/recipients", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/recipients", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { filter } = req.query;
     const recipients: BulkEmailRecipient[] = [];
@@ -846,7 +855,7 @@ router.get("/recipients", authenticateFirebase, async (req: any, res: Response) 
   }
 });
 
-router.post("/send", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/send", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { subject, body, recipients, senderId } = req.body;
 
@@ -914,7 +923,7 @@ router.post("/send", authenticateFirebase, async (req: any, res: Response) => {
 });
 
 // POST Invio con split automatico (divide in job da 400 max)
-router.post("/send-split", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/send-split", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { subject, body, recipients, senderId } = req.body;
 
@@ -1004,7 +1013,7 @@ router.post("/send-split", authenticateFirebase, async (req: any, res: Response)
 });
 
 // POST Avvia job scheduled
-router.post("/jobs/:jobId/start", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/jobs/:jobId/start", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { jobId } = req.params;
     const jobRef = db.collection("bulkEmailJobs").doc(jobId);
@@ -1070,7 +1079,7 @@ router.post("/jobs/:jobId/start", authenticateFirebase, async (req: any, res: Re
   }
 });
 
-router.get("/jobs", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/jobs", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const snapshot = await db
       .collection("bulkEmailJobs")
@@ -1084,7 +1093,7 @@ router.get("/jobs", authenticateFirebase, async (req: any, res: Response) => {
   }
 });
 
-router.get("/jobs/:jobId", authenticateFirebase, async (req: any, res: Response) => {
+router.get("/jobs/:jobId", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const doc = await db
       .collection("bulkEmailJobs")
@@ -1098,7 +1107,7 @@ router.get("/jobs/:jobId", authenticateFirebase, async (req: any, res: Response)
   }
 });
 
-router.post("/jobs/:jobId/retry-failed", authenticateFirebase, async (req: any, res: Response) => {
+router.post("/jobs/:jobId/retry-failed", authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { jobId } = req.params;
     

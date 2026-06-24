@@ -15,6 +15,15 @@ interface AuthRequest extends Request {
 
 const router = Router();
 
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 // ✅ Setup multer per file upload in memoria
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -165,7 +174,7 @@ async function ensureJobTypesExist(jobs: ParsedJobData[]): Promise<{ created: Ar
 }
 
 // ✅ NUOVO: Preview import Excel con file upload
-router.post('/preview-excel', authenticateFirebase, upload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/preview-excel', authenticateFirebase, requireAdmin, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -236,7 +245,7 @@ router.post('/preview-excel', authenticateFirebase, upload.single('file'), async
 });
 
 // Legacy: Preview import CSV
-router.post('/preview', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+router.post('/preview', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -384,7 +393,7 @@ async function applyJobTypeMapping(
 }
 
 // ✅ NUOVO: Execute import Excel con file upload
-router.post('/execute-excel', authenticateFirebase, upload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/execute-excel', authenticateFirebase, requireAdmin, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -487,7 +496,7 @@ router.post('/execute-excel', authenticateFirebase, upload.single('file'), async
 });
 
 // Legacy: Execute import CSV
-router.post('/execute', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+router.post('/execute', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -1152,7 +1161,7 @@ async function importSingleJob(jobData: ParsedJobData, result: ImportResult): Pr
 }
 
 // DELETE /api/import/delete-legacy - Cancella tutti i job importati (per re-import)
-router.delete('/delete-legacy', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+router.delete('/delete-legacy', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     
@@ -1185,7 +1194,7 @@ router.delete('/delete-legacy', authenticateFirebase, async (req: AuthRequest, r
 
 // POST /api/import/sync-client-jobrefs - Sincronizza sourceRefs.jobIds per tutti i clienti
 // Utile per riparare dati legacy importati prima del fix
-router.post('/sync-client-jobrefs', authenticateFirebase, async (req: AuthRequest, res: Response) => {
+router.post('/sync-client-jobrefs', authenticateFirebase, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.user!;
     

@@ -16,6 +16,13 @@ const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
 const router = Router();
 
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 /**
  * GET /api/payment-schedules/presets/:quoteId
  * Genera preset piani pagamento automaticamente da quote firmato
@@ -145,7 +152,7 @@ router.get('/presets/:quoteId', async (req: Request, res: Response) => {
  * Genera E salva automaticamente piano pagamenti da preventivo firmato
  * Body: { quoteId, jobId, clienteId, presetType: 'acconto-saldo' | '2-rate' | '3-rate' | '4-rate-evento', accontoIniziale?: number, eventDate?: string }
  */
-router.post('/generate-auto', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/generate-auto', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { quoteId, jobId, clienteId, presetType = 'acconto-saldo', accontoIniziale, eventDate: eventDateStr, rata2Perc: r2p, rata3Perc: r3p, rata2Days: r2d, rata3Days: r3d, saldoDays: sd } = req.body;
 
@@ -370,7 +377,7 @@ router.post('/generate-auto', authenticateFirebase, async (req: any, res: Respon
  * POST /api/payment-schedules/generate
  * HYBRID: Genera piano pagamenti automaticamente (presetType) o manualmente (payments)
  */
-router.post('/generate', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/generate', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { quoteId, jobId, clienteId, payments, totale, presetType, dataRiferimento, accontoIniziale, eventDate: eventDateBody, rata2Perc, rata3Perc, rata2Days, rata3Days, saldoDays } = req.body;
 
@@ -876,7 +883,7 @@ router.get('/job/:jobId', async (req: Request, res: Response) => {
  * POST /api/payment-schedules/:scheduleId/payments/:paymentId/register
  * Registra pagamento ricevuto
  */
-router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { scheduleId, paymentId } = req.params;
     const { importoPagato, dataPagamento, metodoPagamento, note } = req.body;
@@ -1052,7 +1059,7 @@ router.post('/:scheduleId/payments/:paymentId/register', authenticateFirebase, a
  *   strategy: 'equal' | 'last'   // 'equal' = distribuisci equamente, 'last' = modifica solo ultima rata
  * }
  */
-router.post('/:scheduleId/remodulate', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/:scheduleId/remodulate', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { scheduleId } = req.params;
     const { paymentId, strategy = 'last' } = req.body;
@@ -1281,7 +1288,7 @@ router.post('/:scheduleId/remodulate', authenticateFirebase, async (req: any, re
  * POST /api/payment-schedules/:scheduleId/payments
  * Aggiungi nuova rata a schedule esistente
  */
-router.post('/:scheduleId/payments', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/:scheduleId/payments', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { scheduleId } = req.params;
     const { tipo, importo, dataScadenza, descrizione } = req.body;
@@ -1380,7 +1387,7 @@ router.post('/:scheduleId/payments', authenticateFirebase, async (req: any, res:
  * PATCH /api/payment-schedules/:scheduleId/payments/:paymentId
  * Modifica rata esistente (solo se non ancora pagata)
  */
-router.patch('/:scheduleId/payments/:paymentId', authenticateFirebase, async (req: any, res: Response) => {
+router.patch('/:scheduleId/payments/:paymentId', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { scheduleId, paymentId } = req.params;
     const { tipo, importo, dataScadenza, descrizione } = req.body;
@@ -1479,7 +1486,7 @@ router.patch('/:scheduleId/payments/:paymentId', authenticateFirebase, async (re
  * DELETE /api/payment-schedules/:scheduleId/payments/:paymentId
  * Elimina rata (solo se non ancora pagata)
  */
-router.delete('/:scheduleId/payments/:paymentId', authenticateFirebase, async (req: any, res: Response) => {
+router.delete('/:scheduleId/payments/:paymentId', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     const { scheduleId, paymentId } = req.params;
 
@@ -1568,7 +1575,7 @@ router.delete('/:scheduleId/payments/:paymentId', authenticateFirebase, async (r
  * Invia reminder email per pagamenti in scadenza (da schedulare con cron)
  * Filtra pagamenti attesi con scadenza entro 7 giorni che non hanno reminder già inviato
  */
-router.post('/send-reminders', authenticateFirebase, async (req: any, res: Response) => {
+router.post('/send-reminders', authenticateFirebase, requireAdmin, async (req: any, res: Response) => {
   try {
     // FIX: Usa Luxon per calcolo DST-safe (usa import top-level)
     const nowRome = DateTime.now().setZone('Europe/Rome');
