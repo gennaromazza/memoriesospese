@@ -342,20 +342,28 @@ export async function createResumableUploadSession(
   folderId: string,
   fileName: string,
   mimeType: string,
-  fileSize: number
+  fileSize: number,
+  origin?: string
 ): Promise<string> {
   const accessToken = await getAccessToken();
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json; charset=UTF-8',
+    'X-Upload-Content-Type': mimeType,
+    'X-Upload-Content-Length': String(fileSize),
+  };
+  // CORS: includendo l'header Origin nella richiesta di inizializzazione,
+  // Google abilita le risposte CORS sull'URI di sessione restituito, così il
+  // browser può caricare i chunk direttamente (PUT cross-origin) senza essere
+  // bloccato dalla policy CORS. Senza Origin l'upload dal browser fallisce.
+  if (origin) headers['Origin'] = origin;
 
   const response = await fetch(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': mimeType,
-        'X-Upload-Content-Length': String(fileSize),
-      },
+      headers,
       body: JSON.stringify({
         name: fileName,
         parents: [folderId],

@@ -293,11 +293,15 @@ router.post('/lab-shipments/:id/upload-session', authenticateFirebase, requireAd
       });
     }
 
+    // L'Origin del browser è necessario perché Google abiliti il CORS
+    // sull'URI di sessione (upload chunk diretti browser → Drive).
+    const origin = (req.headers.origin as string) || undefined;
     const sessionUrl = await createResumableUploadSession(
       driveFolderId,
       fileName,
       mimeType,
-      fileSize
+      fileSize,
+      origin
     );
 
     // NON loggare sessionUrl
