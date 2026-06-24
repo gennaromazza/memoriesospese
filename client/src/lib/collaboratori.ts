@@ -25,6 +25,7 @@ import type {
   CollaboratorPaymentType,
   PaymentMethod,
   MontaggioStatus,
+  ConsegnaFileStatus,
 } from "@shared/collaboratori-types";
 
 const COLLABORATORI_COLLECTION = "collaboratori";
@@ -566,6 +567,35 @@ export async function updateMontaggioStatus(
     console.log("✅ Stato montaggio aggiornato:", assignmentId, status);
   } catch (error) {
     console.error("❌ Errore aggiornamento montaggio:", error);
+    throw error;
+  }
+}
+
+/**
+ * Aggiorna lo stato di consegna/archiviazione file di un'assegnazione
+ * (traccia operativa gestita solo dall'admin; il collaboratore la vede in sola lettura).
+ * Nessuna email automatica.
+ */
+export async function updateConsegnaFileStatus(
+  assignmentId: string,
+  status: ConsegnaFileStatus,
+  note?: string,
+): Promise<void> {
+  try {
+    const response = await apiRequest(
+      "PATCH",
+      `/api/collaboratori/assignments/${assignmentId}/consegna-file`,
+      { status, note },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Errore aggiornamento consegna file");
+    }
+
+    console.log("✅ Stato consegna file aggiornato:", assignmentId, status);
+  } catch (error) {
+    console.error("❌ Errore aggiornamento consegna file:", error);
     throw error;
   }
 }

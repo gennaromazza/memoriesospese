@@ -1,7 +1,7 @@
 
 import express from 'express';
 import { db } from './firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
 import { nowRome, formatRomeDateLocale } from './utils/timezone.js';
@@ -17,7 +17,9 @@ import type {
   CollaboratorPaymentType,
   PaymentMethod,
   MontaggioStatus,
-  MontaggioStatusUpdate
+  MontaggioStatusUpdate,
+  ConsegnaFileStatus,
+  ConsegnaFileStatusUpdate
 } from '@shared/collaboratori-types';
 import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
 
@@ -1346,6 +1348,86 @@ router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, r
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error updating montaggio status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/collaboratori/assignments/:id/consegna-file
+ * Aggiorna lo stato di consegna/archiviazione file di un'assegnazione
+ * (traccia operativa gestita SOLO dall'admin; il collaboratore la vede in sola lettura).
+ * Body: { status: ConsegnaFileStatus, note? }
+ * Progressione: in_attesa -> consegnati -> archiviati. Archiviare presuppone la
+ * consegna: se si archivia senza una consegna precedente, la consegna viene
+ * registrata contestualmente. Nessuna email automatica (fuori scope).
+ */
+router.patch('/collaboratori/assignments/:id/consegna-file', authenticateFirebase, requireAdmin, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body as { status: ConsegnaFileStatus; note?: string };
+
+    const validStatuses: ConsegnaFileStatus[] = ['in_attesa', 'consegnati', 'archiviati'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status non valido. Valori ammessi: ${validStatuses.join(', ')}` });
+    }
+
+    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ error: 'Assegnazione non trovata' });
+    }
+
+    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+
+    // La traccia consegna file riguarda solo i collaboratori che hanno accettato l'incarico
+    if (assignment.status !== 'accepted') {
+      return res.status(400).json({
+        error: 'Lo stato file è disponibile solo per i collaboratori che hanno accettato il lavoro.'
+      });
+    }
+
+    const now = Timestamp.now();
+    const newUpdate: Omit<ConsegnaFileStatusUpdate, 'data'> & { data: any } = {
+      status,
+      data: now,
+      ...(note ? { note } : {})
+    };
+
+    const consegnaFileUpdates = Array.isArray(assignment.consegnaFileUpdates)
+      ? [...assignment.consegnaFileUpdates, newUpdate]
+      : [newUpdate];
+
+    const updateData: any = {
+      consegnaFileStatus: status,
+      consegnaFileUpdates,
+      updatedAt: now
+    };
+
+    // Mantieni i timestamp milestone coerenti con lo stato corrente.
+    if (status === 'in_attesa') {
+      // Nessuna consegna/archiviazione in corso: annulla i milestone.
+      updateData.fileConsegnatiAt = FieldValue.delete();
+      updateData.fileArchiviatiAt = FieldValue.delete();
+    } else if (status === 'consegnati') {
+      // Registra la consegna (fresca se non già presente) e annulla l'archiviazione.
+      if (!assignment.fileConsegnatiAt) {
+        updateData.fileConsegnatiAt = now;
+      }
+      updateData.fileArchiviatiAt = FieldValue.delete();
+    } else if (status === 'archiviati') {
+      // Archiviare presuppone la consegna: registra l'archiviazione e,
+      // se la consegna non era mai stata segnata, la registra contestualmente.
+      updateData.fileArchiviatiAt = now;
+      if (!assignment.fileConsegnatiAt) {
+        updateData.fileConsegnatiAt = now;
+      }
+    }
+
+    await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);
+
+    const updated = await db.collection('jobCollaboratoreAssignments').doc(id).get();
+    res.json({ id: updated.id, ...updated.data() });
+  } catch (error: any) {
+    console.error('❌ Error updating consegna file status:', error);
     res.status(500).json({ error: error.message });
   }
 });

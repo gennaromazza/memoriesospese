@@ -27,10 +27,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users, Film } from 'lucide-react';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users, Film, FolderCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct, MontaggioStatus } from '@shared/collaboratori-types';
-import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
+import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct, MontaggioStatus, ConsegnaFileStatus } from '@shared/collaboratori-types';
+import { MONTAGGIO_STATUS_LABELS, CONSEGNA_FILE_STATUS_LABELS } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 
@@ -54,6 +54,12 @@ const MONTAGGIO_BADGE_CLASS: Record<MontaggioStatus, string> = {
   richiesto: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   in_lavorazione: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   consegnato: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+};
+
+const CONSEGNA_FILE_BADGE_CLASS: Record<ConsegnaFileStatus, string> = {
+  in_attesa: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  consegnati: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  archiviati: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
 };
 
 interface ClienteInfo {
@@ -387,6 +393,14 @@ export default function CollaboratoreDashboard() {
                                   🎬 {MONTAGGIO_STATUS_LABELS[assignment.montaggioStatus]}
                                 </Badge>
                               )}
+                              {assignment.consegnaFileStatus && assignment.consegnaFileStatus !== 'in_attesa' && (
+                                <Badge
+                                  className={CONSEGNA_FILE_BADGE_CLASS[assignment.consegnaFileStatus]}
+                                  data-testid={`badge-consegna-file-${assignment.id}`}
+                                >
+                                  📁 {CONSEGNA_FILE_STATUS_LABELS[assignment.consegnaFileStatus]}
+                                </Badge>
+                              )}
                             </div>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
@@ -454,6 +468,68 @@ export default function CollaboratoreDashboard() {
                                       ))}
                                     </div>
                                   </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Stato consegna/archiviazione file (sola lettura) */}
+                            {assignment.consegnaFileStatus && assignment.consegnaFileStatus !== 'in_attesa' && (
+                              <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <FolderCheck className="w-4 h-4 text-primary" />
+                                  Stato file
+                                </div>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                  {assignment.fileConsegnatiAt && (
+                                    <span>
+                                      File consegnati il{' '}
+                                      <span className="font-medium text-foreground">
+                                        {format(convertFirestoreTimestamp(assignment.fileConsegnatiAt) || new Date(), 'dd/MM/yyyy', { locale: it })}
+                                      </span>
+                                    </span>
+                                  )}
+                                  {assignment.consegnaFileStatus === 'archiviati' && assignment.fileArchiviatiAt && (
+                                    <span>
+                                      File archiviati il{' '}
+                                      <span className="font-medium text-foreground">
+                                        {format(convertFirestoreTimestamp(assignment.fileArchiviatiAt) || new Date(), 'dd/MM/yyyy', { locale: it })}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+                                {Array.isArray(assignment.consegnaFileUpdates) && assignment.consegnaFileUpdates.length > 0 && (
+                                  <Collapsible>
+                                    <CollapsibleTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full justify-between text-muted-foreground hover:text-foreground"
+                                        data-testid={`button-consegna-file-history-${assignment.id}`}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <Info className="w-4 h-4" />
+                                          Storico stato file
+                                        </span>
+                                        <ChevronDown className="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                      </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="pt-2 space-y-2">
+                                      {[...assignment.consegnaFileUpdates].reverse().map((u, idx) => {
+                                        const d = convertFirestoreTimestamp(u.data);
+                                        return (
+                                          <div key={idx} className="border-l-2 border-primary/30 pl-3 py-1 text-sm">
+                                            <div className="font-medium">{CONSEGNA_FILE_STATUS_LABELS[u.status]}</div>
+                                            {d && (
+                                              <div className="text-xs text-muted-foreground">
+                                                {format(d, 'dd/MM/yyyy HH:mm', { locale: it })}
+                                              </div>
+                                            )}
+                                            {u.note && <div className="text-muted-foreground mt-1">{u.note}</div>}
+                                          </div>
+                                        );
+                                      })}
+                                    </CollapsibleContent>
+                                  </Collapsible>
                                 )}
                               </div>
                             )}

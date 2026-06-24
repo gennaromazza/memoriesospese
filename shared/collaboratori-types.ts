@@ -51,6 +51,31 @@ export const MONTAGGIO_STATUS_LABELS: Record<MontaggioStatus, string> = {
 };
 
 /**
+ * Stati consegna/archiviazione file (traccia operativa gestita dall'admin per
+ * ogni collaboratore assegnato al lavoro, NON modificabile dal collaboratore).
+ * Progressione: in_attesa -> consegnati -> archiviati (archiviare presuppone consegna).
+ */
+export type ConsegnaFileStatus =
+  | 'in_attesa'    // file non ancora consegnati
+  | 'consegnati'   // file consegnati all'admin
+  | 'archiviati';  // file archiviati dall'admin
+
+/**
+ * Aggiornamento di stato della consegna file (storico con data auto-registrata)
+ */
+export interface ConsegnaFileStatusUpdate {
+  status: ConsegnaFileStatus;
+  data: Timestamp;
+  note?: string;
+}
+
+export const CONSEGNA_FILE_STATUS_LABELS: Record<ConsegnaFileStatus, string> = {
+  in_attesa: 'In attesa',
+  consegnati: 'File consegnati',
+  archiviati: 'File archiviati',
+};
+
+/**
  * Tipo pagamento collaboratore
  */
 export type CollaboratorPaymentType = 'acconto' | 'saldo';
@@ -146,6 +171,13 @@ export interface JobCollaboratoreAssignment {
   montaggioRichiestoAt?: Timestamp;
   montaggioConsegnatoAt?: Timestamp;
   montaggioUpdates?: MontaggioStatusUpdate[];
+
+  // Traccia consegna/archiviazione file (operativa, gestita dall'admin per ogni
+  // collaboratore; il collaboratore la vede in sola lettura)
+  consegnaFileStatus?: ConsegnaFileStatus;
+  fileConsegnatiAt?: Timestamp;
+  fileArchiviatiAt?: Timestamp;
+  consegnaFileUpdates?: ConsegnaFileStatusUpdate[];
 
   // Reminder
   reminderSent?: boolean;        // Deprecato - usare lastReminderSentAt
