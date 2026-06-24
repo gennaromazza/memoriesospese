@@ -1,6 +1,7 @@
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
 - [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.
 - [queryClient auth allowlist](queryclient-auth-allowlist.md) — nuove route /api autenticate vanno aggiunte a firebaseAuthEndpoints in queryClient.ts o ogni chiamata fa 401/403.
+- [collaboratori-routes admin auth gap](collaboratori-routes-admin-auth-gap.md) — quasi tutte le route admin del file hanno solo authenticateFirebase, non requireAdmin; aggiungerlo (tranne route public a token).
 - [Quote price snapshot vs catalog](quote-price-snapshot.md) — la creazione preventivo deve rispettare il prezzo override/omaggio deciso dall'admin; mai ri-leggere il listino catalogo (solo existence check).
 - [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).

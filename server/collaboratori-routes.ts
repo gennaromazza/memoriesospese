@@ -26,6 +26,16 @@ const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 const router = express.Router();
 
 /**
+ * Middleware: consente l'accesso solo agli admin (richiede authenticateFirebase a monte).
+ */
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
+/**
  * Genera token univoco per dashboard collaboratore
  */
 function generateCollaboratorToken(): string {
@@ -1165,7 +1175,7 @@ router.patch('/collaboratori/assignments/:id/respond', authenticateFirebase, asy
  * Body: { status: MontaggioStatus, note? }
  * Invia email di notifica al collaboratore con il nuovo stato.
  */
-router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, async (req: any, res) => {
+router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
     const { status, note } = req.body as { status: MontaggioStatus; note?: string };
@@ -1226,6 +1236,22 @@ router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, a
         const siteUrl = getSiteBaseUrl(req);
         const jobNome = job?.nomeEvento || 'Lavoro';
         const statusLabel = MONTAGGIO_STATUS_LABELS[status] || status;
+        let dataEventoFormatted = 'Data da confermare';
+        if (job?.eventDate) {
+          try {
+            const ed = (job.eventDate as any)?.toDate?.() || new Date(job.eventDate);
+            if (ed instanceof Date && !isNaN(ed.getTime())) {
+              dataEventoFormatted = formatRomeDateLocale(ed, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              });
+            }
+          } catch {
+            // mantiene il fallback 'Data da confermare'
+          }
+        }
 
         const dashboardUrl = (collaboratore?.hasAccess && collaboratore?.dashboardToken)
           ? `${siteUrl}/collaboratori/dashboard/${collaboratore.dashboardToken}`
@@ -1256,6 +1282,10 @@ router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, a
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px; width: 140px;">Lavoro:</td>
                     <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600;">${jobNome}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;">Data evento:</td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: capitalize;">${dataEventoFormatted}</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Nuovo stato:</td>

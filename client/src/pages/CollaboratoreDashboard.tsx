@@ -23,12 +23,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getCollaboratorByToken, respondToAssignmentPublic } from '@/lib/collaboratori';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users } from 'lucide-react';
+import { Calendar, MapPin, Euro, Check, X, Loader2, Clock, ChevronLeft, ChevronRight, User, Phone, Mail, Package, ClipboardList, ChevronDown, ExternalLink, MessageCircle, Info, FileText, Users, Film } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct } from '@shared/collaboratori-types';
+import type { JobAcceptanceStatus, JobCollaboratoreAssignment, CollaboratorPayment, AssignedProduct, MontaggioStatus } from '@shared/collaboratori-types';
 import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
@@ -46,6 +47,13 @@ const RUOLI_LABELS: Record<string, string> = {
   photo_editor: '🎨 Photo Editor',
   album_designer: '📚 Album Designer',
   altro: '👤 Altro',
+};
+
+const MONTAGGIO_BADGE_CLASS: Record<MontaggioStatus, string> = {
+  non_richiesto: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  richiesto: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  in_lavorazione: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  consegnato: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
 };
 
 interface ClienteInfo {
@@ -91,6 +99,7 @@ export default function CollaboratoreDashboard() {
   const [declineNote, setDeclineNote] = useState('');
   const [processingAssignmentId, setProcessingAssignmentId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<'lavori' | 'montaggi'>('lavori');
   const itemsPerPage = 10;
 
   const { data, isLoading, error } = useQuery({
@@ -210,6 +219,29 @@ export default function CollaboratoreDashboard() {
 
   const filteredAssignments = sortedAndFilteredAssignments;
 
+  // Data di assegnazione del montaggio: priorità a montaggioRichiestoAt,
+  // fallback al primo aggiornamento di stato registrato.
+  const getMontaggioAssignedDate = (a: AssignmentWithJob): Date | null => {
+    if (a.montaggioRichiestoAt) return convertFirestoreTimestamp(a.montaggioRichiestoAt);
+    if (Array.isArray(a.montaggioUpdates) && a.montaggioUpdates.length > 0) {
+      return convertFirestoreTimestamp(a.montaggioUpdates[0].data);
+    }
+    return null;
+  };
+
+  // Montaggi "chiamati in produzione": montaggio richiesto (qualsiasi stato != non_richiesto),
+  // ordinati per data di assegnazione crescente (i più vecchi da fare prima).
+  const sortedMontaggi = (assignments as AssignmentWithJob[])
+    .filter((a) => a.montaggioStatus && a.montaggioStatus !== 'non_richiesto')
+    .sort((a, b) => {
+      const dateA = getMontaggioAssignedDate(a);
+      const dateB = getMontaggioAssignedDate(b);
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA.getTime() - dateB.getTime();
+    });
+
   // Helper per verificare se un assignment è accettato (case-insensitive)
   const isAccepted = (status: string | undefined) => {
     if (!status) return false;
@@ -268,6 +300,18 @@ export default function CollaboratoreDashboard() {
           </CardContent>
         </Card>
 
+        <Tabs
+          value={sortedMontaggi.length === 0 ? 'lavori' : activeTab}
+          onValueChange={(v) => setActiveTab(v as 'lavori' | 'montaggi')}
+          className="w-full"
+        >
+          {sortedMontaggi.length > 0 && (
+            <TabsList className="mb-4" data-testid="tabs-dashboard">
+              <TabsTrigger value="lavori" data-testid="tab-lavori">📋 Lavori Assegnati</TabsTrigger>
+              <TabsTrigger value="montaggi" data-testid="tab-montaggi">🎬 Montaggi ({sortedMontaggi.length})</TabsTrigger>
+            </TabsList>
+          )}
+          <TabsContent value="lavori" className="mt-0">
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
@@ -682,6 +726,109 @@ export default function CollaboratoreDashboard() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {sortedMontaggi.length > 0 && (
+            <TabsContent value="montaggi" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Film className="w-5 h-5" />
+                    Montaggi in Produzione ({sortedMontaggi.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Montaggi video richiesti, in ordine di data di assegnazione (i più vecchi prima).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {sortedMontaggi.map((m: AssignmentWithJob) => {
+                      const eventDate = m.job?.eventDate ? convertFirestoreTimestamp(m.job.eventDate) : null;
+                      const assignedDate = getMontaggioAssignedDate(m);
+                      const status = m.montaggioStatus as MontaggioStatus;
+                      const updates = Array.isArray(m.montaggioUpdates) ? m.montaggioUpdates : [];
+                      const lastNote = [...updates].reverse().find((u) => u.note)?.note;
+                      return (
+                        <Card key={m.id} className="border" data-testid={`card-montaggio-${m.id}`}>
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-lg">
+                                {m.job?.nomeEvento || `Job #${m.jobId.slice(0, 8)}`}
+                              </h3>
+                              <Badge
+                                className={MONTAGGIO_BADGE_CLASS[status]}
+                                data-testid={`badge-montaggio-status-${m.id}`}
+                              >
+                                🎬 {MONTAGGIO_STATUS_LABELS[status]}
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Calendar className="w-4 h-4" />
+                                <span className="font-medium">Data evento:</span>
+                                <span>{eventDate ? format(eventDate, 'dd MMMM yyyy', { locale: it }) : 'Da confermare'}</span>
+                              </div>
+                              {assignedDate && (
+                                <div className="flex items-center gap-1 text-muted-foreground">
+                                  <Clock className="w-4 h-4" />
+                                  <span className="font-medium">Assegnato il:</span>
+                                  <span>{format(assignedDate, 'dd MMMM yyyy', { locale: it })}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {lastNote && (
+                              <div className="bg-muted/50 rounded-lg p-3 text-sm">
+                                <div className="text-xs font-medium text-muted-foreground uppercase mb-1">Note</div>
+                                <p>{lastNote}</p>
+                              </div>
+                            )}
+
+                            {updates.length > 0 && (
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-between text-muted-foreground hover:text-foreground"
+                                    data-testid={`button-montaggio-history-${m.id}`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <Info className="w-4 h-4" />
+                                      Storico stato montaggio
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pt-2 space-y-2">
+                                  {[...updates].reverse().map((u, idx) => {
+                                    const d = convertFirestoreTimestamp(u.data);
+                                    return (
+                                      <div key={idx} className="border-l-2 border-primary/30 pl-3 py-1 text-sm">
+                                        <div className="font-medium">{MONTAGGIO_STATUS_LABELS[u.status]}</div>
+                                        {d && (
+                                          <div className="text-xs text-muted-foreground">
+                                            {format(d, 'dd/MM/yyyy HH:mm', { locale: it })}
+                                          </div>
+                                        )}
+                                        {u.note && <div className="text-muted-foreground mt-1">{u.note}</div>}
+                                      </div>
+                                    );
+                                  })}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
 
         {filteredAssignments.filter((a: JobCollaboratoreAssignment) => a.pagamenti && a.pagamenti.length > 0).length > 0 && (
           <Card>
