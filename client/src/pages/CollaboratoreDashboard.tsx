@@ -393,12 +393,12 @@ export default function CollaboratoreDashboard() {
                                   🎬 {MONTAGGIO_STATUS_LABELS[assignment.montaggioStatus]}
                                 </Badge>
                               )}
-                              {assignment.consegnaFileStatus && assignment.consegnaFileStatus !== 'in_attesa' && (
+                              {assignment.status === 'accepted' && (
                                 <Badge
-                                  className={CONSEGNA_FILE_BADGE_CLASS[assignment.consegnaFileStatus]}
+                                  className={CONSEGNA_FILE_BADGE_CLASS[assignment.consegnaFileStatus || 'in_attesa']}
                                   data-testid={`badge-consegna-file-${assignment.id}`}
                                 >
-                                  📁 {CONSEGNA_FILE_STATUS_LABELS[assignment.consegnaFileStatus]}
+                                  📁 {CONSEGNA_FILE_STATUS_LABELS[assignment.consegnaFileStatus || 'in_attesa']}
                                 </Badge>
                               )}
                             </div>
@@ -473,20 +473,27 @@ export default function CollaboratoreDashboard() {
                             )}
 
                             {/* Stato consegna/archiviazione file (sola lettura) */}
-                            {assignment.consegnaFileStatus && assignment.consegnaFileStatus !== 'in_attesa' && (
+                            {assignment.status === 'accepted' && (
                               <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                  <FolderCheck className="w-4 h-4 text-primary" />
-                                  Stato file
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 text-sm font-medium">
+                                    <FolderCheck className="w-4 h-4 text-primary" />
+                                    Stato file
+                                  </div>
+                                  <Badge className={CONSEGNA_FILE_BADGE_CLASS[assignment.consegnaFileStatus || 'in_attesa']}>
+                                    {CONSEGNA_FILE_STATUS_LABELS[assignment.consegnaFileStatus || 'in_attesa']}
+                                  </Badge>
                                 </div>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                                  {assignment.fileConsegnatiAt && (
+                                  {assignment.fileConsegnatiAt ? (
                                     <span>
                                       File consegnati il{' '}
                                       <span className="font-medium text-foreground">
                                         {format(convertFirestoreTimestamp(assignment.fileConsegnatiAt) || new Date(), 'dd/MM/yyyy', { locale: it })}
                                       </span>
                                     </span>
+                                  ) : (
+                                    <span className="italic">In attesa della consegna dei file.</span>
                                   )}
                                   {assignment.consegnaFileStatus === 'archiviati' && assignment.fileArchiviatiAt && (
                                     <span>

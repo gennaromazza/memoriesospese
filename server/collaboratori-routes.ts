@@ -1,7 +1,7 @@
 
 import express from 'express';
 import { db } from './firebase-admin';
-import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
 import { nowRome, formatRomeDateLocale } from './utils/timezone.js';
@@ -21,7 +21,7 @@ import type {
   ConsegnaFileStatus,
   ConsegnaFileStatusUpdate
 } from '@shared/collaboratori-types';
-import { MONTAGGIO_STATUS_LABELS } from '@shared/collaboratori-types';
+import { MONTAGGIO_STATUS_LABELS, CONSEGNA_FILE_STATUS_LABELS } from '@shared/collaboratori-types';
 
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
@@ -1357,9 +1357,9 @@ router.patch('/collaboratori/assignments/:id/montaggio', authenticateFirebase, r
  * Aggiorna lo stato di consegna/archiviazione file di un'assegnazione
  * (traccia operativa gestita SOLO dall'admin; il collaboratore la vede in sola lettura).
  * Body: { status: ConsegnaFileStatus, note? }
- * Progressione: in_attesa -> consegnati -> archiviati. Archiviare presuppone la
- * consegna: se si archivia senza una consegna precedente, la consegna viene
- * registrata contestualmente. Nessuna email automatica (fuori scope).
+ * Progressione forward-only: in_attesa -> consegnati -> archiviati. Non si può
+ * archiviare senza aver prima consegnato, né tornare indietro. Nessuna email
+ * automatica (fuori scope).
  */
 router.patch('/collaboratori/assignments/:id/consegna-file', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
@@ -1385,6 +1385,25 @@ router.patch('/collaboratori/assignments/:id/consegna-file', authenticateFirebas
       });
     }
 
+    // Progressione forward-only: In attesa -> File consegnati -> File archiviati.
+    // Non si può saltare la consegna né tornare indietro.
+    const current: ConsegnaFileStatus = assignment.consegnaFileStatus || 'in_attesa';
+    const allowedNext: Record<ConsegnaFileStatus, ConsegnaFileStatus[]> = {
+      in_attesa: ['consegnati'],
+      consegnati: ['archiviati'],
+      archiviati: []
+    };
+    if (status === current) {
+      return res.status(400).json({
+        error: `Lo stato file è già impostato su "${CONSEGNA_FILE_STATUS_LABELS[current]}".`
+      });
+    }
+    if (!allowedNext[current].includes(status)) {
+      return res.status(400).json({
+        error: `Transizione non consentita: da "${CONSEGNA_FILE_STATUS_LABELS[current]}" a "${CONSEGNA_FILE_STATUS_LABELS[status]}". La progressione consentita è: In attesa → File consegnati → File archiviati.`
+      });
+    }
+
     const now = Timestamp.now();
     const newUpdate: Omit<ConsegnaFileStatusUpdate, 'data'> & { data: any } = {
       status,
@@ -1402,24 +1421,11 @@ router.patch('/collaboratori/assignments/:id/consegna-file', authenticateFirebas
       updatedAt: now
     };
 
-    // Mantieni i timestamp milestone coerenti con lo stato corrente.
-    if (status === 'in_attesa') {
-      // Nessuna consegna/archiviazione in corso: annulla i milestone.
-      updateData.fileConsegnatiAt = FieldValue.delete();
-      updateData.fileArchiviatiAt = FieldValue.delete();
-    } else if (status === 'consegnati') {
-      // Registra la consegna (fresca se non già presente) e annulla l'archiviazione.
-      if (!assignment.fileConsegnatiAt) {
-        updateData.fileConsegnatiAt = now;
-      }
-      updateData.fileArchiviatiAt = FieldValue.delete();
+    // Timestamp milestone registrati al raggiungimento di ciascuna tappa.
+    if (status === 'consegnati') {
+      updateData.fileConsegnatiAt = now;
     } else if (status === 'archiviati') {
-      // Archiviare presuppone la consegna: registra l'archiviazione e,
-      // se la consegna non era mai stata segnata, la registra contestualmente.
       updateData.fileArchiviatiAt = now;
-      if (!assignment.fileConsegnatiAt) {
-        updateData.fileConsegnatiAt = now;
-      }
     }
 
     await db.collection('jobCollaboratoreAssignments').doc(id).update(updateData);

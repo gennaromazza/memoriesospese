@@ -67,11 +67,22 @@ function ConsegnaFileCard({
   const [archiviati, setArchiviati] = useState(current === "archiviati");
   const [note, setNote] = useState("");
 
-  const target: ConsegnaFileStatus = archiviati
-    ? "archiviati"
-    : consegnati
-      ? "consegnati"
-      : "in_attesa";
+  // Progressione forward-only: ogni tappa raggiunta resta bloccata e non si
+  // può archiviare prima di aver consegnato. L'admin avanza un passo alla volta.
+  const consegnatiLocked = current !== "in_attesa";
+  const archiviatiDisabled = current !== "consegnati";
+  const completato = current === "archiviati";
+
+  const target: ConsegnaFileStatus =
+    current === "archiviati"
+      ? "archiviati"
+      : current === "consegnati"
+        ? archiviati
+          ? "archiviati"
+          : "consegnati"
+        : consegnati
+          ? "consegnati"
+          : "in_attesa";
 
   const mut = useMutation({
     mutationFn: () =>
@@ -97,7 +108,7 @@ function ConsegnaFileCard({
   const updates = Array.isArray(assignment.consegnaFileUpdates)
     ? assignment.consegnaFileUpdates
     : [];
-  const dirty = target !== current || note.trim().length > 0;
+  const dirty = target !== current;
   const nome = collaboratore
     ? `${collaboratore.nome} ${collaboratore.cognome}`
     : "Collaboratore";
@@ -119,59 +130,73 @@ function ConsegnaFileCard({
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label
+            className={`flex items-center gap-2 ${consegnatiLocked ? "cursor-not-allowed" : "cursor-pointer"}`}
+          >
             <Checkbox
               checked={consegnati}
-              onCheckedChange={(v) => {
-                const checked = v === true;
-                setConsegnati(checked);
-                if (!checked) setArchiviati(false);
-              }}
+              disabled={consegnatiLocked}
+              onCheckedChange={(v) => setConsegnati(v === true)}
               data-testid={`checkbox-consegnati-${assignment.id}`}
             />
             <span className="text-sm text-gray-700">File consegnati</span>
           </label>
           <label
-            className={`flex items-center gap-2 ${consegnati ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+            className={`flex items-center gap-2 ${
+              archiviatiDisabled
+                ? archiviati
+                  ? "cursor-not-allowed"
+                  : "cursor-not-allowed opacity-50"
+                : "cursor-pointer"
+            }`}
           >
             <Checkbox
               checked={archiviati}
-              disabled={!consegnati}
+              disabled={archiviatiDisabled}
               onCheckedChange={(v) => setArchiviati(v === true)}
               data-testid={`checkbox-archiviati-${assignment.id}`}
             />
             <span className="text-sm text-gray-700">File archiviati</span>
           </label>
         </div>
+        {current === "in_attesa" && (
+          <p className="text-xs text-gray-400">
+            Per archiviare i file occorre prima segnarli come consegnati.
+          </p>
+        )}
 
-        <div>
-          <label className="text-xs font-medium text-gray-600 mb-1 block">
-            Nota (opzionale)
-          </label>
-          <Textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Es. consegnati su hard disk, archiviati su NAS..."
-            rows={1}
-            className="min-h-[40px]"
-            data-testid={`textarea-consegna-file-note-${assignment.id}`}
-          />
-        </div>
+        {!completato && (
+          <>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">
+                Nota (opzionale)
+              </label>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Es. consegnati su hard disk, archiviati su NAS..."
+                rows={1}
+                className="min-h-[40px]"
+                data-testid={`textarea-consegna-file-note-${assignment.id}`}
+              />
+            </div>
 
-        <div className="flex justify-end">
-          <Button
-            size="sm"
-            onClick={() => mut.mutate()}
-            disabled={!dirty || mut.isPending}
-            className="bg-[#8b5a3c] hover:bg-[#6b4a2c] text-white"
-            data-testid={`button-save-consegna-file-${assignment.id}`}
-          >
-            {mut.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : null}
-            Salva stato
-          </Button>
-        </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={() => mut.mutate()}
+                disabled={!dirty || mut.isPending}
+                className="bg-[#8b5a3c] hover:bg-[#6b4a2c] text-white"
+                data-testid={`button-save-consegna-file-${assignment.id}`}
+              >
+                {mut.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                Salva stato
+              </Button>
+            </div>
+          </>
+        )}
 
         {updates.length > 0 && (
           <div className="pt-2 border-t border-gray-100 space-y-1">
