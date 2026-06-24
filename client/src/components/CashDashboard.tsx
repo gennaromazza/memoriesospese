@@ -593,8 +593,10 @@ export default function CashDashboard() {
             <div className="text-lg sm:text-2xl font-bold text-red-600">
               {formatCurrency(summary?.totaleUscite || 0)}
             </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-              Spese cassa registrate
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 leading-relaxed">
+              Cassa: {formatCurrency(summary?.usciteCassa || 0)}
+              <br />
+              Costi lavori: {formatCurrency(summary?.usciteCostiLavori || 0)}
             </p>
           </CardContent>
         </Card>

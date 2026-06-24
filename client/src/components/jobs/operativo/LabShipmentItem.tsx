@@ -416,9 +416,9 @@ export default function LabShipmentItem({
               />
             </div>
             <Button
-              variant="outline"
               onClick={handleSaveCosto}
               disabled={costMut.isPending}
+              className="bg-[#6b7f6b] hover:bg-[#5a6e5a] text-white"
               data-testid={`button-save-cost-${shipment.id}`}
             >
               {costMut.isPending ? (

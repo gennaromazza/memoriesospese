@@ -106,9 +106,10 @@ export interface CashCategoryFE extends Omit<CashCategory, 'createdAt' | 'update
 export interface FinancialSummary {
   entrateOrdini: number; // Da transactions ordini
   usciteCassa: number; // Da movimenti cassa tipo "uscita"
+  usciteCostiLavori: number; // Da costi dei lavori (job.costi)
   entrateAltre: number; // Da movimenti cassa tipo "entrata"
   totaleEntrate: number;
-  totaleUscite: number;
+  totaleUscite: number; // usciteCassa + usciteCostiLavori
   saldo: number;
   previstiIncasso: number; // Saldi ordini in sospeso
 }

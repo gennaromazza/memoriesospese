@@ -1,5 +1,6 @@
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
 - [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.
+- [Firestore Timestamp serialization](firestore-timestamp-serialization.md) — dati via /api hanno {_seconds} (Admin SDK), Web SDK ha Timestamp/{seconds}; i parser date devono gestire entrambi o i filtri per data scartano silenziosamente i dati.
 - [queryClient auth allowlist](queryclient-auth-allowlist.md) — nuove route /api autenticate vanno aggiunte a firebaseAuthEndpoints in queryClient.ts o ogni chiamata fa 401/403.
 - [collaboratori-routes admin auth gap](collaboratori-routes-admin-auth-gap.md) — quasi tutte le route admin del file hanno solo authenticateFirebase, non requireAdmin; aggiungerlo (tranne route public a token).
 - [Drive resumable upload CORS](drive-resumable-upload-cors.md) — l'upload browser→Drive richiede header Origin nella init server-side della sessione resumable, altrimenti i PUT dei chunk sono bloccati da CORS.

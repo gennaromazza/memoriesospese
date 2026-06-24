@@ -142,11 +142,12 @@ export async function getFinancialSummary(
   startDate?: Date,
   endDate?: Date
 ): Promise<FinancialSummary> {
-  // 1. Ottieni tutti gli ordini
-  const orders = await getAllOrders();
-
-  // 2. Ottieni tutti i movimenti cassa
-  const cashMovements = await getAllCashMovements();
+  // 1-2. Ottieni ordini, movimenti cassa e lavori in parallelo
+  const [orders, cashMovements, jobs] = await Promise.all([
+    getAllOrders(),
+    getAllCashMovements(),
+    getAllJobs(),
+  ]);
 
   // 3. Filtra per date se specificate
   const filterByDate = (date: any): boolean => {
@@ -161,9 +162,9 @@ export async function getFinancialSummary(
     let d: Date;
     if (date instanceof Timestamp) {
       d = date.toDate();
-    } else if (date && typeof date === 'object' && 'seconds' in date) {
-      // Timestamp serializzato da Firestore
-      d = new Date(date.seconds * 1000);
+    } else if (date && typeof date === 'object' && ('seconds' in date || '_seconds' in date)) {
+      // Timestamp serializzato da Firestore (Web SDK: seconds, Admin SDK via API: _seconds)
+      d = new Date(((date as any).seconds ?? (date as any)._seconds) * 1000);
     } else if (date instanceof Date) {
       d = date;
     } else {
@@ -217,15 +218,27 @@ export async function getFinancialSummary(
     }
   });
 
+  // 5b. Calcola uscite dai costi dei lavori (job.costi)
+  let usciteCostiLavori = 0;
+  jobs.forEach((job) => {
+    const costi = job.costi || [];
+    costi.forEach((costo) => {
+      if (typeof costo?.importo !== "number") return;
+      if (!filterByDate(costo.data)) return;
+      usciteCostiLavori += costo.importo;
+    });
+  });
+
   // 6. Calcola totali
   const totaleEntrate = entrateOrdini + entrateAltre;
-  const totaleUscite = usciteCassa;
+  const totaleUscite = usciteCassa + usciteCostiLavori;
   const saldo = totaleEntrate - totaleUscite;
 
   return {
     entrateOrdini,
     entrateAltre,
     usciteCassa,
+    usciteCostiLavori,
     totaleEntrate,
     totaleUscite,
     saldo,
@@ -242,9 +255,9 @@ function toDate(date: any): Date | null {
   
   if (date instanceof Timestamp) {
     return date.toDate();
-  } else if (date && typeof date === 'object' && 'seconds' in date) {
-    // Timestamp serializzato da Firestore
-    return new Date(date.seconds * 1000);
+  } else if (date && typeof date === 'object' && ('seconds' in date || '_seconds' in date)) {
+    // Timestamp serializzato da Firestore (Web SDK: seconds, Admin SDK via API: _seconds)
+    return new Date(((date as any).seconds ?? (date as any)._seconds) * 1000);
   } else if (date instanceof Date) {
     return date;
   } else {
@@ -257,8 +270,11 @@ function toDate(date: any): Date | null {
  * Ottiene dati per grafico mensile (ultimi 12 mesi)
  */
 export async function getMonthlyData(year?: number): Promise<MonthlyData[]> {
-  const orders = await getAllOrders();
-  const cashMovements = await getAllCashMovements();
+  const [orders, cashMovements, jobs] = await Promise.all([
+    getAllOrders(),
+    getAllCashMovements(),
+    getAllJobs(),
+  ]);
 
   const now = new Date();
   const targetYear = year ?? now.getFullYear();
@@ -324,6 +340,21 @@ export async function getMonthlyData(year?: number): Promise<MonthlyData[]> {
         months[idx].uscite += mov.importo;
       }
     }
+  });
+
+  // Aggiungi costi dei lavori (job.costi) come uscite
+  jobs.forEach((job) => {
+    const costi = job.costi || [];
+    costi.forEach((costo) => {
+      if (typeof costo?.importo !== "number") return;
+      const d = toDate(costo.data);
+      if (!d) return;
+
+      const idx = getMonthIndex(d);
+      if (idx >= 0 && idx < 12) {
+        months[idx].uscite += costo.importo;
+      }
+    });
   });
 
   // Calcola saldi
@@ -585,7 +616,7 @@ export async function exportFinancialData(
   const toDateLocal = (d: any): Date => {
     if (!d) return new Date(0);
     if (d instanceof Timestamp) return d.toDate();
-    if (d && typeof d === 'object' && 'seconds' in d) return new Date(d.seconds * 1000);
+    if (d && typeof d === 'object' && ('seconds' in d || '_seconds' in d)) return new Date(((d as any).seconds ?? (d as any)._seconds) * 1000);
     if (d instanceof Date) return d;
     const parsed = new Date(d);
     return isNaN(parsed.getTime()) ? new Date(0) : parsed;
@@ -605,6 +636,7 @@ export async function exportFinancialData(
   // Recupera dati
   const movements = await getAllCashMovements();
   const orders = await getAllOrders();
+  const jobs = await getAllJobs();
 
   // Filtra per range date se specificato
   const filterByDate = (d: any): boolean => {
@@ -646,19 +678,40 @@ export async function exportFinancialData(
     note: m.note || "",
   }));
 
+  // Estrai costi dei lavori (uscite) in formato Excel
+  const jobCostiData: any[] = [];
+  jobs.forEach((job) => {
+    const costi = job.costi || [];
+    costi.forEach((costo) => {
+      if (typeof costo?.importo !== "number") return;
+      if (!filterByDate(costo.data)) return;
+      jobCostiData.push({
+        data: formatDate(costo.data),
+        tipo: "Uscita Costo Lavoro",
+        categoria: costo.tipo || "altro",
+        descrizione: costo.descrizione || "",
+        importo: formatCurrency(costo.importo),
+        metodo: "",
+        note: costo.note || "",
+      });
+    });
+  });
+
   // Combina tutti i movimenti
-  const allData = [...transactions, ...cashData].sort((a, b) => {
+  const allData = [...transactions, ...cashData, ...jobCostiData].sort((a, b) => {
     const dateA = new Date(a.data.split("/").reverse().join("-"));
     const dateB = new Date(b.data.split("/").reverse().join("-"));
     return dateB.getTime() - dateA.getTime();
   });
 
   // Calcola totali
-  const summary = await getFinancialSummary(startDate);
+  const summary = await getFinancialSummary(startDate, endDate);
   const summaryData = [
     { campo: "Entrate da Ordini", valore: formatCurrency(summary.entrateOrdini) },
     { campo: "Altre Entrate", valore: formatCurrency(summary.entrateAltre) },
     { campo: "Totale Entrate", valore: formatCurrency(summary.totaleEntrate) },
+    { campo: "Uscite Cassa", valore: formatCurrency(summary.usciteCassa) },
+    { campo: "Uscite Costi Lavori", valore: formatCurrency(summary.usciteCostiLavori) },
     { campo: "Totale Uscite", valore: formatCurrency(summary.totaleUscite) },
     { campo: "Saldo Netto", valore: formatCurrency(summary.saldo) },
     { campo: "Incassi Previsti", valore: formatCurrency(summary.previstiIncasso) },
@@ -682,6 +735,10 @@ export async function exportFinancialData(
   // Sheet 4: Solo transazioni ordini
   const ws4 = XLSX.utils.json_to_sheet(transactions);
   XLSX.utils.book_append_sheet(wb, ws4, "Pagamenti Ordini");
+
+  // Sheet 5: Solo costi dei lavori
+  const ws5 = XLSX.utils.json_to_sheet(jobCostiData);
+  XLSX.utils.book_append_sheet(wb, ws5, "Costi Lavori");
 
   // Genera nome file
   const dateStr = new Date().toISOString().split("T")[0];
