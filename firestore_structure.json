@@ -18,9 +18,7 @@
           "_seconds": 1761995571,
           "_nanoseconds": 227000000
         },
-        "excludedDays": [
-          0
-        ],
+        "excludedDays": [0],
         "prodottiDisponibili": [
           "do2FKBXAbKinTlCFYLlR",
           "QoKfaiIKasJgHniZaTfy",
@@ -124,9 +122,7 @@
         "cognome": "Alarico",
         "email": "mikialar@libero.it",
         "cellulare1": "3385903768",
-        "tags": [
-          "import_csv"
-        ],
+        "tags": ["import_csv"],
         "status": "lead",
         "sourceRefs": {
           "bookingIds": [],
@@ -190,9 +186,7 @@
         "durataMinuti": 30,
         "descrizione": "Un incontro informale per capire insieme il tipo di servizio che desiderate:  Parliamo dello stile che preferite, dei tempi e di ciò che vi serve davvero, così possiamo organizzare tutto nel modo più semplice e naturale",
         "jobDataFields": [],
-        "excludedDays": [
-          0
-        ],
+        "excludedDays": [0],
         "imageUrls": [
           "https://storage.googleapis.com/wedding-gallery-397b6.firebasestorage.app/consultation-templates/N4x5vqnoUkedEJtIJ6yi/1763120042719_Titolo.png?GoogleAccessId=firebase-adminsdk-fbsvc%40wedding-gallery-397b6.iam.gserviceaccount.com&Expires=1920800043&Signature=Ho%2BggO6ZLP3KGU0wkclTvkfOnTQ9yBWbFj1JizBJhi47%2F4y9IvBLBLEcZ1146kj9HeuN8NTd2yvmhXquIbX7BPJC1myVmF689HDyzFPjYJrLO%2FlJENpcsYeT2eaXp1Ye%2FHa7C%2FQEPYCZsGvazHgQ%2BqHwJAQf110gZkcjf8oM%2BHEf2B96z52PbIq9NI29wa2g10UMh44lVqeREA8oJsoaA4%2BnD2N1BGJpovHjDJr%2FhG2O7nr%2F4YxVy5fhXaXBsomTuXX8R4OiEF1%2Fsv440Hu9vBFZD0tAphi%2FMzoZI2FgZJk7%2Ft8RaOWfqxvqAaRFfQAyRNpYAxJqDDhsyrKccBfhkQ%3D%3D"
         ],
@@ -1125,7 +1119,7 @@
     "sample": {
       "id": "studio",
       "data": {
-        "name": "Image Studios",
+        "name": "Image Studio fotografico",
         "slogan": "è tutta questione di ImaGe",
         "address": "Via Quinto Orazio flacco 5 - Aversa",
         "phone": "3274656179",
@@ -1192,9 +1186,7 @@
         "email": "dod_dina@hotmail.it",
         "displayName": "Giorgia Recano",
         "role": "user",
-        "galleries": [
-          "39WNMH8uZkJPKYq5O2SM"
-        ],
+        "galleries": ["39WNMH8uZkJPKYq5O2SM"],
         "createdAt": {
           "_seconds": 1761931022,
           "_nanoseconds": 145000000
