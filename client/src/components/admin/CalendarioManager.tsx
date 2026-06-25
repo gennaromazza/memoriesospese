@@ -54,6 +54,7 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO, isSameDay
 import { it } from 'date-fns/locale';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
 import CreateJobModal from '@/components/jobs/CreateJobModal';
+import JobPicker from '@/components/admin/JobPicker';
 import { getAllJobs } from '@/lib/jobs';
 import type { Cliente } from '@shared/clienti-types';
 import type { Job } from '@shared/jobs-types';
@@ -1057,21 +1058,16 @@ export default function CalendarioManager() {
 
               {jobAssociationMode === 'existing' && (
                 <div className="space-y-2">
-                  <Select
+                  <JobPicker
+                    jobs={jobs}
                     value={selectedJobId}
-                    onValueChange={setSelectedJobId}
-                  >
-                    <SelectTrigger data-testid="select-existing-job">
-                      <SelectValue placeholder={jobsLoading ? "Caricamento..." : "Seleziona un lavoro"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobs.map((job) => (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.nomeEvento} - {job.eventDate?.toDate ? format(job.eventDate.toDate(), 'dd/MM/yyyy') : 'Data N/D'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={setSelectedJobId}
+                    loading={jobsLoading}
+                    allowNone={false}
+                    placeholder="Seleziona un lavoro"
+                    referenceDate={newEventStartDate ? new Date(newEventStartDate) : selectedDate}
+                    testId="job-picker-create"
+                  />
                   {selectedJobId && (
                     <p className="text-xs text-green-600 flex items-center gap-1">
                       <CalendarCheck className="w-3 h-3" />
@@ -1390,22 +1386,14 @@ export default function CalendarioManager() {
                   <Briefcase className="w-4 h-4" />
                   Associa a un Lavoro
                 </Label>
-                <Select
-                  value={editEventData.linkedJobId || '__none__'}
-                  onValueChange={(val) => setEditEventData({ ...editEventData, linkedJobId: val === '__none__' ? '' : val })}
-                >
-                  <SelectTrigger id="edit-job" data-testid="select-edit-job">
-                    <SelectValue placeholder={jobsLoading ? 'Caricamento...' : 'Nessun lavoro'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Nessun lavoro</SelectItem>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.nomeEvento} - {job.eventDate?.toDate ? format(job.eventDate.toDate(), 'dd/MM/yyyy') : 'Data N/D'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <JobPicker
+                  jobs={jobs}
+                  value={editEventData.linkedJobId || ''}
+                  onChange={(jobId) => setEditEventData({ ...editEventData, linkedJobId: jobId })}
+                  loading={jobsLoading}
+                  referenceDate={selectedEvent ? safeParseISO(selectedEvent.start) : null}
+                  testId="job-picker-edit"
+                />
                 {editEventData.linkedJobId ? (
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <CalendarCheck className="w-3 h-3" />
