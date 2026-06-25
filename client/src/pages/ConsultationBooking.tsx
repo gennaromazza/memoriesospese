@@ -6,7 +6,7 @@
  * Step 3: Dati job dinamici (opzionali)
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
-import { useTemplate, useAvailableSlots, useCreateConsultation } from '@/lib/consultations';
+import { useTemplate, useAvailableSlots, useAvailableDays, useCreateConsultation } from '@/lib/consultations';
 import { useParams, Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Calendar as CalendarIcon, Clock, CheckCircle2, Loader2, Shield } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -85,6 +85,40 @@ export default function ConsultationBooking() {
   const { data: template, isLoading: isLoadingTemplate } = useTemplate(templateId);
   const availableSlotsMutation = useAvailableSlots();
   const createConsultationMutation = useCreateConsultation();
+
+  // Mese attualmente visibile nel calendario: serve per chiedere al server quali
+  // giorni del mese non hanno disponibilità (così da disabilitarli ai clienti).
+  const [visibleMonth, setVisibleMonth] = useState<Date>(() => {
+    const base =
+      dateRangeFilter.from && dateRangeFilter.from.getTime() > Date.now()
+        ? dateRangeFilter.from
+        : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+
+  // Intervallo del mese visibile, esteso di ±7 giorni per coprire i giorni di
+  // overflow mostrati nella griglia del calendario.
+  const monthRange = useMemo(() => {
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+        d.getDate(),
+      ).padStart(2, '0')}`;
+    const start = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    start.setDate(start.getDate() - 7);
+    const end = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0);
+    end.setDate(end.getDate() + 7);
+    return { start: fmt(start), end: fmt(end) };
+  }, [visibleMonth]);
+
+  const availableDaysQuery = useAvailableDays(
+    templateId,
+    monthRange.start,
+    monthRange.end,
+  );
+  const unavailableDaysSet = useMemo(
+    () => new Set(availableDaysQuery.data?.unavailableDates ?? []),
+    [availableDaysQuery.data],
+  );
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -482,10 +516,20 @@ export default function ConsultationBooking() {
                 )}
                 
                 <div>
-                  <Label className="text-base font-semibold mb-4 block text-blue-gray">Seleziona una Data</Label>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Label className="text-base font-semibold block text-blue-gray">Seleziona una Data</Label>
+                    {availableDaysQuery.isFetching && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500" data-testid="status-checking-availability">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Verifica disponibilità...
+                      </span>
+                    )}
+                  </div>
                   <div className="flex justify-center">
                     <Calendar
                       mode="single"
+                      month={visibleMonth}
+                      onMonthChange={setVisibleMonth}
                       selected={selectedDate}
                       onSelect={handleDateSelect}
                       disabled={(date) => {
@@ -502,7 +546,13 @@ export default function ConsultationBooking() {
 
                         // Blocca giorni esclusi dal template (es. sabato/domenica)
                         const dayOfWeek = date.getDay(); // 0=domenica, 1=lunedì, ..., 6=sabato
-                        return template?.excludedDays?.includes(dayOfWeek) || false;
+                        if (template?.excludedDays?.includes(dayOfWeek)) return true;
+
+                        // Blocca i giorni senza alcuna disponibilità, calcolati dal
+                        // server per il mese visibile (blocchi all-day/multi-giorno,
+                        // sold-out, lead post-produzione, giorno dopo all-day).
+                        const dayStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        return unavailableDaysSet.has(dayStr);
                       }}
                       locale={it}
                       className="rounded-md border border-beige"

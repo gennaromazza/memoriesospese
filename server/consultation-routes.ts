@@ -2707,6 +2707,51 @@ router.post("/v2/available-slots", async (req, res) => {
 });
 
 /**
+ * GET /api/consultations/v2/available-days
+ * Pubblico. Dato templateId + intervallo (start/end "yyyy-MM-dd"), restituisce i
+ * giorni NON disponibili (zero slot) così che il calendario pubblico possa
+ * disabilitarli. Riusa la logica del Calendar Engine V2 caricando gli eventi una
+ * sola volta per l'intero intervallo.
+ */
+router.get("/v2/available-days", async (req, res) => {
+  try {
+    const templateId = (req.query.templateId as string) || "";
+    const start = (req.query.start as string) || "";
+    const end = (req.query.end as string) || "";
+
+    if (!templateId || !start || !end) {
+      return res.status(400).json({
+        error: "Parametri mancanti (templateId, start, end richiesti)",
+      });
+    }
+
+    const template = await consultationService.getTemplateById(templateId);
+    if (!template) {
+      return res.status(404).json({ error: "Template non trovato" });
+    }
+    if (!template.attiva) {
+      return res.status(400).json({ error: "Template non attivo" });
+    }
+
+    const { validateConsultationTemplate, getConsultationUnavailableDates } = await import('./consultations/calendar-adapter.js');
+    if (!validateConsultationTemplate(template)) {
+      return res.status(400).json({
+        error: "Template configurazione invalida",
+        message: "Template manca di customWorkingHours o durataMinuti",
+      });
+    }
+
+    const unavailableDates = await getConsultationUnavailableDates(template, start, end, db);
+    console.log(`[GET /v2/available-days] ✅ ${unavailableDates.length} giorni non disponibili (${start} → ${end})`);
+    res.json({ unavailableDates });
+  } catch (error: any) {
+    console.error("[GET /v2/available-days] ❌ Error:", error);
+    console.error("[GET /v2/available-days] Stack:", error.stack);
+    res.status(500).json({ error: "Errore calcolo giorni disponibili" });
+  }
+});
+
+/**
  * POST /api/consultations/cleanup-orphaned-events
  * One-time cleanup script: trova consultazioni annullate/rifiutate con eventi Google Calendar attivi e li cancella
  * Admin only

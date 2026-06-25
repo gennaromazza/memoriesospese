@@ -124,6 +124,120 @@ export async function getAllDayDatesInRange(
 }
 
 /**
+ * Calcola, per un intervallo di date, quali giorni NON hanno alcuno slot consulenza
+ * disponibile. Riusa la stessa logica del Calendar Engine V2 del singolo giorno
+ * (POST /v2/available-slots) ma carica gli eventi Google + Firestore UNA sola volta
+ * per l'intero intervallo (e per la finestra di lead post-produzione, se attiva),
+ * invece di una chiamata per giorno.
+ *
+ * Un giorno è considerato NON disponibile se:
+ *  - è nel passato (prima di oggi, Europe/Rome);
+ *  - cade prima della prima data prenotabile (lead di post-produzione);
+ *  - è il giorno successivo a un evento all-day (se il template lo blocca);
+ *  - non produce alcuno slot: giorno chiuso, escluso, evento all-day (Google o Job
+ *    CRM) che copre il giorno, oppure tutti gli slot già occupati (sold-out).
+ *
+ * @returns Array di stringhe "yyyy-MM-dd" (Europe/Rome) dei giorni NON disponibili.
+ */
+export async function getConsultationUnavailableDates(
+  template: ConsultationTemplate,
+  rangeStartStr: string, // "yyyy-MM-dd" (Europe/Rome) inclusivo
+  rangeEndStr: string,   // "yyyy-MM-dd" (Europe/Rome) inclusivo
+  db: any
+): Promise<string[]> {
+  const { DateTime } = await import('luxon');
+  const { getAvailableSlotsForDate, computeEarliestBookableDate } = await import('../calendar-engine/index.js');
+
+  const config = consultationTemplateToAvailabilityConfig(template);
+
+  const rangeStart = DateTime.fromISO(rangeStartStr, { zone: 'Europe/Rome' }).startOf('day');
+  const rangeEnd = DateTime.fromISO(rangeEndStr, { zone: 'Europe/Rome' }).endOf('day');
+  const nowRome = DateTime.now().setZone('Europe/Rome');
+  const todayStart = nowRome.startOf('day');
+
+  const hasLead = !!(config.minLeadWorkingDays && config.minLeadWorkingDays > 0);
+
+  // Finestra di fetch = unione di:
+  //  - [rangeStart - 1 giorno, rangeEnd]  (il -1 serve alla regola "giorno dopo all-day")
+  //  - [oggi, oggi + lead*2 + 21]         (solo se è configurato un lead post-produzione)
+  let fetchStartDT = rangeStart.minus({ days: 1 });
+  let fetchEndDT = rangeEnd;
+  if (hasLead) {
+    const leadEnd = nowRome.plus({ days: config.minLeadWorkingDays! * 2 + 21 }).endOf('day');
+    if (todayStart < fetchStartDT) fetchStartDT = todayStart;
+    if (leadEnd > fetchEndDT) fetchEndDT = leadEnd;
+  }
+
+  // UNA sola chiamata Google + Firestore per tutta la finestra
+  const allEvents = await getAllExistingEvents(fetchStartDT.toJSDate(), fetchEndDT.toJSDate(), db);
+
+  // Insieme dei giorni coperti da un evento all-day (Google all-day + Job CRM all-day),
+  // usato sia per la regola "giorno dopo all-day" sia per il calcolo del lead.
+  const allDayDates = new Set<string>();
+  for (const ev of allEvents) {
+    if (!ev.allDay) continue;
+    let cursor = DateTime.fromJSDate(ev.start).setZone('Europe/Rome').startOf('day');
+    const endExclusive = DateTime.fromJSDate(ev.end).setZone('Europe/Rome');
+    let guard = 0;
+    while (cursor < endExclusive && guard < 366) {
+      allDayDates.add(cursor.toFormat('yyyy-MM-dd'));
+      cursor = cursor.plus({ days: 1 });
+      guard++;
+    }
+  }
+
+  // Prima data prenotabile (lead post-produzione), se configurato
+  const earliest = hasLead
+    ? computeEarliestBookableDate(nowRome.toJSDate(), config.minLeadWorkingDays!, allDayDates)
+    : null;
+
+  const unavailable: string[] = [];
+  let day = rangeStart.startOf('day');
+  const lastDay = rangeEnd.startOf('day');
+  let guard = 0;
+  while (day <= lastDay && guard < 400) {
+    guard++;
+    const dayStr = day.toFormat('yyyy-MM-dd');
+
+    // (a) Giorno passato
+    if (day < todayStart) {
+      unavailable.push(dayStr);
+      day = day.plus({ days: 1 });
+      continue;
+    }
+
+    // (b) Prima della prima data prenotabile (lead post-produzione)
+    if (earliest && day < earliest) {
+      unavailable.push(dayStr);
+      day = day.plus({ days: 1 });
+      continue;
+    }
+
+    // (c) Giorno successivo a un evento all-day (se il template lo blocca)
+    if (config.blockDayAfterAllDayEvent) {
+      const prevStr = day.minus({ days: 1 }).toFormat('yyyy-MM-dd');
+      if (allDayDates.has(prevStr)) {
+        unavailable.push(dayStr);
+        day = day.plus({ days: 1 });
+        continue;
+      }
+    }
+
+    // (d) Generazione slot: copre giorno chiuso/escluso, eventi all-day che coprono il
+    //     giorno (via rilevamento conflitti) e sold-out. Gli eventi non sovrapposti al
+    //     giorno semplicemente non generano conflitti.
+    const slots = await getAvailableSlotsForDate(day.toJSDate(), config, allEvents as any);
+    if (slots.length === 0) {
+      unavailable.push(dayStr);
+    }
+
+    day = day.plus({ days: 1 });
+  }
+
+  return unavailable;
+}
+
+/**
  * Validate that a consultation template has required fields for Calendar Engine
  * 
  * @param template Consultation template

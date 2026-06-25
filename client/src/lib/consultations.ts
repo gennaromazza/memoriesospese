@@ -189,6 +189,29 @@ export function useAvailableSlots() {
   });
 }
 
+// CALENDAR ENGINE V2 — Giorni NON disponibili per un intervallo (per disabilitare
+// i giorni nel calendario pubblico). Endpoint pubblico, una sola richiesta per mese.
+export function useAvailableDays(
+  templateId: string | undefined,
+  start: string | undefined,
+  end: string | undefined,
+) {
+  return useQuery<{ unavailableDates: string[] }>({
+    queryKey: [...CONSULTATION_KEYS.all, "available-days", templateId, start, end],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/consultations/v2/available-days?templateId=${encodeURIComponent(
+          templateId!,
+        )}&start=${start}&end=${end}`,
+      );
+      if (!res.ok) throw new Error("Failed to fetch available days");
+      return res.json();
+    },
+    enabled: !!templateId && !!start && !!end,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCreateConsultation() {
   return useMutation({
     mutationFn: async (data: InsertConsultation) => {

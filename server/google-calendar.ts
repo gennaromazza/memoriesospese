@@ -482,8 +482,17 @@ export async function getEventsWithDetailsAllCalendars(
             continue;
           }
 
-          // FILTRO #2: Skip eventi trasparenti (non bloccano calendario)
-          if (transparency === 'transparent') {
+          // Determina se è un evento "tutto il giorno" PRIMA del filtro trasparenza.
+          // Gli eventi all-day di Google usano .date invece di .dateTime.
+          const isAllDay = !!event.start?.date;
+
+          // FILTRO #2: Skip eventi trasparenti ("Libero") SOLO se NON sono all-day.
+          // Gli eventi "tutto il giorno" di Google nascono di default come "Libero"
+          // (transparency: 'transparent'): scartarli faceva sì che un blocco
+          // tutto-il-giorno (anche un singolo evento multi-giorno) non bloccasse mai
+          // gli slot. Il fotografo si aspetta che QUALSIASI evento all-day sul suo
+          // calendario = giornata occupata.
+          if (transparency === 'transparent' && !isAllDay) {
             totalTransparent++;
             // Log VERBOSE solo in desarrollo para diagnostica
             if (!isProduction) {
@@ -495,7 +504,6 @@ export async function getEventsWithDetailsAllCalendars(
           // Estrai start/end time
           const start = event.start?.dateTime || event.start?.date;
           const end = event.end?.dateTime || event.end?.date;
-          const isAllDay = !!event.start?.date; // All-day events use .date instead of .dateTime
 
           if (!start || !end) {
             // Log WARNING solo se evento invalido
