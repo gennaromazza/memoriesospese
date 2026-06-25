@@ -132,14 +132,19 @@ export default function JobPicker({
           disabled={disabled || loading}
           className="w-full justify-between font-normal"
           data-testid={`${testId}-trigger`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
         >
           <span className="truncate text-left">{triggerLabel}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="w-[--radix-popover-trigger-width] p-0 z-[11000]"
         align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <Command>
           <CommandInput
