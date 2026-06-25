@@ -21,7 +21,8 @@ import {
   RefreshCw,
   AlertTriangle,
   WifiOff,
-  ExternalLink
+  ExternalLink,
+  FileSignature
 } from 'lucide-react';
 import { Link } from 'wouter';
 import { Calendar } from '@/components/ui/calendar';
@@ -70,6 +71,10 @@ interface CalendarEventDTO {
   googleEventId?: string;
   entityStatus?: string;
   entityId?: string;
+  linkedJobId?: string;
+  linkedJobName?: string;
+  signedQuoteToken?: string;
+  hasSignedQuote?: boolean;
 }
 
 export default function CalendarioManager() {
@@ -117,6 +122,7 @@ export default function CalendarioManager() {
     endTime: '',
     location: '',
     isAllDay: false,
+    linkedJobId: '',
   });
 
   const monthStart = startOfMonth(selectedDate);
@@ -235,6 +241,7 @@ export default function CalendarioManager() {
       entityId?: string;
       googleEventId?: string;
       isAllDay?: boolean;
+      jobId?: string | null;
     }) => {
       return await apiRequest('PATCH', `/api/calendar/events/${eventData.eventId}`, eventData);
     },
@@ -460,6 +467,7 @@ export default function CalendarioManager() {
       endTime: allDay ? '' : (endDate ? format(endDate, 'HH:mm') : ''),
       location: event.location || '',
       isAllDay: allDay,
+      linkedJobId: event.linkedJobId || '',
     });
     setShowEditDialog(true);
   };
@@ -517,6 +525,8 @@ export default function CalendarioManager() {
       entityId: selectedEvent.entityId,
       googleEventId: selectedEvent.googleEventId,
       isAllDay: editEventData.isAllDay,
+      // Associazione lavoro: solo per eventi google (id = collega, null = scollega)
+      jobId: selectedEvent.type === 'google' ? (editEventData.linkedJobId || null) : undefined,
     });
   };
 
@@ -1182,21 +1192,44 @@ export default function CalendarioManager() {
                 </div>
               )}
 
-              {/* Link di navigazione a Job/Consulenza */}
-              {selectedEvent.entityId && (
-                <div className="pt-2 border-t">
-                  {selectedEvent.type === 'job' && (
-                    <Link href={`/admin/jobs/${selectedEvent.entityId}`}>
+              {/* Link di navigazione a Job/Consulenza/Preventivo firmato */}
+              {(selectedEvent.entityId || selectedEvent.linkedJobId || selectedEvent.signedQuoteToken) && (
+                <div className="pt-2 border-t space-y-2">
+                  {selectedEvent.linkedJobId && (
+                    <Link href={`/admin/jobs/${selectedEvent.linkedJobId}`}>
                       <Button 
                         variant="outline" 
                         className="w-full justify-center gap-2 text-sage hover:text-sage/80 hover:bg-sage/10"
                         data-testid="link-go-to-job"
                       >
                         <Briefcase className="w-4 h-4" />
-                        Vai al Lavoro
+                        {selectedEvent.linkedJobName ? `Apri: ${selectedEvent.linkedJobName}` : 'Apri Scheda Lavoro'}
                         <ExternalLink className="w-3 h-3" />
                       </Button>
                     </Link>
+                  )}
+                  {selectedEvent.signedQuoteToken && (
+                    <a 
+                      href={`/quote/${selectedEvent.signedQuoteToken}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="block"
+                    >
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-center gap-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                        data-testid="link-signed-quote"
+                      >
+                        <FileSignature className="w-4 h-4" />
+                        Preventivo Firmato
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </a>
+                  )}
+                  {selectedEvent.linkedJobId && selectedEvent.hasSignedQuote && !selectedEvent.signedQuoteToken && (
+                    <p className="text-xs text-gray-500 text-center">
+                      Preventivo firmato disponibile nella scheda del lavoro.
+                    </p>
                   )}
                   {selectedEvent.type === 'consulenza' && (
                     <Link href={`/admin/consultations`}>
@@ -1350,6 +1383,41 @@ export default function CalendarioManager() {
                 data-testid="textarea-edit-description"
               />
             </div>
+
+            {selectedEvent?.type === 'google' && (
+              <div className="space-y-2 p-3 bg-gray-50 rounded-lg border">
+                <Label htmlFor="edit-job" className="text-sm font-medium flex items-center gap-2">
+                  <Briefcase className="w-4 h-4" />
+                  Associa a un Lavoro
+                </Label>
+                <Select
+                  value={editEventData.linkedJobId || '__none__'}
+                  onValueChange={(val) => setEditEventData({ ...editEventData, linkedJobId: val === '__none__' ? '' : val })}
+                >
+                  <SelectTrigger id="edit-job" data-testid="select-edit-job">
+                    <SelectValue placeholder={jobsLoading ? 'Caricamento...' : 'Nessun lavoro'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nessun lavoro</SelectItem>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.nomeEvento} - {job.eventDate?.toDate ? format(job.eventDate.toDate(), 'dd/MM/yyyy') : 'Data N/D'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editEventData.linkedJobId ? (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CalendarCheck className="w-3 h-3" />
+                    L'evento sarà collegato a questo lavoro
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Collega questo evento Google a un lavoro per accedere rapidamente alla scheda e al preventivo firmato.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           
           <DialogFooter>

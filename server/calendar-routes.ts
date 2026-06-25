@@ -7,7 +7,7 @@
 import express from 'express';
 import { getEvents, createEvent, updateEvent, getCalendarConnectionStatus, invalidateTokenCache } from './google-calendar.js';
 
-import { db, Timestamp } from './firebase-admin.js';
+import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, getStudioContactInfo, generateGoogleCalendarLink } from './email-routes.js';
 import { z } from 'zod';
 import { format } from 'date-fns';
@@ -80,6 +80,11 @@ interface CalendarEventDTO {
   googleEventId?: string;
   entityStatus?: string; // Stato entità (consulenza/booking): in_attesa, confermata, rifiutata, annullata, etc
   entityId?: string; // ID puro dell'entità (senza prefix) per API delete
+  // Associazione lavoro + preventivo firmato
+  linkedJobId?: string; // ID del job collegato (google via linkedCalendarEventIds, consulenza via jobId, job = sé stesso)
+  linkedJobName?: string; // Nome del lavoro collegato (per display)
+  signedQuoteToken?: string; // publicToken del preventivo firmato collegato al job (se presente)
+  hasSignedQuote?: boolean; // true se il job collegato ha un preventivo firmato
 }
 
 /**
@@ -184,6 +189,7 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
             entityStatus: c.stato || undefined,
             entityId: doc.id,
             googleEventId: c.googleCalendarEventId || undefined,
+            linkedJobId: c.jobId || undefined,
           });
         });
         
@@ -230,6 +236,7 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
             entityStatus: c.stato || undefined,
             entityId: doc.id,
             googleEventId: c.googleCalendarEventId || undefined,
+            linkedJobId: c.jobId || undefined,
           });
         });
 
@@ -341,7 +348,93 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
     if (warnings.length > 0) {
       console.log(`⚠️ Warnings: ${warnings.join(', ')}`);
     }
-    
+
+    // === Risoluzione associazioni lavoro + preventivo firmato ===
+    // Best-effort: eventuali errori non bloccano la risposta del calendario
+    try {
+      // 1. Eventi Google → job collegato tramite job.linkedCalendarEventIds
+      const googleEventIds = Array.from(new Set(
+        events
+          .filter(e => e.type === 'google' && e.googleEventId)
+          .map(e => e.googleEventId as string)
+      ));
+
+      const googleIdToJobId = new Map<string, string>();
+      for (let i = 0; i < googleEventIds.length; i += 10) {
+        const chunk = googleEventIds.slice(i, i + 10);
+        const snap = await db.collection('jobs')
+          .where('linkedCalendarEventIds', 'array-contains-any', chunk)
+          .get();
+        snap.forEach(doc => {
+          const linkedIds: string[] = doc.data().linkedCalendarEventIds || [];
+          linkedIds.forEach(eid => {
+            if (chunk.includes(eid) && !googleIdToJobId.has(eid)) {
+              googleIdToJobId.set(eid, doc.id);
+            }
+          });
+        });
+      }
+
+      // Imposta linkedJobId su ogni evento (google via mappa, job = sé stesso, consulenza già impostato al push)
+      events.forEach(e => {
+        if (e.type === 'google' && e.googleEventId) {
+          const jid = googleIdToJobId.get(e.googleEventId);
+          if (jid) e.linkedJobId = jid;
+        } else if (e.type === 'job' && e.entityId) {
+          e.linkedJobId = e.entityId;
+        }
+      });
+
+      // 2. Carica i job collegati per nome + stato preventivo
+      const linkedJobIds = Array.from(new Set(
+        events.map(e => e.linkedJobId).filter((x): x is string => !!x)
+      ));
+
+      if (linkedJobIds.length > 0) {
+        const jobRefs = linkedJobIds.map(id => db.collection('jobs').doc(id));
+        const jobDocs = await db.getAll(...jobRefs);
+        const jobInfoMap = new Map<string, { name: string; isSigned: boolean }>();
+        jobDocs.forEach(doc => {
+          if (doc.exists) {
+            const job = doc.data() as any;
+            jobInfoMap.set(doc.id, {
+              name: job?.nomeEvento || job?.jobType || 'Lavoro',
+              isSigned: !!job?.quoteStatus?.isSigned,
+            });
+          }
+        });
+
+        // 3. publicToken del preventivo firmato per i job con preventivo firmato
+        const signedJobIds = linkedJobIds.filter(id => jobInfoMap.get(id)?.isSigned);
+        const signedTokenMap = new Map<string, string>();
+        for (let i = 0; i < signedJobIds.length; i += 10) {
+          const chunk = signedJobIds.slice(i, i + 10);
+          const qSnap = await db.collection('quotes')
+            .where('jobId', 'in', chunk)
+            .get();
+          qSnap.forEach(doc => {
+            const q = doc.data() as any;
+            if (q?.status === 'firmato' && q?.publicToken && !signedTokenMap.has(q.jobId)) {
+              signedTokenMap.set(q.jobId, q.publicToken);
+            }
+          });
+        }
+
+        // Annota gli eventi con nome lavoro + info preventivo firmato
+        events.forEach(e => {
+          if (!e.linkedJobId) return;
+          const info = jobInfoMap.get(e.linkedJobId);
+          if (!info) return;
+          e.linkedJobName = info.name;
+          e.hasSignedQuote = info.isSigned;
+          const token = signedTokenMap.get(e.linkedJobId);
+          if (token) e.signedQuoteToken = token;
+        });
+      }
+    } catch (resolveErr: any) {
+      console.error('⚠️ Errore risoluzione associazioni lavoro (continuiamo):', resolveErr?.message || resolveErr);
+    }
+
     const responseData = { events, warnings };
     calendarCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
     // Limita dimensione cache a 10 entry
@@ -524,6 +617,9 @@ router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res
       }
     }
 
+    // Invalida la cache calendario così il nuovo evento (e l'eventuale associazione) è subito visibile
+    calendarCache.clear();
+
     res.json({ 
       success: true, 
       eventId: event.id,
@@ -568,6 +664,7 @@ const updateEventSchema = z.object({
   entityId: z.string().optional(),
   googleEventId: z.string().optional(),
   isAllDay: z.boolean().optional(),
+  jobId: z.string().nullable().optional(), // Associazione a un lavoro (solo eventi google): id = collega, null = scollega
 });
 
 router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req, res) => {
@@ -584,7 +681,16 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
     if (data.type === 'google') {
       // Evento Google Calendar puro - aggiorna direttamente
       const googleId = data.googleEventId || eventId.replace('g-', '');
-      
+
+      // Verifica esistenza del job target PRIMA di toccare Google Calendar,
+      // così un jobId stale/non valido non modifica l'evento Google prima del 404
+      if (data.jobId) {
+        const targetJobDoc = await db.collection('jobs').doc(data.jobId).get();
+        if (!targetJobDoc.exists) {
+          return res.status(404).json({ error: 'Lavoro selezionato non trovato' });
+        }
+      }
+
       await updateEvent('primary', googleId, {
         summary: data.title,
         description: data.description,
@@ -595,7 +701,33 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
       });
       
       console.log(`✅ Evento Google Calendar aggiornato: ${googleId}`);
-      
+
+      // Gestione associazione a un lavoro (solo se il campo jobId è presente nel payload)
+      if (data.jobId !== undefined) {
+        const batch = db.batch();
+        // Rimuovi l'evento da eventuali job che lo collegano già (tranne il nuovo target)
+        const prevSnap = await db.collection('jobs')
+          .where('linkedCalendarEventIds', 'array-contains', googleId)
+          .get();
+        prevSnap.forEach(doc => {
+          if (doc.id !== data.jobId) {
+            batch.update(doc.ref, {
+              linkedCalendarEventIds: FieldValue.arrayRemove(googleId),
+              updatedAt: Timestamp.now(),
+            });
+          }
+        });
+        // Aggiungi l'associazione al nuovo job (se non null)
+        if (data.jobId) {
+          batch.update(db.collection('jobs').doc(data.jobId), {
+            linkedCalendarEventIds: FieldValue.arrayUnion(googleId),
+            updatedAt: Timestamp.now(),
+          });
+        }
+        await batch.commit();
+        console.log(`📎 Associazione evento ${googleId} aggiornata → lavoro: ${data.jobId || 'rimossa'}`);
+      }
+
     } else if (data.type === 'consulenza') {
       // Consulenza - aggiorna Firestore + Google Calendar se sincronizzato
       const consultationId = data.entityId || eventId.replace('c-', '');
@@ -688,7 +820,10 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
       
       console.log(`✅ Job aggiornato: ${jobId}`);
     }
-    
+
+    // Invalida la cache calendario così le modifiche (incl. associazioni) sono subito visibili
+    calendarCache.clear();
+
     res.json({ 
       success: true, 
       message: 'Evento aggiornato con successo' 
