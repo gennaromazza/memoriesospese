@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, User, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -993,6 +993,9 @@ export default function JobDetailPage() {
               <Badge data-testid="badge-status">
                 {job.status}
               </Badge>
+              {job.provenance === 'preventivo-rapido' && (
+                <Badge className="bg-amber-100 text-amber-800 border border-amber-300">⚡ Preventivo Rapido</Badge>
+              )}
 
               {/* Primary Actions */}
               {(job.status === 'lead' || job.status === 'preventivo_inviato') && (
@@ -1193,21 +1196,37 @@ export default function JobDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Note Interne (dalla creazione del lavoro) */}
+              {/* Note Interne / Nota del Cliente */}
               {job.noteInterne && (
-                <Card className="shadow-sm hover:shadow-md transition-shadow border-amber-200/50">
-                  <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <FileText className="h-5 w-5 text-amber-600" />
-                      Note Interne
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                      {job.noteInterne}
-                    </p>
-                  </CardContent>
-                </Card>
+                job.noteInterne.startsWith('[Nota cliente]') ? (
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border-blue-200/70">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/20 pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <User className="h-5 w-5 text-blue-600" />
+                        Nota del Cliente
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                        {job.noteInterne.replace(/^\[Nota cliente\]\s*/, '')}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border-amber-200/50">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent dark:from-amber-950/20 pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <FileText className="h-5 w-5 text-amber-600" />
+                        Note Interne
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                        {job.noteInterne}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )
               )}
 
               {/* Note e Personalizzazioni */}

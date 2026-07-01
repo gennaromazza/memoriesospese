@@ -2954,10 +2954,12 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
           clientName: signerName.trim(),
         };
         quoteData.totaleSelezionato = totalAfterDiscount;
+        quoteData.selectedBeforeDiscount = subtotale; // subtotale prodotti selezionati pre-sconto
 
-        // Aggiorna job financials
+        // Aggiorna job financials: saldoResiduo inizializzato = totale dovuto (nessun pagamento ancora)
         await jobRef.update({
           "financials.totalePreventivato": totalAfterDiscount,
+          "financials.saldoResiduo": totalAfterDiscount,
           status: "confermato",
           updatedAt: FieldValue.serverTimestamp(),
         });

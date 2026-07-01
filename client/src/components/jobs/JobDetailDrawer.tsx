@@ -322,7 +322,11 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                   )}
                   <div>
                     <span className="text-gray-500">Provenienza: </span>
-                    <Badge variant="outline">{job.provenance}</Badge>
+                    {job.provenance === 'preventivo-rapido' ? (
+                      <Badge className="bg-amber-100 text-amber-800 border border-amber-300">⚡ Preventivo Rapido</Badge>
+                    ) : (
+                      <Badge variant="outline">{job.provenance}</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -414,18 +418,34 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
                 </CardContent>
               </Card>
               
-              {/* Note interne */}
+              {/* Note interne / Nota cliente */}
               {job.noteInterne && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Note Interne</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {job.noteInterne}
-                    </p>
-                  </CardContent>
-                </Card>
+                job.noteInterne.startsWith('[Nota cliente]') ? (
+                  <Card className="border-blue-200">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2 text-blue-700">
+                        <User className="w-4 h-4" />
+                        Nota del Cliente
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {job.noteInterne.replace(/^\[Nota cliente\]\s*/, '')}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Note Interne</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {job.noteInterne}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )
               )}
             </TabsContent>
             

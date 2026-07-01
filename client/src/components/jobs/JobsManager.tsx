@@ -1182,6 +1182,9 @@ export default function JobsManager() {
                     <TableCell className="font-medium">
                       <div className="space-y-1">
                         <div className="font-semibold">{job.nomeEvento}</div>
+                        {job.provenance === 'preventivo-rapido' && (
+                          <Badge className="bg-amber-100 text-amber-700 border border-amber-300 text-[10px] px-1.5 py-0 h-4">⚡ P.Rapido</Badge>
+                        )}
                         {job.eventLocation && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1 lg:hidden">
                             <MapPin className="w-3 h-3" />
