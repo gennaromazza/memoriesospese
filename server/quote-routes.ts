@@ -2658,8 +2658,8 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     }
 
     // 🔒 Verifica che l'OTP sia stato completato per questa email (anti-bypass)
-    // NON consumiamo la sessione per permettere il retry in caso di errore server.
-    // La sessione scade automaticamente dopo 30 min (TTL).
+    // La sessione viene consumata (one-time use) subito dopo il controllo,
+    // prima di qualsiasi effetto collaterale (scritture su Firestore).
     const normalizedActivateEmail = normalizeEmail(email);
     const otpSessionKey = `${token}:${normalizedActivateEmail}`;
     const otpSession = verifiedOtpSessions.get(otpSessionKey);
@@ -2669,6 +2669,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
         message: "La sessione di verifica email è scaduta o non è stata completata. Torna indietro e verifica nuovamente la tua email.",
       });
     }
+    verifiedOtpSessions.delete(otpSessionKey); // one-time use: consuma prima delle scritture
 
     const templatesSnapshot = await db
       .collection("quoteTemplates")
