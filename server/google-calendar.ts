@@ -388,6 +388,44 @@ export async function checkFreeBusyAllCalendars(
  * Questa funzione SOSTITUISCE checkFreeBusyAllCalendars per il Calendar Engine V2
  * perché l'API freebusy NON filtra eventi cancellati/trasparenti.
  */
+/**
+ * Pure classification of a raw Google Calendar event for busy/conflict
+ * computation. Extracted so the filtering rules can be unit-tested in isolation
+ * (the surrounding fetch loop needs the live Google API).
+ *
+ * Rules:
+ *  - cancelled events are dropped;
+ *  - `isAllDay` is computed BEFORE the transparency check (Google all-day events
+ *    use `start.date` instead of `start.dateTime`);
+ *  - transparent ("Libero") events are dropped ONLY when they are NOT all-day.
+ *    Google all-day events default to transparency:'transparent', so a blanket
+ *    transparency filter would silently discard full-day blocks — the photographer
+ *    expects ANY all-day event to occupy the day.
+ */
+export function classifyCalendarEvent(event: {
+  status?: string | null;
+  transparency?: string | null;
+  start?: { date?: string | null; dateTime?: string | null } | null;
+}): { include: boolean; reason?: 'cancelled' | 'transparent'; isAllDay: boolean } {
+  const status = event.status || '';
+  const transparency = event.transparency || 'opaque';
+
+  // FILTRO #1: eventi cancellati
+  if (status === 'cancelled') {
+    return { include: false, reason: 'cancelled', isAllDay: false };
+  }
+
+  // Determina se è un evento "tutto il giorno" PRIMA del filtro trasparenza.
+  const isAllDay = !!event.start?.date;
+
+  // FILTRO #2: eventi trasparenti ("Libero") SOLO se NON sono all-day.
+  if (transparency === 'transparent' && !isAllDay) {
+    return { include: false, reason: 'transparent', isAllDay };
+  }
+
+  return { include: true, isAllDay };
+}
+
 export async function getEventsWithDetailsAllCalendars(
   timeMin: Date,
   timeMax: Date,
@@ -472,31 +510,24 @@ export async function getEventsWithDetailsAllCalendars(
           const status = event.status || '';
           const transparency = event.transparency || 'opaque';
 
-          // FILTRO #1: Skip eventi cancellati
-          if (status === 'cancelled') {
-            totalCancelled++;
-            // Log VERBOSE solo in desarrollo para diagnostica
-            if (!isProduction) {
-              console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
-            }
-            continue;
-          }
+          // Classificazione pura (cancelled / transparent / all-day) — vedi
+          // classifyCalendarEvent per le regole (unit-testata in isolamento).
+          const classification = classifyCalendarEvent(event);
+          const isAllDay = classification.isAllDay;
 
-          // Determina se è un evento "tutto il giorno" PRIMA del filtro trasparenza.
-          // Gli eventi all-day di Google usano .date invece di .dateTime.
-          const isAllDay = !!event.start?.date;
-
-          // FILTRO #2: Skip eventi trasparenti ("Libero") SOLO se NON sono all-day.
-          // Gli eventi "tutto il giorno" di Google nascono di default come "Libero"
-          // (transparency: 'transparent'): scartarli faceva sì che un blocco
-          // tutto-il-giorno (anche un singolo evento multi-giorno) non bloccasse mai
-          // gli slot. Il fotografo si aspetta che QUALSIASI evento all-day sul suo
-          // calendario = giornata occupata.
-          if (transparency === 'transparent' && !isAllDay) {
-            totalTransparent++;
-            // Log VERBOSE solo in desarrollo para diagnostica
-            if (!isProduction) {
-              console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
+          if (!classification.include) {
+            if (classification.reason === 'cancelled') {
+              totalCancelled++;
+              // Log VERBOSE solo in desarrollo para diagnostica
+              if (!isProduction) {
+                console.log(`[Google Calendar V2] 🚫 FILTRATO (cancelled): "${summary}" [${eventId}]`);
+              }
+            } else if (classification.reason === 'transparent') {
+              totalTransparent++;
+              // Log VERBOSE solo in desarrollo para diagnostica
+              if (!isProduction) {
+                console.log(`[Google Calendar V2] 👻 FILTRATO (transparent): "${summary}" [${eventId}]`);
+              }
             }
             continue;
           }
