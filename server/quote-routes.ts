@@ -2657,6 +2657,19 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       });
     }
 
+    // 🔒 Verifica che l'OTP sia stato completato per questa email (anti-bypass)
+    // NON consumiamo la sessione per permettere il retry in caso di errore server.
+    // La sessione scade automaticamente dopo 30 min (TTL).
+    const normalizedActivateEmail = normalizeEmail(email);
+    const otpSessionKey = `${token}:${normalizedActivateEmail}`;
+    const otpSession = verifiedOtpSessions.get(otpSessionKey);
+    if (!otpSession || Date.now() > otpSession.expiresAt) {
+      return res.status(403).json({
+        error: "Verifica email non completata",
+        message: "La sessione di verifica email è scaduta o non è stata completata. Torna indietro e verifica nuovamente la tua email.",
+      });
+    }
+
     const templatesSnapshot = await db
       .collection("quoteTemplates")
       .where("shareableToken", "==", token)
@@ -2910,6 +2923,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       createdBy: "preventivo-rapido",
       templateId: templateDoc.id,
       templateName: template.nome || "",
+      benefitRules: template.benefitRules || [],
       revokedTokens: [],
       auditLog: [
         {
@@ -3230,6 +3244,24 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000);
 
+// Sessioni OTP verificate (key: `${token}:${normalizedEmail}`, TTL 30 min)
+// Popolate da verify-otp; consumate (one-time) da activate per garantire anti-bypass.
+const verifiedOtpSessions = new Map<string, { email: string; expiresAt: number }>();
+
+// Rate limiting send-otp: max 5 richieste per (token:email) in una finestra di 5 min
+const otpRateLimit = new Map<string, { count: number; windowStart: number }>();
+
+// Pulizia periodica per i nuovi store
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of verifiedOtpSessions.entries()) {
+    if (val.expiresAt < now) verifiedOtpSessions.delete(key);
+  }
+  for (const [key, val] of otpRateLimit.entries()) {
+    if (now - val.windowStart > 5 * 60 * 1000) otpRateLimit.delete(key);
+  }
+}, 15 * 60 * 1000);
+
 /**
  * POST /api/quotes/quick/:token/send-otp
  * Genera un codice OTP a 6 cifre, lo invia via email e lo memorizza in-memory (TTL 10 min).
@@ -3256,6 +3288,19 @@ router.post("/quick/:token/send-otp", async (req: Request, res: Response) => {
 
     const normalizedEmail = normalizeEmail(email);
     const otpKey = `${token}:${normalizedEmail}`;
+
+    // Rate limiting: max 5 OTP per (token:email) in una finestra di 5 minuti
+    const rlNow = Date.now();
+    const rlEntry = otpRateLimit.get(otpKey);
+    if (rlEntry && rlNow - rlEntry.windowStart < 5 * 60 * 1000) {
+      if (rlEntry.count >= 5) {
+        return res.status(429).json({ error: "Troppi tentativi. Attendi qualche minuto prima di richiedere un nuovo codice." });
+      }
+      rlEntry.count += 1;
+    } else {
+      otpRateLimit.set(otpKey, { count: 1, windowStart: rlNow });
+    }
+
     const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 cifre
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minuti
 
@@ -3350,8 +3395,9 @@ router.post("/quick/:token/verify-otp", async (req: Request, res: Response) => {
       });
     }
 
-    // ✅ Codice corretto — elimina dall'OTP store e restituisci token di verifica
+    // ✅ Codice corretto — elimina dall'OTP store, registra sessione verificata (TTL 30 min)
     otpStore.delete(otpKey);
+    verifiedOtpSessions.set(otpKey, { email: normalizedEmail, expiresAt: Date.now() + 30 * 60 * 1000 });
     console.log(`✅ OTP verificato per ${email} (token=${token})`);
     return res.json({ success: true, verified: true });
   } catch (error) {
@@ -3449,11 +3495,33 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
 
     // Calcola totali dal template (usati sia per la bozza quote che per l'email)
     const templateDocId = templatesSnapshot.docs[0].id;
-    const draftProducts = (template.defaultProducts || []).map((p: any) => ({
-      ...p, selectable: template.type === "variabile",
-    }));
+    const defaultSelectableDraft = template.type === "variabile";
+    const draftProducts = (template.defaultProducts || []).map((p: any) => {
+      const isOmaggio = p.isOmaggio === true;
+      // Preserva selectable per-prodotto (Fisso/Extra) impostato nel template;
+      // fallback al default-by-type solo se non esplicitamente definito.
+      const selectable = isOmaggio
+        ? false
+        : (p.selectable !== undefined ? !!p.selectable : defaultSelectableDraft);
+      const result: any = { ...p, prezzo: isOmaggio ? 0 : (p.prezzo || 0), selectable };
+      if (isOmaggio) {
+        result.isOmaggio = true;
+        result.selected = true;
+      } else if (!selectable) {
+        result.selected = true; // Fisso: sempre incluso
+      } else {
+        result.selected = false; // Extra: non pre-selezionato nella bozza
+      }
+      return result;
+    });
     let draftSubtotale = 0;
-    draftProducts.forEach((p: any) => { draftSubtotale += p.prezzo || 0; });
+    draftProducts.forEach((p: any) => {
+      if (p.isOmaggio) return; // prezzo già 0, non contribuisce
+      // Per template variabili: il subtotale della bozza include solo i prodotti Fisso
+      // (selectable===false), escludendo gli Extra (selectable===true) non ancora scelti.
+      if (template.type === "variabile" && p.selectable === true) return;
+      draftSubtotale += p.prezzo || 0;
+    });
     const draftDiscountType = template.discountType;
     const draftDiscountValue = template.discountValue;
     let draftDiscountAmount = 0;
@@ -3485,6 +3553,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
         status: "inviato",
         templateId: templateDocId,
         templateName: template.nome || "",
+        benefitRules: template.benefitRules || [],
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         createdBy: "preventivo-rapido",
