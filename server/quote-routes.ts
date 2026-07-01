@@ -3024,13 +3024,11 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     // 4. Invia email di notifica
     try {
       const studioInfo = await getStudioContactInfo();
-      const baseUrl = process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
-        : "https://imagestudiofotografico.com";
+      const baseUrl = process.env.SITE_BASE_URL || "https://imagestudiofotografico.com";
 
       if (quoteData.status === "firmato") {
         // CASO FIRMATO: Email professionale al cliente + admin
-        const portalLink = `${baseUrl}/portale-cliente/${quoteToken}`;
+        const portalLink = `${baseUrl}/quote/${quoteToken}`;
 
         // Email al cliente
         if (email) {
