@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -141,6 +141,23 @@ export default function QuickQuotePage() {
   const template = templateData?.template;
   const jobTypeInfo = templateData?.jobTypeInfo;
   const studioInfo = templateData?.studioInfo;
+
+  // Raggruppa i prodotti per sezione preservando l'ordine di prima apparizione,
+  // così il cliente vede lo stesso ordine e raggruppamento definiti dall'admin nel template.
+  const groupedProducts = useMemo<QuoteProduct[]>(() => {
+    if (!template?.defaultProducts) return [];
+    const sections = new Map<string | null, QuoteProduct[]>();
+    const sectionOrder: (string | null)[] = [];
+    template.defaultProducts.forEach((p) => {
+      const key = p.sezione?.trim() || null;
+      if (!sections.has(key)) {
+        sections.set(key, []);
+        sectionOrder.push(key);
+      }
+      sections.get(key)!.push(p);
+    });
+    return sectionOrder.flatMap((k) => sections.get(k)!);
+  }, [template]);
 
   const form = useForm<QuickQuoteFormData>({
     resolver: zodResolver(quickQuoteSchema),
@@ -950,11 +967,24 @@ export default function QuickQuotePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {template.defaultProducts.map((product, idx) => {
+                {groupedProducts.map((product, idx) => {
                   const isSelected = selectedProducts.includes(product.productId || product.nome);
                   const isExpanded = expandedDescriptions.has(idx);
+                  const currSezione = product.sezione?.trim() || null;
+                  const prevSezione = idx > 0 ? (groupedProducts[idx - 1]?.sezione?.trim() || null) : null;
+                  const showSectionHeader = currSezione !== null && currSezione !== prevSezione;
 
                   return (
+                    <Fragment key={idx}>
+                      {showSectionHeader && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
+                          <span className="text-xs font-semibold uppercase tracking-wide px-1" style={{ color: primaryColor }}>
+                            {currSezione}
+                          </span>
+                          <div className="h-px flex-1" style={{ backgroundColor: `${primaryColor}33` }} />
+                        </div>
+                      )}
                     <div
                       key={idx}
                       className={`p-4 rounded-lg border transition-all ${
@@ -1020,12 +1050,6 @@ export default function QuickQuotePage() {
                             </span>
                           </div>
 
-                          {product.categoria && (
-                            <Badge variant="outline" className="text-xs mt-1">
-                              {product.categoria.replace(/_/g, ' ')}
-                            </Badge>
-                          )}
-
                           {product.descrizione && (
                             <div className="mt-1">
                               <p className={`text-sm text-gray-600 ${!isExpanded ? 'line-clamp-2' : ''}`}>
@@ -1068,6 +1092,7 @@ export default function QuickQuotePage() {
                         </div>
                       </div>
                     </div>
+                    </Fragment>
                   );
                 })}
               </CardContent>
