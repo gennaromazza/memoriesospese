@@ -4607,132 +4607,138 @@ export function createQuoteSignedEmailHTML(
   };
 
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #0d6efd; text-align: center;">✅ Contratto Firmato con Successo</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
+    <!DOCTYPE html>
+    <html lang="it">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Contratto Firmato</title>
+    </head>
+    <body style="margin:0;padding:0;background-color:#f5f0e8;">
+    <div style="font-family:'Segoe UI',Arial,sans-serif;width:100%;max-width:600px;margin:0 auto;background-color:#faf8f5;">
+
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#8b9a7d 0%,#a8c5b5 100%);padding:36px 30px;text-align:center;border-radius:12px 12px 0 0;">
+        <p style="margin:0 0 6px 0;font-size:13px;color:rgba(255,255,255,0.85);letter-spacing:2px;text-transform:uppercase;">Contratto firmato</p>
+        <h1 style="margin:0;font-size:26px;font-weight:600;color:#ffffff;letter-spacing:0.5px;">${jobName}</h1>
+      </div>
+
+      <!-- Body -->
+      <div style="background:#ffffff;padding:32px 30px;border-radius:0 0 12px 12px;box-shadow:0 4px 6px rgba(0,0,0,0.06);">
+
+        <p style="font-size:16px;color:#333;margin:0 0 8px 0;">
           Ciao <strong>${clienteName}</strong>,
         </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Il tuo preventivo per <strong style="color: #0d6efd;">${jobName}</strong> è stato firmato con successo! 
-          Grazie per la tua fiducia. 🎉
+        <p style="font-size:15px;color:#555;margin:0 0 28px 0;line-height:1.6;">
+          Il tuo contratto per <strong style="color:#8b9a7d;">${jobName}</strong> è stato firmato con successo.
+          Grazie per la tua fiducia — non vediamo l'ora di lavorare insieme!
         </p>
 
-        <div style="background: #cfe2ff; border-left: 4px solid #0d6efd; padding: 15px; margin: 20px 0;">
-          <h3 style="color: #084298; margin-top: 0; margin-bottom: 15px;">📋 Riepilogo Contratto</h3>
-          <table style="width: 100%; font-size: 14px; color: #333; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid #b6d4fe;">
-              <td style="padding: 8px 0;">Tipo preventivo:</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: bold;">${quoteType === "fisso" ? "Pacchetto Fisso" : "A Consumo"}</td>
+        <!-- Riepilogo contratto -->
+        <div style="background:#f5f0e8;border-left:4px solid #c17f59;padding:20px;margin:0 0 24px 0;border-radius:0 8px 8px 0;">
+          <h3 style="color:#c17f59;margin:0 0 14px 0;font-size:16px;">Riepilogo Contratto</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;color:#333;">
+            <tr style="border-bottom:1px solid #e8ddd0;">
+              <td style="padding:9px 0;color:#6b7d8a;">Tipo preventivo</td>
+              <td style="padding:9px 0;text-align:right;font-weight:600;">${quoteType === "fisso" ? "Pacchetto Fisso" : "A Consumo"}</td>
             </tr>
-            <tr style="border-bottom: 1px solid #b6d4fe;">
-              <td style="padding: 8px 0;">Totale selezionato:</td>
-              <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 18px; color: #0d6efd;">${formatCurrency(totaleSelezionato)}</td>
+            <tr style="border-bottom:1px solid #e8ddd0;">
+              <td style="padding:9px 0;color:#6b7d8a;">Totale contratto</td>
+              <td style="padding:9px 0;text-align:right;font-weight:700;font-size:20px;color:#c17f59;">${formatCurrency(totaleSelezionato)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0;">Data firma:</td>
-              <td style="padding: 8px 0; text-align: right;">${formatDate(signatureDate)}</td>
+              <td style="padding:9px 0;color:#6b7d8a;">Data firma</td>
+              <td style="padding:9px 0;text-align:right;">${formatDate(signatureDate)}</td>
             </tr>
           </table>
         </div>
 
-        ${
-          includedServices && includedServices.length > 0
-            ? `
-        <div style="background: #d1fae5; border-left: 4px solid #059669; padding: 15px; margin: 20px 0; border-radius: 4px;">
-          <h4 style="color: #065f46; margin-top: 0; margin-bottom: 12px;">🎁 Servizi Inclusi nel Contratto</h4>
-          ${includedServices
-            .map(
-              (name) => `
-          <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span style="color: #059669; font-size: 16px; margin-right: 8px;">✓</span>
-            <span style="color: #065f46; font-weight: bold;">${name}</span>
-            <span style="margin-left: 8px; background: #059669; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold;">INCLUSO</span>
-          </div>`,
-            )
-            .join("")}
-          <p style="margin: 12px 0 0 0; font-size: 12px; color: #065f46; font-style: italic;">
+        ${includedServices && includedServices.length > 0 ? `
+        <!-- Servizi inclusi -->
+        <div style="background:#f0f5f2;border-left:4px solid #8b9a7d;padding:20px;margin:0 0 24px 0;border-radius:0 8px 8px 0;">
+          <h4 style="color:#8b9a7d;margin:0 0 12px 0;font-size:15px;">Servizi Inclusi nel Contratto</h4>
+          ${includedServices.map(name => `
+          <div style="display:flex;align-items:center;margin-bottom:8px;gap:8px;">
+            <span style="color:#8b9a7d;font-weight:bold;font-size:15px;">&#10003;</span>
+            <span style="color:#333;font-weight:600;font-size:14px;">${name}</span>
+            <span style="background:#8b9a7d;color:white;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:0.5px;">INCLUSO</span>
+          </div>`).join("")}
+          <p style="margin:10px 0 0 0;font-size:12px;color:#6b7d8a;font-style:italic;">
             I servizi inclusi sono già compresi nell'offerta e non comportano costi aggiuntivi.
           </p>
         </div>
-        `
-            : ""
-        }
+        ` : ""}
 
-        ${
-          nextPayment
-            ? `
-        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
-          <h4 style="color: #856404; margin-top: 0; margin-bottom: 10px;">💰 Prossima Scadenza</h4>
-          <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #856404;">
+        ${nextPayment ? `
+        <!-- Prossima scadenza -->
+        <div style="background:#fdf6ee;border-left:4px solid #c17f59;padding:18px 20px;margin:0 0 24px 0;border-radius:0 8px 8px 0;">
+          <h4 style="color:#c17f59;margin:0 0 8px 0;font-size:15px;">Prossima Scadenza</h4>
+          <p style="margin:0 0 6px 0;font-size:16px;font-weight:700;color:#333;">
             ${nextPayment.descrizione}: ${formatCurrency(nextPayment.importo)}
           </p>
-          <p style="margin: 0; font-size: 14px; color: #856404;">
+          <p style="margin:0;font-size:13px;color:#6b7d8a;">
             Scadenza: ${formatDate(nextPayment.dataScadenza)}
           </p>
         </div>
-        `
-            : ""
-        }
+        ` : ""}
 
-        ${
-          payments && payments.length > 0
-            ? `
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #e0e0e0;">
-          <h4 style="color: #333; margin-top: 0; margin-bottom: 15px;">📅 Piano Pagamenti</h4>
-          <table style="width: 100%; font-size: 13px; color: #333; border-collapse: collapse;">
+        ${payments && payments.length > 0 ? `
+        <!-- Piano pagamenti -->
+        <div style="background:#faf8f5;padding:20px;border-radius:8px;margin:0 0 24px 0;border:1px solid #e8e4de;">
+          <h4 style="color:#6b7d8a;margin:0 0 14px 0;font-size:15px;">Piano Pagamenti</h4>
+          <table style="width:100%;font-size:13px;color:#333;border-collapse:collapse;">
             <thead>
-              <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                <th style="padding: 10px; text-align: left;">Descrizione</th>
-                <th style="padding: 10px; text-align: right;">Importo</th>
-                <th style="padding: 10px; text-align: right;">Scadenza</th>
+              <tr style="background:#f0ebe2;border-bottom:2px solid #e0d8cc;">
+                <th style="padding:10px 8px;text-align:left;font-weight:600;color:#6b7d8a;">Descrizione</th>
+                <th style="padding:10px 8px;text-align:right;font-weight:600;color:#6b7d8a;">Importo</th>
+                <th style="padding:10px 8px;text-align:right;font-weight:600;color:#6b7d8a;">Scadenza</th>
               </tr>
             </thead>
             <tbody>
-              ${payments
-                .map(
-                  (p, i) => `
-                <tr style="border-bottom: 1px solid #e0e0e0;">
-                  <td style="padding: 10px;">${p.descrizione}</td>
-                  <td style="padding: 10px; text-align: right; font-weight: bold;">${formatCurrency(p.importo)}</td>
-                  <td style="padding: 10px; text-align: right;">${formatDate(p.dataScadenza)}</td>
-                </tr>
-              `,
-                )
-                .join("")}
+              ${payments.map(p => `
+              <tr style="border-bottom:1px solid #ede8e0;">
+                <td style="padding:10px 8px;">${p.descrizione}</td>
+                <td style="padding:10px 8px;text-align:right;font-weight:700;color:#c17f59;">${formatCurrency(p.importo)}</td>
+                <td style="padding:10px 8px;text-align:right;color:#6b7d8a;">${formatDate(p.dataScadenza)}</td>
+              </tr>`).join("")}
             </tbody>
           </table>
         </div>
-        `
-            : ""
-        }
+        ` : ""}
 
-        <div style="text-align: center; margin: 25px 0;">
-          <a href="${portalLink}" style="display: inline-block; background-color: #0d6efd; color: white; padding: 14px 35px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
-            🔗 Visualizza Contratto e Pagamenti
+        <!-- CTA -->
+        <div style="text-align:center;margin:28px 0;">
+          <a href="${portalLink}" style="display:inline-block;background:#8b9a7d;color:#ffffff;padding:16px 40px;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;letter-spacing:0.5px;">
+            Visualizza il tuo Contratto
           </a>
         </div>
 
-        <div style="background: #d1ecf1; border-left: 4px solid #0dcaf0; padding: 15px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #055160;">
-            <strong>💡 Portale Cliente</strong><br>
-            Puoi visualizzare il contratto firmato, lo stato dei pagamenti e tutti i dettagli del tuo servizio 
+        <!-- Nota portale -->
+        <div style="background:#f5f0e8;padding:16px 20px;border-radius:8px;margin:0 0 20px 0;border:1px solid #e8ddd0;">
+          <p style="margin:0;font-size:13px;color:#6b7d8a;line-height:1.6;">
+            <strong style="color:#555;">Portale Cliente</strong><br>
+            Puoi visualizzare il contratto firmato, lo stato dei pagamenti e tutti i dettagli del servizio
             accedendo al portale tramite il link qui sopra. Salvalo tra i preferiti!
           </p>
         </div>
 
-        <p style="font-size: 16px; margin-top: 20px;">
-          A presto! ❤️
+        <p style="font-size:15px;color:#555;margin:24px 0 0 0;">
+          A presto,<br>
+          <strong style="color:#8b9a7d;">${studio.name}</strong>
         </p>
       </div>
 
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
-        ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">WhatsApp: ${studio.phone}</p>
+      <!-- Footer -->
+      <div style="text-align:center;color:#6b7d8a;font-size:12px;padding:24px 20px 30px;border-top:1px solid #e8e4de;">
+        <p style="margin:4px 0;font-weight:600;color:#555;">${studio.name}</p>
+        ${studio.address ? `<p style="margin:4px 0;">${studio.address}</p>` : ""}
+        <p style="margin:4px 0;">Email: ${studio.email}</p>
+        <p style="margin:4px 0;">Tel: ${studio.phone}</p>
       </div>
+
     </div>
+    </body>
+    </html>
   `;
 }
 
