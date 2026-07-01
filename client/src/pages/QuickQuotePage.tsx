@@ -771,9 +771,16 @@ export default function QuickQuotePage() {
                           Abbiamo inviato un codice a 6 cifre a:
                         </p>
                         <p className="font-semibold text-gray-900 break-all">{form.getValues('email')}</p>
-                        <p className="text-xs text-gray-500 mt-1">Controlla anche la cartella spam se non lo trovi.</p>
                       </>
                     )}
+                  </div>
+
+                  {/* Avviso spam — sempre visibile */}
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <span className="mt-0.5 text-base leading-none">⚠️</span>
+                    <span>
+                      <strong>Non trovi la mail?</strong> Controlla la cartella <strong>Spam</strong> o <strong>Posta indesiderata</strong> — le email con codice vengono a volte filtrate automaticamente.
+                    </span>
                   </div>
 
                   <div className="space-y-2">
