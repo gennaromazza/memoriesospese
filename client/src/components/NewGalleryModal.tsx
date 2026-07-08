@@ -43,6 +43,8 @@ import { createAbsoluteUrl } from "@/lib/basePath";
 import { getClienteByEmail, getClienteById } from "@/lib/clienti";
 import { getAllJobs } from "@/lib/jobs";
 import type { Job } from "@shared/jobs-types";
+import { getActiveJobTypes } from "@/lib/job-types";
+import type { JobTypeFE } from "@shared/job-types";
 import { Link2 } from "lucide-react";
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
@@ -173,6 +175,11 @@ export default function NewGalleryModal({
   const [autoAddedClientIds, setAutoAddedClientIds] = useState<string[]>([]);
   // Track quale jobId da prePopulate è già stato applicato (evita ri-applicazioni)
   const [jobPrefillApplied, setJobPrefillApplied] = useState<string | null>(null);
+  // Categoria / Tipo Evento della galleria (slug jobType, 'none' = nessuna categoria)
+  const [jobType, setJobType] = useState<string>('none');
+  // true se la categoria è stata impostata automaticamente dal job (rimossa alla deselezione se non modificata)
+  const [jobTypeAutoSet, setJobTypeAutoSet] = useState(false);
+  const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
 
   // Multi-product selection support (NEW: array for multiple products)
   const [selectedProductIndices, setSelectedProductIndices] = useState<
@@ -339,9 +346,10 @@ export default function NewGalleryModal({
     }
   }, [prePopulate, clienteIdInitialized]);
 
-  // Carica tutti i job disponibili una sola volta
+  // Carica tutti i job e i job types disponibili una sola volta
   useEffect(() => {
     getAllJobs().then(setAvailableJobs).catch(console.error);
+    getActiveJobTypes().then(setJobTypes).catch(console.error);
   }, []);
 
   // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
@@ -354,6 +362,17 @@ export default function NewGalleryModal({
     setJobId(j.id);
     setJobSearch('');
     setJobDropdownOpen(false);
+    // Auto-imposta la categoria dal job, senza sovrascrivere una scelta manuale dell'utente
+    if (jobType === 'none' || jobTypeAutoSet) {
+      if (j.jobType) {
+        setJobType(j.jobType);
+        setJobTypeAutoSet(true);
+      } else if (jobTypeAutoSet) {
+        // Job senza tipo: rimuovi la categoria auto-impostata da un job precedente
+        setJobType('none');
+        setJobTypeAutoSet(false);
+      }
+    }
     const jobClients = getJobClientIds(j);
     const toAdd = jobClients.filter(id => !clientiIds.includes(id));
     setAutoAddedClientIds(toAdd);
@@ -377,6 +396,17 @@ export default function NewGalleryModal({
       setClientiIds(prev => prev.filter(id => !autoAddedClientIds.includes(id)));
     }
     setAutoAddedClientIds([]);
+    // Rimuovi la categoria solo se era stata auto-impostata dal job (non modificata dall'utente)
+    if (jobTypeAutoSet) {
+      setJobType('none');
+      setJobTypeAutoSet(false);
+    }
+  };
+
+  // Cambio manuale della categoria: da qui in poi non viene più toccata automaticamente
+  const handleJobTypeChange = (value: string) => {
+    setJobType(value);
+    setJobTypeAutoSet(false);
   };
 
   // Prefill job da prePopulate.jobId (una sola volta per jobId, quando i job sono caricati)
@@ -620,6 +650,11 @@ export default function NewGalleryModal({
         galleryData.jobId = jobId;
       }
 
+      // Add gallery category (jobType slug)
+      if (jobType !== 'none') {
+        galleryData.jobType = jobType;
+      }
+
       // Use GalleryService instead of direct Firestore write
       const { GalleryService } = await import("@/lib/galleries");
       const newGalleryId = await GalleryService.createGallery(galleryData);
@@ -837,6 +872,8 @@ export default function NewGalleryModal({
       setRequiredPhotoCount(0);
       setSelectionDeadline("");
       setProduct(null);
+      setJobType("none");
+      setJobTypeAutoSet(false);
 
       onGalleryCreated?.(newGalleryId, code);
       onClose();
@@ -1023,6 +1060,29 @@ export default function NewGalleryModal({
                 </div>
               )}
               <p className="text-xs text-muted-foreground">Il collegamento aggiorna automaticamente il lavoro</p>
+            </div>
+
+            {/* Categoria / Tipo Evento */}
+            <div className="space-y-2">
+              <Label htmlFor="gallery-jobtype">Categoria / Tipo Evento</Label>
+              <Select value={jobType} onValueChange={handleJobTypeChange}>
+                <SelectTrigger id="gallery-jobtype" data-testid="select-gallery-jobtype">
+                  <SelectValue placeholder="Seleziona categoria..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Nessuna categoria —</SelectItem>
+                  {jobTypes.map(t => (
+                    <SelectItem key={t.slug} value={t.slug}>{t.icona ? `${t.icona} ` : ''}{t.nome}</SelectItem>
+                  ))}
+                  {/* Fallback: slug del job non presente tra i job types attivi */}
+                  {jobType !== 'none' && !jobTypes.some(t => t.slug === jobType) && (
+                    <SelectItem value={jobType}>{jobType}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Si compila automaticamente dal lavoro collegato; usata per filtrare le gallerie per categoria
+              </p>
             </div>
 
             {/* Password Field - Hidden if special theme is selected */}
