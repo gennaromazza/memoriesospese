@@ -73,6 +73,7 @@ interface PhotoData {
   uploaderRole?: string;
   uploadedBy?: 'admin' | 'guest' | 'legacy';
   contentHash?: string;
+  thumbnailUrl?: string;
 }
 
 interface GalleryType {
@@ -703,6 +704,36 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     getActiveJobTypes().then(types => setJobTypes(types)).catch(console.error);
     getAllJobs().then(jobs => setAvailableJobs(jobs)).catch(console.error);
   }, [isOpen]);
+
+  // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
+  const getJobClientIds = (j: Job): string[] =>
+    [...new Set([...(j.clientiIds || []), ...(j.clienteId ? [j.clienteId] : [])])];
+
+  // Job suggeriti in base ai clienti associati alla galleria (ordinamento dropdown)
+  const isClientJob = (j: Job): boolean =>
+    clientiIds.length > 0 && getJobClientIds(j).some(id => clientiIds.includes(id));
+
+  // Selezione job dal dropdown: auto-compila categoria e clienti mancanti
+  const handleSelectJobInEdit = (j: Job) => {
+    setJobId(j.id);
+    setJobSearch('');
+    setJobDropdownOpen(false);
+    // Auto-imposta la categoria dal job se non ancora impostata
+    if (jobType === 'none' && j.jobType) {
+      setJobType(j.jobType);
+    }
+    // Aggiungi i clienti del job non ancora associati alla galleria
+    const toAdd = getJobClientIds(j).filter(id => !clientiIds.includes(id));
+    if (toAdd.length > 0) {
+      setClientiIds(prev => [...prev, ...toAdd.filter(id => !prev.includes(id))]);
+      toast({
+        title: toAdd.length === 1
+          ? "Cliente del lavoro aggiunto"
+          : `${toAdd.length} clienti del lavoro aggiunti`,
+        description: "Premi \"Aggiorna\" per salvare collegamento e clienti",
+      });
+    }
+  };
 
   // Funzione helper per comprimere immagini
   const compressImage = async (file: File): Promise<File> => {
@@ -2263,12 +2294,31 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                     if (!gallery) return;
                     setIsSavingJobLink(true);
                     try {
+                      const addedClienti = clientiIds.filter(id => !originalClientiIds.includes(id));
+                      const removedClienti = originalClientiIds.filter(id => !clientiIds.includes(id));
+                      const clientiChanged = addedClienti.length > 0 || removedClienti.length > 0;
                       const galleryRef = doc(db, 'galleries', gallery.id);
                       await updateDoc(galleryRef, {
                         jobType: jobType !== 'none' ? jobType : null,
                         jobId: jobId || null,
+                        ...(clientiChanged ? {
+                          clienteId: clientiIds[0] || null,
+                          clientiIds: clientiIds.length > 0 ? clientiIds : null,
+                        } : {}),
                         updatedAt: serverTimestamp()
                       });
+                      // Sync sourceRefs sui clienti (aggiunti automaticamente dal collegamento job)
+                      if (clientiChanged) {
+                        const clientePromises: Promise<void>[] = [];
+                        for (const removedId of removedClienti) {
+                          clientePromises.push(updateDoc(doc(db, 'clienti', removedId), { 'sourceRefs.galleryIds': arrayRemove(gallery.id) }));
+                        }
+                        for (const addedId of addedClienti) {
+                          clientePromises.push(updateDoc(doc(db, 'clienti', addedId), { 'sourceRefs.galleryIds': arrayUnion(gallery.id) }));
+                        }
+                        if (clientePromises.length > 0) await Promise.all(clientePromises);
+                        setOriginalClientiIds([...clientiIds]);
+                      }
                       // Sync galleryIds sui job
                       if (jobId !== originalJobId) {
                         const syncPromises: Promise<void>[] = [];
@@ -2341,33 +2391,64 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                         value={jobSearch}
                         onChange={e => { setJobSearch(e.target.value); setJobDropdownOpen(true); }}
                         onFocus={() => setJobDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setJobDropdownOpen(false), 200)}
                         className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                       />
-                      {jobDropdownOpen && jobSearch.length > 0 && (
-                        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-36 overflow-y-auto rounded-md border bg-white shadow-md">
-                          {availableJobs
-                            .filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase()))
-                            .slice(0, 6)
-                            .map(j => (
+                      {jobDropdownOpen && (jobSearch.length > 0 || availableJobs.some(isClientJob)) && (() => {
+                        const matchesSearch = (j: Job) =>
+                          !jobSearch || j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase());
+                        const clientJobs = availableJobs.filter(j => isClientJob(j) && matchesSearch(j));
+                        const otherJobs = jobSearch.length > 0
+                          ? availableJobs.filter(j => !isClientJob(j) && matchesSearch(j))
+                          : [];
+                        const shown = [...clientJobs, ...otherJobs].slice(0, 8);
+                        return (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-md border bg-white shadow-md">
+                            {clientJobs.length > 0 && (
+                              <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-sage">
+                                Lavori dei clienti associati
+                              </p>
+                            )}
+                            {shown.map(j => (
                               <button
                                 key={j.id}
                                 type="button"
-                                className="flex w-full items-start px-3 py-2 text-left text-sm hover:bg-accent"
-                                onClick={() => {
-                                  setJobId(j.id);
-                                  setJobSearch('');
-                                  setJobDropdownOpen(false);
-                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+                                onMouseDown={() => handleSelectJobInEdit(j)}
                               >
-                                <span className="font-medium">{j.nomeEvento}</span>
-                                {j.jobType && <span className="ml-2 text-xs text-muted-foreground">({j.jobType})</span>}
+                                <span className="font-medium truncate">{j.nomeEvento}</span>
+                                {isClientJob(j) && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-sage/15 text-sage border border-sage/30 flex-shrink-0">
+                                    Cliente
+                                  </span>
+                                )}
+                                {j.jobType && <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">({j.jobType})</span>}
                               </button>
                             ))}
-                          {availableJobs.filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase())).length === 0 && (
-                            <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
-                          )}
-                        </div>
-                      )}
+                            {shown.length === 0 && (
+                              <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {!jobId && availableJobs.some(isClientJob) && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-sage">Lavori dei clienti associati</p>
+                      {availableJobs.filter(isClientJob).slice(0, 2).map(j => (
+                        <button
+                          key={j.id}
+                          type="button"
+                          onClick={() => handleSelectJobInEdit(j)}
+                          className="flex w-full items-center gap-2 rounded-md border border-sage/30 bg-sage/5 px-2.5 py-1.5 text-left text-xs hover:bg-sage/15"
+                          data-testid={`button-suggested-job-${j.id}`}
+                        >
+                          <Link2 className="h-3 w-3 text-sage flex-shrink-0" />
+                          <span className="font-medium truncate">{j.nomeEvento}</span>
+                          <span className="ml-auto text-sage font-semibold flex-shrink-0">Collega</span>
+                        </button>
+                      ))}
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">Il collegamento aggiorna automaticamente il job</p>
