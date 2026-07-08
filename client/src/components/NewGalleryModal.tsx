@@ -179,6 +179,8 @@ export default function NewGalleryModal({
   const [jobType, setJobType] = useState<string>('none');
   // true se la categoria è stata impostata automaticamente dal job (rimossa alla deselezione se non modificata)
   const [jobTypeAutoSet, setJobTypeAutoSet] = useState(false);
+  // true se l'utente ha toccato manualmente la categoria (anche "Nessuna"): stop a ogni autocompilazione
+  const [jobTypeManual, setJobTypeManual] = useState(false);
   const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
 
   // Multi-product selection support (NEW: array for multiple products)
@@ -346,11 +348,12 @@ export default function NewGalleryModal({
     }
   }, [prePopulate, clienteIdInitialized]);
 
-  // Carica tutti i job e i job types disponibili una sola volta
+  // Carica job e job types quando il modal si apre (non al mount: auth potrebbe non essere pronta)
   useEffect(() => {
+    if (!isOpen) return;
     getAllJobs().then(setAvailableJobs).catch(console.error);
     getActiveJobTypes().then(setJobTypes).catch(console.error);
-  }, []);
+  }, [isOpen]);
 
   // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
   const getJobClientIds = (j: Job): string[] => {
@@ -363,7 +366,7 @@ export default function NewGalleryModal({
     setJobSearch('');
     setJobDropdownOpen(false);
     // Auto-imposta la categoria dal job, senza sovrascrivere una scelta manuale dell'utente
-    if (jobType === 'none' || jobTypeAutoSet) {
+    if (!jobTypeManual && (jobType === 'none' || jobTypeAutoSet)) {
       if (j.jobType) {
         setJobType(j.jobType);
         setJobTypeAutoSet(true);
@@ -407,7 +410,31 @@ export default function NewGalleryModal({
   const handleJobTypeChange = (value: string) => {
     setJobType(value);
     setJobTypeAutoSet(false);
+    setJobTypeManual(true);
   };
+
+  // Auto-riconosci la categoria dal nome dell'evento (es. "Matrimonio Anna e Marco" → matrimonio)
+  // Attivo solo senza job collegato (il tipo del job ha priorità) e senza scelta manuale dell'utente
+  useEffect(() => {
+    if (jobId || jobTypeManual) return;
+    if (jobType !== 'none' && !jobTypeAutoSet) return;
+    const lower = name.toLowerCase();
+    const match = lower.trim()
+      ? jobTypes.find(t =>
+          (t.nome && lower.includes(t.nome.toLowerCase())) ||
+          (t.slug && lower.includes(t.slug.toLowerCase()))
+        )
+      : undefined;
+    if (match) {
+      if (jobType !== match.slug) {
+        setJobType(match.slug);
+        setJobTypeAutoSet(true);
+      }
+    } else if (jobTypeAutoSet) {
+      setJobType('none');
+      setJobTypeAutoSet(false);
+    }
+  }, [name, jobTypes, jobId, jobType, jobTypeAutoSet, jobTypeManual]);
 
   // Prefill job da prePopulate.jobId (una sola volta per jobId, quando i job sono caricati)
   useEffect(() => {
@@ -874,6 +901,7 @@ export default function NewGalleryModal({
       setProduct(null);
       setJobType("none");
       setJobTypeAutoSet(false);
+      setJobTypeManual(false);
 
       onGalleryCreated?.(newGalleryId, code);
       onClose();

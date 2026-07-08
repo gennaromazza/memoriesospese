@@ -13,6 +13,7 @@
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
 - [Job denormalized aggregates](job-denormalized-aggregates.md) — quoteStatus/transactionCount da ricalcolare sui write-path; financials.totalePagato/saldoResiduo STALE → incassi reali da paymentSchedules.importoPagato.
+- [Caricamento dati nei modal](modal-data-load-on-open.md) — modal sempre montati: fetch Firestore gated su isOpen, non al mount (auth non pronta → liste vuote silenziose).
 - [Quote product grouping](quote-product-sezione-grouping.md) — le viste cliente raggruppano i prodotti per `sezione` (algoritmo groupItems di ProductOrderEditor); `categoria` è un tag separato da NON mostrare.
 - [Google all-day events are transparent](google-allday-transparency.md) — gli all-day Google nascono transparency:'transparent'; un filtro "Libero" deve esentare gli all-day o i blocchi giornata spariscono dalla disponibilità.
 - [Dev Workflow: no server hot-reload](dev-workflow-no-server-watch.md) — `tsx server/index.ts` senza watch: le modifiche server NON si ricaricano, serve restart_workflow; solo il client (Vite) fa hot-reload.
