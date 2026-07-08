@@ -465,4 +465,153 @@ router.post('/backfill-photo-dates', authenticateFirebase, async (req: any, res)
   }
 });
 
+/**
+ * Analizza le gallerie e classifica quali possono ereditare il jobType dal
+ * lavoro collegato. Logica condivisa tra preview (dry-run) e backfill.
+ */
+async function analyzeGalleryJobTypes() {
+  // Pre-carica i jobType di tutti i lavori
+  const jobsSnapshot = await db.collection('jobs').select('jobType').get();
+  const jobTypeMap = new Map<string, string | null>();
+  jobsSnapshot.docs.forEach(doc => {
+    const jt = doc.data().jobType;
+    jobTypeMap.set(doc.id, typeof jt === 'string' && jt.trim() !== '' ? jt : null);
+  });
+
+  const galleriesSnapshot = await db.collection('galleries').select('jobId', 'jobType', 'name').get();
+
+  const toUpdate: Array<{ ref: FirebaseFirestore.DocumentReference; nome: string; jobType: string }> = [];
+  const stats = {
+    galleriesTotal: galleriesSnapshot.docs.length,
+    alreadyCategorized: 0,
+    withoutJobId: 0,
+    jobMissing: 0,
+    jobWithoutType: 0,
+    toUpdate: 0,
+  };
+
+  for (const doc of galleriesSnapshot.docs) {
+    const data = doc.data();
+    const hasJobType = typeof data.jobType === 'string' && data.jobType.trim() !== '';
+    if (hasJobType) {
+      stats.alreadyCategorized++;
+      continue;
+    }
+    const jobId = typeof data.jobId === 'string' && data.jobId.trim() !== '' ? data.jobId : null;
+    if (!jobId) {
+      stats.withoutJobId++;
+      continue;
+    }
+    if (!jobTypeMap.has(jobId)) {
+      stats.jobMissing++;
+      continue;
+    }
+    const jobType = jobTypeMap.get(jobId);
+    if (!jobType) {
+      stats.jobWithoutType++;
+      continue;
+    }
+    toUpdate.push({ ref: doc.ref, nome: data.name || 'Senza nome', jobType });
+  }
+
+  stats.toUpdate = toUpdate.length;
+  return { stats, toUpdate };
+}
+
+/**
+ * GET /api/migrations/backfill-gallery-jobtypes/preview
+ * Dry-run: conta quante gallerie con `jobId` ma senza `jobType` possono
+ * ereditare la categoria dal lavoro collegato. Solo admin autorizzati.
+ */
+router.get('/backfill-gallery-jobtypes/preview', authenticateFirebase, async (req: any, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token mancante' });
+    }
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
+      return res.status(403).json({ error: 'Non autorizzato - solo admin' });
+    }
+
+    console.log('📋 [Gallery JobType Preview] Analisi gallerie senza categoria...');
+    const { stats, toUpdate } = await analyzeGalleryJobTypes();
+
+    console.log('✅ [Gallery JobType Preview] Risultato:', stats);
+    res.json({
+      ...stats,
+      galleries: toUpdate.map(g => ({ id: g.ref.id, nome: g.nome, jobType: g.jobType })),
+    });
+  } catch (error) {
+    console.error('❌ [Gallery JobType Preview] Errore:', error);
+    res.status(500).json({
+      error: 'Errore durante la preview',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/migrations/backfill-gallery-jobtypes
+ * Backfill idempotente: per ogni galleria con `jobId` e senza `jobType`,
+ * copia il `jobType` (slug) del lavoro collegato. Non tocca le gallerie già
+ * categorizzate né quelle il cui lavoro manca o non ha tipo. Solo admin.
+ */
+router.post('/backfill-gallery-jobtypes', authenticateFirebase, async (req: any, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Token mancante' });
+    }
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await getAuth().verifyIdToken(token);
+    if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
+      return res.status(403).json({ error: 'Non autorizzato - solo admin' });
+    }
+
+    console.log('🚀 [Gallery JobType Backfill] Inizio backfill categoria gallerie...');
+    const { stats, toUpdate } = await analyzeGalleryJobTypes();
+
+    const BATCH_LIMIT = 400;
+    let batch = db.batch();
+    let opsInBatch = 0;
+    let updated = 0;
+
+    for (const item of toUpdate) {
+      batch.update(item.ref, { jobType: item.jobType, updatedAt: Timestamp.now() });
+      updated++;
+      opsInBatch++;
+      if (opsInBatch >= BATCH_LIMIT) {
+        await batch.commit();
+        batch = db.batch();
+        opsInBatch = 0;
+      }
+    }
+    if (opsInBatch > 0) await batch.commit();
+
+    const result = {
+      galleriesTotal: stats.galleriesTotal,
+      updated,
+      skippedAlreadyCategorized: stats.alreadyCategorized,
+      skippedWithoutJobId: stats.withoutJobId,
+      skippedJobMissing: stats.jobMissing,
+      skippedJobWithoutType: stats.jobWithoutType,
+    };
+
+    console.log('🎉 [Gallery JobType Backfill] Completato!', result);
+    res.json({
+      success: true,
+      message: 'Backfill categoria gallerie completato',
+      stats: result,
+    });
+  } catch (error) {
+    console.error('❌ [Gallery JobType Backfill] Errore:', error);
+    res.status(500).json({
+      error: 'Errore durante il backfill',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 export default router;
