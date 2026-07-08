@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery, useQueries, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, User, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, MoreVertical, Edit, Trash2, FileText, Download, Calendar as CalendarIcon, Send, CheckCircle, Activity, Eye, CalendarPlus, Mail, MessageCircle, Clock, User, UserPlus, CalendarRange, Image, FolderOpen, EyeOff, HelpCircle, Star, ClipboardList, Plus } from 'lucide-react';
+import NewGalleryModal from '@/components/NewGalleryModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +106,7 @@ export default function JobDetailPage() {
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [expandedQuoteId, setExpandedQuoteId] = useState<string | null>(null);
   const [generaPagamentiQuoteId, setGeneraPagamentiQuoteId] = useState<string | null>(null);
+  const [showNewGalleryModal, setShowNewGalleryModal] = useState(false);
 
   // Calendar event modal state
   const [showCalendarDialog, setShowCalendarDialog] = useState(false);
@@ -412,6 +414,16 @@ export default function JobDetailPage() {
     queryFn: () => getJob(jobId!),
     enabled: !!jobId
   });
+
+  // Prefill per NewGalleryModal (memoizzato: un oggetto inline ri-eseguirebbe l'init effect del modal)
+  const galleryPrePopulate = useMemo(() => {
+    const d = job ? convertFirestoreTimestamp(job.eventDate) : null;
+    return {
+      jobId: job?.id || '',
+      name: job?.nomeEvento || '',
+      date: d ? format(d, 'yyyy-MM-dd') : '',
+    };
+  }, [job]);
 
   // Fetch timeline events for activity section
   const { data: timelineEvents = [] } = useQuery<JobTimelineEvent[]>({
@@ -1239,6 +1251,15 @@ export default function JobDetailPage() {
                     <Image className="h-5 w-5 text-blue-600" />
                     Gallerie Associate
                     <Badge variant="outline" className="ml-auto">{linkedGalleries.length}</Badge>
+                    <Button
+                      size="sm"
+                      className="bg-sage hover:bg-sage/90 text-white"
+                      onClick={() => setShowNewGalleryModal(true)}
+                      data-testid="button-create-gallery-from-job-page"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Crea Galleria
+                    </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">
@@ -1638,6 +1659,19 @@ export default function JobDetailPage() {
         onClose={() => setEditModalOpen(false)}
         job={job}
       />
+
+      {/* Crea Galleria dal Job */}
+      {showNewGalleryModal && (
+        <NewGalleryModal
+          isOpen={showNewGalleryModal}
+          onClose={() => setShowNewGalleryModal(false)}
+          prePopulate={galleryPrePopulate}
+          onGalleryCreated={() => {
+            loadLinkedGalleries();
+            queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+          }}
+        />
+      )}
 
       {/* Edit Cliente Modal */}
       {editingCliente && (

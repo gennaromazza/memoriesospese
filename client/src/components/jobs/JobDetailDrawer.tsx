@@ -3,7 +3,7 @@
  * Drawer completo dettagli lavoro con tutte le sezioni
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -50,6 +50,8 @@ import {
   Loader2,
   ClipboardList,
 } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import NewGalleryModal from '@/components/NewGalleryModal';
 import InfoFormJobSection from './InfoFormJobSection';
 import ConsultationVisioneSection from './ConsultationVisioneSection';
 import OperationalTracksSection from './operativo/OperationalTracksSection';
@@ -89,12 +91,13 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
   const { toast } = useToast();
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [quoteBuilderOpen, setQuoteBuilderOpen] = useState(false);
+  const [showNewGalleryModal, setShowNewGalleryModal] = useState(false);
 
   // Gallerie collegate al job
   const [linkedGalleries, setLinkedGalleries] = useState<Array<{id: string; name: string; code: string; date?: string; photoCount?: number; jobType?: string}>>([]);
   const [loadingGalleries, setLoadingGalleries] = useState(false);
 
-  useEffect(() => {
+  const loadLinkedGalleries = () => {
     if (!jobId) return;
     setLoadingGalleries(true);
     const q = query(collection(db, 'galleries'), where('jobId', '==', jobId));
@@ -108,13 +111,22 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
         jobType: d.data().jobType
       })));
     }).catch(console.error).finally(() => setLoadingGalleries(false));
-  }, [jobId]);
+  };
+
+  useEffect(() => { loadLinkedGalleries(); }, [jobId]);
   
   // Queries
   const { data: job, isLoading } = useQuery({
     queryKey: ['jobs', jobId],
     queryFn: () => getJob(jobId)
   });
+
+  // Prefill per NewGalleryModal (memoizzato: un oggetto inline ri-eseguirebbe l'init effect del modal)
+  const galleryPrePopulate = useMemo(() => ({
+    jobId,
+    name: job?.nomeEvento || '',
+    date: job?.eventDate ? format(job.eventDate.toDate(), 'yyyy-MM-dd') : '',
+  }), [jobId, job?.nomeEvento, job?.eventDate]);
   
   const { data: timeline = [] } = useQuery({
     queryKey: ['job-timeline', jobId],
@@ -641,8 +653,19 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
             {/* Gallerie */}
             <TabsContent value="gallerie" className="space-y-3">
               <div className="flex items-center justify-between mb-1">
-                <h3 className="text-sm font-semibold text-gray-700">Gallerie Collegate</h3>
-                <Badge variant="outline">{linkedGalleries.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-700">Gallerie Collegate</h3>
+                  <Badge variant="outline">{linkedGalleries.length}</Badge>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-sage hover:bg-sage/90 text-white"
+                  onClick={() => setShowNewGalleryModal(true)}
+                  data-testid="button-create-gallery-from-job"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Crea Galleria
+                </Button>
               </div>
               {loadingGalleries ? (
                 <div className="text-sm text-muted-foreground py-4 text-center">Caricamento gallerie…</div>
@@ -706,6 +729,19 @@ export default function JobDetailDrawer({ jobId, onClose }: JobDetailDrawerProps
           jobTypeSlug={job.jobType}
           open={quoteBuilderOpen}
           onClose={() => setQuoteBuilderOpen(false)}
+        />
+      )}
+
+      {/* Crea Galleria dal Job */}
+      {showNewGalleryModal && job && (
+        <NewGalleryModal
+          isOpen={showNewGalleryModal}
+          onClose={() => setShowNewGalleryModal(false)}
+          prePopulate={galleryPrePopulate}
+          onGalleryCreated={() => {
+            loadLinkedGalleries();
+            queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+          }}
         />
       )}
     </Sheet>

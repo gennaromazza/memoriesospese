@@ -112,6 +112,7 @@ interface NewGalleryModalProps {
     specialTheme?: string; // Auto-populated from campaign.temaStagionale
     specialPin?: string;
     bookingId?: string; // Link to booking (for integration)
+    jobId?: string; // Job ID to pre-select the linked job (auto-adds job clients)
     clienteId?: string; // Client ID for direct association and notifications
     prodottoId?: string; // Product ID to fetch data and auto-populate selection settings (legacy single product)
     prodottoNome?: string; // Custom product name (se prodotto non in catalogo)
@@ -168,6 +169,10 @@ export default function NewGalleryModal({
   const [jobSearch, setJobSearch] = useState('');
   const [jobDropdownOpen, setJobDropdownOpen] = useState(false);
   const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
+  // Clienti aggiunti automaticamente dal job selezionato (rimossi se il job viene deselezionato)
+  const [autoAddedClientIds, setAutoAddedClientIds] = useState<string[]>([]);
+  // Track quale jobId da prePopulate è già stato applicato (evita ri-applicazioni)
+  const [jobPrefillApplied, setJobPrefillApplied] = useState<string | null>(null);
 
   // Multi-product selection support (NEW: array for multiple products)
   const [selectedProductIndices, setSelectedProductIndices] = useState<
@@ -338,6 +343,59 @@ export default function NewGalleryModal({
   useEffect(() => {
     getAllJobs().then(setAvailableJobs).catch(console.error);
   }, []);
+
+  // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
+  const getJobClientIds = (j: Job): string[] => {
+    return [...new Set([...(j.clientiIds || []), ...(j.clienteId ? [j.clienteId] : [])])];
+  };
+
+  // Seleziona un job e auto-aggiunge i suoi clienti (senza duplicati)
+  const handleSelectJob = (j: Job, options?: { silent?: boolean }) => {
+    setJobId(j.id);
+    setJobSearch('');
+    setJobDropdownOpen(false);
+    const jobClients = getJobClientIds(j);
+    const toAdd = jobClients.filter(id => !clientiIds.includes(id));
+    setAutoAddedClientIds(toAdd);
+    if (toAdd.length > 0) {
+      setClientiIds([...clientiIds, ...toAdd]);
+      if (!options?.silent) {
+        toast.success(
+          toAdd.length === 1
+            ? "Cliente del lavoro aggiunto automaticamente"
+            : `${toAdd.length} clienti del lavoro aggiunti automaticamente`
+        );
+      }
+    }
+  };
+
+  // Deseleziona il job e rimuove i clienti che erano stati auto-aggiunti
+  const handleClearJob = () => {
+    setJobId('');
+    setJobSearch('');
+    if (autoAddedClientIds.length > 0) {
+      setClientiIds(prev => prev.filter(id => !autoAddedClientIds.includes(id)));
+    }
+    setAutoAddedClientIds([]);
+  };
+
+  // Prefill job da prePopulate.jobId (una sola volta per jobId, quando i job sono caricati)
+  useEffect(() => {
+    if (!isOpen || !prePopulate?.jobId) return;
+    if (jobPrefillApplied === prePopulate.jobId) return;
+    const j = availableJobs.find(x => x.id === prePopulate.jobId);
+    if (j) {
+      handleSelectJob(j, { silent: true });
+      setJobPrefillApplied(prePopulate.jobId);
+    } else if (availableJobs.length === 0) {
+      // Job non ancora caricati: imposta almeno il jobId, i clienti verranno aggiunti quando disponibili
+      setJobId(prePopulate.jobId);
+    }
+  }, [isOpen, prePopulate?.jobId, availableJobs, jobPrefillApplied]);
+
+  // Job suggeriti in base ai clienti selezionati (per ordinamento dropdown)
+  const isClientJob = (j: Job): boolean =>
+    clientiIds.length > 0 && getJobClientIds(j).some(id => clientiIds.includes(id));
 
   // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -909,7 +967,7 @@ export default function NewGalleryModal({
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    onClick={() => { setJobId(''); setJobSearch(''); }}
+                    onClick={handleClearJob}
                   >
                     ✕
                   </Button>
@@ -925,27 +983,43 @@ export default function NewGalleryModal({
                     className="text-sm"
                     autoComplete="off"
                   />
-                  {jobDropdownOpen && jobSearch.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                      {availableJobs
-                        .filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase()))
-                        .slice(0, 10)
-                        .map(j => (
+                  {jobDropdownOpen && (jobSearch.length > 0 || availableJobs.some(isClientJob)) && (() => {
+                    const matchesSearch = (j: Job) =>
+                      !jobSearch || j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase());
+                    const clientJobs = availableJobs.filter(j => isClientJob(j) && matchesSearch(j));
+                    const otherJobs = jobSearch.length > 0
+                      ? availableJobs.filter(j => !isClientJob(j) && matchesSearch(j))
+                      : [];
+                    const shown = [...clientJobs, ...otherJobs].slice(0, 10);
+                    return (
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        {clientJobs.length > 0 && (
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-sage">
+                            Lavori dei clienti selezionati
+                          </p>
+                        )}
+                        {shown.map(j => (
                           <button
                             key={j.id}
                             type="button"
                             className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2"
-                            onMouseDown={() => { setJobId(j.id); setJobSearch(''); setJobDropdownOpen(false); }}
+                            onMouseDown={() => handleSelectJob(j)}
                           >
                             <span className="font-medium truncate">{j.nomeEvento}</span>
+                            {isClientJob(j) && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sage/15 text-sage border border-sage/30 flex-shrink-0">
+                                Cliente
+                              </span>
+                            )}
                             {j.jobType && <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">({j.jobType})</span>}
                           </button>
                         ))}
-                      {availableJobs.filter(j => j.nomeEvento?.toLowerCase().includes(jobSearch.toLowerCase())).length === 0 && (
-                        <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
-                      )}
-                    </div>
-                  )}
+                        {shown.length === 0 && (
+                          <p className="px-3 py-2 text-xs text-muted-foreground">Nessun lavoro trovato</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               <p className="text-xs text-muted-foreground">Il collegamento aggiorna automaticamente il lavoro</p>
