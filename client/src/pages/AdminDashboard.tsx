@@ -28,6 +28,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -155,6 +157,10 @@ import TodayJobsSummary from "@/components/admin/TodayJobsSummary";
 import BulkEmailSender from "./BulkEmailSender";
 import QuoteTemplatesManager from "@/components/quotes/QuoteTemplatesManager";
 import { AdminCommandPalette } from "@/components/admin/AdminCommandPalette";
+import {
+  ADMIN_NAV_GROUPS,
+  type NavTarget,
+} from "@/components/admin/adminNavigation";
 import OspitiQrCard from "@/components/admin/OspitiQrCard";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(
@@ -1464,6 +1470,36 @@ export default function AdminDashboard() {
     }
   };
 
+  // Navigazione unificata: usata dalla barra menu e dalla Command Palette
+  const navigateToTarget = (target: NavTarget) => {
+    if (target.href) {
+      if (target.newTab) {
+        window.open(target.href, "_blank");
+      } else {
+        navigate(target.href);
+      }
+      return;
+    }
+    if (target.tab) {
+      setActiveTab(target.tab as any);
+    }
+    if (target.bookingSection) {
+      setActiveBookingSection(target.bookingSection as any);
+    }
+    if (target.consultationSection) {
+      setActiveConsultationSection(target.consultationSection as any);
+    }
+    if (target.jobSection) {
+      setActiveJobSection(target.jobSection as any);
+    }
+    if (target.settingsSection) {
+      setSettingsSection(target.settingsSection as any);
+    }
+    if (target.sitoSection) {
+      setActiveSitoSection(target.sitoSection as any);
+    }
+  };
+
   // Verifica se l'utente è autenticato
   if (!localStorage.getItem("isAdmin")) {
     return (
@@ -1491,28 +1527,7 @@ export default function AdminDashboard() {
 
             {/* Azioni header - Mobile Optimized */}
             <div className="flex items-center gap-1.5 sm:gap-3">
-              <AdminCommandPalette
-                onNavigate={(tab, options) => {
-                  setActiveTab(tab as any);
-                  if (options?.settingsSection) {
-                    setSettingsSection(options.settingsSection as any);
-                  }
-                  if (options?.consultationSection) {
-                    setActiveConsultationSection(
-                      options.consultationSection as any,
-                    );
-                  }
-                  if (options?.bookingSection) {
-                    setActiveBookingSection(options.bookingSection as any);
-                  }
-                  if (options?.jobSection) {
-                    setActiveJobSection(options.jobSection as any);
-                  }
-                  if (options?.sitoSection) {
-                    setActiveSitoSection(options.sitoSection as any);
-                  }
-                }}
-              />
+              <AdminCommandPalette onNavigate={navigateToTarget} />
               <Link href={createUrl("/")}>
                 <Button
                   variant="outline"
@@ -1683,285 +1698,75 @@ export default function AdminDashboard() {
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as any)}
           >
-            <TabsList className="mb-4 sm:mb-6 flex flex-wrap justify-start gap-0.5 sm:gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto touch-manipulation">
-              {/* Calendario Tab - prima di tutto */}
-              <TabsTrigger
-                value="calendario"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-              >
-                <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Calendario</span>
-              </TabsTrigger>
+            {/* Barra menu unificata: generata da ADMIN_NAV_GROUPS (adminNavigation.ts) */}
+            <div className="mb-4 sm:mb-6 flex flex-wrap justify-start gap-0.5 sm:gap-1 h-auto p-1 bg-muted rounded-lg overflow-x-auto touch-manipulation">
+              {ADMIN_NAV_GROUPS.map((group) => {
+                const GroupIcon = group.icon;
+                const isActive = group.tabs.includes(activeTab);
+                const triggerClasses =
+                  "flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]";
 
-              {/* Studio Assistant Tab */}
-              <TabsTrigger
-                value="assistente"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-              >
-                <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Assistente</span>
-              </TabsTrigger>
-
-              {/* Separatore visivo - nascosto su mobile */}
-              <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
-
-              {/* Core: Gallerie con dropdown sottomenu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={
-                      activeTab === "galleries" ||
-                      activeTab === "questionnaire" ||
-                      activeTab === "themes" ||
-                      activeTab === "requests"
-                        ? "default"
-                        : "ghost"
-                    }
-                    className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                  >
-                    <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span>Gallerie</span>
-                    <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => setActiveTab("galleries")}>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Gallerie Eventi
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setActiveTab("questionnaire")}
-                  >
-                    <HelpCircle className="h-4 w-4 mr-2" />
-                    Questionari
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab("themes")}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Temi Stagionali
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setActiveTab("requests")}>
-                    <Key className="h-4 w-4 mr-2" />
-                    Richieste Password
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Separatore visivo - nascosto su mobile */}
-              <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
-
-              {/* Booking System: Prenotazioni con sub-tabs interne */}
-              <TabsTrigger
-                value="bookings"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                data-testid="tab-bookings"
-              >
-                <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Prenotazioni</span>
-              </TabsTrigger>
-
-              {/* Jobs System: Lavori Fotografici con dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={activeTab === "lavori" ? "default" : "ghost"}
-                    className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                  >
-                    <Briefcase className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span>Lavori</span>
-                    <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem onClick={() => { setActiveTab("lavori"); setActiveJobSection("jobs-list"); }}>
-                    <Briefcase className="h-4 w-4 mr-2" />
-                    Lista Lavori
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setActiveTab("lavori"); setActiveJobSection("moduli-informativi"); }}>
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    Moduli Informativi
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Financial Management: Cassa */}
-              <TabsTrigger
-                value="cassa"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                data-testid="tab-cassa"
-              >
-                <Wallet className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Cassa</span>
-              </TabsTrigger>
-
-              {/* Richieste Info con dropdown sottomenu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={activeTab === "consulenze" ? "default" : "ghost"}
-                    className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                  >
-                    <CalendarCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span>Richieste Info</span>
-                    <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("consulenze");
-                      setActiveConsultationSection("consulenze");
-                    }}
-                  >
-                    <CalendarCheck className="h-4 w-4 mr-2" />
-                    Richieste Info
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("consulenze");
-                      setActiveConsultationSection("consulenze-templates");
-                    }}
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Template Richieste
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Separatore visivo - nascosto su mobile */}
-              <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
-
-              {/* Settings con dropdown sottomenu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={activeTab === "settings" ? "default" : "ghost"}
-                    className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                  >
-                    <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                    <span>Impostazioni</span>
-                    <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("settings");
-                      setSettingsSection("studio");
-                    }}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Impostazioni Studio
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("settings");
-                      setSettingsSection("slideshow");
-                    }}
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    Slideshow Homepage
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("settings");
-                      setSettingsSection("products");
-                    }}
-                  >
-                    <Package className="h-4 w-4 mr-2" />
-                    Catalogo Prodotti
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("settings");
-                      setSettingsSection("product-categories");
-                    }}
-                  >
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Categorie Prodotti
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link
-                      href="/admin/product-stats"
-                      className="flex items-center"
+                if (!group.items) {
+                  return (
+                    <Button
+                      key={group.id}
+                      variant={isActive ? "default" : "ghost"}
+                      className={triggerClasses}
+                      onClick={() =>
+                        group.target && navigateToTarget(group.target)
+                      }
+                      data-testid={`nav-${group.id}`}
                     >
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      Statistiche Prodotti
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setActiveTab("settings");
-                      setSettingsSection("email-logs");
-                    }}
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    Storico Email
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => window.open("/admin/audit", "_blank")}
-                  >
-                    <Search className="h-4 w-4 mr-2" />
-                    Audit Sistema
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => window.open("/admin/backup", "_blank")}
-                  >
-                    <HardDrive className="h-4 w-4 mr-2" />
-                    Gestione Backup
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      window.open("/admin/phone-migration", "_blank")
-                    }
-                    data-testid="menu-phone-migration"
-                  >
-                    <Phone className="h-4 w-4 mr-2" />
-                    Migrazione Telefoni
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                      <span>{group.label}</span>
+                    </Button>
+                  );
+                }
 
-              {/* Separatore visivo - nascosto su mobile */}
-              <div className="w-px h-6 sm:h-8 bg-border mx-0.5 sm:mx-1 hidden md:block" />
-
-              {/* Collaboratori Tab */}
-              <TabsTrigger
-                value="collaboratori"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-              >
-                <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Collaboratori</span>
-              </TabsTrigger>
-
-              {/* Email Massivo Tab */}
-              <TabsTrigger
-                value="bulkEmail"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                data-testid="tab-bulk-email"
-              >
-                <Mail className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Email Massivo</span>
-              </TabsTrigger>
-
-              {/* Sito Pubblico Tab */}
-              <TabsTrigger
-                value="sitoPublico"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-                data-testid="tab-sito-pubblico"
-              >
-                <Globe className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Sito Pubblico</span>
-              </TabsTrigger>
-
-              {/* Video Tab */}
-              <TabsTrigger
-                value="videos"
-                className="flex-shrink-0 px-1.5 py-1.5 sm:px-2 sm:py-1.5 text-[10px] sm:text-xs md:text-sm md:px-3 md:py-2 whitespace-nowrap flex items-center gap-1 sm:gap-2 min-h-[36px] sm:min-h-[40px]"
-              >
-                <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
-                <span>Video</span>
-              </TabsTrigger>
-            </TabsList>
+                return (
+                  <DropdownMenu key={group.id}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={isActive ? "default" : "ghost"}
+                        className={triggerClasses}
+                        data-testid={`nav-${group.id}`}
+                      >
+                        <GroupIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 flex-shrink-0" />
+                        <span>{group.label}</span>
+                        <ChevronDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 ml-0.5 sm:ml-1" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-60">
+                      {group.items.map((item, index) => {
+                        const ItemIcon = item.icon;
+                        return (
+                          <div key={item.id}>
+                            {item.sectionLabel && (
+                              <>
+                                {index > 0 && <DropdownMenuSeparator />}
+                                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                  {item.sectionLabel}
+                                </DropdownMenuLabel>
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => navigateToTarget(item.target)}
+                              data-testid={`nav-item-${item.id}`}
+                            >
+                              <ItemIcon className="h-4 w-4 mr-2" />
+                              <span className="flex-1">{item.label}</span>
+                              {item.target.newTab && (
+                                <ExternalLink className="h-3.5 w-3.5 ml-2 text-muted-foreground" />
+                              )}
+                            </DropdownMenuItem>
+                          </div>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                );
+              })}
+            </div>
 
             {/* Contenuto Tab Calendario */}
             <TabsContent value="calendario">
