@@ -81,7 +81,12 @@ export default function PhotobookEditorPage() {
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
     try {
-      let nextNumber = pages.reduce((m, p) => Math.max(m, p.pageNumber), 0) + 1;
+      // Numero di partenza dall'elenco pagine FRESCO dal server: lo stato
+      // locale può essere vuoto/stale (query non ancora caricata o upload
+      // ravvicinati) e produrrebbe numeri di pagina duplicati.
+      setUploadProgress('Preparazione caricamento...');
+      const freshPages = await listPhotobookPages(id, version);
+      let nextNumber = freshPages.reduce((m, p) => Math.max(m, p.pageNumber), 0) + 1;
       for (let i = 0; i < list.length; i++) {
         setUploadProgress(`Caricamento pagina ${i + 1} di ${list.length} (${list[i].name})...`);
         await uploadPhotobookPage({

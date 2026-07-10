@@ -353,7 +353,7 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
       if (type !== 'replace' && type !== 'delete' && type !== 'edit') {
         return res.status(400).json({ error: `Tipo richiesta non valido: ${type}` });
       }
-      const note = typeof r.note === 'string' ? r.note.trim() : '';
+      const note = typeof r.note === 'string' ? r.note.trim().slice(0, 2000) : '';
       if (type === 'edit' && !note) {
         return res.status(400).json({ error: 'La nota è obbligatoria per le richieste di modifica' });
       }
@@ -754,10 +754,12 @@ router.post(
         return res.status(400).json({ error: 'File pagina mancante o non valido' });
       }
 
-      const contentType = req.headers['content-type'] || 'image/jpeg';
+      const contentType = String(req.headers['content-type'] || 'image/jpeg');
+      const mime = contentType.split(';')[0].trim().toLowerCase();
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
       const bucket = storage.bucket();
       const token = randomUUID();
-      const storagePath = `photobooks/${ref.id}/v${version}/${Date.now()}-${pageNumber}.jpg`;
+      const storagePath = `photobooks/${ref.id}/v${version}/${Date.now()}-${pageNumber}.${ext}`;
       await bucket.file(storagePath).save(buffer, {
         resumable: false,
         metadata: {
@@ -793,11 +795,16 @@ router.post(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Aggiorna il conteggio pagine della versione
-      const updatedVersions = versions.map((v: any) =>
-        v.version === version ? { ...v, pageCount: (v.pageCount || 0) + 1 } : v,
-      );
-      await ref.update({ versions: updatedVersions, updatedAt: FieldValue.serverTimestamp() });
+      // Aggiorna il conteggio pagine della versione (in transazione: upload
+      // paralleli non devono perdere incrementi con read-modify-write)
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (!fresh.exists) return;
+        const updatedVersions = (fresh.data()!.versions || []).map((v: any) =>
+          v.version === version ? { ...v, pageCount: (v.pageCount || 0) + 1 } : v,
+        );
+        tx.update(ref, { versions: updatedVersions, updatedAt: FieldValue.serverTimestamp() });
+      });
 
       const saved = await pageRef.get();
       console.log(`📖 [photobooks] Pagina ${pageNumber} caricata (v${version})`);
@@ -848,17 +855,41 @@ router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
       // best-effort
     }
 
-    // Decrementa il conteggio pagine della versione
+    // Cascade: elimina le richieste di modifica che puntano alla pagina
+    // (altrimenti restano orfane nella schermata "Modifiche Fotolibro")
+    try {
+      const orphanReqs = await db
+        .collection(REQUESTS_COL)
+        .where('photobookId', '==', req.params.id)
+        .where('pageId', '==', pageRef.id)
+        .get();
+      if (!orphanReqs.empty) {
+        // Chunk da 450: un singolo batch Firestore accetta max 500 operazioni
+        for (let i = 0; i < orphanReqs.docs.length; i += 450) {
+          const batch = db.batch();
+          for (const d of orphanReqs.docs.slice(i, i + 450)) batch.delete(d.ref);
+          await batch.commit();
+        }
+        console.log(
+          `📖 [photobooks] Eliminate ${orphanReqs.size} richieste orfane della pagina ${pageRef.id}`,
+        );
+      }
+    } catch (e) {
+      console.warn('[photobooks] Pulizia richieste della pagina fallita (non bloccante):', e);
+    }
+
+    // Decrementa il conteggio pagine della versione (in transazione)
     const bookRef = db.collection(BOOKS_COL).doc(req.params.id);
-    const bookDoc = await bookRef.get();
-    if (bookDoc.exists) {
-      const versions = (bookDoc.data()!.versions || []).map((v: any) =>
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(bookRef);
+      if (!fresh.exists) return;
+      const versions = (fresh.data()!.versions || []).map((v: any) =>
         v.version === pageData.version
           ? { ...v, pageCount: Math.max(0, (v.pageCount || 0) - 1) }
           : v,
       );
-      await bookRef.update({ versions, updatedAt: FieldValue.serverTimestamp() });
-    }
+      tx.update(bookRef, { versions, updatedAt: FieldValue.serverTimestamp() });
+    });
     return res.json({ ok: true });
   } catch (error) {
     console.error('[photobooks] Errore eliminazione pagina:', error);
