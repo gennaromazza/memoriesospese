@@ -8,7 +8,7 @@
  * viene caricato uno snapshot JPEG di ogni pagina con le X disegnate.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -56,8 +56,10 @@ import {
   MessageSquareText,
   Replace,
   Send,
+  Smartphone,
   Trash2,
   Undo2,
+  X as XIcon,
 } from 'lucide-react';
 
 interface DraftEntry extends PhotobookClientRequestDraft {
@@ -69,6 +71,19 @@ function newDraftId(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `mark-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** true su dispositivi touch con schermo piccolo tenuti in verticale. */
+function usePortraitPhone(): boolean {
+  const [isPortraitPhone, setIsPortraitPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: portrait) and (pointer: coarse) and (max-width: 640px)');
+    const update = () => setIsPortraitPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return isPortraitPhone;
 }
 
 export default function PhotobookViewPage() {
@@ -87,6 +102,14 @@ export default function PhotobookViewPage() {
   const [pendingReplacement, setPendingReplacement] = useState<PhotobookGalleryPhoto | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const isPortraitPhone = usePortraitPhone();
+  const [rotateHintDismissed, setRotateHintDismissed] = useState(
+    () => sessionStorage.getItem('pb-rotate-hint-dismissed') === '1',
+  );
+  const dismissRotateHint = () => {
+    setRotateHintDismissed(true);
+    sessionStorage.setItem('pb-rotate-hint-dismissed', '1');
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
@@ -275,7 +298,29 @@ export default function PhotobookViewPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {isPortraitPhone && !rotateHintDismissed && (
+          <div
+            className="flex items-center gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900"
+            data-testid="banner-rotate-hint"
+          >
+            <Smartphone className="h-4 w-4 shrink-0 rotate-90" />
+            <span className="min-w-0 flex-1">
+              Consiglio: ruota il telefono in orizzontale per vedere le pagine più grandi e
+              disegnare le X con più precisione.
+            </span>
+            <button
+              type="button"
+              onClick={dismissRotateHint}
+              className="shrink-0 text-sky-500 hover:text-sky-700"
+              aria-label="Chiudi suggerimento"
+              data-testid="button-dismiss-rotate-hint"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {!isCurrentVersion && (
           <Card className="border-amber-300 bg-amber-50">
             <CardContent className="py-3 text-sm text-amber-800">
@@ -285,8 +330,9 @@ export default function PhotobookViewPage() {
           </Card>
         )}
 
-        <p className="text-sm text-muted-foreground">
-          Disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
+        <p className="text-sm text-muted-foreground px-1">
+          Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
+          disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
           diventa una richiesta (sostituzione, eliminazione o modifica). Le tue richieste restano
           in bozza finché non le invii tutte insieme.
         </p>
@@ -303,7 +349,7 @@ export default function PhotobookViewPage() {
           ];
           return (
             <div key={page.id} className="space-y-1.5">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap px-1">
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}
                 </p>
@@ -350,9 +396,9 @@ export default function PhotobookViewPage() {
       {/* Barra invio */}
       {drafts.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t shadow-lg">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
             <Badge variant="secondary" className="shrink-0">
-              {drafts.size} {drafts.size === 1 ? 'modifica' : 'modifiche'} in bozza
+              {drafts.size} {drafts.size === 1 ? 'bozza' : 'bozze'}
             </Badge>
             <div className="flex-1" />
             <Button variant="outline" size="sm" onClick={() => setDrafts(new Map())}>

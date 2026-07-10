@@ -1,14 +1,15 @@
 /**
  * Canvas di disegno per la revisione fotolibro "a penna".
- * Mostra la pagina JPEG con sopra le X già disegnate (inviate e bozze) e,
- * se abilitato, permette di disegnare una nuova X a mano libera con il colore
- * passato dal parent. Dopo il primo tratto compare la barra Conferma/Cancella.
- * Coordinate normalizzate 0–1 rispetto alla pagina.
+ * Mostra la pagina JPEG con sopra le X già disegnate (inviate e bozze).
+ * Su tutti i dispositivi il disegno va ATTIVATO con il pulsante matita
+ * ("Segna una X"): finché non è attivo, il tocco scorre la pagina normalmente
+ * (evita X accidentali da smartphone). Dopo il primo tratto compare la barra
+ * Conferma/Cancella. Coordinate normalizzate 0–1 rispetto alla pagina.
  */
 
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, Eraser, PenLine } from 'lucide-react';
+import { Check, Eraser, PenLine, X as XIcon } from 'lucide-react';
 import type { PhotobookMarkPoint } from '@shared/photobook-types';
 
 export interface CanvasMark {
@@ -34,12 +35,26 @@ const MAX_STROKES = 12;
 const MAX_POINTS = 600;
 /** Distanza minima (normalizzata) tra due punti registrati */
 const MIN_DIST = 0.004;
+/** Dimensione minima (normalizzata) del tratto per non essere scartato come tocco accidentale */
+const MIN_STROKE_SPAN = 0.02;
 
 function strokePath(points: PhotobookMarkPoint[]): string {
   if (points.length === 0) return '';
   return points
     .map((p, i) => `${i === 0 ? 'M' : 'L'}${(p.x * 100).toFixed(2)},${(p.y * 100).toFixed(2)}`)
     .join(' ');
+}
+
+/** Estensione (bounding box) di un tratto, per scartare tocchi accidentali. */
+function strokeSpan(points: PhotobookMarkPoint[]): number {
+  let minX = 1, maxX = 0, minY = 1, maxY = 0;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return Math.max(maxX - minX, maxY - minY);
 }
 
 export default function PhotobookMarkCanvas({
@@ -51,9 +66,15 @@ export default function PhotobookMarkCanvas({
   onMarkComplete,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [penActive, setPenActive] = useState(false);
   const [pendingStrokes, setPendingStrokes] = useState<PhotobookMarkPoint[][]>([]);
   const [currentStroke, setCurrentStroke] = useState<PhotobookMarkPoint[] | null>(null);
   const drawingRef = useRef(false);
+  // Copia in ref del tratto in corso: evita side effect annidati negli updater
+  // di stato (in Strict Mode verrebbero eseguiti due volte)
+  const currentStrokeRef = useRef<PhotobookMarkPoint[] | null>(null);
+
+  const canDraw = drawingEnabled && penActive;
 
   const toNorm = (e: React.PointerEvent): PhotobookMarkPoint | null => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -65,14 +86,15 @@ export default function PhotobookMarkCanvas({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!drawingEnabled) return;
+    if (!canDraw) return;
     if (pendingStrokes.length >= MAX_STROKES) return;
     const p = toNorm(e);
     if (!p) return;
     e.preventDefault();
     drawingRef.current = true;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    setCurrentStroke([p]);
+    currentStrokeRef.current = [p];
+    setCurrentStroke(currentStrokeRef.current);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -80,40 +102,43 @@ export default function PhotobookMarkCanvas({
     const p = toNorm(e);
     if (!p) return;
     e.preventDefault();
-    setCurrentStroke((prev) => {
-      if (!prev) return prev;
-      const last = prev[prev.length - 1];
-      const dx = p.x - last.x;
-      const dy = p.y - last.y;
-      if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) return prev;
-      if (prev.length >= MAX_POINTS) return prev;
-      return [...prev, p];
-    });
+    const prev = currentStrokeRef.current;
+    if (!prev) return;
+    const last = prev[prev.length - 1];
+    const dx = p.x - last.x;
+    const dy = p.y - last.y;
+    if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) return;
+    if (prev.length >= MAX_POINTS) return;
+    currentStrokeRef.current = [...prev, p];
+    setCurrentStroke(currentStrokeRef.current);
   };
 
   const endStroke = () => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
-    setCurrentStroke((stroke) => {
-      if (stroke && stroke.length >= 2) {
-        setPendingStrokes((prev) =>
-          prev.length >= MAX_STROKES ? prev : [...prev, stroke],
-        );
-      }
-      return null;
-    });
+    const stroke = currentStrokeRef.current;
+    currentStrokeRef.current = null;
+    setCurrentStroke(null);
+    // Tratti troppo piccoli = tocco accidentale: vengono scartati
+    if (stroke && stroke.length >= 2 && strokeSpan(stroke) >= MIN_STROKE_SPAN) {
+      setPendingStrokes((prev) =>
+        prev.length >= MAX_STROKES ? prev : [...prev, stroke],
+      );
+    }
   };
 
   const confirmPending = () => {
     if (pendingStrokes.length === 0) return;
     onMarkComplete(pendingStrokes);
     setPendingStrokes([]);
+    setPenActive(false);
   };
 
   const clearPending = () => {
     setPendingStrokes([]);
     setCurrentStroke(null);
     drawingRef.current = false;
+    setPenActive(false);
   };
 
   const hasPending = pendingStrokes.length > 0 || !!currentStroke;
@@ -123,8 +148,9 @@ export default function PhotobookMarkCanvas({
       <div
         ref={containerRef}
         className={`relative rounded-lg overflow-hidden border bg-white shadow-sm select-none ${
-          drawingEnabled ? 'touch-none cursor-crosshair' : ''
+          canDraw ? 'touch-none cursor-crosshair ring-2 ring-offset-2' : ''
         }`}
+        style={canDraw ? ({ ['--tw-ring-color' as any]: nextColor } as React.CSSProperties) : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endStroke}
@@ -184,11 +210,34 @@ export default function PhotobookMarkCanvas({
           )}
         </svg>
 
-        {drawingEnabled && !hasPending && (
-          <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-white/85 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-stone-600 shadow-sm pointer-events-none">
-            <PenLine className="h-3.5 w-3.5" style={{ color: nextColor }} />
-            Disegna una X sulla foto da modificare
-          </div>
+        {/* Pulsante attivazione penna: finché non è attivo, il tocco scorre la pagina */}
+        {drawingEnabled && !penActive && (
+          <button
+            type="button"
+            onClick={() => setPenActive(true)}
+            className="absolute top-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full pl-2.5 pr-3 py-1.5 text-xs font-medium text-stone-700 shadow-md border active:scale-95 transition-transform"
+            data-testid="button-activate-pen"
+          >
+            <PenLine className="h-4 w-4" style={{ color: nextColor }} />
+            Segna una X
+          </button>
+        )}
+        {canDraw && !hasPending && (
+          <>
+            <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-stone-600 shadow-sm pointer-events-none">
+              <PenLine className="h-3.5 w-3.5" style={{ color: nextColor }} />
+              Disegna la X con il dito
+            </div>
+            <button
+              type="button"
+              onClick={clearPending}
+              className="absolute top-2 right-2 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-full w-7 h-7 text-stone-500 shadow-md border"
+              title="Esci dalla modalità disegno"
+              data-testid="button-deactivate-pen"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          </>
         )}
       </div>
 

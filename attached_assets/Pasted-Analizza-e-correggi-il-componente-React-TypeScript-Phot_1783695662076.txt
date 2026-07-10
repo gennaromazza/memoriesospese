@@ -1,0 +1,196 @@
+Analizza e correggi il componente React/TypeScript `PhotobookMarkCanvas` utilizzato per disegnare segni a mano libera sulle pagine JPEG di un fotolibro.
+
+Non riscrivere inutilmente l’intero componente e non modificare le API pubbliche senza necessità. Prima verifica il codice esistente, individua i problemi reali, applica correzioni minimali e poi esegui type-check, lint e test disponibili.
+
+Controlla in particolare questi punti:
+
+1. Gestione non sicura degli state React
+Attualmente `endStroke` potrebbe eseguire `setPendingStrokes` dentro il callback di `setCurrentStroke`.
+
+Questa struttura deve essere eliminata perché un setter React deve restare puro e, con React Strict Mode, può causare:
+- duplicazione dei tratti;
+- perdita dell’ultimo tratto;
+- aggiornamenti imprevedibili;
+- side effect eseguiti più volte.
+
+Mantieni il tratto corrente anche in un ref, ad esempio:
+
+`currentStrokeRef: PhotobookMarkPoint[] | null`
+
+Aggiorna contemporaneamente ref e state durante il disegno. Al termine del tratto:
+- recupera il valore dal ref;
+- azzera ref e state;
+- aggiungi il tratto a `pendingStrokes` con un aggiornamento separato.
+
+2. Perdita dell’ultimo punto
+Verifica che, al `pointerup`, venga utilizzata la versione più recente del tratto.
+
+Gli aggiornamenti di `currentStroke` sono asincroni, quindi il solo state potrebbe non contenere ancora l’ultimo punto registrato. Il ref deve essere considerato la fonte immediata del tratto in corso.
+
+3. Tipizzazione degli eventi
+Evita l’uso implicito di `React.PointerEvent` senza importare il namespace React.
+
+Usa preferibilmente:
+
+`import type { PointerEvent as ReactPointerEvent } from 'react';`
+
+e tipizza gli handler come:
+
+`ReactPointerEvent<HTMLDivElement>`
+
+4. Pointer capture
+Gestisci correttamente `setPointerCapture` e `releasePointerCapture`.
+
+Verifica che:
+- venga memorizzato il `pointerId` attivo;
+- siano ignorati eventi provenienti da pointer diversi;
+- la capture venga rilasciata in sicurezza;
+- eventuali errori del browser non blocchino il componente;
+- siano gestiti `pointerup`, `pointercancel` e `lostpointercapture`.
+
+5. Rimuovere `onPointerLeave={endStroke}`
+Non terminare il tratto con `pointerleave`.
+
+Dopo `setPointerCapture`, il componente deve continuare a ricevere gli eventi anche se il mouse, la penna o il dito escono temporaneamente dai confini del canvas. `pointerleave` può interrompere il disegno troppo presto.
+
+6. Mouse, touch e penna
+Per il mouse accetta solo il tasto sinistro:
+
+`event.pointerType === 'mouse' && event.button !== 0`
+
+Non applicare lo stesso filtro a touch e penna.
+
+7. Limiti di sicurezza
+Mantieni e verifica:
+- massimo `MAX_STROKES`;
+- massimo `MAX_POINTS`;
+- distanza minima `MIN_DIST`;
+- impossibilità di avviare un secondo tratto mentre uno è già attivo.
+
+Calcola una sola volta, se opportuno:
+
+`const MIN_DIST_SQUARED = MIN_DIST * MIN_DIST;`
+
+8. Cambio pagina e modalità sola lettura
+Quando cambia `pageUrl`, elimina qualsiasi tratto non confermato della pagina precedente.
+
+Quando `drawingEnabled` diventa `false`, azzera:
+- `pendingStrokes`;
+- `currentStroke`;
+- `currentStrokeRef`;
+- stato di disegno;
+- pointer attivo o capture ancora presente.
+
+Usa `useEffect` con dipendenze corrette, evitando loop o reset durante il normale disegno.
+
+9. Conferma della X
+`confirmPending` deve:
+- ignorare la richiesta se non ci sono tratti;
+- evitare la conferma mentre un tratto è ancora attivo;
+- inviare al parent una copia sicura dell’array;
+- svuotare le bozze solo dopo aver acquisito il valore da trasmettere.
+
+Non cambiare la firma:
+
+`onMarkComplete: (strokes: PhotobookMarkPoint[][]) => void`
+
+10. Pulsanti dentro eventuali form
+Aggiungi sempre:
+
+`type="button"`
+
+ai pulsanti “Cancella” e “Conferma X”, per evitare submit involontari se il componente viene renderizzato dentro un form.
+
+11. Funzione `clearPending`
+Deve resettare completamente:
+- `pendingStrokes`;
+- `currentStroke`;
+- `currentStrokeRef`;
+- `drawingRef`;
+- pointer attivo;
+- eventuale pointer capture.
+
+12. Coordinate normalizzate
+Verifica che `toNorm`:
+- usi il rettangolo effettivo del contenitore;
+- gestisca larghezza o altezza pari a zero;
+- limiti sempre `x` e `y` tra `0` e `1`;
+- funzioni correttamente anche con pagine responsive.
+
+13. SVG e proporzioni
+Verifica che i percorsi continuino a usare coordinate normalizzate 0–100.
+
+Mantieni:
+- `viewBox="0 0 100 100"`;
+- `preserveAspectRatio="none"`;
+- `vectorEffect="non-scaling-stroke"`.
+
+Controlla visivamente che i segni restino allineati alla pagina durante il ridimensionamento.
+
+14. Snapshot JPEG
+Verifica e correggi `generatePageSnapshot`.
+
+In particolare:
+- controlla che `naturalWidth` e `naturalHeight` siano validi;
+- mantieni il limite massimo di 2000 px sul lato lungo;
+- calcola lo spessore sul lato più corto, non solo sulla larghezza:
+
+`Math.min(width, height)`
+
+Esempio:
+
+`Math.max(4, Math.round(Math.min(width, height) * 0.006))`
+
+Questo evita linee eccessivamente grosse sulle pagine orizzontali.
+
+15. Bozze nello snapshot
+Se `CanvasMark.isDraft` è vero, lo snapshot deve rispettare la rappresentazione visiva delle bozze:
+- trasparenza coerente;
+- tratteggio tramite `ctx.setLineDash`;
+- ripristino di `globalAlpha` e `setLineDash([])` prima di terminare.
+
+Le richieste già inviate devono restare con linea continua.
+
+16. CORS e caricamento immagine
+Mantieni:
+
+`image.crossOrigin = 'anonymous'`
+
+prima di assegnare `src`.
+
+Gestisci correttamente:
+- errore di caricamento;
+- canvas non disponibile;
+- fallimento di `canvas.toBlob`;
+- URL Firebase Storage con CORS.
+
+17. Qualità e regressioni
+Non cambiare:
+- testi dell’interfaccia;
+- colori ricevuti dal parent;
+- struttura di `CanvasMark`;
+- coordinate normalizzate;
+- comportamento delle X già salvate;
+- `data-testid` esistenti;
+- firma di `generatePageSnapshot`.
+
+18. Verifica finale
+Dopo le modifiche:
+- esegui TypeScript type-check;
+- esegui lint;
+- esegui i test disponibili;
+- verifica il comportamento in React Strict Mode;
+- prova mouse, touch e penna;
+- prova il cambio pagina con una X non confermata;
+- prova modalità sola lettura;
+- prova cancellazione e conferma;
+- verifica che un tratto non venga duplicato;
+- verifica che l’ultimo punto non venga perso;
+- genera uno snapshot verticale e uno orizzontale.
+
+Alla fine fornisci:
+1. elenco sintetico dei bug realmente trovati;
+2. file modificati;
+3. spiegazione delle correzioni;
+4. eventuali problemi non risolti;
+5. diff completo o codice finale del componente, senza omettere parti o usare placeholder.

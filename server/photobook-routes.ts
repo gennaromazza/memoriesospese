@@ -81,6 +81,23 @@ function serializePage(id: string, d: any): any {
   };
 }
 
+/**
+ * Firestore non permette array annidati: i tratti vengono salvati come
+ * [{ points: [...] }] e riconvertiti in PhotobookMarkPoint[][] per il client.
+ */
+function deserializeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const strokes: PhotobookMarkPoint[][] = [];
+  for (const s of raw) {
+    if (Array.isArray(s)) {
+      strokes.push(s);
+    } else if (s && typeof s === 'object' && Array.isArray(s.points)) {
+      strokes.push(s.points);
+    }
+  }
+  return strokes.length > 0 ? strokes : null;
+}
+
 function serializeRequest(id: string, d: any): any {
   return {
     id,
@@ -94,7 +111,7 @@ function serializeRequest(id: string, d: any): any {
     pageNumber: d.pageNumber,
     type: d.type,
     markColor: d.markColor || null,
-    markStrokes: d.markStrokes || null,
+    markStrokes: deserializeMarkStrokes(d.markStrokes),
     snapshotUrl: d.snapshotUrl || null,
     replacementPhotoId: d.replacementPhotoId || null,
     replacementPhotoName: d.replacementPhotoName || null,
@@ -371,7 +388,8 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
         pageNumber: pageData.pageNumber,
         type,
         markColor,
-        markStrokes,
+        // Firestore vieta gli array annidati: ogni tratto diventa una mappa
+        markStrokes: markStrokes.map((points) => ({ points })),
         snapshotUrl,
         // Metadati risolti server-side dalla galleria (mai dal client)
         replacementPhotoId: replacementPhoto ? String(r.replacementPhotoId) : null,
