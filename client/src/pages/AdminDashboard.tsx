@@ -119,6 +119,8 @@ import {
 } from "lucide-react";
 import QuestionnaireManager from "./admin/QuestionnaireManager";
 import InfoFormTemplateManager from "./admin/InfoFormTemplateManager";
+import PhotobooksManager from "@/components/photobook/PhotobooksManager";
+import PhotobookChangesScreen from "@/components/photobook/PhotobookChangesScreen";
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import CashDashboard from "@/components/CashDashboard";
@@ -513,6 +515,8 @@ export default function AdminDashboard() {
     | "sitoPublico"
     | "videos"
     | "quote-templates"
+    | "photobooks"
+    | "photobook-changes"
   >(() => {
     return (sessionStorage.getItem("activeTab") as any) || "calendario";
   });
@@ -2448,6 +2452,39 @@ export default function AdminDashboard() {
                   </p>
                 </div>
                 <QuestionnaireManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Fotolibri */}
+            <TabsContent value="photobooks">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
+                    Fotolibri
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Carica le pagine del fotolibro, verifica le foto
+                    riconosciute e condividi il link di revisione con il
+                    cliente.
+                  </p>
+                </div>
+                <PhotobooksManager />
+              </div>
+            </TabsContent>
+
+            {/* Contenuto Tab Modifiche Fotolibro */}
+            <TabsContent value="photobook-changes">
+              <div className="bg-white shadow sm:rounded-lg p-5">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-blue-gray mb-2">
+                    Modifiche Fotolibro
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Richieste di modifica inviate dai clienti, raggruppate per
+                    cliente e versione del fotolibro.
+                  </p>
+                </div>
+                <PhotobookChangesScreen />
               </div>
             </TabsContent>
 

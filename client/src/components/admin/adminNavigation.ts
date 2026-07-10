@@ -24,6 +24,7 @@ import {
   Package,
   FolderOpen,
   BarChart3,
+  BookImage,
   RefreshCw,
   Search,
   HardDrive,
@@ -171,13 +172,26 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     id: "gallerie",
     label: "Gallerie",
     icon: Eye,
-    tabs: ["galleries", "questionnaire", "themes", "requests"],
+    tabs: ["galleries", "questionnaire", "themes", "requests", "photobooks", "photobook-changes"],
     items: [
       {
         id: "galleries",
         label: "Gallerie Eventi",
         icon: Eye,
         target: { tab: "galleries" },
+      },
+      {
+        id: "photobooks",
+        label: "Fotolibri",
+        icon: BookImage,
+        target: { tab: "photobooks" },
+        sectionLabel: "Fotolibri",
+      },
+      {
+        id: "photobook-changes",
+        label: "Modifiche Fotolibro",
+        icon: ClipboardList,
+        target: { tab: "photobook-changes" },
       },
       {
         id: "questionnaire",

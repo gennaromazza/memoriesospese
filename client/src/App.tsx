@@ -86,6 +86,8 @@ const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
 const InfoFormTemplateManager = lazyWithRetry(() => import("./pages/admin/InfoFormTemplateManager"));
+const PhotobookViewPage = lazyWithRetry(() => import("./pages/PhotobookViewPage"));
+const PhotobookEditorPage = lazyWithRetry(() => import("./pages/admin/PhotobookEditorPage"));
 
 import './scripts/seed-job-types';
 import './scripts/seed-product-categories';
@@ -164,6 +166,9 @@ function AppRoutes() {
         {/* Moduli Informativi - Link condivisibile per compilazione pubblica */}
         <Route path="/modulo/:token" component={InfoFormPublic} />
 
+        {/* Fotolibro - Revisione cliente tramite link a token */}
+        <Route path="/fotolibro/:token" component={PhotobookViewPage} />
+
         {/* Moduli Informativi - Template manager standalone */}
         <Route path="/admin/moduli-template" component={InfoFormTemplateManager} />
 
@@ -180,6 +185,7 @@ function AppRoutes() {
         <Route path="/admin/galleries/:galleryId/questionnaire" component={QuestionnaireManager} />
         <Route path="/admin/gallery/:galleryId/manage" component={GalleryManagementWorkspace} />
         <Route path="/admin/delete-gallery" component={DeleteGalleryPage} />
+        <Route path="/admin/photobooks/:id" component={PhotobookEditorPage} />
         <Route path="/admin/jobs" component={JobsListPage} />
         <Route path="/admin/jobs/:jobId" component={JobDetailPage} />
         <Route path="/admin/import" component={ImportDataPage} />
