@@ -7,7 +7,7 @@
  * Conferma/Cancella. Coordinate normalizzate 0–1 rispetto alla pagina.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Eraser, PenLine, X as XIcon } from 'lucide-react';
 import type { PhotobookMarkPoint } from '@shared/photobook-types';
@@ -31,12 +31,14 @@ interface Props {
   onMarkComplete: (strokes: PhotobookMarkPoint[][]) => void;
 }
 
-const MAX_STROKES = 12;
+const MAX_STROKES = 4;
 const MAX_POINTS = 600;
 /** Distanza minima (normalizzata) tra due punti registrati */
 const MIN_DIST = 0.004;
 /** Dimensione minima (normalizzata) del tratto per non essere scartato come tocco accidentale */
 const MIN_STROKE_SPAN = 0.02;
+/** Margine (normalizzato) entro cui un nuovo tratto è considerato parte della stessa X */
+const SAME_MARK_MARGIN = 0.06;
 
 function strokePath(points: PhotobookMarkPoint[]): string {
   if (points.length === 0) return '';
@@ -45,8 +47,9 @@ function strokePath(points: PhotobookMarkPoint[]): string {
     .join(' ');
 }
 
-/** Estensione (bounding box) di un tratto, per scartare tocchi accidentali. */
-function strokeSpan(points: PhotobookMarkPoint[]): number {
+interface BBox { minX: number; maxX: number; minY: number; maxY: number }
+
+function strokeBBox(points: PhotobookMarkPoint[]): BBox {
   let minX = 1, maxX = 0, minY = 1, maxY = 0;
   for (const p of points) {
     if (p.x < minX) minX = p.x;
@@ -54,7 +57,33 @@ function strokeSpan(points: PhotobookMarkPoint[]): number {
     if (p.y < minY) minY = p.y;
     if (p.y > maxY) maxY = p.y;
   }
-  return Math.max(maxX - minX, maxY - minY);
+  return { minX, maxX, minY, maxY };
+}
+
+/** Estensione (bounding box) di un tratto, per scartare tocchi accidentali. */
+function strokeSpan(points: PhotobookMarkPoint[]): number {
+  const b = strokeBBox(points);
+  return Math.max(b.maxX - b.minX, b.maxY - b.minY);
+}
+
+/**
+ * True se il nuovo tratto appartiene alla stessa X dei tratti già disegnati
+ * (bounding box che si toccano entro un margine). Un tratto lontano è una
+ * seconda X su un'altra foto: va confermata prima quella in corso.
+ */
+function isSameMark(pending: PhotobookMarkPoint[][], stroke: PhotobookMarkPoint[]): boolean {
+  if (pending.length === 0) return true;
+  const s = strokeBBox(stroke);
+  for (const p of pending) {
+    const b = strokeBBox(p);
+    const overlaps =
+      s.minX <= b.maxX + SAME_MARK_MARGIN &&
+      s.maxX >= b.minX - SAME_MARK_MARGIN &&
+      s.minY <= b.maxY + SAME_MARK_MARGIN &&
+      s.maxY >= b.minY - SAME_MARK_MARGIN;
+    if (overlaps) return true;
+  }
+  return false;
 }
 
 export default function PhotobookMarkCanvas({
@@ -69,6 +98,9 @@ export default function PhotobookMarkCanvas({
   const [penActive, setPenActive] = useState(false);
   const [pendingStrokes, setPendingStrokes] = useState<PhotobookMarkPoint[][]>([]);
   const [currentStroke, setCurrentStroke] = useState<PhotobookMarkPoint[] | null>(null);
+  // Avviso transitorio: il cliente ha provato a segnare una seconda X senza confermare
+  const [farStrokeHint, setFarStrokeHint] = useState(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawingRef = useRef(false);
   // Copia in ref del tratto in corso: evita side effect annidati negli updater
   // di stato (in Strict Mode verrebbero eseguiti due volte)
@@ -127,11 +159,17 @@ export default function PhotobookMarkCanvas({
     currentStrokeRef.current = null;
     setCurrentStroke(null);
     // Tratti troppo piccoli = tocco accidentale: vengono scartati
-    if (stroke && stroke.length >= 2 && strokeSpan(stroke) >= MIN_STROKE_SPAN) {
-      setPendingStrokes((prev) =>
-        prev.length >= MAX_STROKES ? prev : [...prev, stroke],
-      );
+    if (!stroke || stroke.length < 2 || strokeSpan(stroke) < MIN_STROKE_SPAN) return;
+    if (pendingStrokes.length >= MAX_STROKES) return;
+    // Un tratto lontano dalla X in corso è una seconda X su un'altra foto:
+    // va confermata prima quella già disegnata (una X = una foto = una richiesta)
+    if (!isSameMark(pendingStrokes, stroke)) {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      setFarStrokeHint(true);
+      hintTimerRef.current = setTimeout(() => setFarStrokeHint(false), 3000);
+      return;
     }
+    setPendingStrokes([...pendingStrokes, stroke]);
   };
 
   const confirmPending = () => {
@@ -144,9 +182,30 @@ export default function PhotobookMarkCanvas({
   const clearPending = () => {
     setPendingStrokes([]);
     setCurrentStroke(null);
+    currentStrokeRef.current = null;
     drawingRef.current = false;
+    activePointerIdRef.current = null;
+    setFarStrokeHint(false);
     setPenActive(false);
   };
+
+  // Reset completo se cambia la pagina o il permesso di disegno
+  useEffect(() => {
+    setPendingStrokes([]);
+    setCurrentStroke(null);
+    currentStrokeRef.current = null;
+    drawingRef.current = false;
+    activePointerIdRef.current = null;
+    setFarStrokeHint(false);
+    setPenActive(false);
+  }, [pageUrl, drawingEnabled]);
+
+  useEffect(
+    () => () => {
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    },
+    [],
+  );
 
   const hasPending = pendingStrokes.length > 0 || !!currentStroke;
 
@@ -229,6 +288,15 @@ export default function PhotobookMarkCanvas({
             Segna una X
           </button>
         )}
+        {farStrokeHint && (
+          <div
+            className="absolute inset-x-2 bottom-2 bg-amber-50/95 backdrop-blur-sm border border-amber-300 text-amber-900 rounded-md px-3 py-2 text-xs font-medium shadow-md text-center"
+            data-testid="hint-far-stroke"
+          >
+            Hai già disegnato una X: confermala prima di segnarne un'altra.
+            Ogni X corrisponde a una sola foto.
+          </div>
+        )}
         {canDraw && !hasPending && (
           <>
             <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-stone-600 shadow-sm pointer-events-none">
@@ -305,7 +373,7 @@ export async function generatePageSnapshot(
   if (!ctx) throw new Error('Canvas non disponibile');
   ctx.drawImage(img, 0, 0, w, h);
 
-  const lineWidth = Math.max(4, Math.round(w * 0.006));
+  const lineWidth = Math.max(4, Math.round(Math.min(w, h) * 0.006));
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = lineWidth;

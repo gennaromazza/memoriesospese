@@ -4,7 +4,7 @@
  * e gestione stato (da fare / completata / rifiutata).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +27,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Copy, Loader2, MessageSquareText, Replace, Trash2, BookImage } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Loader2,
+  MessageSquareText,
+  Replace,
+  Trash2,
+  BookImage,
+} from 'lucide-react';
 
 const TYPE_LABEL: Record<string, string> = {
   replace: 'Sostituisci foto',
@@ -62,9 +71,51 @@ function requestLine(r: PhotobookChangeRequest): string {
   return `${base}${orig} → MODIFICA: ${r.note}`;
 }
 
+/** Pulsantino copia negli appunti con feedback ✓ per 1.5s. */
+function CopyNameButton({ text, testId }: { text: string; testId: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {
+          toast({
+            title: 'Copia non riuscita',
+            description: 'Copia il nome manualmente.',
+            variant: 'destructive',
+          });
+        }
+      }}
+      className="inline-flex items-center justify-center w-5 h-5 rounded border bg-white hover:bg-stone-50 text-stone-500 shrink-0 align-middle"
+      title={`Copia "${text}"`}
+      data-testid={testId}
+    >
+      {copied ? (
+        <Check className="h-3 w-3 text-green-600" />
+      ) : (
+        <Copy className="h-3 w-3" />
+      )}
+    </button>
+  );
+}
+
 export default function PhotobookChangesScreen() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<'all' | PhotobookChangeRequestStatus>('pending');
+  const [expandedBooks, setExpandedBooks] = useState<Set<string>>(new Set());
+
+  const toggleBook = (key: string) =>
+    setExpandedBooks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['/api/photobooks/requests'],
@@ -105,6 +156,15 @@ export default function PhotobookChangesScreen() {
     }
     return Array.from(map.values()).sort((a, b) => a.clientName.localeCompare(b.clientName));
   }, [filtered]);
+
+  // Con un solo lavoro, aprilo automaticamente (resta comunque richiudibile)
+  const singleGroupKey = groups.length === 1 ? groups[0].key : null;
+  useEffect(() => {
+    if (!singleGroupKey) return;
+    setExpandedBooks((prev) =>
+      prev.has(singleGroupKey) ? prev : new Set(prev).add(singleGroupKey),
+    );
+  }, [singleGroupKey]);
 
   const copyList = (group: BookGroup, version: number) => {
     const pages = group.versions.get(version);
@@ -164,18 +224,43 @@ export default function PhotobookChangesScreen() {
           </CardContent>
         </Card>
       ) : (
-        groups.map((group) => (
+        groups.map((group) => {
+          const requestCount = Array.from(group.versions.values()).reduce(
+            (tot, pages) =>
+              tot + Array.from(pages.values()).reduce((s, reqs) => s + reqs.length, 0),
+            0,
+          );
+          const isExpanded = expandedBooks.has(group.key);
+          return (
           <Card key={group.key} data-testid={`card-changes-${group.key}`}>
             <CardContent className="pt-5 space-y-4">
-              <div>
-                <h3 className="font-semibold">{group.clientName}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {group.photobookName}
-                  {group.galleryName ? ` · Galleria: ${group.galleryName}` : ''}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => toggleBook(group.key)}
+                className="w-full flex items-center justify-between gap-3 text-left"
+                aria-expanded={isExpanded}
+                data-testid={`button-toggle-book-${group.key}`}
+              >
+                <div className="min-w-0">
+                  <h3 className="font-semibold truncate">{group.clientName}</h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {group.photobookName}
+                    {group.galleryName ? ` · Galleria: ${group.galleryName}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="secondary">
+                    {requestCount} {requestCount === 1 ? 'richiesta' : 'richieste'}
+                  </Badge>
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${
+                      isExpanded ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
+              </button>
 
-              {Array.from(group.versions.keys())
+              {isExpanded && Array.from(group.versions.keys())
                 .sort((a, b) => b - a)
                 .map((version) => {
                   const pages = group.versions.get(version)!;
@@ -262,12 +347,20 @@ export default function PhotobookChangesScreen() {
                                   )}
                                 </div>
                                 {r.originalPhotoName && (
-                                  <p className="text-xs text-muted-foreground break-all">
+                                  <p className="text-xs text-muted-foreground break-all flex items-center gap-1.5 flex-wrap">
+                                    <CopyNameButton
+                                      text={r.originalPhotoName}
+                                      testId={`button-copy-original-${r.id}`}
+                                    />
                                     Foto: {r.originalPhotoName}
                                   </p>
                                 )}
                                 {r.replacementPhotoName && (
-                                  <p className="text-xs text-muted-foreground break-all">
+                                  <p className="text-xs text-muted-foreground break-all flex items-center gap-1.5 flex-wrap">
+                                    <CopyNameButton
+                                      text={r.replacementPhotoName}
+                                      testId={`button-copy-replacement-${r.id}`}
+                                    />
                                     Sostituire con: {r.replacementPhotoName}
                                   </p>
                                 )}
@@ -298,7 +391,8 @@ export default function PhotobookChangesScreen() {
                 })}
             </CardContent>
           </Card>
-        ))
+          );
+        })
       )}
     </div>
   );
