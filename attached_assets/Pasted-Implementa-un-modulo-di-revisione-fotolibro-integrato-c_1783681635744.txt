@@ -1,0 +1,89 @@
+Implementa un modulo di revisione fotolibro integrato con le gallerie esistenti.
+
+Il fotografo deve poter creare un fotolibro, associarlo a una galleria e caricare le pagine JPEG esportate dal software di impaginazione.
+
+La piattaforma deve analizzare automaticamente ogni pagina JPEG e riconoscere le singole fotografie presenti nella composizione.
+
+Per ogni fotografia rilevata deve creare automaticamente uno slot con coordinate proporzionali da 0 a 1:
+
+* x;
+* y;
+* width;
+* height;
+* eventuale rotazione.
+
+Dopo aver rilevato gli slot, il sistema deve ritagliare virtualmente ogni area e confrontarla con le fotografie presenti nella galleria associata, cercando di identificare automaticamente il file originale utilizzato.
+
+Per il confronto utilizzare una soluzione affidabile basata su:
+
+* perceptual hash;
+* similarità visiva;
+* embeddings delle immagini;
+* confronto tra miniature.
+
+Per ogni slot salvare anche:
+
+* photoId rilevato;
+* nome file;
+* percentuale di affidabilità del riconoscimento.
+
+Nel pannello amministratore deve essere presente una schermata di verifica nella quale il fotografo può:
+
+* vedere gli slot riconosciuti;
+* controllare la foto associata;
+* correggere associazioni errate;
+* creare uno slot mancante;
+* eliminare uno slot riconosciuto per errore;
+* spostare o ridimensionare uno slot.
+
+Il sistema deve quindi lavorare automaticamente, mentre l’intervento manuale deve servire solo per correggere eventuali errori.
+
+Il cliente deve poter sfogliare il fotolibro e cliccare sulle fotografie riconosciute.
+
+Quando seleziona una fotografia deve vedere:
+
+* Sostituisci;
+* Elimina;
+* Richiedi modifica.
+
+Con “Sostituisci” deve aprirsi la galleria associata. Dopo la selezione, mostra immediatamente la nuova fotografia dentro lo slot come anteprima visiva, senza modificare il JPEG originale.
+
+Con “Elimina” mostra lo slot oscurato o barrato.
+
+Con “Richiedi modifica” mostra un campo obbligatorio per inserire una nota.
+
+Il cliente deve poter annullare le modifiche prima dell’invio definitivo.
+
+Nel pannello amministratore, dentro la sezione esistente “Selezioni”, aggiungi una schermata chiamata:
+
+“Modifiche Fotolibro”
+
+Mostra le richieste raggruppate per cliente, galleria, fotolibro, versione e pagina.
+
+Per ogni richiesta mostra:
+
+* numero pagina;
+* nome file originale;
+* nome file sostitutivo;
+* tipo di richiesta;
+* nota;
+* anteprima delle fotografie;
+* stato.
+
+Esempio:
+
+Pagina 8
+
+* Sostituire IMAG5525.jpg con IMAG5634.jpg
+* Eliminare IMAG5502.jpg
+* Modificare IMAG5597.jpg: “Allargare il ritaglio”
+
+Aggiungi un pulsante per copiare l’elenco completo delle modifiche.
+
+Il fotolibro deve supportare più versioni e mantenere lo storico.
+
+Prima di implementare, analizza l’architettura esistente e individua la soluzione migliore per il riconoscimento automatico degli slot e l’associazione alle fotografie della galleria.
+
+Riutilizza componenti, database, storage, autenticazione e stile grafico già presenti. Non modificare il funzionamento delle selezioni normali o inverse.
+
+Alla fine esegui la build e correggi tutti gli errori.
