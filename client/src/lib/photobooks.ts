@@ -15,6 +15,7 @@ import type {
   PhotobookChangeRequest,
   PhotobookChangeRequestStatus,
   PhotobookGalleryPhoto,
+  PhotobookGalleryChapter,
   PhotobookMarkPoint,
 } from '@shared/photobook-types';
 
@@ -23,6 +24,7 @@ export type {
   PhotobookPage,
   PhotobookChangeRequest,
   PhotobookGalleryPhoto,
+  PhotobookGalleryChapter,
   PhotobookMarkPoint,
 };
 
@@ -49,7 +51,7 @@ export async function getPhotobook(id: string): Promise<Photobook> {
 
 export async function updatePhotobook(
   id: string,
-  data: { name?: string; currentVersion?: number },
+  data: { name?: string; currentVersion?: number; locked?: boolean },
 ): Promise<Photobook> {
   const res = await apiRequest('PATCH', `/api/photobooks/${id}`, data);
   return (await json<{ photobook: Photobook }>(res)).photobook;
@@ -157,15 +159,45 @@ export async function getPhotobookByToken(
   return json<PhotobookTokenPayload>(res);
 }
 
+export interface PhotobookGalleryPhotosPayload {
+  photos: PhotobookGalleryPhoto[];
+  chapters: PhotobookGalleryChapter[];
+}
+
 export async function getPhotobookGalleryPhotosByToken(
   token: string,
-): Promise<PhotobookGalleryPhoto[]> {
+): Promise<PhotobookGalleryPhotosPayload> {
   const res = await fetch(createUrl(`/api/photobooks/by-token/${token}/gallery-photos`));
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
-  return (await json<{ photos: PhotobookGalleryPhoto[] }>(res)).photos;
+  const data = await json<{ photos: PhotobookGalleryPhoto[]; chapters?: PhotobookGalleryChapter[] }>(res);
+  return { photos: data.photos, chapters: data.chapters || [] };
+}
+
+/**
+ * Cancella una richiesta già inviata (solo se il fotolibro non è bloccato).
+ * `snapshotUrl` è il nuovo snapshot della pagina rigenerato senza la X
+ * cancellata, applicato alle richieste rimaste sulla stessa pagina.
+ */
+export async function deletePhotobookRequestByToken(
+  token: string,
+  requestId: string,
+  snapshotUrl?: string | null,
+): Promise<void> {
+  const res = await fetch(
+    createUrl(`/api/photobooks/by-token/${token}/requests/${requestId}`),
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshotUrl: snapshotUrl || null }),
+    },
+  );
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
 }
 
 /**

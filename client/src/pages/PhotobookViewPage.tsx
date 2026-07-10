@@ -18,13 +18,16 @@ import {
   getPhotobookGalleryPhotosByToken,
   submitPhotobookRequests,
   uploadPhotobookSnapshot,
+  deletePhotobookRequestByToken,
   type PhotobookClientRequestDraft,
 } from '@/lib/photobooks';
 import {
   PHOTOBOOK_MARK_PALETTE,
+  photobookMarkColorName,
   type PhotobookPage,
   type PhotobookMarkPoint,
   type PhotobookGalleryPhoto,
+  type PhotobookChangeRequest,
 } from '@shared/photobook-types';
 import PhotobookPhotoPicker from '@/components/photobook/PhotobookPhotoPicker';
 import PhotobookMarkCanvas, {
@@ -51,8 +54,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   BookImage,
   Loader2,
+  Lock,
   MessageSquareText,
   Replace,
   Send,
@@ -117,12 +131,14 @@ export default function PhotobookViewPage() {
     enabled: !!token,
   });
 
-  const { data: photos = [] } = useQuery({
+  const { data: galleryData } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, 'gallery-photos'],
     queryFn: () => getPhotobookGalleryPhotosByToken(token),
     enabled: !!data,
     staleTime: 5 * 60 * 1000,
   });
+  const photos = galleryData?.photos || [];
+  const chapters = galleryData?.chapters || [];
 
   /** X già inviate, per pagina (visibili in sola lettura sul canvas). */
   const sentMarksByPage = useMemo(() => {
@@ -131,6 +147,16 @@ export default function PhotobookViewPage() {
       if (!r.markStrokes || !r.markColor) continue;
       if (!map.has(r.pageId)) map.set(r.pageId, []);
       map.get(r.pageId)!.push({ color: r.markColor, strokes: r.markStrokes });
+    }
+    return map;
+  }, [data?.requests]);
+
+  /** Richieste già inviate, per pagina (per la cancellazione da parte del cliente). */
+  const sentRequestsByPage = useMemo(() => {
+    const map = new Map<string, PhotobookChangeRequest[]>();
+    for (const r of data?.requests || []) {
+      if (!map.has(r.pageId)) map.set(r.pageId, []);
+      map.get(r.pageId)!.push(r);
     }
     return map;
   }, [data?.requests]);
@@ -205,14 +231,69 @@ export default function PhotobookViewPage() {
   });
 
   const isCurrentVersion = data ? data.version === data.photobook.currentVersion : true;
+  const isLocked = !!data?.photobook.locked;
+  const canEdit = isCurrentVersion && !isLocked;
+
+  /** Cancellazione di una richiesta già inviata (solo fotolibro sbloccato). */
+  const [deleteSentTarget, setDeleteSentTarget] = useState<PhotobookChangeRequest | null>(null);
+  const deleteSentMutation = useMutation({
+    mutationFn: async (request: PhotobookChangeRequest) => {
+      // Rigenera lo snapshot della pagina senza la X cancellata, così le
+      // richieste rimaste sulla pagina mostrano l'immagine aggiornata.
+      let newSnapshotUrl: string | null = null;
+      const page = data?.pages.find((p) => p.id === request.pageId);
+      const remaining = (sentRequestsByPage.get(request.pageId) || []).filter(
+        (r) => r.id !== request.id && r.markStrokes && r.markColor,
+      );
+      if (page && remaining.length > 0) {
+        const marks: CanvasMark[] = remaining.map((r) => ({
+          color: r.markColor!,
+          strokes: r.markStrokes!,
+        }));
+        try {
+          const blob = await generatePageSnapshot(page.url, marks);
+          newSnapshotUrl = await uploadPhotobookSnapshot(token, page.id, blob);
+        } catch (e) {
+          // Snapshot best-effort: la cancellazione procede comunque
+          console.error('[fotolibro] Snapshot post-cancellazione non generato:', e);
+        }
+      }
+      await deletePhotobookRequestByToken(token, request.id, newSnapshotUrl);
+    },
+    onSuccess: () => {
+      setDeleteSentTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks/by-token', token] });
+      toast({
+        title: 'Richiesta cancellata',
+        description: 'La X e la richiesta inviata sono state rimosse.',
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore cancellazione', description: e.message, variant: 'destructive' }),
+  });
 
   const onMarkComplete = (page: PhotobookPage, strokes: PhotobookMarkPoint[][]) => {
-    if (!isCurrentVersion) return;
+    if (!canEdit) return;
     setActiveMark({ page, strokes, color: nextColorForPage(page.id) });
     setNoteMode(null);
     setNote('');
     setPendingReplacement(null);
   };
+
+  // Se l'admin manda in stampa mentre il cliente sta lavorando, chiudi
+  // dialog aperti e scarta le bozze locali: la pagina diventa sola lettura.
+  useEffect(() => {
+    if (isLocked) {
+      setDrafts(new Map());
+      setActiveMark(null);
+      setNoteMode(null);
+      setNote('');
+      setPendingReplacement(null);
+      setPickerOpen(false);
+      setConfirmOpen(false);
+      setDeleteSentTarget(null);
+    }
+  }, [isLocked]);
 
   const saveDraft = (
     entry: Omit<DraftEntry, 'id' | 'pageId' | 'pageNumber' | 'markColor' | 'markStrokes'>,
@@ -327,7 +408,22 @@ export default function PhotobookViewPage() {
           </div>
         )}
 
-        {!isCurrentVersion && (
+        {isLocked && (
+          <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
+            <CardContent className="py-4 flex items-start gap-3">
+              <Lock className="h-5 w-5 text-stone-500 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-stone-800">Album mandato in stampa</p>
+                <p className="text-sm text-stone-600">
+                  Non è più possibile apportare modifiche. Puoi comunque sfogliare le pagine e
+                  rivedere le richieste inviate.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isCurrentVersion && !isLocked && (
           <Card className="border-amber-300 bg-amber-50">
             <CardContent className="py-3 text-sm text-amber-800">
               Stai guardando una versione precedente del fotolibro (solo lettura). Torna alla
@@ -336,15 +432,19 @@ export default function PhotobookViewPage() {
           </Card>
         )}
 
-        <p className="text-sm text-muted-foreground px-1">
-          Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
-          disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
-          diventa una richiesta (sostituzione, eliminazione o modifica). Le tue richieste restano
-          in bozza finché non le invii tutte insieme.
-        </p>
+        {canEdit && (
+          <p className="text-sm text-muted-foreground px-1">
+            Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
+            disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
+            diventa una richiesta (sostituzione, eliminazione o modifica). Le tue richieste restano
+            in bozza finché non le invii tutte insieme. Le richieste già inviate si possono
+            cancellare finché l'album non va in stampa.
+          </p>
+        )}
 
         {pages.map((page) => {
           const pageDrafts = draftsByPage.get(page.id) || [];
+          const pageSent = sentRequestsByPage.get(page.id) || [];
           const marks: CanvasMark[] = [
             ...(sentMarksByPage.get(page.id) || []),
             ...pageDrafts.map((d) => ({
@@ -359,6 +459,37 @@ export default function PhotobookViewPage() {
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}
                 </p>
+                {pageSent.map((r) => (
+                  <span
+                    key={r.id}
+                    className="inline-flex items-center gap-1 text-[10px] bg-stone-100 border border-stone-200 rounded-full pl-1.5 pr-1 py-0.5 text-stone-600"
+                    data-testid={`chip-sent-${r.id}`}
+                  >
+                    {r.markColor && (
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: r.markColor }}
+                      />
+                    )}
+                    {r.type === 'replace'
+                      ? 'Sostituisci'
+                      : r.type === 'delete'
+                        ? 'Elimina'
+                        : 'Modifica'}
+                    {' · inviata'}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        className="ml-0.5 text-stone-400 hover:text-destructive"
+                        title="Cancella questa richiesta inviata"
+                        onClick={() => setDeleteSentTarget(r)}
+                        data-testid={`button-delete-sent-${r.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                ))}
                 {pageDrafts.map((d) => (
                   <span
                     key={d.id}
@@ -391,7 +522,7 @@ export default function PhotobookViewPage() {
                 pageAlt={`Pagina ${page.pageNumber}`}
                 marks={marks}
                 nextColor={nextColorForPage(page.id)}
-                drawingEnabled={isCurrentVersion}
+                drawingEnabled={canEdit}
                 onMarkComplete={(strokes) => onMarkComplete(page, strokes)}
               />
             </div>
@@ -399,8 +530,8 @@ export default function PhotobookViewPage() {
         })}
       </main>
 
-      {/* Barra invio */}
-      {drafts.size > 0 && (
+      {/* Barra invio (nascosta se l'album è andato in stampa) */}
+      {canEdit && drafts.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t shadow-lg">
           <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
             <Badge variant="secondary" className="shrink-0">
@@ -543,11 +674,55 @@ export default function PhotobookViewPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Conferma cancellazione richiesta già inviata */}
+      <AlertDialog
+        open={!!deleteSentTarget}
+        onOpenChange={(o) => !o && !deleteSentMutation.isPending && setDeleteSentTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancellare questa richiesta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteSentTarget && (
+                <>
+                  La richiesta {deleteSentTarget.markColor
+                    ? `con la X ${photobookMarkColorName(deleteSentTarget.markColor)}`
+                    : 'inviata'}{' '}
+                  a pagina {deleteSentTarget.pageNumber} (
+                  {deleteSentTarget.type === 'replace'
+                    ? `sostituzione con ${deleteSentTarget.replacementPhotoName || 'altra foto'}`
+                    : deleteSentTarget.type === 'delete'
+                      ? 'eliminazione foto'
+                      : 'modifica'}
+                  ) verrà rimossa e il fotografo non la vedrà più.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSentMutation.isPending}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteSentMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteSentTarget) deleteSentMutation.mutate(deleteSentTarget);
+              }}
+              data-testid="button-confirm-delete-sent"
+            >
+              {deleteSentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Cancella richiesta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Picker foto sostitutiva */}
       <PhotobookPhotoPicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         photos={photos}
+        chapters={chapters}
         title="Scegli la foto sostitutiva"
         onSelect={(p) => {
           setPendingReplacement(p);

@@ -19,7 +19,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { db, storage, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
-import { loadGalleryPhotoDocs, listGalleryPhotosPublic } from './photobook-gallery.js';
+import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 
 const router: Router = express.Router();
@@ -54,6 +54,7 @@ function serializeBook(id: string, d: any): any {
     clientName: d.clientName || null,
     token: d.token,
     currentVersion: d.currentVersion,
+    locked: !!d.locked,
     versions: (d.versions || []).map((v: any) => ({
       version: v.version,
       label: v.label || null,
@@ -166,6 +167,10 @@ function sanitizeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
   return strokes;
 }
 
+/** Messaggio mostrato al cliente quando il fotolibro è bloccato. */
+const LOCKED_MESSAGE =
+  "L'album è stato mandato in stampa: non è più possibile apportare modifiche.";
+
 /** Prefisso degli URL snapshot validi per un fotolibro (anti-spoofing). */
 function snapshotUrlPrefix(photobookId: string): string {
   const bucket = storage.bucket();
@@ -221,13 +226,17 @@ router.get('/by-token/:token', async (req: Request, res: Response) => {
   }
 });
 
-/** GET /by-token/:token/gallery-photos — foto della galleria per la scelta sostitutiva */
+/** GET /by-token/:token/gallery-photos — foto + capitoli della galleria per la scelta sostitutiva */
 router.get('/by-token/:token/gallery-photos', async (req: Request, res: Response) => {
   try {
     const bookDoc = await getBookByToken(req.params.token);
     if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const photos = await listGalleryPhotosPublic(bookDoc.data().galleryId);
-    return res.json({ photos });
+    const galleryId = bookDoc.data().galleryId;
+    const [photos, chapters] = await Promise.all([
+      listGalleryPhotosPublic(galleryId),
+      loadGalleryChapters(galleryId),
+    ]);
+    return res.json({ photos, chapters });
   } catch (error) {
     console.error('[photobooks] Errore gallery-photos by-token:', error);
     return res.status(500).json({ error: 'Errore interno del server' });
@@ -247,6 +256,9 @@ router.post(
       const bookDoc = await getBookByToken(req.params.token);
       if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
       const book = bookDoc.data();
+      if (book.locked) {
+        return res.status(403).json({ error: LOCKED_MESSAGE });
+      }
 
       const pageDoc = await db.collection(PAGES_COL).doc(req.params.pageId).get();
       if (!pageDoc.exists || pageDoc.data()!.photobookId !== bookDoc.id) {
@@ -295,6 +307,9 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
     const bookDoc = await getBookByToken(req.params.token);
     if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
     const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
 
     const { requests } = req.body || {};
     if (!Array.isArray(requests) || requests.length === 0 || requests.length > 200) {
@@ -418,6 +433,73 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
   }
 });
 
+/**
+ * DELETE /by-token/:token/requests/:requestId — il cliente cancella una
+ * richiesta già inviata (solo se il fotolibro NON è bloccato e la richiesta
+ * appartiene alla versione corrente). Il body JSON opzionale { snapshotUrl }
+ * contiene il nuovo snapshot della pagina rigenerato senza la X cancellata:
+ * viene applicato alle altre richieste rimaste sulla stessa pagina.
+ */
+router.delete('/by-token/:token/requests/:requestId', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+
+    const reqRef = db.collection(REQUESTS_COL).doc(req.params.requestId);
+    const reqDoc = await reqRef.get();
+    if (!reqDoc.exists || reqDoc.data()!.photobookId !== bookDoc.id) {
+      return res.status(404).json({ error: 'Richiesta non trovata' });
+    }
+    const reqData = reqDoc.data()!;
+    if (reqData.version !== book.currentVersion) {
+      return res.status(400).json({
+        error: 'Le richieste delle versioni precedenti non possono essere cancellate',
+      });
+    }
+
+    // Nuovo snapshot (facoltativo) per le richieste rimaste sulla pagina:
+    // accetta solo URL generati dall'endpoint snapshot di QUESTO fotolibro
+    const validSnapshotPrefix = snapshotUrlPrefix(bookDoc.id);
+    const newSnapshotUrl =
+      typeof req.body?.snapshotUrl === 'string' &&
+      req.body.snapshotUrl.startsWith(validSnapshotPrefix)
+        ? req.body.snapshotUrl.slice(0, 1000)
+        : null;
+
+    const siblingsSnap = await db
+      .collection(REQUESTS_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('pageId', '==', reqData.pageId)
+      .where('version', '==', book.currentVersion)
+      .get();
+
+    const batch = db.batch();
+    batch.delete(reqRef);
+    if (newSnapshotUrl) {
+      siblingsSnap.docs.forEach((d) => {
+        if (d.id === reqRef.id) return;
+        batch.update(d.ref, {
+          snapshotUrl: newSnapshotUrl,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+    }
+    await batch.commit();
+
+    console.log(
+      `📖 [photobooks] Richiesta ${reqRef.id} cancellata dal cliente per "${book.name}" (pagina ${reqData.pageNumber})`,
+    );
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[photobooks] Errore cancellazione richiesta by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // ============================================================
 // ROUTE ADMIN
 // ============================================================
@@ -533,6 +615,9 @@ router.patch('/:id', async (req: Request, res: Response) => {
       const exists = (data.versions || []).some((v: any) => v.version === req.body.currentVersion);
       if (!exists) return res.status(400).json({ error: 'Versione inesistente' });
       updates.currentVersion = req.body.currentVersion;
+    }
+    if (typeof req.body?.locked === 'boolean') {
+      updates.locked = req.body.locked;
     }
     await ref.update(updates);
     const saved = await ref.get();

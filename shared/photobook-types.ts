@@ -62,6 +62,12 @@ export interface Photobook {
   /** Versione attualmente visibile al cliente */
   currentVersion: number;
   versions: PhotobookVersion[];
+  /**
+   * Blocco "mandato in stampa" (attivato solo manualmente dall'admin):
+   * il cliente vede tutto in sola lettura e non può più inviare o
+   * cancellare richieste. Definitivo lato cliente (l'admin può riaprire).
+   */
+  locked?: boolean;
   createdAt: any;
   updatedAt?: any;
 }
@@ -111,6 +117,15 @@ export interface PhotobookGalleryPhoto {
   name: string;
   url: string;
   thumbnailUrl?: string | null;
+  /** Capitolo della galleria a cui appartiene la foto (se assegnata) */
+  chapterId?: string | null;
+}
+
+/** Capitolo della galleria (subset sicuro per il picker foto sostitutive). */
+export interface PhotobookGalleryChapter {
+  id: string;
+  titolo: string;
+  ordine: number;
 }
 
 /**

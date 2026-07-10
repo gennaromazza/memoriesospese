@@ -14,6 +14,7 @@ import {
   createPhotobook,
   createPhotobookVersion,
   deletePhotobook,
+  updatePhotobook,
   photobookClientLink,
   type Photobook,
 } from '@/lib/photobooks';
@@ -48,7 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BookImage, Copy, Layers, Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
+import { BookImage, Copy, Layers, Lock, Unlock, Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
 
 export default function PhotobooksManager() {
   const [, navigate] = useLocation();
@@ -58,6 +59,7 @@ export default function PhotobooksManager() {
   const [newGalleryId, setNewGalleryId] = useState('');
   const [gallerySearch, setGallerySearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
+  const [lockTarget, setLockTarget] = useState<Photobook | null>(null);
 
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['/api/photobooks'],
@@ -110,6 +112,29 @@ export default function PhotobooksManager() {
       toast({ title: 'Errore eliminazione', description: e.message, variant: 'destructive' }),
   });
 
+  const lockMutation = useMutation({
+    mutationFn: ({ id, locked }: { id: string; locked: boolean }) =>
+      updatePhotobook(id, { locked }),
+    onSuccess: (book) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      setLockTarget(null);
+      toast(
+        book.locked
+          ? {
+              title: 'Album mandato in stampa',
+              description:
+                'Il cliente ora vede il fotolibro in sola lettura e non può più inviare o cancellare richieste.',
+            }
+          : {
+              title: 'Modifiche riaperte',
+              description: 'Il cliente può di nuovo inviare e cancellare richieste.',
+            },
+      );
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore aggiornamento blocco', description: e.message, variant: 'destructive' }),
+  });
+
   const copyLink = (book: Photobook) => {
     navigator.clipboard.writeText(photobookClientLink(book));
     toast({ title: 'Link copiato', description: 'Invia questo link al cliente per la revisione.' });
@@ -158,9 +183,18 @@ export default function PhotobooksManager() {
                         {book.clientName ? ` · ${book.clientName}` : ''}
                       </p>
                     </div>
-                    <Badge variant="secondary" className="shrink-0">
-                      v{book.currentVersion}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Badge variant="secondary">v{book.currentVersion}</Badge>
+                      {book.locked && (
+                        <Badge
+                          className="bg-stone-700 text-white hover:bg-stone-700"
+                          data-testid={`badge-locked-${book.id}`}
+                        >
+                          <Lock className="h-3 w-3 mr-1" />
+                          In stampa
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {currentVer?.pageCount ?? 0} pagine · {book.versions.length}{' '}
@@ -188,6 +222,29 @@ export default function PhotobooksManager() {
                       <Layers className="h-3.5 w-3.5 mr-1.5" />
                       Nuova Versione
                     </Button>
+                    {book.locked ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={lockMutation.isPending}
+                        onClick={() => lockMutation.mutate({ id: book.id, locked: false })}
+                        data-testid={`button-unlock-${book.id}`}
+                      >
+                        <Unlock className="h-3.5 w-3.5 mr-1.5" />
+                        Sblocca
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={lockMutation.isPending}
+                        onClick={() => setLockTarget(book)}
+                        data-testid={`button-lock-${book.id}`}
+                      >
+                        <Lock className="h-3.5 w-3.5 mr-1.5" />
+                        Manda in Stampa
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -263,6 +320,30 @@ export default function PhotobooksManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Conferma "manda in stampa" */}
+      <AlertDialog open={!!lockTarget} onOpenChange={(o) => !o && setLockTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mandare l'album in stampa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il cliente di "{lockTarget?.name}" vedrà l'avviso "Album mandato in stampa" e non
+              potrà più disegnare X, inviare richieste o cancellare quelle già inviate. Potrai
+              sbloccare le modifiche in qualsiasi momento da qui.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={lockMutation.isPending}
+              onClick={() => lockTarget && lockMutation.mutate({ id: lockTarget.id, locked: true })}
+              data-testid="button-confirm-lock"
+            >
+              Manda in Stampa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Conferma eliminazione */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
