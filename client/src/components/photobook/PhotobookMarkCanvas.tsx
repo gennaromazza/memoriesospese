@@ -73,6 +73,8 @@ export default function PhotobookMarkCanvas({
   // Copia in ref del tratto in corso: evita side effect annidati negli updater
   // di stato (in Strict Mode verrebbero eseguiti due volte)
   const currentStrokeRef = useRef<PhotobookMarkPoint[] | null>(null);
+  // Puntatore che sta disegnando: ignora dita/penne aggiuntive (multi-touch)
+  const activePointerIdRef = useRef<number | null>(null);
 
   const canDraw = drawingEnabled && penActive;
 
@@ -87,11 +89,13 @@ export default function PhotobookMarkCanvas({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!canDraw) return;
+    if (drawingRef.current) return; // già in corso con un altro dito/puntatore
     if (pendingStrokes.length >= MAX_STROKES) return;
     const p = toNorm(e);
     if (!p) return;
     e.preventDefault();
     drawingRef.current = true;
+    activePointerIdRef.current = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     currentStrokeRef.current = [p];
     setCurrentStroke(currentStrokeRef.current);
@@ -99,6 +103,7 @@ export default function PhotobookMarkCanvas({
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!drawingRef.current) return;
+    if (e.pointerId !== activePointerIdRef.current) return;
     const p = toNorm(e);
     if (!p) return;
     e.preventDefault();
@@ -113,9 +118,11 @@ export default function PhotobookMarkCanvas({
     setCurrentStroke(currentStrokeRef.current);
   };
 
-  const endStroke = () => {
+  const endStroke = (e?: React.PointerEvent) => {
     if (!drawingRef.current) return;
+    if (e && e.pointerId !== activePointerIdRef.current) return;
     drawingRef.current = false;
+    activePointerIdRef.current = null;
     const stroke = currentStrokeRef.current;
     currentStrokeRef.current = null;
     setCurrentStroke(null);
@@ -155,7 +162,7 @@ export default function PhotobookMarkCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={endStroke}
         onPointerCancel={endStroke}
-        onPointerLeave={endStroke}
+        onLostPointerCapture={endStroke}
       >
         <img
           src={pageUrl}

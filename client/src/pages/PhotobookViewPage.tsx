@@ -156,12 +156,14 @@ export default function PhotobookViewPage() {
 
   const submitMutation = useMutation({
     mutationFn: async (entries: DraftEntry[]) => {
-      // 1) Snapshot per pagina (best-effort: l'invio procede anche se fallisce)
+      // 1) Snapshot per pagina (obbligatorio: senza snapshot l'invio si blocca)
       const pageIds = Array.from(new Set(entries.map((d) => d.pageId)));
       const snapshotByPage = new Map<string, string>();
       for (const pageId of pageIds) {
         const page = data?.pages.find((p) => p.id === pageId);
-        if (!page) continue;
+        if (!page) {
+          throw new Error('Pagina non trovata: ricarica la pagina e riprova.');
+        }
         try {
           const marks: CanvasMark[] = [
             ...(sentMarksByPage.get(pageId) || []),
@@ -173,7 +175,11 @@ export default function PhotobookViewPage() {
           const url = await uploadPhotobookSnapshot(token, pageId, blob);
           snapshotByPage.set(pageId, url);
         } catch (e) {
-          console.warn('[fotolibro] Snapshot pagina non generato:', e);
+          console.error('[fotolibro] Snapshot pagina non generato:', e);
+          throw new Error(
+            `Impossibile salvare l'immagine della pagina ${page.pageNumber} con le X. ` +
+              'Controlla la connessione e riprova: nessuna richiesta è stata inviata.',
+          );
         }
       }
       // 2) Invio richieste
@@ -181,7 +187,7 @@ export default function PhotobookViewPage() {
         token,
         entries.map(({ id, pageNumber, ...rest }) => ({
           ...rest,
-          snapshotUrl: snapshotByPage.get(rest.pageId) || null,
+          snapshotUrl: snapshotByPage.get(rest.pageId)!,
         })),
       );
     },

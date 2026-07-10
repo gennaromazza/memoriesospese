@@ -368,12 +368,17 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
         return res.status(400).json({ error: 'Segno (X) mancante o non valido' });
       }
 
-      // Snapshot (facoltativo, best-effort lato client): accetta solo URL
-      // generati dall'endpoint snapshot di QUESTO fotolibro
+      // Snapshot obbligatorio: accetta solo URL generati dall'endpoint
+      // snapshot di QUESTO fotolibro (anti-spoofing)
       const snapshotUrl =
         typeof r.snapshotUrl === 'string' && r.snapshotUrl.startsWith(validSnapshotPrefix)
           ? r.snapshotUrl.slice(0, 1000)
           : null;
+      if (!snapshotUrl) {
+        return res.status(400).json({
+          error: 'Snapshot della pagina mancante o non valido: riprova l\'invio',
+        });
+      }
 
       const ref = db.collection(REQUESTS_COL).doc();
       created.push(ref.id);
