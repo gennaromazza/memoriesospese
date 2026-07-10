@@ -13,7 +13,10 @@ import {
   updatePhotobookChangeRequest,
   type PhotobookChangeRequest,
 } from '@/lib/photobooks';
-import type { PhotobookChangeRequestStatus } from '@shared/photobook-types';
+import {
+  photobookMarkColorName,
+  type PhotobookChangeRequestStatus,
+} from '@shared/photobook-types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,7 +50,8 @@ interface BookGroup {
 }
 
 function requestLine(r: PhotobookChangeRequest): string {
-  const base = `Pag. ${r.pageNumber}`;
+  const colorName = photobookMarkColorName(r.markColor);
+  const base = colorName ? `Pag. ${r.pageNumber} [X ${colorName}]` : `Pag. ${r.pageNumber}`;
   const orig = r.originalPhotoName ? ` [${r.originalPhotoName}]` : '';
   if (r.type === 'replace') {
     return `${base}${orig} → SOSTITUIRE con ${r.replacementPhotoName || r.replacementPhotoId}${r.note ? ` (nota: ${r.note})` : ''}`;
@@ -186,17 +190,48 @@ export default function PhotobookChangesScreen() {
                         </Button>
                       </div>
 
-                      {sortedPages.map((pn) => (
+                      {sortedPages.map((pn) => {
+                        const pageRequests = pages.get(pn)!;
+                        // Snapshot più recente della pagina (le richieste sono già
+                        // ordinate dalla più recente; le legacy a slot non ne hanno)
+                        const snapshotUrl =
+                          pageRequests.find((r) => r.snapshotUrl)?.snapshotUrl || null;
+                        return (
                         <div key={pn} className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground uppercase">
                             Pagina {pn}
                           </p>
-                          {pages.get(pn)!.map((r) => (
+                          {snapshotUrl && (
+                            <a
+                              href={snapshotUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block max-w-md rounded-md overflow-hidden border bg-muted hover:opacity-90 transition-opacity"
+                              title="Apri lo snapshot a grandezza intera"
+                              data-testid={`link-snapshot-${group.key}-${version}-${pn}`}
+                            >
+                              <img
+                                src={snapshotUrl}
+                                alt={`Pagina ${pn} con le X del cliente`}
+                                loading="lazy"
+                                className="w-full h-auto"
+                              />
+                            </a>
+                          )}
+                          {pageRequests.map((r) => (
                             <div
                               key={r.id}
                               className="flex items-start gap-3 border rounded-md p-2.5 flex-wrap"
                               data-testid={`row-request-${r.id}`}
                             >
+                              {r.markColor && (
+                                <span
+                                  className="inline-block w-3.5 h-3.5 rounded-full border mt-1 shrink-0"
+                                  style={{ backgroundColor: r.markColor }}
+                                  title={`X ${photobookMarkColorName(r.markColor)}`}
+                                  data-testid={`dot-mark-color-${r.id}`}
+                                />
+                              )}
                               <div className="flex items-center gap-2 shrink-0">
                                 {r.originalPhotoThumbnailUrl && (
                                   <img
@@ -220,6 +255,11 @@ export default function PhotobookChangesScreen() {
                                 <div className="flex items-center gap-1.5 text-sm font-medium">
                                   {typeIcon(r.type)}
                                   {TYPE_LABEL[r.type]}
+                                  {r.markColor && (
+                                    <span className="text-xs text-muted-foreground font-normal">
+                                      · X {photobookMarkColorName(r.markColor)}
+                                    </span>
+                                  )}
                                 </div>
                                 {r.originalPhotoName && (
                                   <p className="text-xs text-muted-foreground break-all">
@@ -251,7 +291,8 @@ export default function PhotobookChangesScreen() {
                             </div>
                           ))}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}

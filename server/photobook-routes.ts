@@ -2,32 +2,25 @@
  * Photobook Routes — Modulo Revisione Fotolibro.
  *
  * Route admin (authenticateFirebase + requireAdmin): CRUD fotolibri, versioni,
- * upload pagine JPEG su Storage (`photobooks/{id}/v{n}/`), riconoscimento slot
- * e associazione automatica alle foto della galleria, gestione richieste.
+ * upload pagine JPEG su Storage (`photobooks/{id}/v{n}/`), gestione richieste.
  *
  * Route pubbliche a token (`/by-token/:token`): il cliente accede SOLO tramite
  * link dedicato, mai dalla galleria pubblica. L'admin SDK bypassa le Security
  * Rules (pattern moduli informativi).
+ *
+ * Revisione "a penna": il cliente disegna X colorate a mano libera sulla
+ * pagina; ogni X è una richiesta (replace/delete/edit) con tratti normalizzati
+ * 0–1 e colore da palette. All'invio il client carica uno snapshot JPEG della
+ * pagina con le X disegnate (`photobooks/{id}/snapshots/`).
  */
 
 import express, { Request, Response, Router, NextFunction } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
+import sharp from 'sharp';
 import { db, storage, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
-import { detectPhotoSlots } from './photobook-detection.js';
-import {
-  buildGalleryHashIndex,
-  prepareGalleryHashes,
-  matchSlotsToPhotos,
-  loadGalleryPhotoDocs,
-  listGalleryPhotosPublic,
-} from './photobook-matching.js';
-import type {
-  Photobook,
-  PhotobookPage,
-  PhotobookSlot,
-  PhotobookChangeRequest,
-} from '../shared/photobook-types.js';
+import { loadGalleryPhotoDocs, listGalleryPhotosPublic } from './photobook-gallery.js';
+import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 
 const router: Router = express.Router();
 
@@ -83,9 +76,6 @@ function serializePage(id: string, d: any): any {
     storagePath: d.storagePath,
     width: d.width || 0,
     height: d.height || 0,
-    slots: d.slots || [],
-    detectionStatus: d.detectionStatus || 'done',
-    detectionError: d.detectionError || null,
     createdAt: ts(d.createdAt),
     updatedAt: ts(d.updatedAt),
   };
@@ -102,11 +92,10 @@ function serializeRequest(id: string, d: any): any {
     version: d.version,
     pageId: d.pageId,
     pageNumber: d.pageNumber,
-    slotId: d.slotId,
     type: d.type,
-    originalPhotoId: d.originalPhotoId || null,
-    originalPhotoName: d.originalPhotoName || null,
-    originalPhotoThumbnailUrl: d.originalPhotoThumbnailUrl || null,
+    markColor: d.markColor || null,
+    markStrokes: d.markStrokes || null,
+    snapshotUrl: d.snapshotUrl || null,
     replacementPhotoId: d.replacementPhotoId || null,
     replacementPhotoName: d.replacementPhotoName || null,
     replacementPhotoThumbnailUrl: d.replacementPhotoThumbnailUrl || null,
@@ -115,6 +104,11 @@ function serializeRequest(id: string, d: any): any {
     batchId: d.batchId || null,
     createdAt: ts(d.createdAt),
     updatedAt: ts(d.updatedAt),
+    // Campi legacy del sistema a slot (richieste precedenti)
+    slotId: d.slotId || null,
+    originalPhotoId: d.originalPhotoId || null,
+    originalPhotoName: d.originalPhotoName || null,
+    originalPhotoThumbnailUrl: d.originalPhotoThumbnailUrl || null,
   };
 }
 
@@ -125,68 +119,43 @@ async function getBookByToken(token: string) {
   return snap.docs[0];
 }
 
-function sanitizeSlots(raw: any): PhotobookSlot[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: PhotobookSlot[] = [];
+const MARK_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const PALETTE_HEX = new Set(PHOTOBOOK_MARK_PALETTE.map((c) => c.hex.toLowerCase()));
+const MAX_STROKES_PER_MARK = 12;
+const MAX_POINTS_PER_STROKE = 600;
+
+/**
+ * Valida e normalizza i tratti di una X: 1–12 tratti, 2–600 punti ciascuno,
+ * coordinate clampate 0–1 e arrotondate a 4 decimali. Ritorna null se invalidi.
+ */
+function sanitizeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_STROKES_PER_MARK) return null;
+  const strokes: PhotobookMarkPoint[][] = [];
   for (const s of raw) {
-    if (!s || typeof s !== 'object') return null;
-    const num = (v: any) => (typeof v === 'number' && isFinite(v) ? v : null);
-    const x = num(s.x);
-    const y = num(s.y);
-    const width = num(s.width);
-    const height = num(s.height);
-    if (x === null || y === null || width === null || height === null) return null;
-    out.push({
-      id: typeof s.id === 'string' && s.id ? s.id : randomUUID(),
-      x: Math.min(1, Math.max(0, x)),
-      y: Math.min(1, Math.max(0, y)),
-      width: Math.min(1, Math.max(0.005, width)),
-      height: Math.min(1, Math.max(0.005, height)),
-      rotation: num(s.rotation) || 0,
-      photoId: typeof s.photoId === 'string' ? s.photoId : null,
-      photoName: typeof s.photoName === 'string' ? s.photoName : null,
-      photoThumbnailUrl: typeof s.photoThumbnailUrl === 'string' ? s.photoThumbnailUrl : null,
-      confidence: num(s.confidence),
-      matchStatus: s.matchStatus === 'auto' || s.matchStatus === 'manual' ? s.matchStatus : 'none',
-    });
-  }
-  return out;
-}
-
-/** Scarica il buffer di una pagina dal suo storagePath. */
-async function downloadPageBuffer(storagePath: string): Promise<Buffer> {
-  const [buf] = await storage.bucket().file(storagePath).download();
-  return buf;
-}
-
-/** Esegue il matching automatico sugli slot senza associazione manuale. */
-async function autoMatchSlots(
-  galleryId: string,
-  pageBuffer: Buffer,
-  slots: PhotobookSlot[],
-): Promise<PhotobookSlot[]> {
-  const index = await buildGalleryHashIndex(galleryId);
-  const docs = await loadGalleryPhotoDocs(galleryId);
-  const byId = new Map(docs.map((d) => [d.id, { url: d.url, thumbnailUrl: d.thumbnailUrl }]));
-
-  const toMatch = slots.filter((s) => s.matchStatus !== 'manual');
-  const matches = await matchSlotsToPhotos(pageBuffer, toMatch, index, byId);
-
-  return slots.map((s) => {
-    if (s.matchStatus === 'manual') return s;
-    const m = matches.get(s.id);
-    if (!m) {
-      return { ...s, photoId: null, photoName: null, photoThumbnailUrl: null, confidence: null, matchStatus: 'none' as const };
+    if (!Array.isArray(s) || s.length < 2 || s.length > MAX_POINTS_PER_STROKE) return null;
+    const stroke: PhotobookMarkPoint[] = [];
+    for (const p of s) {
+      if (!p || typeof p !== 'object') return null;
+      const x = typeof p.x === 'number' && isFinite(p.x) ? p.x : null;
+      const y = typeof p.y === 'number' && isFinite(p.y) ? p.y : null;
+      if (x === null || y === null) return null;
+      stroke.push({
+        x: Math.round(Math.min(1, Math.max(0, x)) * 10000) / 10000,
+        y: Math.round(Math.min(1, Math.max(0, y)) * 10000) / 10000,
+      });
     }
-    return {
-      ...s,
-      photoId: m.photoId,
-      photoName: m.photoName,
-      photoThumbnailUrl: m.photoThumbnailUrl,
-      confidence: m.confidence,
-      matchStatus: 'auto' as const,
-    };
-  });
+    strokes.push(stroke);
+  }
+  return strokes;
+}
+
+/** Prefisso degli URL snapshot validi per un fotolibro (anti-spoofing). */
+function snapshotUrlPrefix(photobookId: string): string {
+  const bucket = storage.bucket();
+  return (
+    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+    encodeURIComponent(`photobooks/${photobookId}/snapshots/`)
+  );
 }
 
 // ============================================================
@@ -248,6 +217,61 @@ router.get('/by-token/:token/gallery-photos', async (req: Request, res: Response
   }
 });
 
+/**
+ * POST /by-token/:token/pages/:pageId/snapshot — carica lo snapshot JPEG della
+ * pagina con le X disegnate (body raw image/jpeg). Ritorna { url }.
+ * Chiamato dal client subito prima dell'invio delle richieste.
+ */
+router.post(
+  '/by-token/:token/pages/:pageId/snapshot',
+  express.raw({ type: ['image/jpeg'], limit: '15mb' }),
+  async (req: Request, res: Response) => {
+    try {
+      const bookDoc = await getBookByToken(req.params.token);
+      if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+      const book = bookDoc.data();
+
+      const pageDoc = await db.collection(PAGES_COL).doc(req.params.pageId).get();
+      if (!pageDoc.exists || pageDoc.data()!.photobookId !== bookDoc.id) {
+        return res.status(404).json({ error: 'Pagina non trovata' });
+      }
+      if (pageDoc.data()!.version !== book.currentVersion) {
+        return res.status(400).json({
+          error: 'Le versioni precedenti del fotolibro sono in sola lettura',
+        });
+      }
+
+      const buffer = req.body as Buffer;
+      if (!Buffer.isBuffer(buffer) || buffer.length < 500) {
+        return res.status(400).json({ error: 'Snapshot mancante o non valido' });
+      }
+      // Deve essere un JPEG reale (magic bytes FF D8)
+      if (buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+        return res.status(400).json({ error: 'Formato snapshot non valido' });
+      }
+
+      const bucket = storage.bucket();
+      const downloadToken = randomUUID();
+      const storagePath = `photobooks/${bookDoc.id}/snapshots/${pageDoc.id}-${Date.now()}.jpg`;
+      await bucket.file(storagePath).save(buffer, {
+        resumable: false,
+        metadata: {
+          contentType: 'image/jpeg',
+          metadata: { firebaseStorageDownloadTokens: downloadToken },
+        },
+      });
+      const url =
+        `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+        `${encodeURIComponent(storagePath)}?alt=media&token=${downloadToken}`;
+
+      return res.json({ url });
+    } catch (error) {
+      console.error('[photobooks] Errore upload snapshot:', error);
+      return res.status(500).json({ error: 'Errore interno del server' });
+    }
+  },
+);
+
 /** POST /by-token/:token/requests — invio definitivo delle richieste di modifica */
 router.post('/by-token/:token/requests', async (req: Request, res: Response) => {
   try {
@@ -278,14 +302,16 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
       pageDocs.set(pid, pd.data());
     }
 
-    // Le foto sostitutive devono appartenere alla galleria collegata al fotolibro
+    // Le foto sostitutive devono appartenere alla galleria collegata al
+    // fotolibro; nome e miniatura vengono risolti server-side (anti-spoofing)
     const needsReplacementCheck = requests.some((r: any) => r.type === 'replace');
-    let galleryPhotoIds: Set<string> | null = null;
+    let galleryPhotosById: Map<string, { name: string; url: string; thumbnailUrl?: string | null }> | null = null;
     if (needsReplacementCheck) {
       const galleryDocs = await loadGalleryPhotoDocs(book.galleryId);
-      galleryPhotoIds = new Set(galleryDocs.map((d) => d.id));
+      galleryPhotosById = new Map(galleryDocs.map((d) => [d.id, d]));
     }
 
+    const validSnapshotPrefix = snapshotUrlPrefix(bookDoc.id);
     const batchId = randomUUID();
     const batch = db.batch();
     const created: string[] = [];
@@ -299,19 +325,38 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
       if (type === 'edit' && !note) {
         return res.status(400).json({ error: 'La nota è obbligatoria per le richieste di modifica' });
       }
+      let replacementPhoto: { name: string; url: string; thumbnailUrl?: string | null } | null = null;
       if (type === 'replace') {
         if (!r.replacementPhotoId) {
           return res.status(400).json({ error: 'Foto sostitutiva mancante' });
         }
-        if (!galleryPhotoIds?.has(String(r.replacementPhotoId))) {
+        replacementPhoto = galleryPhotosById?.get(String(r.replacementPhotoId)) || null;
+        if (!replacementPhoto) {
           return res.status(400).json({
             error: 'La foto sostitutiva non appartiene alla galleria di questo fotolibro',
           });
         }
       }
       const pageData = pageDocs.get(String(r.pageId));
-      const slot = (pageData.slots || []).find((s: any) => s.id === r.slotId);
-      if (!slot) return res.status(400).json({ error: 'Slot non valido' });
+
+      // La X disegnata: colore della palette + tratti normalizzati
+      const markColor =
+        typeof r.markColor === 'string' &&
+        MARK_COLOR_RE.test(r.markColor) &&
+        PALETTE_HEX.has(r.markColor.toLowerCase())
+          ? r.markColor.toLowerCase()
+          : null;
+      const markStrokes = sanitizeMarkStrokes(r.markStrokes);
+      if (!markColor || !markStrokes) {
+        return res.status(400).json({ error: 'Segno (X) mancante o non valido' });
+      }
+
+      // Snapshot (facoltativo, best-effort lato client): accetta solo URL
+      // generati dall'endpoint snapshot di QUESTO fotolibro
+      const snapshotUrl =
+        typeof r.snapshotUrl === 'string' && r.snapshotUrl.startsWith(validSnapshotPrefix)
+          ? r.snapshotUrl.slice(0, 1000)
+          : null;
 
       const ref = db.collection(REQUESTS_COL).doc();
       created.push(ref.id);
@@ -324,17 +369,16 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
         version: pageData.version,
         pageId: String(r.pageId),
         pageNumber: pageData.pageNumber,
-        slotId: String(r.slotId),
         type,
-        originalPhotoId: slot.photoId || null,
-        originalPhotoName: slot.photoName || null,
-        originalPhotoThumbnailUrl: slot.photoThumbnailUrl || null,
-        replacementPhotoId: type === 'replace' ? String(r.replacementPhotoId) : null,
-        replacementPhotoName: type === 'replace' ? String(r.replacementPhotoName || '') : null,
-        replacementPhotoThumbnailUrl:
-          type === 'replace' && r.replacementPhotoThumbnailUrl
-            ? String(r.replacementPhotoThumbnailUrl)
-            : null,
+        markColor,
+        markStrokes,
+        snapshotUrl,
+        // Metadati risolti server-side dalla galleria (mai dal client)
+        replacementPhotoId: replacementPhoto ? String(r.replacementPhotoId) : null,
+        replacementPhotoName: replacementPhoto ? replacementPhoto.name : null,
+        replacementPhotoThumbnailUrl: replacementPhoto
+          ? replacementPhoto.thumbnailUrl || replacementPhoto.url
+          : null,
         note: note || null,
         status: 'pending',
         batchId,
@@ -558,20 +602,6 @@ router.get('/:id/pages', async (req: Request, res: Response) => {
   }
 });
 
-/** POST /:id/prepare-hashes — calcola/cacha hash foto galleria (batch, chiamare in loop) */
-router.post('/:id/prepare-hashes', async (req: Request, res: Response) => {
-  try {
-    const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
-    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const limit = Number(req.body?.limit) || 40;
-    const result = await prepareGalleryHashes(bookDoc.data()!.galleryId, limit);
-    return res.json({ ok: true, ...result });
-  } catch (error) {
-    console.error('[photobooks] Errore prepare-hashes:', error);
-    return res.status(500).json({ error: 'Errore interno del server' });
-  }
-});
-
 /** GET /:id/gallery-photos — foto galleria per il picker admin */
 router.get('/:id/gallery-photos', async (req: Request, res: Response) => {
   try {
@@ -587,7 +617,7 @@ router.get('/:id/gallery-photos', async (req: Request, res: Response) => {
 
 /**
  * POST /:id/versions/:version/pages — upload pagina JPEG (body raw image/*).
- * Query: pageNumber (int), fileName. Esegue subito riconoscimento slot + matching.
+ * Query: pageNumber (int), fileName.
  */
 router.post(
   '/:id/versions/:version/pages',
@@ -631,20 +661,15 @@ router.post(
         `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
         `${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
-      // Riconoscimento slot + matching automatico
-      let slots: PhotobookSlot[] = [];
+      // Dimensioni originali della pagina (per il rendering proporzionale)
       let pageWidth = 0;
       let pageHeight = 0;
-      let detectionStatus: 'done' | 'failed' = 'done';
-      let detectionError: string | null = null;
       try {
-        const det = await detectPhotoSlots(buffer);
-        pageWidth = det.pageWidth;
-        pageHeight = det.pageHeight;
-        slots = await autoMatchSlots(book.galleryId, buffer, det.slots);
-      } catch (err: any) {
-        detectionStatus = 'failed';
-        detectionError = err?.message || 'Riconoscimento fallito';
+        const meta = await sharp(buffer).metadata();
+        pageWidth = meta.width || 0;
+        pageHeight = meta.height || 0;
+      } catch {
+        // non bloccante: il client usa l'aspect ratio dell'immagine caricata
       }
 
       const pageRef = await db.collection(PAGES_COL).add({
@@ -656,9 +681,6 @@ router.post(
         storagePath,
         width: pageWidth,
         height: pageHeight,
-        slots,
-        detectionStatus,
-        detectionError,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -670,9 +692,7 @@ router.post(
       await ref.update({ versions: updatedVersions, updatedAt: FieldValue.serverTimestamp() });
 
       const saved = await pageRef.get();
-      console.log(
-        `📖 [photobooks] Pagina ${pageNumber} caricata (v${version}, ${slots.length} slot, ${slots.filter((s) => s.photoId).length} match)`,
-      );
+      console.log(`📖 [photobooks] Pagina ${pageNumber} caricata (v${version})`);
       return res.json({ page: serializePage(pageRef.id, saved.data()) });
     } catch (error) {
       console.error('[photobooks] Errore upload pagina:', error);
@@ -681,7 +701,7 @@ router.post(
   },
 );
 
-/** PATCH /:id/pages/:pageId — salva gli slot modificati dall'editor admin */
+/** PATCH /:id/pages/:pageId — aggiorna il numero pagina */
 router.patch('/:id/pages/:pageId', async (req: Request, res: Response) => {
   try {
     const pageRef = db.collection(PAGES_COL).doc(req.params.pageId);
@@ -691,11 +711,6 @@ router.patch('/:id/pages/:pageId', async (req: Request, res: Response) => {
     }
 
     const updates: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
-    if (req.body?.slots !== undefined) {
-      const slots = sanitizeSlots(req.body.slots);
-      if (!slots) return res.status(400).json({ error: 'Slot non validi' });
-      updates.slots = slots;
-    }
     if (typeof req.body?.pageNumber === 'number' && Number.isInteger(req.body.pageNumber) && req.body.pageNumber >= 1) {
       updates.pageNumber = req.body.pageNumber;
     }
@@ -739,62 +754,6 @@ router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
     return res.json({ ok: true });
   } catch (error) {
     console.error('[photobooks] Errore eliminazione pagina:', error);
-    return res.status(500).json({ error: 'Errore interno del server' });
-  }
-});
-
-/** POST /:id/pages/:pageId/redetect — riesegue riconoscimento slot + matching */
-router.post('/:id/pages/:pageId/redetect', async (req: Request, res: Response) => {
-  try {
-    const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
-    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const pageRef = db.collection(PAGES_COL).doc(req.params.pageId);
-    const pageDoc = await pageRef.get();
-    if (!pageDoc.exists || pageDoc.data()!.photobookId !== req.params.id) {
-      return res.status(404).json({ error: 'Pagina non trovata' });
-    }
-    const pageData = pageDoc.data()!;
-
-    const buffer = await downloadPageBuffer(pageData.storagePath);
-    const det = await detectPhotoSlots(buffer);
-    const slots = await autoMatchSlots(bookDoc.data()!.galleryId, buffer, det.slots);
-
-    await pageRef.update({
-      slots,
-      width: det.pageWidth,
-      height: det.pageHeight,
-      detectionStatus: 'done',
-      detectionError: null,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    const saved = await pageRef.get();
-    return res.json({ page: serializePage(pageRef.id, saved.data()) });
-  } catch (error) {
-    console.error('[photobooks] Errore redetect:', error);
-    return res.status(500).json({ error: 'Errore interno del server' });
-  }
-});
-
-/** POST /:id/pages/:pageId/rematch — riesegue solo il matching sugli slot esistenti */
-router.post('/:id/pages/:pageId/rematch', async (req: Request, res: Response) => {
-  try {
-    const bookDoc = await db.collection(BOOKS_COL).doc(req.params.id).get();
-    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const pageRef = db.collection(PAGES_COL).doc(req.params.pageId);
-    const pageDoc = await pageRef.get();
-    if (!pageDoc.exists || pageDoc.data()!.photobookId !== req.params.id) {
-      return res.status(404).json({ error: 'Pagina non trovata' });
-    }
-    const pageData = pageDoc.data()!;
-
-    const buffer = await downloadPageBuffer(pageData.storagePath);
-    const slots = await autoMatchSlots(bookDoc.data()!.galleryId, buffer, pageData.slots || []);
-
-    await pageRef.update({ slots, updatedAt: FieldValue.serverTimestamp() });
-    const saved = await pageRef.get();
-    return res.json({ page: serializePage(pageRef.id, saved.data()) });
-  } catch (error) {
-    console.error('[photobooks] Errore rematch:', error);
     return res.status(500).json({ error: 'Errore interno del server' });
   }
 });

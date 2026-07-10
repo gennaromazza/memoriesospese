@@ -3,7 +3,7 @@
  *
  * - Route admin: /api/photobooks/* (Firebase auth automatica via apiRequest)
  * - Route pubbliche a token: /api/photobooks/by-token/:token/* (nessuna auth)
- * - Upload pagine: body raw JPEG con Authorization esplicito (no JSON)
+ * - Upload pagine/snapshot: body raw JPEG (no JSON)
  */
 
 import { apiRequest } from './queryClient';
@@ -12,18 +12,18 @@ import { auth } from './firebase';
 import type {
   Photobook,
   PhotobookPage,
-  PhotobookSlot,
   PhotobookChangeRequest,
   PhotobookChangeRequestStatus,
   PhotobookGalleryPhoto,
+  PhotobookMarkPoint,
 } from '@shared/photobook-types';
 
 export type {
   Photobook,
   PhotobookPage,
-  PhotobookSlot,
   PhotobookChangeRequest,
   PhotobookGalleryPhoto,
+  PhotobookMarkPoint,
 };
 
 async function json<T>(res: Response): Promise<T> {
@@ -70,22 +70,6 @@ export async function listPhotobookPages(id: string, version?: number): Promise<
   return (await json<{ pages: PhotobookPage[] }>(res)).pages;
 }
 
-export interface PrepareHashesResponse {
-  total: number;
-  hashed: number;
-  alreadyHashed: number;
-  remaining: number;
-  failed: number;
-}
-
-export async function preparePhotobookHashes(
-  id: string,
-  limit = 40,
-): Promise<PrepareHashesResponse> {
-  const res = await apiRequest('POST', `/api/photobooks/${id}/prepare-hashes`, { limit });
-  return json<PrepareHashesResponse>(res);
-}
-
 export async function listPhotobookGalleryPhotos(id: string): Promise<PhotobookGalleryPhoto[]> {
   const res = await apiRequest('GET', `/api/photobooks/${id}/gallery-photos`);
   return (await json<{ photos: PhotobookGalleryPhoto[] }>(res)).photos;
@@ -124,7 +108,7 @@ export async function uploadPhotobookPage(params: {
 export async function updatePhotobookPage(
   photobookId: string,
   pageId: string,
-  data: { slots?: PhotobookSlot[]; pageNumber?: number },
+  data: { pageNumber?: number },
 ): Promise<PhotobookPage> {
   const res = await apiRequest('PATCH', `/api/photobooks/${photobookId}/pages/${pageId}`, data);
   return (await json<{ page: PhotobookPage }>(res)).page;
@@ -132,22 +116,6 @@ export async function updatePhotobookPage(
 
 export async function deletePhotobookPage(photobookId: string, pageId: string): Promise<void> {
   await apiRequest('DELETE', `/api/photobooks/${photobookId}/pages/${pageId}`);
-}
-
-export async function redetectPhotobookPage(
-  photobookId: string,
-  pageId: string,
-): Promise<PhotobookPage> {
-  const res = await apiRequest('POST', `/api/photobooks/${photobookId}/pages/${pageId}/redetect`);
-  return (await json<{ page: PhotobookPage }>(res)).page;
-}
-
-export async function rematchPhotobookPage(
-  photobookId: string,
-  pageId: string,
-): Promise<PhotobookPage> {
-  const res = await apiRequest('POST', `/api/photobooks/${photobookId}/pages/${pageId}/rematch`);
-  return (await json<{ page: PhotobookPage }>(res)).page;
 }
 
 export async function listPhotobookChangeRequests(): Promise<PhotobookChangeRequest[]> {
@@ -200,10 +168,36 @@ export async function getPhotobookGalleryPhotosByToken(
   return (await json<{ photos: PhotobookGalleryPhoto[] }>(res)).photos;
 }
 
+/**
+ * Upload dello snapshot JPEG di una pagina (pagina + X disegnate).
+ * Ritorna l'URL Storage da allegare alle richieste della pagina.
+ */
+export async function uploadPhotobookSnapshot(
+  token: string,
+  pageId: string,
+  blob: Blob,
+): Promise<string> {
+  const res = await fetch(
+    createUrl(`/api/photobooks/by-token/${token}/pages/${pageId}/snapshot`),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob,
+    },
+  );
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
+  return (await json<{ url: string }>(res)).url;
+}
+
 export interface PhotobookClientRequestDraft {
   pageId: string;
-  slotId: string;
   type: 'replace' | 'delete' | 'edit';
+  markColor: string;
+  markStrokes: PhotobookMarkPoint[][];
+  snapshotUrl?: string | null;
   replacementPhotoId?: string;
   replacementPhotoName?: string;
   replacementPhotoThumbnailUrl?: string;

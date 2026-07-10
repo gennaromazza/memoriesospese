@@ -1,9 +1,11 @@
 /**
  * Pagina cliente revisione fotolibro — /fotolibro/:token
  * Accessibile SOLO tramite link a token (invisibile agli ospiti della galleria).
- * Il cliente tocca una foto sulla pagina e sceglie: Sostituisci / Elimina /
- * Richiedi modifica (nota obbligatoria). Le scelte restano in bozza (annullabili)
- * finché non vengono inviate tutte insieme.
+ * Il cliente disegna una X a mano libera sulla foto da modificare: ogni X
+ * riceve un colore automatico dalla palette e diventa una richiesta
+ * (Sostituisci / Elimina / Modifica con nota obbligatoria). Le X restano in
+ * bozza (annullabili) finché non vengono inviate tutte insieme; all'invio
+ * viene caricato uno snapshot JPEG di ogni pagina con le X disegnate.
  */
 
 import { useMemo, useState } from 'react';
@@ -15,10 +17,20 @@ import {
   getPhotobookByToken,
   getPhotobookGalleryPhotosByToken,
   submitPhotobookRequests,
+  uploadPhotobookSnapshot,
   type PhotobookClientRequestDraft,
 } from '@/lib/photobooks';
-import type { PhotobookPage, PhotobookSlot, PhotobookGalleryPhoto } from '@shared/photobook-types';
+import {
+  PHOTOBOOK_MARK_PALETTE,
+  type PhotobookPage,
+  type PhotobookMarkPoint,
+  type PhotobookGalleryPhoto,
+} from '@shared/photobook-types';
 import PhotobookPhotoPicker from '@/components/photobook/PhotobookPhotoPicker';
+import PhotobookMarkCanvas, {
+  generatePageSnapshot,
+  type CanvasMark,
+} from '@/components/photobook/PhotobookMarkCanvas';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,14 +58,18 @@ import {
   Send,
   Trash2,
   Undo2,
-  CheckCircle2,
 } from 'lucide-react';
 
 interface DraftEntry extends PhotobookClientRequestDraft {
+  id: string;
   pageNumber: number;
 }
 
-const draftKey = (pageId: string, slotId: string) => `${pageId}::${slotId}`;
+function newDraftId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `mark-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function PhotobookViewPage() {
   const { token = '' } = useParams<{ token: string }>();
@@ -61,7 +77,11 @@ export default function PhotobookViewPage() {
 
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [drafts, setDrafts] = useState<Map<string, DraftEntry>>(new Map());
-  const [activeSlot, setActiveSlot] = useState<{ page: PhotobookPage; slot: PhotobookSlot } | null>(null);
+  const [activeMark, setActiveMark] = useState<{
+    page: PhotobookPage;
+    strokes: PhotobookMarkPoint[][];
+    color: string;
+  } | null>(null);
   const [noteMode, setNoteMode] = useState<'edit' | 'replace' | 'delete' | null>(null);
   const [note, setNote] = useState('');
   const [pendingReplacement, setPendingReplacement] = useState<PhotobookGalleryPhoto | null>(null);
@@ -81,8 +101,67 @@ export default function PhotobookViewPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  /** X già inviate, per pagina (visibili in sola lettura sul canvas). */
+  const sentMarksByPage = useMemo(() => {
+    const map = new Map<string, CanvasMark[]>();
+    for (const r of data?.requests || []) {
+      if (!r.markStrokes || !r.markColor) continue;
+      if (!map.has(r.pageId)) map.set(r.pageId, []);
+      map.get(r.pageId)!.push({ color: r.markColor, strokes: r.markStrokes });
+    }
+    return map;
+  }, [data?.requests]);
+
+  const draftsByPage = useMemo(() => {
+    const map = new Map<string, DraftEntry[]>();
+    for (const d of drafts.values()) {
+      if (!map.has(d.pageId)) map.set(d.pageId, []);
+      map.get(d.pageId)!.push(d);
+    }
+    return map;
+  }, [drafts]);
+
+  /** Prossimo colore disponibile per una pagina (primo non usato, poi cicla). */
+  const nextColorForPage = (pageId: string): string => {
+    const used = new Set<string>();
+    for (const m of sentMarksByPage.get(pageId) || []) used.add(m.color.toLowerCase());
+    for (const d of draftsByPage.get(pageId) || []) used.add(d.markColor.toLowerCase());
+    const free = PHOTOBOOK_MARK_PALETTE.find((c) => !used.has(c.hex.toLowerCase()));
+    if (free) return free.hex;
+    return PHOTOBOOK_MARK_PALETTE[used.size % PHOTOBOOK_MARK_PALETTE.length].hex;
+  };
+
   const submitMutation = useMutation({
-    mutationFn: (requests: PhotobookClientRequestDraft[]) => submitPhotobookRequests(token, requests),
+    mutationFn: async (entries: DraftEntry[]) => {
+      // 1) Snapshot per pagina (best-effort: l'invio procede anche se fallisce)
+      const pageIds = Array.from(new Set(entries.map((d) => d.pageId)));
+      const snapshotByPage = new Map<string, string>();
+      for (const pageId of pageIds) {
+        const page = data?.pages.find((p) => p.id === pageId);
+        if (!page) continue;
+        try {
+          const marks: CanvasMark[] = [
+            ...(sentMarksByPage.get(pageId) || []),
+            ...entries
+              .filter((d) => d.pageId === pageId)
+              .map((d) => ({ color: d.markColor, strokes: d.markStrokes })),
+          ];
+          const blob = await generatePageSnapshot(page.url, marks);
+          const url = await uploadPhotobookSnapshot(token, pageId, blob);
+          snapshotByPage.set(pageId, url);
+        } catch (e) {
+          console.warn('[fotolibro] Snapshot pagina non generato:', e);
+        }
+      }
+      // 2) Invio richieste
+      return submitPhotobookRequests(
+        token,
+        entries.map(({ id, pageNumber, ...rest }) => ({
+          ...rest,
+          snapshotUrl: snapshotByPage.get(rest.pageId) || null,
+        })),
+      );
+    },
     onSuccess: (r) => {
       setDrafts(new Map());
       setConfirmOpen(false);
@@ -96,47 +175,43 @@ export default function PhotobookViewPage() {
       toast({ title: 'Errore invio richieste', description: e.message, variant: 'destructive' }),
   });
 
-  const sentBySlot = useMemo(() => {
-    const map = new Map<string, { type: string; status: string }>();
-    for (const r of data?.requests || []) {
-      map.set(draftKey(r.pageId, r.slotId), { type: r.type, status: r.status });
-    }
-    return map;
-  }, [data?.requests]);
-
   const isCurrentVersion = data ? data.version === data.photobook.currentVersion : true;
 
-  const openSlot = (page: PhotobookPage, slot: PhotobookSlot) => {
+  const onMarkComplete = (page: PhotobookPage, strokes: PhotobookMarkPoint[][]) => {
     if (!isCurrentVersion) return;
-    setActiveSlot({ page, slot });
+    setActiveMark({ page, strokes, color: nextColorForPage(page.id) });
     setNoteMode(null);
     setNote('');
     setPendingReplacement(null);
   };
 
-  const saveDraft = (entry: Omit<DraftEntry, 'pageId' | 'slotId' | 'pageNumber'>) => {
-    if (!activeSlot) return;
-    const key = draftKey(activeSlot.page.id, activeSlot.slot.id);
+  const saveDraft = (
+    entry: Omit<DraftEntry, 'id' | 'pageId' | 'pageNumber' | 'markColor' | 'markStrokes'>,
+  ) => {
+    if (!activeMark) return;
+    const id = newDraftId();
     setDrafts((prev) => {
       const next = new Map(prev);
-      next.set(key, {
+      next.set(id, {
         ...entry,
-        pageId: activeSlot.page.id,
-        slotId: activeSlot.slot.id,
-        pageNumber: activeSlot.page.pageNumber,
+        id,
+        pageId: activeMark.page.id,
+        pageNumber: activeMark.page.pageNumber,
+        markColor: activeMark.color,
+        markStrokes: activeMark.strokes,
       });
       return next;
     });
-    setActiveSlot(null);
+    setActiveMark(null);
     setNoteMode(null);
     setNote('');
     setPendingReplacement(null);
   };
 
-  const removeDraft = (key: string) => {
+  const removeDraft = (id: string) => {
     setDrafts((prev) => {
       const next = new Map(prev);
-      next.delete(key);
+      next.delete(id);
       return next;
     });
   };
@@ -166,12 +241,6 @@ export default function PhotobookViewPage() {
   }
 
   const { photobook, pages } = data;
-  const activeDraft = activeSlot
-    ? drafts.get(draftKey(activeSlot.page.id, activeSlot.slot.id)) || null
-    : null;
-  const activeSent = activeSlot
-    ? sentBySlot.get(draftKey(activeSlot.page.id, activeSlot.slot.id)) || null
-    : null;
 
   return (
     <div className="min-h-screen bg-stone-50 pb-28">
@@ -217,58 +286,65 @@ export default function PhotobookViewPage() {
         )}
 
         <p className="text-sm text-muted-foreground">
-          Tocca una foto per richiederne la sostituzione, l'eliminazione o una modifica. Le tue
-          scelte restano in bozza finché non le invii tutte insieme.
+          Disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
+          diventa una richiesta (sostituzione, eliminazione o modifica). Le tue richieste restano
+          in bozza finché non le invii tutte insieme.
         </p>
 
-        {pages.map((page) => (
-          <div key={page.id} className="space-y-1.5">
-            <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-              Pagina {page.pageNumber}
-            </p>
-            <div className="relative rounded-lg overflow-hidden border bg-white shadow-sm">
-              <img src={page.url} alt={`Pagina ${page.pageNumber}`} loading="lazy" className="w-full h-auto block" />
-              {page.slots.map((slot) => {
-                const key = draftKey(page.id, slot.id);
-                const draft = drafts.get(key);
-                const sent = sentBySlot.get(key);
-                return (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    onClick={() => openSlot(page, slot)}
-                    className={`absolute border-2 transition-colors ${
-                      draft
-                        ? 'border-orange-500 bg-orange-500/20'
-                        : sent
-                          ? 'border-sky-500 bg-sky-500/10'
-                          : 'border-transparent hover:border-stone-400/80 hover:bg-white/10'
-                    } ${!isCurrentVersion ? 'cursor-default' : 'cursor-pointer'}`}
-                    style={{
-                      left: `${slot.x * 100}%`,
-                      top: `${slot.y * 100}%`,
-                      width: `${slot.width * 100}%`,
-                      height: `${slot.height * 100}%`,
-                    }}
-                    data-testid={`slot-client-${page.pageNumber}-${slot.id}`}
+        {pages.map((page) => {
+          const pageDrafts = draftsByPage.get(page.id) || [];
+          const marks: CanvasMark[] = [
+            ...(sentMarksByPage.get(page.id) || []),
+            ...pageDrafts.map((d) => ({
+              color: d.markColor,
+              strokes: d.markStrokes,
+              isDraft: true,
+            })),
+          ];
+          return (
+            <div key={page.id} className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
+                  Pagina {page.pageNumber}
+                </p>
+                {pageDrafts.map((d) => (
+                  <span
+                    key={d.id}
+                    className="inline-flex items-center gap-1 text-[10px] bg-white border rounded-full pl-1.5 pr-1 py-0.5"
+                    data-testid={`chip-draft-${d.id}`}
                   >
-                    {draft && (
-                      <span className="absolute top-1 left-1 bg-orange-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                        {draft.type === 'replace' ? 'Da sostituire' : draft.type === 'delete' ? 'Da eliminare' : 'Modifica richiesta'}
-                      </span>
-                    )}
-                    {!draft && sent && (
-                      <span className="absolute top-1 left-1 bg-sky-500 text-white text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Richiesta inviata
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: d.markColor }}
+                    />
+                    {d.type === 'replace'
+                      ? 'Sostituisci'
+                      : d.type === 'delete'
+                        ? 'Elimina'
+                        : 'Modifica'}
+                    <button
+                      type="button"
+                      className="ml-0.5 text-stone-400 hover:text-destructive"
+                      title="Annulla questa richiesta"
+                      onClick={() => removeDraft(d.id)}
+                      data-testid={`button-remove-draft-${d.id}`}
+                    >
+                      <Undo2 className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <PhotobookMarkCanvas
+                pageUrl={page.url}
+                pageAlt={`Pagina ${page.pageNumber}`}
+                marks={marks}
+                nextColor={nextColorForPage(page.id)}
+                drawingEnabled={isCurrentVersion}
+                onMarkComplete={(strokes) => onMarkComplete(page, strokes)}
+              />
             </div>
-          </div>
-        ))}
+          );
+        })}
       </main>
 
       {/* Barra invio */}
@@ -291,22 +367,21 @@ export default function PhotobookViewPage() {
         </div>
       )}
 
-      {/* Dialog azioni slot */}
-      <Dialog open={!!activeSlot && !noteMode} onOpenChange={(o) => !o && setActiveSlot(null)}>
+      {/* Dialog azioni per la X appena disegnata */}
+      <Dialog open={!!activeMark && !noteMode} onOpenChange={(o) => !o && setActiveMark(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>
-              Pagina {activeSlot?.page.pageNumber}
-              {activeSlot?.slot.photoName ? ` — ${activeSlot.slot.photoName}` : ''}
+            <DialogTitle className="flex items-center gap-2">
+              <span
+                className="inline-block w-3.5 h-3.5 rounded-full border shrink-0"
+                style={{ backgroundColor: activeMark?.color }}
+              />
+              Pagina {activeMark?.page.pageNumber}
             </DialogTitle>
-            <DialogDescription>Cosa vuoi fare con questa foto?</DialogDescription>
+            <DialogDescription>
+              Cosa vuoi richiedere per la foto segnata con la X? Se chiudi, la X viene annullata.
+            </DialogDescription>
           </DialogHeader>
-          {activeSent && (
-            <p className="text-xs bg-sky-50 border border-sky-200 text-sky-800 rounded-md p-2">
-              Hai già inviato una richiesta per questa foto. Una nuova richiesta si aggiungerà a
-              quella precedente.
-            </p>
-          )}
           <div className="flex flex-col gap-2">
             <Button
               variant="outline"
@@ -337,27 +412,13 @@ export default function PhotobookViewPage() {
               <MessageSquareText className="h-4 w-4 mr-2" />
               Richiedi una modifica
             </Button>
-            {activeDraft && (
-              <Button
-                variant="ghost"
-                className="justify-start text-destructive hover:text-destructive"
-                onClick={() => {
-                  if (activeSlot) removeDraft(draftKey(activeSlot.page.id, activeSlot.slot.id));
-                  setActiveSlot(null);
-                }}
-                data-testid="button-action-undo"
-              >
-                <Undo2 className="h-4 w-4 mr-2" />
-                Annulla la modifica in bozza
-              </Button>
-            )}
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Dialog nota (elimina / modifica / conferma sostituzione) */}
       <Dialog
-        open={!!activeSlot && !!noteMode}
+        open={!!activeMark && !!noteMode}
         onOpenChange={(o) => {
           if (!o) {
             setNoteMode(null);
@@ -378,7 +439,7 @@ export default function PhotobookViewPage() {
               {noteMode === 'edit'
                 ? 'Descrivi la modifica che desideri (obbligatorio).'
                 : noteMode === 'delete'
-                  ? 'La foto verrà rimossa dal fotolibro. Puoi aggiungere una nota (facoltativa).'
+                  ? 'La foto segnata con la X verrà rimossa dal fotolibro. Puoi aggiungere una nota (facoltativa).'
                   : `Sostituzione con: ${pendingReplacement?.name || ''}. Puoi aggiungere una nota (facoltativa).`}
             </DialogDescription>
           </DialogHeader>
@@ -436,7 +497,6 @@ export default function PhotobookViewPage() {
         onOpenChange={setPickerOpen}
         photos={photos}
         title="Scegli la foto sostitutiva"
-        currentPhotoId={activeSlot?.slot.photoId}
         onSelect={(p) => {
           setPendingReplacement(p);
           setNoteMode('replace');
@@ -453,10 +513,14 @@ export default function PhotobookViewPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-64 overflow-y-auto space-y-1.5">
-            {Array.from(drafts.entries())
-              .sort((a, b) => a[1].pageNumber - b[1].pageNumber)
-              .map(([key, d]) => (
-                <div key={key} className="flex items-center gap-2 text-sm border rounded-md p-2">
+            {Array.from(drafts.values())
+              .sort((a, b) => a.pageNumber - b.pageNumber)
+              .map((d) => (
+                <div key={d.id} className="flex items-center gap-2 text-sm border rounded-md p-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-full border shrink-0"
+                    style={{ backgroundColor: d.markColor }}
+                  />
                   <Badge variant="outline" className="shrink-0">Pag. {d.pageNumber}</Badge>
                   <span className="min-w-0 flex-1 truncate">
                     {d.type === 'replace'
@@ -469,7 +533,7 @@ export default function PhotobookViewPage() {
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7 shrink-0"
-                    onClick={() => removeDraft(key)}
+                    onClick={() => removeDraft(d.id)}
                   >
                     <Undo2 className="h-3.5 w-3.5" />
                   </Button>
@@ -482,11 +546,7 @@ export default function PhotobookViewPage() {
             </Button>
             <Button
               disabled={drafts.size === 0 || submitMutation.isPending}
-              onClick={() =>
-                submitMutation.mutate(
-                  Array.from(drafts.values()).map(({ pageNumber, ...rest }) => rest),
-                )
-              }
+              onClick={() => submitMutation.mutate(Array.from(drafts.values()))}
               data-testid="button-confirm-submit"
             >
               {submitMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

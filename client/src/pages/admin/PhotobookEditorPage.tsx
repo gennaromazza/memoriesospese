@@ -1,7 +1,8 @@
 /**
  * Editor fotolibro (admin) — route standalone /admin/photobooks/:id
- * Upload pagine JPEG, preparazione hash foto galleria, riconoscimento slot,
- * verifica match e correzioni manuali, gestione versioni.
+ * Upload pagine JPEG, riordino/eliminazione pagine e gestione versioni.
+ * La revisione avviene "a penna": il cliente disegna X colorate sulla pagina,
+ * quindi non c'è più riconoscimento slot o matching automatico.
  */
 
 import { useRef, useState } from 'react';
@@ -13,23 +14,14 @@ import {
   getPhotobook,
   listPhotobookPages,
   listPhotobookGalleryPhotos,
-  preparePhotobookHashes,
   uploadPhotobookPage,
-  updatePhotobookPage,
   deletePhotobookPage,
-  redetectPhotobookPage,
-  rematchPhotobookPage,
   createPhotobookVersion,
   updatePhotobook,
   photobookClientLink,
-  type PhotobookPage,
-  type PhotobookSlot,
 } from '@/lib/photobooks';
-import PhotobookSlotEditor from '@/components/photobook/PhotobookSlotEditor';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -42,12 +34,9 @@ import {
   Copy,
   Layers,
   Loader2,
-  RefreshCw,
-  ScanSearch,
   Trash2,
   Upload,
   CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react';
 
 export default function PhotobookEditorPage() {
@@ -57,9 +46,7 @@ export default function PhotobookEditorPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [editorPage, setEditorPage] = useState<PhotobookPage | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-  const [hashProgress, setHashProgress] = useState<{ done: number; total: number } | null>(null);
 
   const { data: book, isLoading: bookLoading } = useQuery({
     queryKey: ['/api/photobooks', id],
@@ -88,43 +75,12 @@ export default function PhotobookEditorPage() {
     queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
   };
 
-  /** Cicla prepare-hashes finché tutte le foto galleria hanno l'hash cachato. */
-  const ensureHashes = async (): Promise<void> => {
-    const first = await preparePhotobookHashes(id, 40);
-    let processed = first.alreadyHashed + first.hashed + first.failed;
-    setHashProgress({ done: Math.min(processed, first.total), total: first.total });
-    let remaining = first.remaining;
-    // Guardia anti-loop: al massimo total/limit + margine iterazioni, e stop se non c'è progresso
-    const maxIterations = Math.ceil(first.total / 40) + 5;
-    let iterations = 0;
-    while (remaining > 0) {
-      if (++iterations > maxIterations) {
-        throw new Error(
-          'La preparazione del riconoscimento foto non avanza: riprova più tardi o contatta l\u2019assistenza.',
-        );
-      }
-      const r = await preparePhotobookHashes(id, 40);
-      if (r.hashed + r.failed === 0 && r.remaining >= remaining) {
-        throw new Error(
-          'La preparazione del riconoscimento foto si è bloccata: riprova più tardi.',
-        );
-      }
-      processed += r.hashed + r.failed;
-      remaining = r.remaining;
-      setHashProgress({ done: Math.min(processed, r.total), total: r.total });
-    }
-    setHashProgress(null);
-  };
-
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0 || !book) return;
     const list = Array.from(files).sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { numeric: true }),
     );
     try {
-      setUploadProgress('Preparazione riconoscimento foto...');
-      await ensureHashes();
-
       let nextNumber = pages.reduce((m, p) => Math.max(m, p.pageNumber), 0) + 1;
       for (let i = 0; i < list.length; i++) {
         setUploadProgress(`Caricamento pagina ${i + 1} di ${list.length} (${list[i].name})...`);
@@ -138,48 +94,15 @@ export default function PhotobookEditorPage() {
       }
       toast({
         title: 'Pagine caricate',
-        description: `${list.length} pagine elaborate: verifica le foto riconosciute.`,
+        description: `${list.length} pagine caricate: il cliente può disegnare le X per le richieste.`,
       });
     } catch (e: any) {
       toast({ title: 'Errore caricamento', description: e.message, variant: 'destructive' });
     } finally {
       setUploadProgress(null);
-      setHashProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
-
-  const saveSlotsMutation = useMutation({
-    mutationFn: ({ pageId, slots }: { pageId: string; slots: PhotobookSlot[] }) =>
-      updatePhotobookPage(id, pageId, { slots }),
-    onSuccess: (page) => {
-      invalidatePages();
-      setEditorPage(page);
-      toast({ title: 'Slot salvati' });
-    },
-    onError: (e: any) =>
-      toast({ title: 'Errore salvataggio', description: e.message, variant: 'destructive' }),
-  });
-
-  const redetectMutation = useMutation({
-    mutationFn: (pageId: string) => redetectPhotobookPage(id, pageId),
-    onSuccess: () => {
-      invalidatePages();
-      toast({ title: 'Riconoscimento ripetuto' });
-    },
-    onError: (e: any) =>
-      toast({ title: 'Errore riconoscimento', description: e.message, variant: 'destructive' }),
-  });
-
-  const rematchMutation = useMutation({
-    mutationFn: (pageId: string) => rematchPhotobookPage(id, pageId),
-    onSuccess: () => {
-      invalidatePages();
-      toast({ title: 'Matching ripetuto' });
-    },
-    onError: (e: any) =>
-      toast({ title: 'Errore matching', description: e.message, variant: 'destructive' }),
-  });
 
   const deletePageMutation = useMutation({
     mutationFn: (pageId: string) => deletePhotobookPage(id, pageId),
@@ -332,19 +255,11 @@ export default function PhotobookEditorPage() {
           </CardContent>
         </Card>
 
-        {/* Progress upload / hash */}
+        {/* Progress upload */}
         {busy && (
           <Card>
-            <CardContent className="pt-4 space-y-2">
+            <CardContent className="pt-4">
               <p className="text-sm">{uploadProgress}</p>
-              {hashProgress && hashProgress.total > 0 && (
-                <>
-                  <Progress value={(hashProgress.done / hashProgress.total) * 100} />
-                  <p className="text-xs text-muted-foreground">
-                    Analisi foto galleria: {hashProgress.done}/{hashProgress.total}
-                  </p>
-                </>
-              )}
             </CardContent>
           </Card>
         )}
@@ -362,103 +277,41 @@ export default function PhotobookEditorPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pages.map((page) => {
-              const matched = page.slots.filter((s) => s.photoId).length;
-              const uncertain = page.slots.filter(
-                (s) => s.photoId && s.matchStatus === 'auto' && (s.confidence ?? 0) < 75,
-              ).length;
-              return (
-                <Card key={page.id} data-testid={`card-page-${page.pageNumber}`}>
-                  <CardContent className="pt-4 space-y-2">
-                    <button
-                      type="button"
-                      className="w-full rounded-md overflow-hidden border bg-muted"
-                      onClick={() => setEditorPage(page)}
+            {pages.map((page) => (
+              <Card key={page.id} data-testid={`card-page-${page.pageNumber}`}>
+                <CardContent className="pt-4 space-y-2">
+                  <div className="w-full rounded-md overflow-hidden border bg-muted">
+                    <img
+                      src={page.url}
+                      alt={`Pagina ${page.pageNumber}`}
+                      loading="lazy"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">Pagina {page.pageNumber}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      title="Elimina pagina"
+                      disabled={deletePageMutation.isPending}
+                      onClick={() => {
+                        if (confirm(`Eliminare la pagina ${page.pageNumber}?`)) {
+                          deletePageMutation.mutate(page.id);
+                        }
+                      }}
+                      data-testid={`button-delete-page-${page.pageNumber}`}
                     >
-                      <img
-                        src={page.url}
-                        alt={`Pagina ${page.pageNumber}`}
-                        loading="lazy"
-                        className="w-full h-auto"
-                      />
-                    </button>
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-sm font-medium">Pagina {page.pageNumber}</span>
-                      <div className="flex items-center gap-1.5">
-                        {page.detectionStatus === 'failed' ? (
-                          <Badge variant="destructive">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Riconoscimento fallito
-                          </Badge>
-                        ) : (
-                          <>
-                            <Badge variant={matched === page.slots.length ? 'secondary' : 'outline'}>
-                              {matched}/{page.slots.length} foto
-                            </Badge>
-                            {uncertain > 0 && (
-                              <Badge variant="outline" className="text-amber-600 border-amber-400">
-                                {uncertain} incerte
-                              </Badge>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      <Button size="sm" variant="outline" onClick={() => setEditorPage(page)} data-testid={`button-edit-page-${page.pageNumber}`}>
-                        Modifica slot
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        title="Ripeti riconoscimento slot"
-                        disabled={redetectMutation.isPending}
-                        onClick={() => redetectMutation.mutate(page.id)}
-                      >
-                        <ScanSearch className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        title="Ripeti solo il matching foto"
-                        disabled={rematchMutation.isPending}
-                        onClick={() => rematchMutation.mutate(page.id)}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive hover:text-destructive"
-                        title="Elimina pagina"
-                        disabled={deletePageMutation.isPending}
-                        onClick={() => {
-                          if (confirm(`Eliminare la pagina ${page.pageNumber}?`)) {
-                            deletePageMutation.mutate(page.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>
-
-      {editorPage && (
-        <PhotobookSlotEditor
-          open={!!editorPage}
-          onOpenChange={(o) => !o && setEditorPage(null)}
-          page={editorPage}
-          photos={photos}
-          saving={saveSlotsMutation.isPending}
-          onSave={(slots) => saveSlotsMutation.mutate({ pageId: editorPage.id, slots })}
-        />
-      )}
     </div>
   );
 }

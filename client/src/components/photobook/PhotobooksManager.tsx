@@ -123,8 +123,8 @@ export default function PhotobooksManager() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
-          Carica le pagine JPEG del fotolibro, verifica le foto riconosciute e invia al cliente il
-          link di revisione.
+          Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
+          disegna una X sulle foto da modificare.
         </p>
         <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
           <Plus className="h-4 w-4 mr-2" />
@@ -211,8 +211,8 @@ export default function PhotobooksManager() {
           <DialogHeader>
             <DialogTitle>Nuovo Fotolibro</DialogTitle>
             <DialogDescription>
-              Il fotolibro è collegato a una galleria: le foto delle pagine verranno riconosciute
-              tra quelle della galleria.
+              Il fotolibro è collegato a una galleria: il cliente sceglierà le eventuali foto
+              sostitutive tra quelle della galleria.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

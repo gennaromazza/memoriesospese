@@ -3,32 +3,30 @@
  *
  * Collezioni Firestore:
  *  - `photobooks`            → fotolibro (galleria associata, versioni con storico, token cliente)
- *  - `photobookPages`        → pagine JPEG per versione (slot embedded, coordinate proporzionali 0–1)
+ *  - `photobookPages`        → pagine JPEG per versione
  *  - `photobookChangeRequests` → richieste di modifica inviate dal cliente
  *
  * Il cliente accede SOLO tramite link a token (`/fotolibro/:token`), mai dalla
  * galleria pubblica: il fotolibro è invisibile agli ospiti.
+ *
+ * Revisione "a penna": il cliente disegna una X a mano libera sulla pagina;
+ * ogni X (colore auto-assegnato da palette) diventa una richiesta di modifica.
+ * All'invio viene salvato uno snapshot JPEG della pagina con le X disegnate.
  */
 
-/** Slot fotografico riconosciuto (o creato manualmente) su una pagina. Coordinate proporzionali 0–1. */
-export interface PhotobookSlot {
-  id: string;
-  x: number; // 0–1, bordo sinistro
-  y: number; // 0–1, bordo superiore
-  width: number; // 0–1
-  height: number; // 0–1
-  rotation: number; // gradi, default 0
-  /** Foto galleria associata (match automatico o correzione manuale) */
-  photoId?: string | null;
-  photoName?: string | null;
-  photoThumbnailUrl?: string | null;
-  /** Percentuale di affidabilità del match automatico (0–100) */
-  confidence?: number | null;
-  /** Origine dell'associazione */
-  matchStatus: 'auto' | 'manual' | 'none';
+/** Punto di un tratto, coordinate proporzionali 0–1 rispetto alla pagina. */
+export interface PhotobookMarkPoint {
+  x: number;
+  y: number;
 }
 
-export type PhotobookPageDetectionStatus = 'pending' | 'processing' | 'done' | 'failed';
+/** Segno a mano libera (una X = uno o più tratti) con colore assegnato. */
+export interface PhotobookMark {
+  /** Colore esadecimale assegnato automaticamente (es. "#e11d48") */
+  color: string;
+  /** Tratti disegnati: ogni tratto è una sequenza di punti normalizzati 0–1 */
+  strokes: PhotobookMarkPoint[][];
+}
 
 /** Pagina JPEG di una versione del fotolibro. */
 export interface PhotobookPage {
@@ -41,9 +39,6 @@ export interface PhotobookPage {
   storagePath: string;
   width: number; // pixel originali
   height: number;
-  slots: PhotobookSlot[];
-  detectionStatus: PhotobookPageDetectionStatus;
-  detectionError?: string | null;
   createdAt: any;
   updatedAt?: any;
 }
@@ -74,7 +69,7 @@ export interface Photobook {
 export type PhotobookChangeRequestType = 'replace' | 'delete' | 'edit';
 export type PhotobookChangeRequestStatus = 'pending' | 'done' | 'rejected';
 
-/** Richiesta di modifica inviata dal cliente per un singolo slot. */
+/** Richiesta di modifica inviata dal cliente (una per ogni X disegnata). */
 export interface PhotobookChangeRequest {
   id: string;
   photobookId: string;
@@ -85,12 +80,13 @@ export interface PhotobookChangeRequest {
   version: number;
   pageId: string;
   pageNumber: number;
-  slotId: string;
   type: PhotobookChangeRequestType;
-  /** Foto originale nello slot (se riconosciuta) */
-  originalPhotoId?: string | null;
-  originalPhotoName?: string | null;
-  originalPhotoThumbnailUrl?: string | null;
+  /** Colore della X sulla pagina (es. "#e11d48") */
+  markColor?: string | null;
+  /** Tratti della X, coordinate normalizzate 0–1 */
+  markStrokes?: PhotobookMarkPoint[][] | null;
+  /** Snapshot JPEG della pagina con le X disegnate (condiviso dal batch) */
+  snapshotUrl?: string | null;
   /** Solo per type === 'replace' */
   replacementPhotoId?: string | null;
   replacementPhotoName?: string | null;
@@ -102,6 +98,11 @@ export interface PhotobookChangeRequest {
   batchId: string;
   createdAt: any;
   updatedAt?: any;
+  /** Campi legacy delle richieste basate su slot (sistema precedente) */
+  slotId?: string | null;
+  originalPhotoId?: string | null;
+  originalPhotoName?: string | null;
+  originalPhotoThumbnailUrl?: string | null;
 }
 
 /** Foto galleria esposta al client del fotolibro (subset sicuro). */
@@ -110,4 +111,33 @@ export interface PhotobookGalleryPhoto {
   name: string;
   url: string;
   thumbnailUrl?: string | null;
+}
+
+/**
+ * Palette ad alto contrasto per le X: il colore viene assegnato in automatico
+ * alla prima X col primo colore non ancora usato sulla pagina (poi cicla).
+ * `name` è usato nei testi (pallino colore + "X rossa" nell'elenco copiato).
+ */
+export const PHOTOBOOK_MARK_PALETTE: ReadonlyArray<{ hex: string; name: string }> = [
+  { hex: '#e11d48', name: 'rossa' },
+  { hex: '#2563eb', name: 'blu' },
+  { hex: '#16a34a', name: 'verde' },
+  { hex: '#f59e0b', name: 'arancione' },
+  { hex: '#9333ea', name: 'viola' },
+  { hex: '#0891b2', name: 'azzurra' },
+  { hex: '#db2777', name: 'rosa' },
+  { hex: '#65a30d', name: 'lime' },
+  { hex: '#7c3aed', name: 'indaco' },
+  { hex: '#ea580c', name: 'ambra' },
+  { hex: '#0d9488', name: 'petrolio' },
+  { hex: '#a16207', name: 'ocra' },
+];
+
+/** Nome italiano del colore di una X (fallback: codice esadecimale). */
+export function photobookMarkColorName(hex: string | null | undefined): string {
+  if (!hex) return '';
+  const found = PHOTOBOOK_MARK_PALETTE.find(
+    (c) => c.hex.toLowerCase() === hex.toLowerCase(),
+  );
+  return found ? found.name : hex;
 }
