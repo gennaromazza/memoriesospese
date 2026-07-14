@@ -120,6 +120,18 @@ export async function deletePhotobookPage(photobookId: string, pageId: string): 
   await apiRequest('DELETE', `/api/photobooks/${photobookId}/pages/${pageId}`);
 }
 
+/**
+ * Avvisa il cliente via email che una nuova versione è pronta.
+ * Idempotente lato server (una sola email per versione).
+ */
+export async function notifyPhotobookVersion(
+  photobookId: string,
+  version: number,
+): Promise<{ ok: boolean; notified?: boolean; alreadyNotified?: boolean; skipped?: string }> {
+  const res = await apiRequest('POST', `/api/photobooks/${photobookId}/notify-version`, { version });
+  return json(res);
+}
+
 export async function listPhotobookChangeRequests(): Promise<PhotobookChangeRequest[]> {
   const res = await apiRequest('GET', '/api/photobooks/requests');
   return (await json<{ requests: PhotobookChangeRequest[] }>(res)).requests;

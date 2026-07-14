@@ -19,6 +19,7 @@ import {
   createPhotobookVersion,
   updatePhotobook,
   photobookClientLink,
+  notifyPhotobookVersion,
 } from '@/lib/photobooks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -101,6 +102,32 @@ export default function PhotobookEditorPage() {
         title: 'Pagine caricate',
         description: `${list.length} pagine caricate: il cliente può disegnare le X per le richieste.`,
       });
+      // Nuova versione (v2+) attiva per il cliente: avviso automatico via
+      // email (idempotente lato server: una sola email per versione)
+      if (version > 1 && book.currentVersion === version) {
+        try {
+          const r = await notifyPhotobookVersion(id, version);
+          if (r.notified) {
+            toast({
+              title: 'Cliente avvisato',
+              description: 'Email inviata al cliente: la nuova versione è pronta per la revisione.',
+            });
+          } else if (r.skipped === 'no-client-email') {
+            toast({
+              title: 'Email non inviata',
+              description:
+                'Nessuna email cliente trovata (galleria o lavoro collegato): avvisa tu il cliente.',
+              variant: 'destructive',
+            });
+          }
+        } catch (notifyErr: any) {
+          toast({
+            title: 'Email al cliente non inviata',
+            description: notifyErr.message,
+            variant: 'destructive',
+          });
+        }
+      }
     } catch (e: any) {
       toast({ title: 'Errore caricamento', description: e.message, variant: 'destructive' });
     } finally {

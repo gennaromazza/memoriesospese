@@ -891,7 +891,13 @@ export default function PhotobookViewPage() {
                 {pageSent.map((r) => (
                   <span
                     key={r.id}
-                    className="inline-flex items-center gap-1 text-[10px] bg-stone-100 border border-stone-200 rounded-full pl-1.5 pr-1 py-0.5 text-stone-600"
+                    className={`inline-flex items-center gap-1 text-[10px] border rounded-full pl-1.5 pr-1 py-0.5 ${
+                      r.status === 'done'
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : r.status === 'rejected'
+                          ? 'bg-red-50 border-red-200 text-red-600'
+                          : 'bg-stone-100 border-stone-200 text-stone-600'
+                    }`}
                     data-testid={`chip-sent-${r.id}`}
                   >
                     {r.markColor && (
@@ -905,7 +911,11 @@ export default function PhotobookViewPage() {
                       : r.type === 'delete'
                         ? 'Elimina'
                         : 'Modifica'}
-                    {' · inviata'}
+                    {r.status === 'done'
+                      ? ' · eseguita ✓'
+                      : r.status === 'rejected'
+                        ? ' · non applicata'
+                        : ' · inviata'}
                     {canEdit && (
                       <button
                         type="button"

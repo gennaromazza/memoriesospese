@@ -24,7 +24,7 @@ import {
   uploadStreamToDriveFolder,
 } from './google-drive.js';
 import { LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS } from '../shared/lab-types.js';
-import { authenticateFirebase } from './email-routes.js';
+import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-routes.js';
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 
@@ -721,6 +721,140 @@ router.post('/:id/versions', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[photobooks] Errore nuova versione:', error);
     return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * Risolve l'email del cliente di un fotolibro: prima dalla galleria collegata
+ * (clientEmail), poi dai clienti del lavoro associato (jobId → clientiIds).
+ */
+async function resolvePhotobookClientEmail(book: any): Promise<string | null> {
+  try {
+    if (book.galleryId) {
+      const g = await db.collection('galleries').doc(book.galleryId).get();
+      const email = g.exists ? (g.data()?.clientEmail || '').trim() : '';
+      if (email) return email;
+    }
+    if (book.jobId) {
+      const jobDoc = await db.collection('jobs').doc(book.jobId).get();
+      if (jobDoc.exists) {
+        const job = jobDoc.data() || {};
+        const ids: string[] = Array.isArray(job.clientiIds)
+          ? job.clientiIds
+          : job.clienteId
+            ? [job.clienteId]
+            : [];
+        for (const cid of ids) {
+          const c = await db.collection('clienti').doc(cid).get();
+          const email = c.exists ? (c.data()?.email || '').trim() : '';
+          if (email) return email;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[photobooks] Risoluzione email cliente fallita:', e);
+  }
+  return null;
+}
+
+/**
+ * POST /:id/notify-version — avvisa il cliente via email che una nuova
+ * versione del fotolibro è pronta per la revisione. Idempotente per versione
+ * (marker `versionNotifications.{v}` sul documento del fotolibro).
+ */
+router.post('/:id/notify-version', async (req: Request, res: Response) => {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = doc.data()!;
+
+    const version = Number(req.body?.version);
+    const verEntry = (book.versions || []).find((v: any) => v.version === version);
+    if (!verEntry) return res.status(400).json({ error: 'Versione inesistente' });
+
+    // Solo per le versioni successive alla prima: il primo invio del link
+    // al cliente resta manuale ("Link Cliente")
+    if (version <= 1) return res.json({ ok: true, skipped: 'first-version' });
+
+    const clientEmail = await resolvePhotobookClientEmail(book);
+    if (!clientEmail) {
+      return res.json({ ok: false, skipped: 'no-client-email' });
+    }
+
+    // Marker PRIMA dell'invio, acquisito in TRANSAZIONE (concorrenza-safe):
+    // solo la richiesta che scrive il marker procede con l'invio. Il valore
+    // è l'attemptId, così il rollback cancella solo il PROPRIO marker.
+    const attemptId = randomUUID();
+    const acquired = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      const existing = fresh.data()?.versionNotifications?.[String(version)];
+      if (existing) return false;
+      tx.update(ref, { [`versionNotifications.${version}`]: attemptId });
+      return true;
+    });
+    if (!acquired) return res.json({ ok: true, alreadyNotified: true });
+
+    const esc = (s: any) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    const link = `${getSiteBaseUrl(req)}/fotolibro/${book.token}`;
+    const clientName = esc(book.clientName || 'Cliente');
+    const label = verEntry.label ? ` &quot;${esc(verEntry.label)}&quot;` : '';
+    const html = `
+      <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+        <h2 style="color:#78716c;font-weight:normal">Il tuo fotolibro è stato aggiornato</h2>
+        <p>Ciao ${clientName},</p>
+        <p>abbiamo preparato la <strong>nuova versione (v${version}${label})</strong> del fotolibro
+        &laquo;${esc(book.name || 'Fotolibro')}&raquo; con le modifiche richieste.</p>
+        <p>Puoi rivederla dal tuo solito link:</p>
+        <p style="text-align:center;margin:28px 0">
+          <a href="${link}" style="background:#78716c;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">
+            Apri il fotolibro aggiornato
+          </a>
+        </p>
+        <p>Se c'è ancora qualcosa da sistemare, disegna una X sulle foto da modificare e invia le nuove richieste.</p>
+        <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+      </div>`;
+
+    try {
+      await sendGmailEmail(
+        clientEmail,
+        `Fotolibro aggiornato: nuova versione pronta per la revisione`,
+        html,
+        undefined,
+        {
+          type: 'photobook_new_version',
+          relatedDocId: ref.id,
+          relatedDocType: 'photobook',
+          clientName,
+        },
+      );
+    } catch (emailErr) {
+      // Rollback del SOLO proprio marker (transazione: se nel frattempo il
+      // valore è cambiato, non tocca nulla) → un retry futuro può reinviare
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(ref);
+        if (fresh.data()?.versionNotifications?.[String(version)] === attemptId) {
+          tx.update(ref, { [`versionNotifications.${version}`]: FieldValue.delete() });
+        }
+      }).catch(() => {});
+      throw emailErr;
+    }
+
+    // Invio riuscito: sostituisce l'attemptId con il timestamp (best-effort)
+    await ref.update({
+      [`versionNotifications.${version}`]: FieldValue.serverTimestamp(),
+    }).catch(() => {});
+
+    console.log(`📖 [photobooks] Email nuova versione v${version} inviata a ${clientEmail} (${ref.id})`);
+    return res.json({ ok: true, notified: true });
+  } catch (error) {
+    console.error('[photobooks] Errore notifica nuova versione:', error);
+    return res.status(500).json({ error: 'Errore invio email al cliente' });
   }
 });
 
