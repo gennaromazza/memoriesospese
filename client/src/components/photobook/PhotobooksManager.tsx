@@ -50,6 +50,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BookImage, Copy, Layers, Lock, Unlock, Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
+import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 
 export default function PhotobooksManager() {
   const [, navigate] = useLocation();
@@ -151,10 +152,13 @@ export default function PhotobooksManager() {
           Carica le pagine JPEG del fotolibro e invia al cliente il link di revisione: il cliente
           disegna una X sulle foto da modificare.
         </p>
-        <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Fotolibro
-        </Button>
+        <div className="flex items-center gap-2">
+          <PhotobookTutorial />
+          <Button onClick={() => setCreateOpen(true)} data-testid="button-create-photobook">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Fotolibro
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
