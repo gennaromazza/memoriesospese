@@ -286,11 +286,22 @@ export default function PhotobookViewPage() {
   const [currentPageNumber, setCurrentPageNumber] = useState<number | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
 
-  // Modalità sfoglio su smartphone: una pagina alla volta
-  const [slideIdx, setSlideIdx] = useState(0);
+  // Modalità sfoglio su smartphone: una pagina alla volta.
+  // Riparte dall'ultima pagina vista (salvata sul telefono).
+  const [slideIdx, setSlideIdx] = useState(() => {
+    const v = Number(localStorage.getItem(`pb_slide_${token}`));
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+  });
   const safeSlideIdx = Math.min(slideIdx, Math.max(0, pagesList.length - 1));
-  // X in corso di disegno non ancora confermata: blocca il cambio pagina
+  useEffect(() => {
+    if (isTouchPhone) localStorage.setItem(`pb_slide_${token}`, String(safeSlideIdx));
+  }, [safeSlideIdx, isTouchPhone, token]);
+
+  // Cliente sta disegnando (penna attiva o X non confermata): blocca la navigazione
   const [hasPendingDrawing, setHasPendingDrawing] = useState(false);
+  // Rimbalzo visivo quando si prova ad andare oltre la prima/ultima pagina
+  const [bounceDir, setBounceDir] = useState<'prev' | 'next' | null>(null);
+  const bounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const goToSlide = (idx: number) => {
     if (hasPendingDrawing) {
       toast({
@@ -300,9 +311,62 @@ export default function PhotobookViewPage() {
       return;
     }
     const next = Math.min(Math.max(0, idx), pagesList.length - 1);
+    if (next === safeSlideIdx) {
+      // Prima/ultima pagina: piccolo rimbalzo per dire che il libro è finito
+      if (idx !== safeSlideIdx) {
+        hapticFeedback();
+        setBounceDir(idx < 0 ? 'prev' : 'next');
+        if (bounceTimerRef.current) clearTimeout(bounceTimerRef.current);
+        bounceTimerRef.current = setTimeout(() => setBounceDir(null), 220);
+      }
+      return;
+    }
+    hapticFeedback();
     setSlideIdx(next);
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   };
+
+  useEffect(
+    () => () => {
+      if (bounceTimerRef.current) clearTimeout(bounceTimerRef.current);
+    },
+    [],
+  );
+
+  // Swipe orizzontale per sfogliare (disattivato mentre si disegna)
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const onSwipeStart = (e: React.TouchEvent) => {
+    swipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    const s = swipeRef.current;
+    swipeRef.current = null;
+    if (!s || hasPendingDrawing) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy)) {
+      goToSlide(dx < 0 ? safeSlideIdx + 1 : safeSlideIdx - 1);
+    }
+  };
+
+  // Controlli auto-nascosti: frecce e pillola svaniscono dopo 3s di inattività
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isTouchPhone) return;
+    const show = () => {
+      setControlsVisible(true);
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+      controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+    };
+    show();
+    window.addEventListener('pointerdown', show);
+    return () => {
+      window.removeEventListener('pointerdown', show);
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    };
+  }, [isTouchPhone, safeSlideIdx]);
 
   // Se cambiano le pagine (es. cambio versione), riallinea l'indice
   useEffect(() => {
@@ -557,10 +621,21 @@ export default function PhotobookViewPage() {
                 if (el) pageElsRef.current.set(pageIdx, el);
                 else pageElsRef.current.delete(pageIdx);
               }}
-              className="space-y-1.5 scroll-mt-20"
+              className={`space-y-1.5 scroll-mt-20 ${
+                isTouchPhone ? 'animate-in fade-in duration-200' : ''
+              }`}
+              onTouchStart={isTouchPhone ? onSwipeStart : undefined}
+              onTouchEnd={isTouchPhone ? onSwipeEnd : undefined}
               // Le pagine fuori schermo non vengono renderizzate: scroll più
               // fluido su smartphone con molte pagine
-              style={{ contentVisibility: 'auto', containIntrinsicSize: '900px' }}
+              style={{
+                contentVisibility: 'auto',
+                containIntrinsicSize: '900px',
+                transition: 'transform 150ms ease-out',
+                transform: bounceDir
+                  ? `translateX(${bounceDir === 'next' ? -10 : 10}px)`
+                  : undefined,
+              }}
             >
               <div className="flex items-center gap-2 flex-wrap px-1">
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
@@ -648,7 +723,9 @@ export default function PhotobookViewPage() {
             type="button"
             onClick={() => goToSlide(safeSlideIdx - 1)}
             disabled={safeSlideIdx === 0}
-            className="fixed left-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-25"
+            className={`fixed left-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-opacity duration-300 disabled:opacity-25 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
             aria-label="Pagina precedente"
             data-testid="button-slide-prev"
           >
@@ -658,7 +735,9 @@ export default function PhotobookViewPage() {
             type="button"
             onClick={() => goToSlide(safeSlideIdx + 1)}
             disabled={safeSlideIdx >= pages.length - 1}
-            className="fixed right-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-25"
+            className={`fixed right-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-opacity duration-300 disabled:opacity-25 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
             aria-label="Pagina successiva"
             data-testid="button-slide-next"
           >
@@ -667,9 +746,9 @@ export default function PhotobookViewPage() {
           <button
             type="button"
             onClick={() => setJumpOpen(true)}
-            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-transform ${
+            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-opacity duration-300 ${
               canEdit && drafts.size > 0 ? 'bottom-16' : 'bottom-1.5'
-            }`}
+            } ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             data-testid="button-page-pill-slide"
           >
             Pagina {pages[safeSlideIdx]?.pageNumber} di {pages.length}
@@ -797,7 +876,13 @@ export default function PhotobookViewPage() {
           }
         }}
       >
-        <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+        <DialogContent
+          // Su smartphone il dialog è ancorato in alto: la tastiera copre la
+          // metà bassa dello schermo, così il campo nota resta sempre visibile
+          className={`max-w-sm overflow-y-auto ${
+            isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
+          }`}
+        >
           <DialogHeader>
             <DialogTitle>
               {noteMode === 'edit'
@@ -829,7 +914,7 @@ export default function PhotobookViewPage() {
                 ? 'Es. Potete schiarire questa foto? / Vorrei un ritaglio diverso...'
                 : 'Nota facoltativa...'
             }
-            rows={3}
+            rows={isTouchPhone ? 2 : 3}
             data-testid="input-request-note"
           />
           <DialogFooter>

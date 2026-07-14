@@ -177,14 +177,48 @@ export default function PhotobookMarkCanvas({
     };
   };
 
+  /** Ultimo tocco singolo, per rilevare il doppio tocco (zoom) */
+  const lastTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!canDraw) return;
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     if (pointersRef.current.size >= 2) {
       e.preventDefault();
+      lastTapRef.current = null;
       startPinchIfTwoPointers();
       return;
+    }
+    // Doppio tocco: ingrandisce al 200% nel punto toccato (o torna al 100%)
+    if (e.pointerType === 'touch') {
+      const now = Date.now();
+      const lt = lastTapRef.current;
+      lastTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+      if (lt && now - lt.t < 300 && Math.hypot(e.clientX - lt.x, e.clientY - lt.y) < 30) {
+        e.preventDefault();
+        lastTapRef.current = null;
+        drawingRef.current = false;
+        activePointerIdRef.current = null;
+        currentStrokeRef.current = null;
+        setCurrentStroke(null);
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const v = viewRef.current;
+          if (v.scale > 1.02) {
+            setView({ scale: 1, tx: 0, ty: 0 });
+          } else {
+            const s = 2;
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            const cx = (px - v.tx) / v.scale;
+            const cy = (py - v.ty) / v.scale;
+            setView(clampView(s, px - cx * s, py - cy * s));
+          }
+          hapticFeedback();
+        }
+        return;
+      }
     }
     if (drawingRef.current) return; // già in corso con un altro dito/puntatore
     if (pendingStrokes.length >= MAX_STROKES) return;
@@ -310,12 +344,14 @@ export default function PhotobookMarkCanvas({
 
   const hasPending = pendingStrokes.length > 0 || !!currentStroke;
 
-  // Notifica al genitore la presenza di una X in corso (e la assenza allo smontaggio)
+  // Notifica al genitore quando il cliente sta disegnando (penna attiva o X
+  // non confermata): il genitore nasconde la navigazione e blocca lo swipe
+  const drawingBusy = (drawingEnabled && penActive) || hasPending;
   const onPendingChangeRef = useRef(onPendingChange);
   onPendingChangeRef.current = onPendingChange;
   useEffect(() => {
-    onPendingChangeRef.current?.(hasPending);
-  }, [hasPending]);
+    onPendingChangeRef.current?.(drawingBusy);
+  }, [drawingBusy]);
   useEffect(() => () => onPendingChangeRef.current?.(false), []);
 
   return (
