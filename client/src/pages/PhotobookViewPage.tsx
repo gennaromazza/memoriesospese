@@ -140,6 +140,21 @@ export default function PhotobookViewPage() {
   const { isPhone: isTouchPhone, isPortrait } = usePhoneOrientation();
   const isPortraitPhone = isTouchPhone && isPortrait;
   const keyboardHeight = useVisualViewportHeight();
+  const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Sequenza su telefono: azione scelta in orizzontale → overlay "Ruota in
+  // verticale" SENZA tastiera (autofocus bloccato + blur di sicurezza);
+  // appena ruotato in verticale, focus sul campo nota → si apre la tastiera.
+  useEffect(() => {
+    if (!isTouchPhone || !noteMode) return;
+    if (!isPortraitPhone) {
+      // Overlay visibile: chiudi eventuale tastiera già aperta
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      return;
+    }
+    const t = setTimeout(() => noteTextareaRef.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [isTouchPhone, isPortraitPhone, noteMode]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
@@ -972,6 +987,11 @@ export default function PhotobookViewPage() {
           // metà bassa dello schermo, così il campo nota resta sempre visibile.
           // Con tastiera aperta il dialog si restringe all'altezza visibile
           // (visualViewport) e scorre al suo interno.
+          // In orizzontale niente autofocus: c'è l'overlay "Ruota in verticale"
+          // e la tastiera NON deve aprirsi; si aprirà dopo la rotazione.
+          onOpenAutoFocus={(e) => {
+            if (isTouchPhone && !isPortraitPhone) e.preventDefault();
+          }}
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
           } ${isTouchPhone && keyboardHeight ? 'p-3 gap-2' : ''}`}
@@ -1007,6 +1027,7 @@ export default function PhotobookViewPage() {
             />
           )}
           <Textarea
+            ref={noteTextareaRef}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={
