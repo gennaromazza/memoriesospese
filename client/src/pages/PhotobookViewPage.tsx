@@ -112,6 +112,31 @@ function useTouchPhone(): boolean {
   return useMediaQuery('(pointer: coarse) and (max-width: 932px)');
 }
 
+/**
+ * Altezza del viewport visibile (esclusa la tastiera su iOS, dove la tastiera
+ * si sovrappone al layout invece di ridimensionarlo). Su Android il meta tag
+ * interactive-widget=resizes-content fa già ridurre il viewport.
+ */
+function useVisualViewportHeight(): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      // Segnala solo quando la tastiera riduce davvero lo spazio (>120px)
+      setHeight(window.innerHeight - vv.height > 120 ? Math.round(vv.height) : null);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+  return height;
+}
+
 export default function PhotobookViewPage() {
   const { token = '' } = useParams<{ token: string }>();
   const { toast } = useToast();
@@ -134,6 +159,7 @@ export default function PhotobookViewPage() {
   );
   const isPortraitPhone = usePortraitPhone();
   const isTouchPhone = useTouchPhone();
+  const keyboardHeight = useVisualViewportHeight();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
@@ -941,10 +967,17 @@ export default function PhotobookViewPage() {
       >
         <DialogContent
           // Su smartphone il dialog è ancorato in alto: la tastiera copre la
-          // metà bassa dello schermo, così il campo nota resta sempre visibile
+          // metà bassa dello schermo, così il campo nota resta sempre visibile.
+          // Con tastiera aperta il dialog si restringe all'altezza visibile
+          // (visualViewport) e scorre al suo interno.
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
           }`}
+          style={
+            isTouchPhone && keyboardHeight
+              ? { maxHeight: `${keyboardHeight - 16}px` }
+              : undefined
+          }
         >
           <DialogHeader>
             <DialogTitle>

@@ -104,9 +104,34 @@ export default function PhotobookPhotoPicker({
     return () => observer.disconnect();
   }, [open, hasMore, visibleLimit]);
 
+  // Tastiera smartphone: quando riduce lo spazio visibile (>120px), il dialog
+  // si restringe all'altezza del visualViewport e si ancora in alto, così la
+  // ricerca e i risultati restano visibili sopra la tastiera.
+  const [kbHeight, setKbHeight] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () =>
+      setKbHeight(window.innerHeight - vv.height > 120 ? Math.round(vv.height) : null);
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+      setKbHeight(null);
+    };
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent
+        className={`max-w-3xl max-h-[85vh] flex flex-col ${
+          kbHeight ? 'top-2 translate-y-0' : ''
+        }`}
+        style={kbHeight ? { maxHeight: `${kbHeight - 16}px` } : undefined}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription data-testid="text-picker-count">
