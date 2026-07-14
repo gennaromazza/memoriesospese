@@ -8,7 +8,7 @@
  * viene caricato uno snapshot JPEG di ogni pagina con le X disegnate.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -32,6 +32,7 @@ import {
 import PhotobookPhotoPicker from '@/components/photobook/PhotobookPhotoPicker';
 import PhotobookMarkCanvas, {
   generatePageSnapshot,
+  hapticFeedback,
   type CanvasMark,
 } from '@/components/photobook/PhotobookMarkCanvas';
 import { Button } from '@/components/ui/button';
@@ -197,7 +198,7 @@ export default function PhotobookViewPage() {
               .filter((d) => d.pageId === pageId)
               .map((d) => ({ color: d.markColor, strokes: d.markStrokes })),
           ];
-          const blob = await generatePageSnapshot(page.url, marks);
+          const blob = await generatePageSnapshot(page.displayUrl || page.url, marks);
           const url = await uploadPhotobookSnapshot(token, pageId, blob);
           snapshotByPage.set(pageId, url);
         } catch (e) {
@@ -218,6 +219,7 @@ export default function PhotobookViewPage() {
       );
     },
     onSuccess: (r) => {
+      hapticFeedback([30, 60, 30]);
       setDrafts(new Map());
       setConfirmOpen(false);
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks/by-token', token] });
@@ -251,7 +253,7 @@ export default function PhotobookViewPage() {
           strokes: r.markStrokes!,
         }));
         try {
-          const blob = await generatePageSnapshot(page.url, marks);
+          const blob = await generatePageSnapshot(page.displayUrl || page.url, marks);
           newSnapshotUrl = await uploadPhotobookSnapshot(token, page.id, blob);
         } catch (e) {
           // Snapshot best-effort: la cancellazione procede comunque
@@ -271,6 +273,52 @@ export default function PhotobookViewPage() {
     onError: (e: any) =>
       toast({ title: 'Errore cancellazione', description: e.message, variant: 'destructive' }),
   });
+
+  // ---- Navigazione pagine + preload ------------------------------------
+  const pagesList = useMemo(() => data?.pages || [], [data?.pages]);
+  const pageElsRef = useRef(new Map<number, HTMLDivElement>()); // indice -> elemento
+  const preloadedRef = useRef(new Set<string>());
+  const [currentPageNumber, setCurrentPageNumber] = useState<number | null>(null);
+  const [jumpOpen, setJumpOpen] = useState(false);
+
+  // Preload delle 3 pagine successive quando una pagina entra in vista +
+  // aggiornamento della pillola "Pagina X di N"
+  useEffect(() => {
+    if (pagesList.length === 0) return;
+    const els = pageElsRef.current;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          if (!en.isIntersecting) continue;
+          let idx = -1;
+          for (const [i, el] of els) if (el === en.target) idx = i;
+          if (idx < 0) continue;
+          setCurrentPageNumber(pagesList[idx]?.pageNumber ?? null);
+          for (let i = idx + 1; i <= idx + 3 && i < pagesList.length; i++) {
+            const url = pagesList[i].displayUrl || pagesList[i].url;
+            if (preloadedRef.current.has(url)) continue;
+            preloadedRef.current.add(url);
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = url;
+          }
+        }
+      },
+      { rootMargin: '100px 0px', threshold: 0.15 },
+    );
+    for (const el of els.values()) io.observe(el);
+    return () => io.disconnect();
+  }, [pagesList]);
+
+  const jumpToPage = (idx: number) => {
+    setJumpOpen(false);
+    const el = pageElsRef.current.get(idx);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setCurrentPageNumber(pagesList[idx]?.pageNumber ?? null);
+    }
+  };
+  // -----------------------------------------------------------------------
 
   const onMarkComplete = (page: PhotobookPage, strokes: PhotobookMarkPoint[][]) => {
     if (!canEdit) return;
@@ -299,6 +347,7 @@ export default function PhotobookViewPage() {
     entry: Omit<DraftEntry, 'id' | 'pageId' | 'pageNumber' | 'markColor' | 'markStrokes'>,
   ) => {
     if (!activeMark) return;
+    hapticFeedback();
     const id = newDraftId();
     setDrafts((prev) => {
       const next = new Map(prev);
@@ -442,7 +491,7 @@ export default function PhotobookViewPage() {
           </p>
         )}
 
-        {pages.map((page) => {
+        {pages.map((page, pageIdx) => {
           const pageDrafts = draftsByPage.get(page.id) || [];
           const pageSent = sentRequestsByPage.get(page.id) || [];
           const marks: CanvasMark[] = [
@@ -456,7 +505,11 @@ export default function PhotobookViewPage() {
           return (
             <div
               key={page.id}
-              className="space-y-1.5"
+              ref={(el) => {
+                if (el) pageElsRef.current.set(pageIdx, el);
+                else pageElsRef.current.delete(pageIdx);
+              }}
+              className="space-y-1.5 scroll-mt-20"
               // Le pagine fuori schermo non vengono renderizzate: scroll più
               // fluido su smartphone con molte pagine
               style={{ contentVisibility: 'auto', containIntrinsicSize: '900px' }}
@@ -524,7 +577,7 @@ export default function PhotobookViewPage() {
                 ))}
               </div>
               <PhotobookMarkCanvas
-                pageUrl={page.url}
+                pageUrl={page.displayUrl || page.url}
                 pageAlt={`Pagina ${page.pageNumber}`}
                 marks={marks}
                 nextColor={nextColorForPage(page.id)}
@@ -535,6 +588,47 @@ export default function PhotobookViewPage() {
           );
         })}
       </main>
+
+      {/* Pillola "Pagina X di N" con salto rapido */}
+      {pages.length > 1 && currentPageNumber !== null && (
+        <button
+          type="button"
+          onClick={() => setJumpOpen(true)}
+          className={`fixed left-3 z-20 flex items-center gap-1.5 bg-stone-900/80 text-white backdrop-blur-sm rounded-full px-3 py-1.5 text-xs font-medium shadow-lg active:scale-95 transition-transform ${
+            canEdit && drafts.size > 0 ? 'bottom-20' : 'bottom-3'
+          }`}
+          data-testid="button-page-pill"
+        >
+          Pagina {currentPageNumber} di {pages.length}
+        </button>
+      )}
+
+      {/* Dialog salto rapido alla pagina */}
+      <Dialog open={jumpOpen} onOpenChange={setJumpOpen}>
+        <DialogContent className="max-w-sm max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vai alla pagina</DialogTitle>
+            <DialogDescription>Tocca un numero per saltare alla pagina.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-5 gap-2">
+            {pages.map((p, idx) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => jumpToPage(idx)}
+                className={`h-10 rounded-md border text-sm font-medium active:scale-95 transition-transform ${
+                  p.pageNumber === currentPageNumber
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-700 hover:bg-stone-100'
+                }`}
+                data-testid={`button-jump-page-${p.pageNumber}`}
+              >
+                {p.pageNumber}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Barra invio (nascosta se l'album è andato in stampa) */}
       {canEdit && drafts.size > 0 && (

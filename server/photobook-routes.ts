@@ -75,6 +75,8 @@ function serializePage(id: string, d: any): any {
     fileName: d.fileName || null,
     url: d.url,
     storagePath: d.storagePath,
+    displayUrl: d.displayUrl || null,
+    displayStoragePath: d.displayStoragePath || null,
     width: d.width || 0,
     height: d.height || 0,
     createdAt: ts(d.createdAt),
@@ -782,6 +784,37 @@ router.post(
         // non bloccante: il client usa l'aspect ratio dell'immagine caricata
       }
 
+      // Versione ridotta per la visualizzazione (mobile): ~1400px, JPEG q80.
+      // Non bloccante: se fallisce, il client usa l'originale.
+      let displayUrl: string | null = null;
+      let displayStoragePath: string | null = null;
+      try {
+        const resized = await sharp(buffer)
+          .rotate()
+          .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80, mozjpeg: true })
+          .toBuffer();
+        // Ha senso solo se davvero più piccola dell'originale
+        if (resized.length < buffer.length * 0.9) {
+          const dToken = randomUUID();
+          displayStoragePath = `photobooks/${ref.id}/v${version}/display/${Date.now()}-${pageNumber}.jpg`;
+          await bucket.file(displayStoragePath).save(resized, {
+            resumable: false,
+            metadata: {
+              contentType: 'image/jpeg',
+              metadata: { firebaseStorageDownloadTokens: dToken },
+            },
+          });
+          displayUrl =
+            `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+            `${encodeURIComponent(displayStoragePath)}?alt=media&token=${dToken}`;
+        }
+      } catch (e) {
+        console.warn('[photobooks] Generazione versione display fallita (non bloccante):', e);
+        displayUrl = null;
+        displayStoragePath = null;
+      }
+
       const pageRef = await db.collection(PAGES_COL).add({
         photobookId: ref.id,
         version,
@@ -789,6 +822,8 @@ router.post(
         fileName,
         url,
         storagePath,
+        displayUrl,
+        displayStoragePath,
         width: pageWidth,
         height: pageHeight,
         createdAt: FieldValue.serverTimestamp(),
@@ -851,6 +886,12 @@ router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
     await pageRef.delete();
     try {
       if (pageData.storagePath) await storage.bucket().file(pageData.storagePath).delete();
+    } catch {
+      // best-effort
+    }
+    try {
+      if (pageData.displayStoragePath)
+        await storage.bucket().file(pageData.displayStoragePath).delete();
     } catch {
       // best-effort
     }

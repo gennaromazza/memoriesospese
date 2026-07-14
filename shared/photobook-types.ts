@@ -37,6 +37,9 @@ export interface PhotobookPage {
   fileName: string;
   url: string; // download URL Storage (photobooks/{photobookId}/v{version}/...)
   storagePath: string;
+  /** Versione ridotta (~1400px) per la visualizzazione: molto più leggera su mobile */
+  displayUrl?: string | null;
+  displayStoragePath?: string | null;
   width: number; // pixel originali
   height: number;
   createdAt: any;

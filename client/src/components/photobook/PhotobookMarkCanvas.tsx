@@ -9,8 +9,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, Eraser, PenLine, X as XIcon } from 'lucide-react';
+import { Check, Eraser, PenLine, X as XIcon, ZoomIn } from 'lucide-react';
 import type { PhotobookMarkPoint } from '@shared/photobook-types';
+
+/** Feedback tattile leggero (dove supportato, es. Android). */
+export function hapticFeedback(pattern: number | number[] = 25) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // non supportato: nessun problema
+  }
+}
 
 export interface CanvasMark {
   color: string;
@@ -95,7 +104,20 @@ export default function PhotobookMarkCanvas({
   onMarkComplete,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  /** Wrapper interno (immagine+svg) su cui viene applicato lo zoom */
+  const contentRef = useRef<HTMLDivElement>(null);
   const [penActive, setPenActive] = useState(false);
+  /** Zoom pizzico durante il disegno: scala e traslazione (px) */
+  const [view, setView] = useState({ scale: 1, tx: 0, ty: 0 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  /** Puntatori attivi (per rilevare il pizzico a due dita) */
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStartRef = useRef<{
+    dist: number;
+    mid: { x: number; y: number };
+    view: { scale: number; tx: number; ty: number };
+  } | null>(null);
   const [pendingStrokes, setPendingStrokes] = useState<PhotobookMarkPoint[][]>([]);
   const [currentStroke, setCurrentStroke] = useState<PhotobookMarkPoint[] | null>(null);
   // Avviso transitorio: il cliente ha provato a segnare una seconda X senza confermare
@@ -110,8 +132,10 @@ export default function PhotobookMarkCanvas({
 
   const canDraw = drawingEnabled && penActive;
 
+  // Le coordinate sono relative al contenuto zoomato: getBoundingClientRect
+  // tiene conto della trasformazione, quindi la X resta agganciata alla foto
   const toNorm = (e: React.PointerEvent): PhotobookMarkPoint | null => {
-    const rect = containerRef.current?.getBoundingClientRect();
+    const rect = contentRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return null;
     return {
       x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
@@ -119,8 +143,43 @@ export default function PhotobookMarkCanvas({
     };
   };
 
+  /** Limita la traslazione così il contenuto copre sempre il riquadro */
+  const clampView = (scale: number, tx: number, ty: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { scale, tx, ty };
+    const minTx = rect.width - rect.width * scale;
+    const minTy = rect.height - rect.height * scale;
+    return {
+      scale,
+      tx: Math.min(0, Math.max(minTx, tx)),
+      ty: Math.min(0, Math.max(minTy, ty)),
+    };
+  };
+
+  const startPinchIfTwoPointers = () => {
+    if (pointersRef.current.size !== 2) return;
+    // Due dita = pizzico: il tratto in corso viene annullato
+    drawingRef.current = false;
+    activePointerIdRef.current = null;
+    currentStrokeRef.current = null;
+    setCurrentStroke(null);
+    const [a, b] = Array.from(pointersRef.current.values());
+    pinchStartRef.current = {
+      dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      view: { ...viewRef.current },
+    };
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!canDraw) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (pointersRef.current.size >= 2) {
+      e.preventDefault();
+      startPinchIfTwoPointers();
+      return;
+    }
     if (drawingRef.current) return; // già in corso con un altro dito/puntatore
     if (pendingStrokes.length >= MAX_STROKES) return;
     const p = toNorm(e);
@@ -128,12 +187,32 @@ export default function PhotobookMarkCanvas({
     e.preventDefault();
     drawingRef.current = true;
     activePointerIdRef.current = e.pointerId;
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     currentStrokeRef.current = [p];
     setCurrentStroke(currentStrokeRef.current);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    // Pizzico a due dita: zoom + pan
+    if (pinchStartRef.current && pointersRef.current.size >= 2) {
+      e.preventDefault();
+      const [a, b] = Array.from(pointersRef.current.values());
+      const start = pinchStartRef.current;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const newScale = Math.min(4, Math.max(1, start.view.scale * (dist / start.dist)));
+      // Il punto del contenuto sotto il centro del pizzico resta fermo
+      const cx = (start.mid.x - rect.left - start.view.tx) / start.view.scale;
+      const cy = (start.mid.y - rect.top - start.view.ty) / start.view.scale;
+      const tx = mid.x - rect.left - cx * newScale;
+      const ty = mid.y - rect.top - cy * newScale;
+      setView(clampView(newScale, tx, ty));
+      return;
+    }
     if (!drawingRef.current) return;
     if (e.pointerId !== activePointerIdRef.current) return;
     const p = toNorm(e);
@@ -151,6 +230,10 @@ export default function PhotobookMarkCanvas({
   };
 
   const endStroke = (e?: React.PointerEvent) => {
+    if (e) {
+      pointersRef.current.delete(e.pointerId);
+      if (pointersRef.current.size < 2) pinchStartRef.current = null;
+    }
     if (!drawingRef.current) return;
     if (e && e.pointerId !== activePointerIdRef.current) return;
     drawingRef.current = false;
@@ -172,11 +255,19 @@ export default function PhotobookMarkCanvas({
     setPendingStrokes([...pendingStrokes, stroke]);
   };
 
+  const resetZoom = () => {
+    setView({ scale: 1, tx: 0, ty: 0 });
+    pinchStartRef.current = null;
+    pointersRef.current.clear();
+  };
+
   const confirmPending = () => {
     if (pendingStrokes.length === 0) return;
+    hapticFeedback();
     onMarkComplete(pendingStrokes);
     setPendingStrokes([]);
     setPenActive(false);
+    resetZoom();
   };
 
   const clearPending = () => {
@@ -187,6 +278,7 @@ export default function PhotobookMarkCanvas({
     activePointerIdRef.current = null;
     setFarStrokeHint(false);
     setPenActive(false);
+    resetZoom();
   };
 
   // Reset completo se cambia la pagina o il permesso di disegno
@@ -198,6 +290,9 @@ export default function PhotobookMarkCanvas({
     activePointerIdRef.current = null;
     setFarStrokeHint(false);
     setPenActive(false);
+    setView({ scale: 1, tx: 0, ty: 0 });
+    pinchStartRef.current = null;
+    pointersRef.current.clear();
   }, [pageUrl, drawingEnabled]);
 
   useEffect(
@@ -223,19 +318,27 @@ export default function PhotobookMarkCanvas({
         onPointerCancel={endStroke}
         onLostPointerCapture={endStroke}
       >
-        <img
-          src={pageUrl}
-          alt={pageAlt}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-auto block pointer-events-none"
-          draggable={false}
-        />
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
+        <div
+          ref={contentRef}
+          className="relative"
+          style={{
+            transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
+            transformOrigin: '0 0',
+          }}
         >
+          <img
+            src={pageUrl}
+            alt={pageAlt}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-auto block pointer-events-none"
+            draggable={false}
+          />
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
           {marks.map((m, mi) =>
             m.strokes.map((s, si) => (
               <path
@@ -275,7 +378,8 @@ export default function PhotobookMarkCanvas({
               vectorEffect="non-scaling-stroke"
             />
           )}
-        </svg>
+          </svg>
+        </div>
 
         {/* Pulsante attivazione penna: finché non è attivo, il tocco scorre la pagina */}
         {drawingEnabled && !penActive && (
@@ -298,11 +402,22 @@ export default function PhotobookMarkCanvas({
             Ogni X corrisponde a una sola foto.
           </div>
         )}
+        {canDraw && view.scale > 1.02 && (
+          <button
+            type="button"
+            onClick={resetZoom}
+            className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs font-medium text-stone-600 shadow-md border active:scale-95"
+            data-testid="button-reset-zoom"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+            {Math.round(view.scale * 100)}% — reset
+          </button>
+        )}
         {canDraw && !hasPending && (
           <>
             <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs text-stone-600 shadow-sm pointer-events-none">
               <PenLine className="h-3.5 w-3.5" style={{ color: nextColor }} />
-              Disegna la X con il dito
+              Disegna la X (2 dita = zoom)
             </div>
             <button
               type="button"
