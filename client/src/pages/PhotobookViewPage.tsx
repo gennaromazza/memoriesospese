@@ -552,7 +552,7 @@ export default function PhotobookViewPage() {
 
       {/* Dialog azioni per la X appena disegnata */}
       <Dialog open={!!activeMark && !noteMode} onOpenChange={(o) => !o && setActiveMark(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <span
@@ -609,7 +609,7 @@ export default function PhotobookViewPage() {
           }
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {noteMode === 'edit'
@@ -732,7 +732,7 @@ export default function PhotobookViewPage() {
 
       {/* Conferma invio */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invia le richieste al fotografo</DialogTitle>
             <DialogDescription>

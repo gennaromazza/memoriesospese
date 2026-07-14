@@ -317,27 +317,31 @@ export default function PhotobookMarkCanvas({
       </div>
 
       {hasPending && (
-        <div className="flex items-center gap-2 justify-end">
-          <span
-            className="inline-block w-3 h-3 rounded-full border shrink-0"
-            style={{ backgroundColor: nextColor }}
-          />
-          <span className="text-xs text-muted-foreground mr-auto">
-            X disegnata: confermala per scegliere cosa richiedere
-          </span>
-          <Button size="sm" variant="outline" onClick={clearPending} data-testid="button-clear-mark">
-            <Eraser className="h-3.5 w-3.5 mr-1.5" />
-            Cancella
-          </Button>
-          <Button
-            size="sm"
-            disabled={pendingStrokes.length === 0}
-            onClick={confirmPending}
-            data-testid="button-confirm-mark"
-          >
-            <Check className="h-3.5 w-3.5 mr-1.5" />
-            Conferma X
-          </Button>
+        // Barra fissa in basso: resta visibile anche quando la pagina è più
+        // alta dello schermo (es. telefono in orizzontale)
+        <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur-sm border-t shadow-lg">
+          <div className="max-w-4xl mx-auto px-3 py-2.5 flex items-center gap-2 justify-end">
+            <span
+              className="inline-block w-3 h-3 rounded-full border shrink-0"
+              style={{ backgroundColor: nextColor }}
+            />
+            <span className="text-xs text-muted-foreground mr-auto min-w-0 truncate">
+              X disegnata: confermala per scegliere cosa richiedere
+            </span>
+            <Button size="sm" variant="outline" onClick={clearPending} data-testid="button-clear-mark">
+              <Eraser className="h-3.5 w-3.5 mr-1.5" />
+              Cancella
+            </Button>
+            <Button
+              size="sm"
+              disabled={pendingStrokes.length === 0}
+              onClick={confirmPending}
+              data-testid="button-confirm-mark"
+            >
+              <Check className="h-3.5 w-3.5 mr-1.5" />
+              Conferma X
+            </Button>
+          </div>
         </div>
       )}
     </div>
