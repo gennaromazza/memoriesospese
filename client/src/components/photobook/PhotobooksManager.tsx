@@ -95,7 +95,6 @@ export default function PhotobooksManager() {
   const [shipDesc, setShipDesc] = useState('');
   const [shipExpiry, setShipExpiry] = useState(String(LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS));
   const [shipJobId, setShipJobId] = useState('');
-  const [transferResult, setTransferResult] = useState<PhotobookLabTransferResult | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
 
   const { data: books = [], isLoading } = useQuery({
@@ -178,15 +177,11 @@ export default function PhotobooksManager() {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
       if (result) {
         queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', result.shipment.id] });
-        setTransferResult(result);
-        if (result.failed.length === 0) {
-          toast({
-            title: 'Album mandato in stampa',
-            description: `Spedizione creata: ${result.transferred + result.skipped}/${result.totalPages} pagine su Google Drive.`,
-          });
-          setLockTarget(null);
-        }
-        // Se ci sono pagine fallite il dialog resta aperto con il riepilogo e il retry
+        toast({
+          title: 'Album mandato in stampa',
+          description: `Trasferimento di ${result.totalPages} pagine su Google Drive avviato: segui l'avanzamento nella scheda del fotolibro.`,
+        });
+        setLockTarget(null);
       } else {
         toast({
           title: 'Album mandato in stampa',
@@ -208,7 +203,6 @@ export default function PhotobooksManager() {
     setShipDesc(`Fotolibro "${book.name}" v${book.currentVersion}`);
     setShipExpiry(String(LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS));
     setShipJobId('');
-    setTransferResult(null);
     setTransferError(null);
     setLockTarget(book);
   };
@@ -440,52 +434,7 @@ export default function PhotobooksManager() {
             </DialogDescription>
           </DialogHeader>
 
-          {transferResult && transferResult.failed.length > 0 ? (
-            <div className="space-y-3">
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm space-y-2">
-                <p className="font-medium flex items-center gap-1.5 text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  Trasferimento parziale
-                </p>
-                <p>
-                  {transferResult.transferred + transferResult.skipped} pagine su{' '}
-                  {transferResult.totalPages} trasferite su Google Drive.{' '}
-                  {transferResult.failed.length} pagine non riuscite:
-                </p>
-                <ul className="list-disc pl-5 text-muted-foreground">
-                  {transferResult.failed.slice(0, 5).map((f) => (
-                    <li key={f.pageNumber}>
-                      Pagina {f.pageNumber}: {f.error}
-                    </li>
-                  ))}
-                  {transferResult.failed.length > 5 && (
-                    <li>… e altre {transferResult.failed.length - 5}</li>
-                  )}
-                </ul>
-                <p className="text-muted-foreground">
-                  Riprova: verranno trasferite solo le pagine mancanti, senza duplicati.
-                </p>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setLockTarget(null)}>
-                  Chiudi
-                </Button>
-                <Button
-                  disabled={lockMutation.isPending}
-                  onClick={() => lockTarget && lockMutation.mutate(lockTarget)}
-                  data-testid="button-retry-transfer"
-                >
-                  {lockMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Riprova pagine mancanti
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : (
-            <>
+          <>
               <div className="space-y-4">
                 <label className="flex items-start gap-2 cursor-pointer">
                   <Checkbox
@@ -593,12 +542,11 @@ export default function PhotobooksManager() {
                 >
                   {lockMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {lockMutation.isPending && createShip
-                    ? 'Trasferimento pagine…'
+                    ? 'Avvio trasferimento…'
                     : 'Manda in Stampa'}
                 </Button>
               </DialogFooter>
             </>
-          )}
         </DialogContent>
       </Dialog>
 
@@ -637,6 +585,9 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     queryKey: ['/api/lab-shipments', shipmentId],
     queryFn: () => getShipment(shipmentId),
     staleTime: 60 * 1000,
+    // Trasferimento in background in corso: polla l'avanzamento ogni 2.5s
+    refetchInterval: (data) =>
+      data?.pageTransfer?.status === 'running' ? 2500 : false,
   });
 
   const retryMutation = useMutation({
@@ -644,18 +595,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', shipmentId] });
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
-      if (result.failed.length > 0) {
-        toast({
-          title: 'Trasferimento parziale',
-          description: `${result.failed.length} pagine ancora non trasferite. Riprova più tardi.`,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Trasferimento completato',
-          description: `Tutte le ${result.totalPages} pagine sono su Google Drive.`,
-        });
-      }
+      toast({
+        title: result.alreadyRunning ? 'Trasferimento già in corso' : 'Trasferimento riavviato',
+        description: `Verranno trasferite solo le pagine mancanti (${result.totalPages} totali).`,
+      });
     },
     onError: (e: any) =>
       toast({ title: 'Errore trasferimento', description: e.message, variant: 'destructive' }),
@@ -677,7 +620,10 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
   const currentVersionEntry = book.versions.find((v) => v.version === book.currentVersion);
   const pageCount = currentVersionEntry?.pageCount || 0;
   const filesCount = shipment.files?.length || 0;
-  const incomplete = !shipment.deletedFromDrive && pageCount > 0 && filesCount < pageCount;
+  const transfer = shipment.pageTransfer;
+  const transferRunning = transfer?.status === 'running';
+  const incomplete =
+    !transferRunning && !shipment.deletedFromDrive && pageCount > 0 && filesCount < pageCount;
 
   return (
     <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm space-y-1.5">
@@ -704,6 +650,32 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             }`
           : ''}
       </p>
+      {transferRunning && transfer && (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Trasferimento in corso: {transfer.transferred + transfer.skipped}/{transfer.total}{' '}
+            pagine su Google Drive…
+          </p>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{
+                width: `${transfer.total > 0 ? Math.round(((transfer.transferred + transfer.skipped) / transfer.total) * 100) : 0}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {!transferRunning && transfer && (transfer.status === 'partial' || transfer.status === 'failed') && (
+        <p className="text-xs text-destructive flex items-center gap-1.5">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          {transfer.status === 'failed'
+            ? `Trasferimento interrotto: ${transfer.error || 'errore imprevisto'}.`
+            : `${transfer.failed?.length || 0} pagine non trasferite (es. ${transfer.failed?.[0] ? `pagina ${transfer.failed[0].pageNumber}: ${transfer.failed[0].error}` : ''}).`}{' '}
+          Riprova: verranno copiate solo le pagine mancanti, senza duplicati.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {shipment.shareableLink && !shipment.deletedFromDrive && (
           <Button size="sm" variant="outline" asChild>

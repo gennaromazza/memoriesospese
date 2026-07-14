@@ -61,6 +61,28 @@ export interface LabShipmentFile {
 }
 
 /**
+ * Stato del trasferimento pagine fotolibro → Drive eseguito in background
+ * sul server (fotolibri grandi: la copia può durare minuti).
+ * - running: in corso (heartbeat aggiornato ad ogni pagina)
+ * - completed: tutte le pagine trasferite
+ * - partial: concluso ma con alcune pagine fallite (retry idempotente)
+ * - failed: errore fatale prima/durante il ciclo
+ */
+export type LabShipmentPageTransferStatus = 'running' | 'completed' | 'partial' | 'failed';
+
+export interface LabShipmentPageTransfer {
+  status: LabShipmentPageTransferStatus;
+  total: number;
+  transferred: number;
+  skipped: number;
+  failed: Array<{ pageNumber: number; error: string }>;
+  error?: string;
+  startedAt?: Timestamp;
+  finishedAt?: Timestamp | null;
+  heartbeatAt?: Timestamp;
+}
+
+/**
  * Spedizione di file di stampa verso un laboratorio, collegata a un job.
  * Collezione Firestore: labShipments
  */
@@ -90,6 +112,10 @@ export interface LabShipment {
   // Costo laboratorio collegato al job (tipo 'fornitore')
   costoId?: string;
   costoImporto?: number;
+
+  // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
+  pageTransfer?: LabShipmentPageTransfer;
+  photobookId?: string;
 
   createdAt: Timestamp;
   updatedAt: Timestamp;

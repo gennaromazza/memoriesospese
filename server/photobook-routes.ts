@@ -725,6 +725,111 @@ router.post('/:id/versions', async (req: Request, res: Response) => {
 });
 
 /**
+ * Un trasferimento marcato "running" senza heartbeat da oltre questo tempo è
+ * considerato morto (crash/restart del server): un nuovo POST può ripartire.
+ */
+const TRANSFER_STALE_MS = 3 * 60 * 1000;
+
+/**
+ * Trasferimento pagine → Drive eseguito in background (fuori dalla richiesta
+ * HTTP). Idempotente: nome file deterministico per pagina, salta quelle già
+ * presenti nella spedizione. Avanzamento e esito vengono scritti in
+ * `labShipments/{id}.pageTransfer` (heartbeat ad ogni pagina).
+ */
+async function runPhotobookPageTransfer(
+  shipmentRef: FirebaseFirestore.DocumentReference,
+  photobookId: string,
+  driveFolderId: string,
+  pages: Array<{ id: string; pageNumber: number; storagePath: string }>,
+): Promise<void> {
+  const bucket = storage.bucket();
+  let transferred = 0;
+  let skipped = 0;
+  const failed: Array<{ pageNumber: number; error: string }> = [];
+
+  try {
+    // Rileggi i file già presenti (fonte di verità per il retry)
+    const sDoc = await shipmentRef.get();
+    const files: any[] = Array.isArray(sDoc.data()?.files) ? [...sDoc.data()!.files] : [];
+    const existingNames = new Set(files.map((f) => f.name));
+
+    for (const page of pages) {
+      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
+      const ext = extMatch ? extMatch[1] : 'jpg';
+      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
+      if (existingNames.has(fileName)) {
+        skipped++;
+      } else {
+        try {
+          const storageFile = bucket.file(page.storagePath);
+          const [meta] = await storageFile.getMetadata();
+          const uploaded = await uploadStreamToDriveFolder(
+            driveFolderId,
+            fileName,
+            String(meta.contentType || 'image/jpeg'),
+            storageFile.createReadStream(),
+          );
+          const entry: any = {
+            driveFileId: uploaded.fileId,
+            name: fileName,
+            size: uploaded.size || Number(meta.size) || 0,
+            mimeType: String(meta.contentType || 'image/jpeg'),
+            uploadedAt: new Date(),
+          };
+          if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
+          files.push(entry);
+          existingNames.add(fileName);
+          transferred++;
+        } catch (e: any) {
+          console.error(
+            `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${photobookId}):`,
+            e?.message || e,
+          );
+          failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
+        }
+      }
+      // Persistenza incrementale + avanzamento: un crash a metà non perde i
+      // file già copiati e il client vede il progresso in tempo reale
+      await shipmentRef.update({
+        files,
+        'pageTransfer.transferred': transferred,
+        'pageTransfer.skipped': skipped,
+        'pageTransfer.failed': failed,
+        'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    await shipmentRef.update({
+      'pageTransfer.status': failed.length > 0 ? 'partial' : 'completed',
+      'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
+      'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(
+      `📖 [photobooks] Trasferimento pagine fotolibro ${photobookId} → spedizione ${shipmentRef.id} concluso: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
+    );
+  } catch (e: any) {
+    // Errore fatale (es. Firestore/Drive irraggiungibile): marca il fallimento
+    console.error(
+      `[photobooks] Trasferimento background fallito (fotolibro ${photobookId}):`,
+      e?.message || e,
+    );
+    try {
+      await shipmentRef.update({
+        'pageTransfer.status': 'failed',
+        'pageTransfer.error': String(e?.message || 'Errore trasferimento'),
+        'pageTransfer.finishedAt': FieldValue.serverTimestamp(),
+        'pageTransfer.heartbeatAt': FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+/**
  * POST /:id/lab-shipment — crea (o riusa) la spedizione laboratorio del
  * fotolibro e trasferisce server-side le pagine ORIGINALI (storagePath, mai le
  * versioni display ridotte) della versione corrente da Firebase Storage alla
@@ -844,51 +949,36 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // Trasferimento pagine: nome file deterministico → retry senza duplicati
-    const files: any[] = Array.isArray(shipment.files) ? [...shipment.files] : [];
-    const existingNames = new Set(files.map((f) => f.name));
-    const bucket = storage.bucket();
-    let transferred = 0;
-    let skipped = 0;
-    const failed: Array<{ pageNumber: number; error: string }> = [];
+    // Trasferimento pagine in BACKGROUND: con fotolibri grandi (50+ pagine ad
+    // alta risoluzione) la copia sequenziale può durare minuti e far scadere la
+    // richiesta HTTP lato client/proxy. La route risponde subito e il client
+    // segue l'avanzamento leggendo `pageTransfer` sulla spedizione.
+    const now = Date.now();
+    const existingTransfer = shipment.pageTransfer;
+    const heartbeatMs = existingTransfer?.heartbeatAt?.toDate
+      ? existingTransfer.heartbeatAt.toDate().getTime()
+      : typeof existingTransfer?.heartbeatAt?._seconds === 'number'
+        ? existingTransfer.heartbeatAt._seconds * 1000
+        : 0;
+    const transferAlreadyRunning =
+      existingTransfer?.status === 'running' && now - heartbeatMs < TRANSFER_STALE_MS;
 
-    for (const page of pages) {
-      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
-      const ext = extMatch ? extMatch[1] : 'jpg';
-      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
-      if (existingNames.has(fileName)) {
-        skipped++;
-        continue;
-      }
-      try {
-        const storageFile = bucket.file(page.storagePath);
-        const [meta] = await storageFile.getMetadata();
-        const uploaded = await uploadStreamToDriveFolder(
-          driveFolderId,
-          fileName,
-          String(meta.contentType || 'image/jpeg'),
-          storageFile.createReadStream(),
-        );
-        const entry: any = {
-          driveFileId: uploaded.fileId,
-          name: fileName,
-          size: uploaded.size || Number(meta.size) || 0,
-          mimeType: String(meta.contentType || 'image/jpeg'),
-          uploadedAt: new Date(),
-        };
-        if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
-        files.push(entry);
-        existingNames.add(fileName);
-        // Persistenza incrementale: un crash a metà non perde i file già copiati
-        await shipmentRef.update({ files, updatedAt: FieldValue.serverTimestamp() });
-        transferred++;
-      } catch (e: any) {
-        console.error(
-          `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${ref.id}):`,
-          e?.message || e,
-        );
-        failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
-      }
+    if (!transferAlreadyRunning) {
+      await shipmentRef.update({
+        pageTransfer: {
+          status: 'running',
+          total: pages.length,
+          transferred: 0,
+          skipped: 0,
+          failed: [],
+          startedAt: FieldValue.serverTimestamp(),
+          heartbeatAt: FieldValue.serverTimestamp(),
+          finishedAt: null,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      // Fire-and-forget: gli errori vengono registrati dentro pageTransfer
+      void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
     }
 
     // Evento timeline sul job (solo alla prima creazione, best-effort)
@@ -911,13 +1001,12 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
 
     const finalDoc = await shipmentRef.get();
     console.log(
-      `📖 [photobooks] Trasferimento pagine fotolibro ${ref.id} → spedizione ${shipmentRef.id}: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
+      `📖 [photobooks] Trasferimento pagine fotolibro ${ref.id} → spedizione ${shipmentRef.id} avviato in background (${pages.length} pagine${transferAlreadyRunning ? ', già in corso' : ''})`,
     );
-    return res.json({
+    return res.status(202).json({
       shipment: { id: finalDoc.id, ...finalDoc.data() },
-      transferred,
-      skipped,
-      failed,
+      started: !transferAlreadyRunning,
+      alreadyRunning: transferAlreadyRunning,
       totalPages: pages.length,
     });
   } catch (error: any) {

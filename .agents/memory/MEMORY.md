@@ -19,4 +19,5 @@
 - [Dev Workflow: no server hot-reload](dev-workflow-no-server-watch.md) — `tsx server/index.ts` senza watch: le modifiche server NON si ricaricano, serve restart_workflow; solo il client (Vite) fa hot-reload.
 - [Calendar event ↔ Job association](calendar-job-association.md) — link in job.linkedCalendarEventIds[] (no collezione dedicata); risolto in GET /events; ogni write deve calendarCache.clear() o link stale 2min.
 - [Firestore vieta array annidati](firestore-nested-arrays.md) — write con array-di-array fallisce a runtime (INVALID_ARGUMENT); avvolgere il livello interno in mappe {points:[...]} e riconvertire in lettura.
+- [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
 - [Server TS target < ES2020](server-ts-target.md) — niente BigInt literal (0n/1n) nel codice server: tsc fallisce; usare BigInt(0)/BigInt(1) (tsx esegue comunque, ma il typecheck no).

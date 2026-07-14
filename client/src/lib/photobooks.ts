@@ -134,15 +134,18 @@ export async function updatePhotobookChangeRequest(
 
 export interface PhotobookLabTransferResult {
   shipment: { id: string; [key: string]: any };
-  transferred: number;
-  skipped: number;
-  failed: Array<{ pageNumber: number; error: string }>;
+  /** true se il trasferimento in background è stato avviato ora */
+  started: boolean;
+  /** true se era già in corso un trasferimento (nessun secondo avvio) */
+  alreadyRunning: boolean;
   totalPages: number;
 }
 
 /**
- * Crea (o riusa) la spedizione laboratorio del fotolibro e trasferisce
- * server-side le pagine ORIGINALI della versione corrente su Google Drive.
+ * Crea (o riusa) la spedizione laboratorio del fotolibro e avvia in background
+ * il trasferimento server-side delle pagine ORIGINALI della versione corrente
+ * su Google Drive. Risponde subito: l'avanzamento si segue leggendo
+ * `pageTransfer` sulla spedizione (GET /api/lab-shipments/:id).
  * Idempotente: richiamandola ritrasferisce solo le pagine mancanti.
  */
 export async function createPhotobookLabShipment(
