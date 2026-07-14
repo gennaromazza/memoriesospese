@@ -120,6 +120,10 @@ export default function PhotobookChangesScreen() {
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ['/api/photobooks/requests'],
     queryFn: listPhotobookChangeRequests,
+    // Le richieste arrivano dai clienti in qualsiasi momento: niente cache
+    // "fresca" (staleTime globale 5 min), ricarica sempre all'apertura del tab
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const statusMutation = useMutation({
