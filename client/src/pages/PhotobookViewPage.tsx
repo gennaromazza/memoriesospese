@@ -66,6 +66,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   BookImage,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Lock,
   MessageSquareText,
@@ -88,17 +90,26 @@ function newDraftId(): string {
     : `mark-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-/** true su dispositivi touch con schermo piccolo tenuti in verticale. */
-function usePortraitPhone(): boolean {
-  const [isPortraitPhone, setIsPortraitPhone] = useState(false);
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia('(orientation: portrait) and (pointer: coarse) and (max-width: 640px)');
-    const update = () => setIsPortraitPhone(mq.matches);
+    const mq = window.matchMedia(query);
+    const update = () => setMatches(mq.matches);
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
-  }, []);
-  return isPortraitPhone;
+  }, [query]);
+  return matches;
+}
+
+/** true su dispositivi touch con schermo piccolo tenuti in verticale. */
+function usePortraitPhone(): boolean {
+  return useMediaQuery('(orientation: portrait) and (pointer: coarse) and (max-width: 640px)');
+}
+
+/** true su smartphone touch (anche in orizzontale): attiva la modalità sfoglio. */
+function useTouchPhone(): boolean {
+  return useMediaQuery('(pointer: coarse) and (max-width: 932px)');
 }
 
 export default function PhotobookViewPage() {
@@ -118,13 +129,7 @@ export default function PhotobookViewPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const isPortraitPhone = usePortraitPhone();
-  const [rotateHintDismissed, setRotateHintDismissed] = useState(
-    () => sessionStorage.getItem('pb-rotate-hint-dismissed') === '1',
-  );
-  const dismissRotateHint = () => {
-    setRotateHintDismissed(true);
-    sessionStorage.setItem('pb-rotate-hint-dismissed', '1');
-  };
+  const isTouchPhone = useTouchPhone();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
@@ -281,9 +286,47 @@ export default function PhotobookViewPage() {
   const [currentPageNumber, setCurrentPageNumber] = useState<number | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
 
-  // Preload delle 3 pagine successive quando una pagina entra in vista +
-  // aggiornamento della pillola "Pagina X di N"
+  // Modalità sfoglio su smartphone: una pagina alla volta
+  const [slideIdx, setSlideIdx] = useState(0);
+  const safeSlideIdx = Math.min(slideIdx, Math.max(0, pagesList.length - 1));
+  // X in corso di disegno non ancora confermata: blocca il cambio pagina
+  const [hasPendingDrawing, setHasPendingDrawing] = useState(false);
+  const goToSlide = (idx: number) => {
+    if (hasPendingDrawing) {
+      toast({
+        title: 'X in corso',
+        description: 'Conferma o annulla la X che stai disegnando prima di cambiare pagina.',
+      });
+      return;
+    }
+    const next = Math.min(Math.max(0, idx), pagesList.length - 1);
+    setSlideIdx(next);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  };
+
+  // Se cambiano le pagine (es. cambio versione), riallinea l'indice
   useEffect(() => {
+    setSlideIdx((idx) => Math.min(idx, Math.max(0, pagesList.length - 1)));
+  }, [pagesList.length]);
+
+  // Preload in modalità sfoglio: pagina precedente + 3 successive
+  useEffect(() => {
+    if (!isTouchPhone || pagesList.length === 0) return;
+    for (let i = safeSlideIdx - 1; i <= safeSlideIdx + 3; i++) {
+      if (i < 0 || i >= pagesList.length) continue;
+      const url = pagesList[i].displayUrl || pagesList[i].url;
+      if (preloadedRef.current.has(url)) continue;
+      preloadedRef.current.add(url);
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url;
+    }
+  }, [isTouchPhone, safeSlideIdx, pagesList]);
+
+  // Preload delle 3 pagine successive quando una pagina entra in vista +
+  // aggiornamento della pillola "Pagina X di N" (solo vista a lista)
+  useEffect(() => {
+    if (isTouchPhone) return;
     if (pagesList.length === 0) return;
     const els = pageElsRef.current;
     const io = new IntersectionObserver(
@@ -308,10 +351,14 @@ export default function PhotobookViewPage() {
     );
     for (const el of els.values()) io.observe(el);
     return () => io.disconnect();
-  }, [pagesList]);
+  }, [pagesList, isTouchPhone]);
 
   const jumpToPage = (idx: number) => {
     setJumpOpen(false);
+    if (isTouchPhone) {
+      goToSlide(idx);
+      return;
+    }
     const el = pageElsRef.current.get(idx);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -403,6 +450,21 @@ export default function PhotobookViewPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-28">
+      {/* Su smartphone in verticale il fotolibro non si vede: schermata "ruota il telefono" */}
+      {isPortraitPhone && (
+        <div
+          className="fixed inset-0 z-50 bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          data-testid="overlay-rotate"
+        >
+          <Smartphone className="h-14 w-14 text-white rotate-90 animate-pulse" />
+          <p className="text-white font-semibold text-xl">Ruota il telefono</p>
+          <p className="text-stone-300 text-sm max-w-xs">
+            Il fotolibro si sfoglia in orizzontale: ruota il telefono per vedere le pagine a
+            schermo intero e disegnare le X con precisione.
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
@@ -435,28 +497,6 @@ export default function PhotobookViewPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {isPortraitPhone && !rotateHintDismissed && (
-          <div
-            className="flex items-center gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sm text-sky-900"
-            data-testid="banner-rotate-hint"
-          >
-            <Smartphone className="h-4 w-4 shrink-0 rotate-90" />
-            <span className="min-w-0 flex-1">
-              Consiglio: ruota il telefono in orizzontale per vedere le pagine più grandi e
-              disegnare le X con più precisione.
-            </span>
-            <button
-              type="button"
-              onClick={dismissRotateHint}
-              className="shrink-0 text-sky-500 hover:text-sky-700"
-              aria-label="Chiudi suggerimento"
-              data-testid="button-dismiss-rotate-hint"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
         {isLocked && (
           <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
             <CardContent className="py-4 flex items-start gap-3">
@@ -491,7 +531,11 @@ export default function PhotobookViewPage() {
           </p>
         )}
 
-        {pages.map((page, pageIdx) => {
+        {/* Su smartphone: modalità sfoglio, una pagina alla volta */}
+        {(isTouchPhone
+          ? pages.slice(safeSlideIdx, safeSlideIdx + 1).map((p) => [p, safeSlideIdx] as const)
+          : pages.map((p, i) => [p, i] as const)
+        ).map(([page, pageIdx]) => {
           const pageDrafts = draftsByPage.get(page.id) || [];
           const pageSent = sentRequestsByPage.get(page.id) || [];
           const marks: CanvasMark[] = [
@@ -583,14 +627,54 @@ export default function PhotobookViewPage() {
                 nextColor={nextColorForPage(page.id)}
                 drawingEnabled={canEdit}
                 onMarkComplete={(strokes) => onMarkComplete(page, strokes)}
+                onPendingChange={setHasPendingDrawing}
               />
             </div>
           );
         })}
       </main>
 
-      {/* Pillola "Pagina X di N" con salto rapido */}
-      {pages.length > 1 && currentPageNumber !== null && (
+      {/* Barra di navigazione sfoglio (solo smartphone) */}
+      {isTouchPhone && pages.length > 0 && (
+        <div
+          className={`fixed left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 ${
+            canEdit && drafts.size > 0 ? 'bottom-[4.5rem]' : 'bottom-3'
+          }`}
+          data-testid="slide-nav"
+        >
+          <button
+            type="button"
+            onClick={() => goToSlide(safeSlideIdx - 1)}
+            disabled={safeSlideIdx === 0}
+            className="flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/80 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-30"
+            aria-label="Pagina precedente"
+            data-testid="button-slide-prev"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setJumpOpen(true)}
+            className="h-11 min-w-[9rem] rounded-full bg-stone-900/80 text-white backdrop-blur-sm px-4 text-sm font-medium shadow-lg active:scale-95 transition-transform"
+            data-testid="button-page-pill-slide"
+          >
+            Pagina {pages[safeSlideIdx]?.pageNumber} di {pages.length}
+          </button>
+          <button
+            type="button"
+            onClick={() => goToSlide(safeSlideIdx + 1)}
+            disabled={safeSlideIdx >= pages.length - 1}
+            className="flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/80 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-30"
+            aria-label="Pagina successiva"
+            data-testid="button-slide-next"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </div>
+      )}
+
+      {/* Pillola "Pagina X di N" con salto rapido (vista a lista) */}
+      {!isTouchPhone && pages.length > 1 && currentPageNumber !== null && (
         <button
           type="button"
           onClick={() => setJumpOpen(true)}
@@ -617,7 +701,7 @@ export default function PhotobookViewPage() {
                 type="button"
                 onClick={() => jumpToPage(idx)}
                 className={`h-10 rounded-md border text-sm font-medium active:scale-95 transition-transform ${
-                  p.pageNumber === currentPageNumber
+                  (isTouchPhone ? idx === safeSlideIdx : p.pageNumber === currentPageNumber)
                     ? 'bg-stone-900 text-white border-stone-900'
                     : 'bg-white text-stone-700 hover:bg-stone-100'
                 }`}

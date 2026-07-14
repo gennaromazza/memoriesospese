@@ -38,6 +38,8 @@ interface Props {
   drawingEnabled: boolean;
   /** Chiamato quando il cliente conferma la X disegnata */
   onMarkComplete: (strokes: PhotobookMarkPoint[][]) => void;
+  /** Notifica al genitore se c'è una X in corso non ancora confermata */
+  onPendingChange?: (hasPending: boolean) => void;
 }
 
 const MAX_STROKES = 4;
@@ -102,6 +104,7 @@ export default function PhotobookMarkCanvas({
   nextColor,
   drawingEnabled,
   onMarkComplete,
+  onPendingChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   /** Wrapper interno (immagine+svg) su cui viene applicato lo zoom */
@@ -303,6 +306,14 @@ export default function PhotobookMarkCanvas({
   );
 
   const hasPending = pendingStrokes.length > 0 || !!currentStroke;
+
+  // Notifica al genitore la presenza di una X in corso (e la assenza allo smontaggio)
+  const onPendingChangeRef = useRef(onPendingChange);
+  onPendingChangeRef.current = onPendingChange;
+  useEffect(() => {
+    onPendingChangeRef.current?.(hasPending);
+  }, [hasPending]);
+  useEffect(() => () => onPendingChangeRef.current?.(false), []);
 
   return (
     <div className="space-y-2">
