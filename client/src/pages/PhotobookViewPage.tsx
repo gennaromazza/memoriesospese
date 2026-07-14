@@ -972,22 +972,24 @@ export default function PhotobookViewPage() {
           // (visualViewport) e scorre al suo interno.
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
-          }`}
+          } ${isTouchPhone && keyboardHeight ? 'p-3 gap-2' : ''}`}
           style={
             isTouchPhone && keyboardHeight
               ? { maxHeight: `${keyboardHeight - 16}px` }
               : undefined
           }
         >
-          <DialogHeader>
-            <DialogTitle>
+          <DialogHeader className={isTouchPhone && keyboardHeight ? 'space-y-0' : undefined}>
+            <DialogTitle className={isTouchPhone && keyboardHeight ? 'text-base' : undefined}>
               {noteMode === 'edit'
                 ? 'Richiedi una modifica'
                 : noteMode === 'delete'
                   ? 'Elimina foto'
                   : 'Sostituisci foto'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription
+              className={isTouchPhone && keyboardHeight ? 'hidden' : undefined}
+            >
               {noteMode === 'edit'
                 ? 'Descrivi la modifica che desideri (obbligatorio).'
                 : noteMode === 'delete'
@@ -995,7 +997,7 @@ export default function PhotobookViewPage() {
                   : `Sostituzione con: ${pendingReplacement?.name || ''}. Puoi aggiungere una nota (facoltativa).`}
             </DialogDescription>
           </DialogHeader>
-          {noteMode === 'replace' && pendingReplacement && (
+          {noteMode === 'replace' && pendingReplacement && !(isTouchPhone && keyboardHeight) && (
             <img
               src={pendingReplacement.thumbnailUrl || pendingReplacement.url}
               alt={pendingReplacement.name}
@@ -1011,13 +1013,21 @@ export default function PhotobookViewPage() {
                 : 'Nota facoltativa...'
             }
             rows={isTouchPhone ? 2 : 3}
+            className={isTouchPhone && keyboardHeight ? 'min-h-0' : undefined}
             data-testid="input-request-note"
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setNoteMode(null); setPendingReplacement(null); }}>
+          <DialogFooter
+            className={isTouchPhone && keyboardHeight ? 'flex-row justify-end gap-2 space-x-0' : undefined}
+          >
+            <Button
+              variant="outline"
+              size={isTouchPhone && keyboardHeight ? 'sm' : 'default'}
+              onClick={() => { setNoteMode(null); setPendingReplacement(null); }}
+            >
               Indietro
             </Button>
             <Button
+              size={isTouchPhone && keyboardHeight ? 'sm' : 'default'}
               disabled={noteMode === 'edit' && !note.trim()}
               onClick={() => {
                 if (noteMode === 'edit') {
