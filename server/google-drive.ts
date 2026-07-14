@@ -389,6 +389,38 @@ export async function createResumableUploadSession(
 }
 
 /**
+ * Carica su Drive (cartella indicata) uno stream di byte SENZA alcuna
+ * ricompressione (copia byte-per-byte). Usato per il trasferimento
+ * server-side delle pagine fotolibro da Firebase Storage.
+ */
+export async function uploadStreamToDriveFolder(
+  folderId: string,
+  fileName: string,
+  mimeType: string,
+  body: Readable
+): Promise<{ fileId: string; webViewLink?: string; size: number }> {
+  const drive = await getGoogleDriveClient();
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [folderId],
+    },
+    media: {
+      mimeType: mimeType || 'application/octet-stream',
+      body,
+    },
+    fields: 'id, webViewLink, size',
+  });
+
+  return {
+    fileId: response.data.id!,
+    webViewLink: response.data.webViewLink || undefined,
+    size: response.data.size ? parseInt(response.data.size, 10) : 0,
+  };
+}
+
+/**
  * Elimina un file o cartella da Drive.
  * Per le cartelle Drive elimina ricorsivamente anche i contenuti.
  */

@@ -16,9 +16,21 @@ import {
   deletePhotobook,
   updatePhotobook,
   photobookClientLink,
+  createPhotobookLabShipment,
   type Photobook,
+  type PhotobookLabTransferResult,
 } from '@/lib/photobooks';
 import { GalleryService, type Gallery } from '@/lib/galleries';
+import { getAllLabs } from '@/lib/labs';
+import { getShipment, tsToDate, daysUntilExpiry } from '@/lib/labShipments';
+import { getAllJobs } from '@/lib/jobs';
+import {
+  LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS,
+  LAB_SHIPMENT_STATUS_LABELS,
+  type Lab,
+  type LabShipment,
+} from '@shared/lab-types';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,7 +61,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BookImage, Copy, Layers, Lock, Unlock, Pencil, Plus, Trash2, Loader2 } from 'lucide-react';
+import {
+  BookImage,
+  Copy,
+  Layers,
+  Lock,
+  Unlock,
+  Pencil,
+  Plus,
+  Trash2,
+  Loader2,
+  Truck,
+  ExternalLink,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle2,
+} from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 
 export default function PhotobooksManager() {
@@ -61,6 +88,15 @@ export default function PhotobooksManager() {
   const [gallerySearch, setGallerySearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Photobook | null>(null);
   const [lockTarget, setLockTarget] = useState<Photobook | null>(null);
+
+  // Dialog "Manda in Stampa": spedizione laboratorio facoltativa
+  const [createShip, setCreateShip] = useState(true);
+  const [shipLabId, setShipLabId] = useState('');
+  const [shipDesc, setShipDesc] = useState('');
+  const [shipExpiry, setShipExpiry] = useState(String(LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS));
+  const [shipJobId, setShipJobId] = useState('');
+  const [transferResult, setTransferResult] = useState<PhotobookLabTransferResult | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['/api/photobooks'],
@@ -113,27 +149,83 @@ export default function PhotobooksManager() {
       toast({ title: 'Errore eliminazione', description: e.message, variant: 'destructive' }),
   });
 
-  const lockMutation = useMutation({
-    mutationFn: ({ id, locked }: { id: string; locked: boolean }) =>
-      updatePhotobook(id, { locked }),
-    onSuccess: (book) => {
+  const unlockMutation = useMutation({
+    mutationFn: (id: string) => updatePhotobook(id, { locked: false }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
-      setLockTarget(null);
-      toast(
-        book.locked
-          ? {
-              title: 'Album mandato in stampa',
-              description:
-                'Il cliente ora vede il fotolibro in sola lettura e non può più inviare o cancellare richieste.',
-            }
-          : {
-              title: 'Modifiche riaperte',
-              description: 'Il cliente può di nuovo inviare e cancellare richieste.',
-            },
-      );
+      toast({
+        title: 'Modifiche riaperte',
+        description: 'Il cliente può di nuovo inviare e cancellare richieste.',
+      });
     },
     onError: (e: any) =>
       toast({ title: 'Errore aggiornamento blocco', description: e.message, variant: 'destructive' }),
+  });
+
+  // Blocco + eventuale creazione spedizione con trasferimento pagine su Drive
+  const lockMutation = useMutation({
+    mutationFn: async (book: Photobook) => {
+      await updatePhotobook(book.id, { locked: true });
+      if (!createShip) return null;
+      return await createPhotobookLabShipment(book.id, {
+        labId: shipLabId || undefined,
+        descrizione: shipDesc.trim() || undefined,
+        expiryDays: parseInt(shipExpiry, 10) || LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS,
+        jobId: book.jobId ? undefined : shipJobId || undefined,
+      });
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      if (result) {
+        queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', result.shipment.id] });
+        setTransferResult(result);
+        if (result.failed.length === 0) {
+          toast({
+            title: 'Album mandato in stampa',
+            description: `Spedizione creata: ${result.transferred + result.skipped}/${result.totalPages} pagine su Google Drive.`,
+          });
+          setLockTarget(null);
+        }
+        // Se ci sono pagine fallite il dialog resta aperto con il riepilogo e il retry
+      } else {
+        toast({
+          title: 'Album mandato in stampa',
+          description:
+            'Il cliente ora vede il fotolibro in sola lettura e non può più inviare o cancellare richieste.',
+        });
+        setLockTarget(null);
+      }
+    },
+    onError: (e: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      setTransferError(e.message);
+    },
+  });
+
+  const openLockDialog = (book: Photobook) => {
+    setCreateShip(true);
+    setShipLabId('');
+    setShipDesc(`Fotolibro "${book.name}" v${book.currentVersion}`);
+    setShipExpiry(String(LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS));
+    setShipJobId('');
+    setTransferResult(null);
+    setTransferError(null);
+    setLockTarget(book);
+  };
+
+  const { data: labs = [] } = useQuery<Lab[]>({
+    queryKey: ['/api/labs', { attiviOnly: true }],
+    queryFn: () => getAllLabs(true),
+    enabled: !!lockTarget && createShip,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Solo per il caso anomalo di galleria orfana senza lavoro collegato
+  const { data: jobs = [] } = useQuery({
+    queryKey: ['/api/jobs', 'for-photobook-shipment'],
+    queryFn: () => getAllJobs(),
+    enabled: !!lockTarget && createShip && !lockTarget.jobId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const copyLink = (book: Photobook) => {
@@ -230,8 +322,8 @@ export default function PhotobooksManager() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={lockMutation.isPending}
-                        onClick={() => lockMutation.mutate({ id: book.id, locked: false })}
+                        disabled={unlockMutation.isPending}
+                        onClick={() => unlockMutation.mutate(book.id)}
                         data-testid={`button-unlock-${book.id}`}
                       >
                         <Unlock className="h-3.5 w-3.5 mr-1.5" />
@@ -242,7 +334,7 @@ export default function PhotobooksManager() {
                         size="sm"
                         variant="outline"
                         disabled={lockMutation.isPending}
-                        onClick={() => setLockTarget(book)}
+                        onClick={() => openLockDialog(book)}
                         data-testid={`button-lock-${book.id}`}
                       >
                         <Lock className="h-3.5 w-3.5 mr-1.5" />
@@ -259,6 +351,12 @@ export default function PhotobooksManager() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
+                  {book.labShipmentId && (
+                    <PhotobookShipmentInfo
+                      shipmentId={book.labShipmentId}
+                      book={book}
+                    />
+                  )}
                 </CardContent>
               </Card>
             );
@@ -325,29 +423,184 @@ export default function PhotobooksManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Conferma "manda in stampa" */}
-      <AlertDialog open={!!lockTarget} onOpenChange={(o) => !o && setLockTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mandare l'album in stampa?</AlertDialogTitle>
-            <AlertDialogDescription>
+      {/* Dialog "manda in stampa" con spedizione laboratorio facoltativa */}
+      <Dialog
+        open={!!lockTarget}
+        onOpenChange={(o) => {
+          if (!o && !lockMutation.isPending) setLockTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Mandare l'album in stampa?</DialogTitle>
+            <DialogDescription>
               Il cliente di "{lockTarget?.name}" vedrà l'avviso "Album mandato in stampa" e non
               potrà più disegnare X, inviare richieste o cancellare quelle già inviate. Potrai
               sbloccare le modifiche in qualsiasi momento da qui.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={lockMutation.isPending}
-              onClick={() => lockTarget && lockMutation.mutate({ id: lockTarget.id, locked: true })}
-              data-testid="button-confirm-lock"
-            >
-              Manda in Stampa
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </DialogDescription>
+          </DialogHeader>
+
+          {transferResult && transferResult.failed.length > 0 ? (
+            <div className="space-y-3">
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm space-y-2">
+                <p className="font-medium flex items-center gap-1.5 text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  Trasferimento parziale
+                </p>
+                <p>
+                  {transferResult.transferred + transferResult.skipped} pagine su{' '}
+                  {transferResult.totalPages} trasferite su Google Drive.{' '}
+                  {transferResult.failed.length} pagine non riuscite:
+                </p>
+                <ul className="list-disc pl-5 text-muted-foreground">
+                  {transferResult.failed.slice(0, 5).map((f) => (
+                    <li key={f.pageNumber}>
+                      Pagina {f.pageNumber}: {f.error}
+                    </li>
+                  ))}
+                  {transferResult.failed.length > 5 && (
+                    <li>… e altre {transferResult.failed.length - 5}</li>
+                  )}
+                </ul>
+                <p className="text-muted-foreground">
+                  Riprova: verranno trasferite solo le pagine mancanti, senza duplicati.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setLockTarget(null)}>
+                  Chiudi
+                </Button>
+                <Button
+                  disabled={lockMutation.isPending}
+                  onClick={() => lockTarget && lockMutation.mutate(lockTarget)}
+                  data-testid="button-retry-transfer"
+                >
+                  {lockMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Riprova pagine mancanti
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={createShip}
+                    onCheckedChange={(c) => setCreateShip(c === true)}
+                    className="mt-0.5"
+                    data-testid="checkbox-create-shipment"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium flex items-center gap-1.5">
+                      <Truck className="h-4 w-4" />
+                      Crea spedizione laboratorio
+                    </span>
+                    <span className="text-muted-foreground">
+                      Trasferisce le pagine originali della versione corrente (v
+                      {lockTarget?.currentVersion}) su Google Drive, senza ricompressione.
+                    </span>
+                  </span>
+                </label>
+
+                {createShip && (
+                  <div className="space-y-3 pl-6">
+                    {!lockTarget?.jobId && (
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-amber-600">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Lavoro da collegare (galleria senza lavoro)
+                        </Label>
+                        <Select value={shipJobId} onValueChange={setShipJobId}>
+                          <SelectTrigger data-testid="select-shipment-job">
+                            <SelectValue placeholder="Seleziona il lavoro" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {jobs.map((j: any) => (
+                              <SelectItem key={j.id} value={j.id}>
+                                {j.nomeEvento || j.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <Label>Laboratorio (facoltativo)</Label>
+                      <Select value={shipLabId} onValueChange={setShipLabId}>
+                        <SelectTrigger data-testid="select-shipment-lab">
+                          <SelectValue placeholder="Nessun laboratorio" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {labs.map((lab) => (
+                            <SelectItem key={lab.id} value={lab.id}>
+                              {lab.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ship-desc">Descrizione</Label>
+                      <Input
+                        id="ship-desc"
+                        value={shipDesc}
+                        onChange={(e) => setShipDesc(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ship-expiry">Scadenza file su Drive (giorni)</Label>
+                      <Input
+                        id="ship-expiry"
+                        type="number"
+                        min={1}
+                        value={shipExpiry}
+                        onChange={(e) => setShipExpiry(e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {transferError && (
+                  <p className="text-sm text-destructive flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {transferError}
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={lockMutation.isPending}
+                  onClick={() => setLockTarget(null)}
+                >
+                  Annulla
+                </Button>
+                <Button
+                  disabled={
+                    lockMutation.isPending ||
+                    (createShip && !lockTarget?.jobId && !shipJobId)
+                  }
+                  onClick={() => {
+                    setTransferError(null);
+                    lockTarget && lockMutation.mutate(lockTarget);
+                  }}
+                  data-testid="button-confirm-lock"
+                >
+                  {lockMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {lockMutation.isPending && createShip
+                    ? 'Trasferimento pagine…'
+                    : 'Manda in Stampa'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Conferma eliminazione */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
@@ -370,6 +623,119 @@ export default function PhotobooksManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * Riquadro spedizione laboratorio collegata a un fotolibro mandato in stampa:
+ * laboratorio, stato, scadenza file, link Drive e retry per pagine mancanti.
+ */
+function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book: Photobook }) {
+  const { toast } = useToast();
+  const { data: shipment, isLoading } = useQuery<LabShipment>({
+    queryKey: ['/api/lab-shipments', shipmentId],
+    queryFn: () => getShipment(shipmentId),
+    staleTime: 60 * 1000,
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: () => createPhotobookLabShipment(book.id, {}),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', shipmentId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      if (result.failed.length > 0) {
+        toast({
+          title: 'Trasferimento parziale',
+          description: `${result.failed.length} pagine ancora non trasferite. Riprova più tardi.`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Trasferimento completato',
+          description: `Tutte le ${result.totalPages} pagine sono su Google Drive.`,
+        });
+      }
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore trasferimento', description: e.message, variant: 'destructive' }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground flex items-center gap-2">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Caricamento spedizione…
+      </div>
+    );
+  }
+  if (!shipment) return null;
+
+  const expiresDate = tsToDate(shipment.expiresAt);
+  const daysLeft = daysUntilExpiry(shipment.expiresAt);
+  const expired = shipment.deletedFromDrive || (daysLeft !== null && daysLeft <= 0);
+  const currentVersionEntry = book.versions.find((v) => v.version === book.currentVersion);
+  const pageCount = currentVersionEntry?.pageCount || 0;
+  const filesCount = shipment.files?.length || 0;
+  const incomplete = !shipment.deletedFromDrive && pageCount > 0 && filesCount < pageCount;
+
+  return (
+    <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm space-y-1.5">
+      <p className="font-medium flex items-center gap-1.5">
+        <Truck className="h-4 w-4" />
+        Spedizione laboratorio
+        <Badge variant="secondary" className="ml-1">
+          {LAB_SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status}
+        </Badge>
+        {expired && (
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            {shipment.deletedFromDrive ? 'File eliminati da Drive' : 'File scaduti'}
+          </Badge>
+        )}
+      </p>
+      <p className="text-muted-foreground">
+        {shipment.labNome ? `Laboratorio: ${shipment.labNome} · ` : ''}
+        File trasferiti: {filesCount}
+        {pageCount > 0 ? `/${pageCount}` : ''}
+        {expiresDate && !shipment.deletedFromDrive
+          ? ` · Scadenza: ${expiresDate.toLocaleDateString('it-IT')}${
+              daysLeft !== null && daysLeft > 0 ? ` (${daysLeft} gg)` : ''
+            }`
+          : ''}
+      </p>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {shipment.shareableLink && !shipment.deletedFromDrive && (
+          <Button size="sm" variant="outline" asChild>
+            <a href={shipment.shareableLink} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              Apri cartella Drive
+            </a>
+          </Button>
+        )}
+        {incomplete && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={retryMutation.isPending}
+            onClick={() => retryMutation.mutate()}
+            data-testid={`button-retry-shipment-${book.id}`}
+          >
+            {retryMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Riprova pagine mancanti
+          </Button>
+        )}
+        {!incomplete && !expired && filesCount > 0 && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+            Tutte le pagine trasferite
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -18,6 +18,12 @@ import express, { Request, Response, Router, NextFunction } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { db, storage, FieldValue } from './firebase-admin.js';
+import {
+  findOrCreateLabParentFolder,
+  createShipmentFolder,
+  uploadStreamToDriveFolder,
+} from './google-drive.js';
+import { LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS } from '../shared/lab-types.js';
 import { authenticateFirebase } from './email-routes.js';
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
@@ -55,6 +61,8 @@ function serializeBook(id: string, d: any): any {
     token: d.token,
     currentVersion: d.currentVersion,
     locked: !!d.locked,
+    jobId: d.jobId || null,
+    labShipmentId: d.labShipmentId || null,
     versions: (d.versions || []).map((v: any) => ({
       version: v.version,
       label: v.label || null,
@@ -540,12 +548,31 @@ router.patch('/requests/:requestId', async (req: Request, res: Response) => {
   }
 });
 
-/** GET / — lista fotolibri */
+/** GET / — lista fotolibri (con backfill lazy di jobId dalla galleria) */
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const snap = await db.collection(BOOKS_COL).get();
-    const books = snap.docs
-      .map((d) => serializeBook(d.id, d.data()))
+    const entries = snap.docs.map((d) => ({ id: d.id, ref: d.ref, data: d.data() }));
+
+    // Backfill una tantum: fotolibri esistenti senza jobId → risali da
+    // gallery.jobId e persisti. jobId === null (galleria orfana) viene
+    // ritentato ad ogni lista finché non risolto (o impostato a mano).
+    for (const e of entries) {
+      if (e.data.jobId) continue;
+      try {
+        const gDoc = await db.collection('galleries').doc(e.data.galleryId).get();
+        const gJobId = (gDoc.exists ? gDoc.data()?.jobId : null) || null;
+        if (gJobId || e.data.jobId === undefined) {
+          await e.ref.update({ jobId: gJobId });
+          e.data.jobId = gJobId;
+        }
+      } catch {
+        // best-effort: il backfill non deve bloccare la lista
+      }
+    }
+
+    const books = entries
+      .map((e) => serializeBook(e.id, e.data))
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     return res.json({ photobooks: books });
   } catch (error) {
@@ -573,6 +600,8 @@ router.post('/', async (req: Request, res: Response) => {
       galleryId,
       galleryName: g.name || '',
       clientName: g.clientName || g.clientEmail || g.name || '',
+      // Associazione esplicita al lavoro: risale da gallery.jobId
+      jobId: g.jobId || null,
       token,
       currentVersion: 1,
       versions: [{ version: 1, label: null, pageCount: 0, createdAt: now }],
@@ -620,6 +649,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
     if (typeof req.body?.locked === 'boolean') {
       updates.locked = req.body.locked;
+    }
+    // Associazione manuale al lavoro (solo per gallerie orfane senza job)
+    if (typeof req.body?.jobId === 'string' && req.body.jobId.trim()) {
+      const jobDoc = await db.collection('jobs').doc(req.body.jobId.trim()).get();
+      if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+      updates.jobId = req.body.jobId.trim();
     }
     await ref.update(updates);
     const saved = await ref.get();
@@ -685,6 +720,214 @@ router.post('/:id/versions', async (req: Request, res: Response) => {
     return res.json({ photobook: serializeBook(ref.id, saved.data()) });
   } catch (error) {
     console.error('[photobooks] Errore nuova versione:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /:id/lab-shipment — crea (o riusa) la spedizione laboratorio del
+ * fotolibro e trasferisce server-side le pagine ORIGINALI (storagePath, mai le
+ * versioni display ridotte) della versione corrente da Firebase Storage alla
+ * cartella Google Drive della spedizione. Copia byte-per-byte, nessuna
+ * ricompressione.
+ *
+ * Body: { labId?, descrizione?, expiryDays?, jobId? }
+ * - jobId serve solo come fallback se il fotolibro non ha un lavoro associato.
+ * - Idempotente: richiamandolo ritrasferisce SOLO le pagine mancanti (retry
+ *   dopo errori parziali), senza duplicare file già presenti.
+ *
+ * Risposta: { shipment, transferred, skipped, failed: [{pageNumber, error}] }
+ */
+router.post('/:id/lab-shipment', async (req: any, res: Response) => {
+  try {
+    const ref = db.collection(BOOKS_COL).doc(req.params.id);
+    const bookDoc = await ref.get();
+    if (!bookDoc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data()!;
+
+    // Lavoro associato (obbligatorio per la spedizione)
+    const jobId: string =
+      book.jobId || (typeof req.body?.jobId === 'string' ? req.body.jobId.trim() : '');
+    if (!jobId) {
+      return res.status(400).json({
+        error:
+          'Il fotolibro non è associato a nessun lavoro: seleziona il lavoro a cui collegare la spedizione',
+      });
+    }
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+
+    // Pagine della versione corrente (originali ad alta risoluzione)
+    const pagesSnap = await db
+      .collection(PAGES_COL)
+      .where('photobookId', '==', ref.id)
+      .where('version', '==', book.currentVersion)
+      .get();
+    const pages = pagesSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
+      .filter((p) => p.storagePath)
+      .sort((a, b) => a.pageNumber - b.pageNumber);
+    if (pages.length === 0) {
+      return res.status(400).json({ error: 'La versione corrente non ha pagine da trasferire' });
+    }
+
+    // Riusa la spedizione già collegata (retry idempotente), altrimenti creala
+    let shipmentRef = book.labShipmentId
+      ? db.collection('labShipments').doc(book.labShipmentId)
+      : null;
+    let shipment: any = null;
+    if (shipmentRef) {
+      const sDoc = await shipmentRef.get();
+      if (sDoc.exists) shipment = sDoc.data();
+      else shipmentRef = null;
+    }
+
+    let isNewShipment = false;
+    if (!shipmentRef) {
+      isNewShipment = true;
+      const descrizione =
+        (typeof req.body?.descrizione === 'string' && req.body.descrizione.trim()) ||
+        `Fotolibro "${book.name}" v${book.currentVersion}`;
+      const expiryDays =
+        typeof req.body?.expiryDays === 'number' && req.body.expiryDays > 0
+          ? req.body.expiryDays
+          : LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS;
+      const shipmentData: any = {
+        jobId,
+        descrizione,
+        files: [],
+        status: 'da_inviare',
+        expiryDays,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: req.user?.email || undefined,
+        photobookId: ref.id,
+      };
+      const labId = typeof req.body?.labId === 'string' ? req.body.labId.trim() : '';
+      if (labId) {
+        shipmentData.labId = labId;
+        const labDoc = await db.collection('labs').doc(labId).get();
+        if (labDoc.exists) {
+          shipmentData.labNome = labDoc.data()?.nome;
+          shipmentData.labEmail = labDoc.data()?.email;
+        }
+      }
+      shipmentRef = await db.collection('labShipments').add(shipmentData);
+      const sDoc = await shipmentRef.get();
+      shipment = sDoc.data();
+      console.log(
+        `📖 [photobooks] Spedizione laboratorio ${shipmentRef.id} creata per fotolibro ${ref.id} (job ${jobId})`,
+      );
+    }
+
+    // Cartella Drive dedicata (creata al primo trasferimento)
+    let driveFolderId: string | undefined = shipment.driveFolderId;
+    if (!driveFolderId) {
+      const parentId = await findOrCreateLabParentFolder();
+      const folderName = `${shipment.labNome ? shipment.labNome + ' - ' : ''}${
+        shipment.descrizione || 'Consegna'
+      } - ${shipmentRef.id}`;
+      const folder = await createShipmentFolder(parentId, folderName);
+      driveFolderId = folder.folderId;
+      await shipmentRef.update({
+        driveFolderId,
+        shareableLink: folder.webViewLink || null,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Collega subito fotolibro ↔ spedizione (evita doppie creazioni anche se
+    // il trasferimento fallisce a metà e si riprova)
+    await ref.update({
+      jobId,
+      labShipmentId: shipmentRef.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Trasferimento pagine: nome file deterministico → retry senza duplicati
+    const files: any[] = Array.isArray(shipment.files) ? [...shipment.files] : [];
+    const existingNames = new Set(files.map((f) => f.name));
+    const bucket = storage.bucket();
+    let transferred = 0;
+    let skipped = 0;
+    const failed: Array<{ pageNumber: number; error: string }> = [];
+
+    for (const page of pages) {
+      const extMatch = String(page.storagePath).match(/\.(\w+)$/);
+      const ext = extMatch ? extMatch[1] : 'jpg';
+      const fileName = `pagina-${String(page.pageNumber).padStart(3, '0')}-${page.id}.${ext}`;
+      if (existingNames.has(fileName)) {
+        skipped++;
+        continue;
+      }
+      try {
+        const storageFile = bucket.file(page.storagePath);
+        const [meta] = await storageFile.getMetadata();
+        const uploaded = await uploadStreamToDriveFolder(
+          driveFolderId,
+          fileName,
+          String(meta.contentType || 'image/jpeg'),
+          storageFile.createReadStream(),
+        );
+        const entry: any = {
+          driveFileId: uploaded.fileId,
+          name: fileName,
+          size: uploaded.size || Number(meta.size) || 0,
+          mimeType: String(meta.contentType || 'image/jpeg'),
+          uploadedAt: new Date(),
+        };
+        if (uploaded.webViewLink) entry.webViewLink = uploaded.webViewLink;
+        files.push(entry);
+        existingNames.add(fileName);
+        // Persistenza incrementale: un crash a metà non perde i file già copiati
+        await shipmentRef.update({ files, updatedAt: FieldValue.serverTimestamp() });
+        transferred++;
+      } catch (e: any) {
+        console.error(
+          `[photobooks] Trasferimento pagina ${page.pageNumber} fallito (fotolibro ${ref.id}):`,
+          e?.message || e,
+        );
+        failed.push({ pageNumber: page.pageNumber, error: e?.message || 'Errore trasferimento' });
+      }
+    }
+
+    // Evento timeline sul job (solo alla prima creazione, best-effort)
+    if (isNewShipment) {
+      try {
+        await db.collection('jobTimeline').add({
+          id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          jobId,
+          tipo: 'nota_aggiunta',
+          descrizione: `Fotolibro "${book.name}" mandato in stampa: creata spedizione laboratorio${
+            shipment.labNome ? ` (${shipment.labNome})` : ''
+          } con trasferimento pagine su Google Drive.`,
+          data: FieldValue.serverTimestamp(),
+          metadata: { labShipmentId: shipmentRef.id, photobookId: ref.id },
+        });
+      } catch (e: any) {
+        console.warn('[photobooks] Evento timeline non salvato (non bloccante):', e?.message);
+      }
+    }
+
+    const finalDoc = await shipmentRef.get();
+    console.log(
+      `📖 [photobooks] Trasferimento pagine fotolibro ${ref.id} → spedizione ${shipmentRef.id}: ${transferred} trasferite, ${skipped} già presenti, ${failed.length} fallite`,
+    );
+    return res.json({
+      shipment: { id: finalDoc.id, ...finalDoc.data() },
+      transferred,
+      skipped,
+      failed,
+      totalPages: pages.length,
+    });
+  } catch (error: any) {
+    console.error('[photobooks] Errore creazione spedizione laboratorio:', error);
+    const msg = String(error?.message || '');
+    if (msg.includes('GOOGLE_DRIVE_RECONNECTION_NEEDED')) {
+      return res.status(502).json({
+        error: 'Google Drive non connesso: riconnetti Google Drive dalle impostazioni e riprova',
+      });
+    }
     return res.status(500).json({ error: 'Errore interno del server' });
   }
 });

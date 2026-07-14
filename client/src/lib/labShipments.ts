@@ -59,6 +59,18 @@ export async function getJobShipments(jobId: string): Promise<LabShipment[]> {
 }
 
 /**
+ * Dettaglio di una singola spedizione (es. spedizione collegata a un fotolibro)
+ */
+export async function getShipment(id: string): Promise<LabShipment> {
+  const response = await apiRequest("GET", `/api/lab-shipments/${id}`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || "Errore caricamento spedizione");
+  }
+  return await response.json();
+}
+
+/**
  * Crea nuova spedizione per un job
  */
 export async function createShipment(

@@ -132,6 +132,27 @@ export async function updatePhotobookChangeRequest(
   await apiRequest('PATCH', `/api/photobooks/requests/${requestId}`, { status });
 }
 
+export interface PhotobookLabTransferResult {
+  shipment: { id: string; [key: string]: any };
+  transferred: number;
+  skipped: number;
+  failed: Array<{ pageNumber: number; error: string }>;
+  totalPages: number;
+}
+
+/**
+ * Crea (o riusa) la spedizione laboratorio del fotolibro e trasferisce
+ * server-side le pagine ORIGINALI della versione corrente su Google Drive.
+ * Idempotente: richiamandola ritrasferisce solo le pagine mancanti.
+ */
+export async function createPhotobookLabShipment(
+  id: string,
+  data: { labId?: string; descrizione?: string; expiryDays?: number; jobId?: string },
+): Promise<PhotobookLabTransferResult> {
+  const res = await apiRequest('POST', `/api/photobooks/${id}/lab-shipment`, data);
+  return json<PhotobookLabTransferResult>(res);
+}
+
 /** Link cliente completo per un fotolibro. */
 export function photobookClientLink(book: Photobook): string {
   return `${window.location.origin}/fotolibro/${book.token}`;

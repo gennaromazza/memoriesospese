@@ -202,6 +202,23 @@ router.get('/lab-shipments/job/:jobId', authenticateFirebase, requireAdmin, asyn
 });
 
 /**
+ * GET /api/lab-shipments/:id
+ * Dettaglio singola spedizione (usato dalla scheda fotolibro collegata).
+ */
+router.get('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (req: any, res) => {
+  try {
+    const doc = await db.collection('labShipments').doc(req.params.id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Spedizione non trovata' });
+    }
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (error: any) {
+    console.error('❌ Error fetching lab shipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/lab-shipments
  * Crea una nuova spedizione (stato iniziale: da_inviare).
  */

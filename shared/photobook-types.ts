@@ -71,6 +71,18 @@ export interface Photobook {
    * cancellare richieste. Definitivo lato cliente (l'admin può riaprire).
    */
   locked?: boolean;
+  /**
+   * Lavoro (job) associato: popolato alla creazione da gallery.jobId e
+   * retro-compilato per i fotolibri esistenti. Serve alla creazione della
+   * spedizione laboratorio al momento del "Manda in Stampa".
+   */
+  jobId?: string | null;
+  /**
+   * Spedizione laboratorio collegata (labShipments): impostata quando le
+   * pagine vengono trasferite su Google Drive per la stampa. Evita doppie
+   * creazioni e permette di mostrare stato/scadenza nella scheda fotolibro.
+   */
+  labShipmentId?: string | null;
   createdAt: any;
   updatedAt?: any;
 }
