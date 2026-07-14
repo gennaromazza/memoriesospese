@@ -496,7 +496,11 @@ export default function PhotobookViewPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <main
+        className={`max-w-4xl mx-auto px-2 sm:px-4 space-y-4 sm:space-y-6 ${
+          isTouchPhone ? 'py-2 pb-16' : 'py-4 sm:py-6'
+        }`}
+      >
         {isLocked && (
           <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
             <CardContent className="py-4 flex items-start gap-3">
@@ -521,7 +525,7 @@ export default function PhotobookViewPage() {
           </Card>
         )}
 
-        {canEdit && (
+        {canEdit && !isTouchPhone && (
           <p className="text-sm text-muted-foreground px-1">
             Tocca <span className="font-medium text-foreground">"Segna una X"</span> su una pagina e
             disegna una X sulla foto che vuoi far modificare: ogni X prende un colore diverso e
@@ -628,14 +632,15 @@ export default function PhotobookViewPage() {
                 drawingEnabled={canEdit}
                 onMarkComplete={(strokes) => onMarkComplete(page, strokes)}
                 onPendingChange={setHasPendingDrawing}
+                fitViewport={isTouchPhone}
               />
             </div>
           );
         })}
       </main>
 
-      {/* Barra di navigazione sfoglio (solo smartphone) */}
-      {isTouchPhone && pages.length > 0 && (
+      {/* Barra di navigazione sfoglio (solo smartphone, nascosta mentre si disegna una X) */}
+      {isTouchPhone && pages.length > 0 && !hasPendingDrawing && (
         <div
           className={`fixed left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 ${
             canEdit && drafts.size > 0 ? 'bottom-[4.5rem]' : 'bottom-3'

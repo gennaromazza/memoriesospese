@@ -40,6 +40,8 @@ interface Props {
   onMarkComplete: (strokes: PhotobookMarkPoint[][]) => void;
   /** Notifica al genitore se c'è una X in corso non ancora confermata */
   onPendingChange?: (hasPending: boolean) => void;
+  /** Adatta la pagina all'altezza dello schermo (modalità sfoglio smartphone) */
+  fitViewport?: boolean;
 }
 
 const MAX_STROKES = 4;
@@ -105,6 +107,7 @@ export default function PhotobookMarkCanvas({
   drawingEnabled,
   onMarkComplete,
   onPendingChange,
+  fitViewport = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   /** Wrapper interno (immagine+svg) su cui viene applicato lo zoom */
@@ -331,7 +334,7 @@ export default function PhotobookMarkCanvas({
       >
         <div
           ref={contentRef}
-          className="relative"
+          className={`relative ${fitViewport ? 'w-fit mx-auto' : ''}`}
           style={{
             transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
             transformOrigin: '0 0',
@@ -342,7 +345,11 @@ export default function PhotobookMarkCanvas({
             alt={pageAlt}
             loading="lazy"
             decoding="async"
-            className="w-full h-auto block pointer-events-none"
+            className={`${
+              fitViewport
+                ? 'max-h-[calc(100dvh-9rem)] w-auto max-w-full'
+                : 'w-full'
+            } h-auto block pointer-events-none`}
             draggable={false}
           />
           <svg
