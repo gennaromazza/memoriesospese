@@ -753,9 +753,9 @@ export default function PhotobookViewPage() {
           <button
             type="button"
             onClick={() => setJumpOpen(true)}
-            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-opacity duration-300 ${
-              canEdit && drafts.size > 0 ? 'bottom-16' : 'bottom-1.5'
-            } ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-opacity duration-300 bottom-1.5 ${
+              controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
             data-testid="button-page-pill-slide"
           >
             Pagina {pages[safeSlideIdx]?.pageNumber} di {pages.length}
@@ -804,8 +804,23 @@ export default function PhotobookViewPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Barra invio (nascosta se l'album è andato in stampa) */}
-      {canEdit && drafts.size > 0 && (
+      {/* Bozze su smartphone: nessuna barra fissa (coprirebbe la pagina e in
+          modalità disegno lo scroll è bloccato). Solo un bottone flottante che
+          apre il riepilogo con invio e "Annulla tutte". */}
+      {canEdit && drafts.size > 0 && isTouchPhone && !hasPendingDrawing && (
+        <button
+          type="button"
+          onClick={() => setConfirmOpen(true)}
+          className="fixed bottom-1.5 right-1.5 z-30 flex items-center gap-1.5 rounded-full bg-stone-900/85 text-white backdrop-blur-sm pl-3 pr-3.5 py-2 text-xs font-semibold shadow-lg active:scale-95"
+          data-testid="button-drafts-fab"
+        >
+          <Send className="h-3.5 w-3.5" />
+          {drafts.size === 1 ? '1 bozza' : `${drafts.size} bozze`} · Invia
+        </button>
+      )}
+
+      {/* Barra invio (solo desktop/tablet; nascosta se l'album è andato in stampa) */}
+      {canEdit && drafts.size > 0 && !isTouchPhone && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t shadow-lg">
           <div
             className={`max-w-4xl mx-auto px-3 sm:px-4 flex items-center gap-2 sm:gap-3 ${
@@ -852,6 +867,7 @@ export default function PhotobookViewPage() {
               onClick={() => {
                 setDrafts(new Map());
                 setClearAllOpen(false);
+                setConfirmOpen(false);
               }}
               data-testid="button-confirm-clear-all"
             >
@@ -1101,7 +1117,19 @@ export default function PhotobookViewPage() {
               {submitProgress.total}…
             </p>
           )}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {isTouchPhone && (
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                disabled={submitMutation.isPending}
+                onClick={() => setClearAllOpen(true)}
+                data-testid="button-clear-all-from-summary"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Annulla tutte
+              </Button>
+            )}
             <Button
               variant="outline"
               disabled={submitMutation.isPending}
