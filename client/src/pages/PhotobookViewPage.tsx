@@ -128,6 +128,10 @@ export default function PhotobookViewPage() {
   const [pendingReplacement, setPendingReplacement] = useState<PhotobookGalleryPhoto | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
   const isPortraitPhone = usePortraitPhone();
   const isTouchPhone = useTouchPhone();
 
@@ -191,6 +195,7 @@ export default function PhotobookViewPage() {
       // 1) Snapshot per pagina (obbligatorio: senza snapshot l'invio si blocca)
       const pageIds = Array.from(new Set(entries.map((d) => d.pageId)));
       const snapshotByPage = new Map<string, string>();
+      setSubmitProgress({ done: 0, total: pageIds.length });
       for (const pageId of pageIds) {
         const page = data?.pages.find((p) => p.id === pageId);
         if (!page) {
@@ -206,6 +211,7 @@ export default function PhotobookViewPage() {
           const blob = await generatePageSnapshot(page.displayUrl || page.url, marks);
           const url = await uploadPhotobookSnapshot(token, pageId, blob);
           snapshotByPage.set(pageId, url);
+          setSubmitProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
         } catch (e) {
           console.error('[fotolibro] Snapshot pagina non generato:', e);
           throw new Error(
@@ -235,6 +241,7 @@ export default function PhotobookViewPage() {
     },
     onError: (e: any) =>
       toast({ title: 'Errore invio richieste', description: e.message, variant: 'destructive' }),
+    onSettled: () => setSubmitProgress(null),
   });
 
   const isCurrentVersion = data ? data.version === data.photobook.currentVersion : true;
@@ -662,12 +669,12 @@ export default function PhotobookViewPage() {
                     {canEdit && (
                       <button
                         type="button"
-                        className="ml-0.5 text-stone-400 hover:text-destructive"
+                        className="-my-2 -mr-1 ml-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-stone-400 hover:text-destructive active:bg-stone-200"
                         title="Cancella questa richiesta inviata"
                         onClick={() => setDeleteSentTarget(r)}
                         data-testid={`button-delete-sent-${r.id}`}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </span>
@@ -689,12 +696,12 @@ export default function PhotobookViewPage() {
                         : 'Modifica'}
                     <button
                       type="button"
-                      className="ml-0.5 text-stone-400 hover:text-destructive"
+                      className="-my-2 -mr-1 ml-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-stone-400 hover:text-destructive active:bg-stone-200"
                       title="Annulla questa richiesta"
                       onClick={() => removeDraft(d.id)}
                       data-testid={`button-remove-draft-${d.id}`}
                     >
-                      <Undo2 className="h-3 w-3" />
+                      <Undo2 className="h-3.5 w-3.5" />
                     </button>
                   </span>
                 ))}
@@ -800,25 +807,65 @@ export default function PhotobookViewPage() {
       {/* Barra invio (nascosta se l'album è andato in stampa) */}
       {canEdit && drafts.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t shadow-lg">
-          <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
+          <div
+            className={`max-w-4xl mx-auto px-3 sm:px-4 flex items-center gap-2 sm:gap-3 ${
+              isTouchPhone ? 'py-1.5' : 'py-3'
+            }`}
+          >
             <Badge variant="secondary" className="shrink-0">
               {drafts.size} {drafts.size === 1 ? 'bozza' : 'bozze'}
             </Badge>
             <div className="flex-1" />
-            <Button variant="outline" size="sm" onClick={() => setDrafts(new Map())}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setClearAllOpen(true)}
+              data-testid="button-clear-all-drafts"
+            >
               <Undo2 className="h-3.5 w-3.5 mr-1.5" />
               Annulla tutte
             </Button>
             <Button size="sm" onClick={() => setConfirmOpen(true)} data-testid="button-open-submit">
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Invia richieste
+              Invia {drafts.size === 1 ? '1 richiesta' : `${drafts.size} richieste`}
             </Button>
           </div>
         </div>
       )}
 
+      {/* Conferma "Annulla tutte" (evita cancellazioni accidentali su smartphone) */}
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Eliminare {drafts.size === 1 ? 'la bozza' : `tutte le ${drafts.size} bozze`}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Le X e le richieste non ancora inviate verranno cancellate. Le richieste già
+              inviate non saranno toccate.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setDrafts(new Map());
+                setClearAllOpen(false);
+              }}
+              data-testid="button-confirm-clear-all"
+            >
+              Elimina bozze
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Dialog azioni per la X appena disegnata */}
-      <Dialog open={!!activeMark && !noteMode} onOpenChange={(o) => !o && setActiveMark(null)}>
+      <Dialog
+        open={!!activeMark && !noteMode && !pickerOpen}
+        onOpenChange={(o) => !o && setActiveMark(null)}
+      >
         <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1004,12 +1051,19 @@ export default function PhotobookViewPage() {
       />
 
       {/* Conferma invio */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (!o && submitMutation.isPending) return;
+          setConfirmOpen(o);
+        }}
+      >
         <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invia le richieste al fotografo</DialogTitle>
             <DialogDescription>
-              Controlla il riepilogo: dopo l'invio non potrai più annullarle da qui.
+              Controlla il riepilogo: dopo l'invio potrai comunque cancellare le richieste
+              finché il fotolibro non verrà mandato in stampa.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-64 overflow-y-auto space-y-1.5">
@@ -1032,16 +1086,27 @@ export default function PhotobookViewPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 shrink-0"
+                    className="h-9 w-9 shrink-0"
+                    disabled={submitMutation.isPending}
                     onClick={() => removeDraft(d.id)}
                   >
-                    <Undo2 className="h-3.5 w-3.5" />
+                    <Undo2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
           </div>
+          {submitMutation.isPending && submitProgress && (
+            <p className="text-sm text-stone-600" data-testid="text-submit-progress">
+              Preparazione pagina {Math.min(submitProgress.done + 1, submitProgress.total)} di{' '}
+              {submitProgress.total}…
+            </p>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button
+              variant="outline"
+              disabled={submitMutation.isPending}
+              onClick={() => setConfirmOpen(false)}
+            >
               Torna alla revisione
             </Button>
             <Button

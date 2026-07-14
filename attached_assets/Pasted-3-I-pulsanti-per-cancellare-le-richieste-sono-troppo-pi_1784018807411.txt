@@ -1,0 +1,192 @@
+3. I pulsanti per cancellare le richieste sono troppo piccoli
+
+Nei chip utilizzi icone da h-3 w-3 dentro piccoli pulsanti:
+
+<Trash2 className="h-3 w-3" />
+
+Su mobile l’area cliccabile è troppo ridotta. Un touch target dovrebbe essere almeno circa 44×44 pixel, anche quando l’icona è visivamente piccola.
+
+Puoi mantenere l’icona piccola, ma aumentare il pulsante:
+
+<button
+  type="button"
+  className="-my-2 -mr-2 ml-1 flex h-10 w-10 items-center justify-center rounded-full
+             text-stone-500 active:bg-stone-200"
+>
+  <Trash2 className="h-4 w-4" />
+</button>
+
+Stesso problema per:
+
+eliminazione richiesta inviata;
+annullamento bozza;
+icona nel riepilogo finale.
+4. I chip diventano caotici con molte richieste
+
+Sopra ogni pagina mostri tutte le richieste inviate e tutte le bozze. Con 4–5 modifiche lo spazio può diventare affollato, soprattutto in orizzontale.
+
+Meglio mostrare:
+
+Pagina 8        2 inviate · 1 bozza
+
+e un pulsante:
+
+Vedi richieste
+
+Toccandolo si apre un bottom sheet con l’elenco completo.
+
+La pagina deve restare protagonista; i chip non devono sottrarre altezza alla fotografia.
+
+5. Le frecce laterali coprono la pagina
+
+Le frecce sono posizionate sopra il contenuto:
+
+fixed left-1.5 top-1/2
+fixed right-1.5 top-1/2
+
+Su impaginati che hanno elementi vicino ai bordi, possono coprire volti o fotografie.
+
+Alternative migliori:
+
+aree touch trasparenti laterali;
+swipe orizzontale;
+barra inferiore con precedente/successiva;
+frecce che si nascondono dopo qualche secondo e ricompaiono al tap.
+
+La soluzione più naturale è:
+
+swipe per sfogliare;
+pulsanti precedente/successiva nella barra inferiore come fallback.
+6. “Annulla tutte” è troppo pericoloso
+
+Questo pulsante cancella immediatamente tutte le bozze:
+
+onClick={() => setDrafts(new Map())}
+
+Su smartphone è facile premerlo per errore, soprattutto accanto al pulsante d’invio.
+
+Serve una conferma:
+
+Eliminare tutte le 4 bozze?
+Le X e le richieste non ancora inviate verranno cancellate.
+
+In alternativa, rendilo meno prominente:
+
+Gestisci bozze
+
+e sposta “Elimina tutte” dentro il riepilogo.
+
+7. Testo incoerente dopo l’invio
+
+Nel dialog scrivi:
+
+dopo l’invio non potrai più annullarle da qui.
+
+Ma nel codice permetti di cancellare le richieste già inviate finché il fotolibro non viene bloccato.
+
+È una contraddizione importante.
+
+Testo corretto:
+
+Dopo l’invio potrai ancora cancellare le richieste finché il fotolibro non verrà mandato in stampa.
+
+8. Possibile sovrapposizione tra dialog e selettore foto
+
+Quando premi:
+
+setPickerOpen(true);
+
+il dialog delle azioni resta teoricamente aperto perché:
+
+open={!!activeMark && !noteMode}
+
+noteMode è ancora null. Quindi potrebbero esserci contemporaneamente:
+
+dialog delle azioni;
+picker delle foto;
+due focus trap;
+pulsante indietro Android dal comportamento imprevedibile.
+
+Prima di aprire il picker dovresti passare a uno stato dedicato:
+
+type RequestStep = 'actions' | 'photo-picker' | 'details' | null;
+
+Oppure almeno:
+
+onClick={() => {
+  setNoteMode('replace');
+  setPickerOpen(true);
+}}
+
+Il flusso ideale è gestito da un solo stato, non da tre booleani indipendenti.
+
+9. La selezione della sostituzione richiede più chiarezza
+
+Dopo aver scelto una foto, mostri solo una miniatura 24×24. È troppo piccola per verificare davvero la sostituzione.
+
+Mostrerei:
+
+la foto attualmente segnata;
+una freccia;
+la nuova foto selezionata;
+nome del file completo;
+pulsante “Cambia foto”.
+
+Esempio:
+
+Foto attuale  →  Nuova foto
+
+IMAG_4521.jpg
+[Cambia foto]
+
+La preview dovrebbe essere larga almeno 120–160 pixel.
+
+10. Il pulsante principale dovrebbe essere persistente e più chiaro
+
+La barra inferiore appare solamente quando esistono bozze. Prima della prima modifica l’utente non ha una vera guida operativa.
+
+Su smartphone userei una toolbar inferiore persistente:
+
+‹ Precedente    Pag. 4/30    Successiva ›
+
+Quando l’utente entra in modalità modifica:
+
+Annulla X             Conferma X
+
+Quando esistono bozze:
+
+3 modifiche pronte          Rivedi e invia
+
+In questo modo la barra cambia in base al contesto, invece di aggiungere pulsanti sparsi sull’interfaccia.
+
+Comportamento consigliato dei pulsanti
+“Segna una modifica”
+attiva la modalità disegno;
+nasconde le frecce;
+impedisce lo swipe;
+mostra “Annulla” e “Conferma X”;
+fa una breve vibrazione all’attivazione.
+“Conferma X”
+è disabilitato finché non esiste un tratto valido;
+apre la scelta dell’azione;
+non salva ancora la richiesta.
+“Sostituisci”
+chiude il dialog corrente;
+apre il selettore a tutto schermo;
+permette ricerca, capitoli e anteprima;
+dopo la selezione mostra il confronto;
+salva soltanto dopo conferma.
+“Elimina foto”
+usa un colore distruttivo solo nella conferma finale;
+nel primo elenco può restare neutro;
+richiede una conferma chiara.
+“Richiedi modifica”
+porta automaticamente il focus sulla textarea;
+mostra esempi come suggerimenti, non dentro un placeholder troppo lungo;
+mantiene il pulsante disabilitato fino all’inserimento del testo.
+“Invia richieste”
+mostra il numero: Invia 4 richieste;
+durante snapshot/upload blocca la chiusura accidentale;
+mostra un progresso reale:
+Preparazione pagina 2 di 4…
+al successo mostra una schermata di conferma, non soltanto un toast.
