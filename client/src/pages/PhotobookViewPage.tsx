@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -91,28 +92,6 @@ function newDraftId(): string {
     : `mark-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const update = () => setMatches(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, [query]);
-  return matches;
-}
-
-/** true su dispositivi touch con schermo piccolo tenuti in verticale. */
-function usePortraitPhone(): boolean {
-  return useMediaQuery('(orientation: portrait) and (pointer: coarse) and (max-width: 640px)');
-}
-
-/** true su smartphone touch (anche in orizzontale): attiva la modalità sfoglio. */
-function useTouchPhone(): boolean {
-  return useMediaQuery('(pointer: coarse) and (max-width: 932px)');
-}
-
 /**
  * Altezza del viewport visibile (esclusa la tastiera su iOS, dove la tastiera
  * si sovrappone al layout invece di ridimensionarlo). Su Android il meta tag
@@ -158,8 +137,8 @@ export default function PhotobookViewPage() {
   const [submitProgress, setSubmitProgress] = useState<{ done: number; total: number } | null>(
     null,
   );
-  const isPortraitPhone = usePortraitPhone();
-  const isTouchPhone = useTouchPhone();
+  const { isPhone: isTouchPhone, isPortrait } = usePhoneOrientation();
+  const isPortraitPhone = isTouchPhone && isPortrait;
   const keyboardHeight = useVisualViewportHeight();
 
   const { data, isLoading, isError } = useQuery({

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
 import type { PhotobookGalleryPhoto, PhotobookGalleryChapter } from '@shared/photobook-types';
 
 const PAGE_SIZE = 60;
@@ -71,16 +72,9 @@ export default function PhotobookPhotoPicker({
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Smartphone touch in orizzontale: mostriamo il suggerimento di ruotare
-  const [isLandscapePhone, setIsLandscapePhone] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(
-      '(orientation: landscape) and (pointer: coarse) and (max-width: 932px)',
-    );
-    const update = () => setIsLandscapePhone(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
+  // (orientamento fisico dello schermo, immune alla tastiera)
+  const { isPhone, isPortrait } = usePhoneOrientation();
+  const isLandscapePhone = isPhone && !isPortrait;
 
   // Reset dei filtri a ogni apertura
   useEffect(() => {

@@ -17,6 +17,7 @@
 - [Quote product grouping](quote-product-sezione-grouping.md) — le viste cliente raggruppano i prodotti per `sezione` (algoritmo groupItems di ProductOrderEditor); `categoria` è un tag separato da NON mostrare.
 - [Google all-day events are transparent](google-allday-transparency.md) — gli all-day Google nascono transparency:'transparent'; un filtro "Libero" deve esentare gli all-day o i blocchi giornata spariscono dalla disponibilità.
 - [Dev Workflow: no server hot-reload](dev-workflow-no-server-watch.md) — `tsx server/index.ts` senza watch: le modifiche server NON si ricaricano, serve restart_workflow; solo il client (Vite) fa hot-reload.
+- [Orientamento: schermo fisico, non media query](orientation-media-query-keyboard.md) — con interactive-widget=resizes-content la tastiera falsa (orientation:portrait); usare usePhoneOrientation/screen.orientation.
 - [Calendar event ↔ Job association](calendar-job-association.md) — link in job.linkedCalendarEventIds[] (no collezione dedicata); risolto in GET /events; ogni write deve calendarCache.clear() o link stale 2min.
 - [Firestore vieta array annidati](firestore-nested-arrays.md) — write con array-di-array fallisce a runtime (INVALID_ARGUMENT); avvolgere il livello interno in mappe {points:[...]} e riconvertire in lettura.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
