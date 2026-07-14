@@ -1,12 +1,15 @@
 /**
  * Dialog di selezione foto dalla galleria (pagina cliente fotolibro).
  * Pensato per gallerie grandi (700+ foto): ricerca per nome, filtro per
- * capitolo e rendering progressivo (batch da 60 con sentinella infinite-scroll).
+ * capitolo e impaginazione a pagine da 60 foto (leggero anche con 500+ foto:
+ * viene renderizzata solo la pagina corrente). Ogni miniatura mostra uno
+ * skeleton di caricamento finché l'immagine non è pronta.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -14,12 +17,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { PhotobookGalleryPhoto, PhotobookGalleryChapter } from '@shared/photobook-types';
 
-const BATCH_SIZE = 60;
+const PAGE_SIZE = 60;
 const ALL_CHAPTERS = '__all__';
 const NO_CHAPTER = '__none__';
+
+/** Miniatura con skeleton: pulse grigio finché l'immagine non è caricata. */
+function PickerThumb({ photo }: { photo: PhotobookGalleryPhoto }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="absolute inset-0 bg-stone-200">
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-stone-300/70" />}
+      <img
+        src={photo.thumbnailUrl || photo.url}
+        alt={photo.name}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </div>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -44,8 +67,7 @@ export default function PhotobookPhotoPicker({
 }: Props) {
   const [search, setSearch] = useState('');
   const [chapterFilter, setChapterFilter] = useState<string>(ALL_CHAPTERS);
-  const [visibleLimit, setVisibleLimit] = useState(BATCH_SIZE);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Smartphone touch in orizzontale: mostriamo il suggerimento di ruotare
@@ -65,7 +87,7 @@ export default function PhotobookPhotoPicker({
     if (open) {
       setSearch('');
       setChapterFilter(ALL_CHAPTERS);
-      setVisibleLimit(BATCH_SIZE);
+      setPage(1);
     }
   }, [open]);
 
@@ -88,33 +110,29 @@ export default function PhotobookPhotoPicker({
     });
   }, [photos, search, chapterFilter, chapterIds]);
 
-  // Reset finestra di rendering + scroll in cima quando cambiano i filtri
+  // Torna a pagina 1 + scroll in cima quando cambiano i filtri
   useEffect(() => {
-    setVisibleLimit(BATCH_SIZE);
+    setPage(1);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [search, chapterFilter]);
 
-  const visible = filtered.slice(0, visibleLimit);
-  const hasMore = filtered.length > visibleLimit;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const visible = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Infinite scroll: la sentinella carica il batch successivo.
-  // Ri-armato a ogni variazione di visibleLimit/hasMore (l'observer va
-  // ricreato o si blocca dopo il primo incremento).
-  useEffect(() => {
-    if (!open || !hasMore) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setVisibleLimit((prev) => prev + BATCH_SIZE);
-        }
-      },
-      { root: scrollRef.current, rootMargin: '300px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [open, hasMore, visibleLimit]);
+  const goToPage = (p: number) => {
+    setPage(Math.min(Math.max(1, p), totalPages));
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
+
+  // Numeri di pagina da mostrare (finestra di 5 attorno alla pagina corrente)
+  const pageNumbers = useMemo(() => {
+    const windowSize = 5;
+    let start = Math.max(1, safePage - Math.floor(windowSize / 2));
+    const end = Math.min(totalPages, start + windowSize - 1);
+    start = Math.max(1, end - windowSize + 1);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [safePage, totalPages]);
 
   // Tastiera smartphone: quando riduce lo spazio visibile (>120px), il dialog
   // si restringe all'altezza del visualViewport e si ancora in alto, così la
@@ -217,31 +235,60 @@ export default function PhotobookPhotoPicker({
                     }`}
                     data-testid={`button-pick-photo-${p.id}`}
                   >
-                    <img
-                      src={p.thumbnailUrl || p.url}
-                      alt={p.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                    />
+                    <PickerThumb photo={p} />
                     <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                       {p.name}
                     </span>
                   </button>
                 ))}
               </div>
-              {hasMore && (
-                <div
-                  ref={sentinelRef}
-                  className="py-4 text-center text-xs text-muted-foreground"
-                  data-testid="sentinel-load-more"
-                >
-                  Caricamento altre foto...
-                </div>
-              )}
             </>
           )}
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 pt-2 border-t shrink-0">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              disabled={safePage === 1}
+              onClick={() => goToPage(safePage - 1)}
+              aria-label="Pagina precedente"
+              data-testid="button-picker-prev"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {pageNumbers[0] > 1 && (
+              <span className="px-1 text-xs text-muted-foreground">…</span>
+            )}
+            {pageNumbers.map((n) => (
+              <Button
+                key={n}
+                variant={n === safePage ? 'default' : 'ghost'}
+                size="icon"
+                className="h-9 w-9 text-xs"
+                onClick={() => goToPage(n)}
+                data-testid={`button-picker-page-${n}`}
+              >
+                {n}
+              </Button>
+            ))}
+            {pageNumbers[pageNumbers.length - 1] < totalPages && (
+              <span className="px-1 text-xs text-muted-foreground">…</span>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              disabled={safePage === totalPages}
+              onClick={() => goToPage(safePage + 1)}
+              aria-label="Pagina successiva"
+              data-testid="button-picker-next"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
