@@ -498,7 +498,7 @@ export default function PhotobookViewPage() {
 
       <main
         className={`max-w-4xl mx-auto px-2 sm:px-4 space-y-4 sm:space-y-6 ${
-          isTouchPhone ? 'py-2 pb-16' : 'py-4 sm:py-6'
+          isTouchPhone ? 'py-1.5 pb-8' : 'py-4 sm:py-6'
         }`}
       >
         {isLocked && (
@@ -639,19 +639,16 @@ export default function PhotobookViewPage() {
         })}
       </main>
 
-      {/* Barra di navigazione sfoglio (solo smartphone, nascosta mentre si disegna una X) */}
+      {/* Navigazione sfoglio (solo smartphone, nascosta mentre si disegna una X):
+          frecce sovrapposte ai lati e pillola compatta in basso, così la pagina
+          usa quasi tutta l'altezza dello schermo */}
       {isTouchPhone && pages.length > 0 && !hasPendingDrawing && (
-        <div
-          className={`fixed left-0 right-0 z-20 flex items-center justify-center gap-3 px-4 ${
-            canEdit && drafts.size > 0 ? 'bottom-[4.5rem]' : 'bottom-3'
-          }`}
-          data-testid="slide-nav"
-        >
+        <>
           <button
             type="button"
             onClick={() => goToSlide(safeSlideIdx - 1)}
             disabled={safeSlideIdx === 0}
-            className="flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/80 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-30"
+            className="fixed left-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-25"
             aria-label="Pagina precedente"
             data-testid="button-slide-prev"
           >
@@ -659,23 +656,25 @@ export default function PhotobookViewPage() {
           </button>
           <button
             type="button"
-            onClick={() => setJumpOpen(true)}
-            className="h-11 min-w-[9rem] rounded-full bg-stone-900/80 text-white backdrop-blur-sm px-4 text-sm font-medium shadow-lg active:scale-95 transition-transform"
-            data-testid="button-page-pill-slide"
-          >
-            Pagina {pages[safeSlideIdx]?.pageNumber} di {pages.length}
-          </button>
-          <button
-            type="button"
             onClick={() => goToSlide(safeSlideIdx + 1)}
             disabled={safeSlideIdx >= pages.length - 1}
-            className="flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/80 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-30"
+            className="fixed right-1.5 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center h-11 w-11 rounded-full bg-stone-900/60 text-white backdrop-blur-sm shadow-lg active:scale-95 transition-transform disabled:opacity-25"
             aria-label="Pagina successiva"
             data-testid="button-slide-next"
           >
             <ChevronRight className="h-6 w-6" />
           </button>
-        </div>
+          <button
+            type="button"
+            onClick={() => setJumpOpen(true)}
+            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-transform ${
+              canEdit && drafts.size > 0 ? 'bottom-16' : 'bottom-1.5'
+            }`}
+            data-testid="button-page-pill-slide"
+          >
+            Pagina {pages[safeSlideIdx]?.pageNumber} di {pages.length}
+          </button>
+        </>
       )}
 
       {/* Pillola "Pagina X di N" con salto rapido (vista a lista) */}

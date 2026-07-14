@@ -347,7 +347,7 @@ export default function PhotobookMarkCanvas({
             decoding="async"
             className={`${
               fitViewport
-                ? 'max-h-[calc(100dvh-9rem)] w-auto max-w-full'
+                ? 'max-h-[calc(100dvh-6rem)] w-auto max-w-full'
                 : 'w-full'
             } h-auto block pointer-events-none`}
             draggable={false}
