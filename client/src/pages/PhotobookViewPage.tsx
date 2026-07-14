@@ -547,8 +547,11 @@ export default function PhotobookViewPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-28">
-      {/* Su smartphone in verticale il fotolibro non si vede: schermata "ruota il telefono" */}
-      {isPortraitPhone && (
+      {/* Su smartphone in verticale il fotolibro non si vede: schermata "ruota il
+          telefono". Sospesa mentre si scrive una nota o si cerca una foto: così
+          il cliente può ruotare in verticale per digitare comodamente e poi
+          tornare in orizzontale. */}
+      {isPortraitPhone && !noteMode && !pickerOpen && (
         <div
           className="fixed inset-0 z-50 bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate"
@@ -961,6 +964,7 @@ export default function PhotobookViewPage() {
         onOpenChange={(o) => {
           if (!o) {
             setNoteMode(null);
+
             setPendingReplacement(null);
           }
         }}
