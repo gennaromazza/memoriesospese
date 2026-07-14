@@ -17,6 +17,7 @@ import {
   updatePhotobook,
   photobookClientLink,
   createPhotobookLabShipment,
+  listPhotobookChangeRequests,
   type Photobook,
   type PhotobookLabTransferResult,
 } from '@/lib/photobooks';
@@ -76,6 +77,7 @@ import {
   AlertTriangle,
   RefreshCw,
   CheckCircle2,
+  MessageSquareWarning,
 } from 'lucide-react';
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 
@@ -101,6 +103,25 @@ export default function PhotobooksManager() {
     queryKey: ['/api/photobooks'],
     queryFn: listPhotobooks,
   });
+
+  // Richieste di modifica pendenti: badge sui fotolibri + banner riepilogo
+  const { data: changeRequests = [] } = useQuery({
+    queryKey: ['/api/photobooks/requests'],
+    queryFn: listPhotobookChangeRequests,
+    staleTime: 0,
+    refetchOnMount: 'always' as const,
+  });
+  const pendingByBook = new Map<string, number>();
+  for (const r of changeRequests) {
+    if (r.status === 'pending') {
+      pendingByBook.set(r.photobookId, (pendingByBook.get(r.photobookId) || 0) + 1);
+    }
+  }
+  const totalPending = Array.from(pendingByBook.values()).reduce((a, b) => a + b, 0);
+  const goToChanges = () => {
+    sessionStorage.setItem('activeTab', 'photobook-changes');
+    navigate('/admin?tab=photobook-changes');
+  };
 
   const { data: galleries = [] } = useQuery<Gallery[]>({
     queryKey: ['admin-galleries-for-photobooks'],
@@ -247,6 +268,23 @@ export default function PhotobooksManager() {
         </div>
       </div>
 
+      {totalPending > 0 && (
+        <button
+          type="button"
+          onClick={goToChanges}
+          className="w-full flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 transition-colors"
+          data-testid="banner-pending-changes"
+        >
+          <MessageSquareWarning className="h-5 w-5 text-amber-600 shrink-0" />
+          <span className="text-sm text-amber-900">
+            <span className="font-semibold">
+              {totalPending} {totalPending === 1 ? 'richiesta di modifica' : 'richieste di modifica'}
+            </span>{' '}
+            in attesa dai clienti — clicca per aprire "Modifiche Fotolibro"
+          </span>
+        </button>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -275,6 +313,17 @@ export default function PhotobooksManager() {
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant="secondary">v{book.currentVersion}</Badge>
+                      {(pendingByBook.get(book.id) || 0) > 0 && (
+                        <Badge
+                          className="bg-amber-500 text-white hover:bg-amber-600 cursor-pointer"
+                          onClick={goToChanges}
+                          data-testid={`badge-pending-changes-${book.id}`}
+                        >
+                          <MessageSquareWarning className="h-3 w-3 mr-1" />
+                          {pendingByBook.get(book.id)}{' '}
+                          {pendingByBook.get(book.id) === 1 ? 'modifica' : 'modifiche'}
+                        </Badge>
+                      )}
                       {book.locked && (
                         <Badge
                           className="bg-stone-700 text-white hover:bg-stone-700"
