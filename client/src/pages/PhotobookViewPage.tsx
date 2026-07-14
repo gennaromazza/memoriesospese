@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -552,11 +553,11 @@ export default function PhotobookViewPage() {
           il cliente può ruotare in verticale per digitare comodamente e poi
           tornare in orizzontale. */}
       {/* Mentre si scrive una nota in orizzontale: overlay a schermo intero che
-          invita a ruotare in verticale (sopra il dialog, z-[60]); scompare da
-          solo appena il telefono viene ruotato. */}
-      {isTouchPhone && !isPortraitPhone && !!noteMode && (
+          invita a ruotare in verticale. Montato con portal su document.body e
+          z-[200] per stare SOPRA i dialog Radix (z-50); scompare appena si ruota. */}
+      {isTouchPhone && !isPortraitPhone && !!noteMode && createPortal(
         <div
-          className="fixed inset-0 z-[60] bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          className="fixed inset-0 z-[200] bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate-portrait"
         >
           <Smartphone className="h-14 w-14 text-white animate-pulse" />
@@ -566,7 +567,8 @@ export default function PhotobookViewPage() {
             lascia spazio al testo. Quando hai finito, torna in orizzontale per vedere
             la pagina grande.
           </p>
-        </div>
+        </div>,
+        document.body,
       )}
       {isPortraitPhone && !noteMode && !pickerOpen && (
         <div
