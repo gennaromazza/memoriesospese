@@ -454,7 +454,13 @@ export default function PhotobookViewPage() {
             })),
           ];
           return (
-            <div key={page.id} className="space-y-1.5">
+            <div
+              key={page.id}
+              className="space-y-1.5"
+              // Le pagine fuori schermo non vengono renderizzate: scroll più
+              // fluido su smartphone con molte pagine
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '900px' }}
+            >
               <div className="flex items-center gap-2 flex-wrap px-1">
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}

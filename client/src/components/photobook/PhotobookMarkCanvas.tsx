@@ -227,6 +227,7 @@ export default function PhotobookMarkCanvas({
           src={pageUrl}
           alt={pageAlt}
           loading="lazy"
+          decoding="async"
           className="w-full h-auto block pointer-events-none"
           draggable={false}
         />
