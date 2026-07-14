@@ -72,6 +72,7 @@ import {
   ChevronRight,
   Loader2,
   Lock,
+  Maximize2,
   MessageSquareText,
   Replace,
   Send,
@@ -79,7 +80,190 @@ import {
   Trash2,
   Undo2,
   X as XIcon,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
+
+/**
+ * Lightbox desktop: pagina a schermo intero con zoom (rotellina, doppio clic,
+ * pulsanti) e trascinamento quando ingrandita. Navigazione con frecce, Esc chiude.
+ */
+function PageLightbox({
+  pages,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  pages: { url: string; displayUrl?: string | null; pageNumber: number }[];
+  index: number;
+  onIndexChange: (i: number) => void;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null,
+  );
+  const page = pages[index];
+
+  const resetView = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  };
+  const goTo = (i: number) => {
+    if (i < 0 || i >= pages.length) return;
+    resetView();
+    onIndexChange(i);
+  };
+  const clampZoom = (z: number) => Math.min(6, Math.max(1, z));
+  const applyZoom = (z: number) => {
+    const nz = clampZoom(z);
+    setZoom(nz);
+    if (nz === 1) setOffset({ x: 0, y: 0 });
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft') goTo(index - 1);
+      else if (e.key === 'ArrowRight') goTo(index + 1);
+      else if (e.key === '+' || e.key === '=') applyZoom(zoom * 1.25);
+      else if (e.key === '-') applyZoom(zoom / 1.25);
+      else if (e.key === '0') resetView();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // Blocca lo scroll della pagina sottostante
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!page) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[150] bg-stone-950/95 flex flex-col select-none"
+      data-testid="lightbox-page"
+    >
+      {/* Barra superiore */}
+      <div className="flex items-center justify-between px-4 py-2 text-white shrink-0">
+        <p className="text-sm font-medium">
+          Pagina {page.pageNumber} · {index + 1} di {pages.length}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10"
+            onClick={() => applyZoom(zoom / 1.25)}
+            title="Riduci (-)"
+            data-testid="button-lightbox-zoom-out"
+          >
+            <ZoomOut className="h-5 w-5" />
+          </button>
+          <span className="text-xs w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10"
+            onClick={() => applyZoom(zoom * 1.25)}
+            title="Ingrandisci (+)"
+            data-testid="button-lightbox-zoom-in"
+          >
+            <ZoomIn className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="ml-1 h-9 px-3 flex items-center justify-center rounded-full hover:bg-white/10 text-xs"
+            onClick={resetView}
+            title="Adatta allo schermo (0)"
+          >
+            Adatta
+          </button>
+          <button
+            type="button"
+            className="ml-2 h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/10"
+            onClick={onClose}
+            title="Chiudi (Esc)"
+            data-testid="button-lightbox-close"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Area immagine */}
+      <div
+        className="flex-1 min-h-0 overflow-hidden relative"
+        onWheel={(e) => {
+          e.preventDefault();
+          applyZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+        }}
+        onDoubleClick={() => applyZoom(zoom > 1 ? 1 : 2.5)}
+        onPointerDown={(e) => {
+          if (zoom <= 1) return;
+          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+          dragRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            baseX: offset.x,
+            baseY: offset.y,
+          };
+        }}
+        onPointerMove={(e) => {
+          const d = dragRef.current;
+          if (!d) return;
+          setOffset({ x: d.baseX + (e.clientX - d.startX), y: d.baseY + (e.clientY - d.startY) });
+        }}
+        onPointerUp={() => {
+          dragRef.current = null;
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+        }}
+        style={{ cursor: zoom > 1 ? (dragRef.current ? 'grabbing' : 'grab') : 'zoom-in' }}
+      >
+        <img
+          src={page.displayUrl || page.url}
+          alt={`Pagina ${page.pageNumber}`}
+          draggable={false}
+          className="absolute inset-0 m-auto max-w-full max-h-full object-contain"
+          style={{
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+            transition: dragRef.current ? 'none' : 'transform 120ms ease-out',
+          }}
+        />
+      </div>
+
+      {/* Frecce di navigazione */}
+      <button
+        type="button"
+        onClick={() => goTo(index - 1)}
+        disabled={index === 0}
+        className="absolute left-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        aria-label="Pagina precedente"
+        data-testid="button-lightbox-prev"
+      >
+        <ChevronLeft className="h-6 w-6" />
+      </button>
+      <button
+        type="button"
+        onClick={() => goTo(index + 1)}
+        disabled={index >= pages.length - 1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-25"
+        aria-label="Pagina successiva"
+        data-testid="button-lightbox-next"
+      >
+        <ChevronRight className="h-6 w-6" />
+      </button>
+    </div>,
+    document.body,
+  );
+}
 
 interface DraftEntry extends PhotobookClientRequestDraft {
   id: string;
@@ -141,6 +325,8 @@ export default function PhotobookViewPage() {
   const isPortraitPhone = isTouchPhone && isPortrait;
   const keyboardHeight = useVisualViewportHeight();
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Lightbox desktop: indice della pagina aperta a schermo intero
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   // Sequenza su telefono: azione scelta in orizzontale → overlay "Ruota in
   // verticale" SENZA tastiera (autofocus bloccato + blur di sicurezza);
@@ -690,6 +876,18 @@ export default function PhotobookViewPage() {
                 <p className="text-xs font-medium text-stone-500 uppercase tracking-wide">
                   Pagina {page.pageNumber}
                 </p>
+                {!isTouchPhone && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-[11px] text-stone-500 hover:text-stone-800 rounded-md px-1.5 py-0.5 hover:bg-stone-100"
+                    title="Vedi a schermo intero (con zoom)"
+                    onClick={() => setLightboxIdx(pageIdx)}
+                    data-testid={`button-fullscreen-${page.id}`}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    Schermo intero
+                  </button>
+                )}
                 {pageSent.map((r) => (
                   <span
                     key={r.id}
@@ -762,6 +960,16 @@ export default function PhotobookViewPage() {
           );
         })}
       </main>
+
+      {/* Lightbox desktop: pagina a schermo intero con zoom e navigazione */}
+      {!isTouchPhone && lightboxIdx !== null && (
+        <PageLightbox
+          pages={pages}
+          index={Math.min(lightboxIdx, pages.length - 1)}
+          onIndexChange={setLightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
 
       {/* Navigazione sfoglio (solo smartphone, nascosta mentre si disegna una X):
           frecce sovrapposte ai lati e pillola compatta in basso, così la pagina
