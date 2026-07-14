@@ -549,7 +549,7 @@ export default function PhotobookViewPage() {
       {/* Mentre si scrive una nota in orizzontale: overlay a schermo intero che
           invita a ruotare in verticale. Montato con portal su document.body e
           z-[200] per stare SOPRA i dialog Radix (z-50); scompare appena si ruota. */}
-      {isTouchPhone && !isPortraitPhone && !!noteMode && createPortal(
+      {isTouchPhone && !isPortraitPhone && (!!noteMode || pickerOpen) && createPortal(
         <div
           className="fixed inset-0 z-[200] bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate-portrait"
@@ -557,9 +557,9 @@ export default function PhotobookViewPage() {
           <Smartphone className="h-14 w-14 text-white animate-pulse" />
           <p className="text-white font-semibold text-xl">Ruota in verticale</p>
           <p className="text-stone-300 text-sm max-w-xs">
-            Per scrivere la nota è più comodo il telefono in verticale: la tastiera
-            lascia spazio al testo. Quando hai finito, torna in orizzontale per vedere
-            la pagina grande.
+            {noteMode
+              ? 'Per scrivere la nota è più comodo il telefono in verticale: la tastiera lascia spazio al testo. Quando hai finito, torna in orizzontale per vedere la pagina grande.'
+              : 'Per cercare e scegliere la foto sostitutiva è più comodo il telefono in verticale. Quando hai finito, torna in orizzontale per vedere la pagina grande.'}
           </p>
         </div>,
         document.body,

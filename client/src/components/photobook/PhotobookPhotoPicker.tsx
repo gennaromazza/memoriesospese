@@ -71,10 +71,21 @@ export default function PhotobookPhotoPicker({
   const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Smartphone touch in orizzontale: mostriamo il suggerimento di ruotare
-  // (orientamento fisico dello schermo, immune alla tastiera)
+  // Orientamento fisico (immune alla tastiera): in orizzontale la pagina madre
+  // mostra l'overlay "Ruota in verticale"; qui blocchiamo l'autofocus (niente
+  // tastiera sotto l'overlay) e diamo il focus alla ricerca appena in verticale.
   const { isPhone, isPortrait } = usePhoneOrientation();
   const isLandscapePhone = isPhone && !isPortrait;
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (!open || !isPhone) return;
+    if (!isPortrait) {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      return;
+    }
+    const t = setTimeout(() => searchInputRef.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [open, isPhone, isPortrait]);
 
   // Reset dei filtri a ogni apertura
   useEffect(() => {
@@ -151,6 +162,9 @@ export default function PhotobookPhotoPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        onOpenAutoFocus={(e) => {
+          if (isLandscapePhone) e.preventDefault();
+        }}
         className={`max-w-3xl h-[85vh] max-h-[85vh] flex flex-col ${
           kbHeight ? 'top-2 translate-y-0' : ''
         }`}
@@ -162,12 +176,6 @@ export default function PhotobookPhotoPicker({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {isLandscapePhone && !kbHeight && (
-            <p className="text-xs text-stone-500">
-              Suggerimento: ruota il telefono in verticale per cercare e scegliere più
-              comodamente.
-            </p>
-          )}
           <DialogDescription data-testid="text-picker-count">
             {filtered.length === photos.length
               ? `${photos.length} foto disponibili nella galleria`
@@ -178,6 +186,7 @@ export default function PhotobookPhotoPicker({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               placeholder="Cerca per nome file..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
