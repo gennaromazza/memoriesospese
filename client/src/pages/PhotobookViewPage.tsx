@@ -551,6 +551,23 @@ export default function PhotobookViewPage() {
           telefono". Sospesa mentre si scrive una nota o si cerca una foto: così
           il cliente può ruotare in verticale per digitare comodamente e poi
           tornare in orizzontale. */}
+      {/* Mentre si scrive una nota in orizzontale: overlay a schermo intero che
+          invita a ruotare in verticale (sopra il dialog, z-[60]); scompare da
+          solo appena il telefono viene ruotato. */}
+      {isTouchPhone && !isPortraitPhone && !!noteMode && (
+        <div
+          className="fixed inset-0 z-[60] bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          data-testid="overlay-rotate-portrait"
+        >
+          <Smartphone className="h-14 w-14 text-white animate-pulse" />
+          <p className="text-white font-semibold text-xl">Ruota in verticale</p>
+          <p className="text-stone-300 text-sm max-w-xs">
+            Per scrivere la nota è più comodo il telefono in verticale: la tastiera
+            lascia spazio al testo. Quando hai finito, torna in orizzontale per vedere
+            la pagina grande.
+          </p>
+        </div>
+      )}
       {isPortraitPhone && !noteMode && !pickerOpen && (
         <div
           className="fixed inset-0 z-50 bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
@@ -1001,13 +1018,6 @@ export default function PhotobookViewPage() {
                   : `Sostituzione con: ${pendingReplacement?.name || ''}. Puoi aggiungere una nota (facoltativa).`}
             </DialogDescription>
           </DialogHeader>
-          {isTouchPhone && !isPortraitPhone && !keyboardHeight && (
-            <div className="flex items-center gap-2 rounded-md bg-stone-100 border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600">
-              <Smartphone className="h-4 w-4 shrink-0" />
-              Ruota il telefono in verticale: scrivere sarà più comodo. Poi torna in
-              orizzontale per vedere la pagina grande.
-            </div>
-          )}
           {noteMode === 'replace' && pendingReplacement && !(isTouchPhone && keyboardHeight) && (
             <img
               src={pendingReplacement.thumbnailUrl || pendingReplacement.url}
