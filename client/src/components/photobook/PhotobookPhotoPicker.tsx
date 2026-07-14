@@ -48,6 +48,18 @@ export default function PhotobookPhotoPicker({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Smartphone touch in orizzontale: mostriamo il suggerimento di ruotare
+  const [isLandscapePhone, setIsLandscapePhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(
+      '(orientation: landscape) and (pointer: coarse) and (max-width: 932px)',
+    );
+    const update = () => setIsLandscapePhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   // Reset dei filtri a ogni apertura
   useEffect(() => {
     if (open) {
@@ -127,13 +139,23 @@ export default function PhotobookPhotoPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`max-w-3xl max-h-[85vh] flex flex-col ${
+        className={`max-w-3xl h-[85vh] max-h-[85vh] flex flex-col ${
           kbHeight ? 'top-2 translate-y-0' : ''
         }`}
-        style={kbHeight ? { maxHeight: `${kbHeight - 16}px` } : undefined}
+        style={
+          kbHeight
+            ? { height: `${kbHeight - 16}px`, maxHeight: `${kbHeight - 16}px` }
+            : undefined
+        }
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          {isLandscapePhone && !kbHeight && (
+            <p className="text-xs text-stone-500">
+              Suggerimento: ruota il telefono in verticale per cercare e scegliere più
+              comodamente.
+            </p>
+          )}
           <DialogDescription data-testid="text-picker-count">
             {filtered.length === photos.length
               ? `${photos.length} foto disponibili nella galleria`
@@ -170,7 +192,9 @@ export default function PhotobookPhotoPicker({
             </Select>
           )}
         </div>
-        <div ref={scrollRef} className="overflow-y-auto flex-1 mt-2">
+        {/* min-h-0 è indispensabile: senza, il figlio flex non si restringe,
+            lo scroll non parte e l'infinite-scroll non carica le altre foto */}
+        <div ref={scrollRef} className="overflow-y-auto flex-1 min-h-0 mt-2">
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               Nessuna foto trovata

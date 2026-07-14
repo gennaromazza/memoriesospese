@@ -1001,6 +1001,13 @@ export default function PhotobookViewPage() {
                   : `Sostituzione con: ${pendingReplacement?.name || ''}. Puoi aggiungere una nota (facoltativa).`}
             </DialogDescription>
           </DialogHeader>
+          {isTouchPhone && !isPortraitPhone && !keyboardHeight && (
+            <div className="flex items-center gap-2 rounded-md bg-stone-100 border border-stone-200 px-2.5 py-1.5 text-xs text-stone-600">
+              <Smartphone className="h-4 w-4 shrink-0" />
+              Ruota il telefono in verticale: scrivere sarà più comodo. Poi torna in
+              orizzontale per vedere la pagina grande.
+            </div>
+          )}
           {noteMode === 'replace' && pendingReplacement && !(isTouchPhone && keyboardHeight) && (
             <img
               src={pendingReplacement.thumbnailUrl || pendingReplacement.url}
