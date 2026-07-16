@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { createAbsoluteUrl } from '@/lib/basePath';
 import type { JobCollaboratoreAssignment } from '@shared/collaboratori-types';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
+import { getQuickQuoteDisplayDate } from '@shared/job-display';
 import type { Job, JobStatus } from '@shared/jobs-types';
 import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
@@ -1122,11 +1123,7 @@ export default function JobsManager() {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
-                  const rawCompiledAt = convertFirestoreTimestamp((job as any).quickQuoteCompiledAt);
-                  const rawCreatedAt = (rawCompiledAt && !isNaN(rawCompiledAt.getTime()))
-                    ? rawCompiledAt
-                    : convertFirestoreTimestamp((job as any).createdAt);
-                  const createdAtDate = rawCreatedAt && !isNaN(rawCreatedAt.getTime()) ? rawCreatedAt : null;
+                  const createdAtDate = getQuickQuoteDisplayDate(job as any);
                   const isSelected = selectedJobs.has(job.id);
                   
                   // Mostra il separatore esattamente prima del primo lavoro passato (indice globale),
