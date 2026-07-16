@@ -25,6 +25,7 @@ import { GalleryService, type Gallery } from '@/lib/galleries';
 import { getAllLabs } from '@/lib/labs';
 import { getShipment, tsToDate, daysUntilExpiry } from '@/lib/labShipments';
 import { getAllJobs } from '@/lib/jobs';
+import JobPicker from '@/components/admin/JobPicker';
 import {
   LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS,
   LAB_SHIPMENT_STATUS_LABELS,
@@ -552,18 +553,14 @@ export default function PhotobooksManager() {
                           <AlertTriangle className="h-3.5 w-3.5" />
                           Lavoro da collegare (galleria senza lavoro)
                         </Label>
-                        <Select value={shipJobId} onValueChange={setShipJobId}>
-                          <SelectTrigger data-testid="select-shipment-job">
-                            <SelectValue placeholder="Seleziona il lavoro" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jobs.map((j: any) => (
-                              <SelectItem key={j.id} value={j.id}>
-                                {j.nomeEvento || j.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <JobPicker
+                          jobs={jobs}
+                          value={shipJobId}
+                          onChange={setShipJobId}
+                          allowNone={false}
+                          placeholder="Seleziona il lavoro"
+                          testId="select-shipment-job"
+                        />
                       </div>
                     )}
                     <div className="space-y-1.5">
