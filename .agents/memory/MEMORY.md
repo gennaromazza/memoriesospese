@@ -4,6 +4,7 @@
 - [queryClient auth allowlist](queryclient-auth-allowlist.md) — nuove route /api autenticate vanno aggiunte a firebaseAuthEndpoints in queryClient.ts o ogni chiamata fa 401/403.
 - [collaboratori-routes admin auth gap](collaboratori-routes-admin-auth-gap.md) — quasi tutte le route admin del file hanno solo authenticateFirebase, non requireAdmin; aggiungerlo (tranne route public a token).
 - [Drive resumable upload CORS](drive-resumable-upload-cors.md) — l'upload browser→Drive richiede header Origin nella init server-side della sessione resumable, altrimenti i PUT dei chunk sono bloccati da CORS.
+- [Google Drive via connectors SDK](drive-connectors-sdk.md) — l'endpoint raw v2 ritorna items:[] anche a connessione sana; ogni chiamata Drive passa dal proxy @replit/connectors-sdk, niente token raw.
 - [Quote price snapshot vs catalog](quote-price-snapshot.md) — la creazione preventivo deve rispettare il prezzo override/omaggio deciso dall'admin; mai ri-leggere il listino catalogo (solo existence check).
 - [Masonry render-window reset loop](gallery-render-window-reset.md) — callback non-memoizzata usata in un useEffect figlio resetta la finestra masonry (~60 foto, lightbox ok). Fix: useCallback.
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).

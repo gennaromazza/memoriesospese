@@ -1,16 +1,14 @@
 /**
  * Google Drive Integration - Server-side only
- * Gestisce upload backup su Google Drive
- * 
+ * Gestisce upload backup e consegne laboratorio su Google Drive.
+ *
  * Integrazione: connection:conn_google-drive_01KDCREACZ40HAZ64454G0GCCA
+ * Tutte le chiamate passano dal proxy dei connettori Replit
+ * (@replit/connectors-sdk): il token OAuth non transita mai da questo modulo.
  */
 
-import { google } from 'googleapis';
+import { ReplitConnectors } from '@replit/connectors-sdk';
 import { Readable } from 'stream';
-
-let connectionSettings: any = null;
-let lastTokenFetch: number = 0;
-const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 export interface DriveConnectionStatus {
   connected: boolean;
@@ -19,105 +17,52 @@ export interface DriveConnectionStatus {
   error?: string;
 }
 
-async function fetchFreshToken(): Promise<{ access_token: string; expires_at?: string; email?: string }> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME || 'connectors.replit.com';
-  
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+// Non cachare il client: l'SDK gestisce identità e refresh internamente,
+// l'istanza è comunque leggera e senza stato di sessione.
+function getConnectors(): ReplitConnectors {
+  return new ReplitConnectors();
+}
 
-  if (!xReplitToken) {
-    throw new Error('GOOGLE_DRIVE_RECONNECTION_NEEDED: Token Replit non disponibile');
+/**
+ * Fetch autenticata verso l'API Google Drive via proxy connettori.
+ * Converte gli errori di autorizzazione nel messaggio standard di riconnessione.
+ */
+async function driveFetch(
+  path: string,
+  options?: { method?: string; headers?: Record<string, string>; body?: any },
+): Promise<Response> {
+  const response = await getConnectors().proxy('google-drive', path, options);
+  if (response.status === 401 || response.status === 403) {
+    const text = await response.text().catch(() => '');
+    throw new Error(
+      `GOOGLE_DRIVE_RECONNECTION_NEEDED: Google Drive non connesso o autorizzazione scaduta (${response.status}) ${text.slice(0, 200)}`,
+    );
   }
+  return response;
+}
 
-  const response = await fetch(
-    `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-drive`,
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
-    }
-  );
-
+/** Come driveFetch ma lancia anche sugli altri errori HTTP e fa il parse JSON. */
+async function driveJson<T = any>(
+  path: string,
+  options?: { method?: string; headers?: Record<string, string>; body?: any },
+): Promise<T> {
+  const response = await driveFetch(path, options);
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('GOOGLE_DRIVE_RECONNECTION_NEEDED: Token scaduto. Vai su Impostazioni → Integrazioni → Riconnetti Google Drive');
-    }
-    throw new Error(`Google Drive API error: ${response.status}`);
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google Drive API error: ${response.status} ${text.slice(0, 300)}`);
   }
-
-  const data = await response.json();
-  const conn = data.items?.[0];
-
-  if (!conn?.settings) {
-    throw new Error('GOOGLE_DRIVE_RECONNECTION_NEEDED: Google Drive non connesso');
-  }
-
-  const accessToken = conn.settings.access_token ?? conn.settings.oauth?.credentials?.access_token;
-
-  if (!accessToken) {
-    throw new Error('GOOGLE_DRIVE_RECONNECTION_NEEDED: Access token mancante');
-  }
-
-  return {
-    access_token: accessToken,
-    expires_at: conn.settings.expires_at,
-    email: conn.settings.email,
-  };
-}
-
-async function getAccessToken(): Promise<string> {
-  const now = Date.now();
-  
-  if (connectionSettings?.settings?.access_token) {
-    const expiresAt = connectionSettings.settings.expires_at;
-    if (expiresAt) {
-      const expiresAtMs = new Date(expiresAt).getTime();
-      const safeExpiresAt = expiresAtMs - TOKEN_REFRESH_MARGIN_MS;
-      
-      if (now < safeExpiresAt && (now - lastTokenFetch) < 30000) {
-        return connectionSettings.settings.access_token;
-      }
-    }
-  }
-
-  console.log('🔐 Google Drive: fetching fresh token from connector...');
-  
-  const tokenInfo = await fetchFreshToken();
-  
-  connectionSettings = {
-    settings: {
-      access_token: tokenInfo.access_token,
-      expires_at: tokenInfo.expires_at,
-      email: tokenInfo.email,
-    }
-  };
-  lastTokenFetch = now;
-  
-  console.log('✅ Google Drive token obtained successfully');
-  return tokenInfo.access_token;
-}
-
-async function getGoogleDriveClient() {
-  const accessToken = await getAccessToken();
-
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
-  });
-
-  return google.drive({ version: 'v3', auth: oauth2Client });
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
 export async function getDriveConnectionStatus(): Promise<DriveConnectionStatus> {
   try {
-    const tokenInfo = await fetchFreshToken();
+    const data = await driveJson<{ user?: { emailAddress?: string } }>(
+      '/drive/v3/about?fields=user',
+    );
     return {
       connected: true,
-      email: tokenInfo.email,
+      email: data.user?.emailAddress,
       needsReconnection: false,
     };
   } catch (error: any) {
@@ -129,123 +74,121 @@ export async function getDriveConnectionStatus(): Promise<DriveConnectionStatus>
   }
 }
 
-export async function findOrCreateBackupFolder(): Promise<string> {
-  const drive = await getGoogleDriveClient();
-  
-  const folderName = 'Image Studio Backups';
-  
-  const searchResponse = await drive.files.list({
-    q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id, name)',
-    spaces: 'drive',
-  });
-
-  if (searchResponse.data.files && searchResponse.data.files.length > 0) {
-    console.log(`📁 Found existing backup folder: ${searchResponse.data.files[0].id}`);
-    return searchResponse.data.files[0].id!;
+/** Trova (o crea) una cartella per nome nella root del Drive. */
+async function findOrCreateFolder(folderName: string): Promise<string> {
+  const q = encodeURIComponent(
+    `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+  );
+  const search = await driveJson<{ files?: Array<{ id: string; name: string }> }>(
+    `/drive/v3/files?q=${q}&fields=files(id,name)&spaces=drive`,
+  );
+  if (search.files && search.files.length > 0) {
+    console.log(`📁 Found existing folder "${folderName}": ${search.files[0].id}`);
+    return search.files[0].id;
   }
 
-  const createResponse = await drive.files.create({
-    requestBody: {
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder',
-    },
-    fields: 'id',
+  const created = await driveJson<{ id: string }>('/drive/v3/files?fields=id', {
+    method: 'POST',
+    body: { name: folderName, mimeType: 'application/vnd.google-apps.folder' },
   });
+  console.log(`📁 Created new folder "${folderName}": ${created.id}`);
+  return created.id;
+}
 
-  console.log(`📁 Created new backup folder: ${createResponse.data.id}`);
-  return createResponse.data.id!;
+export async function findOrCreateBackupFolder(): Promise<string> {
+  return findOrCreateFolder('Image Studio Backups');
+}
+
+/**
+ * Upload multipart (metadata + contenuto) in un'unica richiesta.
+ * Adatto a file già in memoria (buffer).
+ */
+async function uploadMultipart(
+  metadata: Record<string, any>,
+  content: Buffer,
+  contentMimeType: string,
+  fields: string,
+): Promise<any> {
+  const boundary = `imgstudio-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const head = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+      `${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: ${contentMimeType}\r\n\r\n`,
+    'utf-8',
+  );
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
+  const body = Buffer.concat([head, content, tail]);
+
+  return driveJson(
+    `/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(fields)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body,
+    },
+  );
 }
 
 export async function uploadBackupToDrive(
   backupData: any,
-  filename: string
+  filename: string,
 ): Promise<{ fileId: string; webViewLink?: string }> {
-  const drive = await getGoogleDriveClient();
-  
   const folderId = await findOrCreateBackupFolder();
-  
-  const jsonContent = JSON.stringify(backupData, null, 2);
-  const buffer = Buffer.from(jsonContent, 'utf-8');
-  const stream = Readable.from(buffer);
+  const buffer = Buffer.from(JSON.stringify(backupData, null, 2), 'utf-8');
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: filename,
-      mimeType: 'application/json',
-      parents: [folderId],
-    },
-    media: {
-      mimeType: 'application/json',
-      body: stream,
-    },
-    fields: 'id, webViewLink',
-  });
+  const data = await uploadMultipart(
+    { name: filename, mimeType: 'application/json', parents: [folderId] },
+    buffer,
+    'application/json',
+    'id,webViewLink',
+  );
 
-  console.log(`✅ Backup uploaded to Google Drive: ${response.data.id}`);
-  
-  return {
-    fileId: response.data.id!,
-    webViewLink: response.data.webViewLink || undefined,
-  };
+  console.log(`✅ Backup uploaded to Google Drive: ${data.id}`);
+  return { fileId: data.id, webViewLink: data.webViewLink || undefined };
 }
 
-export async function listBackupsFromDrive(): Promise<Array<{
-  id: string;
-  name: string;
-  createdTime: string;
-  size: string;
-  webViewLink?: string;
-}>> {
-  const drive = await getGoogleDriveClient();
-  
+export async function listBackupsFromDrive(): Promise<
+  Array<{
+    id: string;
+    name: string;
+    createdTime: string;
+    size: string;
+    webViewLink?: string;
+  }>
+> {
   const folderId = await findOrCreateBackupFolder();
-  
-  const response = await drive.files.list({
-    q: `'${folderId}' in parents and mimeType='application/json' and trashed=false`,
-    fields: 'files(id, name, createdTime, size, webViewLink)',
-    orderBy: 'createdTime desc',
-    pageSize: 20,
-  });
-
-  return (response.data.files || []).map(file => ({
-    id: file.id!,
-    name: file.name!,
-    createdTime: file.createdTime!,
+  const q = encodeURIComponent(
+    `'${folderId}' in parents and mimeType='application/json' and trashed=false`,
+  );
+  const data = await driveJson<{ files?: any[] }>(
+    `/drive/v3/files?q=${q}&fields=${encodeURIComponent('files(id,name,createdTime,size,webViewLink)')}&orderBy=${encodeURIComponent('createdTime desc')}&pageSize=20`,
+  );
+  return (data.files || []).map((file) => ({
+    id: file.id,
+    name: file.name,
+    createdTime: file.createdTime,
     size: file.size || '0',
     webViewLink: file.webViewLink || undefined,
   }));
 }
 
 export async function downloadBackupFromDrive(fileId: string): Promise<any> {
-  const drive = await getGoogleDriveClient();
-  
-  const response = await drive.files.get({
-    fileId,
-    alt: 'media',
-  }, {
-    responseType: 'text',
-  });
-
-  if (typeof response.data === 'string') {
-    try {
-      return JSON.parse(response.data);
-    } catch (e) {
-      console.error('Failed to parse backup JSON:', e);
-      throw new Error('Invalid backup file format');
-    }
+  const response = await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google Drive API error: ${response.status} ${text.slice(0, 300)}`);
   }
-  
-  return response.data;
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to parse backup JSON:', e);
+    throw new Error('Invalid backup file format');
+  }
 }
 
 export async function deleteBackupFromDrive(fileId: string): Promise<void> {
-  const drive = await getGoogleDriveClient();
-  
-  await drive.files.delete({
-    fileId,
-  });
-  
+  await driveJson(`/drive/v3/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' });
   console.log(`🗑️ Backup deleted from Google Drive: ${fileId}`);
 }
 
@@ -253,7 +196,6 @@ export async function deleteBackupFromDrive(fileId: string): Promise<void> {
 // CONSEGNE LABORATORIO - Upload file di stampa verso laboratori
 // Cartella dedicata, separata dai backup. Link "chiunque con il link" (reader).
 // File transitori: auto-eliminati dopo la scadenza.
-// IMPORTANTE: il token resta DENTRO questo modulo (getAccessToken), non esce mai.
 // ============================================================================
 
 const LAB_PARENT_FOLDER_NAME = 'Image Studio - Consegne Laboratorio';
@@ -263,29 +205,7 @@ const LAB_PARENT_FOLDER_NAME = 'Image Studio - Consegne Laboratorio';
  * Separata dalla cartella backup ('Image Studio Backups').
  */
 export async function findOrCreateLabParentFolder(): Promise<string> {
-  const drive = await getGoogleDriveClient();
-
-  const searchResponse = await drive.files.list({
-    q: `name='${LAB_PARENT_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id, name)',
-    spaces: 'drive',
-  });
-
-  if (searchResponse.data.files && searchResponse.data.files.length > 0) {
-    console.log(`📁 Found existing lab parent folder: ${searchResponse.data.files[0].id}`);
-    return searchResponse.data.files[0].id!;
-  }
-
-  const createResponse = await drive.files.create({
-    requestBody: {
-      name: LAB_PARENT_FOLDER_NAME,
-      mimeType: 'application/vnd.google-apps.folder',
-    },
-    fields: 'id',
-  });
-
-  console.log(`📁 Created new lab parent folder: ${createResponse.data.id}`);
-  return createResponse.data.id!;
+  return findOrCreateFolder(LAB_PARENT_FOLDER_NAME);
 }
 
 /**
@@ -294,81 +214,66 @@ export async function findOrCreateLabParentFolder(): Promise<string> {
  */
 export async function createShipmentFolder(
   parentId: string,
-  name: string
+  name: string,
 ): Promise<{ folderId: string; webViewLink?: string }> {
-  const drive = await getGoogleDriveClient();
-
-  const createResponse = await drive.files.create({
-    requestBody: {
-      name,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentId],
+  const created = await driveJson<{ id: string; webViewLink?: string }>(
+    '/drive/v3/files?fields=id,webViewLink',
+    {
+      method: 'POST',
+      body: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
     },
-    fields: 'id, webViewLink',
-  });
-
-  const folderId = createResponse.data.id!;
+  );
+  const folderId = created.id;
 
   // Permesso "chiunque con il link" in sola lettura (una volta sola)
-  await drive.permissions.create({
-    fileId: folderId,
-    requestBody: {
-      role: 'reader',
-      type: 'anyone',
-    },
+  await driveJson(`/drive/v3/files/${encodeURIComponent(folderId)}/permissions`, {
+    method: 'POST',
+    body: { role: 'reader', type: 'anyone' },
   });
 
   // Rileggi il webViewLink dopo aver impostato il permesso
-  const getResponse = await drive.files.get({
-    fileId: folderId,
-    fields: 'webViewLink',
-  });
+  const got = await driveJson<{ webViewLink?: string }>(
+    `/drive/v3/files/${encodeURIComponent(folderId)}?fields=webViewLink`,
+  );
 
   console.log(`📁 Created shipment folder: ${folderId}`);
-
   return {
     folderId,
-    webViewLink: getResponse.data.webViewLink || createResponse.data.webViewLink || undefined,
+    webViewLink: got.webViewLink || created.webViewLink || undefined,
   };
 }
 
 /**
  * Conia una sessione di upload resumable per il browser.
- * Il token interno NON esce dal modulo: viene usato qui per ottenere
- * la session URI (header Location) che viene poi restituita all'admin.
- * NON loggare né persistere la session URI.
+ * L'init passa dal proxy connettori (nessun token esce da questo modulo);
+ * la session URI restituita da Google è già autorizzata e viene usata dal
+ * browser per i PUT dei chunk. NON loggare né persistere la session URI.
+ * CORS: includendo l'header Origin nella richiesta di inizializzazione,
+ * Google abilita le risposte CORS sull'URI di sessione restituito, così il
+ * browser può caricare i chunk direttamente (PUT cross-origin) senza essere
+ * bloccato dalla policy CORS. Senza Origin l'upload dal browser fallisce.
  */
 export async function createResumableUploadSession(
   folderId: string,
   fileName: string,
   mimeType: string,
   fileSize: number,
-  origin?: string
+  origin?: string,
 ): Promise<string> {
-  const accessToken = await getAccessToken();
-
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${accessToken}`,
     'Content-Type': 'application/json; charset=UTF-8',
     'X-Upload-Content-Type': mimeType,
     'X-Upload-Content-Length': String(fileSize),
   };
-  // CORS: includendo l'header Origin nella richiesta di inizializzazione,
-  // Google abilita le risposte CORS sull'URI di sessione restituito, così il
-  // browser può caricare i chunk direttamente (PUT cross-origin) senza essere
-  // bloccato dalla policy CORS. Senza Origin l'upload dal browser fallisce.
   if (origin) headers['Origin'] = origin;
 
-  const response = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+  const response = await driveFetch(
+    '/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
     {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        name: fileName,
-        parents: [folderId],
-      }),
-    }
+      body: JSON.stringify({ name: fileName, parents: [folderId] }),
+    },
   );
 
   if (!response.ok) {
@@ -377,14 +282,12 @@ export async function createResumableUploadSession(
   }
 
   const location = response.headers.get('location');
-
   if (!location) {
     throw new Error('Google Drive resumable session: header Location mancante');
   }
 
   // NON loggare la session URI (contiene credenziali di upload)
   console.log(`✅ Resumable upload session creata per "${fileName}"`);
-
   return location;
 }
 
@@ -392,31 +295,48 @@ export async function createResumableUploadSession(
  * Carica su Drive (cartella indicata) uno stream di byte SENZA alcuna
  * ricompressione (copia byte-per-byte). Usato per il trasferimento
  * server-side delle pagine fotolibro da Firebase Storage.
+ * Implementato come resumable upload: init via proxy, PUT unico sulla
+ * session URI di Google (già autorizzata, nessun token esposto).
  */
 export async function uploadStreamToDriveFolder(
   folderId: string,
   fileName: string,
   mimeType: string,
-  body: Readable
+  body: Readable,
 ): Promise<{ fileId: string; webViewLink?: string; size: number }> {
-  const drive = await getGoogleDriveClient();
+  // Raccogli lo stream in buffer: serve la lunghezza esatta per il PUT unico
+  // (le pagine fotolibro sono file singoli gestiti in sequenza).
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const buffer = Buffer.concat(chunks);
 
-  const response = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
+  const sessionUri = await createResumableUploadSession(
+    folderId,
+    fileName,
+    mimeType || 'application/octet-stream',
+    buffer.length,
+  );
+
+  const put = await fetch(sessionUri, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': mimeType || 'application/octet-stream',
+      'Content-Length': String(buffer.length),
     },
-    media: {
-      mimeType: mimeType || 'application/octet-stream',
-      body,
-    },
-    fields: 'id, webViewLink, size',
+    body: buffer,
   });
+  if (!put.ok) {
+    const text = await put.text().catch(() => '');
+    throw new Error(`Google Drive upload error: ${put.status} ${text.slice(0, 300)}`);
+  }
+  const data: any = await put.json();
 
   return {
-    fileId: response.data.id!,
-    webViewLink: response.data.webViewLink || undefined,
-    size: response.data.size ? parseInt(response.data.size, 10) : 0,
+    fileId: data.id,
+    webViewLink: data.webViewLink || undefined,
+    size: data.size ? parseInt(data.size, 10) : buffer.length,
   };
 }
 
@@ -425,13 +345,9 @@ export async function uploadStreamToDriveFolder(
  * Per le cartelle Drive elimina ricorsivamente anche i contenuti.
  */
 export async function deleteDriveFile(fileId: string): Promise<void> {
-  const drive = await getGoogleDriveClient();
-
-  await drive.files.delete({
-    fileId,
-    supportsAllDrives: true,
+  await driveJson(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
+    method: 'DELETE',
   });
-
   console.log(`🗑️ Drive file/folder deleted: ${fileId}`);
 }
 
@@ -443,15 +359,14 @@ export async function getDriveStorageInfo(): Promise<{
   usage?: string;
   email?: string;
 }> {
-  const drive = await getGoogleDriveClient();
-
-  const response = await drive.about.get({
-    fields: 'storageQuota,user',
-  });
+  const data = await driveJson<{
+    storageQuota?: { limit?: string; usage?: string };
+    user?: { emailAddress?: string };
+  }>(`/drive/v3/about?fields=${encodeURIComponent('storageQuota,user')}`);
 
   return {
-    limit: response.data.storageQuota?.limit || undefined,
-    usage: response.data.storageQuota?.usage || undefined,
-    email: response.data.user?.emailAddress || undefined,
+    limit: data.storageQuota?.limit || undefined,
+    usage: data.storageQuota?.usage || undefined,
+    email: data.user?.emailAddress || undefined,
   };
 }
