@@ -2796,6 +2796,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
           status: "lead",
           financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
           costi: [], pdfs: [], workflowEvents: [],
+          quickQuoteCompiledAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
           createdBy: "preventivo-rapido",
@@ -3642,6 +3643,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       const updatePayload: Record<string, any> = {
         nomeEvento: nomeEvento.trim(),
         dataNonDefinita: isDND,
+        quickQuoteCompiledAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (!isDND && eventDate) updatePayload.eventDate = new Date(eventDate);
@@ -3680,6 +3682,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       status: "lead",
       financials: { totalePreventivato: 0, totaleOrdini: 0, totalePagato: 0, saldoResiduo: 0 },
       costi: [], pdfs: [], workflowEvents: [],
+      quickQuoteCompiledAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       createdBy: "preventivo-rapido",

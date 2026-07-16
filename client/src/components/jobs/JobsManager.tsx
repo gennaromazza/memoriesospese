@@ -1122,7 +1122,10 @@ export default function JobsManager() {
                   const jobTypeInfo = jobTypeMap[job.jobType];
                   const rawEventDate = convertFirestoreTimestamp(job.eventDate);
                   const eventDate = rawEventDate && !isNaN(rawEventDate.getTime()) ? rawEventDate : null;
-                  const rawCreatedAt = convertFirestoreTimestamp((job as any).createdAt);
+                  const rawCompiledAt = convertFirestoreTimestamp((job as any).quickQuoteCompiledAt);
+                  const rawCreatedAt = (rawCompiledAt && !isNaN(rawCompiledAt.getTime()))
+                    ? rawCompiledAt
+                    : convertFirestoreTimestamp((job as any).createdAt);
                   const createdAtDate = rawCreatedAt && !isNaN(rawCreatedAt.getTime()) ? rawCreatedAt : null;
                   const isSelected = selectedJobs.has(job.id);
                   
