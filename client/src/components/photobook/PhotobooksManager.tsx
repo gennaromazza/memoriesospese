@@ -23,7 +23,7 @@ import {
 } from '@/lib/photobooks';
 import { GalleryService, type Gallery } from '@/lib/galleries';
 import { getAllLabs } from '@/lib/labs';
-import { getShipment, tsToDate, daysUntilExpiry } from '@/lib/labShipments';
+import { getShipment, sendShipment, tsToDate, daysUntilExpiry } from '@/lib/labShipments';
 import { getAllJobs } from '@/lib/jobs';
 import JobPicker from '@/components/admin/JobPicker';
 import {
@@ -77,6 +77,7 @@ import {
   ExternalLink,
   AlertTriangle,
   RefreshCw,
+  Send,
   CheckCircle2,
   MessageSquareWarning,
 } from 'lucide-react';
@@ -690,6 +691,19 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
       toast({ title: 'Errore trasferimento', description: e.message, variant: 'destructive' }),
   });
 
+  const sendMutation = useMutation({
+    mutationFn: () => sendShipment(shipmentId),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/lab-shipments', shipmentId] });
+      toast({
+        title: 'Email inviata al laboratorio',
+        description: `${updated.labNome ? `${updated.labNome} ha ricevuto` : 'Il laboratorio ha ricevuto'} il link Google Drive con i file di stampa.`,
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore invio email', description: e.message, variant: 'destructive' }),
+  });
+
   if (isLoading) {
     return (
       <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground flex items-center gap-2">
@@ -771,6 +785,27 @@ function PhotobookShipmentInfo({ shipmentId, book }: { shipmentId: string; book:
             </a>
           </Button>
         )}
+        {shipment.shareableLink &&
+          !shipment.deletedFromDrive &&
+          !transferRunning &&
+          shipment.labId && (
+            <Button
+              size="sm"
+              variant={shipment.status === 'inviato' ? 'outline' : 'default'}
+              disabled={sendMutation.isPending}
+              onClick={() => sendMutation.mutate()}
+              data-testid="button-send-lab-email"
+            >
+              {sendMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {shipment.status === 'inviato'
+                ? 'Reinvia email al laboratorio'
+                : 'Invia email al laboratorio'}
+            </Button>
+          )}
         {incomplete && (
           <Button
             size="sm"
