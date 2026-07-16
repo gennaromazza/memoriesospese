@@ -61,6 +61,13 @@ function serializeBook(id: string, d: any): any {
     token: d.token,
     currentVersion: d.currentVersion,
     locked: !!d.locked,
+    approval: d.approval
+      ? {
+          version: d.approval.version,
+          approvedAt: ts(d.approval.approvedAt) || d.approval.approvedAt || null,
+          note: d.approval.note || null,
+        }
+      : null,
     jobId: d.jobId || null,
     labShipmentId: d.labShipmentId || null,
     versions: (d.versions || []).map((v: any) => ({
@@ -181,6 +188,16 @@ function sanitizeMarkStrokes(raw: any): PhotobookMarkPoint[][] | null {
 const LOCKED_MESSAGE =
   "L'album è stato mandato in stampa: non è più possibile apportare modifiche.";
 
+/** Messaggio mostrato al cliente quando ha già approvato l'impaginato. */
+const APPROVED_MESSAGE =
+  "Hai approvato l'impaginato: non è più possibile inviare o cancellare richieste. " +
+  'Se serve una modifica, contatta il tuo fotografo.';
+
+/** true se il cliente ha approvato la versione attualmente attiva. */
+function isApprovedForCurrent(book: any): boolean {
+  return !!book.approval && book.approval.version === book.currentVersion;
+}
+
 /** Prefisso degli URL snapshot validi per un fotolibro (anti-spoofing). */
 function snapshotUrlPrefix(photobookId: string): string {
   const bucket = storage.bucket();
@@ -269,6 +286,9 @@ router.post(
       if (book.locked) {
         return res.status(403).json({ error: LOCKED_MESSAGE });
       }
+      if (isApprovedForCurrent(book)) {
+        return res.status(403).json({ error: APPROVED_MESSAGE });
+      }
 
       const pageDoc = await db.collection(PAGES_COL).doc(req.params.pageId).get();
       if (!pageDoc.exists || pageDoc.data()!.photobookId !== bookDoc.id) {
@@ -319,6 +339,9 @@ router.post('/by-token/:token/requests', async (req: Request, res: Response) => 
     const book = bookDoc.data();
     if (book.locked) {
       return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+    if (isApprovedForCurrent(book)) {
+      return res.status(403).json({ error: APPROVED_MESSAGE });
     }
 
     const { requests } = req.body || {};
@@ -458,6 +481,9 @@ router.delete('/by-token/:token/requests/:requestId', async (req: Request, res: 
     if (book.locked) {
       return res.status(403).json({ error: LOCKED_MESSAGE });
     }
+    if (isApprovedForCurrent(book)) {
+      return res.status(403).json({ error: APPROVED_MESSAGE });
+    }
 
     const reqRef = db.collection(REQUESTS_COL).doc(req.params.requestId);
     const reqDoc = await reqRef.get();
@@ -506,6 +532,117 @@ router.delete('/by-token/:token/requests/:requestId', async (req: Request, res: 
     return res.json({ ok: true });
   } catch (error) {
     console.error('[photobooks] Errore cancellazione richiesta by-token:', error);
+    return res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+/**
+ * POST /by-token/:token/approve — il cliente approva l'impaginato della
+ * versione corrente. Dopo l'approvazione non può più inviare o cancellare
+ * richieste (finché l'admin non annulla l'approvazione o crea una nuova
+ * versione). Rifiutata se ci sono ancora richieste in attesa di lavorazione.
+ * Idempotente; body opzionale { note } (max 1000 caratteri).
+ * Invia un'email di notifica all'admin (best-effort).
+ */
+router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
+  try {
+    const bookDoc = await getBookByToken(req.params.token);
+    if (!bookDoc) return res.status(404).json({ error: 'Fotolibro non trovato' });
+    const book = bookDoc.data();
+    if (book.locked) {
+      return res.status(403).json({ error: LOCKED_MESSAGE });
+    }
+    if (isApprovedForCurrent(book)) {
+      return res.json({ ok: true, alreadyApproved: true });
+    }
+
+    // Con richieste ancora "pending" sulla versione corrente l'approvazione è
+    // contraddittoria: il cliente deve prima cancellarle o aspettare l'esito.
+    const pendingSnap = await db
+      .collection(REQUESTS_COL)
+      .where('photobookId', '==', bookDoc.id)
+      .where('version', '==', book.currentVersion)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+    if (!pendingSnap.empty) {
+      return res.status(409).json({
+        error:
+          'Hai ancora richieste di modifica in attesa: cancellale oppure attendi che il fotografo le lavori prima di approvare.',
+      });
+    }
+
+    const note =
+      typeof req.body?.note === 'string' && req.body.note.trim()
+        ? req.body.note.trim().slice(0, 1000)
+        : null;
+
+    // Scrittura in transazione: se nel frattempo cambia versione/blocco o
+    // arriva un'altra approvazione, non sovrascrive nulla di incoerente.
+    const ref = bookDoc.ref;
+    const result = await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data()!;
+      if (fresh.locked) return 'locked';
+      if (fresh.currentVersion !== book.currentVersion) return 'version-changed';
+      if (isApprovedForCurrent(fresh)) return 'already';
+      tx.update(ref, {
+        approval: {
+          version: fresh.currentVersion,
+          approvedAt: FieldValue.serverTimestamp(),
+          note,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    });
+    if (result === 'locked') return res.status(403).json({ error: LOCKED_MESSAGE });
+    if (result === 'version-changed') {
+      return res.status(409).json({
+        error: 'Il fotolibro è stato aggiornato nel frattempo: ricarica la pagina.',
+      });
+    }
+    if (result === 'already') return res.json({ ok: true, alreadyApproved: true });
+
+    // Email all'admin (best-effort: l'approvazione resta valida comunque)
+    try {
+      const esc = (s: any) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      const clientName = esc(book.clientName || 'Il cliente');
+      const html = `
+        <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#44403c">
+          <h2 style="color:#16a34a;font-weight:normal">✓ Impaginato approvato dal cliente</h2>
+          <p><strong>${clientName}</strong> ha approvato la <strong>versione ${book.currentVersion}</strong>
+          del fotolibro &laquo;${esc(book.name || 'Fotolibro')}&raquo;.</p>
+          ${note ? `<p style="border-left:3px solid #d6d3d1;padding-left:12px;color:#57534e">Nota del cliente: &laquo;${esc(note)}&raquo;</p>` : ''}
+          <p>Puoi ora mandare l'album in stampa dalla sezione Fotolibri.</p>
+          <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
+        </div>`;
+      await sendGmailEmail(
+        ADMIN_EMAILS[0],
+        `✓ Fotolibro approvato: "${book.name}" (v${book.currentVersion})`,
+        html,
+        undefined,
+        {
+          type: 'photobook_approved',
+          relatedDocId: bookDoc.id,
+          relatedDocType: 'photobook',
+          clientName: book.clientName || null,
+        },
+      );
+    } catch (emailErr) {
+      console.error('[photobooks] Email approvazione non inviata (non bloccante):', emailErr);
+    }
+
+    console.log(
+      `📖 [photobooks] Impaginato "${book.name}" v${book.currentVersion} approvato dal cliente`,
+    );
+    return res.json({ ok: true, approved: true });
+  } catch (error) {
+    console.error('[photobooks] Errore approvazione by-token:', error);
     return res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -649,6 +786,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
     }
     if (typeof req.body?.locked === 'boolean') {
       updates.locked = req.body.locked;
+    }
+    // Annullamento approvazione cliente (solo admin): riapre la revisione
+    if (req.body?.approval === null) {
+      updates.approval = FieldValue.delete();
     }
     // Associazione manuale al lavoro (solo per gallerie orfane senza job)
     if (typeof req.body?.jobId === 'string' && req.body.jobId.trim()) {

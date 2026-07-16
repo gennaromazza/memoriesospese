@@ -51,7 +51,7 @@ export async function getPhotobook(id: string): Promise<Photobook> {
 
 export async function updatePhotobook(
   id: string,
-  data: { name?: string; currentVersion?: number; locked?: boolean },
+  data: { name?: string; currentVersion?: number; locked?: boolean; approval?: null },
 ): Promise<Photobook> {
   const res = await apiRequest('PATCH', `/api/photobooks/${id}`, data);
   return (await json<{ photobook: Photobook }>(res)).photobook;
@@ -210,6 +210,26 @@ export async function getPhotobookGalleryPhotosByToken(
   }
   const data = await json<{ photos: PhotobookGalleryPhoto[]; chapters?: PhotobookGalleryChapter[] }>(res);
   return { photos: data.photos, chapters: data.chapters || [] };
+}
+
+/**
+ * Il cliente approva l'impaginato della versione corrente. Dopo l'approvazione
+ * non può più inviare o cancellare richieste. Nota facoltativa.
+ */
+export async function approvePhotobookByToken(
+  token: string,
+  note?: string,
+): Promise<{ ok: boolean; approved?: boolean; alreadyApproved?: boolean }> {
+  const res = await fetch(createUrl(`/api/photobooks/by-token/${token}/approve`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: note || null }),
+  });
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
+  return json(res);
 }
 
 /**

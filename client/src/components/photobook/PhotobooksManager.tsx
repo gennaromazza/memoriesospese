@@ -182,6 +182,20 @@ export default function PhotobooksManager() {
       toast({ title: 'Errore aggiornamento blocco', description: e.message, variant: 'destructive' }),
   });
 
+  // Annullamento approvazione cliente: riapre la revisione per il cliente
+  const resetApprovalMutation = useMutation({
+    mutationFn: (id: string) => updatePhotobook(id, { approval: null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
+      toast({
+        title: 'Approvazione annullata',
+        description: 'Il cliente può di nuovo inviare richieste di modifica.',
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore annullamento approvazione', description: e.message, variant: 'destructive' }),
+  });
+
   // Blocco + eventuale creazione spedizione con trasferimento pagine su Drive
   const lockMutation = useMutation({
     mutationFn: async (book: Photobook) => {
@@ -324,6 +338,20 @@ export default function PhotobooksManager() {
                           {pendingByBook.get(book.id) === 1 ? 'modifica' : 'modifiche'}
                         </Badge>
                       )}
+                      {book.approval?.version === book.currentVersion && (
+                        <Badge
+                          className="bg-green-600 text-white hover:bg-green-600"
+                          title={
+                            book.approval?.note
+                              ? `Nota del cliente: ${book.approval.note}`
+                              : undefined
+                          }
+                          data-testid={`badge-approved-${book.id}`}
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Approvato
+                        </Badge>
+                      )}
                       {book.locked && (
                         <Badge
                           className="bg-stone-700 text-white hover:bg-stone-700"
@@ -361,6 +389,18 @@ export default function PhotobooksManager() {
                       <Layers className="h-3.5 w-3.5 mr-1.5" />
                       Nuova Versione
                     </Button>
+                    {!book.locked && book.approval?.version === book.currentVersion && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={resetApprovalMutation.isPending}
+                        onClick={() => resetApprovalMutation.mutate(book.id)}
+                        data-testid={`button-reset-approval-${book.id}`}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                        Annulla Approvazione
+                      </Button>
+                    )}
                     {book.locked ? (
                       <Button
                         size="sm"

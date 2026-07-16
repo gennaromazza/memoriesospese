@@ -21,6 +21,7 @@ import {
   submitPhotobookRequests,
   uploadPhotobookSnapshot,
   deletePhotobookRequestByToken,
+  approvePhotobookByToken,
   type PhotobookClientRequestDraft,
 } from '@/lib/photobooks';
 import {
@@ -68,6 +69,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   BookImage,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -453,7 +455,32 @@ export default function PhotobookViewPage() {
 
   const isCurrentVersion = data ? data.version === data.photobook.currentVersion : true;
   const isLocked = !!data?.photobook.locked;
-  const canEdit = isCurrentVersion && !isLocked;
+  const isApproved =
+    !!data?.photobook.approval &&
+    data.photobook.approval.version === data.photobook.currentVersion;
+  const canEdit = isCurrentVersion && !isLocked && !isApproved;
+
+  // Approvazione impaginato: possibile solo senza bozze locali e senza
+  // richieste inviate ancora in attesa di lavorazione (il server lo verifica)
+  const pendingSentCount = (data?.requests || []).filter((r) => r.status === 'pending').length;
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveNote, setApproveNote] = useState('');
+  const approveMutation = useMutation({
+    mutationFn: () => approvePhotobookByToken(token, approveNote.trim() || undefined),
+    onSuccess: () => {
+      hapticFeedback([30, 60, 30]);
+      setApproveOpen(false);
+      setApproveNote('');
+      queryClient.invalidateQueries({ queryKey: ['/api/photobooks/by-token', token] });
+      toast({
+        title: 'Impaginato approvato',
+        description:
+          'Grazie! Il fotografo è stato avvisato e potrà mandare il tuo album in stampa.',
+      });
+    },
+    onError: (e: any) =>
+      toast({ title: 'Errore approvazione', description: e.message, variant: 'destructive' }),
+  });
 
   /** Cancellazione di una richiesta già inviata (solo fotolibro sbloccato). */
   const [deleteSentTarget, setDeleteSentTarget] = useState<PhotobookChangeRequest | null>(null);
@@ -811,6 +838,50 @@ export default function PhotobookViewPage() {
                   rivedere le richieste inviate.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLocked && isApproved && isCurrentVersion && (
+          <Card className="border-green-300 bg-green-50" data-testid="banner-approved">
+            <CardContent className="py-4 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-green-800">Impaginato approvato</p>
+                <p className="text-sm text-green-700">
+                  Hai approvato questa versione: il fotografo può ora mandare l'album in
+                  stampa. Puoi continuare a sfogliare le pagine. Se serve ancora una
+                  modifica, contatta il tuo fotografo.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {canEdit && (
+          <Card className="border-green-200 bg-white" data-testid="card-approve">
+            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">L'impaginato ti piace così com'è?</p>
+                <p className="text-xs text-muted-foreground">
+                  {drafts.size > 0
+                    ? 'Hai delle bozze non inviate: inviale o annullale prima di approvare.'
+                    : pendingSentCount > 0
+                      ? `Hai ${pendingSentCount === 1 ? 'una richiesta' : `${pendingSentCount} richieste`} in attesa di lavorazione: potrai approvare quando saranno state lavorate.`
+                      : 'Approvalo e il fotografo potrà mandarlo in stampa.'}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+                disabled={drafts.size > 0 || pendingSentCount > 0}
+                onClick={() => setApproveOpen(true)}
+                data-testid="button-open-approve"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                Approva l'impaginato
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -1336,6 +1407,53 @@ export default function PhotobookViewPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Conferma approvazione impaginato */}
+      <Dialog
+        open={approveOpen}
+        onOpenChange={(o) => {
+          if (!o && approveMutation.isPending) return;
+          setApproveOpen(o);
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Approvi l'impaginato?
+            </DialogTitle>
+            <DialogDescription>
+              Confermando dichiari che l'impaginato va bene così com'è: non potrai più
+              inviare richieste di modifica e il fotografo potrà mandare l'album in stampa.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={approveNote}
+            onChange={(e) => setApproveNote(e.target.value)}
+            placeholder="Nota per il fotografo (facoltativa)..."
+            rows={2}
+            data-testid="input-approve-note"
+          />
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              disabled={approveMutation.isPending}
+              onClick={() => setApproveOpen(false)}
+            >
+              Torna alla revisione
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={approveMutation.isPending}
+              onClick={() => approveMutation.mutate()}
+              data-testid="button-confirm-approve"
+            >
+              {approveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Sì, approvo l'impaginato
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Picker foto sostitutiva */}
       <PhotobookPhotoPicker

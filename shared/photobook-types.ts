@@ -54,6 +54,19 @@ export interface PhotobookVersion {
   createdAt: any;
 }
 
+/**
+ * Approvazione dell'impaginato da parte del cliente. Riferita a UNA versione:
+ * se l'admin crea una versione successiva, l'approvazione non vale più per la
+ * versione corrente (il ciclo di revisione riparte).
+ */
+export interface PhotobookApproval {
+  /** Versione approvata dal cliente */
+  version: number;
+  approvedAt: any;
+  /** Nota facoltativa del cliente al momento dell'approvazione */
+  note?: string | null;
+}
+
 export interface Photobook {
   id: string;
   name: string;
@@ -71,6 +84,12 @@ export interface Photobook {
    * cancellare richieste. Definitivo lato cliente (l'admin può riaprire).
    */
   locked?: boolean;
+  /**
+   * Approvazione cliente dell'impaginato (versione specifica). Quando
+   * `approval.version === currentVersion` il cliente non può più inviare o
+   * cancellare richieste; l'admin può annullarla o mandare in stampa.
+   */
+  approval?: PhotobookApproval | null;
   /**
    * Lavoro (job) associato: popolato alla creazione da gallery.jobId e
    * retro-compilato per i fotolibri esistenti. Serve alla creazione della
