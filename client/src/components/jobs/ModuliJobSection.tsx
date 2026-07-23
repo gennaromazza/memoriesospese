@@ -412,12 +412,13 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                                 type="text"
                                 readOnly
                                 value={getQuoteUrl(quote)}
-                                className="flex-1 px-3 py-2 bg-muted rounded text-sm border"
+                                className="flex-1 min-w-0 px-3 py-2 bg-muted rounded text-sm border"
                                 onClick={(e) => e.currentTarget.select()}
                               />
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="shrink-0"
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   const url = getQuoteUrl(quote);
@@ -444,6 +445,7 @@ export default function ModuliJobSection({ jobId, onCreateModulo, onEditQuote, c
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="shrink-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   window.open(getQuoteUrl(quote), '_blank');
