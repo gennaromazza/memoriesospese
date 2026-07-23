@@ -415,9 +415,9 @@ export function JobCollaboratoriSection({ jobId }: Props) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle>👥 Collaboratori Assegnati</CardTitle>
-          <Button onClick={handleOpenModal} size="sm">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <CardTitle className="text-base sm:text-lg">👥 Collaboratori Assegnati</CardTitle>
+          <Button onClick={handleOpenModal} size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Assegna Collaboratore
           </Button>
