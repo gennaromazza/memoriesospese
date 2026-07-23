@@ -104,6 +104,10 @@ export default function GeneraPagamentiModal({
   const [accontoIniziale, setAccontoIniziale] = useState<number>(0);
   const [ratePerc, setRatePerc] = useState({ rata2Perc: 50, rata3Perc: 25 });
   const [rateDays, setRateDays] = useState({ rata2Days: -10, rata3Days: 90, saldoDays: 130 });
+  // Testo grezzo dei campi percentuale/giorni: consente di svuotare il campo e
+  // digitare liberamente; il clamp avviene solo su blur (fix "si inceppa nel calcolo")
+  const [percInput, setPercInput] = useState({ rata2: '50', rata3: '25' });
+  const [daysInput, setDaysInput] = useState({ rata2: '-10', rata3: '90', saldo: '130' });
 
   // Refs per passare i flag alla mutation senza dipendere da state (evita React batching e reset prematuro)
   const bypassRef = useRef(false);
@@ -549,11 +553,22 @@ export default function GeneraPagamentiModal({
                             min={5}
                             max={90}
                             step={5}
-                            value={ratePerc.rata2Perc}
+                            value={percInput.rata2}
                             onChange={(e) => {
-                              const v = Math.min(90, Math.max(5, parseInt(e.target.value) || 50));
-                              const remaining = 100 - v;
-                              setRatePerc({ rata2Perc: v, rata3Perc: Math.min(ratePerc.rata3Perc, remaining - 5) });
+                              setPercInput(prev => ({ ...prev, rata2: e.target.value }));
+                              const parsed = parseInt(e.target.value);
+                              if (!isNaN(parsed) && parsed >= 5 && parsed <= 90) {
+                                const rata3 = Math.min(ratePerc.rata3Perc, 100 - parsed - 5);
+                                setRatePerc({ rata2Perc: parsed, rata3Perc: rata3 });
+                                setPercInput(prev => ({ ...prev, rata2: e.target.value, rata3: String(rata3) }));
+                              }
+                            }}
+                            onBlur={() => {
+                              const parsed = parseInt(percInput.rata2);
+                              const v = isNaN(parsed) ? ratePerc.rata2Perc : Math.min(90, Math.max(5, parsed));
+                              const rata3 = Math.min(ratePerc.rata3Perc, 100 - v - 5);
+                              setRatePerc({ rata2Perc: v, rata3Perc: rata3 });
+                              setPercInput({ rata2: String(v), rata3: String(rata3) });
                             }}
                             className="w-20"
                           />
@@ -562,8 +577,13 @@ export default function GeneraPagamentiModal({
                             type="number"
                             min={-90}
                             max={0}
-                            value={rateDays.rata2Days}
-                            onChange={(e) => setRateDays(prev => ({ ...prev, rata2Days: parseInt(e.target.value) || -10 }))}
+                            value={daysInput.rata2}
+                            onChange={(e) => {
+                              setDaysInput(prev => ({ ...prev, rata2: e.target.value }));
+                              const parsed = parseInt(e.target.value);
+                              if (!isNaN(parsed)) setRateDays(prev => ({ ...prev, rata2Days: parsed }));
+                            }}
+                            onBlur={() => setDaysInput(prev => ({ ...prev, rata2: String(rateDays.rata2Days) }))}
                             className="w-20"
                           />
                         </div>
@@ -576,11 +596,21 @@ export default function GeneraPagamentiModal({
                             min={5}
                             max={100 - ratePerc.rata2Perc - 5}
                             step={5}
-                            value={ratePerc.rata3Perc}
+                            value={percInput.rata3}
                             onChange={(e) => {
+                              setPercInput(prev => ({ ...prev, rata3: e.target.value }));
+                              const parsed = parseInt(e.target.value);
                               const maxVal = 100 - ratePerc.rata2Perc - 5;
-                              const v = Math.min(maxVal, Math.max(5, parseInt(e.target.value) || 25));
+                              if (!isNaN(parsed) && parsed >= 5 && parsed <= maxVal) {
+                                setRatePerc(prev => ({ ...prev, rata3Perc: parsed }));
+                              }
+                            }}
+                            onBlur={() => {
+                              const parsed = parseInt(percInput.rata3);
+                              const maxVal = 100 - ratePerc.rata2Perc - 5;
+                              const v = isNaN(parsed) ? ratePerc.rata3Perc : Math.min(maxVal, Math.max(5, parsed));
                               setRatePerc(prev => ({ ...prev, rata3Perc: v }));
+                              setPercInput(prev => ({ ...prev, rata3: String(v) }));
                             }}
                             className="w-20"
                           />
@@ -589,8 +619,13 @@ export default function GeneraPagamentiModal({
                             type="number"
                             min={1}
                             max={365}
-                            value={rateDays.rata3Days}
-                            onChange={(e) => setRateDays(prev => ({ ...prev, rata3Days: parseInt(e.target.value) || 90 }))}
+                            value={daysInput.rata3}
+                            onChange={(e) => {
+                              setDaysInput(prev => ({ ...prev, rata3: e.target.value }));
+                              const parsed = parseInt(e.target.value);
+                              if (!isNaN(parsed)) setRateDays(prev => ({ ...prev, rata3Days: parsed }));
+                            }}
+                            onBlur={() => setDaysInput(prev => ({ ...prev, rata3: String(rateDays.rata3Days) }))}
                             className="w-20"
                           />
                         </div>
@@ -603,8 +638,13 @@ export default function GeneraPagamentiModal({
                         type="number"
                         min={rateDays.rata3Days + 1}
                         max={730}
-                        value={rateDays.saldoDays}
-                        onChange={(e) => setRateDays(prev => ({ ...prev, saldoDays: parseInt(e.target.value) || 130 }))}
+                        value={daysInput.saldo}
+                        onChange={(e) => {
+                          setDaysInput(prev => ({ ...prev, saldo: e.target.value }));
+                          const parsed = parseInt(e.target.value);
+                          if (!isNaN(parsed)) setRateDays(prev => ({ ...prev, saldoDays: parsed }));
+                        }}
+                        onBlur={() => setDaysInput(prev => ({ ...prev, saldo: String(rateDays.saldoDays) }))}
                         className="w-20"
                       />
                       <span className="text-xs text-muted-foreground">gg dall'evento</span>
