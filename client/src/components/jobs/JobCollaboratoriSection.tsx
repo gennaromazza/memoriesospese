@@ -419,7 +419,8 @@ export function JobCollaboratoriSection({ jobId }: Props) {
           <CardTitle className="text-base sm:text-lg">👥 Collaboratori Assegnati</CardTitle>
           <Button onClick={handleOpenModal} size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
-            Assegna Collaboratore
+            <span className="sm:hidden">Assegna Collab</span>
+            <span className="hidden sm:inline">Assegna Collaboratore</span>
           </Button>
         </div>
       </CardHeader>
