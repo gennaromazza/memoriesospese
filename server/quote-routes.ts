@@ -2823,7 +2823,9 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
     try {
       if (!isDND && eventDate) {
         const { createEvent } = await import("./google-calendar.js");
-        const dateStr = new Date(eventDate).toISOString().split("T")[0];
+        // FIX timezone: la data arriva come istante UTC (es. 2027-09-14T22:00Z per il
+        // 15/09 a Roma): estrarre la data in Europe/Rome, MAI in UTC (shift di -1 giorno)
+        const dateStr = toRomeDateTime(new Date(eventDate)).toISODate()!;
 
         // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
         const calendarEvent = await createEvent("primary", {
