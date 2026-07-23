@@ -248,10 +248,10 @@ function SortableProductCard({
     >
       <CardContent className="pt-6">
         <div 
-          className="flex justify-between items-start cursor-pointer"
+          className="flex justify-between items-start gap-2 cursor-pointer"
           onClick={onToggleExpand}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             {/* Drag Handle - accessible button */}
             <button
               type="button"
@@ -271,7 +271,7 @@ function SortableProductCard({
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 text-xs">✓ Servizio Incluso</Badge>
             )}
             {!isExpanded && productName && (
-              <span className="text-sm text-muted-foreground truncate max-w-[200px]">
+              <span className="text-sm text-muted-foreground truncate max-w-[140px] sm:max-w-[200px]">
                 {productName}{!isOmaggio && ` - €${productPrice.toFixed(2)}`}
               </span>
             )}
@@ -289,7 +289,7 @@ function SortableProductCard({
               <span className="text-xs text-green-600 dark:text-green-400">✓</span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <Button
               type="button"
               size="sm"
@@ -1760,7 +1760,7 @@ export default function QuoteBuilder({
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold">2. Prodotti Custom (opzionale)</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Dropdown prodotti frequenti */}
                   <Select
                     value={frequentProductValue}
@@ -1781,7 +1781,7 @@ export default function QuoteBuilder({
                       setFrequentProductValue('');
                     }}
                   >
-                    <SelectTrigger className="w-[200px]" data-testid="select-frequent-product">
+                    <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-frequent-product">
                       <SelectValue placeholder="Prodotti frequenti..." />
                     </SelectTrigger>
                     <SelectContent>
