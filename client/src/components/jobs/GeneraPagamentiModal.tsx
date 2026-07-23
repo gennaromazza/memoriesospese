@@ -150,6 +150,12 @@ export default function GeneraPagamentiModal({
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
+      // Reset completo dei parametri del piano 4 rate (evita valori stantii alla riapertura)
+      setAccontoIniziale(0);
+      setRatePerc({ rata2Perc: 50, rata3Perc: 25 });
+      setRateDays({ rata2Days: -10, rata3Days: 90, saldoDays: 130 });
+      setPercInput({ rata2: '50', rata3: '25' });
+      setDaysInput({ rata2: '-10', rata3: '90', saldo: '130' });
       bypassRef.current = false;
       replaceRef.current = false;
     }

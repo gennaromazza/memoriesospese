@@ -409,8 +409,141 @@ export default function PaymentScheduleSection({ jobId, eventDate, isAdmin = fal
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Payments Table - scroll orizzontale su mobile */}
-            <div className="rounded-md border overflow-x-auto">
+            {/* Mobile: card compatte (niente tabella larga) */}
+            <div className="sm:hidden space-y-3">
+              {schedule.payments.map((payment: any) => {
+                const StatusIcon = PAYMENT_STATUS_ICONS[payment.stato as PaymentStatus];
+                const isOverdue =
+                  payment.stato === 'atteso' &&
+                  payment.dataScadenza && payment.dataScadenza < new Date();
+                return (
+                  <div
+                    key={payment.id}
+                    className="rounded-md border p-3 space-y-2"
+                    data-testid={`card-payment-${payment.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{PAYMENT_TYPE_LABELS[payment.tipo as PaymentType]}</p>
+                      <Badge className={PAYMENT_STATUS_COLORS[payment.stato as PaymentStatus]}>
+                        <StatusIcon className="h-3 w-3 mr-1" />
+                        {PAYMENT_STATUS_LABELS[payment.stato as PaymentStatus]}
+                      </Badge>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">€{payment.importo.toFixed(2)}</p>
+                        {payment.importoPagato && payment.importoPagato !== payment.importo && (
+                          <p className="text-xs text-muted-foreground">
+                            Pagato: €{payment.importoPagato.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm">
+                          {payment.dataScadenza ? format(payment.dataScadenza, 'dd/MM/yyyy', { locale: it }) : 'N/A'}
+                        </p>
+                        {isOverdue && (
+                          <p className="text-xs text-red-600 dark:text-red-400">Scaduto</p>
+                        )}
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t">
+                        {payment.stato !== 'pagato' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => setSelectedPayment({
+                                id: payment.id,
+                                tipo: payment.tipo,
+                                importo: payment.importo,
+                                scheduleId: schedule.id,
+                              })}
+                              data-testid={`button-register-payment-mobile-${payment.id}`}
+                            >
+                              <CheckCircle2 className="h-4 w-4 mr-1" />
+                              Registra
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" data-testid={`button-actions-mobile-${payment.id}`}>
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => setGestioneRataState({
+                                    open: true,
+                                    mode: 'edit',
+                                    scheduleId: schedule.id,
+                                    payment
+                                  })}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Modifica
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => setDeletePaymentState({
+                                    scheduleId: schedule.id,
+                                    paymentId: payment.id,
+                                    tipo: payment.tipo,
+                                    importo: payment.importo,
+                                  })}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Elimina
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
+                        )}
+                        {payment.stato === 'pagato' && (
+                          <div className="flex items-center gap-2">
+                            {payment.dataPagamento && (
+                              <p className="text-xs text-muted-foreground">
+                                Pagata il {format(payment.dataPagamento, 'dd/MM/yyyy', { locale: it })}
+                              </p>
+                            )}
+                            {clientEmail && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2"
+                                disabled={sendingReceiptId === payment.id || sendReceiptMutation.isPending}
+                                onClick={() => {
+                                  setSendingReceiptId(payment.id);
+                                  sendReceiptMutation.mutate({
+                                    payment,
+                                    schedule,
+                                    clientEmail,
+                                    clientName: clientName || 'Cliente',
+                                    eventName: eventName || '',
+                                  });
+                                }}
+                                title="Invia ricevuta via email"
+                              >
+                                {sendingReceiptId === payment.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Mail className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop/tablet: tabella completa */}
+            <div className="hidden sm:block rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
