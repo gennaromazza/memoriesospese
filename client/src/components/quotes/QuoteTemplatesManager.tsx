@@ -251,10 +251,10 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
               <GripVertical className="h-5 w-5 text-muted-foreground" />
             </div>
 
-            <div className="flex-1">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <CardTitle className="flex items-center gap-2 flex-wrap">
                     {jobType && <JobTypeIcon slug={jobType.slug} size="md" />}
                     {template.nome}
                   </CardTitle>
@@ -262,7 +262,7 @@ const SortableTemplateCard = memo(function SortableTemplateCard({
                     {jobType?.nome || template.jobType}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Switch
                     checked={template.attivo}
                     onCheckedChange={onToggle}
@@ -1208,7 +1208,7 @@ export default function QuoteTemplatesManager() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Template Preventivi</h2>
           <p className="text-muted-foreground">
@@ -1217,7 +1217,7 @@ export default function QuoteTemplatesManager() {
         </div>
         <Button
           onClick={handleCreateTemplate}
-          className="bg-sage hover:bg-dark-sage"
+          className="bg-sage hover:bg-dark-sage w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nuovo Template
@@ -1306,7 +1306,7 @@ export default function QuoteTemplatesManager() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Nome Template */}
                 <FormField
                   control={form.control}
@@ -1442,7 +1442,7 @@ export default function QuoteTemplatesManager() {
 
               {/* Prodotti Custom */}
               <div>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                   <h3 className="text-lg font-semibold">
                     Prodotti Custom (opzionale)
                   </h3>
@@ -1485,7 +1485,7 @@ export default function QuoteTemplatesManager() {
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <FormField
                               control={form.control}
                               name={`customProducts.${index}.nome`}
@@ -1622,7 +1622,7 @@ export default function QuoteTemplatesManager() {
 
                 return (
                   <div>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                       <div>
                         <h3 className="text-lg font-semibold flex items-center gap-2">
                           <Gift className="w-5 h-5 text-emerald-600" />
@@ -1657,7 +1657,7 @@ export default function QuoteTemplatesManager() {
                             <CardHeader className="py-3 px-4">
                               <div className="flex items-center gap-3">
                                 <button type="button" onClick={() => toggleRuleExpand(rule.id)}
-                                  className="flex-1 flex items-center gap-3 text-left min-w-0">
+                                  className="flex-1 flex items-center flex-wrap gap-x-3 gap-y-1 text-left min-w-0">
                                   {isExpanded
                                     ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                                     : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -2076,7 +2076,7 @@ export default function QuoteTemplatesManager() {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Nome *</label>
                 <Input

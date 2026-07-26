@@ -84,7 +84,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  EyeOff
+  EyeOff,
+  Zap
 } from 'lucide-react';
 import { format, isWithinInterval, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -130,6 +131,7 @@ export default function JobsManager() {
   const [filterQuoteStatus, setFilterQuoteStatus] = useState<string>('all'); // Stato preventivo (default: tutti per mostrare anche lavori nuovi)
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming'); // Filtro temporale (default: prossimi impegni)
   const [filterCollaboratore, setFilterCollaboratore] = useState<string>('all'); // Filtro collaboratore
+  const [showQuickQuotesOnly, setShowQuickQuotesOnly] = useState(false); // Vista rapida: lead da Preventivo Rapido
   const [customDateRange, setCustomDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -406,6 +408,16 @@ export default function JobsManager() {
              clientiNames.includes(query);
     };
     
+    // Vista rapida "Preventivi Rapidi": mostra tutti i lavori arrivati dal form online,
+    // ignorando i filtri tipo/tempo (i lead spesso non hanno data o tipo "matrimonio")
+    if (showQuickQuotesOnly) {
+      return jobs.filter(job =>
+        job.provenance === 'preventivo-rapido' &&
+        job.status !== 'archiviato' &&
+        (!searchQuery || matchesSearch(job, searchQuery.toLowerCase()))
+      );
+    }
+
     // Senza ricerca, applica normalmente i filtri
     return jobs.filter(job => {
       // Escludi archiviati dalla vista principale (a meno che non siano cercati)
@@ -509,7 +521,17 @@ export default function JobsManager() {
       
       return true;
     });
-  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore]);
+  }, [jobs, filterType, filterYear, filterSemester, filterMonth, filterQuoteStatus, filterCollaboratore, timeFilter, customDateRange, searchQuery, clienteNamesMap, quotesByJob, collaboratoriByJob, jobsByCollaboratore, showQuickQuotesOnly]);
+
+  // Lead arrivati dal form Preventivo Rapido non ancora confermati (nuove richieste da gestire)
+  const quickQuoteLeads = useMemo(() =>
+    jobs.filter(j => j.provenance === 'preventivo-rapido' && (j.status === 'lead' || j.status === 'preventivo_inviato')),
+    [jobs]
+  );
+  const quickQuoteTotal = useMemo(() =>
+    jobs.filter(j => j.provenance === 'preventivo-rapido' && j.status !== 'archiviato').length,
+    [jobs]
+  );
   
   // Funzione helper per convertire date Firestore
   const toDate = (val: any): Date => {
@@ -690,6 +712,58 @@ export default function JobsManager() {
         </div>
       </div>
       
+      {/* Banner Preventivi Rapidi: nuove richieste dal form online */}
+      {(quickQuoteLeads.length > 0 || showQuickQuotesOnly) && (
+        <div
+          className={cn(
+            "rounded-lg border p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between",
+            showQuickQuotesOnly
+              ? "bg-amber-100 border-amber-400"
+              : "bg-amber-50 border-amber-300"
+          )}
+          data-testid="banner-quick-quotes"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 w-9 h-9 rounded-full bg-amber-200 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-amber-700" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-amber-900 text-sm">
+                {quickQuoteLeads.length > 0
+                  ? `${quickQuoteLeads.length} ${quickQuoteLeads.length === 1 ? 'richiesta' : 'richieste'} da Preventivo Rapido da gestire`
+                  : 'Nessuna nuova richiesta da gestire'}
+              </p>
+              <p className="text-xs text-amber-800/80">
+                {showQuickQuotesOnly
+                  ? `Stai vedendo solo i lavori arrivati dal form online (${quickQuoteTotal} totali).`
+                  : 'Clienti che hanno compilato il form online e attendono una risposta.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant={showQuickQuotesOnly ? "default" : "outline"}
+            className={cn(
+              "w-full sm:w-auto shrink-0",
+              showQuickQuotesOnly
+                ? "bg-amber-600 hover:bg-amber-700 text-white"
+                : "border-amber-400 text-amber-800 hover:bg-amber-100"
+            )}
+            onClick={() => {
+              setShowQuickQuotesOnly(v => !v);
+              setCurrentPage(1);
+            }}
+            data-testid="button-toggle-quick-quotes"
+          >
+            {showQuickQuotesOnly ? (
+              <><X className="w-4 h-4 mr-2" />Torna a tutti i lavori</>
+            ) : (
+              <><Zap className="w-4 h-4 mr-2" />Mostra Preventivi Rapidi</>
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Stats cards - con toggle privacy */}
       <div className="relative">
         <div className="flex items-center justify-end mb-2">
