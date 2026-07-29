@@ -101,6 +101,7 @@ import {
   Users,
   Gift,
   Lock,
+  Eye,
   Unlock,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -109,7 +110,7 @@ import type { BenefitRule } from "@shared/quote-benefits";
 import ProductOrderEditor, { type OrderableProduct } from "./ProductOrderEditor";
 import { computeBenefitStates, migrateBenefitRules } from "@shared/quote-benefits";
 import type { RequirementRule } from "@shared/quote-requirements";
-import { migrateRequirementRules, formatRequiredNames } from "@shared/quote-requirements";
+import { migrateRequirementRules, formatRequiredNames, computeBlockedProducts, sanitizeSelection } from "@shared/quote-requirements";
 import { useLocation } from "wouter";
 import { getAuth } from "firebase/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -408,6 +409,11 @@ export default function QuoteTemplatesManager() {
 
   // Product order state — tracks the display order chosen by the admin
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
+
+  // Anteprima cliente (simulatore selezione prodotti dentro il modal template)
+  const [clientPreviewOpen, setClientPreviewOpen] = useState(false);
+  const [previewSelection, setPreviewSelection] = useState<string[]>([]);
+  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
 
   // Sections for catalog products (managed outside form — same pattern as QuoteBuilder)
   const [catalogProductSections, setCatalogProductSections] = useState<Record<string, string>>({});
@@ -785,15 +791,88 @@ export default function QuoteTemplatesManager() {
     });
     const cust: OrderableProduct[] = fields
       .filter((f) => f.nome?.trim())
-      .map((f) => ({
-        key: `cust:${f.nome.trim()}`,
-        nome: f.nome,
-        prezzo: f.prezzo || 0,
-        sezione: (f as any).sezione || undefined,
-        selectable: (f as any).selectable !== undefined ? (f as any).selectable : defaultSelectable,
-      }));
+      .map((f) => {
+        const isOmaggio = (f as any).isOmaggio === true;
+        return {
+          key: `cust:${f.nome.trim()}`,
+          nome: f.nome,
+          prezzo: isOmaggio ? 0 : (f.prezzo || 0),
+          sezione: (f as any).sezione || undefined,
+          selectable: isOmaggio ? false : ((f as any).selectable !== undefined ? (f as any).selectable : defaultSelectable),
+          isOmaggio,
+        };
+      });
     return [...cat, ...cust];
   }, [catalogProductIds, fields, catalogProducts, catalogProductSections, catalogOverrides, quoteType]);
+
+  // ── Anteprima cliente: dati derivati per il simulatore ──────────────────
+  // Prodotti nell'ordine scelto dall'admin (come li vedrà il cliente)
+  const previewProducts = useMemo<OrderableProduct[]>(() => {
+    if (productOrderKeys.length === 0) return mergedForOrderEditor;
+    const byKey = new Map(mergedForOrderEditor.map(p => [p.key, p]));
+    const ordered = productOrderKeys
+      .map(k => byKey.get(k))
+      .filter((p): p is OrderableProduct => !!p);
+    mergedForOrderEditor.forEach(p => { if (!productOrderKeys.includes(p.key)) ordered.push(p); });
+    return ordered;
+  }, [mergedForOrderEditor, productOrderKeys]);
+
+  const previewAlwaysIncluded = useMemo(
+    () => previewProducts.filter(p => p.selectable === false || (p as any).isOmaggio).map(p => p.nome),
+    [previewProducts]
+  );
+
+  const previewMigratedRules = useMemo(() => migrateRequirementRules(requirementRules), [requirementRules]);
+
+  // Selezione effettiva = sempre inclusi + scelte del simulatore (stesso contratto delle pagine cliente)
+  const previewEffectiveSelection = useMemo(() => {
+    const set = new Set(previewAlwaysIncluded);
+    return [...previewAlwaysIncluded, ...previewSelection.filter(n => !set.has(n))];
+  }, [previewAlwaysIncluded, previewSelection]);
+
+  const previewBlocked = useMemo(
+    () => computeBlockedProducts(previewMigratedRules, previewEffectiveSelection),
+    [previewMigratedRules, previewEffectiveSelection]
+  );
+
+  const previewBenefitStates = useMemo(
+    () => benefitRules.length > 0
+      ? computeBenefitStates(migrateBenefitRules(benefitRules), previewEffectiveSelection, previewProducts.map(p => p.nome))
+      : [],
+    [benefitRules, previewEffectiveSelection, previewProducts]
+  );
+
+  const previewSubtotal = useMemo(
+    () => previewProducts.reduce((sum, p) => {
+      const included = p.selectable === false || (p as any).isOmaggio || previewSelection.includes(p.nome);
+      return included ? sum + ((p as any).isOmaggio ? 0 : (p.prezzo || 0)) : sum;
+    }, 0),
+    [previewProducts, previewSelection]
+  );
+
+  const togglePreviewProduct = useCallback((nome: string, checked: boolean) => {
+    setPreviewSelection(prev => {
+      const next = checked ? [...prev, nome] : prev.filter(n => n !== nome);
+      const alwaysSet = new Set(previewAlwaysIncluded);
+      const { selection, removed } = sanitizeSelection(
+        previewMigratedRules,
+        [...previewAlwaysIncluded, ...next.filter(n => !alwaysSet.has(n))]
+      );
+      const removable = removed.filter(n => !alwaysSet.has(n));
+      if (removable.length > 0) {
+        setPreviewNotice(`Rimossi automaticamente: ${removable.join(', ')} (mancano i servizi richiesti)`);
+      } else {
+        setPreviewNotice(null);
+      }
+      return selection.filter(n => !alwaysSet.has(n));
+    });
+  }, [previewAlwaysIncluded, previewMigratedRules]);
+
+  const openClientPreview = useCallback(() => {
+    setPreviewSelection([]);
+    setPreviewNotice(null);
+    setClientPreviewOpen(true);
+  }, []);
 
   // Handler per modifica prezzo inline (override solo per questo template)
   const handlePriceChange = useCallback((key: string, prezzo: number) => {
@@ -1910,11 +1989,18 @@ export default function QuoteTemplatesManager() {
                           Qui decidi quali servizi il cliente può combinare tra loro quando compila il preventivo.
                         </p>
                       </div>
-                      <Button type="button" variant="outline" size="sm" onClick={addRequirementRule}
-                        className="gap-2 border-rose-300 text-rose-700 hover:bg-rose-50">
-                        <Plus className="w-4 h-4" />
-                        Aggiungi regola
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={openClientPreview}
+                          className="gap-2 border-sky-300 text-sky-700 hover:bg-sky-50">
+                          <Eye className="w-4 h-4" />
+                          Prova come cliente
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={addRequirementRule}
+                          className="gap-2 border-rose-300 text-rose-700 hover:bg-rose-50">
+                          <Plus className="w-4 h-4" />
+                          Aggiungi regola
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Guida rapida con esempi concreti */}
@@ -2476,6 +2562,127 @@ export default function QuoteTemplatesManager() {
               disabled={studioSubmitting || !studioForm.nome.trim() || !studioForm.cognome.trim() || !studioForm.nomeEvento.trim()}
             >
               {studioSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creazione…</> : <><Users className="h-4 w-4 mr-2" /> Crea e Apri Job</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Anteprima cliente: simulatore selezione prodotti */}
+      <Dialog open={clientPreviewOpen} onOpenChange={setClientPreviewOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-sky-600" />
+              Anteprima: cosa vede il cliente
+            </DialogTitle>
+            <DialogDescription>
+              Prova a selezionare i servizi come farebbe il cliente: le regole di requisiti,
+              esclusioni e benefit si applicano in tempo reale. È solo una simulazione, non salva nulla.
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewNotice && (
+            <div className="text-xs rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-amber-800">
+              {previewNotice}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            {previewProducts.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Aggiungi prima qualche prodotto al template.
+              </p>
+            )}
+            {previewProducts.map((p, idx) => {
+              const isAlways = p.selectable === false || (p as any).isOmaggio === true;
+              const isOmaggio = (p as any).isOmaggio === true;
+              const isSelected = isAlways || previewSelection.includes(p.nome);
+              const blockedState = !isSelected && !isAlways ? previewBlocked.get(p.nome) : undefined;
+              const showSection = p.sezione && (idx === 0 || previewProducts[idx - 1].sezione !== p.sezione);
+              return (
+                <div key={p.key}>
+                  {showSection && (
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3 mb-1">
+                      {p.sezione}
+                    </p>
+                  )}
+                  <label
+                    className={`flex items-start gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                      blockedState
+                        ? "border-amber-200 bg-amber-50/50 opacity-70 cursor-not-allowed"
+                        : isSelected
+                          ? "border-sage/40 bg-sage/5 cursor-pointer"
+                          : "border-gray-200 hover:border-sage/40 cursor-pointer"
+                    }`}
+                  >
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={isSelected}
+                      disabled={isAlways || !!blockedState}
+                      onCheckedChange={(checked) => togglePreviewProduct(p.nome, !!checked)}
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">{p.nome}</span>
+                        {isOmaggio && (
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">Omaggio</Badge>
+                        )}
+                        {isAlways && !isOmaggio && (
+                          <Badge variant="outline" className="text-[10px] text-gray-500">Sempre incluso</Badge>
+                        )}
+                      </span>
+                      {blockedState && (
+                        <span className="block text-xs text-amber-700 mt-0.5">🔒 {blockedState.message}</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                      {isOmaggio ? "€0" : `€${p.prezzo || 0}`}
+                    </span>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+
+          {previewBenefitStates.filter(b => b.isUnlocked).length > 0 && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 space-y-1">
+              <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                <Gift className="w-3.5 h-3.5" /> Benefit attivi con questa selezione
+              </p>
+              {previewBenefitStates.filter(b => b.isUnlocked).map((b, i) => (
+                <p key={i} className="text-xs text-emerald-800">🎁 {b.rule.benefitProductNames?.join(', ') || ''}</p>
+              ))}
+            </div>
+          )}
+
+          {(() => {
+            const { totalAfterDiscount: pTotal, discountAmount: pDiscount } = calculateQuoteTotals(
+              previewSubtotal, discountType, discountValue,
+            );
+            return (
+              <div className="border-t pt-3 space-y-1 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotale</span><span>€{previewSubtotal}</span>
+                </div>
+                {pDiscount > 0 && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>Sconto</span><span>-€{pDiscount}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-base">
+                  <span>Totale</span><span>€{pTotal}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" className="flex-1"
+              onClick={() => { setPreviewSelection([]); setPreviewNotice(null); }}>
+              Azzera selezione
+            </Button>
+            <Button type="button" size="sm" className="flex-1" onClick={() => setClientPreviewOpen(false)}>
+              Chiudi
             </Button>
           </div>
         </DialogContent>
