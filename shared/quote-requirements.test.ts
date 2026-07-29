@@ -18,9 +18,86 @@ import { calculateQuoteTotals } from './quote-utils';
 const rule = (over: Partial<RequirementRule> = {}): RequirementRule => ({
   id: 'r1',
   enabled: true,
+  type: 'requires',
   blockedProductNames: ['Anteprima Video', 'Permanenza al ristorante del videomaker'],
   requiredProductNames: ['Videomaker a casa'],
   ...over,
+});
+
+const exclusion = (over: Partial<RequirementRule> = {}): RequirementRule => ({
+  id: 'x1',
+  enabled: true,
+  type: 'excludes',
+  blockedProductNames: ['Album', 'Album Big'],
+  requiredProductNames: [],
+  ...over,
+});
+
+describe('regole di mutua esclusione (excludes)', () => {
+  it('nessun blocco quando nessun membro del gruppo è selezionato', () => {
+    expect(computeBlockedProducts([exclusion()], []).size).toBe(0);
+    expect(computeBlockedProducts([exclusion()], ['Drone']).size).toBe(0);
+  });
+
+  it('selezionando Album blocca Album Big (e viceversa)', () => {
+    const b1 = computeBlockedProducts([exclusion()], ['Album']);
+    expect(b1.has('Album Big')).toBe(true);
+    expect(b1.has('Album')).toBe(false);
+    expect(b1.get('Album Big')!.message).toBe('Non compatibile con: Album');
+
+    const b2 = computeBlockedProducts([exclusion()], ['Album Big']);
+    expect(b2.has('Album')).toBe(true);
+    expect(b2.has('Album Big')).toBe(false);
+  });
+
+  it('gruppo con 3+ prodotti: uno selezionato blocca tutti gli altri', () => {
+    const r = exclusion({ blockedProductNames: ['Album', 'Album Big', 'Album Deluxe'] });
+    const blocked = computeBlockedProducts([r], ['Album Big']);
+    expect(blocked.has('Album')).toBe(true);
+    expect(blocked.has('Album Deluxe')).toBe(true);
+    expect(blocked.has('Album Big')).toBe(false);
+  });
+
+  it('deselezionando il membro scelto, gli altri tornano liberi', () => {
+    expect(computeBlockedProducts([exclusion()], []).size).toBe(0);
+  });
+
+  it('stato sporco (entrambi selezionati): sanitizeSelection tiene il primo e rimuove gli altri', () => {
+    const { selection, removed } = sanitizeSelection([exclusion()], ['Album', 'Album Big']);
+    expect(selection).toEqual(['Album']);
+    expect(removed).toEqual(['Album Big']);
+  });
+
+  it('findInvalidSelections segnala il doppione (validazione server)', () => {
+    const invalid = findInvalidSelections([exclusion()], ['Album', 'Album Big']);
+    expect(invalid.map(i => i.productName)).toEqual(['Album Big']);
+    expect(invalid[0].message).toBe('Non compatibile con: Album');
+  });
+
+  it('ignora gruppi con meno di 2 prodotti (mai bloccare per errore)', () => {
+    expect(computeBlockedProducts([exclusion({ blockedProductNames: ['Album'] })], ['Album']).size).toBe(0);
+  });
+
+  it('ignora regole excludes disabilitate', () => {
+    expect(computeBlockedProducts([exclusion({ enabled: false })], ['Album']).size).toBe(0);
+  });
+
+  it('convive con le regole requires (Album esclude Album Big + Anteprima richiede Videomaker)', () => {
+    const rules = [rule(), exclusion()];
+    const blocked = computeBlockedProducts(rules, ['Album', 'Videomaker a casa']);
+    expect(blocked.has('Album Big')).toBe(true);
+    expect(blocked.has('Anteprima Video')).toBe(false);
+  });
+
+  it('migrazione: regole senza type diventano requires, type excludes preservato', () => {
+    const migrated = migrateRequirementRules([
+      { id: 'a', blockedProductNames: ['X'], requiredProductNames: ['Y'] },
+      { id: 'b', type: 'excludes', blockedProductNames: ['Album', 'Album Big'] },
+    ]);
+    expect(migrated[0].type).toBe('requires');
+    expect(migrated[1].type).toBe('excludes');
+    expect(migrated[1].requiredProductNames).toEqual([]);
+  });
 });
 
 describe('computeBlockedProducts', () => {
@@ -120,7 +197,7 @@ describe('migrateRequirementRules', () => {
       { id: 'x', enabled: false, blockedProductNames: ['B'], requiredProductNames: ['C'] },
     ] as any);
     expect(out).toHaveLength(2);
-    expect(out[0]).toEqual({ id: '1', enabled: true, blockedProductNames: ['A'], requiredProductNames: [] });
+    expect(out[0]).toEqual({ id: '1', enabled: true, type: 'requires', blockedProductNames: ['A'], requiredProductNames: [] });
     expect(out[1].enabled).toBe(false);
   });
 

@@ -1872,6 +1872,7 @@ export default function QuoteTemplatesManager() {
                   const newRule: RequirementRule = {
                     id: nanoid(),
                     enabled: true,
+                    type: 'requires',
                     blockedProductNames: [],
                     requiredProductNames: [],
                   };
@@ -1906,7 +1907,7 @@ export default function QuoteTemplatesManager() {
                           4. Requisiti / Esclusioni
                         </h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Blocca la selezione di alcuni servizi finché il cliente non sceglie i servizi richiesti (es. "Anteprima Video" richiede "Videomaker a casa").
+                          Qui decidi quali servizi il cliente può combinare tra loro quando compila il preventivo.
                         </p>
                       </div>
                       <Button type="button" variant="outline" size="sm" onClick={addRequirementRule}
@@ -1916,11 +1917,49 @@ export default function QuoteTemplatesManager() {
                       </Button>
                     </div>
 
+                    {/* Guida rapida con esempi concreti */}
+                    <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50/60 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-sky-800 flex items-center gap-1.5">
+                        💡 Come funzionano le regole (2 tipi)
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-sky-900">
+                        <div className="rounded-md bg-white/70 border border-sky-100 p-2.5 space-y-1">
+                          <p className="font-semibold">🔒 Richiede altri servizi</p>
+                          <p className="text-sky-800/80">
+                            Un servizio si può scegliere <strong>solo insieme</strong> a un altro.
+                          </p>
+                          <p className="italic text-sky-700">
+                            Esempio: "Anteprima Video" ha senso solo se c'è il videomaker →
+                            il cliente la vede bloccata con la scritta "Richiede: Videomaker a casa"
+                            finché non aggiunge il videomaker.
+                          </p>
+                        </div>
+                        <div className="rounded-md bg-white/70 border border-sky-100 p-2.5 space-y-1">
+                          <p className="font-semibold">⇄ Servizi alternativi</p>
+                          <p className="text-sky-800/80">
+                            Tra 2 o più servizi il cliente può sceglierne <strong>solo uno</strong>.
+                          </p>
+                          <p className="italic text-sky-700">
+                            Esempio: "Album" e "Album Big" sono versioni dello stesso prodotto →
+                            se il cliente sceglie "Album", "Album Big" si blocca con la scritta
+                            "Non compatibile con: Album" (e viceversa).
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-sky-800/80">
+                        In entrambi i casi il servizio bloccato resta <strong>visibile</strong> ma non selezionabile,
+                        e il cliente vede il motivo. Se toglie un servizio necessario, quelli collegati si
+                        deselezionano da soli e il totale si aggiorna.
+                      </p>
+                    </div>
+
                     {requirementRules.length === 0 && (
                       <Card className="border-dashed border-rose-200 bg-rose-50/40">
                         <CardContent className="py-8 text-center text-sm text-muted-foreground">
                           <Lock className="w-8 h-8 mx-auto mb-2 text-rose-300" />
-                          Nessuna regola configurata. I clienti possono selezionare i servizi liberamente.
+                          Nessuna regola configurata: il cliente può combinare i servizi liberamente.
+                          <br />
+                          Premi "Aggiungi regola" per crearne una.
                         </CardContent>
                       </Card>
                     )}
@@ -1928,7 +1967,10 @@ export default function QuoteTemplatesManager() {
                     <div className="space-y-3">
                       {requirementRules.map(rule => {
                         const isExpanded = expandedRequirementRules.has(rule.id);
-                        const isValid = rule.blockedProductNames.length > 0 && rule.requiredProductNames.length > 0;
+                        const isExclusion = rule.type === 'excludes';
+                        const isValid = isExclusion
+                          ? rule.blockedProductNames.length >= 2
+                          : rule.blockedProductNames.length > 0 && rule.requiredProductNames.length > 0;
                         return (
                           <Card key={rule.id} className={`border transition-colors ${rule.enabled ? "border-rose-200 bg-rose-50/30" : "border-gray-200 bg-gray-50 opacity-60"}`}>
                             <CardHeader className="py-3 px-4">
@@ -1941,11 +1983,11 @@ export default function QuoteTemplatesManager() {
                                   }
                                   <span className="font-medium truncate text-sm">
                                     {rule.blockedProductNames.length > 0
-                                      ? <><span className="text-rose-700">BLOCCATO:</span> {rule.blockedProductNames.join(', ')}</>
-                                      : <span className="text-muted-foreground italic">Nessun servizio bloccato</span>
+                                      ? <><span className="text-rose-700">{isExclusion ? "ALTERNATIVI:" : "BLOCCATO:"}</span> {rule.blockedProductNames.join(isExclusion ? ' ⇄ ' : ', ')}</>
+                                      : <span className="text-muted-foreground italic">{isExclusion ? "Nessun servizio nel gruppo" : "Nessun servizio bloccato"}</span>
                                     }
                                   </span>
-                                  {rule.requiredProductNames.length > 0 && (
+                                  {!isExclusion && rule.requiredProductNames.length > 0 && (
                                     <Badge variant="outline" className="flex-shrink-0 text-xs text-gray-500 border-gray-300">
                                       richiede {formatRequiredNames(rule.requiredProductNames)}
                                     </Badge>
@@ -1972,19 +2014,53 @@ export default function QuoteTemplatesManager() {
                             {isExpanded && (
                               <CardContent className="px-4 pb-4 space-y-4 border-t border-rose-100 pt-4">
 
-                                {/* Servizi bloccati */}
+                                {/* Tipo di regola */}
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateReqRule(rule.id, { type: 'requires' })}
+                                    className={`flex-1 text-xs px-3 py-2 rounded-lg border font-medium text-left transition-colors ${
+                                      !isExclusion
+                                        ? "bg-rose-600 text-white border-rose-600"
+                                        : "bg-white text-gray-600 border-gray-300 hover:border-rose-400"
+                                    }`}
+                                  >
+                                    🔒 Richiede altri servizi
+                                    <span className={`block font-normal ${!isExclusion ? "text-rose-100" : "text-muted-foreground"}`}>
+                                      Es. "Anteprima Video" solo se c'è "Videomaker a casa"
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateReqRule(rule.id, { type: 'excludes', requiredProductNames: [] })}
+                                    className={`flex-1 text-xs px-3 py-2 rounded-lg border font-medium text-left transition-colors ${
+                                      isExclusion
+                                        ? "bg-rose-600 text-white border-rose-600"
+                                        : "bg-white text-gray-600 border-gray-300 hover:border-rose-400"
+                                    }`}
+                                  >
+                                    ⇄ Servizi alternativi
+                                    <span className={`block font-normal ${isExclusion ? "text-rose-100" : "text-muted-foreground"}`}>
+                                      Es. "Album" oppure "Album Big": solo uno dei due
+                                    </span>
+                                  </button>
+                                </div>
+
+                                {/* Servizi bloccati / gruppo alternativo */}
                                 <div className="border border-rose-300 rounded-lg p-3 space-y-2 bg-rose-50/50">
                                   <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide flex items-center gap-1.5">
                                     <Lock className="w-3.5 h-3.5" />
-                                    Servizi bloccati
+                                    {isExclusion ? "Servizi alternativi tra loro" : "Servizi bloccati"}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Questi servizi saranno <strong>selezionabili solo</strong> quando il cliente ha scelto tutti i servizi richiesti qui sotto.
+                                    {isExclusion
+                                      ? <>Tocca <strong>almeno 2</strong> servizi da rendere alternativi: il cliente potrà sceglierne solo uno, gli altri si bloccheranno da soli.</>
+                                      : <>Tocca i servizi da bloccare: il cliente potrà sceglierli <strong>solo dopo</strong> aver selezionato tutti i servizi richiesti qui sotto.</>}
                                   </p>
                                   {allSelectableNames.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
                                       {allSelectableNames
-                                        .filter(name => !rule.requiredProductNames.includes(name))
+                                        .filter(name => isExclusion || !rule.requiredProductNames.includes(name))
                                         .map(name => {
                                           const isSelected = rule.blockedProductNames.includes(name);
                                           return (
@@ -2016,13 +2092,16 @@ export default function QuoteTemplatesManager() {
                                   )}
                                 </div>
 
-                                {/* Servizi richiesti (trigger) */}
+                                {/* Servizi richiesti (trigger) — solo per regole "richiede" */}
+                                {!isExclusion && (
                                 <div className="border border-gray-200 rounded-lg p-3 space-y-2 bg-white">
                                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                                     Servizi richiesti (tutti)
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Il cliente deve selezionare <strong>tutti</strong> questi servizi per sbloccare quelli sopra. Se li toglie, i servizi bloccati vengono deselezionati automaticamente.
+                                    Tocca i servizi che il cliente deve avere nel preventivo per sbloccare quelli sopra
+                                    (se ne scegli più di uno, servono <strong>tutti</strong>). Se poi il cliente li toglie,
+                                    i servizi sbloccati si deselezionano da soli.
                                   </p>
                                   {allSelectableNames.filter(n => !rule.blockedProductNames.includes(n)).length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
@@ -2058,11 +2137,14 @@ export default function QuoteTemplatesManager() {
                                     </p>
                                   )}
                                 </div>
+                                )}
 
                                 {isValid && (
                                   <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
-                                    <span className="font-medium">Anteprima per il cliente:</span>{" "}
-                                    {rule.blockedProductNames.join(', ')} → "Richiede: {formatRequiredNames(rule.requiredProductNames)}"
+                                    <span className="font-medium">Cosa vedrà il cliente:</span>{" "}
+                                    {isExclusion
+                                      ? <>se sceglie "{rule.blockedProductNames[0]}", gli altri ({rule.blockedProductNames.slice(1).join(', ')}) si bloccano con la scritta 🔒 "Non compatibile con: {rule.blockedProductNames[0]}" — e viceversa.</>
+                                      : <>{formatRequiredNames(rule.blockedProductNames)} {rule.blockedProductNames.length === 1 ? 'resterà bloccato' : 'resteranno bloccati'} con la scritta 🔒 "Richiede: {formatRequiredNames(rule.requiredProductNames)}" finché il cliente non {rule.requiredProductNames.length === 1 ? 'lo seleziona' : 'li seleziona tutti'}.</>}
                                   </div>
                                 )}
                               </CardContent>

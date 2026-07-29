@@ -13,16 +13,25 @@
  * La fonte di verità è il campo `requirementRules` su template e Quote in Firestore.
  */
 
+/** Tipo di regola:
+ *  - 'requires': i prodotti bloccati sono selezionabili solo con TUTTI i trigger selezionati
+ *  - 'excludes': i prodotti del gruppo si escludono a vicenda (max 1 selezionabile)
+ */
+export type RequirementRuleType = 'requires' | 'excludes';
+
 /**
  * Regola requisito configurata dall'admin.
- * I prodotti in `blockedProductNames` sono selezionabili solo quando
- * TUTTI i prodotti in `requiredProductNames` sono selezionati.
+ * type 'requires': i prodotti in `blockedProductNames` sono selezionabili solo quando
+ *   TUTTI i prodotti in `requiredProductNames` sono selezionati.
+ * type 'excludes': i prodotti in `blockedProductNames` (≥2) sono mutuamente esclusivi:
+ *   selezionandone uno, gli altri vengono bloccati. `requiredProductNames` non è usato.
  */
 export interface RequirementRule {
   id: string;
   enabled: boolean;
-  blockedProductNames: string[];   // Prodotti bloccati finché i requisiti non sono soddisfatti
-  requiredProductNames: string[];  // Prodotti trigger richiesti (TUTTI, come per i benefit)
+  type: RequirementRuleType;
+  blockedProductNames: string[];   // requires: prodotti bloccati | excludes: gruppo mutuamente esclusivo
+  requiredProductNames: string[];  // requires: prodotti trigger richiesti (TUTTI) | excludes: non usato
 }
 
 /** Stato calcolato di un singolo prodotto bloccato da una o più regole */
@@ -41,6 +50,7 @@ export function migrateRequirementRules(rules: any[]): RequirementRule[] {
     .map(r => ({
       id: String(r.id ?? ''),
       enabled: r.enabled !== false,
+      type: (r.type === 'excludes' ? 'excludes' : 'requires') as RequirementRuleType,
       blockedProductNames: Array.isArray(r.blockedProductNames) ? r.blockedProductNames.filter(Boolean) : [],
       requiredProductNames: Array.isArray(r.requiredProductNames) ? r.requiredProductNames.filter(Boolean) : [],
     }));
@@ -62,7 +72,10 @@ export function formatRequiredNames(names: string[]): string {
  * Regole senza trigger o senza prodotti bloccati vengono ignorate (mai bloccare tutto per errore).
  *
  * @param rules                Regole configurate dall'admin
- * @param selectedProductNames Nomi dei prodotti attualmente selezionati (inclusi i "Fissi" sempre inclusi)
+ * @param selectedProductNames Nomi dei prodotti attualmente selezionati.
+ *   CONTRATTO per i chiamanti: includere SEMPRE anche i prodotti "sempre inclusi"
+ *   (selectable === false oppure isOmaggio), altrimenti i trigger/gruppi che li
+ *   contengono producono risultati errati.
  * @returns Mappa nome prodotto → stato di blocco (solo per i prodotti attualmente bloccati)
  */
 export function computeBlockedProducts(
@@ -72,24 +85,49 @@ export function computeBlockedProducts(
   const selectedSet = new Set(selectedProductNames);
   const blocked = new Map<string, BlockedProductState>();
 
+  const addBlock = (productName: string, causeNames: string[], buildMessage: (names: string[]) => string) => {
+    const existing = blocked.get(productName);
+    const merged = existing
+      ? Array.from(new Set([...existing.missingProductNames, ...causeNames]))
+      : [...causeNames];
+    blocked.set(productName, {
+      productName,
+      isBlocked: true,
+      missingProductNames: merged,
+      // Nota: se lo stesso prodotto è bloccato da regole di tipo diverso,
+      // prevale il messaggio dell'ultima regola valutata (caso raro, comunque bloccato)
+      message: buildMessage(merged),
+    });
+  };
+
   for (const rule of rules) {
     if (!rule.enabled) continue;
+
+    if (rule.type === 'excludes') {
+      // Gruppo mutuamente esclusivo: serve un gruppo di almeno 2 prodotti
+      const group = rule.blockedProductNames ?? [];
+      if (group.length < 2) continue;
+      // Membri del gruppo selezionati, nell'ordine della selezione corrente
+      const selectedMembers = selectedProductNames.filter(name => group.includes(name));
+      if (selectedMembers.length === 0) continue; // nessuno selezionato → tutti liberi
+      const first = selectedMembers[0];
+      for (const productName of group) {
+        // Blocca tutti gli altri membri; se più di uno è selezionato (stato sporco),
+        // resta libero solo il PRIMO selezionato — gli altri vengono bloccati/rimossi
+        if (productName === first) continue;
+        addBlock(productName, [first], names => `Non compatibile con: ${formatRequiredNames(names)}`);
+      }
+      continue;
+    }
+
+    // type 'requires'
     if (!rule.blockedProductNames?.length || !rule.requiredProductNames?.length) continue;
 
     const missing = rule.requiredProductNames.filter(name => !selectedSet.has(name));
     if (missing.length === 0) continue; // regola soddisfatta → nessun blocco
 
     for (const productName of rule.blockedProductNames) {
-      const existing = blocked.get(productName);
-      const mergedMissing = existing
-        ? Array.from(new Set([...existing.missingProductNames, ...missing]))
-        : [...missing];
-      blocked.set(productName, {
-        productName,
-        isBlocked: true,
-        missingProductNames: mergedMissing,
-        message: `Richiede: ${formatRequiredNames(mergedMissing)}`,
-      });
+      addBlock(productName, missing, names => `Richiede: ${formatRequiredNames(names)}`);
     }
   }
 
