@@ -59,6 +59,12 @@ import {
   migrateBenefitRules,
 } from "@shared/quote-benefits";
 import type { BenefitState } from "@shared/quote-benefits";
+import {
+  migrateRequirementRules,
+  computeBlockedProducts,
+  sanitizeSelection,
+  formatRequiredNames,
+} from "@shared/quote-requirements";
 import DOMPurify from "dompurify";
 import { formatDueDate } from "@shared/payment-schedule-utils";
 import type { PaymentSchedulePreview } from "@shared/payment-schedule-utils";
@@ -405,6 +411,58 @@ export default function QuotePublicViewPage() {
 
   // Aggiorna ref stabile per evitare closure stale negli useEffect con deps stabili
   benefitStatesRef.current = benefitStates;
+
+  // ===== Regole di esclusione/prerequisito (Requisiti / Esclusioni) =====
+  const requirementRules = useMemo(
+    () =>
+      quote?.type === "variabile"
+        ? migrateRequirementRules((quote as any).requirementRules ?? [])
+        : [],
+    [quote],
+  );
+
+  // Nomi dei prodotti sempre inclusi (Fissi non selezionabili + omaggi admin):
+  // contano come selezionati ai fini delle regole anche se non stanno in selectedProducts
+  const alwaysIncludedNames = useMemo(
+    () =>
+      (quote?.products ?? [])
+        .filter((p) => p.selectable === false || p.isOmaggio)
+        .map((p) => p.nome),
+    [quote?.products],
+  );
+
+  // Mappa nome prodotto → stato di blocco corrente
+  const blockedProducts = useMemo(() => {
+    if (requirementRules.length === 0) return new Map();
+    return computeBlockedProducts(requirementRules, [
+      ...selectedProducts,
+      ...alwaysIncludedNames,
+    ]);
+  }, [requirementRules, selectedProducts, alwaysIncludedNames]);
+
+  // Ref per il toast dentro l'effetto di sanificazione (evita dep instabile)
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
+  // Sanificazione centralizzata: qualunque percorso modifichi selectedProducts
+  // (checkbox, auto-fill benefit, rimozione benefit) — se un prodotto bloccato
+  // resta selezionato senza i suoi requisiti, viene rimosso a cascata con avviso.
+  // sanitizeSelection è idempotente (fixpoint), quindi l'effetto converge in un passo.
+  useEffect(() => {
+    if (requirementRules.length === 0) return;
+    const effective = [...selectedProducts, ...alwaysIncludedNames];
+    const { removed } = sanitizeSelection(requirementRules, effective);
+    // Guardia no-op: considera solo i nomi effettivamente presenti in selectedProducts
+    // (i prodotti sempre inclusi non sono rimovibili) → garantisce convergenza senza loop.
+    const removable = removed.filter((n) => selectedProducts.includes(n));
+    if (removable.length === 0) return;
+    const removedSet = new Set(removable);
+    setSelectedProducts((prev) => prev.filter((n) => !removedSet.has(n)));
+    toastRef.current({
+      title: "Servizi rimossi automaticamente",
+      description: `${formatRequiredNames(removable)}: ${removable.length === 1 ? "richiede" : "richiedono"} servizi che non sono più selezionati.`,
+    });
+  }, [requirementRules, selectedProducts, alwaysIncludedNames]);
 
   // Mappa: nome prodotto → BenefitState (se il prodotto è un omaggio in qualche regola)
   // IMPORTANTE: un prodotto può comparire in più regole. Si usa lo stato PIÙ FAVOREVOLE:
@@ -1427,6 +1485,13 @@ export default function QuotePublicViewPage() {
 
                     const isAnimating = animatingBenefits.has(product.nome);
 
+                    // Stato di blocco (Requisiti/Esclusioni): selezionabile solo se i trigger sono selezionati
+                    const blockInfo = showCheckbox
+                      ? blockedProducts.get(product.nome)
+                      : undefined;
+                    const isBlocked =
+                      !!blockInfo && !selectedProducts.includes(product.nome);
+
                     return (
                       <div
                         key={idx}
@@ -1480,6 +1545,7 @@ export default function QuotePublicViewPage() {
                                 checked={selectedProducts.includes(
                                   product.nome,
                                 )}
+                                disabled={isBlocked}
                                 onCheckedChange={(checked) => {
                                   setSelectedProducts((prev) =>
                                     checked
@@ -1487,10 +1553,11 @@ export default function QuotePublicViewPage() {
                                       : prev.filter((p) => p !== product.nome),
                                   );
                                 }}
+                                className={isBlocked ? "opacity-40 cursor-not-allowed" : ""}
                                 data-testid={`checkbox-product-mobile-${idx}`}
                               />
                               <span className="text-sm text-sage">
-                                Seleziona questo prodotto
+                                {isBlocked ? blockInfo!.message : "Seleziona questo prodotto"}
                               </span>
                             </div>
                           )}
@@ -1518,6 +1585,7 @@ export default function QuotePublicViewPage() {
                           {showCheckbox && (
                             <Checkbox
                               checked={selectedProducts.includes(product.nome)}
+                              disabled={isBlocked}
                               onCheckedChange={(checked) => {
                                 setSelectedProducts((prev) =>
                                   checked
@@ -1525,7 +1593,7 @@ export default function QuotePublicViewPage() {
                                     : prev.filter((p) => p !== product.nome),
                                 );
                               }}
-                              className="mt-1 hidden sm:flex"
+                              className={`mt-1 hidden sm:flex ${isBlocked ? "opacity-40 cursor-not-allowed" : ""}`}
                               data-testid={`checkbox-product-${idx}`}
                             />
                           )}
@@ -1656,6 +1724,11 @@ export default function QuotePublicViewPage() {
                             >
                               {product.nome}
                             </h3>
+                            {isBlocked && (
+                              <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-1 inline-flex items-center gap-1">
+                                🔒 {blockInfo!.message}
+                              </p>
+                            )}
                             {product.descrizione && (
                               <p className="text-sm text-dark-sage mt-1 leading-relaxed">
                                 {product.descrizione}

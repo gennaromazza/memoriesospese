@@ -6,6 +6,7 @@
 import { Timestamp } from 'firebase/firestore';
 import { JobType } from './jobs-types';
 import type { BenefitRule } from './quote-benefits';
+import type { RequirementRule } from './quote-requirements';
 
 /**
  * Tipo preventivo
@@ -197,6 +198,9 @@ export interface Quote {
 
   // Regole benefit inclusi automatici (solo preventivi variabili)
   benefitRules?: BenefitRule[];
+
+  // Regole di esclusione/prerequisito (solo preventivi variabili)
+  requirementRules?: RequirementRule[];
   
   // Dati job per portale pubblico
   jobInfo?: {
@@ -260,6 +264,8 @@ export interface InsertQuote {
   }>;
   // Regole benefit inclusi automatici (solo preventivi variabili)
   benefitRules?: BenefitRule[];
+  // Regole di esclusione/prerequisito (solo preventivi variabili)
+  requirementRules?: RequirementRule[];
 }
 
 /**
@@ -292,6 +298,9 @@ export interface QuoteTemplate {
 
   // Regole benefit inclusi (solo template variabili)
   benefitRules?: BenefitRule[];
+
+  // Regole di esclusione/prerequisito (solo template variabili)
+  requirementRules?: RequirementRule[];
   
   // Stato
   attivo: boolean;
@@ -317,6 +326,7 @@ export interface InsertQuoteTemplate {
   ordine?: number;
   attivo?: boolean;
   benefitRules?: BenefitRule[];
+  requirementRules?: RequirementRule[];
 }
 
 /**

@@ -6,6 +6,7 @@ import { Router, Request, Response } from "express";
 import { db, FieldValue } from "./firebase-admin.js";
 import { getAuth } from "firebase-admin/auth";
 import type { Quote, RevokedToken } from "../shared/quotes-types.js";
+import { migrateRequirementRules, findInvalidSelections } from "../shared/quote-requirements.js";
 import type { PaymentSchedule } from "../shared/payment-schedule-types.js";
 import {
   sendGmailEmail,
@@ -540,7 +541,8 @@ router.get("/public/:token", async (req: Request, res: Response) => {
     //     carica i benefit dal template aggiornato (fallback per preventivi creati prima
     //     della configurazione dei benefit sul template).
     let resolvedBenefitRules = quote.benefitRules || [];
-    if (resolvedBenefitRules.length === 0 && quote.templateId) {
+    let resolvedRequirementRules = (quote as any).requirementRules || [];
+    if ((resolvedBenefitRules.length === 0 || resolvedRequirementRules.length === 0) && quote.templateId) {
       try {
         const templateDoc = await db
           .collection("quoteTemplates")
@@ -549,9 +551,12 @@ router.get("/public/:token", async (req: Request, res: Response) => {
 
         if (templateDoc.exists) {
           const templateData = templateDoc.data();
-          if (templateData?.benefitRules && Array.isArray(templateData.benefitRules)) {
+          if (resolvedBenefitRules.length === 0 && templateData?.benefitRules && Array.isArray(templateData.benefitRules)) {
             resolvedBenefitRules = templateData.benefitRules;
             console.log(`📋 [Public Quote] Benefit rules caricati dal template ${quote.templateId}: ${resolvedBenefitRules.length} regole`);
+          }
+          if (resolvedRequirementRules.length === 0 && Array.isArray(templateData?.requirementRules)) {
+            resolvedRequirementRules = templateData.requirementRules;
           }
         }
       } catch (templateErr) {
@@ -582,6 +587,8 @@ router.get("/public/:token", async (req: Request, res: Response) => {
       templateName: quote.templateName,
       // Benefit rules: dal preventivo stesso, o dal template aggiornato come fallback
       benefitRules: resolvedBenefitRules,
+      // Regole di esclusione/prerequisito (stessa logica di fallback)
+      requirementRules: resolvedRequirementRules,
       // Per preventivi firmati: includi data firma e nome firmante (portale post-firma)
       // Espone solo clientName (non ip/userAgent) per privacy
       // Piano pagamenti indicativo (configurazione per anteprima pre-firma nel portale)
@@ -2596,6 +2603,7 @@ router.get("/quick/:token", async (req: Request, res: Response) => {
           defaultClauses: (template as any).defaultClauses || [],
           discountType: (template as any).discountType,
           discountValue: (template as any).discountValue,
+          requirementRules: (template as any).requirementRules || [],
         },
         jobTypeInfo,
         studioInfo: studioInfo
@@ -2687,6 +2695,40 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
 
     const templateDoc = templatesSnapshot.docs[0];
     const template = templateDoc.data();
+
+    // 🔒 Validazione regole di esclusione/prerequisito (server-side, anti-tampering):
+    // un prodotto bloccato non può essere selezionato se i suoi trigger non sono selezionati.
+    if (template.type === "variabile") {
+      const requirementRules = migrateRequirementRules(template.requirementRules || []);
+      if (requirementRules.length > 0) {
+        const defaultSelectableVal = template.type === "variabile";
+        const selectedKeySet = new Set<string>(Array.isArray(selectedProducts) ? selectedProducts : []);
+        const isAlwaysIncluded = (p: any) => {
+          if (p.isOmaggio === true) return true; // omaggio: sempre incluso a €0
+          const selectable = p.selectable !== undefined ? !!p.selectable : defaultSelectableVal;
+          return !selectable; // Fisso: sempre incluso
+        };
+        // Nomi "selezionati" ai fini delle regole: prodotti sempre inclusi + Extra scelti dal cliente
+        const selectedNames = (template.defaultProducts || [])
+          .filter((p: any) => isAlwaysIncluded(p) || selectedKeySet.has(p.productId || p.nome))
+          .map((p: any) => p.nome);
+        // I prodotti sempre inclusi non possono essere deselezionati dal cliente:
+        // eventuali regole che li bloccano vengono ignorate (mai 400 senza rimedio).
+        const alwaysIncludedNameSet = new Set(
+          (template.defaultProducts || []).filter(isAlwaysIncluded).map((p: any) => p.nome)
+        );
+        const invalid = findInvalidSelections(requirementRules, selectedNames)
+          .filter((i) => !alwaysIncludedNameSet.has(i.productName));
+        if (invalid.length > 0) {
+          return res.status(400).json({
+            error: "Selezione non valida",
+            message: `Alcuni servizi selezionati richiedono altri servizi non scelti: ${invalid
+              .map((i) => `"${i.productName}" (${i.message.toLowerCase()})`)
+              .join(", ")}. Aggiorna la selezione e riprova.`,
+          });
+        }
+      }
+    }
 
     // 0. Salva submission "pending" prima di qualsiasi altra operazione.
     //    Se il server crasha a metà, il record rimane pending e l'admin può recuperare i dati.
@@ -2928,6 +2970,7 @@ router.post("/quick/:token/activate", async (req: Request, res: Response) => {
       templateId: templateDoc.id,
       templateName: template.nome || "",
       benefitRules: template.benefitRules || [],
+      requirementRules: template.requirementRules || [],
       revokedTokens: [],
       auditLog: [
         {
@@ -3556,6 +3599,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
         templateId: templateDocId,
         templateName: template.nome || "",
         benefitRules: template.benefitRules || [],
+        requirementRules: template.requirementRules || [],
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         createdBy: "preventivo-rapido",
@@ -3939,6 +3983,8 @@ router.post(
         createdBy: "admin-studio",
         templateId: templateDoc.id,
         templateName: template.nome || "",
+        benefitRules: template.benefitRules || [],
+        requirementRules: template.requirementRules || [],
         revokedTokens: [],
         auditLog: [{
           id: nanoid(),

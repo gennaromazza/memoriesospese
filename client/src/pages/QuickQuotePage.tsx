@@ -44,6 +44,13 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import {
+  type RequirementRule,
+  migrateRequirementRules,
+  computeBlockedProducts,
+  sanitizeSelection,
+  formatRequiredNames,
+} from '@shared/quote-requirements';
 import type { QuoteProduct } from '@shared/quotes-types';
 import placeholderUrl from '@assets/generated_images/Custom_product_placeholder_image_f076e89e.png';
 
@@ -62,6 +69,7 @@ interface QuickQuoteData {
     defaultClauses: Array<{ text: string; required: boolean }>;
     discountType?: 'amount' | 'percent';
     discountValue?: number;
+    requirementRules?: RequirementRule[];
   };
   jobTypeInfo: {
     id: string;
@@ -323,6 +331,83 @@ export default function QuickQuotePage() {
       document.documentElement.style.removeProperty('--theme-secondary');
     };
   }, [template?.theme]);
+
+  // ===== Regole di esclusione/prerequisito (solo template variabili) =====
+  const requirementRules = useMemo(
+    () => migrateRequirementRules(template?.requirementRules ?? []),
+    [template]
+  );
+
+  // Mappe chiave (productId||nome) ↔ nome prodotto: le regole ragionano per NOME
+  const keyToName = useMemo(() => {
+    const m = new Map<string, string>();
+    template?.defaultProducts?.forEach(p => m.set(p.productId || p.nome, p.nome));
+    return m;
+  }, [template]);
+  const nameToKey = useMemo(() => {
+    const m = new Map<string, string>();
+    template?.defaultProducts?.forEach(p => m.set(p.nome, p.productId || p.nome));
+    return m;
+  }, [template]);
+
+  // Nomi selezionati ai fini delle regole (include i prodotti "Fissi" sempre inclusi)
+  const selectedNames = useMemo(
+    () => selectedProducts.map(k => keyToName.get(k) || k),
+    [selectedProducts, keyToName]
+  );
+
+  // Nomi sempre inclusi (Fissi/omaggio): non rimovibili dal cliente → mai deselezionati a cascata
+  const alwaysIncludedNameSet = useMemo(() => {
+    const s = new Set<string>();
+    template?.defaultProducts?.forEach(p => {
+      if (p.selectable === false || p.isOmaggio) s.add(p.nome);
+    });
+    return s;
+  }, [template]);
+
+  // Mappa nome prodotto → stato di blocco corrente
+  const blockedProducts = useMemo(
+    () => (template?.type === 'variabile'
+      ? computeBlockedProducts(requirementRules, selectedNames)
+      : new Map()),
+    [template, requirementRules, selectedNames]
+  );
+
+  /**
+   * Applica una modifica di selezione rispettando le regole:
+   * dopo il toggle, rimuove a cascata i prodotti rimasti bloccati e avvisa il cliente.
+   */
+  const applySelectionChange = (newKeys: string[]) => {
+    if (requirementRules.length === 0) {
+      setSelectedProducts(newKeys);
+      return;
+    }
+    const newNames = newKeys.map(k => keyToName.get(k) || k);
+    const { removed } = sanitizeSelection(requirementRules, newNames);
+    // I prodotti sempre inclusi (Fissi/omaggio) non sono mai rimovibili
+    const removable = removed.filter(n => !alwaysIncludedNameSet.has(n));
+    if (removable.length > 0) {
+      toast({
+        title: 'Servizi rimossi automaticamente',
+        description: `${formatRequiredNames(removable)}: ${removable.length === 1 ? 'richiede' : 'richiedono'} servizi che non sono più selezionati.`,
+      });
+    }
+    const removedKeySet = new Set(removable.map(n => nameToKey.get(n) || n));
+    setSelectedProducts(newKeys.filter(k => !removedKeySet.has(k)));
+  };
+
+  // Rete di sicurezza: sanifica la selezione anche per percorsi non interattivi
+  // (es. bozza ripristinata da sessionStorage con selezione non più valida).
+  useEffect(() => {
+    if (requirementRules.length === 0 || !template) return;
+    const names = selectedProducts.map(k => keyToName.get(k) || k);
+    const { removed } = sanitizeSelection(requirementRules, names);
+    // Guardia no-op: i prodotti sempre inclusi non sono rimovibili → convergenza garantita
+    const removable = removed.filter(n => !alwaysIncludedNameSet.has(n));
+    if (removable.length === 0) return;
+    const removedKeys = new Set(removable.map(n => nameToKey.get(n) || n));
+    setSelectedProducts(prev => prev.filter(k => !removedKeys.has(k)));
+  }, [requirementRules, selectedProducts, keyToName, nameToKey, alwaysIncludedNameSet, template]);
 
   const totals = useMemo(() => {
     if (!template) return { totalBeforeDiscount: 0, discountAmount: 0, totalAfterDiscount: 0 };
@@ -976,6 +1061,10 @@ export default function QuickQuotePage() {
               <CardContent className="space-y-3">
                 {groupedProducts.map((product, idx) => {
                   const isSelected = selectedProducts.includes(product.productId || product.nome);
+                  const blockInfo = template.type === 'variabile' && product.selectable !== false
+                    ? blockedProducts.get(product.nome)
+                    : undefined;
+                  const isBlocked = !!blockInfo && !isSelected;
                   const isExpanded = expandedDescriptions.has(idx);
                   const currSezione = product.sezione?.trim() || null;
                   const prevSezione = idx > 0 ? (groupedProducts[idx - 1]?.sezione?.trim() || null) : null;
@@ -1024,15 +1113,17 @@ export default function QuickQuotePage() {
                           ) : (
                             <Checkbox
                               checked={isSelected}
+                              disabled={isBlocked}
+                              aria-label={isBlocked ? `${product.nome} — ${blockInfo!.message}` : product.nome}
                               onCheckedChange={(checked) => {
                                 const key = product.productId || product.nome;
                                 if (checked) {
-                                  setSelectedProducts([...selectedProducts, key]);
+                                  applySelectionChange([...selectedProducts, key]);
                                 } else {
-                                  setSelectedProducts(selectedProducts.filter(p => p !== key));
+                                  applySelectionChange(selectedProducts.filter(p => p !== key));
                                 }
                               }}
-                              className="mt-1 flex-shrink-0"
+                              className={`mt-1 flex-shrink-0 ${isBlocked ? 'opacity-40 cursor-not-allowed' : ''}`}
                             />
                           )
                         )}
@@ -1056,6 +1147,12 @@ export default function QuickQuotePage() {
                               {formatCurrency(product.prezzo)}
                             </span>
                           </div>
+
+                          {isBlocked && (
+                            <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1 inline-flex items-center gap-1">
+                              🔒 {blockInfo!.message}
+                            </p>
+                          )}
 
                           {product.descrizione && (
                             <div className="mt-1">

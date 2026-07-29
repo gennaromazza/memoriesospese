@@ -108,6 +108,8 @@ import { Label } from "@/components/ui/label";
 import type { BenefitRule } from "@shared/quote-benefits";
 import ProductOrderEditor, { type OrderableProduct } from "./ProductOrderEditor";
 import { computeBenefitStates, migrateBenefitRules } from "@shared/quote-benefits";
+import type { RequirementRule } from "@shared/quote-requirements";
+import { migrateRequirementRules, formatRequiredNames } from "@shared/quote-requirements";
 import { useLocation } from "wouter";
 import { getAuth } from "firebase/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -401,6 +403,8 @@ export default function QuoteTemplatesManager() {
   // Benefit rules state (gestito fuori da react-hook-form come in QuoteBuilder)
   const [benefitRules, setBenefitRules] = useState<BenefitRule[]>([]);
   const [expandedBenefitRules, setExpandedBenefitRules] = useState<Set<string>>(new Set());
+  const [requirementRules, setRequirementRules] = useState<RequirementRule[]>([]);
+  const [expandedRequirementRules, setExpandedRequirementRules] = useState<Set<string>>(new Set());
 
   // Product order state — tracks the display order chosen by the admin
   const [productOrderKeys, setProductOrderKeys] = useState<string[]>([]);
@@ -673,6 +677,10 @@ export default function QuoteTemplatesManager() {
     setBenefitRules(migrateBenefitRules((template as any).benefitRules ?? []));
     setExpandedBenefitRules(new Set());
 
+    // Carica regole di esclusione/prerequisito dal template
+    setRequirementRules(migrateRequirementRules((template as any).requirementRules ?? []));
+    setExpandedRequirementRules(new Set());
+
     // Inizializza l'ordine prodotti dall'ordine salvato nel template
     const initialOrderKeys = template.defaultProducts.map((p: any) =>
       p.productId ? `cat:${p.productId}` : `cust:${p.nome?.trim() || ''}`
@@ -712,6 +720,8 @@ export default function QuoteTemplatesManager() {
     setCurrentTemplate(null);
     setBenefitRules([]);
     setExpandedBenefitRules(new Set());
+    setRequirementRules([]);
+    setExpandedRequirementRules(new Set());
     setProductOrderKeys([]);
     setCatalogProductSections({});
     setCatalogOverrides({});
@@ -990,6 +1000,11 @@ export default function QuoteTemplatesManager() {
         templateData.benefitRules = benefitRules;
       }
 
+      // Include requirement rules only for variabile templates
+      if (data.type === "variabile" && requirementRules.length > 0) {
+        templateData.requirementRules = requirementRules;
+      }
+
       return createQuoteTemplate(templateData, user!.uid);
     },
     onSuccess: () => {
@@ -1108,6 +1123,13 @@ export default function QuoteTemplatesManager() {
         updateData.benefitRules = benefitRules;
       } else {
         updateData.benefitRules = deleteField();
+      }
+
+      // Include requirement rules only for variabile templates
+      if (data.type === "variabile" && requirementRules.length > 0) {
+        updateData.requirementRules = requirementRules;
+      } else {
+        updateData.requirementRules = deleteField();
       }
 
       await updateQuoteTemplate(id, updateData);
@@ -1824,6 +1846,223 @@ export default function QuoteTemplatesManager() {
                                   <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
                                     <span className="font-medium">Anteprima messaggio (0 servizi selezionati):</span>{" "}
                                     {preview.feedbackMessage}
+                                  </div>
+                                )}
+                              </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Sezione Requisiti / Esclusioni - solo template variabili */}
+              {quoteType === "variabile" && (() => {
+                const allSelectableNames: string[] = [
+                  ...catalogProductIds.map((id: string) => {
+                    const p = catalogProducts.find((cp: any) => cp.id === id);
+                    return p?.nome ?? "";
+                  }).filter(Boolean),
+                  ...fields.filter((p) => p.nome?.trim()).map((p) => p.nome),
+                ];
+
+                const addRequirementRule = () => {
+                  const newRule: RequirementRule = {
+                    id: nanoid(),
+                    enabled: true,
+                    blockedProductNames: [],
+                    requiredProductNames: [],
+                  };
+                  setRequirementRules(prev => [...prev, newRule]);
+                  setExpandedRequirementRules(prev => new Set([...prev, newRule.id]));
+                };
+
+                const updateReqRule = (id: string, patch: Partial<RequirementRule>) => {
+                  setRequirementRules(prev =>
+                    prev.map(r => r.id === id ? { ...r, ...patch } : r)
+                  );
+                };
+
+                const removeReqRule = (id: string) => {
+                  setRequirementRules(prev => prev.filter(r => r.id !== id));
+                };
+
+                const toggleReqRuleExpand = (id: string) => {
+                  setExpandedRequirementRules(prev => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id); else next.add(id);
+                    return next;
+                  });
+                };
+
+                return (
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <Lock className="w-5 h-5 text-rose-600" />
+                          4. Requisiti / Esclusioni
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Blocca la selezione di alcuni servizi finché il cliente non sceglie i servizi richiesti (es. "Anteprima Video" richiede "Videomaker a casa").
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={addRequirementRule}
+                        className="gap-2 border-rose-300 text-rose-700 hover:bg-rose-50">
+                        <Plus className="w-4 h-4" />
+                        Aggiungi regola
+                      </Button>
+                    </div>
+
+                    {requirementRules.length === 0 && (
+                      <Card className="border-dashed border-rose-200 bg-rose-50/40">
+                        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                          <Lock className="w-8 h-8 mx-auto mb-2 text-rose-300" />
+                          Nessuna regola configurata. I clienti possono selezionare i servizi liberamente.
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <div className="space-y-3">
+                      {requirementRules.map(rule => {
+                        const isExpanded = expandedRequirementRules.has(rule.id);
+                        const isValid = rule.blockedProductNames.length > 0 && rule.requiredProductNames.length > 0;
+                        return (
+                          <Card key={rule.id} className={`border transition-colors ${rule.enabled ? "border-rose-200 bg-rose-50/30" : "border-gray-200 bg-gray-50 opacity-60"}`}>
+                            <CardHeader className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <button type="button" onClick={() => toggleReqRuleExpand(rule.id)}
+                                  className="flex-1 flex items-center flex-wrap gap-x-3 gap-y-1 text-left min-w-0">
+                                  {isExpanded
+                                    ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                  }
+                                  <span className="font-medium truncate text-sm">
+                                    {rule.blockedProductNames.length > 0
+                                      ? <><span className="text-rose-700">BLOCCATO:</span> {rule.blockedProductNames.join(', ')}</>
+                                      : <span className="text-muted-foreground italic">Nessun servizio bloccato</span>
+                                    }
+                                  </span>
+                                  {rule.requiredProductNames.length > 0 && (
+                                    <Badge variant="outline" className="flex-shrink-0 text-xs text-gray-500 border-gray-300">
+                                      richiede {formatRequiredNames(rule.requiredProductNames)}
+                                    </Badge>
+                                  )}
+                                  {!isValid && (
+                                    <Badge className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 border border-amber-300">
+                                      ⚠ Incompleta (ignorata)
+                                    </Badge>
+                                  )}
+                                </button>
+                                <Switch
+                                  checked={rule.enabled}
+                                  onCheckedChange={(v) => updateReqRule(rule.id, { enabled: v })}
+                                  aria-label="Attiva regola"
+                                />
+                                <Button type="button" variant="ghost" size="sm"
+                                  onClick={() => removeReqRule(rule.id)}
+                                  className="text-destructive hover:bg-destructive/10 flex-shrink-0 h-7 w-7 p-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </CardHeader>
+
+                            {isExpanded && (
+                              <CardContent className="px-4 pb-4 space-y-4 border-t border-rose-100 pt-4">
+
+                                {/* Servizi bloccati */}
+                                <div className="border border-rose-300 rounded-lg p-3 space-y-2 bg-rose-50/50">
+                                  <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide flex items-center gap-1.5">
+                                    <Lock className="w-3.5 h-3.5" />
+                                    Servizi bloccati
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Questi servizi saranno <strong>selezionabili solo</strong> quando il cliente ha scelto tutti i servizi richiesti qui sotto.
+                                  </p>
+                                  {allSelectableNames.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      {allSelectableNames
+                                        .filter(name => !rule.requiredProductNames.includes(name))
+                                        .map(name => {
+                                          const isSelected = rule.blockedProductNames.includes(name);
+                                          return (
+                                            <button
+                                              key={name}
+                                              type="button"
+                                              onClick={() => {
+                                                updateReqRule(rule.id, {
+                                                  blockedProductNames: isSelected
+                                                    ? rule.blockedProductNames.filter(n => n !== name)
+                                                    : [...rule.blockedProductNames, name]
+                                                });
+                                              }}
+                                              className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                                                isSelected
+                                                  ? "bg-rose-600 text-white border-rose-600"
+                                                  : "bg-white text-gray-700 border-gray-300 hover:border-rose-400 hover:bg-rose-50"
+                                              }`}
+                                            >
+                                              {isSelected && "✓ "}{name}
+                                            </button>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      Aggiungi prodotti al template per selezionare i servizi da bloccare.
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Servizi richiesti (trigger) */}
+                                <div className="border border-gray-200 rounded-lg p-3 space-y-2 bg-white">
+                                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                    Servizi richiesti (tutti)
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Il cliente deve selezionare <strong>tutti</strong> questi servizi per sbloccare quelli sopra. Se li toglie, i servizi bloccati vengono deselezionati automaticamente.
+                                  </p>
+                                  {allSelectableNames.filter(n => !rule.blockedProductNames.includes(n)).length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      {allSelectableNames
+                                        .filter(name => !rule.blockedProductNames.includes(name))
+                                        .map(name => {
+                                          const isRequired = rule.requiredProductNames.includes(name);
+                                          return (
+                                            <button
+                                              key={name}
+                                              type="button"
+                                              onClick={() => {
+                                                updateReqRule(rule.id, {
+                                                  requiredProductNames: isRequired
+                                                    ? rule.requiredProductNames.filter(n => n !== name)
+                                                    : [...rule.requiredProductNames, name]
+                                                });
+                                              }}
+                                              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                                                isRequired
+                                                  ? "bg-blue-600 text-white border-blue-600"
+                                                  : "bg-white text-gray-600 border-gray-300 hover:border-blue-400"
+                                              }`}
+                                            >
+                                              {name}
+                                            </button>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                      Aggiungi altri prodotti al template oltre a quelli bloccati.
+                                    </p>
+                                  )}
+                                </div>
+
+                                {isValid && (
+                                  <div className="text-xs rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-muted-foreground">
+                                    <span className="font-medium">Anteprima per il cliente:</span>{" "}
+                                    {rule.blockedProductNames.join(', ')} → "Richiede: {formatRequiredNames(rule.requiredProductNames)}"
                                   </div>
                                 )}
                               </CardContent>

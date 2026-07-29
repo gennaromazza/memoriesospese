@@ -1,3 +1,4 @@
+- [Requirement rules preventivi](quote-requirement-rules.md) — regole per NOME; QuickQuote usa chiavi productId||nome; "sempre inclusi" (Fissi/omaggio) mai rimossi a cascata; guardia no-op negli effect di sanificazione.
 - [Info Form field types & Instagram sync](info-form-instagram-sync.md) — InfoFormField.type vincolato in 4 punti da allineare; sync Instagram→cliente lato server nel submit del modulo.
 - [Gallery thumbnails generation](gallery-thumbnails.md) — miniature generate lato server (admin SDK bypassa le rules non deployabili da qui); foto in 2 collezioni; originali mai toccati; marcare i fallimenti permanenti.
 - [Firestore Timestamp serialization](firestore-timestamp-serialization.md) — dati via /api hanno {_seconds} (Admin SDK), Web SDK ha Timestamp/{seconds}; i parser date devono gestire entrambi o i filtri per data scartano silenziosamente i dati.

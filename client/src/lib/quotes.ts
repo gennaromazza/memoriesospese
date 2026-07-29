@@ -32,6 +32,7 @@ import type {
 import { nanoid } from 'nanoid';
 import { addTimelineEvent, updateJobStatus, recomputeJobAggregates } from './jobs';
 import { calculateQuoteTotals, validateDiscount } from '@shared/quote-utils';
+import { migrateRequirementRules, findInvalidSelections } from '@shared/quote-requirements';
 import type { QuoteProduct } from '@shared/quotes-types';
 import { removeUndefinedFields } from '@shared/firestore-utils';
 
@@ -399,6 +400,29 @@ export async function acceptQuote(data: AcceptQuoteData): Promise<void> {
     );
     if (!allAccepted) {
       throw new Error('Tutte le clausole obbligatorie devono essere accettate');
+    }
+
+    // Validazione regole Requisiti/Esclusioni: un prodotto bloccato non può essere
+    // accettato senza i suoi prodotti trigger selezionati.
+    if (quote.type === 'variabile') {
+      const reqRules = migrateRequirementRules((quote as any).requirementRules ?? []);
+      if (reqRules.length > 0) {
+        const alwaysIncludedNames = quote.products
+          .filter(p => p.selectable === false || p.isOmaggio)
+          .map(p => p.nome);
+        const selectedNames = [
+          ...(data.selectedProducts ?? []),
+          ...alwaysIncludedNames,
+        ];
+        const alwaysSet = new Set(alwaysIncludedNames);
+        const invalid = findInvalidSelections(reqRules, selectedNames)
+          .filter(i => !alwaysSet.has(i.productName));
+        if (invalid.length > 0) {
+          throw new Error(
+            `Selezione non valida: ${invalid.map(i => `"${i.productName}" (${i.message.toLowerCase()})`).join(', ')}. Aggiorna la selezione e riprova.`
+          );
+        }
+      }
     }
     
     // Upload firma su Storage (only if image data exists - legacy support)
