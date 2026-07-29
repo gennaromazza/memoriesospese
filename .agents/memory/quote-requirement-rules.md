@@ -6,6 +6,8 @@ description: Convenzioni del motore Requisiti/Esclusioni (shared/quote-requireme
 Motore puro in `shared/quote-requirements.ts` (specchia quote-benefits): `computeBlockedProducts`, `sanitizeSelection` (fixpoint a cascata), `findInvalidSelections`, `migrateRequirementRules`. Regole per NOME prodotto.
 
 **Insidie chiave:**
+- Tipo `excludes` (gruppo mutuamente esclusivo in `blockedProductNames`, ≥2): in stato sporco vince il primo membro in ORDINE GRUPPO (non ordine di selezione) — deterministico perché il server perde l'ordine di selezione (usa Set); non cambiare questa semantica in una sola superficie.
+- Il simulatore "Prova come cliente" (QuoteTemplatesManager) deve rispecchiare le pagine reali: benefit sbloccati = prodotti inclusi gratis nel totale.
 - QuickQuotePage tiene la selezione per chiave `productId || nome`; QuotePublicViewPage per `nome`. Ogni consumo delle regole deve mappare chiave↔nome.
 - "Sempre inclusi" = `selectable === false` OPPURE `isOmaggio`: contano SEMPRE come selezionati per i trigger e NON sono mai rimovibili a cascata né motivo di 400 lato server — altrimenti loop nell'useEffect di sanificazione o errori senza rimedio per il cliente.
 - Gli useEffect di sanificazione devono filtrare `removed` sui soli nomi realmente presenti nella selezione (guardia no-op) per garantire convergenza.

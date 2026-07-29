@@ -62,10 +62,21 @@ describe('regole di mutua esclusione (excludes)', () => {
     expect(computeBlockedProducts([exclusion()], []).size).toBe(0);
   });
 
-  it('stato sporco (entrambi selezionati): sanitizeSelection tiene il primo e rimuove gli altri', () => {
+  it('stato sporco (entrambi selezionati): sanitizeSelection tiene il primo in ordine GRUPPO e rimuove gli altri', () => {
     const { selection, removed } = sanitizeSelection([exclusion()], ['Album', 'Album Big']);
     expect(selection).toEqual(['Album']);
     expect(removed).toEqual(['Album Big']);
+  });
+
+  it('determinismo: vince il primo in ordine gruppo anche se selezionato per secondo', () => {
+    // Selezione in ordine inverso rispetto al gruppo ['Album', 'Album Big']
+    const { selection, removed } = sanitizeSelection([exclusion()], ['Album Big', 'Album']);
+    expect(selection).toEqual(['Album']);
+    expect(removed).toEqual(['Album Big']);
+    // Stesso risultato di computeBlockedProducts indipendentemente dall'ordine selezione
+    const b = computeBlockedProducts([exclusion()], ['Album Big', 'Album']);
+    expect(b.has('Album Big')).toBe(true);
+    expect(b.has('Album')).toBe(false);
   });
 
   it('findInvalidSelections segnala il doppione (validazione server)', () => {

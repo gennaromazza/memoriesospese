@@ -107,13 +107,16 @@ export function computeBlockedProducts(
       // Gruppo mutuamente esclusivo: serve un gruppo di almeno 2 prodotti
       const group = rule.blockedProductNames ?? [];
       if (group.length < 2) continue;
-      // Membri del gruppo selezionati, nell'ordine della selezione corrente
-      const selectedMembers = selectedProductNames.filter(name => group.includes(name));
+      // Membri del gruppo selezionati. DETERMINISTICO: in caso di stato sporco
+      // (più membri selezionati) vince il primo nell'ORDINE DEL GRUPPO configurato
+      // dall'admin, NON nell'ordine di selezione — così client, simulatore e server
+      // (che perde l'ordine di selezione) arrivano sempre allo stesso risultato.
+      const selectedMembers = group.filter(name => selectedSet.has(name));
       if (selectedMembers.length === 0) continue; // nessuno selezionato → tutti liberi
       const first = selectedMembers[0];
       for (const productName of group) {
         // Blocca tutti gli altri membri; se più di uno è selezionato (stato sporco),
-        // resta libero solo il PRIMO selezionato — gli altri vengono bloccati/rimossi
+        // resta libero solo il primo (in ordine gruppo) — gli altri vengono bloccati/rimossi
         if (productName === first) continue;
         addBlock(productName, [first], names => `Non compatibile con: ${formatRequiredNames(names)}`);
       }

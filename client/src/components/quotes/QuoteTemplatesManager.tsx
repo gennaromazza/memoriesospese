@@ -842,12 +842,23 @@ export default function QuoteTemplatesManager() {
     [benefitRules, previewEffectiveSelection, previewProducts]
   );
 
+  // Prodotti resi GRATIS dai benefit sbloccati (come nelle pagine reali del cliente)
+  const previewUnlockedBenefitNames = useMemo(() => {
+    const set = new Set<string>();
+    previewBenefitStates.forEach(b => {
+      if (b.isUnlocked) (b.rule.benefitProductNames ?? []).forEach(n => set.add(n));
+    });
+    return set;
+  }, [previewBenefitStates]);
+
   const previewSubtotal = useMemo(
     () => previewProducts.reduce((sum, p) => {
-      const included = p.selectable === false || (p as any).isOmaggio || previewSelection.includes(p.nome);
-      return included ? sum + ((p as any).isOmaggio ? 0 : (p.prezzo || 0)) : sum;
+      const isFree = (p as any).isOmaggio || previewUnlockedBenefitNames.has(p.nome);
+      const included = p.selectable === false || (p as any).isOmaggio
+        || previewUnlockedBenefitNames.has(p.nome) || previewSelection.includes(p.nome);
+      return included && !isFree ? sum + (p.prezzo || 0) : sum;
     }, 0),
-    [previewProducts, previewSelection]
+    [previewProducts, previewSelection, previewUnlockedBenefitNames]
   );
 
   const togglePreviewProduct = useCallback((nome: string, checked: boolean) => {
@@ -860,7 +871,7 @@ export default function QuoteTemplatesManager() {
       );
       const removable = removed.filter(n => !alwaysSet.has(n));
       if (removable.length > 0) {
-        setPreviewNotice(`Rimossi automaticamente: ${removable.join(', ')} (mancano i servizi richiesti)`);
+        setPreviewNotice(`Rimossi automaticamente: ${removable.join(', ')} (non più compatibili con la selezione attuale)`);
       } else {
         setPreviewNotice(null);
       }
@@ -2594,7 +2605,8 @@ export default function QuoteTemplatesManager() {
               </p>
             )}
             {previewProducts.map((p, idx) => {
-              const isAlways = p.selectable === false || (p as any).isOmaggio === true;
+              const isBenefitFree = previewUnlockedBenefitNames.has(p.nome);
+              const isAlways = p.selectable === false || (p as any).isOmaggio === true || isBenefitFree;
               const isOmaggio = (p as any).isOmaggio === true;
               const isSelected = isAlways || previewSelection.includes(p.nome);
               const blockedState = !isSelected && !isAlways ? previewBlocked.get(p.nome) : undefined;
@@ -2627,7 +2639,10 @@ export default function QuoteTemplatesManager() {
                         {isOmaggio && (
                           <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">Omaggio</Badge>
                         )}
-                        {isAlways && !isOmaggio && (
+                        {isBenefitFree && !isOmaggio && (
+                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">Incluso (benefit)</Badge>
+                        )}
+                        {isAlways && !isOmaggio && !isBenefitFree && (
                           <Badge variant="outline" className="text-[10px] text-gray-500">Sempre incluso</Badge>
                         )}
                       </span>
@@ -2636,7 +2651,7 @@ export default function QuoteTemplatesManager() {
                       )}
                     </span>
                     <span className="text-sm font-semibold whitespace-nowrap">
-                      {isOmaggio ? "€0" : `€${p.prezzo || 0}`}
+                      {(isOmaggio || isBenefitFree) ? "€0" : `€${p.prezzo || 0}`}
                     </span>
                   </label>
                 </div>
