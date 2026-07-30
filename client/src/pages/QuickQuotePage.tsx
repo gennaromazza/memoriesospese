@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
+import { suggestEmailCorrection } from '@shared/email-suggest';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -655,19 +656,33 @@ export default function QuickQuotePage() {
                       <FormField
                         control={form.control}
                         name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email *</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="email@esempio.it" {...field} />
-                            </FormControl>
-                            <FormDescription className="flex items-center gap-1 text-xs">
-                              <Mail className="w-3 h-3 flex-shrink-0" />
-                              Ti invieremo un codice di verifica su questa email
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const suggestion = suggestEmailCorrection(field.value || '');
+                          return (
+                            <FormItem>
+                              <FormLabel>Email *</FormLabel>
+                              <FormControl>
+                                <Input type="email" placeholder="email@esempio.it" {...field} />
+                              </FormControl>
+                              {suggestion && (
+                                <button
+                                  type="button"
+                                  onClick={() => field.onChange(suggestion)}
+                                  className="w-full text-left text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 hover:bg-amber-100 transition-colors"
+                                  data-testid="email-suggestion"
+                                >
+                                  ⚠️ Forse intendevi <strong className="underline">{suggestion}</strong>?
+                                  <span className="block text-amber-700/80">Tocca qui per correggere</span>
+                                </button>
+                              )}
+                              <FormDescription className="flex items-center gap-1 text-xs">
+                                <Mail className="w-3 h-3 flex-shrink-0" />
+                                Ti invieremo un codice di verifica su questa email
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}
