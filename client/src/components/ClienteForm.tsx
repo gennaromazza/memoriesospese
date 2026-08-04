@@ -41,9 +41,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ChevronDown, Receipt, ScanLine } from 'lucide-react';
-import { useState } from 'react';
-import DocumentScanDialog, { type ScannedDocumentData } from '@/components/DocumentScanDialog';
+import { ChevronDown, Receipt } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { decodeCfCompleto } from '@/lib/codice-fiscale';
 
 const clienteSchema = z.object({
   nome: z.string().min(1, 'Nome obbligatorio'),
@@ -179,18 +179,40 @@ export default function ClienteForm({
     capLookup.clearMatch();
   };
 
-  const [scanOpen, setScanOpen] = useState(false);
-
-  /** Applica i dati estratti dal documento (dopo conferma nell'anteprima). */
-  const applyScannedData = (data: ScannedDocumentData) => {
-    if (data.codiceFiscale) form.setValue('codiceFiscale', data.codiceFiscale, { shouldDirty: true, shouldValidate: true });
-    if (data.nome && !form.getValues('nome')) form.setValue('nome', data.nome, { shouldDirty: true });
-    if (data.cognome && !form.getValues('cognome')) form.setValue('cognome', data.cognome, { shouldDirty: true });
-    if (data.dataNascita) form.setValue('dataNascita', data.dataNascita, { shouldDirty: true });
-    if (data.luogoNascita) form.setValue('luogoNascita', data.luogoNascita, { shouldDirty: true });
-    // I dati del documento riguardano una persona fisica
-    if (form.getValues('tipoSoggetto') !== 'azienda') form.setValue('tipoSoggetto', 'privato');
+  // Compilazione automatica da codice fiscale digitato: data e luogo di nascita
+  const [cfAutofill, setCfAutofill] = useState<string | null>(null);
+  const cfAutofillGen = useRef(0);
+  const handleCfAutofill = async (raw: string) => {
+    const gen = ++cfAutofillGen.current;
+    const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (compact.length !== 16) { setCfAutofill(null); return; }
+    const decoded = await decodeCfCompleto(compact);
+    // Scarta i risultati arrivati in ritardo (l'utente ha già cambiato il CF)
+    if (gen !== cfAutofillGen.current) return;
+    const currentCf = (form.getValues('codiceFiscale') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (currentCf !== compact) return;
+    if (!decoded) { setCfAutofill(null); return; }
+    // Non sovrascrive valori già inseriti a mano
+    const filled: string[] = [];
+    if (decoded.dataNascita && !form.getValues('dataNascita')) {
+      form.setValue('dataNascita', decoded.dataNascita, { shouldDirty: true });
+      filled.push('data di nascita');
+    }
+    if (decoded.luogoNascita && !form.getValues('luogoNascita')) {
+      form.setValue('luogoNascita', decoded.luogoNascita, { shouldDirty: true });
+      filled.push('luogo di nascita');
+    }
+    setCfAutofill(filled.length ? `Compilati dal codice fiscale: ${filled.join(' e ')}` : null);
   };
+
+  // In modifica: se il cliente ha già un CF ma data/luogo di nascita vuoti, prova a compilarli
+  useEffect(() => {
+    const cf = form.getValues('codiceFiscale');
+    if (cf && (!form.getValues('dataNascita') || !form.getValues('luogoNascita'))) {
+      void handleCfAutofill(cf);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = (data: ClienteFormData) => {
     const emptyFiscal = isEdit ? '' : undefined;
@@ -529,18 +551,6 @@ export default function ClienteForm({
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-4 space-y-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setScanOpen(true)}
-              data-testid="button-scan-document-open"
-            >
-              <ScanLine className="mr-2 h-4 w-4" />
-              Scansiona documento
-            </Button>
-            <DocumentScanDialog open={scanOpen} onOpenChange={setScanOpen} onApply={applyScannedData} />
-
             <p className="text-xs text-muted-foreground" data-testid="text-billing-address-note">
               L'indirizzo di fatturazione coincide con quello di residenza (Via, Città, CAP e
               Provincia inseriti qui sopra): non serve reinserirlo.
@@ -595,12 +605,21 @@ export default function ClienteForm({
                     <FormControl>
                       <Input
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          void handleCfAutofill(e.target.value);
+                        }}
                         placeholder="RSSMRA85M01H501Q"
                         maxLength={16}
                         className="uppercase"
                         data-testid="input-codice-fiscale"
                       />
                     </FormControl>
+                    {cfAutofill && (
+                      <p className="text-xs text-muted-foreground" data-testid="text-cf-autofill">
+                        {cfAutofill}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
