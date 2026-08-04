@@ -61,6 +61,33 @@ BNCLRA80A41F839F`;
     expect(r.sesso).toBe('F');
   });
 
+  it('legge la MRZ sul retro della CIE (fonte prioritaria)', () => {
+    // MRZ TD1: riga1 tipo+ITA+numero doc+CF, riga2 nascita/sesso/scadenza, riga3 nomi
+    const text = `C<ITACA12345AA4<<<<<<<<<<<<<<<
+8001014F3003159ITA<<<<<<<<<<<2
+BIANCHI<<LAURA<MARIA<<<<<<<<<<
+BNCLRA80A41F839F`;
+    const r = parseOcrText(text);
+    expect(r.tipoDocumento).toBe('cie');
+    expect(r.cognome).toBe('BIANCHI');
+    expect(r.nome).toBe('LAURA MARIA');
+    expect(r.numeroDocumento).toBe('CA12345AA');
+    expect(r.dataNascita).toBe('1980-01-01');
+    expect(r.sesso).toBe('F');
+    expect(r.scadenza).toBe('2030-03-15');
+    expect(r.codiceFiscale).toBe('BNCLRA80A41F839F');
+  });
+
+  it('MRZ con confusioni OCR nelle date (O al posto di 0)', () => {
+    const text = `C<ITACA12345AA4<<<<<<<<<<<<<<<
+8OO1014F3OO3159ITA<<<<<<<<<<<2
+ROSSI<<MARIO<<<<<<<<<<<<<<<<<<`;
+    const r = parseOcrText(text);
+    expect(r.dataNascita).toBe('1980-01-01');
+    expect(r.scadenza).toBe('2030-03-15');
+    expect(r.cognome).toBe('ROSSI');
+  });
+
   it('documento non riconosciuto', () => {
     const r = parseOcrText('foto di un gatto');
     expect(r.tipoDocumento).toBe('sconosciuto');

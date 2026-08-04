@@ -18,5 +18,8 @@ description: scelte e trucchi per la scansione tessera sanitaria/CIE senza servi
 - NON passare a Tesseract buffer che sharp non decodifica: il worker emette un errore non catturabile (unhandled) — se sharp fallisce, saltare l'OCR e ritornare testo vuoto.
 - Route protetta con `requireAdmin` (email allowlist) oltre a `authenticateFirebase` — richiesto da code review per PII e abuso.
 
+- Per la CIE la fonte più affidabile è la **MRZ sul retro** (3 righe TD1, font OCR-B): `parseMrz` ha priorità su etichette/CF per nome, cognome, date e numero documento.
+- Il json parser globale di Express (100kb) scatta PRIMA di quello per-router: le route con payload grossi vanno **escluse dal parser globale** in server/index.ts, non basta il `json({limit})` sul router.
+
 # Places: CAP per città
 `places:searchText` include `postal_code` SOLO per città a CAP unico (Milano/Roma → assente): perfetto per compilare il CAP senza indovinare; per alcune città piccole può comunque mancare (es. Grumo Nevano) → degradare senza errore.

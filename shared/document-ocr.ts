@@ -166,6 +166,73 @@ function valueAfterLabel(lines: string[], labelRe: RegExp): string | undefined {
 }
 
 /**
+ * MRZ (Machine Readable Zone) — le 3 righe in basso sul retro della CIE
+ * (formato TD1, ICAO 9303): riga 1 = tipo+paese+numero documento (+CF),
+ * riga 2 = data nascita, sesso, scadenza; riga 3 = COGNOME<<NOME.
+ * È la fonte più affidabile perché stampata in font OCR-B apposta per la lettura.
+ */
+interface MrzData {
+  cognome?: string;
+  nome?: string;
+  dataNascita?: string;
+  sesso?: 'M' | 'F';
+  scadenza?: string;
+  numeroDocumento?: string;
+}
+
+function mrzDate(s: string, kind: 'birth' | 'expiry'): string | undefined {
+  const fixed = s.split('').map((c) => (/\d/.test(c) ? c : TO_DIGIT[c] || c)).join('');
+  if (!/^\d{6}$/.test(fixed)) return undefined;
+  const yy = Number(fixed.slice(0, 2));
+  const mm = Number(fixed.slice(2, 4));
+  const dd = Number(fixed.slice(4, 6));
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return undefined;
+  const currentYY = new Date().getFullYear() % 100;
+  // Nascita: nel passato; scadenza: tipicamente nel futuro (2000+)
+  const year = kind === 'birth' ? (yy <= currentYY ? 2000 + yy : 1900 + yy) : 2000 + yy;
+  return `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+}
+
+export function parseMrz(rawText: string): MrzData {
+  // Righe candidate MRZ: lunghe, solo A-Z 0-9 e "<" (dopo pulizia spazi)
+  const lines = rawText
+    .toUpperCase()
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+/g, ''))
+    .filter((l) => l.length >= 20 && /^[A-Z0-9<]+$/.test(l) && l.includes('<'));
+  if (lines.length === 0) return {};
+
+  const out: MrzData = {};
+
+  // Riga 1: inizia con C<ITA o CA/CI + ITA — numero documento nei 9 char successivi
+  const l1 = lines.find((l) => /^[CI][A-Z<]ITA/.test(l));
+  if (l1) {
+    const num = l1.slice(5, 14).replace(/</g, '');
+    if (/^[A-Z0-9]{7,9}$/.test(num)) out.numeroDocumento = num;
+  }
+
+  // Riga 2: AAMMGG + check + sesso + AAMMGG (scadenza) + check + ITA
+  const l2 = lines.find((l) => /^[0-9OIL]{6}[0-9OIL][MF<][0-9OIL]{6}/.test(l));
+  if (l2) {
+    out.dataNascita = mrzDate(l2.slice(0, 6), 'birth');
+    const sex = l2[7];
+    if (sex === 'M' || sex === 'F') out.sesso = sex;
+    out.scadenza = mrzDate(l2.slice(8, 14), 'expiry');
+  }
+
+  // Riga 3: COGNOME<<NOME (i "<" singoli separano le parole)
+  const l3 = lines.find((l) => l.includes('<<') && /^[A-Z<]+$/.test(l) && !/^[CI][A-Z<]ITA/.test(l));
+  if (l3) {
+    const [sur, given] = l3.split('<<');
+    const clean = (s?: string) => s?.replace(/</g, ' ').trim().replace(/\s+/g, ' ') || undefined;
+    out.cognome = clean(sur);
+    out.nome = clean(given);
+  }
+
+  return out;
+}
+
+/**
  * Interpreta il testo OCR di tessera sanitaria / CIE ed estrae i dati.
  * Data di nascita e sesso vengono decodificati dal codice fiscale stesso
  * (più affidabile della lettura OCR delle date).
@@ -184,11 +251,13 @@ export function parseOcrText(rawText: string): ExtractedDocumentData {
   const compact = upper.replace(/[^A-Z0-9]/g, '');
   const codiceFiscale = findCodiceFiscale(compact);
 
-  // Nome/cognome: prova prima a riconoscerli usando il CF come chiave
-  // (le prime 6 lettere del CF codificano cognome e nome), poi con le etichette
+  // MRZ (retro CIE): fonte più affidabile per nome, cognome, date e numero documento
+  const mrz = parseMrz(rawText);
+
+  // Nome/cognome: 1) MRZ, 2) riconoscimento tramite CF, 3) etichette
   const fromCf = codiceFiscale ? matchNamesFromCf(upper, codiceFiscale) : {};
-  const cognome = fromCf.cognome || valueAfterLabel(lines, /COGNOME\b(\s*\/\s*SURNAME)?/);
-  const nome = fromCf.nome || valueAfterLabel(lines, /\bNOME\b(\s*\/\s*NAME)?/);
+  const cognome = mrz.cognome || fromCf.cognome || valueAfterLabel(lines, /COGNOME\b(\s*\/\s*SURNAME)?/);
+  const nome = mrz.nome || fromCf.nome || valueAfterLabel(lines, /\bNOME\b(\s*\/\s*NAME)?/);
   // Luogo di nascita: etichetta dedicata, altrimenti pattern "CITTÀ (PR)" nel testo
   const luogoNascita =
     valueAfterLabel(lines, /LUOGO\s+(E\s+DATA\s+)?DI\s+NASCITA|PLACE\s+OF\s+BIRTH/) ||
@@ -206,16 +275,18 @@ export function parseOcrText(rawText: string): ExtractedDocumentData {
 
   const decoded = codiceFiscale ? decodeCodiceFiscale(codiceFiscale) : {};
 
+  const hasMrz = Boolean(mrz.dataNascita || mrz.numeroDocumento || mrz.cognome);
   return {
-    tipoDocumento,
+    // Se c'è la MRZ è sicuramente una CIE (retro)
+    tipoDocumento: tipoDocumento === 'sconosciuto' && hasMrz ? 'cie' : tipoDocumento,
     codiceFiscale,
     nome: cleanName(nome),
     cognome: cleanName(cognome),
-    sesso: decoded.sesso,
-    dataNascita: decoded.dataNascita,
+    sesso: decoded.sesso || mrz.sesso,
+    dataNascita: decoded.dataNascita || mrz.dataNascita,
     luogoNascita: cleanName(luogoNascita),
-    numeroDocumento,
-    scadenza,
+    numeroDocumento: mrz.numeroDocumento || numeroDocumento,
+    scadenza: mrz.scadenza || scadenza,
   };
 }
 
