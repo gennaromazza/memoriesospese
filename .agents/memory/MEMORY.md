@@ -25,5 +25,6 @@
 - [Orientamento: schermo fisico, non media query](orientation-media-query-keyboard.md) — con interactive-widget=resizes-content la tastiera falsa (orientation:portrait); usare usePhoneOrientation/screen.orientation.
 - [Calendar event ↔ Job association](calendar-job-association.md) — link in job.linkedCalendarEventIds[] (no collezione dedicata); risolto in GET /events; ogni write deve calendarCache.clear() o link stale 2min.
 - [Firestore vieta array annidati](firestore-nested-arrays.md) — write con array-di-array fallisce a runtime (INVALID_ARGUMENT); avvolgere il livello interno in mappe {points:[...]} e riconvertire in lettura.
+- [Fixture e2e nel Firestore di produzione](e2e-fixtures-prod-firestore.md) — i task env hanno i secrets: test e2e col vero Admin SDK sporcano il DB reale; usare mock, ripulire per prefisso code.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
 - [Server TS target < ES2020](server-ts-target.md) — niente BigInt literal (0n/1n) nel codice server: tsc fallisce; usare BigInt(0)/BigInt(1) (tsx esegue comunque, ma il typecheck no).
