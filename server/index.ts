@@ -15,6 +15,7 @@ import importRoutes from './import-routes.js';
 import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
+import placesRoutes from './places-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
 import labRoutes, { runLabShipmentExpiryCheck } from './lab-routes.js';
 import productsRoutes from './products-routes.js';
@@ -111,6 +112,10 @@ async function startServer() {
     console.log('📆 Calendar API routes mounted at /api/calendar');
 
     app.use('/api/receipts', receiptRoutes);
+
+    app.use('/api/places', placesRoutes);
+    console.log('📍 Places API routes mounted at /api/places');
+
     console.log('🧾 Receipt API routes mounted at /api/receipts');
 
     // Registra routes collaboratori

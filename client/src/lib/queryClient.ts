@@ -105,7 +105,8 @@ export async function apiRequest(
     '/api/reminders/', // Reminder endpoints requiring auth
     '/api/jobs', // Job endpoints requiring auth (matches /api/jobs, /api/jobs/, /api/jobs?...)
     '/api/migrations/', // Migration endpoints requiring auth
-    '/api/photobooks' // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)
+    '/api/photobooks', // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)
+    '/api/places' // Google Places proxy (autocomplete indirizzi) requiring auth
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
@@ -165,7 +166,8 @@ export const getQueryFn: <T>(options: {
       '/api/quotes/',
       '/api/booking/',
       '/api/calendar/',
-      '/api/consultations/v2/' // All V2 consultation endpoints except public ones
+      '/api/consultations/v2/', // All V2 consultation endpoints except public ones
+      '/api/places' // Google Places proxy (autocomplete indirizzi) requiring auth
     ];
     
     // Check specifico per consultations: tutti tranne i pubblici

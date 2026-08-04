@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Save, X, Instagram, ExternalLink, Info } from 'lucide-react';
+import { Save, X, Instagram, ExternalLink, Info, MapPin, Loader2 } from 'lucide-react';
+import { useAddressAutocomplete, useCapLookup } from '@/hooks/use-address-autocomplete';
 import { useWatch } from 'react-hook-form';
 import {
   Tooltip,
@@ -131,6 +132,42 @@ export default function ClienteForm({
 
   const instagramRaw = useWatch({ control: form.control, name: 'instagram' });
   const instagramHandle = instagramRaw?.trim().replace(/^@+/, '').trim() || '';
+
+  // Autocompletamento indirizzo Google (degrada a input libero se non disponibile)
+  const addressAc = useAddressAutocomplete();
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [resolvingPlace, setResolvingPlace] = useState(false);
+  const capLookup = useCapLookup();
+  const capValue = useWatch({ control: form.control, name: 'cap' });
+  const cittaValue = useWatch({ control: form.control, name: 'citta' });
+
+  const handleSelectSuggestion = async (placeId: string) => {
+    setShowSuggestions(false);
+    setResolvingPlace(true);
+    const address = await addressAc.resolveDetails(placeId);
+    setResolvingPlace(false);
+    if (!address) return;
+    if (address.via) form.setValue('via', address.via, { shouldDirty: true });
+    if (address.citta) form.setValue('citta', address.citta, { shouldDirty: true });
+    if (address.cap) form.setValue('cap', address.cap, { shouldDirty: true });
+    if (address.provincia) form.setValue('provincia', address.provincia, { shouldDirty: true });
+    capLookup.clearMatch();
+  };
+
+  // Suggerimento coerenza CAP↔città (mai bloccante)
+  const capMismatch =
+    capLookup.match &&
+    capLookup.match.citta &&
+    (cittaValue?.trim() || '') !== '' &&
+    capLookup.match.citta.toLowerCase() !== cittaValue!.trim().toLowerCase();
+  const capFillSuggestion =
+    capLookup.match && capLookup.match.citta && !(cittaValue?.trim());
+  const applyCapMatch = () => {
+    if (!capLookup.match) return;
+    form.setValue('citta', capLookup.match.citta, { shouldDirty: true });
+    if (capLookup.match.provincia) form.setValue('provincia', capLookup.match.provincia, { shouldDirty: true });
+    capLookup.clearMatch();
+  };
 
   const handleSubmit = (data: ClienteFormData) => {
     const emptyFiscal = isEdit ? '' : undefined;
@@ -328,13 +365,48 @@ export default function ClienteForm({
               name="via"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Via</FormLabel>
+                  <FormLabel className="flex items-center gap-1.5">
+                    Via
+                    {resolvingPlace && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  </FormLabel>
                   <FormControl>
-                    <Input 
-                      {...field} 
-                      placeholder="Via Roma, 123" 
-                      data-testid="input-via"
-                    />
+                    <div className="relative">
+                      <Input
+                        {...field}
+                        placeholder="Via Roma, 123"
+                        data-testid="input-via"
+                        autoComplete="off"
+                        onChange={(e) => {
+                          field.onChange(e);
+                          addressAc.search(e.target.value);
+                          setShowSuggestions(true);
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      />
+                      {showSuggestions && addressAc.suggestions.length > 0 && (
+                        <div
+                          className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md"
+                          data-testid="address-suggestions"
+                        >
+                          {addressAc.suggestions.map((s) => (
+                            <button
+                              key={s.placeId}
+                              type="button"
+                              className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectSuggestion(s.placeId);
+                              }}
+                              data-testid={`address-suggestion-${s.placeId}`}
+                            >
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              <span>{s.text}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -367,13 +439,31 @@ export default function ClienteForm({
               <FormItem>
                 <FormLabel>CAP</FormLabel>
                 <FormControl>
-                  <Input 
-                    {...field} 
-                    placeholder="20100" 
+                  <Input
+                    {...field}
+                    placeholder="20100"
                     data-testid="input-cap"
+                    onChange={(e) => {
+                      field.onChange(e);
+                      capLookup.lookup(e.target.value);
+                    }}
                   />
                 </FormControl>
                 <FormMessage />
+                {(capMismatch || capFillSuggestion) && capLookup.match && (
+                  <button
+                    type="button"
+                    onClick={applyCapMatch}
+                    className="mt-1 flex items-center gap-1 text-xs text-amber-600 hover:underline text-left"
+                    data-testid="button-apply-cap-match"
+                  >
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span>
+                      Il CAP {capLookup.match.cap} corrisponde a {capLookup.match.citta}
+                      {capLookup.match.provincia ? ` (${capLookup.match.provincia})` : ''} — clicca per applicare
+                    </span>
+                  </button>
+                )}
               </FormItem>
             )}
           />
