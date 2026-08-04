@@ -107,7 +107,6 @@ export async function apiRequest(
     '/api/migrations/', // Migration endpoints requiring auth
     '/api/photobooks', // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)
     '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
-    '/api/document-ocr' // OCR documenti identità requiring auth
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
@@ -169,7 +168,6 @@ export const getQueryFn: <T>(options: {
       '/api/calendar/',
       '/api/consultations/v2/', // All V2 consultation endpoints except public ones
       '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
-      '/api/document-ocr' // OCR documenti identità requiring auth
     ];
     
     // Check specifico per consultations: tutti tranne i pubblici
