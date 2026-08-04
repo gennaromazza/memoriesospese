@@ -1,6 +1,13 @@
 import { Cliente } from '@shared/clienti-types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, MessageCircle, Edit, Clock, MapPin, Instagram, Copy, Check, Save } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Mail, Phone, MessageCircle, Edit, Clock, MapPin, Instagram, Copy, Check, Save, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TimeInput } from '@/components/ui/time-input';
@@ -17,8 +24,17 @@ interface ClienteJobCardProps {
   onAppuntamentoSave?: (clienteId: string, orario: string, note: string) => Promise<void>;
 }
 
+/** True se il cliente ha almeno un dato di fatturazione compilato */
+function hasBillingData(c: Cliente): boolean {
+  return Boolean(
+    c.codiceFiscale || c.partitaIva || c.ragioneSociale || c.codiceSdi || c.pec ||
+    c.dataNascita || c.luogoNascita
+  );
+}
+
 export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, onEdit, onAppuntamentoSave }: ClienteJobCardProps) {
   const [copiedInstagram, setCopiedInstagram] = useState(false);
+  const [billingOpen, setBillingOpen] = useState(false);
   const [orario, setOrario] = useState(appuntamento?.orarioAppuntamento || '');
   const [note, setNote] = useState(appuntamento?.noteAppuntamento || '');
   const [saving, setSaving] = useState(false);
@@ -282,8 +298,61 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                 <TooltipContent>Apri profilo Instagram</TooltipContent>
               </Tooltip>
             )}
+            {hasBillingData(cliente) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBillingOpen(true)}
+                    data-testid={`button-billing-${cliente.id}`}
+                  >
+                    <Receipt className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Vedi dati di fatturazione</TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
+
+        {/* Dialog dati di fatturazione */}
+        <Dialog open={billingOpen} onOpenChange={setBillingOpen}>
+          <DialogContent className="sm:max-w-md" data-testid={`dialog-billing-${cliente.id}`}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Dati di fatturazione
+              </DialogTitle>
+              <DialogDescription>
+                {cliente.nome} {cliente.cognome}
+              </DialogDescription>
+            </DialogHeader>
+            <dl className="space-y-1.5 text-sm">
+              {([
+                ['Tipo soggetto', cliente.tipoSoggetto === 'azienda' ? 'Azienda' : cliente.tipoSoggetto === 'privato' ? 'Privato' : undefined],
+                ['Codice fiscale', cliente.codiceFiscale],
+                ['Partita IVA', cliente.partitaIva],
+                ['Ragione sociale', cliente.ragioneSociale],
+                ['Codice SDI', cliente.codiceSdi],
+                ['PEC', cliente.pec],
+                ['Data di nascita', cliente.dataNascita],
+                ['Luogo di nascita', cliente.luogoNascita],
+                ['Indirizzo', [cliente.via, [cliente.cap, cliente.citta].filter(Boolean).join(' '), cliente.provincia].filter(Boolean).join(', ') || undefined],
+              ] as Array<[string, string | undefined]>)
+                .filter(([, v]) => v)
+                .map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="text-right font-medium break-all">{value}</dd>
+                  </div>
+                ))}
+            </dl>
+            <p className="text-xs text-muted-foreground">
+              L'indirizzo di fatturazione coincide con quello di residenza del cliente.
+            </p>
+          </DialogContent>
+        </Dialog>
 
         {onViewDetails && (
           <Button

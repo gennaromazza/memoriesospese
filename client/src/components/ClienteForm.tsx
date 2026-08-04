@@ -541,6 +541,11 @@ export default function ClienteForm({
             </Button>
             <DocumentScanDialog open={scanOpen} onOpenChange={setScanOpen} onApply={applyScannedData} />
 
+            <p className="text-xs text-muted-foreground" data-testid="text-billing-address-note">
+              L'indirizzo di fatturazione coincide con quello di residenza (Via, Città, CAP e
+              Provincia inseriti qui sopra): non serve reinserirlo.
+            </p>
+
             <FormField
               control={form.control}
               name="tipoSoggetto"

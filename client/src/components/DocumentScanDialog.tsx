@@ -5,7 +5,7 @@
  *
  * Le foto NON vengono salvate: servono solo per l'estrazione.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
-import { Camera, Loader2, ScanLine, AlertTriangle, CheckCircle2, X } from 'lucide-react';
+import { Camera, ImagePlus, Loader2, ScanLine, AlertTriangle, CheckCircle2, X } from 'lucide-react';
 
 export interface ScannedDocumentData {
   tipoDocumento: 'tessera_sanitaria' | 'cie' | 'sconosciuto';
@@ -44,7 +44,7 @@ interface DocumentScanDialogProps {
 const MAX_DIMENSION = 1600;
 
 /** Ridimensiona l'immagine lato client per contenere il payload. */
-async function fileToResizedBase64(file: File): Promise<{ data: string; mimeType: string }> {
+async function fileToResizedBase64(file: Blob): Promise<{ data: string; mimeType: string }> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
@@ -59,16 +59,73 @@ async function fileToResizedBase64(file: File): Promise<{ data: string; mimeType
 }
 
 export default function DocumentScanDialog({ open, onOpenChange, onApply }: DocumentScanDialogProps) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<Blob[]>([]);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   // Generazione scansioni: chiudere/annullare invalida le risposte in volo
   const scanGenRef = useRef(0);
 
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  };
+
+  const startCamera = async () => {
+    setError(null);
+    setResult(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch {
+      setError('Non riesco ad accedere alla fotocamera: consenti l\'accesso dal browser oppure carica una foto');
+    }
+  };
+
+  // Collega lo stream al video quando la vista fotocamera è visibile
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraActive]);
+
+  // Spegni la fotocamera se il componente viene smontato
+  useEffect(() => stopCamera, []);
+
+  const captureShot = () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        setFiles((prev) => {
+          const next = [...prev, blob].slice(0, 2);
+          if (next.length >= 2) stopCamera();
+          return next;
+        });
+      },
+      'image/jpeg',
+      0.92
+    );
+  };
+
   const reset = () => {
     scanGenRef.current += 1;
+    stopCamera();
     setFiles([]);
     setError(null);
     setResult(null);
@@ -178,17 +235,69 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
             onChange={(e) => handleFilesSelected(e.target.files)}
             data-testid="input-document-photos"
           />
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => inputRef.current?.click()}
-            disabled={scanning}
-            data-testid="button-choose-document-photo"
-          >
-            <Camera className="mr-2 h-4 w-4" />
-            {files.length > 0 ? `${files.length} foto selezionat${files.length > 1 ? 'e' : 'a'} — cambia` : 'Scatta o scegli foto'}
-          </Button>
+          {cameraActive ? (
+            <div className="space-y-2" data-testid="camera-view">
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className="w-full rounded-md border bg-black"
+                data-testid="camera-preview"
+              />
+              <div className="flex gap-2">
+                <Button type="button" className="flex-1" onClick={captureShot} data-testid="button-capture-shot">
+                  <Camera className="mr-2 h-4 w-4" />
+                  {files.length === 0 ? 'Scatta il fronte' : 'Scatta il retro'}
+                </Button>
+                {files.length > 0 && (
+                  <Button type="button" variant="outline" onClick={stopCamera} data-testid="button-camera-done">
+                    Ho finito
+                  </Button>
+                )}
+              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                Inquadra il documento ben illuminato e dritto{files.length > 0 ? ' — il retro serve solo per la carta d\'identità' : ''}
+              </p>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={startCamera}
+                disabled={scanning}
+                data-testid="button-open-camera"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                Apri fotocamera
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => inputRef.current?.click()}
+                disabled={scanning}
+                data-testid="button-choose-document-photo"
+              >
+                <ImagePlus className="mr-2 h-4 w-4" />
+                Carica foto
+              </Button>
+            </div>
+          )}
+
+          {files.length > 0 && (
+            <p className="text-center text-xs text-muted-foreground" data-testid="text-photos-count">
+              {files.length} foto pront{files.length > 1 ? 'e' : 'a'} per la lettura
+              <button
+                type="button"
+                className="ml-2 underline"
+                onClick={() => { setFiles([]); setResult(null); setError(null); }}
+                data-testid="button-clear-photos"
+              >
+                ricomincia
+              </button>
+            </p>
+          )}
 
           {files.length > 0 && !result && (
             <Button
