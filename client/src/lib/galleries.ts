@@ -58,7 +58,6 @@ export interface Gallery {
   // Photo Selection Mode
   selectionEnabled?: boolean;
   selectionMode?: 'like' | 'dislike'; // 'like' = seleziona le buone (default), 'dislike' = segna le da escludere
-  selectionExcludedChapterIds?: string[]; // Capitoli le cui foto NON partecipano alla selezione (restano comunque visibili)
   unlimitedSelection?: boolean; // Selezione libera senza limite foto
   requiredPhotoCount?: number;
   selectionStatus?: 'pending' | 'completed';
@@ -120,6 +119,7 @@ export interface Chapter {
   coverPhotoId?: string;
   coverPhotoUrl?: string; // URL miniatura capitolo per visualizzazione card
   coverPhotoPosition?: { x: number; y: number }; // Posizione fuoco immagine (0-100, default 50/50)
+  excludeFromSelection?: boolean; // Se true, le foto del capitolo sono visibili ma NON selezionabili (selezione normale e inversa)
   createdAt?: any;
   updatedAt?: any;
 }
@@ -628,7 +628,6 @@ export class GalleryService {
         hasSpecialPin: !!galleryData.specialPin, // SICURO: solo boolean, mai esporre il PIN
         selectionEnabled: galleryData.selectionEnabled || false,
         selectionMode: galleryData.selectionMode || 'like',
-        selectionExcludedChapterIds: galleryData.selectionExcludedChapterIds || [],
         unlimitedSelection: galleryData.unlimitedSelection === true,
         requiredPhotoCount: galleryData.requiredPhotoCount,
         selectionStatus: galleryData.selectionStatus || 'pending',

@@ -624,10 +624,10 @@ export default function Gallery() {
   // Stato per foto escluse in modalità dislike
   const [dislikedPhotoIds, setDislikedPhotoIds] = useState<Set<string>>(new Set());
 
-  // 📖 Capitoli esclusi dalla selezione: le foto restano visibili ma non selezionabili
+  // 📖 Capitoli esclusi dalla selezione (flag sul capitolo): foto visibili ma non selezionabili
   const excludedChapterIds = useMemo(
-    () => new Set(galleryData?.selectionExcludedChapterIds || []),
-    [galleryData?.selectionExcludedChapterIds]
+    () => new Set((galleryData?.chapters || []).filter(ch => ch.excludeFromSelection === true).map(ch => ch.id)),
+    [galleryData?.chapters]
   );
   const isPhotoExcludedFromSelection = useCallback(
     (photo: Photo) => {

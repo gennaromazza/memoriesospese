@@ -21,7 +21,8 @@ export class ChapterService {
   static async createChapter(
     galleryId: string, 
     titolo: string, 
-    descrizione?: string
+    descrizione?: string,
+    excludeFromSelection?: boolean
   ): Promise<Chapter> {
     const galleryRef = doc(db, 'galleries', galleryId);
     
@@ -29,6 +30,7 @@ export class ChapterService {
       id: nanoid(10),
       titolo,
       descrizione: descrizione || '',
+      excludeFromSelection: excludeFromSelection === true,
       ordine: Date.now(),
       createdAt: new Date(),
       updatedAt: new Date()
@@ -50,7 +52,7 @@ export class ChapterService {
     galleryId: string,
     gallery: Gallery,
     chapterId: string,
-    updates: Partial<Pick<Chapter, 'titolo' | 'descrizione' | 'coverPhotoId' | 'coverPhotoUrl' | 'coverPhotoPosition'>>
+    updates: Partial<Pick<Chapter, 'titolo' | 'descrizione' | 'coverPhotoId' | 'coverPhotoUrl' | 'coverPhotoPosition' | 'excludeFromSelection'>>
   ): Promise<void> {
     const galleryRef = doc(db, 'galleries', galleryId);
     

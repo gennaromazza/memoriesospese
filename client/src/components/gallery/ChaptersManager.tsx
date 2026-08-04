@@ -111,6 +111,11 @@ const ChapterItem = memo(({
         {chapter.descrizione && (
           <p className="text-xs text-gray-500 truncate">{chapter.descrizione}</p>
         )}
+        {chapter.excludeFromSelection && (
+          <Badge variant="outline" className="text-[10px] mt-0.5 border-amber-400 text-amber-700 bg-amber-50">
+            Escluso da selezioni
+          </Badge>
+        )}
       </div>
       
       <Badge variant="secondary" className="text-xs shrink-0">
@@ -383,6 +388,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [newChapterDescription, setNewChapterDescription] = useState('');
+  const [newChapterExcludeFromSelection, setNewChapterExcludeFromSelection] = useState(false);
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   // Position editor
   const [positionEditorPhoto, setPositionEditorPhoto] = useState<Photo | null>(null);
@@ -441,13 +447,14 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
 
   const createChapterMutation = useMutation({
     mutationFn: async () => {
-      return ChapterService.createChapter(galleryId, newChapterTitle, newChapterDescription);
+      return ChapterService.createChapter(galleryId, newChapterTitle, newChapterDescription, newChapterExcludeFromSelection);
     },
     onSuccess: () => {
       toast({ title: 'Capitolo creato', description: `"${newChapterTitle}" aggiunto alla galleria` });
       setShowCreateDialog(false);
       setNewChapterTitle('');
       setNewChapterDescription('');
+      setNewChapterExcludeFromSelection(false);
       queryClient.invalidateQueries({ queryKey: ['gallery', galleryId] });
     },
     onError: (err) => {
@@ -684,6 +691,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
     setEditingChapter(chapter);
     setNewChapterTitle(chapter.titolo);
     setNewChapterDescription(chapter.descrizione || '');
+    setNewChapterExcludeFromSelection(chapter.excludeFromSelection === true);
     setShowEditDialog(true);
   };
 
@@ -1077,6 +1085,21 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                 rows={3}
               />
             </div>
+            <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <Checkbox
+                checked={newChapterExcludeFromSelection}
+                onCheckedChange={(v) => setNewChapterExcludeFromSelection(v === true)}
+                className="mt-0.5"
+                data-testid="checkbox-exclude-from-selection-create"
+              />
+              <span className="text-sm">
+                <span className="font-medium">Escludi da future selezioni</span>
+                <span className="block text-xs text-gray-600 mt-0.5">
+                  Le foto di questo capitolo restano visibili al cliente ma non si potranno selezionare
+                  (vale sia per la selezione normale che per quella inversa).
+                </span>
+              </span>
+            </label>
           </div>
           
           <DialogFooter>
@@ -1122,6 +1145,21 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                 rows={3}
               />
             </div>
+            <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-amber-200 bg-amber-50">
+              <Checkbox
+                checked={newChapterExcludeFromSelection}
+                onCheckedChange={(v) => setNewChapterExcludeFromSelection(v === true)}
+                className="mt-0.5"
+                data-testid="checkbox-exclude-from-selection-edit"
+              />
+              <span className="text-sm">
+                <span className="font-medium">Escludi da future selezioni</span>
+                <span className="block text-xs text-gray-600 mt-0.5">
+                  Le foto di questo capitolo restano visibili al cliente ma non si potranno selezionare
+                  (vale sia per la selezione normale che per quella inversa).
+                </span>
+              </span>
+            </label>
           </div>
           
           <DialogFooter>
@@ -1135,7 +1173,8 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                     chapterId: editingChapter.id,
                     updates: { 
                       titolo: newChapterTitle, 
-                      descrizione: newChapterDescription 
+                      descrizione: newChapterDescription,
+                      excludeFromSelection: newChapterExcludeFromSelection
                     }
                   });
                 }
