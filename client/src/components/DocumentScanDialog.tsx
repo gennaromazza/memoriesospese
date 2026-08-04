@@ -64,8 +64,11 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Generazione scansioni: chiudere/annullare invalida le risposte in volo
+  const scanGenRef = useRef(0);
 
   const reset = () => {
+    scanGenRef.current += 1;
     setFiles([]);
     setError(null);
     setResult(null);
@@ -91,6 +94,7 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
 
   const handleScan = async () => {
     if (files.length === 0) return;
+    const gen = ++scanGenRef.current;
     setScanning(true);
     setError(null);
     setResult(null);
@@ -98,6 +102,7 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
       const images = await Promise.all(files.map(fileToResizedBase64));
       const res = await apiRequest('POST', '/api/document-ocr/scan', { images });
       const body = await res.json();
+      if (gen !== scanGenRef.current) return; // dialog chiuso/riaperto nel frattempo
 
       if (body.available === false) {
         setError('Il riconoscimento automatico non è configurato: inserisci i dati a mano');
@@ -112,14 +117,22 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
         warnings: body.crossCheck?.warnings || [],
       });
     } catch (e: any) {
+      if (gen !== scanGenRef.current) return; // dialog chiuso/riaperto nel frattempo
+      // apiRequest lancia "STATUS: body" — se il server ha un messaggio chiaro, mostralo
       const msg = String(e?.message || '');
+      const jsonPart = msg.slice(msg.indexOf('{'));
+      let serverError: string | undefined;
+      try {
+        serverError = JSON.parse(jsonPart)?.error;
+      } catch {
+        /* body non JSON */
+      }
       setError(
-        msg.includes('502')
-          ? 'Il servizio di riconoscimento non risponde: riprova tra poco o inserisci i dati a mano'
-          : 'Non sono riuscito a leggere il documento: riprova con una foto più nitida o inserisci i dati a mano'
+        serverError ||
+          'Non sono riuscito a leggere il documento: riprova con una foto più nitida o inserisci i dati a mano'
       );
     } finally {
-      setScanning(false);
+      if (gen === scanGenRef.current) setScanning(false);
     }
   };
 
@@ -149,7 +162,8 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
           </DialogTitle>
           <DialogDescription>
             Fotografa o carica la tessera sanitaria (fronte) oppure la carta d'identità
-            (fronte e retro). La foto viene usata solo per leggere i dati e non viene salvata.
+            (fronte e retro). La foto viene inviata al servizio di riconoscimento (OpenAI)
+            solo per leggere i dati e non viene salvata da nessuna parte.
           </DialogDescription>
         </DialogHeader>
 

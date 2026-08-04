@@ -12,6 +12,16 @@ import { crossCheckDocument, type ExtractedDocumentData } from '../shared/docume
 
 const router = Router();
 
+// Solo l'admin dello studio può usare la scansione (dati sensibili + costi API)
+const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
+
+function requireAdmin(req: any, res: any, next: any) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+    return res.status(403).json({ error: 'Accesso negato: solo admin' });
+  }
+  next();
+}
+
 // Le foto dei documenti (già ridimensionate lato client) restano sotto i 10 MB
 router.use(json({ limit: '10mb' }));
 
@@ -49,7 +59,7 @@ Regole:
  * body: { images: [{ data: base64 (senza prefisso), mimeType }] } (max 2)
  * Ritorna { available, extracted?, crossCheck?, error? }
  */
-router.post('/scan', authenticateFirebase, async (req: any, res) => {
+router.post('/scan', authenticateFirebase, requireAdmin, async (req: any, res) => {
   const apiKey = getApiKey();
   if (!apiKey) return res.json({ available: false });
 
@@ -102,7 +112,12 @@ router.post('/scan', authenticateFirebase, async (req: any, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.warn(`⚠️ Document OCR errore OpenAI ${response.status}: ${errText.slice(0, 300)}`);
-      return res.status(502).json({ error: 'Il servizio di riconoscimento non è al momento disponibile' });
+      const noCredits = errText.includes('insufficient_quota') || errText.includes('credit_balance_exhausted');
+      return res.status(502).json({
+        error: noCredits
+          ? 'Il credito OpenAI è esaurito: ricarica su platform.openai.com per usare la scansione'
+          : 'Il servizio di riconoscimento non è al momento disponibile',
+      });
     }
 
     const data = await response.json();
