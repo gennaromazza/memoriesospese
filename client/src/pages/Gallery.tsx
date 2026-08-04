@@ -4004,20 +4004,21 @@ export default function Gallery() {
                             </p>
                           </div>
                           
-                          {/* Griglia Card Capitoli con Miniature */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {photosByChapter.map((group) => {
+                          {/* Griglia Card Capitoli con Miniature (divise tra selezionabili ed esclusi durante la selezione) */}
+                          {(() => {
+                            const selectionActive = isSelectionMode && selectionStatus !== "completed";
+                            const renderChapterCard = (group: (typeof photosByChapter)[number], isExcludedChapter: boolean) => {
                               const isExpanded = !collapsedChapters[group.chapter.id];
                               const selectedInChapter = group.photos.filter(p => selectedPhotoIdsSet.has(p.id)).length;
                               const coverUrl = group.chapter.coverPhotoUrl || group.photos[0]?.url;
                               const coverPos = group.chapter.coverPhotoPosition;
-                              
+
                               return (
                                 <button
                                   key={group.chapter.id}
                                   onClick={() => toggleChapterCollapse(group.chapter.id)}
                                   className={`relative aspect-[16/9] sm:aspect-[3/4] rounded-xl overflow-hidden cursor-pointer transition-all group shadow-md hover:shadow-xl ${
-                                    isExpanded ? 'ring-4 ring-sage ring-offset-2' : ''
+                                    isExpanded ? `ring-4 ring-offset-2 ${isExcludedChapter ? 'ring-red-400' : 'ring-sage'}` : ''
                                   }`}
                                   data-testid={`chapter-card-${group.chapter.id}`}
                                 >
@@ -4050,7 +4051,7 @@ export default function Gallery() {
                                           {selectedInChapter} ✓
                                         </span>
                                       )}
-                                      {isSelectionMode && selectionStatus !== "completed" && excludedChapterIds.has(group.chapter.id) && (
+                                      {isExcludedChapter && (
                                         <span className="bg-red-600 px-2 py-0.5 rounded-full text-white font-semibold" data-testid={`badge-chapter-excluded-${group.chapter.id}`}>
                                           🚫 Non selezionabili
                                         </span>
@@ -4060,14 +4061,61 @@ export default function Gallery() {
                                   
                                   {/* Indicatore Espanso */}
                                   {isExpanded && (
-                                    <div className="absolute top-2 right-2 bg-sage text-white rounded-full p-1.5">
+                                    <div className={`absolute top-2 right-2 text-white rounded-full p-1.5 ${isExcludedChapter ? 'bg-red-500' : 'bg-sage'}`}>
                                       <ChevronDown className="w-4 h-4" />
                                     </div>
                                   )}
                                 </button>
                               );
-                            })}
-                          </div>
+                            };
+
+                            const excludedGroups = selectionActive
+                              ? photosByChapter.filter(g => excludedChapterIds.has(g.chapter.id))
+                              : [];
+                            const selectableGroups = selectionActive
+                              ? photosByChapter.filter(g => !excludedChapterIds.has(g.chapter.id))
+                              : photosByChapter;
+
+                            if (excludedGroups.length === 0) {
+                              return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                  {selectableGroups.map((group) => renderChapterCard(group, false))}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="space-y-6">
+                                {/* Sezione capitoli buoni per la selezione */}
+                                {selectableGroups.length > 0 && (
+                                  <div className="rounded-xl border-2 border-sage/40 bg-sage/5 p-4" data-testid="section-selectable-chapters">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <span className="bg-sage text-white text-xs font-bold px-2.5 py-1 rounded-full">✓ Puoi scegliere da qui</span>
+                                      <p className="text-sm text-blue-gray font-medium">
+                                        Scegli le tue foto tra questi capitoli
+                                      </p>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                      {selectableGroups.map((group) => renderChapterCard(group, false))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Sezione capitoli esclusi dalla selezione */}
+                                <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4" data-testid="section-excluded-chapters">
+                                  <div className="flex items-start gap-2 mb-3">
+                                    <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap">🚫 Solo da guardare</span>
+                                    <p className="text-sm text-red-800 font-medium">
+                                      Non puoi scegliere le foto dei seguenti capitoli per la stampa, ma potrai sempre vederle qui nella galleria.
+                                    </p>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {excludedGroups.map((group) => renderChapterCard(group, true))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       
