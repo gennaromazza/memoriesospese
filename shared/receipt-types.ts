@@ -19,6 +19,9 @@ export interface ReceiptData {
   clienteCognome?: string;
   clienteEmail?: string;
   clienteCellulare?: string;
+  clienteCodiceFiscale?: string;
+  clientePartitaIva?: string;
+  clienteIndirizzo?: string;
 
   // Dati studio (da settings/studio)
   studioName: string;

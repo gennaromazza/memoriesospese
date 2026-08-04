@@ -1351,7 +1351,13 @@ export default function QuoteBuilder({
                 telefono: cliente.cellulare1 || cliente.cellulare2 || '',
                 indirizzo: cliente.via || '',
                 cap: cliente.cap || '',
-                citta: cliente.citta || ''
+                citta: cliente.citta || '',
+                ...(cliente.provincia && { provincia: cliente.provincia }),
+                ...(cliente.codiceFiscale && { codiceFiscale: cliente.codiceFiscale }),
+                ...(cliente.partitaIva && { partitaIva: cliente.partitaIva }),
+                ...(cliente.ragioneSociale && { ragioneSociale: cliente.ragioneSociale }),
+                ...(cliente.codiceSdi && { codiceSdi: cliente.codiceSdi }),
+                ...(cliente.pec && { pec: cliente.pec })
               });
             }
           } catch (error) {

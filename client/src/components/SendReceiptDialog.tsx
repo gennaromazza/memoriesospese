@@ -125,6 +125,8 @@ export default function SendReceiptDialog({
         recipient,
         clienteNome,
         clienteCognome,
+        // Cliente selezionato dall'anagrafica: il server risolve i dati fiscali per ID
+        clienteId: searchMode === "search" && selectedCliente ? selectedCliente.id : undefined,
       });
 
       if (!response.ok) {

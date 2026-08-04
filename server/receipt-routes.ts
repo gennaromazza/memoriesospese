@@ -8,6 +8,7 @@ import { Router } from 'express';
 import { db } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
+import { buildClienteFiscaleSnapshot } from '../shared/receipt-utils.js';
 import { authenticateFirebase } from './email-routes.js';
 
 const router = Router();
@@ -307,6 +308,9 @@ function createReceiptHTML(receiptData: any): string {
         <p style="margin: 5px 0; font-size: 16px;">
           <strong>${receiptData.clienteNome || ''} ${receiptData.clienteCognome || ''}</strong>
         </p>
+        ${receiptData.clienteIndirizzo ? `<p style="margin: 5px 0; font-size: 14px;">${receiptData.clienteIndirizzo}</p>` : ''}
+        ${receiptData.clienteCodiceFiscale ? `<p style="margin: 5px 0; font-size: 14px;">C.F.: ${receiptData.clienteCodiceFiscale}</p>` : ''}
+        ${receiptData.clientePartitaIva ? `<p style="margin: 5px 0; font-size: 14px;">P.IVA: ${receiptData.clientePartitaIva}</p>` : ''}
         ${receiptData.clienteEmail ? `<p style="margin: 5px 0; font-size: 14px;">Email: ${receiptData.clienteEmail}</p>` : ''}
         ${receiptData.clienteCellulare ? `<p>Tel: ${receiptData.clienteCellulare}</p>` : ''}
         </div>
@@ -361,7 +365,7 @@ function createReceiptHTML(receiptData: any): string {
  */
 router.post('/send', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
-    const { movementId, method, recipient, clienteNome, clienteCognome } = req.body;
+    const { movementId, method, recipient, clienteNome, clienteCognome, clienteId } = req.body;
 
     // Validazioni
     if (!movementId || !method || !recipient) {
@@ -391,6 +395,30 @@ router.post('/send', authenticateFirebase, requireAdmin, async (req: any, res) =
     // Recupera dati studio
     const studioInfo = await getStudioInfo();
 
+    // Cerca il cliente in anagrafica per intestare la ricevuta con i dati fiscali.
+    // Priorità: clienteId esplicito (funziona anche via WhatsApp) > lookup per email destinatario.
+    let clienteFiscale: { codiceFiscale?: string; partitaIva?: string; indirizzo?: string } = {};
+    try {
+      let clienteData: FirebaseFirestore.DocumentData | undefined;
+      if (clienteId) {
+        const clienteDoc = await db.collection('clienti').doc(String(clienteId)).get();
+        if (clienteDoc.exists) clienteData = clienteDoc.data();
+      }
+      if (!clienteData && method === 'email' && recipient) {
+        const clienteSnap = await db
+          .collection('clienti')
+          .where('email', '==', String(recipient).toLowerCase().trim())
+          .limit(1)
+          .get();
+        if (!clienteSnap.empty) clienteData = clienteSnap.docs[0].data();
+      }
+      if (clienteData) {
+        clienteFiscale = buildClienteFiscaleSnapshot(clienteData as any);
+      }
+    } catch (lookupError) {
+      console.warn('⚠️ Lookup cliente per ricevuta fallito (procedo senza dati fiscali):', lookupError);
+    }
+
     // Prepara dati ricevuta
     const receiptData = {
       movementId,
@@ -405,6 +433,9 @@ router.post('/send', authenticateFirebase, requireAdmin, async (req: any, res) =
       clienteCognome,
       clienteEmail: method === 'email' ? recipient : undefined,
       clienteCellulare: method === 'whatsapp' ? recipient : undefined,
+      clienteCodiceFiscale: clienteFiscale.codiceFiscale,
+      clientePartitaIva: clienteFiscale.partitaIva,
+      clienteIndirizzo: clienteFiscale.indirizzo,
       studioName: studioInfo.name,
       studioAddress: studioInfo.address,
       studioPhone: studioInfo.phone,
@@ -424,6 +455,11 @@ router.post('/send', authenticateFirebase, requireAdmin, async (req: any, res) =
       recipient,
       clienteNome,
       clienteCognome,
+      // Snapshot dati fiscali usati per l'intestazione (per storico/audit)
+      ...(clienteId && { clienteId }),
+      ...(clienteFiscale.codiceFiscale && { clienteCodiceFiscale: clienteFiscale.codiceFiscale }),
+      ...(clienteFiscale.partitaIva && { clientePartitaIva: clienteFiscale.partitaIva }),
+      ...(clienteFiscale.indirizzo && { clienteIndirizzo: clienteFiscale.indirizzo }),
       importo: movement.importo,
       sentAt: Timestamp.now(),
       createdAt: Timestamp.now(),

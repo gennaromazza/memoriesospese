@@ -220,6 +220,13 @@ export interface Quote {
     indirizzo: string;
     cap: string;
     citta: string;
+    provincia?: string;
+    // Dati fiscali (snapshot opzionale per fatturazione)
+    codiceFiscale?: string;
+    partitaIva?: string;
+    ragioneSociale?: string;
+    codiceSdi?: string;
+    pec?: string;
   }>;
   
   // Metadata
@@ -261,6 +268,13 @@ export interface InsertQuote {
     indirizzo: string;
     cap: string;
     citta: string;
+    provincia?: string;
+    // Dati fiscali (snapshot opzionale per fatturazione)
+    codiceFiscale?: string;
+    partitaIva?: string;
+    ragioneSociale?: string;
+    codiceSdi?: string;
+    pec?: string;
   }>;
   // Regole benefit inclusi automatici (solo preventivi variabili)
   benefitRules?: BenefitRule[];

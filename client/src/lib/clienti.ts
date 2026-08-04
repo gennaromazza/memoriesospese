@@ -31,6 +31,7 @@ import type {
   ImportResult,
 } from "@shared/clienti-types";
 import type { Booking, Order } from "@shared/booking-types";
+
 import type { Gallery } from "./galleries";
 
 const COLLECTION = "clienti";
@@ -82,6 +83,14 @@ export async function createCliente(data: InsertCliente): Promise<string> {
     citta: data.citta,
     cap: data.cap,
     provincia: data.provincia,
+    tipoSoggetto: data.tipoSoggetto,
+    codiceFiscale: data.codiceFiscale,
+    partitaIva: data.partitaIva,
+    ragioneSociale: data.ragioneSociale,
+    codiceSdi: data.codiceSdi,
+    pec: data.pec,
+    dataNascita: data.dataNascita,
+    luogoNascita: data.luogoNascita,
     note: data.note,
     tags: data.tags || [],
     sourceRefs: {
@@ -811,67 +820,8 @@ export async function mergeClientes(
   await batch.commit();
 }
 
-/**
- * IMPORT CSV - Validazione riga
- */
-export function validateImportRow(
-  row: ImportCSVRow,
-  existingEmails: Set<string>
-): ImportValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  
-  // Validazione campi obbligatori
-  if (!row.Nome?.trim()) {
-    errors.push('Nome mancante');
-  }
-  if (!row.Cognome?.trim()) {
-    errors.push('Cognome mancante');
-  }
-  
-  // Validazione email
-  const isPlaceholderEmail = row.Email?.toLowerCase().includes('nomail@');
-  if (!row.Email?.trim()) {
-    errors.push('Email mancante');
-  } else if (isPlaceholderEmail) {
-    warnings.push('Email placeholder (nomail@) - verrà importato senza email');
-  } else {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(row.Email)) {
-      errors.push('Email non valida');
-    }
-  }
-  
-  // Check duplicati
-  const normalizedEmail = normalizeEmail(row.Email || '');
-  if (!isPlaceholderEmail && existingEmails.has(normalizedEmail)) {
-    warnings.push('Email già esistente - verrà aggiornato');
-  }
-  
-  // Mapping dati
-  let mappedData: InsertCliente | undefined;
-  if (errors.length === 0) {
-    mappedData = {
-      nome: row.Nome.trim(),
-      cognome: row.Cognome.trim(),
-      email: isPlaceholderEmail ? `${row.Nome}.${row.Cognome}@noemail.local`.toLowerCase().replace(/\s+/g, '') : normalizeEmail(row.Email),
-      cellulare1: row.Phone?.trim() || undefined,
-      citta: row.Città?.trim() || undefined,
-      cap: row['C.A.P']?.trim() || undefined,
-      provincia: row.Provincia?.trim() || undefined,
-      note: row['Note Cliente']?.trim() || undefined,
-      tags: isPlaceholderEmail ? ['import_csv', 'no_email'] : ['import_csv'],
-      status: 'lead',
-    };
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-    mappedData,
-  };
-}
+// IMPORT CSV - la validazione/mapping riga è in shared/clienti-csv.ts (pura, testabile)
+export { validateImportRow } from "@shared/clienti-csv";
 
 /**
  * IMPORT CSV - Batch import clienti

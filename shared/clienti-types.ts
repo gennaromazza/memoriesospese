@@ -30,6 +30,16 @@ export interface Cliente {
   cap?: string;
   provincia?: string;
   
+  // Dati di fatturazione (tutti opzionali)
+  tipoSoggetto?: 'privato' | 'azienda';
+  codiceFiscale?: string; // maiuscolo, validato con checksum
+  partitaIva?: string; // 11 cifre
+  ragioneSociale?: string; // nome azienda
+  codiceSdi?: string; // codice destinatario SDI (7 caratteri)
+  pec?: string;
+  dataNascita?: string; // YYYY-MM-DD
+  luogoNascita?: string;
+  
   // Collegamenti a entità esistenti
   sourceRefs: {
     bookingIds: string[]; // Array ID prenotazioni
@@ -86,6 +96,16 @@ export interface InsertCliente {
   cap?: string;
   provincia?: string;
   
+  // Dati di fatturazione opzionali
+  tipoSoggetto?: 'privato' | 'azienda';
+  codiceFiscale?: string;
+  partitaIva?: string;
+  ragioneSociale?: string;
+  codiceSdi?: string;
+  pec?: string;
+  dataNascita?: string; // YYYY-MM-DD
+  luogoNascita?: string;
+  
   // Note e tags opzionali
   note?: string;
   tags?: string[];
@@ -111,6 +131,15 @@ export interface UpdateCliente {
   citta?: string;
   cap?: string;
   provincia?: string;
+  
+  tipoSoggetto?: 'privato' | 'azienda';
+  codiceFiscale?: string;
+  partitaIva?: string;
+  ragioneSociale?: string;
+  codiceSdi?: string;
+  pec?: string;
+  dataNascita?: string; // YYYY-MM-DD
+  luogoNascita?: string;
   
   note?: string;
   tags?: string[];
@@ -183,6 +212,11 @@ export interface ImportCSVRow {
   Stato?: string;
   Provincia?: string;
   'Codice Fiscale'?: string;
+  'Partita IVA'?: string;
+  'Codice SDI'?: string;
+  PEC?: string;
+  'Data di Nascita'?: string; // GG/MM/AAAA o AAAA-MM-GG
+  'Luogo di Nascita'?: string;
   Città?: string;
   'Prefisso Internazionale'?: string;
   'Note Cliente'?: string;

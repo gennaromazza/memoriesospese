@@ -230,6 +230,69 @@ export default function ClienteDetailDrawer({
             </div>
           </section>
 
+          {(cliente.codiceFiscale || cliente.partitaIva || cliente.ragioneSociale || cliente.codiceSdi || cliente.pec || cliente.dataNascita || cliente.luogoNascita) && (
+            <>
+              <Separator />
+              <section>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                  Dati di Fatturazione
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm" data-testid="section-fatturazione">
+                  {cliente.tipoSoggetto && (
+                    <div>
+                      <span className="text-muted-foreground">Tipo soggetto:</span>
+                      <div className="font-medium mt-1">{cliente.tipoSoggetto === 'azienda' ? 'Azienda / P.IVA' : 'Privato'}</div>
+                    </div>
+                  )}
+                  {cliente.codiceFiscale && (
+                    <div>
+                      <span className="text-muted-foreground">Codice Fiscale:</span>
+                      <div className="font-medium mt-1 font-mono" data-testid="text-codice-fiscale">{cliente.codiceFiscale}</div>
+                    </div>
+                  )}
+                  {cliente.partitaIva && (
+                    <div>
+                      <span className="text-muted-foreground">Partita IVA:</span>
+                      <div className="font-medium mt-1 font-mono" data-testid="text-partita-iva">{cliente.partitaIva}</div>
+                    </div>
+                  )}
+                  {cliente.ragioneSociale && (
+                    <div>
+                      <span className="text-muted-foreground">Ragione sociale:</span>
+                      <div className="font-medium mt-1">{cliente.ragioneSociale}</div>
+                    </div>
+                  )}
+                  {cliente.codiceSdi && (
+                    <div>
+                      <span className="text-muted-foreground">Codice SDI:</span>
+                      <div className="font-medium mt-1 font-mono">{cliente.codiceSdi}</div>
+                    </div>
+                  )}
+                  {cliente.pec && (
+                    <div>
+                      <span className="text-muted-foreground">PEC:</span>
+                      <div className="font-medium mt-1">{cliente.pec}</div>
+                    </div>
+                  )}
+                  {cliente.dataNascita && (
+                    <div>
+                      <span className="text-muted-foreground">Data di nascita:</span>
+                      <div className="font-medium mt-1">
+                        {format(new Date(cliente.dataNascita + 'T00:00:00'), 'dd MMMM yyyy', { locale: it })}
+                      </div>
+                    </div>
+                  )}
+                  {cliente.luogoNascita && (
+                    <div>
+                      <span className="text-muted-foreground">Luogo di nascita:</span>
+                      <div className="font-medium mt-1">{cliente.luogoNascita}</div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
           {cliente.note && (
             <>
               <Separator />
