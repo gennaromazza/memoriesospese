@@ -50,7 +50,12 @@ async function startServer() {
     app.set('trust proxy', true);
 
     // Middleware per parsing JSON
-    app.use(express.json());
+    // La scansione documenti riceve foto in base64 (fino a ~10 MB):
+    // il parser dedicato con limite maggiore è dentro document-ocr-routes
+    const defaultJson = express.json();
+    app.use((req, res, next) =>
+      req.path.startsWith('/api/document-ocr') ? next() : defaultJson(req, res, next)
+    );
     app.use(express.urlencoded({ extended: true }));
 
     // CORS ristretto ai domini autorizzati
