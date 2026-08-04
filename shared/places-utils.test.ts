@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { parseAddressComponents } from './places-utils';
+import { parseAddressComponents, isItalianPlace } from './places-utils';
+
+describe('isItalianPlace', () => {
+  it('riconosce luoghi italiani ed esclude gli esteri', () => {
+    expect(isItalianPlace([{ types: ['country'], shortText: 'IT', longText: 'Italia' }])).toBe(true);
+    expect(isItalianPlace([{ types: ['country'], shortText: 'it' }])).toBe(true);
+    expect(isItalianPlace([{ types: ['country'], shortText: 'FR' }])).toBe(false);
+    expect(isItalianPlace([{ types: ['route'], longText: 'Via Roma' }])).toBe(false);
+    expect(isItalianPlace(undefined)).toBe(false);
+    expect(isItalianPlace([])).toBe(false);
+  });
+});
 
 describe('parseAddressComponents', () => {
   it('estrae via con civico, città, CAP e provincia', () => {

@@ -19,6 +19,15 @@ export interface ParsedAddress {
  * Converte gli addressComponents di Place Details (New) nei 4 campi
  * indirizzo dell'anagrafica: via (con civico), città, CAP, provincia (sigla).
  */
+/**
+ * True se il luogo è in Italia (component country = IT).
+ * Usato dal proxy per non restituire luoghi fuori scope.
+ */
+export function isItalianPlace(components: PlaceAddressComponent[] | undefined): boolean {
+  const country = components?.find((c) => c.types?.includes('country'));
+  return country?.shortText?.toUpperCase() === 'IT';
+}
+
 export function parseAddressComponents(components: PlaceAddressComponent[] | undefined): ParsedAddress {
   if (!components?.length) return {};
   const find = (type: string) => components.find((c) => c.types?.includes(type));

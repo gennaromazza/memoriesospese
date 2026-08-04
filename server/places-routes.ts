@@ -7,7 +7,15 @@
  */
 import { Router } from 'express';
 import { authenticateFirebase } from './email-routes.js';
-import { parseAddressComponents } from '../shared/places-utils.js';
+import { parseAddressComponents, isItalianPlace } from '../shared/places-utils.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Session token valido solo se UUID; altrimenti viene ignorato. */
+function sanitizeSessionToken(raw: unknown): string | undefined {
+  const v = typeof raw === 'string' ? raw : '';
+  return UUID_RE.test(v) ? v : undefined;
+}
 
 const router = Router();
 
@@ -27,9 +35,10 @@ router.post('/autocomplete', authenticateFirebase, async (req: any, res) => {
   const { input, sessionToken } = req.body || {};
 
   if (!apiKey) return res.json({ available: false, suggestions: [] });
-  if (!input || typeof input !== 'string' || input.trim().length < 3) {
+  if (!input || typeof input !== 'string' || input.trim().length < 3 || input.length > 200) {
     return res.json({ available: true, suggestions: [] });
   }
+  const safeSessionToken = sanitizeSessionToken(sessionToken);
 
   try {
     const response = await fetch(`${PLACES_BASE}/places:autocomplete`, {
@@ -42,7 +51,7 @@ router.post('/autocomplete', authenticateFirebase, async (req: any, res) => {
         input: input.trim(),
         languageCode: 'it',
         includedRegionCodes: ['it'],
-        ...(sessionToken && { sessionToken: String(sessionToken) }),
+        ...(safeSessionToken && { sessionToken: safeSessionToken }),
       }),
     });
 
@@ -79,13 +88,14 @@ router.get('/details/:placeId', authenticateFirebase, async (req: any, res) => {
   if (!apiKey) return res.json({ available: false });
 
   const placeId = String(req.params.placeId || '');
-  if (!placeId || !/^[\w-]+$/.test(placeId)) {
+  if (!placeId || placeId.length > 512 || !/^[\w-]+$/.test(placeId)) {
     return res.status(400).json({ error: 'placeId non valido' });
   }
 
   try {
     const params = new URLSearchParams({ languageCode: 'it' });
-    if (req.query.sessionToken) params.set('sessionToken', String(req.query.sessionToken));
+    const safeSessionToken = sanitizeSessionToken(req.query.sessionToken);
+    if (safeSessionToken) params.set('sessionToken', safeSessionToken);
 
     const response = await fetch(`${PLACES_BASE}/places/${encodeURIComponent(placeId)}?${params}`, {
       headers: {
@@ -101,6 +111,10 @@ router.get('/details/:placeId', authenticateFirebase, async (req: any, res) => {
     }
 
     const data = await response.json();
+    // Scope Italia: non restituire dettagli di luoghi esteri
+    if (!isItalianPlace(data.addressComponents)) {
+      return res.json({ available: true, address: null });
+    }
     const address = parseAddressComponents(data.addressComponents);
     return res.json({ available: true, address, formattedAddress: data.formattedAddress });
   } catch (error) {

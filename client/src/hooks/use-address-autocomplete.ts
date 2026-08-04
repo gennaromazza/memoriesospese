@@ -17,21 +17,26 @@ export function useAddressAutocomplete() {
   const availableRef = useRef(true); // fino a prova contraria
   const sessionTokenRef = useRef<string>(crypto.randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const lastQueryRef = useRef('');
+  // Generazione richieste: incrementata in modo sincrono a OGNI input,
+  // così le risposte arrivate in ritardo (per input ormai obsoleti) vengono scartate.
+  const generationRef = useRef(0);
+  const detailsGenerationRef = useRef(0);
 
   const clear = useCallback(() => {
+    generationRef.current += 1;
     setSuggestions([]);
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
   const search = useCallback((input: string) => {
+    const generation = ++generationRef.current;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!availableRef.current || input.trim().length < 4) {
       setSuggestions([]);
       return;
     }
     debounceRef.current = setTimeout(async () => {
-      lastQueryRef.current = input;
+      if (generation !== generationRef.current) return;
       setLoading(true);
       try {
         const res = await apiRequest('POST', '/api/places/autocomplete', {
@@ -45,13 +50,13 @@ export function useAddressAutocomplete() {
           setSuggestions([]);
           return;
         }
-        // Ignora risposte fuori ordine
-        if (lastQueryRef.current === input) {
+        // Applica solo se questa è ancora la richiesta più recente
+        if (generation === generationRef.current) {
           setSuggestions(data.suggestions || []);
         }
       } catch {
         // Silenzioso: il form resta utilizzabile come input libero
-        setSuggestions([]);
+        if (generation === generationRef.current) setSuggestions([]);
       } finally {
         setLoading(false);
       }
@@ -59,6 +64,7 @@ export function useAddressAutocomplete() {
   }, []);
 
   const resolveDetails = useCallback(async (placeId: string): Promise<ParsedAddress | null> => {
+    const generation = ++detailsGenerationRef.current;
     try {
       const res = await apiRequest(
         'GET',
@@ -69,6 +75,8 @@ export function useAddressAutocomplete() {
       // Nuova sessione dopo la selezione (regola di billing Google)
       sessionTokenRef.current = crypto.randomUUID();
       if (data.available === false || !data.address) return null;
+      // Se nel frattempo è stata selezionata un'altra voce, scarta questo risultato
+      if (generation !== detailsGenerationRef.current) return null;
       return data.address as ParsedAddress;
     } catch {
       return null;
@@ -94,13 +102,17 @@ export interface CapMatch {
 export function useCapLookup() {
   const availableRef = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const generationRef = useRef(0);
   const [match, setMatch] = useState<CapMatch | null>(null);
 
   const lookup = useCallback((cap: string) => {
+    // Generazione sincrona: ogni modifica del CAP invalida le risposte precedenti
+    const generation = ++generationRef.current;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setMatch(null);
     if (!availableRef.current || !/^\d{5}$/.test(cap.trim())) return;
     debounceRef.current = setTimeout(async () => {
+      if (generation !== generationRef.current) return;
       try {
         const res = await apiRequest('GET', `/api/places/cap-lookup?cap=${cap.trim()}`);
         if (!res.ok) return;
@@ -109,7 +121,10 @@ export function useCapLookup() {
           availableRef.current = false;
           return;
         }
-        setMatch(data.match || null);
+        // Applica solo se il CAP non è cambiato nel frattempo
+        if (generation === generationRef.current) {
+          setMatch(data.match || null);
+        }
       } catch {
         // silenzioso
       }
