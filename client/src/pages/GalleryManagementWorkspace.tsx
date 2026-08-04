@@ -20,7 +20,8 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
@@ -1644,42 +1645,70 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                   </div>
                 )}
 
-                {/* Selected Photos Grid (READONLY) */}
+                {/* Selected Photos Grid (READONLY) — miniature richiudibili per non caricare tutte le foto */}
                 {clientSelectedPhotos.length > 0 ? (
                   <div className="space-y-4">
                     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate (Solo Lettura)</h4>
                     {selectedByChapter ? (
-                      <div className="space-y-6" data-testid="selections-by-chapter">
+                      <div className="space-y-3" data-testid="selections-by-chapter">
                         {selectedByChapter.map((group) => (
-                          <div key={group.id} className="space-y-3" data-testid={`chapter-selection-${group.id}`}>
-                            <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
-                              <h5 className="font-medium text-blue-gray">📖 {group.titolo}</h5>
-                              <span className="text-sm text-gray-500">({group.photos.length} foto)</span>
-                            </div>
-                            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                              {group.photos.map((photo) => (
-                                <PhotoCard
-                                  key={photo.id}
-                                  photo={photo}
-                                  isSelected={true}
-                                  readOnly={true}
-                                />
-                              ))}
-                            </div>
-                          </div>
+                          <Collapsible key={group.id} data-testid={`chapter-selection-${group.id}`}>
+                            <CollapsibleTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex w-full items-center justify-between rounded-md border bg-gray-50 px-3 py-2 text-sm hover:bg-gray-100 transition-colors group"
+                                data-testid={`button-toggle-chapter-${group.id}`}
+                              >
+                                <span className="flex items-center gap-2 font-medium text-blue-gray">
+                                  📖 {group.titolo}
+                                  <span className="text-sm font-normal text-gray-500">({group.photos.length} foto)</span>
+                                </span>
+                                <ChevronDown className="h-4 w-4 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
+                              </button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-3 pb-1">
+                              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                {group.photos.map((photo) => (
+                                  <PhotoCard
+                                    key={photo.id}
+                                    photo={photo}
+                                    isSelected={true}
+                                    readOnly={true}
+                                  />
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         ))}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {clientSelectedPhotos.map((photo) => (
-                          <PhotoCard
-                            key={photo.id}
-                            photo={photo}
-                            isSelected={true}
-                            readOnly={true}
-                          />
-                        ))}
-                      </div>
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between rounded-md border bg-gray-50 px-3 py-2 text-sm hover:bg-gray-100 transition-colors group"
+                            data-testid="button-toggle-selected-thumbnails"
+                          >
+                            <span className="flex items-center gap-2 font-medium text-blue-gray">
+                              🖼️ Mostra miniature
+                              <span className="text-sm font-normal text-gray-500">({clientSelectedPhotos.length} foto)</span>
+                            </span>
+                            <ChevronDown className="h-4 w-4 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3 pb-1">
+                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                            {clientSelectedPhotos.map((photo) => (
+                              <PhotoCard
+                                key={photo.id}
+                                photo={photo}
+                                isSelected={true}
+                                readOnly={true}
+                              />
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
                   </div>
                 ) : (
