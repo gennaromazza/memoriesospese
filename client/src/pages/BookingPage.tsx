@@ -54,6 +54,7 @@ import {
 import { format, addDays, isBefore, isAfter, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { isSundayOrHoliday } from "@/lib/italian-holidays";
+import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
@@ -971,6 +972,12 @@ export default function BookingPage() {
                           placeholder="mario.rossi@example.com"
                           required
                           data-testid="input-email"
+                        />
+                        <EmailSuggestionChip
+                          email={formData.email}
+                          onAccept={(corrected) =>
+                            setFormData({ ...formData, email: corrected })
+                          }
                         />
                       </div>
                       <div className="space-y-2">

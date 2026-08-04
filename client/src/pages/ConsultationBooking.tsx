@@ -35,6 +35,7 @@ import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
 import { AlertTriangle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
 
 interface PendingRequest {
   id: string;
@@ -656,6 +657,10 @@ export default function ConsultationBooking() {
                     placeholder="mario.rossi@example.com"
                     className="border-beige focus:border-sage"
                     data-testid="input-email"
+                  />
+                  <EmailSuggestionChip
+                    email={clienteData.email}
+                    onAccept={(corrected) => setClienteData({ ...clienteData, email: corrected })}
                   />
                 </div>
                 <div>
