@@ -162,8 +162,8 @@ export default function DocumentScanDialog({ open, onOpenChange, onApply }: Docu
           </DialogTitle>
           <DialogDescription>
             Fotografa o carica la tessera sanitaria (fronte) oppure la carta d'identità
-            (fronte e retro). La foto viene inviata al servizio di riconoscimento (OpenAI)
-            solo per leggere i dati e non viene salvata da nessuna parte.
+            (fronte e retro). La foto viene letta direttamente sul server, senza servizi
+            esterni, e non viene salvata da nessuna parte.
           </DialogDescription>
         </DialogHeader>
 

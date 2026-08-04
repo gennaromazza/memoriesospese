@@ -6,3 +6,4 @@ vite.config.ts.*
 *.tar.gz
 test-results
 playwright-report
+*.traineddata
