@@ -1525,9 +1525,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                       <p className="text-2xl font-bold text-sage" data-testid="text-selected-count">
                         {isMultiProductMode
                           ? `${Object.keys(gallery.photoAssignments || {}).length} foto assegnate`
-                          : gallery.productRequirements?.length === 1
-                            ? `${selectedPhotoIds.size} / ${gallery.productRequirements[0].prodottoNumeroFoto || 0}`
-                            : `${selectedPhotoIds.size} / ${gallery?.requiredPhotoCount || 0}`
+                          : gallery.productRequirements?.length === 1 && (gallery.productRequirements[0].prodottoNumeroFoto || 0) > 0
+                            ? `${selectedPhotoIds.size} / ${gallery.productRequirements[0].prodottoNumeroFoto}`
+                            : (gallery?.requiredPhotoCount || 0) > 0
+                              ? `${selectedPhotoIds.size} / ${gallery.requiredPhotoCount}`
+                              : `${selectedPhotoIds.size} foto`
                         }
                       </p>
                     </div>
