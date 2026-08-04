@@ -179,4 +179,52 @@ router.get('/cap-lookup', authenticateFirebase, async (req: any, res) => {
   }
 });
 
+/**
+ * GET /api/places/cap-by-city?citta=Frattamaggiore&provincia=NA
+ * CAP dalla città (usato quando l'indirizzo scelto non ha il civico e Google
+ * non fornisce il postal_code). Risponde col CAP solo se univoco: nelle città
+ * con più CAP non tira a indovinare.
+ */
+router.get('/cap-by-city', authenticateFirebase, async (req: any, res) => {
+  const apiKey = getApiKey();
+  if (!apiKey) return res.json({ available: false });
+
+  const citta = String(req.query.citta || '').trim();
+  const provincia = String(req.query.provincia || '').trim();
+  if (!citta || citta.length > 100 || provincia.length > 10) {
+    return res.json({ available: true, cap: null });
+  }
+
+  try {
+    // Text Search: per le città con CAP unico Google include postal_code,
+    // per quelle multi-CAP (Milano, Roma, ...) lo omette → nessuna ipotesi azzardata
+    const response = await fetch(`${PLACES_BASE}/places:searchText`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.addressComponents',
+      },
+      body: JSON.stringify({
+        textQuery: `${citta}${provincia ? ` ${provincia}` : ''} Italia`,
+        languageCode: 'it',
+      }),
+    });
+    if (!response.ok) return res.json({ available: false });
+
+    const data = await response.json();
+    const comps: any[] = data.places?.[0]?.addressComponents || [];
+    const locality = comps.find((c) => c.types?.includes('locality'))?.longText || '';
+    const postal = comps.find((c) => c.types?.includes('postal_code'))?.longText || '';
+    const isItaly = comps.some((c) => c.types?.includes('country') && c.shortText === 'IT');
+    // Compila solo se il risultato è davvero la città richiesta (in Italia)
+    const matches = isItaly && locality.toLowerCase() === citta.toLowerCase();
+    const cap = matches && /^\d{5}$/.test(postal) ? postal : null;
+    return res.json({ available: true, cap });
+  } catch (error) {
+    console.warn('⚠️ Places cap-by-city non raggiungibile:', error);
+    return res.json({ available: false });
+  }
+});
+
 export default router;

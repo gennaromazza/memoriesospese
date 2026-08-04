@@ -41,8 +41,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { ChevronDown, Receipt } from 'lucide-react';
+import { ChevronDown, Receipt, ScanLine } from 'lucide-react';
 import { useState } from 'react';
+import DocumentScanDialog, { type ScannedDocumentData } from '@/components/DocumentScanDialog';
 
 const clienteSchema = z.object({
   nome: z.string().min(1, 'Nome obbligatorio'),
@@ -152,6 +153,15 @@ export default function ClienteForm({
     if (address.cap) form.setValue('cap', address.cap, { shouldDirty: true });
     if (address.provincia) form.setValue('provincia', address.provincia, { shouldDirty: true });
     capLookup.clearMatch();
+    // Indirizzo senza civico: Google non fornisce il CAP → lo ricaviamo dalla
+    // città (compilato solo se univoco, nelle grandi città resta vuoto)
+    if (!address.cap && address.citta) {
+      const cap = await addressAc.resolveCapByCity(address.citta, address.provincia);
+      // Compila solo se l'utente non ha già scritto un CAP nel frattempo
+      if (cap && !form.getValues('cap')) {
+        form.setValue('cap', cap, { shouldDirty: true });
+      }
+    }
   };
 
   // Suggerimento coerenza CAP↔città (mai bloccante)
@@ -167,6 +177,19 @@ export default function ClienteForm({
     form.setValue('citta', capLookup.match.citta, { shouldDirty: true });
     if (capLookup.match.provincia) form.setValue('provincia', capLookup.match.provincia, { shouldDirty: true });
     capLookup.clearMatch();
+  };
+
+  const [scanOpen, setScanOpen] = useState(false);
+
+  /** Applica i dati estratti dal documento (dopo conferma nell'anteprima). */
+  const applyScannedData = (data: ScannedDocumentData) => {
+    if (data.codiceFiscale) form.setValue('codiceFiscale', data.codiceFiscale, { shouldDirty: true, shouldValidate: true });
+    if (data.nome && !form.getValues('nome')) form.setValue('nome', data.nome, { shouldDirty: true });
+    if (data.cognome && !form.getValues('cognome')) form.setValue('cognome', data.cognome, { shouldDirty: true });
+    if (data.dataNascita) form.setValue('dataNascita', data.dataNascita, { shouldDirty: true });
+    if (data.luogoNascita) form.setValue('luogoNascita', data.luogoNascita, { shouldDirty: true });
+    // I dati del documento riguardano una persona fisica
+    if (form.getValues('tipoSoggetto') !== 'azienda') form.setValue('tipoSoggetto', 'privato');
   };
 
   const handleSubmit = (data: ClienteFormData) => {
@@ -506,6 +529,18 @@ export default function ClienteForm({
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-4 space-y-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setScanOpen(true)}
+              data-testid="button-scan-document-open"
+            >
+              <ScanLine className="mr-2 h-4 w-4" />
+              Scansiona documento
+            </Button>
+            <DocumentScanDialog open={scanOpen} onOpenChange={setScanOpen} onApply={applyScannedData} />
+
             <FormField
               control={form.control}
               name="tipoSoggetto"

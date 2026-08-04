@@ -83,11 +83,28 @@ export function useAddressAutocomplete() {
     }
   }, []);
 
+  /**
+   * CAP dalla città (quando l'indirizzo selezionato non include il civico
+   * e quindi Google non fornisce il postal_code). Null se non univoco.
+   */
+  const resolveCapByCity = useCallback(async (citta: string, provincia?: string): Promise<string | null> => {
+    try {
+      const params = new URLSearchParams({ citta });
+      if (provincia) params.set('provincia', provincia);
+      const res = await apiRequest('GET', `/api/places/cap-by-city?${params}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.available && data.cap) || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
-  return { suggestions, loading, search, clear, resolveDetails };
+  return { suggestions, loading, search, clear, resolveDetails, resolveCapByCity };
 }
 
 export interface CapMatch {

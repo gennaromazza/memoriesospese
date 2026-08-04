@@ -16,6 +16,7 @@ import consultationRoutes from './consultation-routes.js';
 import calendarRoutes from './calendar-routes.js';
 import receiptRoutes from './receipt-routes.js';
 import placesRoutes from './places-routes.js';
+import documentOcrRoutes from './document-ocr-routes.js';
 import collaboratoriRoutes from './collaboratori-routes.js';
 import labRoutes, { runLabShipmentExpiryCheck } from './lab-routes.js';
 import productsRoutes from './products-routes.js';
@@ -114,6 +115,8 @@ async function startServer() {
     app.use('/api/receipts', receiptRoutes);
 
     app.use('/api/places', placesRoutes);
+    app.use('/api/document-ocr', documentOcrRoutes);
+    console.log('🪪 Document OCR API routes mounted at /api/document-ocr');
     console.log('📍 Places API routes mounted at /api/places');
 
     console.log('🧾 Receipt API routes mounted at /api/receipts');
