@@ -135,6 +135,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
   const [selectionEnabled, setSelectionEnabled] = useState(false);
   const [unlimitedSelection, setUnlimitedSelection] = useState(false); // Selezione libera senza limite
   const [selectionMode, setSelectionMode] = useState<'like' | 'dislike'>('like'); // Modalità selezione inversa
+  const [selectionExcludedChapterIds, setSelectionExcludedChapterIds] = useState<string[]>([]); // Capitoli esclusi dalla selezione
   const [requiredPhotoCount, setRequiredPhotoCount] = useState<number>(50);
   const [selectionDeadline, setSelectionDeadline] = useState<string>("");
   const [selectionDeadlineEnforced, setSelectionDeadlineEnforced] = useState(true);
@@ -478,6 +479,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       setRequiredPhotoCount(storedCount);
       setSelectionDeadlineEnforced((gallery as any).selectionDeadlineEnforced !== false); // default true
       setSelectionMode((gallery as any).selectionMode === 'dislike' ? 'dislike' : 'like');
+      setSelectionExcludedChapterIds((gallery as any).selectionExcludedChapterIds || []);
       setSelectionStatus((gallery as any).selectionStatus || 'pending');
       setSelectedPhotoIds((gallery as any).selectedPhotoIds || []);
       
@@ -1459,6 +1461,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         selectionDeadline: selectionEnabled && selectionDeadline ? Timestamp.fromDate(new Date(selectionDeadline)) : null,
         selectionDeadlineEnforced,
         selectionMode: selectionEnabled ? selectionMode : 'like',
+        selectionExcludedChapterIds: selectionEnabled ? selectionExcludedChapterIds : [],
         // ✅ Reset reminder se la scadenza cambia (così il nuovo reminder può essere inviato)
         ...(() => {
           const origDeadline = (gallery as any)?.selectionDeadline;
@@ -1800,7 +1803,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       console.log('🔄 Concluso salvataggio galleria, reset loading...');
       setIsLoading(false);
     }
-  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clientiIds, originalClientiIds, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
+  }, [gallery, galleryCode, coverImageUrl, coverImageMobileUrl, coverImageDesktopUrl, coverImageDesktopPosition, coverImageMobilePosition, headerTheme, name, date, location, description, password, specialTheme, specialPin, clientEmail, clientName, clientiIds, originalClientiIds, youtubeUrls, originalYoutubeUrls, selectionEnabled, unlimitedSelection, selectionMode, selectionExcludedChapterIds, requiredPhotoCount, selectionDeadline, selectionDeadlineEnforced, associatedProducts, onClose, toast]);
 
   // Controlla se un file è già stato caricato (per nome OPPURE per hash contenuto)
   const checkForDuplicates = (files: File[]): { uniqueFiles: File[], duplicates: string[] } => {
@@ -2805,6 +2808,38 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                       </p>
                     </div>
                   </div>
+
+                  {/* Capitoli esclusi dalla selezione */}
+                  {((gallery as any)?.chapters?.length ?? 0) > 0 && (
+                    <div className="p-4 bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-lg space-y-2">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        📖 Capitoli esclusi dalla selezione
+                      </Label>
+                      <p className="text-xs text-gray-600">
+                        Le foto dei capitoli spuntati restano <strong>visibili</strong> al cliente, ma non si possono
+                        selezionare e non contano nella selezione (vale anche per la modalità inversa).
+                      </p>
+                      <div className="space-y-1 pt-1">
+                        {[...((gallery as any).chapters as { id: string; titolo: string; ordine?: number }[])]
+                          .sort((a, b) => (a.ordine || 0) - (b.ordine || 0))
+                          .map((ch) => (
+                            <label key={ch.id} className="flex items-center gap-2 text-sm cursor-pointer" data-testid={`checkbox-exclude-chapter-${ch.id}`}>
+                              <input
+                                type="checkbox"
+                                checked={selectionExcludedChapterIds.includes(ch.id)}
+                                onChange={(e) =>
+                                  setSelectionExcludedChapterIds((prev) =>
+                                    e.target.checked ? [...prev, ch.id] : prev.filter((id) => id !== ch.id)
+                                  )
+                                }
+                                className="h-4 w-4 text-gray-600 border-gray-300 rounded focus:ring-gray-400"
+                              />
+                              <span>{ch.titolo}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Numero foto richieste - nascosto se selezione libera */}
                   {!unlimitedSelection && (

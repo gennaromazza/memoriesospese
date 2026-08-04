@@ -624,6 +624,49 @@ export default function Gallery() {
   // Stato per foto escluse in modalità dislike
   const [dislikedPhotoIds, setDislikedPhotoIds] = useState<Set<string>>(new Set());
 
+  // 📖 Capitoli esclusi dalla selezione: le foto restano visibili ma non selezionabili
+  const excludedChapterIds = useMemo(
+    () => new Set(galleryData?.selectionExcludedChapterIds || []),
+    [galleryData?.selectionExcludedChapterIds]
+  );
+  const isPhotoExcludedFromSelection = useCallback(
+    (photo: Photo) => {
+      const chapterId = (photo as any).chapterId;
+      return Boolean(chapterId && excludedChapterIds.has(chapterId));
+    },
+    [excludedChapterIds]
+  );
+  // Foto che partecipano davvero alla selezione (per contatori e salvataggio)
+  const selectablePhotos = useMemo(
+    () => (excludedChapterIds.size > 0 ? photos.filter(p => !isPhotoExcludedFromSelection(p)) : photos),
+    [photos, excludedChapterIds, isPhotoExcludedFromSelection]
+  );
+
+  // 🧹 Pulizia: se l'admin esclude un capitolo DOPO che il cliente aveva già
+  // selezionato/assegnato foto di quel capitolo, rimuovile dagli stati locali
+  // (così contatori, viste e salvataggi non includono foto non più selezionabili)
+  useEffect(() => {
+    if (excludedChapterIds.size === 0 || photos.length === 0) return;
+    const excludedIds = new Set(photos.filter(p => isPhotoExcludedFromSelection(p)).map(p => p.id));
+    if (excludedIds.size === 0) return;
+    setSelectedPhotoIdsLegacy(prev =>
+      prev.some(id => excludedIds.has(id)) ? prev.filter(id => !excludedIds.has(id)) : prev
+    );
+    setDislikedPhotoIds(prev => {
+      if (![...prev].some(id => excludedIds.has(id))) return prev;
+      const next = new Set(prev);
+      excludedIds.forEach(id => next.delete(id));
+      return next;
+    });
+    setPhotoAssignments(prev => {
+      const staleIds = Object.keys(prev).filter(id => excludedIds.has(id));
+      if (staleIds.length === 0) return prev;
+      const next = { ...prev };
+      staleIds.forEach(id => delete next[id]);
+      return next;
+    });
+  }, [excludedChapterIds, photos, isPhotoExcludedFromSelection]);
+
   // 🔥 REFACTORED: Separa correttamente le 3 modalità di selezione
   // ✅ DIFENSIVO: normalizza array vuoto [] come undefined (Firestore può restituire [])
   const productRequirements = (galleryData?.productRequirements?.length ?? 0) > 0
@@ -949,6 +992,16 @@ export default function Gallery() {
         return;
       }
 
+      // 📖 Foto di un capitolo escluso dalla selezione: non assegnabile ai prodotti
+      const targetPhoto = photos.find(p => p.id === photoId);
+      if (targetPhoto && isPhotoExcludedFromSelection(targetPhoto)) {
+        toast({
+          title: "📖 Capitolo escluso dalla selezione",
+          description: "Le foto di questo capitolo non fanno parte della selezione.",
+        });
+        return;
+      }
+
       // Get product name and limit for validation
       const prodIndex = parseInt(productIndex);
       const productName = galleryData?.productRequirements?.[prodIndex]?.prodottoNome || 'Prodotto';
@@ -1017,7 +1070,7 @@ export default function Gallery() {
         return updatedPhotoAssignments;
       });
     },
-    [isDeadlinePassed, selectionStatus, toast, galleryData?.productRequirements],
+    [isDeadlinePassed, selectionStatus, toast, galleryData?.productRequirements, photos, isPhotoExcludedFromSelection],
   );
 
   // Toggle photo selection (legacy mode or when clicking photo directly)
@@ -1046,6 +1099,16 @@ export default function Gallery() {
         toast({
           title: "💡 Modalità Multi-Prodotto",
           description: "Clicca sui chip dei prodotti sotto la foto per assegnarla.",
+        });
+        return;
+      }
+
+      // 📖 Foto di un capitolo escluso dalla selezione: visibile ma non selezionabile
+      const targetPhoto = photos.find(p => p.id === photoId);
+      if (targetPhoto && isPhotoExcludedFromSelection(targetPhoto)) {
+        toast({
+          title: "📖 Capitolo escluso dalla selezione",
+          description: "Le foto di questo capitolo non fanno parte della selezione.",
         });
         return;
       }
@@ -1099,7 +1162,7 @@ export default function Gallery() {
         }
       });
     },
-    [isDeadlinePassed, selectionStatus, requiredPhotoCount, isUnlimitedSelection, isDislikeMode, galleryData?.productRequirements, toast],
+    [isDeadlinePassed, selectionStatus, requiredPhotoCount, isUnlimitedSelection, isDislikeMode, galleryData?.productRequirements, photos, isPhotoExcludedFromSelection, toast],
   );
 
   // Reset all selections
@@ -1272,9 +1335,11 @@ export default function Gallery() {
       }
 
       // In modalità dislike: la selezione positiva sono tutte le foto NON escluse
+      // (le foto dei capitoli esclusi dalla selezione non vengono mai incluse)
+      const excludedIdsAtSave = new Set(photos.filter(p => isPhotoExcludedFromSelection(p)).map(p => p.id));
       const finalSelectedPhotoIds = isDislikeMode
-        ? photos.map(p => p.id).filter(photoId => !dislikedPhotoIds.has(photoId))
-        : selectedPhotoIds;
+        ? selectablePhotos.map(p => p.id).filter(photoId => !dislikedPhotoIds.has(photoId))
+        : selectedPhotoIds.filter(id => !excludedIdsAtSave.has(id));
 
       const updateData: any = {
         selectedPhotoIds: finalSelectedPhotoIds,
@@ -1283,8 +1348,14 @@ export default function Gallery() {
       };
 
       // Aggiungi photoAssignments solo se esiste e non è vuoto
+      // (senza le foto dei capitoli esclusi dalla selezione)
       if (photoAssignmentsData && Object.keys(photoAssignmentsData).length > 0) {
-        updateData.photoAssignments = photoAssignmentsData;
+        const cleanedAssignments = Object.fromEntries(
+          Object.entries(photoAssignmentsData).filter(([photoId]) => !excludedIdsAtSave.has(photoId))
+        );
+        if (Object.keys(cleanedAssignments).length > 0) {
+          updateData.photoAssignments = cleanedAssignments;
+        }
       }
 
       await GalleryService.updateGallery(galleryData.id, updateData);
@@ -2648,14 +2719,14 @@ export default function Gallery() {
                     <div>
                       {/* ⚠️ Warning: Insufficient photos in gallery - ONLY for single-product mode */}
                       {/* In multi-product/bundle mode, the same photo can be assigned to multiple products */}
-                      {isSelectionMode && selectionStatus !== "completed" && !isMultiProductMode && requiredPhotoCount > 0 && photos.length < requiredPhotoCount && (
+                      {isSelectionMode && selectionStatus !== "completed" && !isMultiProductMode && requiredPhotoCount > 0 && selectablePhotos.length < requiredPhotoCount && (
                         <div className="mb-6 bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-yellow-400 rounded-lg p-4 text-center">
                           <div className="flex items-center justify-center gap-2 text-yellow-700">
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
                             <span className="font-semibold">
-                              Attenzione: La galleria contiene solo {photos.length} foto, ma ne servono {requiredPhotoCount} per la selezione.
+                              Attenzione: La galleria contiene solo {selectablePhotos.length} foto selezionabili, ma ne servono {requiredPhotoCount} per la selezione.
                             </span>
                           </div>
                           <p className="text-yellow-600 text-sm mt-1">
@@ -2994,8 +3065,8 @@ export default function Gallery() {
                                 <span className="text-red-500 text-2xl">✗</span>
                                 <div className="text-center">
                                   <p className="text-sm text-red-600 font-medium">Foto escluse</p>
-                                  <p className="text-3xl font-bold text-red-600">{dislikedPhotoIds.size} / {photos.length}</p>
-                                  <p className="text-xs text-gray-500 mt-1">Verranno salvate {photos.length - dislikedPhotoIds.size} foto</p>
+                                  <p className="text-3xl font-bold text-red-600">{dislikedPhotoIds.size} / {selectablePhotos.length}</p>
+                                  <p className="text-xs text-gray-500 mt-1">Verranno salvate {selectablePhotos.length - dislikedPhotoIds.size} foto</p>
                                 </div>
                                 <span className="text-red-500 text-2xl">✗</span>
                               </div>
@@ -4047,11 +4118,11 @@ export default function Gallery() {
                                         photo={photo}
                                         index={chapterIndex}
                                         isSelected={selectedPhotoIdsSet.has(photo.id)}
-                                        isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                        isSelectionMode={isSelectionMode && selectionStatus !== "completed" && !isPhotoExcludedFromSelection(photo)}
                                         assignedProducts={photoAssignments[photo.id] || []}
                                         isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                         isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
-                                        isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
+                                        isDislikeMode={isDislikeMode && selectionStatus !== "completed" && !isPhotoExcludedFromSelection(photo)}
                                         onClick={() => handleChapterPhotoClick(group.chapter.id, chapterIndex)}
                                       />
                                       {!isSelectionMode && (
@@ -4084,11 +4155,11 @@ export default function Gallery() {
                                   photo={photo}
                                   index={index}
                                   isSelected={selectedPhotoIdsSet.has(photo.id)}
-                                  isSelectionMode={isSelectionMode && selectionStatus !== "completed"}
+                                  isSelectionMode={isSelectionMode && selectionStatus !== "completed" && !isPhotoExcludedFromSelection(photo)}
                                   assignedProducts={photoAssignments[photo.id] || []}
                                   isUnlimitedCompleted={isUnlimitedSelection && selectionStatus === "completed"}
                                   isDisliked={isDislikeMode && dislikedPhotoIds.has(photo.id)}
-                                  isDislikeMode={isDislikeMode && selectionStatus !== "completed"}
+                                  isDislikeMode={isDislikeMode && selectionStatus !== "completed" && !isPhotoExcludedFromSelection(photo)}
                                   onClick={handleStandardPhotoClick}
                                 />
                                 {!isSelectionMode && (
@@ -4196,7 +4267,7 @@ export default function Gallery() {
                                     </div>
                                     <p className="text-sm text-gray-600">
                                       {dislikedPhotoIds.size > 0
-                                        ? `Verranno salvate ${photos.length - dislikedPhotoIds.size} foto su ${photos.length}.`
+                                        ? `Verranno salvate ${selectablePhotos.length - dislikedPhotoIds.size} foto su ${selectablePhotos.length}.`
                                         : "Clicca sulle foto che NON vuoi includere. Le altre verranno salvate."}
                                     </p>
                                     <p className="text-xs text-red-500 mt-1">

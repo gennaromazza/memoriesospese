@@ -58,6 +58,7 @@ export interface Gallery {
   // Photo Selection Mode
   selectionEnabled?: boolean;
   selectionMode?: 'like' | 'dislike'; // 'like' = seleziona le buone (default), 'dislike' = segna le da escludere
+  selectionExcludedChapterIds?: string[]; // Capitoli le cui foto NON partecipano alla selezione (restano comunque visibili)
   unlimitedSelection?: boolean; // Selezione libera senza limite foto
   requiredPhotoCount?: number;
   selectionStatus?: 'pending' | 'completed';
@@ -627,6 +628,7 @@ export class GalleryService {
         hasSpecialPin: !!galleryData.specialPin, // SICURO: solo boolean, mai esporre il PIN
         selectionEnabled: galleryData.selectionEnabled || false,
         selectionMode: galleryData.selectionMode || 'like',
+        selectionExcludedChapterIds: galleryData.selectionExcludedChapterIds || [],
         unlimitedSelection: galleryData.unlimitedSelection === true,
         requiredPhotoCount: galleryData.requiredPhotoCount,
         selectionStatus: galleryData.selectionStatus || 'pending',
