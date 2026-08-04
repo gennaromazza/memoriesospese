@@ -14,6 +14,8 @@ description: scelte e trucchi per la scansione tessera sanitaria/CIE senza servi
 - Data di nascita e sesso si decodificano dal CF stesso (gestire omocodia), più affidabile della lettura OCR delle date.
 - Nome/cognome: riconosciuti confrontando le parole OCR coi codici a 3 lettere del CF (escludere parole-etichetta e sottostringhe del CF).
 - Worker Tesseract riusato tra richieste; `cachePath: '/tmp/tesseract-cache'` altrimenti scarica `ita.traineddata` nella root del repo (gitignorato `*.traineddata`).
+- Foto reali da smartphone: pre-elaborare con sharp prima di Tesseract (grigi+normalise+sharpen, poi binarizzata e piccole rotazioni ±2/±4°); provare le varianti in ordine e fermarsi appena il CF passa il checksum, altrimenti tenere la variante con confidenza migliore.
+- NON passare a Tesseract buffer che sharp non decodifica: il worker emette un errore non catturabile (unhandled) — se sharp fallisce, saltare l'OCR e ritornare testo vuoto.
 - Route protetta con `requireAdmin` (email allowlist) oltre a `authenticateFirebase` — richiesto da code review per PII e abuso.
 
 # Places: CAP per città

@@ -10,6 +10,8 @@ import { Router, json } from 'express';
 import { createWorker, type Worker } from 'tesseract.js';
 import { authenticateFirebase } from './email-routes.js';
 import { crossCheckDocument, parseOcrText } from '../shared/document-ocr.js';
+import { buildOcrVariants, originalVariant } from './document-ocr-preprocess.js';
+import { isValidCodiceFiscale } from '../shared/fiscal-validation.js';
 
 const router = Router();
 
@@ -42,6 +44,54 @@ function getWorker(): Promise<Worker> {
   return workerPromise;
 }
 
+// Numero massimo di varianti pre-elaborate tentate per immagine (tempi contenuti)
+const MAX_VARIANTS_TRIED = 4;
+
+/**
+ * Riconosce il testo provando più varianti pre-elaborate dell'immagine
+ * (grigi+contrasto, binarizzata, piccole rotazioni di raddrizzamento) e si
+ * ferma appena una variante contiene un codice fiscale valido. Altrimenti
+ * ritorna il testo della variante con la confidenza Tesseract più alta.
+ */
+export async function recognizeBest(
+  worker: Worker,
+  buffer: Buffer,
+  log: (msg: string) => void = (m) => console.log(m)
+): Promise<string> {
+  let variants;
+  try {
+    variants = (await buildOcrVariants(buffer)).slice(0, MAX_VARIANTS_TRIED);
+    variants.push(await originalVariant(buffer));
+  } catch (err: any) {
+    // Immagine non decodificabile da sharp: anche Tesseract fallirebbe (e il suo
+    // worker emette un errore non gestibile) — meglio fermarsi subito.
+    log(`⚠️ Immagine non decodificabile (${err?.message || err}): salto l'OCR`);
+    return '';
+  }
+
+  let bestText = '';
+  let bestConfidence = -1;
+  for (const variant of variants) {
+    let data;
+    try {
+      ({ data } = await worker.recognize(variant.buffer));
+    } catch {
+      continue; // variante illeggibile: prova la prossima
+    }
+    const parsed = parseOcrText(data.text);
+    if (parsed.codiceFiscale && isValidCodiceFiscale(parsed.codiceFiscale)) {
+      log(`📄 OCR ok con variante "${variant.label}" (confidenza ${Math.round(data.confidence)})`);
+      return data.text;
+    }
+    if (data.confidence > bestConfidence) {
+      bestConfidence = data.confidence;
+      bestText = data.text;
+    }
+  }
+  log(`📄 OCR senza CF valido: uso la variante con confidenza migliore (${Math.round(bestConfidence)})`);
+  return bestText;
+}
+
 /**
  * POST /api/document-ocr/scan
  * body: { images: [{ data: base64 (senza prefisso), mimeType }] } (max 2)
@@ -69,8 +119,7 @@ router.post('/scan', authenticateFirebase, requireAdmin, async (req: any, res) =
     let fullText = '';
     for (const img of images) {
       const buffer = Buffer.from(img.data, 'base64');
-      const { data } = await worker.recognize(buffer);
-      fullText += data.text + '\n';
+      fullText += (await recognizeBest(worker, buffer)) + '\n';
     }
 
     const extracted = parseOcrText(fullText);
