@@ -20,7 +20,8 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
@@ -183,6 +184,8 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const PHOTOS_PER_PAGE = 100;
+  // 🔍 Viewer HQ: lista foto correnti + indice della foto aperta (null = chiuso)
+  const [photoViewer, setPhotoViewer] = useState<{ photos: any[]; index: number } | null>(null);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1336,57 +1339,62 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                               </div>
                             </div>
                           )}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                            {paginatedPhotos.map((photo) => {
+                          <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                            {paginatedPhotos.map((photo, photoIdx) => {
                             const isSelected = selectedPhotos.has(photo.id);
                             return (
                               <div
                                 key={photo.id}
-                                className={`relative group aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                                  isSelected
-                                    ? 'border-blue-500 ring-2 ring-blue-200'
-                                    : 'border-gray-200 hover:border-sage'
+                                className={`flex items-center gap-3 px-3 py-2 transition-colors ${
+                                  isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
                                 }`}
+                                data-testid={`photo-row-${photo.id}`}
                               >
-                                {/* Checkbox selezione */}
-                                <div className="absolute top-2 left-2 z-10">
-                                  <Checkbox
-                                    checked={isSelected}
-                                    onCheckedChange={(checked) => {
-                                      const newSelected = new Set(selectedPhotos);
-                                      if (checked) {
-                                        newSelected.add(photo.id);
-                                      } else {
-                                        newSelected.delete(photo.id);
-                                      }
-                                      setSelectedPhotos(newSelected);
-                                    }}
-                                    className="bg-white border-2"
-                                  />
-                                </div>
-
-                                {/* Indicatore dimensione sempre visibile */}
-                                <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                                  {(photo.size / 1024).toFixed(0)} KB
-                                </div>
-
-                                <img
-                                  src={photo.thumbnailUrl || photo.url}
-                                  alt={photo.name}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                  decoding="async"
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    const newSelected = new Set(selectedPhotos);
+                                    if (checked) {
+                                      newSelected.add(photo.id);
+                                    } else {
+                                      newSelected.delete(photo.id);
+                                    }
+                                    setSelectedPhotos(newSelected);
+                                  }}
+                                  className="shrink-0"
                                 />
 
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2">
-                                  <p className="text-white text-xs text-center truncate w-full mb-3">
-                                    {photo.name}
-                                  </p>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={async () => {
-                                      if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
+                                {/* Nome file (click = apri anteprima HQ) */}
+                                <button
+                                  type="button"
+                                  className="flex-1 min-w-0 text-left text-sm text-gray-800 truncate hover:text-sage hover:underline"
+                                  onClick={() => setPhotoViewer({ photos: filteredPhotos, index: startIdx + photoIdx })}
+                                  title="Clicca per vedere la foto"
+                                >
+                                  {photo.name}
+                                </button>
+
+                                <span className="text-xs text-gray-500 shrink-0 w-16 text-right">
+                                  {(photo.size / 1024).toFixed(0)} KB
+                                </span>
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0"
+                                  title="Vedi foto"
+                                  onClick={() => setPhotoViewer({ photos: filteredPhotos, index: startIdx + photoIdx })}
+                                >
+                                  <Eye className="w-4 h-4 text-gray-500" />
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                  title="Elimina foto"
+                                  onClick={async () => {
+                                    if (!confirm(`Eliminare "${photo.name}"? Questa azione è irreversibile.`)) return;
 
                                       try {
                                         await PhotoService.deletePhoto(photo.id);
@@ -1428,12 +1436,10 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                                           variant: 'destructive',
                                         });
                                       }
-                                    }}
-                                  >
-                                    <XCircle className="w-4 h-4 mr-1" />
-                                    Elimina
-                                  </Button>
-                                </div>
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             );
                           })}
@@ -2090,6 +2096,56 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 🔍 Viewer HQ foto (Carica Foto): apre l'originale solo su richiesta */}
+      <Dialog open={photoViewer !== null} onOpenChange={(open) => { if (!open) setPhotoViewer(null); }}>
+        <DialogContent className="max-w-5xl" onKeyDown={(e) => {
+          if (!photoViewer) return;
+          if (e.key === 'ArrowLeft') setPhotoViewer(v => v && v.index > 0 ? { ...v, index: v.index - 1 } : v);
+          if (e.key === 'ArrowRight') setPhotoViewer(v => v && v.index < v.photos.length - 1 ? { ...v, index: v.index + 1 } : v);
+        }}>
+          {photoViewer && photoViewer.photos[photoViewer.index] && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base truncate pr-8">
+                  {photoViewer.photos[photoViewer.index].name}
+                </DialogTitle>
+                <DialogDescription>
+                  Foto {photoViewer.index + 1} di {photoViewer.photos.length} — usa le frecce per sfogliare
+                </DialogDescription>
+              </DialogHeader>
+              <div className="relative flex items-center justify-center bg-black/5 rounded-lg min-h-[300px]">
+                <img
+                  key={photoViewer.photos[photoViewer.index].id}
+                  src={photoViewer.photos[photoViewer.index].url}
+                  alt={photoViewer.photos[photoViewer.index].name}
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg"
+                />
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full shadow"
+                  disabled={photoViewer.index === 0}
+                  onClick={() => setPhotoViewer(v => v && v.index > 0 ? { ...v, index: v.index - 1 } : v)}
+                  data-testid="btn-viewer-prev"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full shadow"
+                  disabled={photoViewer.index >= photoViewer.photos.length - 1}
+                  onClick={() => setPhotoViewer(v => v && v.index < v.photos.length - 1 ? { ...v, index: v.index + 1 } : v)}
+                  data-testid="btn-viewer-next"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Gallery Modal - Solo se gallery è caricata */}
       {gallery && (

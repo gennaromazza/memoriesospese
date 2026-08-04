@@ -32,6 +32,7 @@ import {
   X,
   Loader2,
   ImagePlus,
+  Eye,
   Check,
   Move,
   Crosshair
@@ -158,6 +159,7 @@ const PhotoGridItem = memo(({
   isSelected, 
   onToggle,
   onDelete,
+  onPreview,
   isDragging,
   registerRef
 }: { 
@@ -165,6 +167,7 @@ const PhotoGridItem = memo(({
   isSelected: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onPreview?: () => void;
   isDragging?: boolean;
   registerRef?: (el: HTMLDivElement | null) => void;
 }) => {
@@ -205,6 +208,18 @@ const PhotoGridItem = memo(({
           {isSelected && <Check className="w-4 h-4" />}
         </div>
       </div>
+
+      {/* Bottone anteprima HQ (hover) */}
+      {onPreview && (
+        <button
+          className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white text-gray-700 rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10"
+          onClick={(e) => { e.stopPropagation(); onPreview(); }}
+          title="Vedi in alta qualità"
+          type="button"
+        >
+          <Eye className="w-3 h-3" />
+        </button>
+      )}
 
       {/* Bottone elimina singola foto (hover) */}
       <button
@@ -392,6 +407,8 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [dragActiveId, setDragActiveId] = useState<string | null>(null);
   // Position editor
   const [positionEditorPhoto, setPositionEditorPhoto] = useState<Photo | null>(null);
+  // 🔍 Anteprima HQ singola foto (carica l'originale solo su richiesta)
+  const [previewPhoto, setPreviewPhoto] = useState<Photo | null>(null);
   
   // Drag-to-select state
   const gridRef = useRef<HTMLDivElement>(null);
@@ -998,6 +1015,7 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
                       isSelected={selectedPhotos.has(photo.id)}
                       onToggle={() => handleTogglePhoto(photo.id)}
                       onDelete={() => handleDeletePhotos([photo.id])}
+                      onPreview={() => setPreviewPhoto(photo)}
                       registerRef={(el) => registerPhotoRef(photo.id, el)}
                     />
                   ))}
@@ -1188,6 +1206,27 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
         </DialogContent>
       </Dialog>
       
+      {/* 🔍 Anteprima HQ singola foto */}
+      <Dialog open={previewPhoto !== null} onOpenChange={(open) => { if (!open) setPreviewPhoto(null); }}>
+        <DialogContent className="max-w-5xl">
+          {previewPhoto && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base truncate pr-8">{previewPhoto.name}</DialogTitle>
+                <DialogDescription>Anteprima in alta qualità</DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center justify-center bg-black/5 rounded-lg min-h-[300px]">
+                <img
+                  src={previewPhoto.url}
+                  alt={previewPhoto.name}
+                  className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg"
+                />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showCoverDialog} onOpenChange={(open) => {
         setShowCoverDialog(open);
         if (!open) {
