@@ -20,7 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Save, X, Instagram, ExternalLink, Info, MapPin, Loader2 } from 'lucide-react';
+import { Save, X, Instagram, ExternalLink, Info, MapPin, Loader2, ScanBarcode } from 'lucide-react';
+import { lazy, Suspense } from 'react';
+
+// Lazy: carica il dialog (e le librerie di scansione) solo quando serve
+const CfBarcodeScanDialog = lazy(() => import('@/components/CfBarcodeScanDialog'));
 import { useAddressAutocomplete, useCapLookup } from '@/hooks/use-address-autocomplete';
 import { useWatch } from 'react-hook-form';
 import {
@@ -181,6 +185,11 @@ export default function ClienteForm({
 
   // Compilazione automatica da codice fiscale digitato: data e luogo di nascita
   const [cfAutofill, setCfAutofill] = useState<string | null>(null);
+  const [cfScanOpen, setCfScanOpen] = useState(false);
+  const handleCfScanned = (cf: string) => {
+    form.setValue('codiceFiscale', cf, { shouldDirty: true, shouldValidate: true });
+    void handleCfAutofill(cf);
+  };
   const cfAutofillGen = useRef(0);
   const handleCfAutofill = async (raw: string) => {
     const gen = ++cfAutofillGen.current;
@@ -602,19 +611,36 @@ export default function ClienteForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Codice Fiscale</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          void handleCfAutofill(e.target.value);
-                        }}
-                        placeholder="RSSMRA85M01H501Q"
-                        maxLength={16}
-                        className="uppercase"
-                        data-testid="input-codice-fiscale"
-                      />
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            void handleCfAutofill(e.target.value);
+                          }}
+                          placeholder="RSSMRA85M01H501Q"
+                          maxLength={16}
+                          className="uppercase"
+                          data-testid="input-codice-fiscale"
+                        />
+                      </FormControl>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="shrink-0"
+                            onClick={() => setCfScanOpen(true)}
+                            data-testid="button-cf-scan"
+                          >
+                            <ScanBarcode className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Leggi dal codice a barre della tessera sanitaria</TooltipContent>
+                      </Tooltip>
+                    </div>
                     {cfAutofill && (
                       <p className="text-xs text-muted-foreground" data-testid="text-cf-autofill">
                         {cfAutofill}
@@ -813,6 +839,16 @@ export default function ClienteForm({
           </Button>
         </div>
       </form>
+
+      {cfScanOpen && (
+        <Suspense fallback={null}>
+          <CfBarcodeScanDialog
+            open={cfScanOpen}
+            onOpenChange={setCfScanOpen}
+            onDetected={handleCfScanned}
+          />
+        </Suspense>
+      )}
     </Form>
   );
 }
