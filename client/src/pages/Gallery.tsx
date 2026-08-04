@@ -4043,11 +4043,16 @@ export default function Gallery() {
                                     <h3 className="font-playfair text-base font-semibold line-clamp-2 mb-1">
                                       {group.chapter.titolo}
                                     </h3>
-                                    <div className="flex items-center gap-2 text-xs text-white/80">
+                                    <div className="flex items-center gap-2 text-xs text-white/80 flex-wrap">
                                       <span>{group.photos.length} foto</span>
                                       {isSelectionMode && selectedInChapter > 0 && (
                                         <span className="bg-sage px-2 py-0.5 rounded-full text-white">
                                           {selectedInChapter} ✓
+                                        </span>
+                                      )}
+                                      {isSelectionMode && selectionStatus !== "completed" && excludedChapterIds.has(group.chapter.id) && (
+                                        <span className="bg-red-600 px-2 py-0.5 rounded-full text-white font-semibold" data-testid={`badge-chapter-excluded-${group.chapter.id}`}>
+                                          🚫 Non selezionabili
                                         </span>
                                       )}
                                     </div>
@@ -4087,6 +4092,11 @@ export default function Gallery() {
                                     </h3>
                                   </div>
                                   <div className="flex items-center gap-3">
+                                    {isSelectionMode && selectionStatus !== "completed" && excludedChapterIds.has(group.chapter.id) && (
+                                      <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full" data-testid={`badge-chapter-excluded-header-${group.chapter.id}`}>
+                                        🚫 Non puoi selezionare queste foto
+                                      </span>
+                                    )}
                                     {isSelectionMode && selectedInChapter > 0 && (
                                       <span className="bg-sage text-white text-xs font-bold px-2 py-1 rounded-full">
                                         {selectedInChapter} selezionate
@@ -4631,6 +4641,9 @@ export default function Gallery() {
           requiredPhotoCount,
           unlimitedSelection: isDislikeMode ? false : isUnlimitedSelection,
           isDislikeMode,
+          excludedPhotoIds: excludedChapterIds.size > 0
+            ? photos.filter(p => isPhotoExcludedFromSelection(p)).map(p => p.id)
+            : undefined,
           onToggleSelection: handleTogglePhotoSelection,
           selectionStatus,
           onCompleteSelection: !isDislikeMode && isUnlimitedSelection ? handleOpenConfirmModal : undefined,

@@ -11,6 +11,7 @@ interface SelectionInfo {
   requiredPhotoCount: number;
   unlimitedSelection?: boolean;
   isDislikeMode?: boolean;
+  excludedPhotoIds?: string[]; // Foto di capitoli esclusi dalla selezione: visibili ma non selezionabili
   onToggleSelection: (photoId: string) => void;
   selectionStatus?: string;
   onCompleteSelection?: () => void;
@@ -398,6 +399,16 @@ export default function ImageLightbox({ isOpen, onClose, photos, initialIndex, s
         {selectionInfo?.isSelectionMode && selectionInfo.selectionStatus !== 'completed' && currentPhoto && (
           <div className="mb-3">
             {(() => {
+              // 📖 Foto di un capitolo escluso dalla selezione: badge informativo, niente pulsanti
+              if (selectionInfo.excludedPhotoIds?.includes(currentPhoto.id)) {
+                return (
+                  <div className="flex justify-center">
+                    <div className="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-full shadow" data-testid="lightbox-excluded-badge">
+                      🚫 Non puoi selezionare questa foto
+                    </div>
+                  </div>
+                );
+              }
               const isDislike = selectionInfo.isDislikeMode === true;
               const isExcluded = isDislike && selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
               const isSelected = !isDislike && selectionInfo.selectedPhotoIds.includes(currentPhoto.id);
