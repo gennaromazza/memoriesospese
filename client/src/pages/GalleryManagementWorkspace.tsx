@@ -653,6 +653,24 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     [clientSelectedPhotos, cleanFilenameForExport]
   );
 
+  // Selezioni raggruppate per capitolo (se la galleria usa i capitoli)
+  const selectedByChapter = useMemo(() => {
+    if (!gallery?.chaptersEnabled || !gallery?.chapters?.length) return null;
+    const groups: { id: string; titolo: string; photos: typeof clientSelectedPhotos }[] = [];
+    const sorted = [...gallery.chapters].sort((a, b) => (a.ordine || 0) - (b.ordine || 0));
+    for (const chapter of sorted) {
+      const photos = clientSelectedPhotos
+        .filter(p => (p as any).chapterId === chapter.id)
+        .sort((a, b) => ((a as any).chapterPosition || 0) - ((b as any).chapterPosition || 0));
+      if (photos.length > 0) groups.push({ id: chapter.id, titolo: chapter.titolo, photos });
+    }
+    const unassigned = clientSelectedPhotos.filter(
+      p => !(p as any).chapterId || !sorted.some(c => c.id === (p as any).chapterId)
+    );
+    if (unassigned.length > 0) groups.push({ id: '__altre__', titolo: 'Altre foto (senza capitolo)', photos: unassigned });
+    return groups;
+  }, [gallery?.chaptersEnabled, gallery?.chapters, clientSelectedPhotos]);
+
   // Check deadline status (Task 20)
   const deadlineDate = gallery?.selectionDeadline ? convertFirestoreTimestamp(gallery.selectionDeadline) : null;
   const isDeadlinePassed = gallery?.selectionDeadline && gallery.selectionDeadlineEnforced && deadlineDate
@@ -1630,16 +1648,39 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                 {clientSelectedPhotos.length > 0 ? (
                   <div className="space-y-4">
                     <h4 className="font-semibold text-blue-gray">Miniature Foto Selezionate (Solo Lettura)</h4>
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {clientSelectedPhotos.map((photo) => (
-                        <PhotoCard
-                          key={photo.id}
-                          photo={photo}
-                          isSelected={true}
-                          readOnly={true}
-                        />
-                      ))}
-                    </div>
+                    {selectedByChapter ? (
+                      <div className="space-y-6" data-testid="selections-by-chapter">
+                        {selectedByChapter.map((group) => (
+                          <div key={group.id} className="space-y-3" data-testid={`chapter-selection-${group.id}`}>
+                            <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                              <h5 className="font-medium text-blue-gray">📖 {group.titolo}</h5>
+                              <span className="text-sm text-gray-500">({group.photos.length} foto)</span>
+                            </div>
+                            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                              {group.photos.map((photo) => (
+                                <PhotoCard
+                                  key={photo.id}
+                                  photo={photo}
+                                  isSelected={true}
+                                  readOnly={true}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {clientSelectedPhotos.map((photo) => (
+                          <PhotoCard
+                            key={photo.id}
+                            photo={photo}
+                            isSelected={true}
+                            readOnly={true}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -1685,6 +1726,40 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                         💡 Clicca sul box per copiare automaticamente tutti i nomi file.
                       </p>
                     </div>
+
+                    {/* Box separati per capitolo (solo se la galleria usa i capitoli) */}
+                    {selectedByChapter && selectedByChapter.length > 1 && (
+                      <div className="space-y-4 pt-4 border-t border-gray-200">
+                        <h5 className="font-medium text-blue-gray">📖 Foto per Capitolo</h5>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {selectedByChapter.map((group) => {
+                            const names = group.photos.map(p => cleanFilenameForExport(p.name)).join('\n');
+                            return (
+                              <div key={group.id} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm text-blue-gray">{group.titolo}</span>
+                                  <span className="text-xs text-gray-500">({group.photos.length} foto)</span>
+                                </div>
+                                <textarea
+                                  readOnly
+                                  value={names}
+                                  className="w-full h-28 p-2 border-2 border-sage/30 rounded-lg font-mono text-xs bg-white resize-none focus:outline-none focus:border-sage"
+                                  data-testid={`textarea-chapter-filenames-${group.id}`}
+                                  onClick={(e) => {
+                                    e.currentTarget.select();
+                                    navigator.clipboard.writeText(names);
+                                    toast({
+                                      title: '📋 Copiato!',
+                                      description: `Nomi file del capitolo "${group.titolo}" copiati.`,
+                                    });
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Box separati per ogni prodotto (solo se multi-prodotto) */}
                     {gallery?.productRequirements && gallery.productRequirements.length > 0 && (
