@@ -534,6 +534,8 @@ router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res
               if (!isNaN(d.getTime())) lines.push(`📅 Data evento: ${format(d, 'd MMMM yyyy', { locale: it })}`);
             } catch { /* ignora date non parsabili */ }
           }
+          // Link cliccabile alla scheda lavoro nel gestionale (URL di produzione)
+          lines.push(`🔗 Apri scheda lavoro: https://imagestudiofotografico.com/admin/jobs/${data.jobId}`);
           if (lines.length > 0) jobInfoBlock = lines.join('\n');
         }
       } catch (jobDescError) {
