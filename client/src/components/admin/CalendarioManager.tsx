@@ -115,6 +115,10 @@ export default function CalendarioManager() {
   const [createJobInitialDate, setCreateJobInitialDate] = useState<Date | undefined>(undefined);
   
   const [showEditDialog, setShowEditDialog] = useState(false);
+  // Associazione lavoro al momento dell'apertura del dialog: serve per inviare
+  // jobId al server SOLO se l'utente la cambia davvero (altrimenti una normale
+  // modifica di titolo/orario scollegherebbe silenziosamente l'evento)
+  const [initialLinkedJobId, setInitialLinkedJobId] = useState<string>('');
   const [editEventData, setEditEventData] = useState({
     title: '',
     description: '',
@@ -470,9 +474,37 @@ export default function CalendarioManager() {
       isAllDay: allDay,
       linkedJobId: event.linkedJobId || '',
     });
+    setInitialLinkedJobId(event.linkedJobId || '');
     setShowEditDialog(true);
   };
   
+  // Scollega rapidamente un evento Google dal lavoro associato (jobId: null)
+  const handleUnlinkJob = () => {
+    if (!selectedEvent || selectedEvent.type !== 'google') return;
+    const startDate = safeParseISO(selectedEvent.start);
+    const endDate = safeParseISO(selectedEvent.end);
+    if (!startDate || !endDate) {
+      toast({
+        title: 'Errore',
+        description: 'Date evento non valide, impossibile scollegare',
+        variant: 'destructive',
+      });
+      return;
+    }
+    updateEventMutation.mutate({
+      eventId: selectedEvent.id,
+      title: selectedEvent.title || undefined,
+      description: selectedEvent.description || undefined,
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      location: selectedEvent.location || undefined,
+      type: 'google',
+      googleEventId: selectedEvent.googleEventId,
+      isAllDay: isAllDayEvent(selectedEvent),
+      jobId: null,
+    });
+  };
+
   const handleUpdateEvent = () => {
     if (!selectedEvent) return;
     
@@ -526,8 +558,12 @@ export default function CalendarioManager() {
       entityId: selectedEvent.entityId,
       googleEventId: selectedEvent.googleEventId,
       isAllDay: editEventData.isAllDay,
-      // Associazione lavoro: solo per eventi google (id = collega, null = scollega)
-      jobId: selectedEvent.type === 'google' ? (editEventData.linkedJobId || null) : undefined,
+      // Associazione lavoro: solo per eventi google e SOLO se l'utente l'ha cambiata
+      // (id = collega, null = scollega, undefined = non toccare l'associazione)
+      jobId:
+        selectedEvent.type === 'google' && editEventData.linkedJobId !== initialLinkedJobId
+          ? (editEventData.linkedJobId || null)
+          : undefined,
     });
   };
 
@@ -1188,6 +1224,24 @@ export default function CalendarioManager() {
                 </div>
               )}
 
+              {/* Collega a lavoro: eventi Google non ancora collegati */}
+              {selectedEvent.type === 'google' && !selectedEvent.linkedJobId && (
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center gap-2 text-sage hover:text-sage/80 hover:bg-sage/10"
+                    onClick={() => handleOpenEditDialog(selectedEvent)}
+                    data-testid="button-link-to-job"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    Collega a un Lavoro
+                  </Button>
+                  <p className="text-xs text-gray-500 text-center mt-1">
+                    Collega l'evento a un lavoro per aggiornare la descrizione e accedere rapidamente alla scheda.
+                  </p>
+                </div>
+              )}
+
               {/* Link di navigazione a Job/Consulenza/Preventivo firmato */}
               {(selectedEvent.entityId || selectedEvent.linkedJobId || selectedEvent.signedQuoteToken) && (
                 <div className="pt-2 border-t space-y-2">
@@ -1221,6 +1275,19 @@ export default function CalendarioManager() {
                         <ExternalLink className="w-3 h-3" />
                       </Button>
                     </a>
+                  )}
+                  {selectedEvent.type === 'google' && selectedEvent.linkedJobId && (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={handleUnlinkJob}
+                      disabled={updateEventMutation.isPending}
+                      data-testid="button-unlink-job"
+                    >
+                      {updateEventMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      <Trash2 className="w-4 h-4" />
+                      Scollega dal Lavoro
+                    </Button>
                   )}
                   {selectedEvent.linkedJobId && selectedEvent.hasSignedQuote && !selectedEvent.signedQuoteToken && (
                     <p className="text-xs text-gray-500 text-center">

@@ -465,6 +465,65 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
  *   notifyCliente?: boolean (default false)
  * }
  */
+/**
+ * Costruisce il blocco descrizione con i dati del lavoro + link alla scheda.
+ * Ritorna stringa vuota se il job non esiste o non ha dati utili.
+ */
+async function buildJobInfoBlock(jobId: string): Promise<string> {
+  try {
+    const jobDoc = await db.collection('jobs').doc(jobId).get();
+    if (!jobDoc.exists) return '';
+    const j = jobDoc.data();
+    const lines: string[] = [];
+    const jobName = j?.nomeEvento || j?.jobType;
+    if (jobName) lines.push(`📋 Lavoro: ${jobName}${j?.jobType && j?.nomeEvento ? ` (${j.jobType})` : ''}`);
+    const clienteNames = Array.isArray(j?.clienti)
+      ? j.clienti.map((c: any) => `${c?.nome || ''} ${c?.cognome || ''}`.trim()).filter(Boolean).join(', ')
+      : '';
+    if (clienteNames) lines.push(`👤 Cliente: ${clienteNames}`);
+    if (j?.dataEvento) {
+      try {
+        const d = typeof j.dataEvento?.toDate === 'function' ? j.dataEvento.toDate() : new Date(j.dataEvento);
+        if (!isNaN(d.getTime())) lines.push(`📅 Data evento: ${format(d, 'd MMMM yyyy', { locale: it })}`);
+      } catch { /* ignora date non parsabili */ }
+    }
+    // Link cliccabile alla scheda lavoro nel gestionale (URL di produzione)
+    lines.push(`🔗 Apri scheda lavoro: https://imagestudiofotografico.com/admin/jobs/${jobId}`);
+    return lines.join('\n');
+  } catch (err) {
+    console.error('⚠️ Errore lettura job per descrizione evento:', err);
+    return '';
+  }
+}
+
+/**
+ * Rimuove dal testo un eventuale blocco dati lavoro precedente
+ * (righe che iniziano con i marker 📋/👤/📅/🔗 usati da buildJobInfoBlock),
+ * così collegare/scollegare non duplica né lascia blocchi stale.
+ */
+export function stripJobInfoBlock(description?: string): string {
+  if (!description) return '';
+  // Separatori "di riga" possibili in una descrizione Google: newline reali
+  // oppure HTML (<br>, chiusura di <div>/<p>). Rimuoviamo SOLO il segmento
+  // che va dal marker al successivo separatore, preservando tutto il resto
+  // (le note dell'utente possono convivere sulla stessa "riga" HTML solo se
+  // precedono il marker, che è sempre a inizio riga logica quando generato da noi).
+  const SEGMENT_RE = /(📋 Lavoro:|👤 Cliente:|📅 Data evento:|🔗 Apri scheda lavoro:)(?:(?!\r?\n|<br\s*\/?>|<\/div>|<\/p>).)*/gu;
+  let cleaned = description.replace(SEGMENT_RE, '');
+  // Collassa i separatori rimasti vuoti (senza toccare il contenuto utente)
+  cleaned = cleaned
+    // <br> multipli consecutivi (eventualmente con spazi) → uno solo
+    .replace(/(?:\s*<br\s*\/?>\s*){2,}/gi, '<br>')
+    // blocchi HTML svuotati del tutto: <div><br></div>, <p></p>, <div></div>
+    .replace(/<(div|p)>\s*(?:<br\s*\/?>)?\s*<\/\1>/gi, '')
+    // righe vuote multiple in testo semplice
+    .replace(/\n{3,}/g, '\n\n')
+    // separatori residui in testa/coda
+    .replace(/^(?:\s|<br\s*\/?>)+/i, '')
+    .replace(/(?:\s|<br\s*\/?>)+$/i, '');
+  return cleaned.trim();
+}
+
 const createEventSchema = z.object({
   title: z.string().min(1, 'Titolo evento obbligatorio'),
   description: z.string().optional(),
@@ -517,30 +576,7 @@ router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res
     // 1b. Se collegato a un job, arricchisci la descrizione Google Calendar con i dati del lavoro
     let jobInfoBlock = '';
     if (data.jobId) {
-      try {
-        const jobDocForDesc = await db.collection('jobs').doc(data.jobId).get();
-        if (jobDocForDesc.exists) {
-          const j = jobDocForDesc.data();
-          const lines: string[] = [];
-          const jobName = j?.nomeEvento || j?.jobType;
-          if (jobName) lines.push(`📋 Lavoro: ${jobName}${j?.jobType && j?.nomeEvento ? ` (${j.jobType})` : ''}`);
-          const clienteNames = Array.isArray(j?.clienti)
-            ? j.clienti.map((c: any) => `${c?.nome || ''} ${c?.cognome || ''}`.trim()).filter(Boolean).join(', ')
-            : '';
-          if (clienteNames) lines.push(`👤 Cliente: ${clienteNames}`);
-          if (j?.dataEvento) {
-            try {
-              const d = typeof j.dataEvento?.toDate === 'function' ? j.dataEvento.toDate() : new Date(j.dataEvento);
-              if (!isNaN(d.getTime())) lines.push(`📅 Data evento: ${format(d, 'd MMMM yyyy', { locale: it })}`);
-            } catch { /* ignora date non parsabili */ }
-          }
-          // Link cliccabile alla scheda lavoro nel gestionale (URL di produzione)
-          lines.push(`🔗 Apri scheda lavoro: https://imagestudiofotografico.com/admin/jobs/${data.jobId}`);
-          if (lines.length > 0) jobInfoBlock = lines.join('\n');
-        }
-      } catch (jobDescError) {
-        console.error('⚠️ Errore lettura job per descrizione evento:', jobDescError);
-      }
+      jobInfoBlock = await buildJobInfoBlock(data.jobId);
     }
 
     // 2. Crea evento su Google Calendar
@@ -720,9 +756,22 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
         }
       }
 
+      // Se il payload include jobId (collega/scollega), riscrivi la descrizione:
+      // rimuovi eventuale blocco lavoro precedente e, se collegato, aggiungi il blocco aggiornato
+      let finalDescription = data.description;
+      if (data.jobId !== undefined) {
+        const baseDescription = stripJobInfoBlock(data.description);
+        if (data.jobId) {
+          const jobInfoBlock = await buildJobInfoBlock(data.jobId);
+          finalDescription = [baseDescription, jobInfoBlock].filter(Boolean).join('\n\n');
+        } else {
+          finalDescription = baseDescription;
+        }
+      }
+
       await updateEvent('primary', googleId, {
         summary: data.title,
-        description: data.description,
+        description: finalDescription,
         start: startDate,
         end: endDate,
         location: data.location,
