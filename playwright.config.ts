@@ -14,6 +14,9 @@ const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // I test che scrivono su Firestore girano SOLO con l'emulatore
+  // (playwright.emulator.config.ts), mai contro la produzione.
+  testIgnore: /gallery-excluded-chapters\.spec\.ts/,
   timeout: 120_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,

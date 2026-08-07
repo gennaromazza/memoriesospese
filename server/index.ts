@@ -200,6 +200,14 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
+        // In middleware mode l'HMR usa la porta fissa 24678: una seconda
+        // istanza dev (es. server e2e su porta 5001) non può fare il bind e
+        // il client Vite entra in un loop di reload che rompe i test.
+        // VITE_HMR_PORT permette di dare all'istanza secondaria una porta HMR
+        // dedicata; senza la variabile il comportamento resta invariato.
+        ...(process.env.VITE_HMR_PORT
+          ? { hmr: { port: parseInt(process.env.VITE_HMR_PORT, 10) } }
+          : {}),
       },
       appType: 'spa',
     });

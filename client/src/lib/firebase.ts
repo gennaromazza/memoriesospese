@@ -45,10 +45,21 @@ export const storage = getStorage(app);
 export const functions = getFunctions(app, 'us-central1');
 
 // ======================
-// Firebase Services - Usa sempre produzione (nessun rilevamento emulatori)
+// Firebase Services - Produzione di default; emulatore Firestore SOLO se
+// esplicitamente richiesto via VITE_FIRESTORE_EMULATOR_HOST (test e2e in dev).
+// La variabile è opt-in e non è mai impostata in produzione.
 // ======================
-console.log("🚀 Firebase: connessione diretta ai servizi produzione");
-console.log("📋 Questionari e token validation: produzione Firebase");
+const firestoreEmulatorHost = import.meta.env.DEV
+  ? (import.meta.env.VITE_FIRESTORE_EMULATOR_HOST as string | undefined)
+  : undefined;
+if (firestoreEmulatorHost) {
+  const [host, port] = firestoreEmulatorHost.split(":");
+  connectFirestoreEmulator(db, host, parseInt(port, 10));
+  console.warn(`🧪 Firebase: Firestore EMULATORE su ${firestoreEmulatorHost}`);
+} else {
+  console.log("🚀 Firebase: connessione diretta ai servizi produzione");
+  console.log("📋 Questionari e token validation: produzione Firebase");
+}
 
 // Initialize Analytics in browser environment only
 let analytics: any = null;
