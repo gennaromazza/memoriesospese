@@ -661,6 +661,7 @@ export default function JobDetailPage() {
       clienteId?: string;
       notifyCliente: boolean;
       isAllDay?: boolean;
+      jobId?: string;
     }) => {
       const response = await apiRequest('POST', '/api/calendar/create-event', eventData);
       return response.json();
@@ -753,6 +754,7 @@ export default function JobDetailPage() {
         clienteId: selectedClienteForEvent?.id,
         notifyCliente: sendNotification,
         isAllDay: true,
+        jobId: jobId,
       });
     } else {
       const startDate = new Date(`${newEventStartDate}T${newEventStartTime}:00`);
@@ -791,6 +793,7 @@ export default function JobDetailPage() {
         clienteId: selectedClienteForEvent?.id,
         notifyCliente: sendNotification,
         isAllDay: false,
+        jobId: jobId,
       });
     }
   };

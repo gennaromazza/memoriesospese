@@ -514,12 +514,39 @@ router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res
       }
     }
     
+    // 1b. Se collegato a un job, arricchisci la descrizione Google Calendar con i dati del lavoro
+    let jobInfoBlock = '';
+    if (data.jobId) {
+      try {
+        const jobDocForDesc = await db.collection('jobs').doc(data.jobId).get();
+        if (jobDocForDesc.exists) {
+          const j = jobDocForDesc.data();
+          const lines: string[] = [];
+          const jobName = j?.nomeEvento || j?.jobType;
+          if (jobName) lines.push(`📋 Lavoro: ${jobName}${j?.jobType && j?.nomeEvento ? ` (${j.jobType})` : ''}`);
+          const clienteNames = Array.isArray(j?.clienti)
+            ? j.clienti.map((c: any) => `${c?.nome || ''} ${c?.cognome || ''}`.trim()).filter(Boolean).join(', ')
+            : '';
+          if (clienteNames) lines.push(`👤 Cliente: ${clienteNames}`);
+          if (j?.dataEvento) {
+            try {
+              const d = typeof j.dataEvento?.toDate === 'function' ? j.dataEvento.toDate() : new Date(j.dataEvento);
+              if (!isNaN(d.getTime())) lines.push(`📅 Data evento: ${format(d, 'd MMMM yyyy', { locale: it })}`);
+            } catch { /* ignora date non parsabili */ }
+          }
+          if (lines.length > 0) jobInfoBlock = lines.join('\n');
+        }
+      } catch (jobDescError) {
+        console.error('⚠️ Errore lettura job per descrizione evento:', jobDescError);
+      }
+    }
+
     // 2. Crea evento su Google Calendar
     // NOTA: non passare attendees - i Service Account non possono invitare partecipanti
     // senza Domain-Wide Delegation. La notifica al cliente avviene via Gmail API (step 3).
     const event = await createEvent('primary', {
       summary: data.title,
-      description: data.description,
+      description: [data.description, jobInfoBlock].filter(Boolean).join('\n\n') || undefined,
       start: data.isAllDay ? undefined : new Date(data.start),
       end: data.isAllDay ? undefined : new Date(data.end),
       location: data.location,
