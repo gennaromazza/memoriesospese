@@ -451,13 +451,20 @@ export default function Gallery() {
     void imageCache.preloadImages(urls).catch(() => {});
   }, [firstPagePhotos]);
 
-  // ⚡ HYBRID: Dopo la prima pagina, scarica TUTTE le restanti in background.
-  // Così la lightbox e la selezione hanno sempre l'elenco completo delle foto.
+  // ⚡ PREFETCH COMPLETO SOLO SE SERVE: quando c'è una selezione in corso il
+  // salvataggio (specie in modalità inversa: "tutte le foto meno le scartate"),
+  // i contatori e la sanificazione richiedono l'elenco COMPLETO delle foto →
+  // scarica tutte le pagine in background come prima.
+  // Per la sola visualizzazione, invece, le pagine successive vengono caricate
+  // pigramente dalla sentinella di scroll (meno rete e primo render più veloce).
+  const needAllPhotosForSelection =
+    !!galleryData?.selectionEnabled &&
+    (galleryData?.selectionStatus || 'pending') !== 'completed';
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage) {
+    if (needAllPhotosForSelection && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [needAllPhotosForSelection, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // ⏱️ Calcola stima tempo di caricamento basata sulla connessione
   useEffect(() => {
@@ -1930,14 +1937,23 @@ export default function Gallery() {
   // (es. fermo a 100 foto). Ricreandolo, la finestra "riempie" fino a coprire
   // viewport + margine, poi prosegue in modo affidabile mentre l'utente scorre.
   useEffect(() => {
-    if (!sentinelRef.current || !hasMoreToRender) return;
+    if (!sentinelRef.current || !hasMorePhotosToShow) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisiblePhotoLimit((prev) =>
-            prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
-          );
+          // 1) Rivela altre card già in memoria (finestra di rendering)
+          if (hasMoreToRender) {
+            setVisiblePhotoLimit((prev) =>
+              prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
+            );
+          } else if (hasNextPage && !isFetchingNextPage) {
+            // 2) Lazy-load: SOLO quando tutte le foto in memoria sono già
+            //    rivelate chiedi la pagina successiva. Questo evita la cascata
+            //    "observer ricreato → sentinella ancora visibile → fetch di
+            //    tutte le pagine" che riporterebbe al prefetch totale.
+            fetchNextPage();
+          }
         }
       },
       { rootMargin: '800px' }
@@ -1945,7 +1961,7 @@ export default function Gallery() {
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMoreToRender, visiblePhotoLimit, displayPhotos.length]);
+  }, [hasMorePhotosToShow, hasMoreToRender, visiblePhotoLimit, displayPhotos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 🪟 FALLBACK ROBUSTO di avanzamento finestra (indipendente dall'observer).
   // L'IntersectionObserver sopra è solo un fast-path: su gallerie grandi può
@@ -1957,7 +1973,10 @@ export default function Gallery() {
   // displayPhotos cresce, così la finestra non resta mai ferma. Usa il capture
   // sullo scroll per intercettare anche eventuali container interni scrollabili.
   useEffect(() => {
-    if (!renderWindowActive || visiblePhotoLimit >= displayPhotos.length) return;
+    const windowExhausted = visiblePhotoLimit >= displayPhotos.length;
+    // Resta attivo anche a finestra piena se ci sono altre pagine da caricare
+    // (lazy-load): l'observer della sentinella può perdere transizioni.
+    if (!renderWindowActive || (windowExhausted && !hasNextPage)) return;
 
     let raf = 0;
     const maybeAdvance = () => {
@@ -1971,6 +1990,14 @@ export default function Gallery() {
         setVisiblePhotoLimit((prev) =>
           Math.min(prev + RENDER_WINDOW_STEP, displayPhotosRef.current.length),
         );
+        // Lazy-load: SOLO se la finestra ha già esaurito le foto in memoria
+        if (
+          visiblePhotoLimit >= displayPhotosRef.current.length &&
+          hasNextPage &&
+          !isFetchingNextPage
+        ) {
+          fetchNextPage();
+        }
       }
     };
     const onScroll = () => {
@@ -1988,7 +2015,7 @@ export default function Gallery() {
       document.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
       window.removeEventListener("resize", onScroll);
     };
-  }, [renderWindowActive, visiblePhotoLimit, displayPhotos.length]);
+  }, [renderWindowActive, visiblePhotoLimit, displayPhotos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 📊 Multi-Product Progress Calculation
   const calculateProductProgress = useMemo(() => {

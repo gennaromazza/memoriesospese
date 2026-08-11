@@ -1,0 +1,221 @@
+Dall'analisi precedente, il collo di bottiglia principale è la dimensione monolitica del componente e il rendering non virtualizzato. Ma il primo intervento potrebbe essere quello di virtualizzare la griglia per ridurre il numero di nodi DOM. Questo è un intervento ad alto impatto e relativamente isolato.
+
+Tuttavia, il componente usa MasonryColumns che probabilmente non supporta la virtualizzazione. Dovremmo sostituirlo con una libreria di virtualizzazione (es. react-window o react-virtuoso). Ma scrivere un diff completo per sostituire la libreria è complesso.
+
+Un intervento più semplice e immediato potrebbe essere quello di evitare il pre-caricamento automatico di tutte le pagine, modificando l'useEffect che chiama fetchNextPage() quando hasNextPage e !isFetchingNextPage. Invece, potremmo rimuovere quell'useEffect e lasciare che l'IntersectionObserver gestisca il caricamento delle pagine successive. Questo riduce il numero di richieste di rete e il carico iniziale. È un diff piccolo e concreto.
+
+Quindi, il primo intervento suggerito: rimuovere l'useEffect che forza il fetch di tutte le pagine successive.
+
+Il diff da applicare:
+
+Rimuovere il blocco:
+
+tsx
+// ⚡ HYBRID: Dopo la prima pagina, scarica TUTTE le restanti in background.
+// Così la lightbox e la selezione hanno sempre l'elenco completo delle foto.
+useEffect(() => {
+  if (hasNextPage && !isFetchingNextPage) {
+    fetchNextPage();
+  }
+}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+Modificare la sentinella per attivare fetchNextPage quando l'utente si avvicina al fondo (invece di limitarsi a incrementare visiblePhotoLimit). Attualmente la sentinella incrementa visiblePhotoLimit ma non chiama fetchNextPage (perché l'effetto HYBRID si occupa del fetch). Dobbiamo quindi modificare l'IntersectionObserver per chiamare fetchNextPage quando la sentinella è visibile e hasNextPage è true. Inoltre, per la finestra di rendering, possiamo mantenere l'incremento di visiblePhotoLimit separatamente.
+
+Quindi, il diff sarà:
+
+Rimuovere l'useEffect HYBRID.
+
+Modificare l'useEffect dell'IntersectionObserver per chiamare fetchNextPage quando la sentinella è visibile e hasNextPage è true.
+
+Per la finestra di rendering (aumentare visiblePhotoLimit), possiamo farlo in un altro modo, ad esempio usando un secondo observer o semplicemente aumentando il limite quando fetchNextPage restituisce nuovi dati. Oppure possiamo tenere l'incremento di visiblePhotoLimit già presente nell'osservatore, ma aggiungere anche fetchNextPage.
+
+Dobbiamo scrivere il diff preciso.
+
+Analizziamo il codice esistente:
+
+Attualmente c'è un useEffect per l'IntersectionObserver che incrementa visiblePhotoLimit:
+
+tsx
+useEffect(() => {
+  if (!sentinelRef.current || !hasMoreToRender) return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        setVisiblePhotoLimit((prev) =>
+          prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
+        );
+      }
+    },
+    { rootMargin: '800px' }
+  );
+  observer.observe(sentinelRef.current);
+  return () => observer.disconnect();
+}, [hasMoreToRender, visiblePhotoLimit, displayPhotos.length]);
+E c'è un useEffect HYBRID che fa fetchNextPage.
+
+Il nostro intervento: rimuovere l'useEffect HYBRID e aggiungere a questo observer la chiamata a fetchNextPage quando hasNextPage è true e si interseca.
+
+Inoltre, dobbiamo anche considerare che la sentinella è attualmente condizionata da hasMoreToRender, che dipende da hasMoreToRender = hasMoreToRender || !!hasNextPage. Dobbiamo modificare la condizione per mostrare la sentinella anche quando hasNextPage è true, indipendentemente dal fatto che la finestra di rendering sia piena.
+
+Quindi, il diff:
+
+Rimuovere il blocco HYBRID.
+
+Modificare l'useEffect dell'osservatore per gestire sia il fetch che l'incremento del limite di rendering.
+
+Aggiornare la condizione per mostrare la sentinella.
+
+Scriviamo il diff in formato unificato.
+
+Inoltre, possiamo suggerire di rimuovere anche il fallback di scroll/resize, perché ora il fetch è guidato dalla sentinella.
+
+Dobbiamo essere pratici e scrivere il diff chiaro.
+
+Procediamo con la risposta.
+
+Il primo intervento che farei è rimuovere il pre‑caricamento automatico di tutte le pagine (l'useEffect "HYBRID") e delegare il caricamento delle pagine successive esclusivamente all'IntersectionObserver sulla sentinella.
+Questo riduce drasticamente il numero di richieste di rete iniziali (da decine a una manciata) e alleggerisce il carico sul database, senza compromettere l'esperienza utente perché le pagine vengono caricate solo quando l'utente si avvicina al fondo.
+
+Ecco il diff delle modifiche da applicare al file Gallery.tsx:
+
+diff
+@@ -1000,31 +1000,6 @@ export default function Gallery() {
+     void imageCache.preloadImages(urls).catch(() => {});
+   }, [firstPagePhotos]);
+
+-  // ⚡ HYBRID: Dopo la prima pagina, scarica TUTTE le restanti in background.
+-  // Così la lightbox e la selezione hanno sempre l'elenco completo delle foto.
+-  useEffect(() => {
+-    if (hasNextPage && !isFetchingNextPage) {
+-      fetchNextPage();
+-    }
+-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+-
+-  // ⏱️ Calcola stima tempo di caricamento basata sulla connessione
+-  useEffect(() => {
+-    if (!galleryData?.photoCount || galleryData.photoCount === 0) {
+-      setLoadingTimeEstimate(null);
+-      return;
+-    }
+-
+-    const photoCount = galleryData.photoCount;
+-    
+-    // Usa Network Information API se disponibile
+-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+-    
+-    // Stima dimensione media foto (circa 300KB per foto compressa)
+-    const avgPhotoSizeKB = 300;
+-    const totalSizeMB = (photoCount * avgPhotoSizeKB) / 1024;
+-    
+-    // Velocità di download stimata in Mbps
+-    let downloadSpeedMbps = 10; // Default: connessione media
+-    
+-    if (connection?.downlink) {
+-      downloadSpeedMbps = connection.downlink;
+-    } else if (connection?.effectiveType) {
+-      // Stima basata sul tipo di connessione
+-      switch (connection.effectiveType) {
+-        case '4g': downloadSpeedMbps = 20; break;
+-        case '3g': downloadSpeedMbps = 2; break;
+-        case '2g': downloadSpeedMbps = 0.3; break;
+-        case 'slow-2g': downloadSpeedMbps = 0.1; break;
+-        default: downloadSpeedMbps = 10;
+-      }
+-    }
+-    
+-    // Calcola tempo in secondi (MB / (Mbps / 8)) con margine del 20%
+-    const timeSeconds = Math.ceil((totalSizeMB / (downloadSpeedMbps / 8)) * 1.2);
+-    
+-    if (timeSeconds < 10) {
+-      setLoadingTimeEstimate("pochi secondi");
+-    } else if (timeSeconds < 60) {
+-      setLoadingTimeEstimate(`circa ${Math.ceil(timeSeconds / 10) * 10} secondi`);
+-    } else {
+-      const minutes = Math.ceil(timeSeconds / 60);
+-      setLoadingTimeEstimate(`circa ${minutes} ${minutes === 1 ? 'minuto' : 'minuti'}`);
+-    }
+-  }, [galleryData?.photoCount]);
+-
+   // 🔧 React Query: Carica storia coppia (enabled solo quando id esiste)
+   const {
+     data: coupleStory,
+@@ -2016,33 +1991,48 @@ export default function Gallery() {
+   // 📊 La sentinella resta montata finché ci sono altre card da rivelare (finestra di
+   // rendering) OPPURE altri metadati ancora in arrivo da Firestore (auto-fetch HYBRID).
+-  const hasMorePhotosToShow = hasMoreToRender || !!hasNextPage;
++  const hasMorePhotosToShow = (hasMoreToRender || !!hasNextPage);
+
+-  // Intersection Observer per la FINESTRA DI RENDERING: avvicinandosi al fondo rivela
+-  // altre card già disponibili. Il fetch dei metadati è gestito UNICAMENTE dall'effetto
+-  // HYBRID (scarica tutte le pagine in background): qui non chiamiamo più fetchNextPage,
+-  // eliminando il doppio meccanismo di paginazione.
++  // Intersection Observer per il caricamento lazy delle foto:
++  // - quando la sentinella entra nel viewport, carica la pagina successiva (se disponibile)
++  // - e/o aumenta il limite di rendering per mostrare più foto già caricate
+   useEffect(() => {
+-    if (!sentinelRef.current || !hasMoreToRender) return;
++    if (!sentinelRef.current || !hasMorePhotosToShow) return;
+
+     const observer = new IntersectionObserver(
+       (entries) => {
+         if (entries[0].isIntersecting) {
+-          setVisiblePhotoLimit((prev) =>
+-            prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
+-          );
++          // 1) Carica la prossima pagina di metadati, se esiste
++          if (hasNextPage && !isFetchingNextPage) {
++            fetchNextPage();
++          }
++          // 2) Aumenta la finestra di rendering per mostrare più foto già in memoria
++          if (hasMoreToRender) {
++            setVisiblePhotoLimit((prev) =>
++              prev < displayPhotos.length ? prev + RENDER_WINDOW_STEP : prev,
++            );
++          }
+         }
+       },
+-      { rootMargin: '800px' }
++      { rootMargin: '800px' } // carica in anticipo
+     );
+
+     observer.observe(sentinelRef.current);
+     return () => observer.disconnect();
+-  }, [hasMoreToRender, visiblePhotoLimit, displayPhotos.length]);
++  }, [
++    hasMorePhotosToShow,
++    hasNextPage,
++    isFetchingNextPage,
++    fetchNextPage,
++    hasMoreToRender,
++    displayPhotos.length,
++    visiblePhotoLimit,
++  ]);
+
+   // 🪟 FALLBACK ROBUSTO di avanzamento finestra (indipendente dall'observer).
+   // L'IntersectionObserver sopra è solo un fast-path: su gallerie grandi può
+   // perdere le transizioni (lazy-load immagini che cambiano altezza, scroll
+   // anchoring, smontaggio/rimontaggio della sentinella durante la
+   // riconciliazione) lasciando la griglia BLOCCATA pur avendo già tutti i
+   // metadati in memoria (sintomo: la lightbox mostra tutte le foto, la griglia
+   // no). Qui avanziamo su scroll/resize (rAF, passive) e SUBITO quando
+   // displayPhotos cresce, così la finestra non resta mai ferma.
+Spiegazione delle modifiche:
+
+Rimosso l'useEffect "HYBRID" (righe 1003‑1051 circa) che chiamava fetchNextPage() in background appena la prima pagina era disponibile. Ora le pagine successive vengono caricate solo quando la sentinella è visibile, seguendo il comportamento classico dell'infinite scroll.
+
+Modificato l'IntersectionObserver (righe 1994‑2028) per gestire sia il caricamento dei metadati (fetchNextPage) sia l'incremento della finestra di rendering (visiblePhotoLimit). In questo modo, quando l'utente si avvicina al fondo:
+
+se ci sono altre pagine da caricare, vengono richieste;
+
+se il limite di rendering è inferiore al totale delle foto già in memoria, viene aumentato.
+
+Aggiornata la condizione per mostrare la sentinella (hasMorePhotosToShow), che ora include sia la presenza di altre pagine da caricare sia la possibilità di aumentare la finestra di rendering.
+
+Vantaggi di questo intervento:
+
+Riduzione del carico di rete: non vengono più scaricate decine di pagine inutilizzate all'avvio, ma solo quelle che l'utente effettivamente sfoglia.
+
+Minore consumo di memoria nel client, perché i metadati delle foto vengono caricati progressivamente.
+
+Miglioramento del tempo di primo rendering (TTI), poiché le risorse vengono dedicate al caricamento della prima pagina.
+
+Rimozione di un effetto collaterale (useEffect) che poteva causare fetch concorrenti e potenziali race condition.
