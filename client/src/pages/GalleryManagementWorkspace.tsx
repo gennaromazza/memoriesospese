@@ -191,6 +191,9 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
     setCurrentPage(1);
   }, [searchTerm]);
   const [enableCompression, setEnableCompression] = useState(true);
+  // Consenti doppioni: carica anche foto già presenti (stesso nome o contenuto),
+  // utile per avere la stessa foto in più capitoli (copie indipendenti).
+  const [allowDuplicates, setAllowDuplicates] = useState(false);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isGeneratingThumbs, setIsGeneratingThumbs] = useState(false);
@@ -354,11 +357,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
       if (!galleryId || !user) throw new Error('Missing gallery or user');
 
       // Filtra duplicati per nome E per hash contenuto (usa hashMap passata direttamente, non lo stato)
-      const duplicates = files.filter((f, idx) => {
+      // Se "Consenti doppioni" è attivo, salta il filtro (copie volute, es. stessa foto in più capitoli)
+      const duplicates = allowDuplicates ? [] : files.filter((f, idx) => {
         const hash = hashMap.get(`${idx}-${f.name}`);
         return existingPhotoNames.has(f.name) || (hash ? existingPhotoHashes.has(hash) : false);
       });
-      let uniqueFiles = files.filter((f, idx) => {
+      let uniqueFiles = allowDuplicates ? [...files] : files.filter((f, idx) => {
         const hash = hashMap.get(`${idx}-${f.name}`);
         return !existingPhotoNames.has(f.name) && !(hash ? existingPhotoHashes.has(hash) : false);
       });
@@ -890,6 +894,13 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
                           onCheckedChange={(checked) => setEnableCompression(!!checked)}
                         />
                         Comprimi immagini
+                      </label>
+                      <label className="flex items-center gap-2 text-sm" title="Carica anche foto già presenti nella galleria (utile per avere la stessa foto in più capitoli)">
+                        <Checkbox
+                          checked={allowDuplicates}
+                          onCheckedChange={(checked) => setAllowDuplicates(!!checked)}
+                        />
+                        Consenti doppioni
                       </label>
                       {enableCompression && (
                         <div className="flex items-center gap-2 text-sm">
