@@ -1,3 +1,4 @@
+- [FIREBASE_ADMIN_CREDENTIALS formato doppio](firebase-admin-credentials-format.md) — secret JSON puro O base64: parsing dual-format ovunque; 16 UNAUTHENTICATED diffuso = chiave revocata da Google.
 - [OCR documenti Tesseract rimosso](document-ocr-tesseract.md) — route server, dialog client e dipendenza tesseract.js eliminati; shared/document-ocr.ts conservato per decodeCodiceFiscale/cfSurnameCode/cfNameCode ancora usati.
 - [Esclusione capitoli dalla selezione](chapter-selection-exclusion.md) — flag sul capitolo, non sulla galleria; enforcement in più punti di Gallery.tsx (toggle, prodotti, save, sanificazione, lightbox) da tenere allineati.
 - [Requirement rules preventivi](quote-requirement-rules.md) — regole per NOME; QuickQuote usa chiavi productId||nome; "sempre inclusi" (Fissi/omaggio) mai rimossi a cascata; guardia no-op negli effect di sanificazione.

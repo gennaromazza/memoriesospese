@@ -22,8 +22,11 @@ function initializeFirebaseAdmin() {
     throw new Error('❌ FIREBASE_ADMIN_CREDENTIALS non configurato');
   }
 
-  const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-  const serviceAccount = JSON.parse(serviceAccountJson);
+  // Accetta sia JSON puro che base64 (come server/firebase-admin.ts)
+  const trimmed = serviceAccountBase64.trim();
+  const serviceAccount = trimmed.startsWith('{')
+    ? JSON.parse(trimmed)
+    : JSON.parse(Buffer.from(trimmed, 'base64').toString('utf-8'));
 
   return initializeApp({
     credential: cert(serviceAccount),
