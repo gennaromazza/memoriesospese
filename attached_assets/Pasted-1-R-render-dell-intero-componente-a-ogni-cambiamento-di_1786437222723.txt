@@ -1,0 +1,25 @@
+1. R‑render dell’intero componente a ogni cambiamento di stato
+Il componente è monolitico: contiene decine di useState e useEffect che, al minimo cambiamento, provocano la riesecuzione dell’intero corpo del componente. Di conseguenza:
+
+Tutti i useMemo e useCallback vengono rieseguiti (anche se i valori cambiano solo in parte).
+
+La logica di filtraggio, ordinamento e raggruppamento per capitoli viene ricalcolata spesso.
+
+La griglia MasonryColumns viene rimontata/rirenderizzata con tutti i suoi figli, anche se molte proprietà delle card sono rimaste invariate.
+
+Impatto: su gallerie di grandi dimensioni (>200 foto), questo causa cali di fluidità durante lo scroll, il toggle di selezione o l’apertura/chiusura del lightbox.
+
+2. Raggruppamento e filtri su array di grandi dimensioni
+La useMemo che produce allDisplayPhotos applica prima i filtri (data/ora), poi l’ordinamento, poi un eventuale filtro per prodotto e infine il filtro “solo selezionate”.
+Questa operazione viene eseguita a ogni render e, in presenza di centinaia di foto, la complessità (sort O(n log n) + filter O(n)) inizia a pesare.
+
+Allo stesso modo, il raggruppamento per capitoli (photosByChapter) itera su tutte le foto per ogni capitolo, e viene ricalcolato ogni volta che cambia allDisplayPhotos.
+
+3. Paginazione e riconciliazione dei dati
+La strategia di caricamento è ibrida:
+
+useInfiniteQuery carica 50 foto alla volta, ma un useEffect scatena il caricamento di tutte le pagine successive non appena la prima è disponibile. Questo può generare decine di richieste contemporanee e saturare la rete.
+
+Inoltre, la riconciliazione (needsReconciliation) carica tutte le foto (senza orderBy) per recuperare quelle prive del campo createdAt, che erano state escluse dalla paginazione. Questo raddoppia il carico di dati per gallerie “non sane” e introduce un ulteriore passaggio di merge e re‑render.
+
+Impatto: su gallerie con migliaia di foto, il pre‑caricamento di tutti i metadati può consumare molta banda e memoria, oltre a rallentare il primo rendering.
