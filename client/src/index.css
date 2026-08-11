@@ -194,6 +194,11 @@ body.mobile-gallery-fullscreen .mobile-gallery-nav {
 
   .masonry-item {
     width: 100%;
+    /* Le card fuori viewport saltano paint/layout: il browser usa il segnaposto
+       intrinseco finché non entrano in vista. `auto 300px` memorizza l'ultima
+       dimensione reale dopo il primo render, evitando salti di scrollbar. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
   }
 
   .btn-primary {

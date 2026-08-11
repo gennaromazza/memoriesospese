@@ -1769,19 +1769,29 @@ export default function Gallery() {
   }, [photos, filters, areFiltersActive]);
 
   // 🎨 UX Enhancement #1: Filtra per mostrare solo foto selezionate (se attivo)
+  // 🔒 Dipendenze STRETTE: gli input volatili (selezione, assegnazioni prodotto)
+  // entrano nel memo solo quando il relativo filtro è ATTIVO. Così un toggle di
+  // selezione senza "mostra solo selezionate" non ricalcola la lista né cambia
+  // l'identità dell'array (evita ricalcoli a cascata di photosByChapter e figli).
+  const selectionFilterSet =
+    showOnlySelected && isSelectionMode && selectedPhotoIdsSet.size > 0
+      ? selectedPhotoIdsSet
+      : null;
+  const productFilterAssignments =
+    filterByProduct !== null ? photoAssignments : null;
   const allDisplayPhotos = useMemo(() => {
     let basePhotos = areFiltersActive ? filteredPhotos : photos;
 
     // Filtro per prodotto specifico (Task 8)
-    if (filterByProduct !== null && photoAssignments) {
+    if (filterByProduct !== null && productFilterAssignments) {
       basePhotos = basePhotos.filter((photo) =>
-        photoAssignments[photo.id]?.includes(String(filterByProduct))
+        productFilterAssignments[photo.id]?.includes(String(filterByProduct))
       );
     }
 
     // Se il filtro "solo selezionate" è attivo, mostra solo quelle
-    if (showOnlySelected && isSelectionMode && selectedPhotoIds.length > 0) {
-      return basePhotos.filter((photo) => selectedPhotoIdsSet.has(photo.id));
+    if (selectionFilterSet) {
+      return basePhotos.filter((photo) => selectionFilterSet.has(photo.id));
     }
 
     return basePhotos;
@@ -1789,12 +1799,9 @@ export default function Gallery() {
     areFiltersActive,
     filteredPhotos,
     photos,
-    showOnlySelected,
-    isSelectionMode,
-    selectedPhotoIds,
-    selectedPhotoIdsSet,
+    selectionFilterSet,
     filterByProduct,
-    photoAssignments,
+    productFilterAssignments,
   ]);
 
   // 📄 Con paginazione Firestore, tutte le foto caricate sono da visualizzare (niente slice client-side)
