@@ -36,9 +36,15 @@ function initializeFirebaseAdmin(): App {
   }
 
   try {
-    // Decodifica e parsa JSON
-    const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf-8');
-    const serviceAccount = JSON.parse(serviceAccountJson);
+    // Accetta sia JSON puro che base64: prova prima il JSON diretto
+    let serviceAccount: any;
+    const trimmed = serviceAccountBase64.trim();
+    if (trimmed.startsWith('{')) {
+      serviceAccount = JSON.parse(trimmed);
+    } else {
+      const serviceAccountJson = Buffer.from(trimmed, 'base64').toString('utf-8');
+      serviceAccount = JSON.parse(serviceAccountJson);
+    }
 
     // 🔒 VALIDAZIONE ROBUSTA: Verifica campi obbligatori PRIMA di usare cert()
     if (!serviceAccount?.client_email || !serviceAccount?.private_key || !serviceAccount?.project_id) {
