@@ -7,3 +7,9 @@ vite.config.ts.*
 test-results
 playwright-report
 *.traineddata
+
+# Env files (mai committare: possono contenere credenziali)
+.env
+.env.*
+!client/.env.development
+!client/.env.production
