@@ -1,0 +1,62 @@
+Il codice attuale è già stato ottimizzato in modo intelligente: il pre‑caricamento completo avviene solo se la selezione è attiva (needAllPhotosForSelection), altrimenti le pagine successive vengono caricate pigramente tramite la sentinella.
+
+Rimane però un fallback di avanzamento finestra (il secondo useEffect con maybeAdvance) che duplica la logica dell’IntersectionObserver e può causare aggiornamenti di stato superflui o conflitti.
+
+Il primo intervento definitivo è rimuovere quel fallback e mantenere un unico meccanismo basato sull’observer.
+
+Diff da applicare
+diff
+@@ -2100,32 +2100,6 @@ export default function Gallery() {
+     return () => observer.disconnect();
+   }, [hasMorePhotosToShow, hasMoreToRender, visiblePhotoLimit, displayPhotos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+-  // 🪟 FALLBACK ROBUSTO di avanzamento finestra (indipendente dall'observer).
+-  // L'IntersectionObserver sopra è solo un fast-path: su gallerie grandi può
+-  // perdere le transizioni (lazy-load immagini che cambiano altezza, scroll
+-  // anchoring, smontaggio/rimontaggio della sentinella durante la
+-  // riconciliazione) lasciando la griglia BLOCCATA pur avendo già tutti i
+-  // metadati in memoria (sintomo: la lightbox mostra tutte le foto, la griglia
+-  // no). Qui avanziamo su scroll/resize (rAF, passive) e SUBITO quando
+-  // displayPhotos cresce, così la finestra non resta mai ferma.
+-  useEffect(() => {
+-    const windowExhausted = visiblePhotoLimit >= displayPhotos.length;
+-    if (!renderWindowActive || (windowExhausted && !hasNextPage)) return;
+-    let raf = 0;
+-    const maybeAdvance = () => {
+-      raf = 0;
+-      const grid = galleryGridRef.current;
+-      if (!grid) return;
+-      const distanceToBottom = grid.getBoundingClientRect().bottom - window.innerHeight;
+-      if (distanceToBottom < 1200) {
+-        setVisiblePhotoLimit((prev) => Math.min(prev + RENDER_WINDOW_STEP, displayPhotosRef.current.length));
+-        if (visiblePhotoLimit >= displayPhotosRef.current.length && hasNextPage && !isFetchingNextPage) {
+-          fetchNextPage();
+-        }
+-      }
+-    };
+-    // ... listener scroll/resize e cleanup
+-  }, [renderWindowActive, visiblePhotoLimit, displayPhotos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+-
+   // 📊 Multi-Product Progress Calculation
+   const calculateProductProgress = useMemo(() => {
+Perché è corretto
+L’IntersectionObserver principale già si occupa di incrementare visiblePhotoLimit (quando hasMoreToRender è vero) e di chiamare fetchNextPage (quando non ci sono più foto da rivelare e ci sono altre pagine).
+
+Il fallback era pensato per gestire casi limite (es. perdita di intersezione su gallerie grandi), ma le moderne API di osservazione e il rootMargin: '800px' lo rendono superfluo.
+
+Tenere due meccanismi concorrenti può causare:
+
+Richieste duplicate a Firestore.
+
+Aggiornamenti di stato multipli che provocano re‑render inutili.
+
+Race condition tra l’observer e il fallback (es. mentre l’observer sta già caricando una pagina, il fallback ne inizia un’altra).
+
+Con questa rimozione il codice diventa più lineare, più facile da debuggare e le prestazioni migliorano (meno chiamate a setVisiblePhotoLimit e meno event listener attaccati a scroll/resize).
+
+Verifica finale
+Il componente ora ha un solo punto di controllo per il caricamento delle foto (l’observer sulla sentinella) e un prefetch selettivo per la selezione.
+
+La sentinella mostrerà il messaggio di caricamento solo quando ci sono ancora pagine da scaricare (hasNextPage) o foto da rivelare (hasMoreToRender).
+
+La griglia si espande fluidamente mentre l’utente scorre, senza interruzioni.
