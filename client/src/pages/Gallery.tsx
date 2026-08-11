@@ -418,13 +418,38 @@ export default function Gallery() {
   });
 
   const { photos, guestPhotos } = useMemo(() => {
-    const paged = photoPages.flatMap(p => p.photos);
+    let paged = photoPages.flatMap(p => p.photos);
+    // 🩹 DEDUP LEGACY CROSS-PAGINA: le foto del vecchio archivio (id "legacy-*")
+    // vengono unite alla PRIMA pagina, quando il controllo doppioni conosce solo
+    // i primi 50 nomi. I doppioni delle pagine successive sfuggivano e comparivano
+    // come capitolo fittizio "Altre Foto" (senza chapterId). Regole:
+    // 1) una legacy con lo stesso nome di una foto moderna (paginata O
+    //    riconciliata) è un doppione certo → via;
+    // 2) finché la paginazione non è finita non possiamo provare che una legacy
+    //    sia unica → la nascondiamo finché hasNextPage è true (compare alla fine
+    //    solo se davvero senza copia moderna).
+    const isLegacy = (p: Photo) => typeof p.id === 'string' && p.id.startsWith('legacy-');
+    if (paged.some(isLegacy)) {
+      const modernNames = new Set(
+        paged.filter(p => !isLegacy(p)).map(p => p.name)
+      );
+      reconciledPhotos?.forEach(p => {
+        if (!isLegacy(p) && p.name) modernNames.add(p.name);
+      });
+      paged = paged.filter(p => {
+        if (!isLegacy(p)) return true;
+        if (p.name && modernNames.has(p.name)) return false; // doppione certo
+        return !hasNextPage; // unicità dimostrabile solo a paginazione completa
+      });
+    }
     let all = paged;
     // Unisci le foto recuperate dalla riconciliazione (solo quelle non già
     // presenti, per id o per nome) preservando l'ordine della paginazione.
+    // NB: i nomi legacy NON bloccano l'ingresso delle foto moderne (la legacy
+    // omonima è già stata rimossa sopra → la versione moderna vince sempre).
     if (reconciledPhotos?.length) {
       const seenIds = new Set(paged.map(p => p.id));
-      const seenNames = new Set(paged.map(p => p.name));
+      const seenNames = new Set(paged.filter(p => !isLegacy(p)).map(p => p.name));
       const extras = reconciledPhotos.filter(
         p => !seenIds.has(p.id) && !(p.name && seenNames.has(p.name))
       );
@@ -434,7 +459,7 @@ export default function Gallery() {
       photos: all.filter(p => p.uploadedBy !== 'guest'),
       guestPhotos: all.filter(p => p.uploadedBy === 'guest'),
     };
-  }, [photoPages, reconciledPhotos]);
+  }, [photoPages, reconciledPhotos, hasNextPage]);
 
   // ✅ Tutte le foto sono caricate? (paginazione finita + eventuale
   // riconciliazione completata). Serve a non salvare selezioni/dislike parziali.
