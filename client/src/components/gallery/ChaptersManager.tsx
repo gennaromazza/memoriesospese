@@ -397,6 +397,10 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
   const [activeChapter, setActiveChapter] = useState<string | 'unassigned' | 'all'>('all');
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // 📋 Assegna da lista: incolla un elenco di nomi file e sposta le foto corrispondenti in un capitolo
+  const [showListAssignDialog, setShowListAssignDialog] = useState(false);
+  const [listAssignText, setListAssignText] = useState('');
+  const [listAssignTarget, setListAssignTarget] = useState<string>('');
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCoverDialog, setShowCoverDialog] = useState(false);
   const [coverChapter, setCoverChapter] = useState<Chapter | null>(null);
@@ -439,6 +443,60 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
     queryFn: () => PhotoService.countPhotosByChapter(galleryId),
     enabled: !!galleryId
   });
+
+  // 📋 Matching lista → foto: confronta i nomi file in modo tollerante
+  // (ignora maiuscole, percorsi, il prefisso timestamp interno "1234567890-"
+  // aggiunto dall'upload e, come ripiego, l'estensione).
+  const normalizeName = useCallback((raw: string): { full: string; noExt: string } => {
+    let n = raw.trim().replace(/^["']+|["']+$/g, '').toLowerCase();
+    n = n.split(/[\\/]/).pop() || n;      // togli eventuali percorsi
+    n = n.replace(/^\d{8,}[-_]/, '');      // togli prefisso timestamp interno
+    const noExt = n.replace(/\.[a-z0-9]{2,5}$/, '');
+    return { full: n, noExt };
+  }, []);
+
+  const listAssignMatch = useMemo(() => {
+    const entries = listAssignText
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (entries.length === 0) return { entries: [], matched: [] as Photo[], unmatched: [] as string[], ambiguous: [] as { entry: string; count: number }[] };
+
+    const byFull = new Map<string, Photo[]>();
+    const byNoExt = new Map<string, Photo[]>();
+    allPhotos.forEach(p => {
+      const k = normalizeName(p.name || '');
+      if (!byFull.has(k.full)) byFull.set(k.full, []);
+      byFull.get(k.full)!.push(p);
+      if (!byNoExt.has(k.noExt)) byNoExt.set(k.noExt, []);
+      byNoExt.get(k.noExt)!.push(p);
+    });
+
+    const matchedIds = new Set<string>();
+    const matched: Photo[] = [];
+    const unmatched: string[] = [];
+    const ambiguous: { entry: string; count: number }[] = [];
+    entries.forEach(entry => {
+      const k = normalizeName(entry);
+      // Match esatto sul nome; ripiego senza estensione. In ENTRAMBI i casi
+      // il nome deve identificare UNA sola foto: con più corrispondenze
+      // (es. copie identiche o stesso nome con estensioni diverse) l'operazione
+      // sarebbe ambigua → la voce viene segnalata e NON spostata.
+      const found = byFull.get(k.full) ?? byNoExt.get(k.noExt) ?? [];
+      if (found.length === 0) {
+        unmatched.push(entry);
+      } else if (found.length > 1) {
+        ambiguous.push({ entry, count: found.length });
+      } else {
+        const p = found[0];
+        if (!matchedIds.has(p.id)) {
+          matchedIds.add(p.id);
+          matched.push(p);
+        }
+      }
+    });
+    return { entries, matched, unmatched, ambiguous };
+  }, [listAssignText, allPhotos, normalizeName]);
 
   const filteredPhotos = useMemo(() => {
     if (activeChapter === 'all') return allPhotos;
@@ -781,10 +839,21 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
               Organizza le foto in sezioni logiche (es. Preparazione, Cerimonia, Ricevimento)
             </CardDescription>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-chapter">
-            <Plus className="w-4 h-4 mr-2" />
-            Nuovo Capitolo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowListAssignDialog(true)}
+              disabled={chapters.length === 0}
+              data-testid="button-assign-from-list"
+            >
+              <Move className="w-4 h-4 mr-2" />
+              Assegna da lista
+            </Button>
+            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-chapter">
+              <Plus className="w-4 h-4 mr-2" />
+              Nuovo Capitolo
+            </Button>
+          </div>
         </div>
       </CardHeader>
       
@@ -1131,6 +1200,110 @@ export default function ChaptersManager({ gallery, galleryId }: ChaptersManagerP
             >
               {createChapterMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Crea Capitolo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 📋 Dialog Assegna da lista */}
+      <Dialog open={showListAssignDialog} onOpenChange={(open) => {
+        setShowListAssignDialog(open);
+        if (!open) { setListAssignText(''); setListAssignTarget(''); }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Assegna foto da lista</DialogTitle>
+            <DialogDescription>
+              Incolla l'elenco dei nomi file (uno per riga) e scegli il capitolo di destinazione:
+              le foto corrispondenti verranno spostate lì. Maiuscole, percorsi ed estensioni
+              vengono ignorati nel confronto.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Capitolo di destinazione *</label>
+              <select
+                value={listAssignTarget}
+                onChange={(e) => setListAssignTarget(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white"
+                data-testid="select-list-assign-chapter"
+              >
+                <option value="">— Scegli un capitolo —</option>
+                {chapters.map(c => (
+                  <option key={c.id} value={c.id}>{c.titolo}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Elenco nomi file *</label>
+              <Textarea
+                placeholder={"IMG_0001.jpg\nIMG_0002.jpg\nIMG_0003.jpg"}
+                value={listAssignText}
+                onChange={(e) => setListAssignText(e.target.value)}
+                rows={8}
+                className="font-mono text-xs"
+                data-testid="textarea-list-assign"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Puoi incollare anche un elenco separato da virgole. Suggerimento: da Esplora file
+                seleziona le foto → tasto destro → "Copia come percorso" e incolla qui.
+              </p>
+            </div>
+            {listAssignMatch.entries.length > 0 && (
+              <div className="text-sm space-y-1">
+                <p className="text-green-700">
+                  ✓ {listAssignMatch.matched.length} foto trovate in galleria
+                  (su {listAssignMatch.entries.length} nomi in lista)
+                </p>
+                {listAssignMatch.ambiguous.length > 0 && (
+                  <details className="text-red-700">
+                    <summary className="cursor-pointer">
+                      ✋ {listAssignMatch.ambiguous.length} nomi corrispondono a più foto (verranno saltati per sicurezza)
+                    </summary>
+                    <div className="mt-1 max-h-24 overflow-y-auto font-mono text-xs text-gray-600">
+                      {listAssignMatch.ambiguous.slice(0, 50).map((a, i) => (
+                        <div key={i}>{a.entry} → {a.count} foto</div>
+                      ))}
+                      {listAssignMatch.ambiguous.length > 50 && <div>… +{listAssignMatch.ambiguous.length - 50}</div>}
+                    </div>
+                  </details>
+                )}
+                {listAssignMatch.unmatched.length > 0 && (
+                  <details className="text-amber-700">
+                    <summary className="cursor-pointer">
+                      ⚠️ {listAssignMatch.unmatched.length} nomi senza corrispondenza (verranno ignorati)
+                    </summary>
+                    <div className="mt-1 max-h-24 overflow-y-auto font-mono text-xs text-gray-600">
+                      {listAssignMatch.unmatched.slice(0, 50).map((n, i) => <div key={i}>{n}</div>)}
+                      {listAssignMatch.unmatched.length > 50 && <div>… +{listAssignMatch.unmatched.length - 50}</div>}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowListAssignDialog(false)}>
+              Annulla
+            </Button>
+            <Button
+              disabled={
+                !listAssignTarget ||
+                listAssignMatch.matched.length === 0 ||
+                assignPhotosMutation.isPending
+              }
+              onClick={() => {
+                assignPhotosMutation.mutate(
+                  { photoIds: listAssignMatch.matched.map(p => p.id), chapterId: listAssignTarget },
+                  { onSuccess: () => { setShowListAssignDialog(false); setListAssignText(''); setListAssignTarget(''); } }
+                );
+              }}
+              data-testid="button-list-assign-confirm"
+            >
+              {assignPhotosMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Sposta {listAssignMatch.matched.length > 0 ? `${listAssignMatch.matched.length} foto` : 'foto'}
             </Button>
           </DialogFooter>
         </DialogContent>
