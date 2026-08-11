@@ -46,3 +46,6 @@ Una foto con originale irrecuperabile (URL non interpretabile, 404, file non-imm
 
 ## Foto con URL pubblici GCS (storage.googleapis.com senza token)
 Alcune gallerie hanno foto con URL path-style `storage.googleapis.com/<bucket>/...` che funzionano SOLO se il file ha ACL `allUsers:READER` (makePublic). Se il caricamento avviene con credenziali admin non valide, il makePublic fallisce in silenzio → 403 su copertine/foto. Fix: `file.makePublic()` su tutti i file `galleries/<gid>/photos/`. Sintomo: solo una galleria "rotta", le altre (URL firebasestorage con token) ok.
+
+## URL firmati (GoogleAccessId) fragili alla rotazione chiave
+Migliaia di foto storiche avevano URL firmati V2 (query GoogleAccessId/Signature) creati da import-routes con la chiave service-account: se la chiave viene revocata (es. da Google dopo un leak) TUTTE quelle firme muoiono → 403 di massa su ~40 gallerie. Riparazione: makePublic + strip query per URL storage.googleapis; per firebasestorage serve il token in metadata (NON strippare la query!). import-routes genera ancora signed URL: preferire token URL per nuovi upload.
