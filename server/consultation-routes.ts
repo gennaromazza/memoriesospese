@@ -26,6 +26,7 @@ import {
   createEuropeRomeDate,
 } from "./google-calendar.js";
 import multer from "multer";
+import { saveWithDownloadToken } from "./storage-download-url.js";
 
 const router = express.Router();
 
@@ -2078,25 +2079,20 @@ router.post(
       const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
       const storagePath = `consultation-templates/${id}/${timestamp}_${safeName}`;
 
-      const file = bucket.file(storagePath);
-
-      // Upload immagine (privata con signed URL)
-      await file.save(req.file.buffer, {
-        metadata: {
-          contentType: req.file.mimetype,
-          metadata: {
-            uploadedAt: new Date().toISOString(),
-            originalName: req.file.originalname,
-            templateId: id,
-          },
+      // ✅ URL stabile con firebaseStorageDownloadTokens: non dipende dalla
+      // chiave del service account (i signed URL diventano 403 se la chiave
+      // viene ruotata/revocata)
+      const signedUrl = await saveWithDownloadToken(
+        bucket,
+        storagePath,
+        req.file.buffer,
+        req.file.mimetype,
+        {
+          uploadedAt: new Date().toISOString(),
+          originalName: req.file.originalname,
+          templateId: id,
         },
-      });
-
-      // Genera signed URL (5 anni validità)
-      const [signedUrl] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + 5 * 365 * 24 * 60 * 60 * 1000, // 5 anni
-      });
+      );
 
       // Aggiorna template con nuovo URL
       await consultationService.updateTemplate(id, {
@@ -2167,9 +2163,12 @@ router.delete(
           .json({ error: "Immagine non trovata nel template" });
       }
 
-      // Estrai storage path da signed URL (pattern: consultation-templates/{id}/{filename})
-      // Gli signed URL hanno formato: https://storage.googleapis.com/{bucket}/consultation-templates/...
-      const pathMatch = imageUrl.match(/consultation-templates\/[^?]+/);
+      // Estrai storage path dall'URL (pattern: consultation-templates/{id}/{filename})
+      // Formati supportati:
+      //  - legacy signed URL: https://storage.googleapis.com/{bucket}/consultation-templates/...
+      //  - download URL: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/consultation-templates%2F... (path URL-encoded)
+      const decodedUrl = decodeURIComponent(imageUrl.split("?")[0]);
+      const pathMatch = decodedUrl.match(/consultation-templates\/[^?]+/);
 
       if (pathMatch) {
         const storagePath = pathMatch[0];

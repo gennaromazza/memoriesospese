@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, Timestamp, storage } from './firebase-admin';
 import { LegacyImportParser, ParsedJobData } from './import-parser';
 import { authenticateFirebase } from './email-routes';
+import { saveWithDownloadToken } from './storage-download-url';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -559,29 +560,23 @@ async function uploadPDFToStorage(pdfBuffer: Buffer, fileName: string, jobId: st
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `legacy-imports/${jobId}/${timestamp}_${safeName}`;
   
-  const file = bucket.file(storagePath);
-  
   try {
-    // Upload con metadata (file rimane PRIVATO)
-    await file.save(pdfBuffer, {
-      metadata: {
-        contentType: 'application/pdf',
-        metadata: {
-          uploadedAt: new Date().toISOString(),
-          originalName: fileName,
-          jobId,
-        },
-      },
-    });
-    
-    // ✅ FIX SECURITY: Genera signed URL con scadenza 5 anni invece di makePublic()
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + (5 * 365 * 24 * 60 * 60 * 1000), // 5 anni
-    });
-    
-    console.log(`✅ PDF caricato (privato con signed URL): ${fileName}`);
-    return signedUrl;
+    // ✅ URL stabile con firebaseStorageDownloadTokens: non dipende dalla chiave
+    // del service account (i signed URL diventano 403 se la chiave viene ruotata/revocata)
+    const downloadUrl = await saveWithDownloadToken(
+      bucket,
+      storagePath,
+      pdfBuffer,
+      'application/pdf',
+      {
+        uploadedAt: new Date().toISOString(),
+        originalName: fileName,
+        jobId,
+      }
+    );
+
+    console.log(`✅ PDF caricato (URL con download token): ${fileName}`);
+    return downloadUrl;
     
   } catch (error: any) {
     console.error(`❌ Errore upload PDF ${fileName}:`, error.message);
