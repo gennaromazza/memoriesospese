@@ -14,7 +14,7 @@
 - [Dedup foto legacy cross-pagina](gallery-legacy-photo-dedup.md) — foto in 2 collezioni: le legacy senza chapterId vanno dedupate per nome sull'elenco completo o appare il capitolo fantasma "Altre Foto".
 - [Gallery photo completeness & lightbox](gallery-photo-completeness.md) — Firestore orderBy scarta i doc senza il campo → galleria perde foto; riconcilia con query unordered gated su photoCount (deve throw, no save parziale).
 - [Gallery render window](gallery-render-window.md) — finestra di rendering masonry: l'observer della sentinella va ri-armato (deps su visiblePhotoLimit) o si blocca dopo il 1° incremento (~100 foto); attiva solo vista standard fotografo.
-- [Gallery public access gate](gallery-public-access-gate.md) — /view/:id mostra 404 globale se aperto diretto: gate redirige a /access/:id (route inesistente); per testare impostare localStorage gallery_auth_<id>.
+- [Gallery public access gate](gallery-public-access-gate.md) — gate di /view/:id redirige a /gallery/:id (pagina password); per test senza password impostare localStorage gallery_auth_<id>.
 - [Job REST API timestamp serialization](job-rest-timestamp-serialization.md) — getJob/GET /api/jobs/:id ritorna i Timestamp come {_seconds,_nanoseconds}: convertire con convertFirestoreTimestamp, mai .toDate() diretto.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.

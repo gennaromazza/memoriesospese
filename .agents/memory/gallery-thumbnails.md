@@ -43,3 +43,6 @@ Griglia usa `thumbnailUrl || url`; lightbox (`ImageLightbox`) e download usano S
 ## Fallimenti permanenti vanno marcati, non ritentati all'infinito
 Una foto con originale irrecuperabile (URL non interpretabile, 404, file non-immagine) viene marcata `thumbnailFailed: true` ed esclusa dalle run successive.
 **Why:** altrimenti le foto rotte occupano gli slot del batch a ogni chiamata e bloccano quelle sane dietro di loro (head-of-line blocking), fermando il loop client quando `generated===0`. I fallimenti transitori (rete) NON vanno marcati, vanno ritentati.
+
+## Foto con URL pubblici GCS (storage.googleapis.com senza token)
+Alcune gallerie hanno foto con URL path-style `storage.googleapis.com/<bucket>/...` che funzionano SOLO se il file ha ACL `allUsers:READER` (makePublic). Se il caricamento avviene con credenziali admin non valide, il makePublic fallisce in silenzio → 403 su copertine/foto. Fix: `file.makePublic()` su tutti i file `galleries/<gid>/photos/`. Sintomo: solo una galleria "rotta", le altre (URL firebasestorage con token) ok.

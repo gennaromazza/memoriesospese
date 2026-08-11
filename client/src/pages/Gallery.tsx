@@ -1653,8 +1653,8 @@ export default function Gallery() {
     const checkAuth = () => {
       const isAuth = localStorage.getItem(`gallery_auth_${id}`);
       if (!isAuth && !isAdmin) {
-        // CORREZIONE: redirect alla route corretta /gallery/:id invece di /access/:id
-        navigate(createUrl(`/access/${id}`)); // <-- CORRETTO: /access/:id
+        // Redirect alla pagina di accesso della galleria (inserimento password)
+        navigate(createUrl(`/gallery/${id}`));
         return;
       }
     };
