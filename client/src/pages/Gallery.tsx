@@ -2340,7 +2340,7 @@ export default function Gallery() {
                             Foto del fotografo
                           </span>
                           <span className="sm:hidden">Fotografo</span>
-                          <span className="ml-1">({photos.length})</span>
+                          <span className="ml-1">({galleryData?.photoCount || photos.length})</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="text-sm">
@@ -2509,7 +2509,7 @@ export default function Gallery() {
                   <div className="w-full">
                     <GalleryFilter
                       onFilterChange={handleFilterChange}
-                      totalPhotos={photos.length}
+                      totalPhotos={areFiltersActive ? photos.length : (galleryData?.photoCount || photos.length)}
                       activeFilters={areFiltersActive}
                       resetFilters={resetFilters}
                     />
@@ -4559,8 +4559,8 @@ export default function Gallery() {
                     )}
                     <span className="text-sm">
                       {isFetchingNextPage
-                        ? `Caricamento foto... (${photos.length + guestPhotos.length} caricate)`
-                        : `${photos.length + guestPhotos.length} foto caricate`}
+                        ? `Caricamento foto... (${photos.length + guestPhotos.length}${galleryData?.photoCount ? ` di ${galleryData.photoCount}` : ""})`
+                        : `${photos.length + guestPhotos.length}${galleryData?.photoCount ? ` di ${galleryData.photoCount}` : ""} foto caricate`}
                     </span>
                   </div>
                 </div>
