@@ -1,0 +1,32 @@
+La proposta in breve
+Rimuovere il secondo useEffect che gestisce maybeAdvance (quello che ascolta scroll/resize) e lasciare solo l'IntersectionObserver sulla sentinella. Sulla carta è elegante: un unico meccanismo di caricamento, niente duplicazione, meno listener.
+
+Il problema che avevamo già risolto
+Quel fallback non è nato per caso. È stato aggiunto perché su gallerie con 100+ foto l'Observer principale si "addormentava". Il motivo è che le immagini, caricandosi, cambiano l'altezza della griglia, spostano la sentinella e in alcuni casi l'Observer non si riattiva come dovrebbe. Il risultato era una griglia che si bloccava a metà, mentre la lightbox (che usa i metadati già in memoria) mostrava tutte le foto.
+
+Il commento nel codice dice esattamente:
+
+"L'IntersectionObserver sopra è solo un fast-path: su gallerie grandi può perdere le transizioni"
+
+Quindi quel fallback non è un doppione, è una cintura di sicurezza per un bug reale che abbiamo già incontrato e risolto.
+
+I rischi che hai menzionato (e perché non mi preoccupano)
+Hai parlato di possibili conflitti: richieste duplicate, aggiornamenti di stato multipli. Sono scenari validi in teoria, ma in pratica:
+
+Entrambi i meccanismi controllano isFetchingNextPage prima di chiamare fetchNextPage().
+
+Il fallback avanza solo se visiblePhotoLimit >= displayPhotosRef.current.length e ci sono altre pagine.
+
+Anche se i due meccanismi dovessero scattare insieme, il peggio che può succedere è che visiblePhotoLimit venga incrementato due volte (ma con controlli sul limite) – e comunque non genera fetch duplicati.
+
+Il costo di tenerlo è irrisorio: due listener passivi su scroll/resize con requestAnimationFrame e un maybeAdvance che esce subito se non serve.
+
+Il costo di toglierlo sarebbe reintrodurre un bug che il cliente vede subito (griglia bloccata) e che è difficile da riprodurre in sviluppo.
+
+La decisione
+Preferisco tenere entrambi i meccanismi, con la logica che ho già applicato ieri: l'Observer si occupa del fetch lazy, il fallback serve solo come "secondo tentativo" quando l'Observer non scatta. La duplicazione è minima e controllata.
+
+Se proprio vogliamo migliorare il codice, possiamo unire i due useEffect in uno solo (mantenendo entrambe le logiche) per renderlo più compatto, ma non rimuovere il fallback.
+
+In sintesi
+La tua analisi sulla carta era giusta, ma mancava il contesto storico: quel codice è lì perché abbiamo già pagato il costo di non averlo. Quindi lo teniamo.
