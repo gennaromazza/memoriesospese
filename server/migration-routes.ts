@@ -4,7 +4,13 @@
  */
 
 import express from 'express';
-import { db, Timestamp } from './firebase-admin.js';
+import { db, Timestamp, storage } from './firebase-admin.js';
+import { parseStoragePath } from './thumbnails.js';
+import {
+  ensureDownloadToken,
+  buildDownloadUrl,
+  isSignedUrl,
+} from './storage-download-url.js';
 import { getAuth } from 'firebase-admin/auth';
 import { authenticateFirebase } from './email-routes.js';
 
@@ -609,6 +615,193 @@ router.post('/backfill-gallery-jobtypes', authenticateFirebase, async (req: any,
     console.error('❌ [Gallery JobType Backfill] Errore:', error);
     res.status(500).json({
       error: 'Errore durante il backfill',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * ========================================
+ * BACKFILL SIGNED URL → DOWNLOAD TOKEN
+ * ========================================
+ * I signed URL (query GoogleAccessId/Signature) creati con la chiave del
+ * service account revocata ad agosto 2026 sono/diventeranno 403. Questi
+ * endpoint riscrivono gli URL residui nel formato stabile
+ * firebasestorage.googleapis.com/?alt=media&token=..., impostando (o
+ * riusando) il token firebaseStorageDownloadTokens nei metadata dell'oggetto.
+ *
+ * Campi coperti:
+ *  - consultationTemplates.imageUrls[]
+ *  - jobs.pdfs[].url (PDF legacy dei job importati)
+ */
+
+interface SignedUrlScanItem {
+  collection: 'consultationTemplates' | 'jobs';
+  docId: string;
+  field: string;
+  url: string;
+}
+
+/** Scandisce Firestore e ritorna tutti gli URL firmati ancora presenti. */
+async function scanSignedUrls(): Promise<SignedUrlScanItem[]> {
+  const items: SignedUrlScanItem[] = [];
+
+  const templatesSnap = await db.collection('consultationTemplates').get();
+  for (const doc of templatesSnap.docs) {
+    const imageUrls: unknown = doc.data().imageUrls;
+    if (!Array.isArray(imageUrls)) continue;
+    imageUrls.forEach((url, i) => {
+      if (isSignedUrl(url)) {
+        items.push({
+          collection: 'consultationTemplates',
+          docId: doc.id,
+          field: `imageUrls[${i}]`,
+          url,
+        });
+      }
+    });
+  }
+
+  const jobsSnap = await db.collection('jobs').get();
+  for (const doc of jobsSnap.docs) {
+    const pdfs: unknown = doc.data().pdfs;
+    if (!Array.isArray(pdfs)) continue;
+    pdfs.forEach((pdf: any, i: number) => {
+      if (pdf && isSignedUrl(pdf.url)) {
+        items.push({
+          collection: 'jobs',
+          docId: doc.id,
+          field: `pdfs[${i}].url`,
+          url: pdf.url,
+        });
+      }
+    });
+  }
+
+  return items;
+}
+
+/**
+ * GET /api/migrations/signed-urls/preview
+ * Dry-run: elenca i documenti che contengono ancora signed URL.
+ * Serve anche come query di verifica post-backfill (remaining deve essere 0).
+ */
+router.get('/signed-urls/preview', authenticateFirebase, async (req: any, res) => {
+  try {
+    if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+      return res.status(403).json({ error: 'Non autorizzato - solo admin' });
+    }
+
+    const items = await scanSignedUrls();
+    res.json({
+      success: true,
+      remaining: items.length,
+      items: items.map(({ collection, docId, field }) => ({ collection, docId, field })),
+    });
+  } catch (error) {
+    console.error('❌ [Signed URL Backfill] Errore preview:', error);
+    res.status(500).json({
+      error: 'Errore durante la preview del backfill signed URL',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/migrations/signed-urls
+ * Backfill: per ogni signed URL residuo imposta un token
+ * firebaseStorageDownloadTokens sull'oggetto Storage e riscrive l'URL nel
+ * documento Firestore. Idempotente: ri-eseguirlo non modifica URL già stabili.
+ */
+router.post('/signed-urls', authenticateFirebase, async (req: any, res) => {
+  try {
+    if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
+      return res.status(403).json({ error: 'Non autorizzato - solo admin' });
+    }
+
+    console.log('🚀 [Signed URL Backfill] Inizio scansione...');
+    const items = await scanSignedUrls();
+    const bucket = storage.bucket();
+
+    const stats = { found: items.length, fixed: 0, missingObject: 0, unparsable: 0, errors: 0 };
+    const failures: Array<{ collection: string; docId: string; field: string; reason: string }> = [];
+
+    // Cache token per storagePath: lo stesso oggetto può comparire più volte
+    const tokenCache = new Map<string, string | null>();
+
+    // Raggruppa per documento così ogni doc viene aggiornato una sola volta
+    const byDoc = new Map<string, SignedUrlScanItem[]>();
+    for (const item of items) {
+      const key = `${item.collection}/${item.docId}`;
+      if (!byDoc.has(key)) byDoc.set(key, []);
+      byDoc.get(key)!.push(item);
+    }
+
+    for (const [key, docItems] of Array.from(byDoc.entries())) {
+      const { collection, docId } = docItems[0];
+      // Mappa vecchio URL -> nuovo URL per questo documento
+      const replacements = new Map<string, string>();
+
+      for (const item of docItems) {
+        const storagePath = parseStoragePath(item.url);
+        if (!storagePath) {
+          stats.unparsable++;
+          failures.push({ collection, docId, field: item.field, reason: 'URL non interpretabile' });
+          continue;
+        }
+        try {
+          let token: string | null;
+          if (tokenCache.has(storagePath)) {
+            token = tokenCache.get(storagePath)!;
+          } else {
+            token = await ensureDownloadToken(bucket, storagePath);
+            tokenCache.set(storagePath, token);
+          }
+          if (!token) {
+            stats.missingObject++;
+            failures.push({ collection, docId, field: item.field, reason: `Oggetto Storage inesistente: ${storagePath}` });
+            continue;
+          }
+          replacements.set(item.url, buildDownloadUrl(bucket.name, storagePath, token));
+        } catch (err: any) {
+          stats.errors++;
+          failures.push({ collection, docId, field: item.field, reason: err?.message || 'Errore Storage' });
+        }
+      }
+
+      if (replacements.size === 0) continue;
+
+      try {
+        const docRef = db.collection(collection).doc(docId);
+        // Ri-leggi il documento per applicare le sostituzioni sullo stato attuale
+        const snap = await docRef.get();
+        if (!snap.exists) continue;
+        const data: any = snap.data();
+
+        if (collection === 'consultationTemplates') {
+          const imageUrls = (data.imageUrls as string[]).map(
+            (u) => replacements.get(u) ?? u
+          );
+          await docRef.update({ imageUrls, updatedAt: Timestamp.now() });
+        } else {
+          const pdfs = (data.pdfs as any[]).map((pdf) =>
+            pdf && replacements.has(pdf.url) ? { ...pdf, url: replacements.get(pdf.url) } : pdf
+          );
+          await docRef.update({ pdfs, updatedAt: Timestamp.now() });
+        }
+        stats.fixed += replacements.size;
+      } catch (err: any) {
+        stats.errors++;
+        failures.push({ collection, docId, field: '*', reason: `Update Firestore fallito: ${err?.message}` });
+      }
+    }
+
+    console.log('🎉 [Signed URL Backfill] Completato!', stats);
+    res.json({ success: stats.errors === 0, stats, failures });
+  } catch (error) {
+    console.error('❌ [Signed URL Backfill] Errore:', error);
+    res.status(500).json({
+      error: 'Errore durante il backfill signed URL',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }

@@ -43,6 +43,40 @@ export async function saveWithDownloadToken(
   return buildDownloadUrl(bucket.name, storagePath, token);
 }
 
+/**
+ * Garantisce che un oggetto Storage esistente abbia un token
+ * `firebaseStorageDownloadTokens` nei metadata (riusa quello esistente se
+ * presente, altrimenti ne genera uno nuovo) e lo ritorna.
+ * Ritorna null se l'oggetto non esiste.
+ */
+export async function ensureDownloadToken(
+  bucket: Bucket,
+  storagePath: string
+): Promise<string | null> {
+  const file = bucket.file(storagePath);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+
+  const [meta] = await file.getMetadata();
+  const existing = (meta.metadata as Record<string, string> | undefined)
+    ?.firebaseStorageDownloadTokens;
+  if (existing && String(existing).trim()) {
+    // Il campo può contenere più token separati da virgola: usa il primo
+    return String(existing).split(',')[0].trim();
+  }
+
+  const token = randomUUID();
+  await file.setMetadata({
+    metadata: { firebaseStorageDownloadTokens: token },
+  });
+  return token;
+}
+
+/** True se l'URL è un signed URL legato alla chiave del service account. */
+export function isSignedUrl(url: string): boolean {
+  return typeof url === 'string' && url.includes('GoogleAccessId');
+}
+
 /** Costruisce l'URL di download Firebase per un oggetto con token noto. */
 export function buildDownloadUrl(bucketName: string, storagePath: string, token: string): string {
   return (
