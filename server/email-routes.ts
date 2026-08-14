@@ -4270,6 +4270,7 @@ export function createConsultationRejectedEmailHTML(
   consultationTime: string,
   rejectionReason: string | null,
   studioInfo?: { name: string; email: string; phone: string; address: string },
+  rebookUrl?: string | null,
 ): string {
   const studio = studioInfo || {
     name: "Image Studio",
@@ -4301,11 +4302,30 @@ export function createConsultationRejectedEmailHTML(
             : ""
         }
 
+        ${
+          rebookUrl
+            ? `
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 0 0 15px 0; font-size: 14px; color: #0056b3; text-align: center;">
+            Puoi scegliere subito un nuovo orario per la tua consulenza:
+          </p>
+          <div style="text-align: center;">
+            <a href="${rebookUrl}"
+               style="display: inline-block; background: #8b5a3c; color: white; padding: 14px 28px;
+                      text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+              📅 Scegli un nuovo orario
+            </a>
+          </div>
+        </div>
+        `
+            : `
         <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <p style="margin: 0; font-size: 14px; color: #0056b3; text-align: center;">
             Se desideri riprogrammare, contattaci direttamente.
           </p>
         </div>
+        `
+        }
       </div>
 
       <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
@@ -5442,6 +5462,7 @@ router.post("/send-consultation-rejected", async (req, res) => {
       consultationDate,
       consultationTime,
       rejectionReason,
+      templateId,
     } = req.body;
 
     // Validazioni
@@ -5460,6 +5481,13 @@ router.post("/send-consultation-rejected", async (req, res) => {
     // Recupera dati contatto studio
     const studioInfo = await getStudioContactInfo();
 
+    // Costruisci URL riprenotazione server-side (pulsante "Scegli un nuovo orario")
+    let rebookUrl: string | null = null;
+    if (templateId && jobType) {
+      const baseUrl = getSiteBaseUrl(req);
+      rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(jobType)}/${encodeURIComponent(templateId)}/prenota`;
+    }
+
     const htmlContent = createConsultationRejectedEmailHTML(
       clienteName,
       jobType,
@@ -5467,6 +5495,7 @@ router.post("/send-consultation-rejected", async (req, res) => {
       consultationTime,
       rejectionReason || null,
       studioInfo,
+      rebookUrl,
     );
 
     const subject = `Aggiornamento Consulenza - ${jobType}`;

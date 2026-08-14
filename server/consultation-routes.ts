@@ -1261,8 +1261,16 @@ router.patch(
           sendGmailEmail,
           getStudioContactInfo,
           createConsultationRejectedEmailHTML,
+          getSiteBaseUrl,
         } = await import("./email-routes.js");
         const studioInfo = await getStudioContactInfo();
+
+        // Costruisci URL per riprenotare la consulenza (pulsante "Scegli un nuovo orario")
+        let rebookUrl: string | null = null;
+        if (consultation.jobType && consultation.templateId) {
+          const baseUrl = getSiteBaseUrl(req);
+          rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(consultation.jobType)}/${encodeURIComponent(consultation.templateId)}/prenota`;
+        }
 
         const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
         const rawDate = normalizeTimestampToDate(consultation.dataConsulenza);
@@ -1281,6 +1289,7 @@ router.patch(
           `${consultation.orarioInizio} - ${consultation.orarioFine}`,
           motivo || null,
           studioInfo,
+          rebookUrl,
         );
 
         await sendGmailEmail(
