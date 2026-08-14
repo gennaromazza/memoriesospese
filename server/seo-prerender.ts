@@ -188,6 +188,12 @@ function getStaticPageMeta(path: string): PageMeta | null {
       description: 'Informativa sulla privacy di Image Studio. Come trattiamo i tuoi dati personali in conformità con il GDPR.',
       canonical: `${BASE_URL}/privacy`,
       bodyContent: `<h1>Privacy Policy - Image Studio</h1><p>Informativa sulla privacy e trattamento dei dati personali in conformità con il Regolamento UE 2016/679 (GDPR).</p>`
+    },
+    '/terms': {
+      title: 'Termini e Condizioni | Image Studio',
+      description: 'Termini e condizioni dei servizi e del sito Image Studio di Gennaro Mazzacane.',
+      canonical: `${BASE_URL}/terms`,
+      bodyContent: `<h1>Termini e Condizioni - Image Studio</h1><p>Consulta i termini e le condizioni applicabili ai servizi e al sito Image Studio.</p>`
     }
   };
 
@@ -424,6 +430,10 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
     'famiglia': {
       title: 'Portfolio Famiglia | Fotografo Famiglia Napoli Caserta | Image Studio',
       description: 'Foto di famiglia professionali a Napoli e Caserta. Momenti di gioia familiare catturati in scatti autentici.'
+    },
+    'altro': {
+      title: 'Portfolio Eventi e Servizi Fotografici | Image Studio',
+      description: 'Scopri altri servizi fotografici ed eventi realizzati da Image Studio ad Aversa, Napoli, Caserta e in Campania.'
     }
   };
 
@@ -450,11 +460,53 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogType = meta.ogType || 'website';
   const ogImage = meta.ogImage || OG_IMAGE;
 
-  const jsonLdScripts = meta.jsonLd
+  const commonJsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      '@id': meta.canonical,
+      url: meta.canonical,
+      name: meta.title,
+      description: meta.description,
+      inLanguage: 'it-IT',
+      isPartOf: { '@id': `${BASE_URL}/#website` },
+      about: { '@id': `${BASE_URL}/#organization` },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      '@id': `${BASE_URL}/#organization`,
+      name: 'Image Studio',
+      url: BASE_URL,
+      logo: `${BASE_URL}/favicon.png`,
+      email: 'info@memoriesospese.it',
+      founder: { '@id': `${BASE_URL}/#photographer` },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      '@id': `${BASE_URL}/#photographer`,
+      name: 'Gennaro Mazzacane',
+      jobTitle: 'Fotografo professionista',
+      url: `${BASE_URL}/storie`,
+      worksFor: { '@id': `${BASE_URL}/#organization` },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      '@id': `${BASE_URL}/#website`,
+      url: BASE_URL,
+      name: 'Image Studio - Memorie Sospese',
+      publisher: { '@id': `${BASE_URL}/#organization` },
+      inLanguage: 'it-IT',
+    },
+  ];
+  const pageJsonLd = meta.jsonLd
     ? (Array.isArray(meta.jsonLd) ? meta.jsonLd : [meta.jsonLd])
-        .map(schema => `<script type="application/ld+json">${JSON.stringify(schema)}</script>`)
-        .join('\n    ')
-    : '';
+    : [];
+  const jsonLdScripts = [...commonJsonLd, ...pageJsonLd]
+    .map(schema => `<script type="application/ld+json">${JSON.stringify(schema)}</script>`)
+    .join('\n    ');
 
   const seoHead = `
     <title>${meta.title}</title>
@@ -477,6 +529,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
 
   let html = indexHtml;
 
+  html = html.replace(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
   html = html.replace(/<title>[^<]*<\/title>/, '');
   html = html.replace(/<meta\s+name="description"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:title"[^>]*>/g, '');

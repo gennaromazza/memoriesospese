@@ -35,7 +35,6 @@ import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
 
 
-import gennaroProfile from "@assets/DSCF7220 copia (Grande)_1763486024338.jpg";
 import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 import StudioLogo from "@/components/StudioLogo";
@@ -249,8 +248,11 @@ export default function PublicHomepage() {
           <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
             <div className="animate-fade-in">
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
-                Lasciati <span className="text-[#C67B5C]">Trasportare</span>
+                Fotografo di matrimoni ad Aversa, Napoli e Caserta
               </h1>
+              <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
+                Lasciati Trasportare
+              </p>
               <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
                 La fotografia è l'arte di immortalare momenti autentici
               </p>
@@ -630,7 +632,7 @@ export default function PublicHomepage() {
           <div className="grid md:grid-cols-2 gap-6 sm:gap-8 md:gap-12 items-center">
             <div className="rounded-xl sm:rounded-2xl overflow-hidden shadow-lg animate-slide-up group">
               <img
-                src={gennaroProfile}
+                src="/images/gennaro-mazzacane.jpg"
                 alt="Gennaro Mazzacane - Fotografo Professionista"
                 className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
                 loading="lazy"
@@ -1358,7 +1360,7 @@ export default function PublicHomepage() {
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
           <p>
-            © 2025 iMaGe Studio Fotografico - Gennaro Mazzacane. Tutti i
+            © {new Date().getFullYear()} iMaGe Studio Fotografico - Gennaro Mazzacane. Tutti i
             diritti riservati.
           </p>
         </div>

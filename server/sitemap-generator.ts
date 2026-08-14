@@ -136,20 +136,6 @@ export async function generateDynamicSitemap(): Promise<string> {
     <priority>0.7</priority>
   </url>
 
-  <!-- Chi Siamo / About -->
-  <url>
-    <loc>${baseUrl}/chi-siamo</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Contatti -->
-  <url>
-    <loc>${baseUrl}/contatti</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>
-
   <!-- E-book Download -->
   <url>
     <loc>${baseUrl}/lasciati-trasportare</loc>

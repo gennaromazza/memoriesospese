@@ -4,6 +4,7 @@
  */
 
 import express, { type Request, Response, NextFunction } from "express";
+import path from "node:path";
 import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
 import bookingRoutes from './booking-routes.js';
@@ -52,6 +53,17 @@ async function startServer() {
     const defaultJson = express.json();
     app.use(defaultJson);
     app.use(express.urlencoded({ extended: true }));
+
+    // URL pubblico stabile per l'immagine profilo: il workflow Replit usa
+    // Vite in middleware mode e non deve esporre il percorso locale /@fs.
+    app.get('/images/gennaro-mazzacane.jpg', (_req, res) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.sendFile(path.resolve(
+        process.cwd(),
+        'attached_assets',
+        'DSCF7220 copia (Grande)_1763486024338.jpg',
+      ));
+    });
 
     // CORS ristretto ai domini autorizzati
     const allowedOrigins = [
