@@ -1765,6 +1765,8 @@ router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
         const consultationTime = `${consultation.orarioInizio} - ${consultation.orarioFine}`;
 
         // Invia email cancellazione (fire-and-forget, non blocca eliminazione)
+        // SECURITY: si passa solo il templateId; l'URL di riprenotazione viene
+        // costruito e validato server-side dentro send-consultation-cancelled
         axios
           .post(
             `${process.env.BASE_URL || "http://localhost:5000"}/api/email/send-consultation-cancelled`,
@@ -1775,6 +1777,7 @@ router.delete("/:id", authenticateFirebase, async (req: AuthRequest, res) => {
               consultationDate,
               consultationTime,
               cancellationReason: cancellationReason || null,
+              rebookTemplateId: consultation.templateId || null,
             },
           )
           .catch((emailError) => {
