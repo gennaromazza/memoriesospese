@@ -556,10 +556,15 @@ export async function sendGmailEmail(
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
     // 3. Crea messaggio RFC2822
+    // Il Subject con caratteri non-ASCII (emoji, accenti) va codificato RFC 2047
+    // altrimenti Gmail mostra caratteri illeggibili (mojibake)
+    const encodedSubject = /^[\x00-\x7F]*$/.test(subject)
+      ? subject
+      : `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
     const message = [
       `From: ${from}`,
       `To: ${recipients}`,
-      `Subject: ${subject}`,
+      `Subject: ${encodedSubject}`,
       "MIME-Version: 1.0",
       "Content-Type: text/html; charset=utf-8",
       "",
