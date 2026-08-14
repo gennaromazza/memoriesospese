@@ -5502,10 +5502,29 @@ router.post("/send-consultation-rejected", async (req, res) => {
     const studioInfo = await getStudioContactInfo();
 
     // Costruisci URL riprenotazione server-side (pulsante "Scegli un nuovo orario")
+    // SECURITY: si accetta solo un templateId, lo si valida su Firestore
+    // (esistenza + attivo) e l'URL viene costruito server-side; se il template
+    // è stato disattivato/eliminato il pulsante viene omesso (fallback "contattaci").
     let rebookUrl: string | null = null;
-    if (templateId && jobType) {
-      const baseUrl = getSiteBaseUrl(req);
-      rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(jobType)}/${encodeURIComponent(templateId)}/prenota`;
+    if (templateId && typeof templateId === "string" && jobType) {
+      try {
+        const consultationService = await import("./services/consultations.js");
+        const template = await consultationService.getTemplateById(templateId);
+        if (template && template.attiva) {
+          // SECURITY: mai usare gli header della request per link nelle email.
+          const baseUrl = getSiteBaseUrl();
+          rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(jobType)}/${encodeURIComponent(templateId)}/prenota`;
+        } else {
+          console.warn(
+            `⚠️ templateId ${templateId} non valido o template non attivo: pulsante riprenotazione omesso`,
+          );
+        }
+      } catch (templateError: any) {
+        console.warn(
+          "⚠️ Errore validazione templateId (pulsante omesso):",
+          templateError.message,
+        );
+      }
     }
 
     const htmlContent = createConsultationRejectedEmailHTML(

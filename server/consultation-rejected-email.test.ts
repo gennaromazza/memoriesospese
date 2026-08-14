@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   sentRaw: [] as string[],
   consultation: null as any,
   updates: [] as any[],
+  template: null as any,
 }));
 
 // --- Firestore Admin fake (solo la superficie usata: emailLogs.add) ---
@@ -79,6 +80,7 @@ vi.mock("./services/consultations.js", () => ({
   updateConsultation: async (_id: string, data: any) => {
     h.updates.push(data);
   },
+  getTemplateById: async () => h.template,
 }));
 
 // --- Stub fetch esterne (token connector, verifica auth, Firestore REST) ---
@@ -147,6 +149,7 @@ function decodeLastEmail(): string {
 beforeEach(() => {
   h.sentRaw.length = 0;
   h.updates.length = 0;
+  h.template = { id: "tpl123", jobType: "Matrimonio", attiva: true };
 });
 
 describe("createConsultationRejectedEmailHTML", () => {
@@ -206,6 +209,114 @@ describe("PATCH /api/consultations/:id/reject", () => {
     const email = decodeLastEmail();
     expect(email).toContain("Scegli un nuovo orario");
     expect(email).toContain("/consulenze/Matrimonio/tpl123/prenota");
+  });
+
+  it("omette il pulsante se il template è stato disattivato", async () => {
+    h.template = { id: "tpl123", jobType: "Matrimonio", attiva: false };
+    h.consultation = {
+      id: "c2",
+      stato: "in_attesa",
+      jobType: "Matrimonio",
+      templateId: "tpl123",
+      note: "",
+      cliente: { nome: "Mario", cognome: "Rossi", email: "mario@example.com" },
+      dataConsulenza: { seconds: Math.floor(Date.now() / 1000) },
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    };
+
+    const res = await realFetch(`${base}/api/consultations/c2/reject`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer fake-id-token",
+      },
+      body: JSON.stringify({ motivo: "Slot non disponibile" }),
+    });
+    expect(res.status).toBe(200);
+
+    const email = decodeLastEmail();
+    expect(email).not.toContain("Scegli un nuovo orario");
+    expect(email).toContain("contattaci direttamente");
+  });
+
+  it("omette il pulsante se il template è stato eliminato", async () => {
+    h.template = null;
+    h.consultation = {
+      id: "c3",
+      stato: "in_attesa",
+      jobType: "Matrimonio",
+      templateId: "tpl123",
+      note: "",
+      cliente: { nome: "Mario", cognome: "Rossi", email: "mario@example.com" },
+      dataConsulenza: { seconds: Math.floor(Date.now() / 1000) },
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    };
+
+    const res = await realFetch(`${base}/api/consultations/c3/reject`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer fake-id-token",
+      },
+      body: JSON.stringify({ motivo: "Slot non disponibile" }),
+    });
+    expect(res.status).toBe(200);
+
+    const email = decodeLastEmail();
+    expect(email).not.toContain("Scegli un nuovo orario");
+    expect(email).toContain("contattaci direttamente");
+  });
+});
+
+describe("POST /api/email/send-consultation-rejected (validazione template)", () => {
+  it("omette il pulsante se il template è disattivato", async () => {
+    h.template = { id: "tpl123", jobType: "Matrimonio", attiva: false };
+    const res = await realFetch(
+      `${base}/api/email/send-consultation-rejected`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmail: "mario@example.com",
+          clienteName: "Mario Rossi",
+          jobType: "Matrimonio",
+          consultationDate: "lunedì 1 settembre 2026",
+          consultationTime: "10:00 - 11:00",
+          templateId: "tpl123",
+        }),
+      },
+    );
+    expect(res.status).toBe(200);
+
+    const email = decodeLastEmail();
+    expect(email).not.toContain("Scegli un nuovo orario");
+    expect(email).toContain("contattaci direttamente");
+  });
+
+  it("omette il pulsante se il template non esiste più", async () => {
+    h.template = null;
+    const res = await realFetch(
+      `${base}/api/email/send-consultation-rejected`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmail: "mario@example.com",
+          clienteName: "Mario Rossi",
+          jobType: "Matrimonio",
+          consultationDate: "lunedì 1 settembre 2026",
+          consultationTime: "10:00 - 11:00",
+          templateId: "tpl123",
+        }),
+      },
+    );
+    expect(res.status).toBe(200);
+
+    const email = decodeLastEmail();
+    expect(email).not.toContain("Scegli un nuovo orario");
+    expect(email).toContain("contattaci direttamente");
   });
 });
 

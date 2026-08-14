@@ -1266,10 +1266,28 @@ router.patch(
         const studioInfo = await getStudioContactInfo();
 
         // Costruisci URL per riprenotare la consulenza (pulsante "Scegli un nuovo orario")
+        // Solo se il template esiste ed è ancora attivo, altrimenti il link
+        // porterebbe a una pagina vuota (il template email ha già il fallback "contattaci")
         let rebookUrl: string | null = null;
         if (consultation.jobType && consultation.templateId) {
-          const baseUrl = getSiteBaseUrl(req);
-          rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(consultation.jobType)}/${encodeURIComponent(consultation.templateId)}/prenota`;
+          try {
+            const rebookTemplate = await consultationService.getTemplateById(
+              consultation.templateId,
+            );
+            if (rebookTemplate && rebookTemplate.attiva) {
+              const baseUrl = getSiteBaseUrl(req);
+              rebookUrl = `${baseUrl}/consulenze/${encodeURIComponent(consultation.jobType)}/${encodeURIComponent(consultation.templateId)}/prenota`;
+            } else {
+              console.warn(
+                `[REJECT] Template ${consultation.templateId} non trovato o non attivo: pulsante riprenotazione omesso`,
+              );
+            }
+          } catch (templateError: any) {
+            console.warn(
+              "[REJECT] Errore verifica template per rebookUrl (pulsante omesso):",
+              templateError.message,
+            );
+          }
         }
 
         const clienteName = `${consultation.cliente.nome} ${consultation.cliente.cognome}`;
