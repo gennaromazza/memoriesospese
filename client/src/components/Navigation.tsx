@@ -83,9 +83,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                     className="h-10 w-auto"
                   />
                 ) : (
-                  <h1 className="text-blue-gray font-playfair font-semibold text-xl cursor-pointer">
+                  <span className="text-blue-gray font-playfair font-semibold text-xl cursor-pointer">
                     {studioSettings.name || "Image Studio Fotografico"}
-                  </h1>
+                  </span>
                 )}
               </Link>
             </div>
@@ -143,9 +143,9 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                   className="h-9 w-auto transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <h1 className="text-blue-gray font-playfair font-semibold text-xl tracking-wide cursor-pointer transition-colors duration-300 group-hover:text-sage">
+                <span className="text-blue-gray font-playfair font-semibold text-xl tracking-wide cursor-pointer transition-colors duration-300 group-hover:text-sage">
                   iMaGe <span className="text-sage">Studio</span>
-                </h1>
+                </span>
               )}
             </Link>
           </div>

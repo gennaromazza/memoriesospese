@@ -889,6 +889,7 @@ export interface BlogPost {
   excerpt: string; // Short description for preview/SEO
   content: string; // Full HTML content (empty string if stored in contentUrl)
   contentUrl?: string; // Firebase Storage URL for large posts (>800KB)
+  seoContent?: string; // Plain-text copy for server rendering and AI/search crawlers
   coverImage?: string; // Featured image URL
   status: BlogPostStatus;
   category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)
