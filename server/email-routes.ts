@@ -771,7 +771,7 @@ export async function authenticateFirebase(
 /**
  * Template HTML per email nuove foto
  */
-function createNewPhotosEmailHTML(
+export function createNewPhotosEmailHTML(
   galleryName: string,
   uploaderName: string,
   newPhotosCount: number,
@@ -6404,7 +6404,7 @@ router.post(
  * Template HTML per email "Galleria Pronta con Foto"
  * Stile October Mist: sage #8b9a7d, terracotta #c17f59, cream #f5f0e8, blue-gray #6b7d8a, mint #a8c5b5, off-white #faf8f5
  */
-function createGalleryPhotosReadyEmailHTML(params: {
+export function createGalleryPhotosReadyEmailHTML(params: {
   clientName: string;
   galleryName: string;
   galleryUrl: string;
