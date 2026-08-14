@@ -2760,6 +2760,13 @@ router.post("/v2/available-slots", async (req, res) => {
   } catch (error: any) {
     console.error("[POST /v2/available-slots] ❌ Error:", error);
     console.error("[POST /v2/available-slots] Stack:", error.stack);
+    if (error.code === "CALENDAR_UNAVAILABLE" || error.message?.includes("CALENDAR_UNAVAILABLE")) {
+      return res.status(503).json({
+        error: "Calendario temporaneamente non disponibile",
+        code: "CALENDAR_UNAVAILABLE",
+        details: "Impossibile verificare la disponibilità in questo momento. Riprova tra qualche minuto.",
+      });
+    }
     res.status(500).json({ error: "Errore calcolo slot disponibili" });
   }
 });

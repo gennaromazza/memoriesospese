@@ -183,8 +183,11 @@ export async function getAllExistingBookingEvents(
     
     console.log(`[getAllExistingBookingEvents] ✅ ${busyPeriods.length} eventi da Google Calendar`);
   } catch (error: any) {
-    // NON bloccare se Google Calendar fallisce - continua con eventi Firestore
-    console.warn('[getAllExistingBookingEvents] ⚠️ Google Calendar non disponibile, usando solo Firestore:', error.message);
+    // FAIL-CLOSED (ago 2026): se Google Calendar non è leggibile NON possiamo
+    // calcolare la disponibilità reale — propagare l'errore invece di mostrare
+    // slot "liberi" sopra impegni reali del fotografo.
+    console.error('[getAllExistingBookingEvents] ❌ Google Calendar non disponibile, blocco la disponibilità:', error.message);
+    throw error;
   }
   
   // 2. Carica booking Firestore con stato in_attesa o confermata

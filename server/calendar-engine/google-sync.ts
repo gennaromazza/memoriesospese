@@ -201,7 +201,19 @@ export async function checkGoogleCalendarBusyPeriods(
       error.message,
     );
     console.error("[Calendar Engine V2] Stack:", error.stack);
-    return []; // Return empty array on error to not block slot generation
+    // FAIL-CLOSED (ago 2026): mai ritornare [] su errore — con il calendario
+    // illeggibile tutti gli slot risulterebbero liberi e si accetterebbero
+    // prenotazioni sopra impegni reali. Meglio bloccare la disponibilità.
+    // Avvisa l'admin (throttled, fire-and-forget)
+    try {
+      const { notifyCalendarUnavailable } = await import("../system-alerts.js");
+      notifyCalendarUnavailable(`Lettura eventi Google Calendar fallita: ${error.message}`);
+    } catch {}
+    const err: any = new Error(
+      "CALENDAR_UNAVAILABLE: impossibile leggere Google Calendar (" + error.message + ")",
+    );
+    err.code = "CALENDAR_UNAVAILABLE";
+    throw err;
   }
 }
 

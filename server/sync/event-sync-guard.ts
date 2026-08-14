@@ -59,7 +59,7 @@ interface RepairAction {
  * IMPORTANTE: Un worker NON deve MAI propagare errori fatali.
  * In caso di errore, restituisce un Set vuoto e continua a vivere.
  */
-async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
+async function getAllGoogleCalendarEvents(): Promise<Set<string> | null> {
   console.log('[EVENT SYNC GUARD] 🔍 Fetching all events from Google Calendar (optimized range)...');
   
   try {
@@ -86,9 +86,11 @@ async function getAllGoogleCalendarEvents(): Promise<Set<string>> {
     return eventIds;
     
   } catch (error: any) {
-    // ✅ MAI throw da un worker! Assorbi l'errore e restituisci fallback safe
+    // ✅ MAI throw da un worker! Assorbi l'errore ma segnala "calendario non disponibile":
+    // ritornare un Set vuoto farebbe credere alla sync che TUTTI gli eventi Firestore
+    // siano spariti da Google → cancellerebbe i riferimenti googleCalendarEventId validi.
     console.error('[EVENT SYNC GUARD] ❌ Error fetching Google Calendar events (absorbed):', error?.message || error);
-    return new Set(); // Fallback safe - la sync skipperà il confronto con GCAL
+    return null; // null = Google non leggibile → la sync salta il confronto/riparazioni
   }
 }
 
@@ -279,6 +281,22 @@ export async function runEventSyncGuard(): Promise<SyncReport> {
   try {
     // 1. Recupera tutti gli eventi da Google Calendar
     const googleEventIds = await getAllGoogleCalendarEvents();
+
+    // FAIL-SAFE: se Google Calendar non è leggibile, NON confrontare con un set
+    // vuoto (rimuoverebbe riferimenti validi). Salta l'intera riconciliazione.
+    if (googleEventIds === null) {
+      console.warn('[EVENT SYNC GUARD] ⏭️ Google Calendar non disponibile: sync SALTATA (nessuna riparazione eseguita)');
+      return {
+        timestamp: new Date().toISOString(),
+        durationMs: Date.now() - startTime,
+        googleEventsCount: 0,
+        firestoreRecordsCount: 0,
+        repairs: { consultations: [], bookings: [], jobs: [] },
+        orphanedGoogleEvents: [],
+        skipped: true,
+        skippedReason: 'CALENDAR_UNAVAILABLE',
+      } as any;
+    }
     
     // 2. Carica records da Firestore
     console.log('[EVENT SYNC GUARD] 📚 Loading Firestore records...');

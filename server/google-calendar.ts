@@ -60,11 +60,40 @@ export function invalidateTokenCache(): void {
  * Crea e restituisce un client JWT autenticato con Service Account
  * Il JWT viene rinnovato automaticamente dalla libreria googleapis
  */
+/**
+ * Fallback: usa le credenziali FIREBASE_ADMIN_CREDENTIALS (JSON puro o base64)
+ * per Google Calendar. Introdotto quando la chiave dedicata GOOGLE_CALENDAR_*
+ * è stata revocata da Google (invalid_grant: account not found) — il service
+ * account Firebase funziona per Calendar purché il calendario sia condiviso
+ * con la sua email (client_email).
+ */
+function parseFirebaseAdminCredentials(): { email: string; key: string } | null {
+  const raw = process.env.FIREBASE_ADMIN_CREDENTIALS;
+  if (!raw) return null;
+  try {
+    let creds: any;
+    try {
+      creds = JSON.parse(raw);
+    } catch {
+      creds = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+    }
+    if (creds?.client_email && creds?.private_key) {
+      return { email: creds.client_email, key: creds.private_key };
+    }
+  } catch {}
+  return null;
+}
+
 function parseServiceAccountCredentials(): { email: string; key: string } {
   const rawEmail = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL;
   const rawKey = process.env.GOOGLE_CALENDAR_PRIVATE_KEY;
 
   if (!rawKey) {
+    const fallback = parseFirebaseAdminCredentials();
+    if (fallback) {
+      console.log("📋 Service Account Calendar: uso credenziali FIREBASE_ADMIN_CREDENTIALS (fallback)");
+      return fallback;
+    }
     throw new Error(
       "GOOGLE_CALENDAR_CONFIG_MISSING: Manca GOOGLE_CALENDAR_PRIVATE_KEY nei secrets"
     );
@@ -125,27 +154,50 @@ async function getServiceAccountAuth() {
     return cachedAuthClient;
   }
 
-  const { email: serviceEmail, key: formattedKey } = parseServiceAccountCredentials();
-
-  const auth = new google.auth.JWT({
-    email: serviceEmail,
-    key: formattedKey,
-    scopes: ['https://www.googleapis.com/auth/calendar'],
-  });
-
+  // Prova prima le credenziali dedicate, poi il fallback Firebase.
+  // Un errore di parsing/config delle dedicate NON deve impedire il fallback.
+  const candidates: Array<{ label: string; email: string; key: string }> = [];
   try {
-    await auth.authorize();
-    console.log("✅ Google Calendar Service Account autenticato:", serviceEmail);
-  } catch (authError: any) {
-    cachedAuthClient = null;
-    console.error("❌ Google Calendar Service Account auth failed:", authError.message);
-    console.error("  Email utilizzata:", serviceEmail);
-    console.error("  Key format valid:", formattedKey.startsWith('-----BEGIN PRIVATE KEY-----'));
-    throw authError;
+    const primary = parseServiceAccountCredentials();
+    candidates.push({ label: "dedicated", ...primary });
+  } catch (parseError: any) {
+    console.error("⚠️ Credenziali GOOGLE_CALENDAR_* non utilizzabili:", parseError.message);
+  }
+  const fallback = parseFirebaseAdminCredentials();
+  if (fallback && !candidates.some((c) => c.email === fallback.email)) {
+    candidates.push({ label: "firebase-admin", ...fallback });
+  }
+  if (candidates.length === 0) {
+    throw new Error("GOOGLE_CALENDAR_CONFIG_MISSING: nessuna credenziale service account disponibile");
   }
 
-  cachedAuthClient = auth;
-  return auth;
+  let lastError: any = null;
+  for (const cand of candidates) {
+    const auth = new google.auth.JWT({
+      email: cand.email,
+      key: cand.key,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+    try {
+      await auth.authorize();
+      console.log(`✅ Google Calendar Service Account autenticato (${cand.label}):`, cand.email);
+      cachedAuthClient = auth;
+      return auth;
+    } catch (authError: any) {
+      lastError = authError;
+      console.error(`❌ Google Calendar auth failed (${cand.label}, ${cand.email}):`, authError.message);
+    }
+  }
+
+  cachedAuthClient = null;
+  // Avvisa l'admin (throttled, fire-and-forget): nessuna credenziale funziona
+  try {
+    const { notifyCalendarUnavailable } = await import("./system-alerts.js");
+    notifyCalendarUnavailable(
+      `Autenticazione Google Calendar fallita per tutte le credenziali: ${lastError?.message || "sconosciuto"}`,
+    );
+  } catch {}
+  throw lastError || new Error("GOOGLE_CALENDAR_AUTH_FAILED");
 }
 
 /**

@@ -1,3 +1,4 @@
+- [Calendar SA fallback & fail-closed](calendar-sa-fallback-failclosed.md) — auth Calendar con fallback FIREBASE_ADMIN_CREDENTIALS; disponibilità mai fail-open: CALENDAR_UNAVAILABLE → 503, sync guard salta.
 - [Push GitHub via connector token](github-push-connector-token.md) — git shell senza credenziali: token dal connector GitHub in sandbox + GIT_ASKPASS; force push ok.
 - [FIREBASE_ADMIN_CREDENTIALS formato doppio](firebase-admin-credentials-format.md) — secret JSON puro O base64: parsing dual-format ovunque; 16 UNAUTHENTICATED diffuso = chiave revocata da Google.
 - [OCR documenti Tesseract rimosso](document-ocr-tesseract.md) — route server, dialog client e dipendenza tesseract.js eliminati; shared/document-ocr.ts conservato per decodeCodiceFiscale/cfSurnameCode/cfNameCode ancora usati.
