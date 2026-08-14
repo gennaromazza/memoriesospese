@@ -48,8 +48,8 @@ export default function BlogPostPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   useSEO({
-    title: post ? `${post.title} | Blog Image Studio` : "Blog | Image Studio",
-    description: post ? (post.excerpt || post.title) : "Blog Image Studio",
+    title: post ? (post.metaTitle || `${post.title} | Blog Image Studio`) : "Blog | Image Studio",
+    description: post ? (post.metaDescription || post.excerpt || post.title) : "Blog Image Studio",
     canonical: post
       ? `${window.location.origin}/blog/${post.slug}`
       : `${window.location.origin}/blog`,
@@ -164,7 +164,7 @@ export default function BlogPostPage() {
         "name": "Image Studio",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://imagestudiofotografico.replit.app/favicon.png"
+          "url": "https://imagestudiofotografico.com/favicon.png"
         }
       },
       "mainEntityOfPage": {

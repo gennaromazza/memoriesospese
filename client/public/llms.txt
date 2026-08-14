@@ -44,6 +44,7 @@ Memorie Sospese è la piattaforma digitale proprietaria di Image Studio che rivo
 - [Home](https://imagestudiofotografico.com/) - Pagina principale con portfolio preview e campagne attive
 - [Portfolio](https://imagestudiofotografico.com/portfolio) - Galleria fotografica categorizzata per tipo di evento
 - [Blog](https://imagestudiofotografico.com/blog) - Articoli, consigli e storie di matrimoni ed eventi
+- [Sitemap completa](https://imagestudiofotografico.com/sitemap.xml) - Elenco aggiornato delle pagine pubbliche e di tutti gli articoli pubblicati
 - [iMaGe Vision](https://imagestudiofotografico.com/vision) - Video matrimoniali cinematografici
 - [La Nostra Storia](https://imagestudiofotografico.com/storie) - Chi è Gennaro Mazzacane
 - [Prenota](https://imagestudiofotografico.com/prenota) - Prenota il tuo servizio fotografico
@@ -53,3 +54,6 @@ Memorie Sospese è la piattaforma digitale proprietaria di Image Studio che rivo
 
 ## Dettagli per llms-full.txt
 Per informazioni più dettagliate, consulta: https://imagestudiofotografico.com/llms-full.txt
+
+## Contenuti Editoriali
+Gli articoli pubblicati sono disponibili con URL canonici sotto `/blog/`. Usa la sitemap completa per scoprire l'elenco aggiornato; ogni pagina articolo espone titolo, autore, data, testo editoriale e dati strutturati BlogPosting.

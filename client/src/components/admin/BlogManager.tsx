@@ -23,6 +23,20 @@ import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
 
 const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
+const SEO_CONTENT_LIMIT = 50000;
+
+// Conserva nel documento una versione testuale leggera dell'articolo. In questo
+// modo crawler e anteprime non devono scaricare HTML con immagini Base64 da vari MB.
+const buildSeoContent = (html: string): string => {
+  if (!html) return '';
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.querySelectorAll('script, style, noscript, template').forEach(node => node.remove());
+  return (container.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, SEO_CONTENT_LIMIT);
+};
 
 // Stima tempo di lettura su testo pulito (HTML strippato)
 const estimateReadTime = (content: string): number => {
@@ -461,6 +475,7 @@ export default function BlogManager() {
       // Build Firestore payload with validated data
       const postData: any = {
         ...validationResult.data,
+        seoContent: buildSeoContent(formData.content),
         updatedAt: Timestamp.now()
       };
 

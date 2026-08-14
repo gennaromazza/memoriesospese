@@ -9,6 +9,21 @@ interface BlogPostMedia {
   thumbnailUrl?: string;
 }
 
+function escapeXml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function timestampSeconds(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const timestamp = value as { seconds?: number; _seconds?: number };
+  return timestamp.seconds ?? timestamp._seconds ?? null;
+}
+
 export async function generateDynamicSitemap(): Promise<string> {
   const baseUrl = 'https://imagestudiofotografico.com';
 
@@ -162,13 +177,15 @@ export async function generateDynamicSitemap(): Promise<string> {
 
   // Aggiungi ogni post del blog
   for (const post of posts) {
-    const publishedDate = post.publishedAt?.seconds
-      ? new Date(post.publishedAt.seconds * 1000).toISOString().split('T')[0]
+    const lastModifiedSeconds = timestampSeconds(post.updatedAt) ?? timestampSeconds(post.publishedAt);
+    const lastModifiedDate = lastModifiedSeconds
+      ? new Date(lastModifiedSeconds * 1000).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
+    const postUrl = `${baseUrl}/blog/${encodeURIComponent(post.slug)}`;
 
     sitemap += `  <url>
-    <loc>${baseUrl}/blog/${post.slug}</loc>
-    <lastmod>${publishedDate}</lastmod>
+    <loc>${escapeXml(postUrl)}</loc>
+    <lastmod>${lastModifiedDate}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
 `;
@@ -177,9 +194,9 @@ export async function generateDynamicSitemap(): Promise<string> {
     if (post.images && post.images.length > 0) {
       for (const image of post.images) {
         sitemap += `    <image:image>
-      <image:loc>${image.url}</image:loc>
-      <image:caption>${image.caption || post.title}</image:caption>
-      <image:title>${image.title || post.title}</image:title>
+      <image:loc>${escapeXml(image.url)}</image:loc>
+      <image:caption>${escapeXml(image.caption || post.title)}</image:caption>
+      <image:title>${escapeXml(image.title || post.title)}</image:title>
     </image:image>
 `;
       }
@@ -189,10 +206,10 @@ export async function generateDynamicSitemap(): Promise<string> {
     if (post.videos && post.videos.length > 0) {
       for (const video of post.videos) {
         sitemap += `    <video:video>
-      <video:title>${video.title || post.title}</video:title>
-      <video:description>${video.description || post.excerpt}</video:description>
-      <video:content_loc>${video.url}</video:content_loc>
-      <video:thumbnail_loc>${video.thumbnailUrl || (post.images && post.images.length > 0 ? post.images[0].url : '')}</video:thumbnail_loc>
+      <video:title>${escapeXml(video.title || post.title)}</video:title>
+      <video:description>${escapeXml(video.description || post.excerpt)}</video:description>
+      <video:content_loc>${escapeXml(video.url)}</video:content_loc>
+      <video:thumbnail_loc>${escapeXml(video.thumbnailUrl || (post.images && post.images.length > 0 ? post.images[0].url : ''))}</video:thumbnail_loc>
     </video:video>
 `;
       }

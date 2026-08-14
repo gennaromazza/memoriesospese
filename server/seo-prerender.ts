@@ -201,7 +201,111 @@ function getStaticPageMeta(path: string): PageMeta | null {
 }
 
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const withoutExecutableContent = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ');
+
+  return decodeHtmlEntities(withoutExecutableContent).replace(/\s+/g, ' ').trim();
+}
+
+const SEO_CONTENT_LIMIT = 50000;
+const EXTERNAL_HTML_LIMIT = 8_000_000;
+const EXTERNAL_FETCH_TIMEOUT_MS = 15_000;
+const externalSeoContentCache = new Map<string, Promise<string>>();
+
+function decodeHtmlEntities(value: string): string {
+  const namedEntities: Record<string, string> = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    ndash: '–', mdash: '—', hellip: '…', laquo: '«', raquo: '»',
+    rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', euro: '€', bull: '•'
+  };
+
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (entity, code: string) => {
+    if (code.startsWith('#')) {
+      const hexadecimal = code[1]?.toLowerCase() === 'x';
+      const parsed = Number.parseInt(code.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10);
+      return Number.isFinite(parsed) ? String.fromCodePoint(parsed) : entity;
+    }
+    return namedEntities[code.toLowerCase()] ?? entity;
+  });
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function isAllowedBlogContentUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:'
+      && url.hostname === 'firebasestorage.googleapis.com'
+      && url.pathname.includes('/wedding-gallery-397b6.firebasestorage.app/o/blog-content%2F');
+  } catch {
+    return false;
+  }
+}
+
+async function fetchExternalSeoContent(contentUrl: string): Promise<string> {
+  if (!isAllowedBlogContentUrl(contentUrl)) return '';
+
+  const cached = externalSeoContentCache.get(contentUrl);
+  if (cached) return cached;
+
+  const pending = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), EXTERNAL_FETCH_TIMEOUT_MS);
+    try {
+      const response = await fetch(contentUrl, { signal: controller.signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const declaredLength = Number(response.headers.get('content-length') || '0');
+      if (declaredLength > EXTERNAL_HTML_LIMIT) {
+        throw new Error(`contenuto troppo grande (${declaredLength} byte)`);
+      }
+
+      const html = await response.text();
+      if (Buffer.byteLength(html, 'utf8') > EXTERNAL_HTML_LIMIT) {
+        throw new Error('contenuto oltre il limite consentito');
+      }
+      return stripHtmlTags(html).slice(0, SEO_CONTENT_LIMIT);
+    } finally {
+      clearTimeout(timeout);
+    }
+  })().catch(error => {
+    externalSeoContentCache.delete(contentUrl);
+    console.warn('Contenuto SEO esterno non disponibile:', error instanceof Error ? error.message : error);
+    return '';
+  });
+
+  externalSeoContentCache.set(contentUrl, pending);
+  return pending;
+}
+
+async function resolveBlogSeoContent(post: Record<string, any>): Promise<{ text: string; complete: boolean }> {
+  const storedSeoContent = String(post.seoContent || '').trim();
+  if (storedSeoContent) {
+    return { text: storedSeoContent.slice(0, SEO_CONTENT_LIMIT), complete: true };
+  }
+
+  const inlineContent = String(post.content || '');
+  if (inlineContent) {
+    return { text: stripHtmlTags(inlineContent).slice(0, SEO_CONTENT_LIMIT), complete: true };
+  }
+
+  const contentUrl = String(post.contentUrl || '');
+  if (contentUrl) {
+    const externalContent = await fetchExternalSeoContent(contentUrl);
+    if (externalContent) return { text: externalContent, complete: true };
+  }
+
+  return { text: String(post.excerpt || post.title || '').trim(), complete: false };
 }
 
 async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
@@ -214,7 +318,8 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
 
     if (snapshot.empty) return null;
 
-    const post = snapshot.docs[0].data();
+    const postDocument = snapshot.docs[0];
+    const post = postDocument.data();
 
     const publishedMs = post.publishedAt?.seconds
       ? post.publishedAt.seconds * 1000
@@ -235,21 +340,24 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     const tags: string[] = post.tags || [];
     const excerpt: string = post.excerpt || '';
     const articleImage: string = post.coverImage || OG_IMAGE;
+    const seoTitle: string = String(post.metaTitle || `${post.title} | Blog Image Studio`).trim();
+    const seoDescription: string = String(post.metaDescription || excerpt || post.title).trim();
+    const { text: bodyText, complete: hasCompleteSeoContent } = await resolveBlogSeoContent(post);
 
-    const rawContent: string = post.content || '';
-    const plainText = stripHtmlTags(rawContent).substring(0, 3000);
-    const isLargePost = !!post.contentUrl && !rawContent;
-
-    const bodyText = isLargePost
-      ? (excerpt || post.title)
-      : (plainText || excerpt);
+    // Backfill non distruttivo per i quattro articoli legacy su Storage: dopo il
+    // primo recupero riuscito, anche i successivi avvii leggono solo il testo leggero.
+    if (!post.seoContent && post.contentUrl && hasCompleteSeoContent && bodyText) {
+      void postDocument.ref.update({ seoContent: bodyText }).catch(error => {
+        console.warn('Backfill seoContent non riuscito:', error instanceof Error ? error.message : error);
+      });
+    }
 
     const blogPostingJsonLd = {
       '@context': 'https://schema.org',
       '@type': 'BlogPosting',
       '@id': `${BASE_URL}/blog/${slug}`,
       'headline': post.title,
-      'description': excerpt || post.title,
+      'description': seoDescription,
       'image': {
         '@type': 'ImageObject',
         'url': articleImage,
@@ -308,8 +416,8 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     };
 
     return {
-      title: `${post.title} | Blog Image Studio`,
-      description: excerpt || post.title,
+      title: seoTitle,
+      description: seoDescription,
       canonical: `${BASE_URL}/blog/${slug}`,
       ogType: 'article',
       ogImage: articleImage,
@@ -317,15 +425,15 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
       jsonLd: [blogPostingJsonLd, breadcrumbJsonLd],
       bodyContent: `
         <article>
-          <h1>${post.title}</h1>
+          <h1>${escapeHtml(post.title)}</h1>
           <p>
-            Di <a href="${BASE_URL}/storie">${authorName}</a> &bull;
-            <time datetime="${publishedDate}">${formattedDate}</time>
-            ${tags.length > 0 ? ` &bull; ${tags.join(', ')}` : ''}
+            Di <a href="${BASE_URL}/storie">${escapeHtml(authorName)}</a> &bull;
+            <time datetime="${publishedDate}">${escapeHtml(formattedDate)}</time>
+            ${tags.length > 0 ? ` &bull; ${escapeHtml(tags.join(', '))}` : ''}
           </p>
-          ${excerpt ? `<p><strong>${excerpt}</strong></p>` : ''}
-          ${bodyText ? `<p>${bodyText}</p>` : ''}
-          ${isLargePost ? `<p><a href="${BASE_URL}/blog/${slug}">Leggi l'articolo completo</a></p>` : ''}
+          ${excerpt ? `<p><strong>${escapeHtml(excerpt)}</strong></p>` : ''}
+          ${bodyText ? `<p>${escapeHtml(bodyText)}</p>` : ''}
+          ${!hasCompleteSeoContent ? `<p><a href="${BASE_URL}/blog/${slug}">Leggi l'articolo completo</a></p>` : ''}
         </article>
         <nav>
           <a href="${BASE_URL}/blog">← Tutti gli Articoli</a> &nbsp;|&nbsp;
@@ -361,9 +469,9 @@ async function getBlogListMeta(): Promise<PageMeta> {
                 ? new Date(dateMs).toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' })
                 : '';
               return `<li>
-                <h3><a href="${BASE_URL}/blog/${post.slug}">${post.title}</a></h3>
+                <h3><a href="${BASE_URL}/blog/${encodeURIComponent(post.slug)}">${escapeHtml(post.title)}</a></h3>
                 ${dateStr ? `<time datetime="${new Date(dateMs!).toISOString()}">${dateStr}</time>` : ''}
-                ${post.excerpt ? `<p>${post.excerpt}</p>` : ''}
+                ${post.excerpt ? `<p>${escapeHtml(post.excerpt)}</p>` : ''}
               </li>`;
             }).join('')}
           </ul>
@@ -505,25 +613,25 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
     ? (Array.isArray(meta.jsonLd) ? meta.jsonLd : [meta.jsonLd])
     : [];
   const jsonLdScripts = [...commonJsonLd, ...pageJsonLd]
-    .map(schema => `<script type="application/ld+json">${JSON.stringify(schema)}</script>`)
+    .map(schema => `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`)
     .join('\n    ');
 
   const seoHead = `
-    <title>${meta.title}</title>
-    <meta name="description" content="${meta.description}" />
-    ${meta.keywords ? `<meta name="keywords" content="${meta.keywords}" />` : ''}
-    <link rel="canonical" href="${meta.canonical}" />
-    <meta property="og:title" content="${meta.title}" />
-    <meta property="og:description" content="${meta.description}" />
-    <meta property="og:type" content="${ogType}" />
-    <meta property="og:url" content="${meta.canonical}" />
-    <meta property="og:image" content="${ogImage}" />
+    <title>${escapeHtml(meta.title)}</title>
+    <meta name="description" content="${escapeHtml(meta.description)}" />
+    ${meta.keywords ? `<meta name="keywords" content="${escapeHtml(meta.keywords)}" />` : ''}
+    <link rel="canonical" href="${escapeHtml(meta.canonical)}" />
+    <meta property="og:title" content="${escapeHtml(meta.title)}" />
+    <meta property="og:description" content="${escapeHtml(meta.description)}" />
+    <meta property="og:type" content="${escapeHtml(ogType)}" />
+    <meta property="og:url" content="${escapeHtml(meta.canonical)}" />
+    <meta property="og:image" content="${escapeHtml(ogImage)}" />
     <meta property="og:locale" content="it_IT" />
     <meta property="og:site_name" content="Image Studio" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${meta.title}" />
-    <meta name="twitter:description" content="${meta.description}" />
-    <meta name="twitter:image" content="${ogImage}" />
+    <meta name="twitter:title" content="${escapeHtml(meta.title)}" />
+    <meta name="twitter:description" content="${escapeHtml(meta.description)}" />
+    <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
     ${jsonLdScripts}
   `;
 
@@ -545,7 +653,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   if (meta.bodyContent) {
     html = html.replace(
       '<div id="root"></div>',
-      `<div id="root"><div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">${meta.bodyContent}</div></div>`
+      `<div id="root"><main data-seo-prerender="true">${meta.bodyContent}</main></div>`
     );
   }
 
