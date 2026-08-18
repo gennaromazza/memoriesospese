@@ -1,0 +1,221 @@
+Sì. L’ho passato con attenzione: non lo riscriverei da zero, perché l’impianto è sensato. Però ci sono 6–8 punti che sistemerei prima di costruirci sopra l’automazione degli articoli dei matrimoni.
+Priorità
+1. Hai un bug nello slug automatico.
+   Questa parte:
+const handleTitleChange = (title: string) => {
+  setFormData(prev => ({
+    ...prev,
+    title,
+    slug: prev.slug || generateSlug(title)
+  }));
+};
+funziona bene solo al primo carattere. Appena slug diventa "m", scrivendo "matrimonio..." non viene più aggiornato.
+Meglio mantenere un flag:
+const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+
+const handleTitleChange = (title: string) => {
+  setFormData(prev => ({
+    ...prev,
+    title,
+    slug: slugManuallyEdited ? prev.slug : generateSlug(title)
+  }));
+};
+e:
+<Input
+  value={formData.slug}
+  onChange={(e) => {
+    setSlugManuallyEdited(true);
+    setFormData(prev => ({
+      ...prev,
+      slug: e.target.value
+    }));
+  }}
+/>
+Quando crei un nuovo articolo:
+setSlugManuallyEdited(false);
+2. Le immagini dentro ReactQuill vanno assolutamente spostate su Storage.
+   Questo per me è il miglioramento più importante.
+Oggi Quill può produrre contenuti tipo:
+<img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...">
+e ti ritrovi HTML giganteschi.
+Il flusso corretto dovrebbe essere:
+clic immagine
+↓
+scegli JPG
+↓
+compressImage()
+↓
+Firebase Storage
+↓
+getDownloadURL()
+↓
+Quill inserisce:
+<img src="https://firebasestorage...">
+A quel punto un articolo da 4–5 MB può diventare tranquillamente 20–50 KB di HTML.
+E probabilmente potresti eliminare quasi completamente tutta la logica:
+if (contentBytes > 800000)
+mantenendola soltanto come protezione estrema.
+3. seoContent da solo non ti porta alcun vantaggio SEO.
+   Questa funzione è buona:
+buildSeoContent(formData.content)
+ma il fatto che tu memorizzi:
+seoContent: "..."
+in Firestore non significa che Google lo veda.
+È importante che nella pagina pubblica /blog/:slug il contenuto dell'articolo venga effettivamente renderizzato nel DOM indicizzabile.
+Quindi il vero punto SEO è il componente pubblico del blog, non BlogManager.
+Per il progetto che stavamo ragionando prima, io farei proprio:
+Gallery matrimonio
+     ↓
+Generazione articolo
+     ↓
+blogPosts
+     ↓
+pagina pubblica SEO
+     ↓
+Article JSON-LD
+     ↓
+link alla gallery
+4. Hai un possibile caso di perdita del contenuto.
+   Qui:
+if (editingPost && (editingPost as any).contentUrl) {
+  postData.contentUrl = deleteField();
+
+  try {
+    await deleteObject(
+      ref(storage, `blog-content/${editingPost.id}.html`)
+    );
+  } catch {}
+}
+cancelli prima Storage e dopo fai:
+await updateDoc(...)
+Se Firebase Storage cancella correttamente il file e subito dopo updateDoc() fallisce, il documento Firestore continua a puntare a un file che hai appena eliminato.
+Invertirei:
+const oldContentPath =
+  editingPost && (editingPost as any).contentUrl
+    ? `blog-content/${editingPost.id}.html`
+    : null;
+
+await updateDoc(
+  doc(db, 'blogPosts', editingPost.id),
+  postData
+);
+
+if (oldContentPath) {
+  try {
+    await deleteObject(ref(storage, oldContentPath));
+  } catch (error) {
+    console.warn('Pulizia Storage fallita:', error);
+  }
+}
+5. openDialog() può farti sovrascrivere accidentalmente un articolo vuoto.
+   Qui:
+if (post.contentUrl && !content) {
+  try {
+    const res = await fetch(post.contentUrl);
+    const text = await res.text();
+    content = text;
+  } catch (e) {
+    console.error(...)
+  }
+}
+se il download fallisce, continui comunque e apri l'editor con:
+content = ''
+Poi potresti premere Salva e distruggere il contenuto.
+Io bloccherei l'editing:
+catch (error) {
+  console.error('Errore caricamento contenuto:', error);
+
+  toast({
+    title: 'Errore caricamento articolo',
+    description: 'Il contenuto non è stato caricato. Il post non verrà aperto per evitare sovrascritture.',
+    variant: 'destructive'
+  });
+
+  return;
+}
+Questo è importante.
+6. Bulk delete lascia file orfani su Firebase Storage.
+   Qua cancelli solo Firestore:
+batch.delete(postRef);
+ma non:
+blog-content/{id}.html
+blog-covers/...
+immagini dell'articolo
+Quindi dopo qualche anno Storage diventa una discarica digitale 😄.
+Io inizierei a memorizzare nel documento:
+coverImagePath
+contentStoragePath
+contentImagePaths
+per esempio:
+{
+  "coverImage": "https://...",
+  "coverImagePath": "blog/covers/abc123.jpg",
+
+  "contentImagePaths": [
+    "blog/articles/abc123/img-001.webp",
+    "blog/articles/abc123/img-002.webp"
+  ]
+}
+Quando cancelli il post sai esattamente cosa rimuovere.
+7. Attenzione alla selezione multipla quando cambi filtro.
+Esempio:
+selezioni 10 bozze
+↓
+cambi filtro in "Pubblicati"
+↓
+selectedPosts contiene ancora quei 10 ID
+Potresti fare operazioni su articoli che non stai più vedendo.
+Al cambio filtro farei:
+useEffect(() => {
+  setCurrentPage(1);
+  setSelectedPosts(new Set());
+}, [filterStatus]);
+Molto più sicuro.
+8. publishedAt ha una logica contraddittoria.
+Hai scritto:
+// Imposta publishedAt solo alla prima pubblicazione
+ma poi fai:
+if (
+  formData.status === BlogPostStatus.DRAFT ||
+  formData.status === BlogPostStatus.ARCHIVED
+) {
+  postData.publishedAt = deleteField();
+}
+Quindi:
+pubblico 1 agosto
+publishedAt = 1 agosto
+
+metto in bozza
+
+ripubblico 20 agosto
+publishedAt = 20 agosto
+Non è più la "prima pubblicazione".
+Per SEO io terrei:
+publishedAt
+updatedAt
+separati.
+Quindi publishedAt non dovrebbe essere cancellato.
+Poi c'è un problema di sicurezza da non sottovalutare
+Hai:
+dangerouslySetInnerHTML={{
+  __html: formData.content
+}}
+e contemporaneamente permetti:
+Import JSON
+Incolla JSON
+Sorgente HTML
+WordPress Import
+Quindi puoi mettere dentro HTML arbitrario.
+Aggiungerei DOMPurify.
+Tipo:
+import DOMPurify from 'dompurify';
+e:
+const sanitizeBlogHtml = (html: string) =>
+  DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true }
+  });
+almeno prima della visualizzazione:
+dangerouslySetInnerHTML={{
+  __html: sanitizeBlogHtml(formData.content)
+}}
+e idealmente anche prima del salvataggio.
