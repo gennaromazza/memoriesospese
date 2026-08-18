@@ -1238,9 +1238,9 @@ export default function BlogManager() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>
                   {post.tags && post.tags.length > 0 && (
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-3">
                       {post.tags.map(tag => (
-                        <Badge key={tag} variant="outline" className="text-xs">
+                        <Badge key={tag} variant="outline" className="text-xs whitespace-nowrap">
                           {tag}
                         </Badge>
                       ))}
