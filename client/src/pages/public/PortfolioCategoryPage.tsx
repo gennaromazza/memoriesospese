@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
 import { useSEO } from "@/hooks/useSEO";
 import { portfolioCategoryContent, PortfolioInline, PortfolioParagraph } from "@shared/portfolio-seo-content";
@@ -104,6 +104,10 @@ export default function PortfolioCategoryPage() {
           </p>
         </div>
 
+        {categoria && portfolioCategoryContent[categoria] && (
+          <PortfolioSeoSection categoria={categoria} />
+        )}
+
         {loading ? (
           <div className="flex justify-center items-center py-24">
             <Loader2 className="h-12 w-12 animate-spin text-terracotta" />
@@ -160,10 +164,6 @@ export default function PortfolioCategoryPage() {
         onNext={() => setCurrentImageIndex(prev => Math.min(prev + 1, photoUrls.length - 1))}
         onPrevious={() => setCurrentImageIndex(prev => Math.max(prev - 1, 0))}
       />
-
-      {categoria && portfolioCategoryContent[categoria] && (
-        <PortfolioSeoSection categoria={categoria} />
-      )}
     </div>
   );
 }
@@ -188,57 +188,94 @@ function RenderParagraph({ parts }: { parts: PortfolioParagraph }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sezione SEO — mostrata in fondo alla pagina, dopo la galleria
+// Sezione SEO — mostrata sopra la galleria, compressa di default ("Espandi")
+// per dare priorità visiva alle foto.
 // ---------------------------------------------------------------------------
 function PortfolioSeoSection({ categoria }: { categoria: string }) {
+  const [expanded, setExpanded] = useState(false);
   const content = portfolioCategoryContent[categoria];
   if (!content) return null;
 
+  const firstSection = content.sections[0];
+  const restSections = content.sections.slice(1);
+
   return (
-    <section className="bg-gray-50 border-t border-gray-100 mt-16 py-16">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        {/* Sezioni testuali (approccio, aree, come funziona, …) */}
-        {content.sections.map((section, si) => (
-          <div key={si}>
-            <h2 className="text-2xl font-playfair text-blue-gray mb-3">{section.heading}</h2>
+    <section className="bg-gray-50 rounded-lg mb-12 py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+        {/* Intro sempre visibile */}
+        {firstSection && (
+          <div>
+            <h2 className="text-2xl font-playfair text-blue-gray mb-3">{firstSection.heading}</h2>
             <div className="space-y-2">
-              {section.paragraphs.map((para, pi) => (
+              {firstSection.paragraphs.map((para, pi) => (
                 <RenderParagraph key={pi} parts={para} />
               ))}
             </div>
           </div>
-        ))}
-
-        {/* FAQ */}
-        {content.faqs && content.faqs.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-playfair text-blue-gray mb-6">Domande Frequenti</h2>
-            <dl className="space-y-6">
-              {content.faqs.map((faq, fi) => (
-                <div key={fi} className="border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
-                  <dt className="text-lg font-semibold text-blue-gray mb-2">{faq.question}</dt>
-                  <dd>
-                    <RenderParagraph parts={faq.answer} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
         )}
 
-        {/* Link correlati */}
-        {content.relatedLinks && content.relatedLinks.length > 0 && (
-          <p className="text-sm text-gray-500">
-            Vedi anche:{' '}
-            {content.relatedLinks.map((link, li) => (
-              <span key={li}>
-                {li > 0 && ' | '}
-                <Link href={link.href} className="text-terracotta underline hover:text-dark-sage transition-colors">
-                  {link.text}
-                </Link>
-              </span>
+        {expanded && (
+          <>
+            {/* Sezioni restanti (aree, come funziona, …) */}
+            {restSections.map((section, si) => (
+              <div key={si}>
+                <h2 className="text-2xl font-playfair text-blue-gray mb-3">{section.heading}</h2>
+                <div className="space-y-2">
+                  {section.paragraphs.map((para, pi) => (
+                    <RenderParagraph key={pi} parts={para} />
+                  ))}
+                </div>
+              </div>
             ))}
-          </p>
+
+            {/* FAQ */}
+            {content.faqs && content.faqs.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-playfair text-blue-gray mb-6">Domande Frequenti</h2>
+                <dl className="space-y-6">
+                  {content.faqs.map((faq, fi) => (
+                    <div key={fi} className="border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
+                      <dt className="text-lg font-semibold text-blue-gray mb-2">{faq.question}</dt>
+                      <dd>
+                        <RenderParagraph parts={faq.answer} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+
+            {/* Link correlati */}
+            {content.relatedLinks && content.relatedLinks.length > 0 && (
+              <p className="text-sm text-gray-500">
+                Vedi anche:{' '}
+                {content.relatedLinks.map((link, li) => (
+                  <span key={li}>
+                    {li > 0 && ' | '}
+                    <Link href={link.href} className="text-terracotta underline hover:text-dark-sage transition-colors">
+                      {link.text}
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
+          </>
+        )}
+
+        {(restSections.length > 0 || (content.faqs && content.faqs.length > 0)) && (
+          <div className="text-center">
+            <Button
+              variant="outline"
+              onClick={() => setExpanded(!expanded)}
+              data-testid="button-toggle-seo-content"
+            >
+              {expanded ? (
+                <>Mostra meno <ChevronUp className="ml-2 h-4 w-4" /></>
+              ) : (
+                <>Espandi <ChevronDown className="ml-2 h-4 w-4" /></>
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </section>
