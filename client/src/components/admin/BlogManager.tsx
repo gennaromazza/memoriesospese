@@ -1199,17 +1199,17 @@ export default function BlogManager() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                       {post.status === 'published' && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(`/blog/${post.slug}`, '_blank')}
                           data-testid={`button-view-${post.id}`}
-                          className="flex-1 sm:flex-none"
+                          className="w-full sm:w-auto"
                         >
-                          <Eye className="h-4 w-4 sm:mr-0" />
-                          <span className="sm:hidden ml-2">Visualizza</span>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Visualizza
                         </Button>
                       )}
                       <Button
@@ -1217,20 +1217,20 @@ export default function BlogManager() {
                         size="sm"
                         onClick={() => openDialog(post)}
                         data-testid={`button-edit-${post.id}`}
-                        className="flex-1 sm:flex-none"
+                        className="w-full sm:w-auto"
                       >
-                        <Edit className="h-4 w-4 sm:mr-0" />
-                        <span className="sm:hidden ml-2">Modifica</span>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Modifica
                       </Button>
                       <Button
                         variant="destructive"
                         size="sm"
                         onClick={() => openDeleteDialog(post.id)}
                         data-testid={`button-delete-${post.id}`}
-                        className="flex-1 sm:flex-none"
+                        className="w-full sm:w-auto"
                       >
-                        <Trash2 className="h-4 w-4 sm:mr-0" />
-                        <span className="sm:hidden ml-2">Elimina</span>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Elimina
                       </Button>
                     </div>
                   </div>
