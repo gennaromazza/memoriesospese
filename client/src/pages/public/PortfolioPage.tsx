@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export default function PortfolioPage() {
   const [jobTypes, setJobTypes] = useState<JobTypeFE[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
+  const [, navigate] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -180,10 +181,7 @@ export default function PortfolioPage() {
                 {categories.map(category => (
                   <div 
                     key={category.jobType}
-                    onClick={() => {
-                      setSelectedCategory(category.jobType);
-                      setViewMode('grid');
-                    }}
+                    onClick={() => navigate(`/portfolio/${category.jobType}`)}
                     className="group cursor-pointer mb-8 break-inside-avoid"
                     data-testid={`category-card-${category.jobType}`}
                   >
@@ -233,7 +231,7 @@ export default function PortfolioPage() {
                         key={cat}
                         variant={selectedCategory === cat ? 'default' : 'outline'}
                         className="cursor-pointer px-4 py-2 text-sm"
-                        onClick={() => setSelectedCategory(cat)}
+                        onClick={() => navigate(`/portfolio/${cat}`)}
                         data-testid={`filter-${cat}`}
                       >
                         {label} ({count})
