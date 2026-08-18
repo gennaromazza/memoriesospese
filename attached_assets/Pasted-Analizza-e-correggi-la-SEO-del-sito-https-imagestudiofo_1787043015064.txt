@@ -1,0 +1,320 @@
+Analizza e correggi la SEO del sito `https://imagestudiofotografico.com/` senza modificare il design visivo, il layout o il comportamento delle pagine, salvo dove strettamente necessario per la SEO.
+
+## Obiettivo
+Migliorare il posizionamento organico del sito Image Studio Fotografico, con particolare attenzione a:
+
+- fotografo Aversa
+- fotografo matrimonio Aversa
+- fotografo matrimonio Caserta
+- fotografo matrimonio Napoli
+- fotografo matrimonio Costiera Amalfitana
+- fotografo battesimo Aversa
+
+Prima di creare nuove pagine, verifica SEMPRE se esiste già una pagina equivalente nel progetto.
+
+## 1. Censimento completo delle pagine
+
+Scansiona tutte le route pubbliche del sito e genera una lista con:
+
+- URL
+- Title
+- Meta description
+- H1
+- H2 principali
+- canonical
+- robots meta
+- status HTTP
+- presenza in sitemap
+- quantità approssimativa di testo
+- eventuali dati strutturati
+- link interni in entrata e in uscita
+
+Segnala:
+
+- pagine duplicate
+- pagine troppo simili
+- pagine con poco contenuto
+- title duplicati
+- description duplicate
+- H1 mancanti o multipli
+- canonical errati
+- pagine importanti non presenti nella sitemap
+
+## 2. Non creare duplicati
+
+La pagina:
+
+`/fotografo-aversa/`
+
+ESISTE GIÀ.
+
+Non creare una nuova pagina equivalente.
+
+Analizza quella esistente e migliorala mantenendo l'URL attuale.
+
+Prima di creare qualsiasi altra landing SEO, controlla se esiste già una route equivalente.
+
+## 3. Ottimizzare /fotografo-aversa/
+
+Verifica e migliora:
+
+- Title
+- meta description
+- H1
+- gerarchia H2/H3
+- contenuto
+- internal linking
+- FAQ
+- immagini e alt text
+- dati strutturati
+
+La pagina deve essere chiaramente focalizzata sulla keyword principale:
+
+`fotografo Aversa`
+
+e secondariamente su:
+
+- fotografo matrimonio Aversa
+- studio fotografico Aversa
+- fotografo cerimonie Aversa
+- fotografo battesimo Aversa
+
+Evita keyword stuffing e testi artificiali.
+
+## 4. Portfolio matrimonio
+
+Analizza:
+
+`/portfolio/matrimonio`
+
+Attualmente questa tipologia di pagina sembra avere poco contenuto testuale.
+
+Mantieni il portfolio fotografico ma aggiungi una struttura SEO naturale composta da:
+
+- H1 coerente
+- introduzione
+- descrizione dell'approccio fotografico
+- matrimoni reali
+- aree servite
+- modalità di lavoro
+- FAQ
+- CTA
+- collegamenti verso eventuali landing geografiche
+
+Non trasformare il portfolio in un articolo pieno di keyword.
+
+## 5. Altre pagine portfolio
+
+Controlla allo stesso modo:
+
+- `/portfolio/battesimo`
+- `/portfolio/comunione`
+- `/portfolio/cresima`
+- `/portfolio/evento`
+- `/portfolio/ritratto`
+- `/portfolio/famiglia`
+
+Aggiungi contenuto solo quando realmente utile.
+
+Ogni pagina deve avere una finalità e keyword differenti.
+
+## 6. Landing geografiche
+
+Prima verifica quali esistono già.
+
+Valuta la necessità delle seguenti pagine:
+
+- `/fotografo-matrimonio-aversa/`
+- `/fotografo-matrimonio-caserta/`
+- `/fotografo-matrimonio-napoli/`
+- `/fotografo-matrimonio-costiera-amalfitana/`
+- `/fotografo-battesimo-aversa/`
+
+NON crearle automaticamente.
+
+Per ciascuna restituisci prima:
+
+- ESISTE
+- NON ESISTE
+- esiste una pagina equivalente
+- rischio cannibalizzazione SEO
+- consiglio: creare / non creare / integrare pagina esistente
+
+Crea una nuova pagina solo se esiste un intento di ricerca realmente distinto.
+
+## 7. Internal linking
+
+Crea una struttura logica di link interni.
+
+Esempio:
+
+Homepage
+→ Fotografo Aversa
+→ Matrimonio
+→ Fotografo matrimonio Napoli/Caserta/Aversa
+→ Real Wedding
+→ Portfolio matrimonio
+
+Le anchor text devono essere naturali e varie.
+
+Non utilizzare sempre la keyword esatta.
+
+## 8. Real Wedding
+
+Predisponi una struttura SEO riutilizzabile per matrimoni reali.
+
+Esempio:
+
+`/matrimoni/nome-coppia-location/`
+
+Ogni pagina Real Wedding dovrebbe supportare:
+
+- nomi della coppia
+- città
+- location
+- cerimonia
+- racconto breve
+- gallery fotografica
+- fornitori quando disponibili
+- link alla pagina matrimonio
+- link alla location/area geografica pertinente
+
+NON generare matrimoni o informazioni inventate.
+
+La struttura deve essere pronta per utilizzare dati reali in futuro.
+
+## 9. Local SEO e dati strutturati
+
+Controlla presenza e correttezza di Schema.org.
+
+Implementa, quando appropriato:
+
+- LocalBusiness
+- Organization
+- WebSite
+- BreadcrumbList
+- FAQPage
+- ImageObject
+
+I dati devono essere coerenti tra tutte le pagine.
+
+Usa come entità principale:
+
+Image Studio Fotografico  
+Gennaro Mazzacane  
+Aversa, Caserta
+
+Non inventare indirizzi, telefoni, recensioni o dati aziendali.
+
+Se nel progetto trovi dati differenti tra loro, segnalali prima di modificarli.
+
+## 10. Sitemap e robots
+
+Verifica:
+
+- `/robots.txt`
+- sitemap XML
+- URL contenute nella sitemap
+- pagine indicizzabili
+- pagine noindex
+- canonical
+
+La sitemap deve contenere solamente URL canoniche utili.
+
+Escludere:
+
+- pagine tecniche
+- duplicati
+- parametri
+- route private
+- pagine admin
+- pagine senza valore SEO
+
+## 11. Redirect vecchio dominio
+
+NON effettuare ancora redirect automatici dal vecchio dominio:
+
+`gennaromazzacane.it`
+
+Predisponi però un file/documento di mapping con:
+
+`OLD_URL -> NEW_URL -> ACTION`
+
+Azioni consentite:
+
+- 301
+- 404
+- 410
+- KEEP
+- REVIEW
+
+Non usare un redirect wildcard verso la homepage.
+
+URL spam o hackerate del vecchio dominio NON devono essere reindirizzate verso il nuovo sito.
+
+## 12. Performance SEO tecnica
+
+Verifica:
+
+- Core Web Vitals
+- lazy loading immagini
+- dimensioni immagini
+- WebP/AVIF
+- width/height immagini
+- CLS
+- LCP
+- preload immagine hero se necessario
+- font
+- JavaScript non necessario
+- rendering lato client
+- contenuto effettivamente visibile ai crawler
+
+Non peggiorare qualità fotografica e resa delle immagini.
+
+## 13. Open Graph e social
+
+Verifica:
+
+- og:title
+- og:description
+- og:image
+- canonical
+- Twitter Card
+
+Ogni pagina importante deve avere preview social coerente.
+
+## 14. Output richiesto PRIMA delle modifiche
+
+Prima di modificare codice, mostrami un report con questa struttura:
+
+### Pagine esistenti
+URL | Keyword | Stato SEO | Problema | Azione
+
+### Nuove pagine eventualmente necessarie
+URL | Keyword target | Perché serve | Rischio cannibalizzazione
+
+### Problemi tecnici
+Problema | Gravità | File interessato | Correzione
+
+### Redirect
+Old URL | New URL | Tipo | Note
+
+### Priorità
+P0 = critico  
+P1 = importante  
+P2 = miglioramento  
+P3 = opzionale
+
+Dopo il report, applica automaticamente solo le correzioni P0 e P1 che non comportano rischi di perdita di contenuti o cambiamenti sostanziali al design.
+
+## 15. Regola fondamentale
+
+Non cancellare contenuti esistenti.
+
+Non rinominare URL già pubbliche senza una motivazione SEO forte.
+
+Non cambiare URL che potrebbero essere già indicizzate senza creare il relativo redirect 301.
+
+Non inventare testo su matrimoni, clienti, location o esperienze che non siano presenti nel progetto.
+
+Mantieni il sito naturale e pensato prima di tutto per coppie reali, non per un motore di ricerca.

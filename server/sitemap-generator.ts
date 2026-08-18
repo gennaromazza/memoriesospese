@@ -38,6 +38,30 @@ export async function generateDynamicSitemap(): Promise<string> {
     ...doc.data()
   })) as (BlogPost & { images?: BlogPostMedia[]; videos?: BlogPostMedia[] })[];
 
+  // Pagine statiche con data di ultima modifica REALE del contenuto
+  // (aggiornare la data quando si modifica il contenuto/prerender della pagina)
+  const staticPages: Array<{ path: string; changefreq: string; priority: string; lastmod: string }> = [
+    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-08-18' },
+    { path: '/portfolio', changefreq: 'weekly', priority: '0.95', lastmod: '2026-08-18' },
+    { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-18' },
+    { path: '/portfolio/battesimo', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/comunione', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/cresima', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/evento', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/ritratto', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
+    { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
+    { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-02-06' },
+    { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: '2026-08-18' },
+    { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
+    { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
+    { path: '/prenota', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-05' },
+    { path: '/consulenze', changefreq: 'monthly', priority: '0.85', lastmod: '2026-08-05' },
+    { path: '/lasciati-trasportare', changefreq: 'monthly', priority: '0.8', lastmod: '2026-02-06' },
+    { path: '/privacy', changefreq: 'yearly', priority: '0.3', lastmod: '2026-01-02' },
+    { path: '/terms', changefreq: 'yearly', priority: '0.3', lastmod: '2025-12-18' },
+  ];
+
   // Costruisci sitemap XML con namespace immagini
   let sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
@@ -45,133 +69,19 @@ export async function generateDynamicSitemap(): Promise<string> {
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
         xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
 
-  <!-- Homepage -->
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>
+`;
 
-  <!-- Portfolio Principale -->
-  <url>
-    <loc>${baseUrl}/portfolio</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.95</priority>
+  for (const page of staticPages) {
+    sitemap += `  <url>
+    <loc>${baseUrl}${page.path}</loc>
+    <lastmod>${page.lastmod}</lastmod>
+    <changefreq>${page.changefreq}</changefreq>
+    <priority>${page.priority}</priority>
   </url>
+`;
+  }
 
-  <!-- Portfolio per Categoria (Matrimoni, Battesimi, etc) -->
-  <url>
-    <loc>${baseUrl}/portfolio/matrimonio</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/battesimo</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/comunione</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/cresima</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/evento</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/ritratto</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/famiglia</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>${baseUrl}/portfolio/altro</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Video Matrimoni (iMaGe Vision) -->
-  <url>
-    <loc>${baseUrl}/vision</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.95</priority>
-  </url>
-
-  <!-- Blog -->
-  <url>
-    <loc>${baseUrl}/blog</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-
-  <!-- Storia del Fotografo -->
-  <url>
-    <loc>${baseUrl}/storie</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>
-
-  <!-- Landing Page Geografica -->
-  <url>
-    <loc>${baseUrl}/fotografo-aversa</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.95</priority>
-  </url>
-
-  <!-- Prenota - Campagne Booking -->
-  <url>
-    <loc>${baseUrl}/prenota</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-
-  <!-- Consulenze -->
-  <url>
-    <loc>${baseUrl}/consulenze</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>
-
-  <!-- Accesso Galleria Clienti -->
-  <url>
-    <loc>${baseUrl}/accesso-galleria</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-
-  <!-- E-book Download -->
-  <url>
-    <loc>${baseUrl}/lasciati-trasportare</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Privacy Policy -->
-  <url>
-    <loc>${baseUrl}/privacy</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-
-  <!-- Termini e Condizioni -->
-  <url>
-    <loc>${baseUrl}/terms</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-
+  sitemap += `
   <!-- Blog Posts Dinamici -->
 `;
 

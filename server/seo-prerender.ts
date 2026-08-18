@@ -82,9 +82,63 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>Fotografo disponibile senza costi di trasferta ad Aversa e nei comuni limitrofi: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Villa di Briano, Orta di Atella, Trentola-Ducenta, Gricignano di Aversa, Cesa, Giugliano in Campania, Marano di Napoli, Qualiano e tutta la provincia di Caserta e Napoli.</p>
         <h2>Prezzi Fotografo Aversa</h2>
         <p>I pacchetti fotografici per matrimoni ad Aversa partono da €2.000 fino a €3.500 incluso album fotografico, galleria digitale Memorie Sospese e consegna entro 12 settimane. Nessun costo di trasferta nell'area aversana.</p>
+        <h2>Domande Frequenti</h2>
+        <h3>Quanto costa un fotografo di matrimonio ad Aversa?</h3>
+        <p>I nostri pacchetti partono da €2.000. Non è previsto alcun costo di trasferta per matrimoni nell'area di Aversa e nella provincia di Caserta e Napoli. Contattaci per un preventivo personalizzato e gratuito.</p>
+        <h3>In quali comuni operate senza costi di trasferta?</h3>
+        <p>Operiamo senza trasferta ad Aversa e in tutti i comuni dell'agro aversano: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Giugliano e tutta la provincia di Caserta e Napoli.</p>
+        <h3>Fotografate anche battesimi e comunioni ad Aversa?</h3>
+        <p>Sì, offriamo servizi fotografici professionali per battesimi, comunioni e cresime ad Aversa e nei comuni limitrofi. Contattaci per verificare disponibilità.</p>
+        <h3>Come si prenota una consulenza gratuita?</h3>
+        <p>Puoi prenotare una consulenza gratuita direttamente online nella sezione Consulenze. Offriamo incontri di persona ad Aversa o in videocall per discutere le tue esigenze.</p>
+        <h3>Entro quando vengono consegnate le foto?</h3>
+        <p>La consegna della galleria digitale avviene entro 10-12 settimane dalla data dell'evento, a seconda del pacchetto scelto.</p>
         <h2>Contatta il Fotografo ad Aversa</h2>
         <p>Telefono: +39 334 710 3142 | Email: info@memoriesospese.it | <a href="${BASE_URL}/consulenze">Prenota una consulenza gratuita</a> di persona ad Aversa o in videocall.</p>
-      `
+        <p>Vedi anche: <a href="${BASE_URL}/portfolio/matrimonio">Portfolio Matrimoni</a> | <a href="${BASE_URL}/portfolio/battesimo">Portfolio Battesimi</a> | <a href="${BASE_URL}/blog">Blog</a></p>
+      `,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: 'Fotografo Aversa', item: `${BASE_URL}/fotografo-aversa` },
+          ],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          // Allineate alle FAQ realmente visibili in FotografoAversaPage.tsx
+          mainEntity: [
+            {
+              '@type': 'Question',
+              name: 'Quanto costa un fotografo di matrimonio ad Aversa?',
+              acceptedAnswer: { '@type': 'Answer', text: "I nostri pacchetti partono da €2.000. Non è previsto alcun costo di trasferta per matrimoni nell'area di Aversa e nella provincia di Caserta e Napoli. Contattaci per un preventivo personalizzato e gratuito." },
+            },
+            {
+              '@type': 'Question',
+              name: 'In quali comuni operate senza costi di trasferta?',
+              acceptedAnswer: { '@type': 'Answer', text: "Operiamo senza trasferta ad Aversa e in tutti i comuni dell'agro aversano: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Giugliano e tutta la provincia di Caserta e Napoli." },
+            },
+            {
+              '@type': 'Question',
+              name: 'Fotografate anche battesimi e comunioni ad Aversa?',
+              acceptedAnswer: { '@type': 'Answer', text: 'Sì, offriamo servizi fotografici professionali per battesimi, comunioni e cresime ad Aversa e nei comuni limitrofi. Contattaci per verificare disponibilità.' },
+            },
+            {
+              '@type': 'Question',
+              name: 'Come si prenota una consulenza gratuita?',
+              acceptedAnswer: { '@type': 'Answer', text: 'Puoi prenotare una consulenza gratuita direttamente online nella sezione Consulenze. Offriamo incontri di persona ad Aversa o in videocall per discutere le tue esigenze.' },
+            },
+            {
+              '@type': 'Question',
+              name: 'Entro quando vengono consegnate le foto?',
+              acceptedAnswer: { '@type': 'Answer', text: "La consegna della galleria digitale avviene entro 10-12 settimane dalla data dell'evento, a seconda del pacchetto scelto." },
+            },
+          ],
+        },
+      ],
     },
     '/portfolio': {
       title: 'Portfolio Fotografico | Matrimoni, Battesimi, Eventi | Image Studio Napoli',
@@ -548,14 +602,74 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
   const cat = categories[category];
   if (!cat) return null;
 
+  const catLabels: Record<string, string> = {
+    matrimonio: 'Matrimoni', battesimo: 'Battesimi', comunione: 'Comunioni',
+    cresima: 'Cresime', evento: 'Eventi', ritratto: 'Ritratti', famiglia: 'Famiglia', altro: 'Altri Servizi',
+  };
+
+  // Contenuto extra per categoria (approccio, aree servite, FAQ) — solo informazioni reali dello studio
+  const extraContent: Record<string, string> = {
+    matrimonio: `
+      <h2>Il Nostro Approccio alla Fotografia di Matrimonio</h2>
+      <p>Reportage documentaristico ed emozionale: raccontiamo la giornata così com'è, dai preparativi al taglio della torta, senza pose forzate. La filosofia "Lasciati Trasportare" di Gennaro Mazzacane privilegia i momenti autentici e le emozioni spontanee. Oltre 500 matrimoni documentati in più di 10 anni di attività.</p>
+      <h2>Dove Lavoriamo</h2>
+      <p>Fotografo di matrimonio ad Aversa e in tutta la Campania: Napoli, Caserta, Salerno e Costiera Amalfitana. Nessun costo di trasferta nell'agro aversano.</p>
+      <h2>Come Funziona</h2>
+      <p>Si parte da una <a href="${BASE_URL}/consulenze">consulenza gratuita</a> (di persona ad Aversa o in videocall) per conoscerci e definire il pacchetto. Dopo il matrimonio ricevi la galleria digitale privata "Memorie Sospese" per rivedere e selezionare le foto online.</p>
+      <h2>Domande Frequenti</h2>
+      <h3>Quanto costa un servizio fotografico di matrimonio?</h3>
+      <p>I pacchetti partono indicativamente da €2.000 fino a €3.500, con album fotografico e galleria digitale inclusi. <a href="${BASE_URL}/consulenze">Richiedi un preventivo gratuito</a>.</p>
+      <h3>In quanto tempo vengono consegnate le foto?</h3>
+      <p>La consegna avviene entro circa 12 settimane dal matrimonio, tramite galleria digitale privata e album.</p>
+      <h3>Fate anche il video del matrimonio?</h3>
+      <p>Sì, con <a href="${BASE_URL}/vision">iMaGe Vision</a> realizziamo video matrimoniali cinematografici, abbinabili al servizio fotografico.</p>
+      <p>Vedi anche: <a href="${BASE_URL}/fotografo-aversa">Fotografo ad Aversa</a> | <a href="${BASE_URL}/blog">Consigli e guide sul blog</a></p>`,
+    battesimo: `
+      <h2>Fotografia di Battesimo senza Pose Forzate</h2>
+      <p>Documentiamo la cerimonia e il ricevimento con discrezione: l'emozione dei genitori, i nonni, i dettagli della chiesa e della festa. Servizio disponibile ad Aversa, Napoli, Caserta e in tutta la Campania, senza costi di trasferta nell'agro aversano.</p>
+      <p>Le foto vengono consegnate nella galleria digitale privata "Memorie Sospese", da cui la famiglia può selezionare le preferite. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a> | <a href="${BASE_URL}/fotografo-aversa">Fotografo ad Aversa</a></p>`,
+    comunione: `
+      <h2>Prime Comunioni in Campania</h2>
+      <p>Reportage della cerimonia e del ricevimento, ritratti del festeggiato con la famiglia e attenzione ai dettagli. Operiamo ad Aversa e nei comuni dell'agro aversano, Napoli e Caserta. Consegna tramite galleria digitale privata. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
+    cresima: `
+      <h2>Fotografia per Cresime</h2>
+      <p>Documentiamo la celebrazione e i momenti in famiglia con uno stile naturale e discreto. Servizio attivo ad Aversa, Caserta, Napoli e provincia. Consegna tramite galleria digitale privata "Memorie Sospese". <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
+    evento: `
+      <h2>Eventi Aziendali e Privati</h2>
+      <p>Copertura fotografica di eventi, feste private e ricorrenze a Napoli, Caserta e in Campania: momenti chiave, ospiti e atmosfera, con consegna in galleria digitale. <a href="${BASE_URL}/consulenze">Parliamo del tuo evento</a></p>`,
+    ritratto: `
+      <h2>Ritratti e Book Fotografici</h2>
+      <p>Sessioni di ritratto individuali, di coppia e familiari, in studio ad Aversa o in esterna. Stile naturale, guida alla posa per chi non si sente fotogenico. <a href="${BASE_URL}/consulenze">Prenota una sessione</a></p>`,
+    famiglia: `
+      <h2>Fotografia di Famiglia</h2>
+      <p>Sessioni fotografiche di famiglia spontanee, in studio ad Aversa o nei luoghi a cui siete legati. Le foto restano disponibili nella galleria digitale privata. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
+    altro: `
+      <h2>Altri Servizi Fotografici</h2>
+      <p>Lauree, anniversari, feste e progetti speciali ad Aversa, Napoli e Caserta. <a href="${BASE_URL}/consulenze">Raccontaci la tua idea</a></p>`,
+  };
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+      { '@type': 'ListItem', position: 2, name: 'Portfolio', item: `${BASE_URL}/portfolio` },
+      { '@type': 'ListItem', position: 3, name: catLabels[category] || category, item: `${BASE_URL}/portfolio/${category}` },
+    ],
+  };
+
+  // NOTA: niente FAQPage qui — le FAQ non sono visibili nella pagina React
+  // (PortfolioCategoryPage.tsx); il markup FAQ strutturato richiederebbe contenuto visibile agli utenti.
   return {
     title: cat.title,
     description: cat.description,
     canonical: `${BASE_URL}/portfolio/${category}`,
     keywords: `portfolio ${category} napoli, foto ${category} caserta, ${category} campania`,
+    jsonLd: [breadcrumbJsonLd],
     bodyContent: `
       <h1>${cat.title.split(' | ')[0]}</h1>
       <p>${cat.description}</p>
+      ${extraContent[category] || ''}
       <nav>
         <a href="${BASE_URL}/portfolio">Tutti i Portfolio</a>
         <a href="${BASE_URL}/">Home Image Studio</a>
@@ -569,6 +683,27 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogImage = meta.ogImage || OG_IMAGE;
 
   const commonJsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'LocalBusiness',
+      '@id': `${BASE_URL}/#localbusiness`,
+      name: 'Image Studio Fotografico',
+      image: OG_IMAGE,
+      url: BASE_URL,
+      telephone: '+39 334 710 3142',
+      email: 'info@memoriesospese.it',
+      priceRange: '€€€',
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: 'Aversa',
+        addressRegion: 'Campania',
+        addressCountry: 'IT',
+      },
+      areaServed: ['Aversa', 'Caserta', 'Napoli', 'Costiera Amalfitana', 'Campania'],
+      founder: { '@id': `${BASE_URL}/#photographer` },
+      sameAs: [],
+      knowsAbout: ['fotografia di matrimonio', 'fotografia di battesimo', 'fotografia di eventi', 'video matrimoniali'],
+    },
     {
       '@context': 'https://schema.org',
       '@type': 'WebPage',

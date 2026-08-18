@@ -557,10 +557,30 @@ export async function sendGmailEmail(
 
     // 3. Crea messaggio RFC2822
     // Il Subject con caratteri non-ASCII (emoji, accenti) va codificato RFC 2047
-    // altrimenti Gmail mostra caratteri illeggibili (mojibake)
-    const encodedSubject = /^[\x00-\x7F]*$/.test(subject)
-      ? subject
-      : `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+    // altrimenti Gmail mostra caratteri illeggibili (mojibake).
+    // Sicurezza: rimuovi CR/LF per prevenire header injection.
+    const sanitizedSubject = subject.replace(/[\r\n]+/g, " ").trim();
+    let encodedSubject: string;
+    if (/^[\x20-\x7E]*$/.test(sanitizedSubject)) {
+      encodedSubject = sanitizedSubject;
+    } else {
+      // RFC 2047: encoded-word max 75 caratteri → spezza in chunk e piega su più righe
+      const chunks: string[] = [];
+      let current = "";
+      for (const ch of sanitizedSubject) {
+        // ~45 byte UTF-8 per chunk tengono l'encoded-word sotto i 75 caratteri
+        if (Buffer.byteLength(current + ch, "utf-8") > 45) {
+          chunks.push(current);
+          current = ch;
+        } else {
+          current += ch;
+        }
+      }
+      if (current) chunks.push(current);
+      encodedSubject = chunks
+        .map((c) => `=?UTF-8?B?${Buffer.from(c, "utf-8").toString("base64")}?=`)
+        .join("\r\n ");
+    }
     const message = [
       `From: ${from}`,
       `To: ${recipients}`,
