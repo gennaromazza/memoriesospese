@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
 import { useSEO } from "@/hooks/useSEO";
+import { portfolioCategoryContent, PortfolioInline, PortfolioParagraph } from "@shared/portfolio-seo-content";
 
 interface PortfolioPhoto {
   id: string;
@@ -160,6 +161,87 @@ export default function PortfolioCategoryPage() {
         onNext={() => setCurrentImageIndex(prev => Math.min(prev + 1, photoUrls.length - 1))}
         onPrevious={() => setCurrentImageIndex(prev => Math.max(prev - 1, 0))}
       />
+
+      {categoria && portfolioCategoryContent[categoria] && (
+        <PortfolioSeoSection categoria={categoria} />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helper: render un paragrafo (array di inline: testo + link facoltativi)
+// ---------------------------------------------------------------------------
+function RenderParagraph({ parts }: { parts: PortfolioParagraph }) {
+  return (
+    <p className="text-gray-600 leading-relaxed">
+      {parts.map((part: PortfolioInline, i: number) =>
+        part.href ? (
+          <Link key={i} href={part.href} className="text-terracotta underline hover:text-dark-sage transition-colors">
+            {part.text}
+          </Link>
+        ) : (
+          <span key={i}>{part.text}</span>
+        )
+      )}
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sezione SEO — mostrata in fondo alla pagina, dopo la galleria
+// ---------------------------------------------------------------------------
+function PortfolioSeoSection({ categoria }: { categoria: string }) {
+  const content = portfolioCategoryContent[categoria];
+  if (!content) return null;
+
+  return (
+    <section className="bg-gray-50 border-t border-gray-100 mt-16 py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+        {/* Sezioni testuali (approccio, aree, come funziona, …) */}
+        {content.sections.map((section, si) => (
+          <div key={si}>
+            <h2 className="text-2xl font-playfair text-blue-gray mb-3">{section.heading}</h2>
+            <div className="space-y-2">
+              {section.paragraphs.map((para, pi) => (
+                <RenderParagraph key={pi} parts={para} />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* FAQ */}
+        {content.faqs && content.faqs.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-playfair text-blue-gray mb-6">Domande Frequenti</h2>
+            <dl className="space-y-6">
+              {content.faqs.map((faq, fi) => (
+                <div key={fi} className="border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
+                  <dt className="text-lg font-semibold text-blue-gray mb-2">{faq.question}</dt>
+                  <dd>
+                    <RenderParagraph parts={faq.answer} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {/* Link correlati */}
+        {content.relatedLinks && content.relatedLinks.length > 0 && (
+          <p className="text-sm text-gray-500">
+            Vedi anche:{' '}
+            {content.relatedLinks.map((link, li) => (
+              <span key={li}>
+                {li > 0 && ' | '}
+                <Link href={link.href} className="text-terracotta underline hover:text-dark-sage transition-colors">
+                  {link.text}
+                </Link>
+              </span>
+            ))}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

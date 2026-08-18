@@ -658,14 +658,45 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
     ],
   };
 
-  // NOTA: niente FAQPage qui — le FAQ non sono visibili nella pagina React
-  // (PortfolioCategoryPage.tsx); il markup FAQ strutturato richiederebbe contenuto visibile agli utenti.
+  // FAQPage JSON-LD per /portfolio/matrimonio — le stesse FAQ sono ora visibili
+  // anche nella pagina React (PortfolioCategoryPage.tsx via shared/portfolio-seo-content.ts).
+  const faqJsonLd = category === 'matrimonio' ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Quanto costa un servizio fotografico di matrimonio?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'I pacchetti partono indicativamente da €2.000 fino a €3.500, con album fotografico e galleria digitale inclusi. Richiedi un preventivo gratuito su imagestudiofotografico.com/consulenze.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'In quanto tempo vengono consegnate le foto?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'La consegna avviene entro circa 12 settimane dal matrimonio, tramite galleria digitale privata e album.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Fate anche il video del matrimonio?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Sì, con iMaGe Vision realizziamo video matrimoniali cinematografici, abbinabili al servizio fotografico. Scopri di più su imagestudiofotografico.com/vision.',
+        },
+      },
+    ],
+  } : null;
+
   return {
     title: cat.title,
     description: cat.description,
     canonical: `${BASE_URL}/portfolio/${category}`,
     keywords: `portfolio ${category} napoli, foto ${category} caserta, ${category} campania`,
-    jsonLd: [breadcrumbJsonLd],
+    jsonLd: faqJsonLd ? [breadcrumbJsonLd, faqJsonLd] : [breadcrumbJsonLd],
     bodyContent: `
       <h1>${cat.title.split(' | ')[0]}</h1>
       <p>${cat.description}</p>
