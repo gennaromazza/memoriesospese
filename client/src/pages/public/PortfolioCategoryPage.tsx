@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -54,19 +54,18 @@ export default function PortfolioCategoryPage() {
 
     setLoading(true);
     try {
+      // Nota: where + orderBy su campi diversi richiede un indice composito Firestore
+      // (non deployabile da qui): filtriamo con where e ordiniamo lato client.
       const photosRef = collection(db, 'portfolioSelections');
-      const q = query(
-        photosRef, 
-        where('jobType', '==', categoria),
-        orderBy('sortOrder', 'asc')
-      );
-      
+      const q = query(photosRef, where('jobType', '==', categoria));
+
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as PortfolioPhoto[];
 
+      data.sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       setPhotos(data);
     } catch (error) {
       console.error('Errore caricamento portfolio:', error);
