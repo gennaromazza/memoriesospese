@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, query, orderBy, where, Timestamp, deleteField, writeBatch } from 'firebase/firestore';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
 import { db, storage } from '@/lib/firebase';
+import { hasEmbeddedDataImages, sanitizeBlogHtml } from '@/lib/blog-html';
 import { ref, uploadString, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,12 @@ import { Plus, Edit, Trash2, FileText, Loader2, Eye, Calendar, Trash, Upload, Im
 import { BlogPost, BlogPostStatus, insertBlogPostSchema } from '@shared/schema';
 import WordPressImporter from './WordPressImporter';
 import { compressImage } from '@/lib/imageCompression';
+import {
+  BlogSlugConflictError,
+  deleteBlogPostsWithSlugReservations,
+  normalizeBlogSlug,
+  writeBlogPostWithSlugReservation,
+} from '@/lib/blog-slugs';
 
 const FALLBACK_AUTHOR = 'Gennaro Mazzacane';
 const SEO_CONTENT_LIMIT = 50000;
@@ -80,9 +87,20 @@ export default function BlogManager() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingContentImage, setUploadingContentImage] = useState(false);
   const [showHtmlSource, setShowHtmlSource] = useState(false);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [coverImagePath, setCoverImagePath] = useState('');
+  const [contentImagePaths, setContentImagePaths] = useState<string[]>([]);
   // Counter per gestire race condition in openDialog (fetch asincrono da Storage)
   const openDialogCallRef = useRef(0);
+  const quillRef = useRef<any>(null);
+  // ID locale usato per raggruppare le immagini caricate mentre si crea un nuovo post.
+  const draftStorageKeyRef = useRef('');
+  // File caricati durante l'apertura corrente: se si annulla, vengono rimossi.
+  const uploadedThisSessionRef = useRef<Set<string>>(new Set());
+  // Invalida upload/fetch asincroni quando l'editor viene chiuso o cambia post.
+  const editorSessionRef = useRef(0);
   // Ref input file nascosto per import JSON
   const jsonImportInputRef = useRef<HTMLInputElement>(null);
   // Dialog "Incolla JSON"
@@ -151,6 +169,13 @@ export default function BlogManager() {
       metaDescription: ''
     });
     setEditingPost(null);
+    setSlugManuallyEdited(false);
+    setCoverImagePath('');
+    setContentImagePaths([]);
+    setUploadingCover(false);
+    setUploadingContentImage(false);
+    draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
+    uploadedThisSessionRef.current.clear();
   };
 
   // Parsa testo JSON, valida e popola il form aprendo la dialog. Ritorna true se OK.
@@ -220,7 +245,12 @@ export default function BlogManager() {
       ? data.slug
       : generateSlug(data.title);
 
+    editorSessionRef.current += 1;
     setEditingPost(null);
+    setSlugManuallyEdited(Boolean(typeof data.slug === 'string' && data.slug.trim()));
+    setCoverImagePath('');
+    setContentImagePaths([]);
+    draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
     setShowHtmlSource(false);
     setFormData({
       title: data.title.trim(),
@@ -283,18 +313,25 @@ export default function BlogManager() {
   };
 
   const openDialog = async (post?: BlogPost) => {
+    editorSessionRef.current += 1;
     // Incrementa il contatore ad ogni chiamata per invalidare fetch precedenti (race condition)
     const callId = ++openDialogCallRef.current;
     setShowHtmlSource(false); // Reset vista HTML ad ogni apertura del dialog
 
     if (post) {
       setEditingPost(post);
+      setSlugManuallyEdited(true);
+      setCoverImagePath((post as any).coverImagePath || '');
+      setContentImagePaths(Array.isArray((post as any).contentImagePaths) ? (post as any).contentImagePaths : []);
       let content = post.content || '';
 
       // Se il contenuto è su Storage, scaricalo prima di aprire l'editor
       if (post.contentUrl && !content) {
         try {
           const res = await fetch(post.contentUrl);
+          if (!res.ok) {
+            throw new Error(`Download non riuscito (${res.status})`);
+          }
           const text = await res.text();
           // Scarta il risultato se nel frattempo è stata aperta un'altra dialog
           if (callId !== openDialogCallRef.current) return;
@@ -302,6 +339,14 @@ export default function BlogManager() {
         } catch (e) {
           console.error('Errore caricamento contenuto da Storage:', e);
           if (callId !== openDialogCallRef.current) return;
+          setEditingPost(null);
+          setDialogOpen(false);
+          toast({
+            title: "Errore caricamento articolo",
+            description: "Il contenuto non è stato caricato. Il post non verrà aperto per evitare sovrascritture.",
+            variant: "destructive"
+          });
+          return;
         }
       }
 
@@ -325,16 +370,7 @@ export default function BlogManager() {
   };
 
   const normalizeSlug = (slug: string) => {
-    return slug
-      .trim()
-      .toLowerCase()
-      .replace(/[àáâãäå]/g, 'a')
-      .replace(/[èéêë]/g, 'e')
-      .replace(/[ìíîï]/g, 'i')
-      .replace(/[òóôõö]/g, 'o')
-      .replace(/[ùúûü]/g, 'u')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    return normalizeBlogSlug(slug);
   };
 
   const generateSlug = (title: string) => {
@@ -354,6 +390,7 @@ export default function BlogManager() {
       return;
     }
 
+    const sessionId = editorSessionRef.current;
     try {
       setUploadingCover(true);
       
@@ -368,9 +405,15 @@ export default function BlogManager() {
       
       await uploadBytesResumable(storageRef, compressedFile);
       const downloadUrl = await getDownloadURL(storageRef);
+      if (sessionId !== editorSessionRef.current) {
+        await deleteStoragePaths([storagePath]);
+        return;
+      }
+      uploadedThisSessionRef.current.add(storagePath);
       
       // Aggiorna form data
       setFormData(prev => ({ ...prev, coverImage: downloadUrl }));
+      setCoverImagePath(storagePath);
       
       toast({
         title: "Immagine caricata",
@@ -384,7 +427,9 @@ export default function BlogManager() {
         variant: "destructive"
       });
     } finally {
-      setUploadingCover(false);
+      if (sessionId === editorSessionRef.current) {
+        setUploadingCover(false);
+      }
     }
   };
 
@@ -392,8 +437,60 @@ export default function BlogManager() {
     setFormData(prev => ({
       ...prev,
       title,
-      slug: prev.slug || generateSlug(title)
+      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
     }));
+  };
+
+  const handleEditorImageUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Tipo di file non supportato",
+          description: "Carica solo immagini (JPEG, PNG, ecc.)",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const sessionId = editorSessionRef.current;
+      try {
+        setUploadingContentImage(true);
+        const compressedFile = await compressImage(file);
+        const postKey = editingPost?.id || draftStorageKeyRef.current || (draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id);
+        const storagePath = `blog-article-images/${postKey}/${Date.now()}.jpg`;
+        const storageRef = ref(storage, storagePath);
+        await uploadBytesResumable(storageRef, compressedFile);
+        const downloadUrl = await getDownloadURL(storageRef);
+        if (sessionId !== editorSessionRef.current) {
+          await deleteStoragePaths([storagePath]);
+          return;
+        }
+        uploadedThisSessionRef.current.add(storagePath);
+
+        const editor = quillRef.current?.getEditor();
+        const range = editor?.getSelection(true);
+        editor?.insertEmbed(range?.index ?? editor?.getLength() ?? 0, 'image', downloadUrl, 'user');
+        setContentImagePaths(prev => [...prev, storagePath]);
+        toast({ title: "Immagine caricata", description: "Immagine inserita nell'articolo" });
+      } catch (error) {
+        console.error('Errore caricamento immagine articolo:', error);
+        toast({
+          title: "Errore",
+          description: "Impossibile caricare l'immagine nell'articolo",
+          variant: "destructive"
+        });
+      } finally {
+        if (sessionId === editorSessionRef.current) {
+          setUploadingContentImage(false);
+        }
+      }
+    };
+    input.click();
   };
 
   const checkSlugUnique = async (slug: string, excludePostId?: string): Promise<boolean> => {
@@ -411,9 +508,41 @@ export default function BlogManager() {
     return false;
   };
 
+  const getStoragePaths = (post: BlogPost): string[] => {
+    const stored = post as any;
+    const paths = [
+      stored.contentStoragePath || (stored.contentUrl ? `blog-content/${post.id}.html` : ''),
+      stored.coverImagePath || '',
+      ...(Array.isArray(stored.contentImagePaths) ? stored.contentImagePaths : [])
+    ].filter((path): path is string => typeof path === 'string' && path.length > 0);
+    return [...new Set(paths)];
+  };
+
+  const deleteStoragePaths = async (paths: string[]) => {
+    await Promise.allSettled(paths.map(async path => {
+      try {
+        await deleteObject(ref(storage, path));
+      } catch (error) {
+        // Cleanup best-effort: un file legacy o già assente non deve bloccare la gestione del post.
+        console.warn('Pulizia Storage non riuscita:', path, error);
+      }
+    }));
+  };
+
   const handleSave = async () => {
+    let contentPathUploadedForSave = '';
     setSaving(true);
     try {
+      const sanitizedContent = sanitizeBlogHtml(formData.content);
+      if (hasEmbeddedDataImages(sanitizedContent)) {
+        toast({
+          title: "Immagine non salvata",
+          description: "Inserisci le immagini con il pulsante immagine dell'editor: verranno caricate automaticamente in modo sicuro.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       // Prepare data for validation
       const tagsArray = formData.tags
         .split(',')
@@ -424,7 +553,7 @@ export default function BlogManager() {
         title: formData.title,
         slug: normalizeSlug(formData.slug),
         excerpt: formData.excerpt,
-        content: formData.content,
+        content: sanitizedContent,
         status: formData.status,
         author: formData.author
       };
@@ -475,80 +604,129 @@ export default function BlogManager() {
       // Build Firestore payload with validated data
       const postData: any = {
         ...validationResult.data,
-        seoContent: buildSeoContent(formData.content),
+        seoContent: buildSeoContent(sanitizedContent),
         updatedAt: Timestamp.now()
       };
 
-      // Se il contenuto supera 800KB, salvalo su Firebase Storage
+      const targetId = editingPost?.id || doc(collection(db, 'blogPosts')).id;
+      const oldContentPath = editingPost
+        ? ((editingPost as any).contentStoragePath || ((editingPost as any).contentUrl ? `blog-content/${editingPost.id}.html` : ''))
+        : '';
+      const oldCoverPath = editingPost ? ((editingPost as any).coverImagePath || '') : '';
+      const oldContentImagePaths: string[] = editingPost && Array.isArray((editingPost as any).contentImagePaths)
+        ? (editingPost as any).contentImagePaths
+        : [];
+      const referencedContentImagePaths = contentImagePaths.filter(path =>
+        sanitizedContent.includes(path) || sanitizedContent.includes(encodeURIComponent(path))
+      );
+
+      if (coverImagePath) {
+        postData.coverImagePath = coverImagePath;
+      } else if (oldCoverPath && formData.coverImage !== editingPost?.coverImage) {
+        postData.coverImagePath = deleteField();
+      }
+      if (editingPost?.coverImage && !formData.coverImage.trim()) {
+        postData.coverImage = deleteField();
+        postData.coverImagePath = deleteField();
+      }
+      postData.contentImagePaths = referencedContentImagePaths;
+
+      // Il limite resta solo come guardia estrema: le immagini dell'editor vivono già su Storage.
       const CONTENT_SIZE_LIMIT = 800000;
-      const contentBytes = new Blob([formData.content]).size;
+      const contentBytes = new Blob([sanitizedContent]).size;
+      let replacementContentPath = '';
       if (contentBytes > CONTENT_SIZE_LIMIT) {
-        // Per i nuovi post pre-genera l'ID Firestore così il path Storage coincide
-        const targetId = editingPost?.id || doc(collection(db, 'blogPosts')).id;
-        const storageRef = ref(storage, `blog-content/${targetId}.html`);
-        await uploadString(storageRef, formData.content, 'raw', { contentType: 'text/html; charset=utf-8' });
+        // Usa un nuovo path, così un update Firestore fallito non rende mai il vecchio post illeggibile.
+        replacementContentPath = `blog-content/${targetId}/${Date.now()}.html`;
+        contentPathUploadedForSave = replacementContentPath;
+        const storageRef = ref(storage, replacementContentPath);
+        await uploadString(storageRef, sanitizedContent, 'raw', { contentType: 'text/html; charset=utf-8' });
         const downloadUrl = await getDownloadURL(storageRef);
         postData.contentUrl = downloadUrl;
+        postData.contentStoragePath = replacementContentPath;
         postData.content = '';
-        // Salva con l'ID pre-generato se è un nuovo post
-        if (!editingPost) {
-          postData.createdAt = Timestamp.now();
-          if (formData.status === BlogPostStatus.PUBLISHED) {
-            postData.publishedAt = Timestamp.now();
-          }
-          await setDoc(doc(db, 'blogPosts', targetId), postData);
-          toast({ title: "Successo", description: "Post creato con successo" });
-          setDialogOpen(false);
-          resetForm();
-          loadPosts();
-          return;
-        }
-      } else {
-        // Se esisteva un contentUrl (post precedentemente grande ora ridotto), rimuovi il file da Storage
-        if (editingPost && (editingPost as any).contentUrl) {
-          postData.contentUrl = deleteField();
-          // Prova a cancellare il file se il path è quello standard (ID-based)
-          try {
-            await deleteObject(ref(storage, `blog-content/${editingPost.id}.html`));
-          } catch {
-            // Il file potrebbe non esistere o avere un nome legacy — non blocca il salvataggio
-          }
-        }
+      } else if (oldContentPath) {
+        postData.contentUrl = deleteField();
+        postData.contentStoragePath = deleteField();
       }
 
       if (editingPost) {
-        // Imposta publishedAt solo alla prima pubblicazione
-        if (formData.status === BlogPostStatus.PUBLISHED && editingPost.status !== BlogPostStatus.PUBLISHED) {
+        // publishedAt è la data della prima pubblicazione, non cambia in caso di bozza/archivio/ripubblicazione.
+        if (formData.status === BlogPostStatus.PUBLISHED && !(editingPost as any).publishedAt) {
           postData.publishedAt = Timestamp.now();
         }
-        // Rimuovi publishedAt se si torna a bozza o si archivia
-        if ((formData.status === BlogPostStatus.DRAFT || formData.status === BlogPostStatus.ARCHIVED) && (editingPost as any).publishedAt) {
-          postData.publishedAt = deleteField();
-        }
-        await updateDoc(doc(db, 'blogPosts', editingPost.id), postData);
+        const retainedPaths = new Set(
+          [replacementContentPath, coverImagePath, ...referencedContentImagePaths].filter(Boolean)
+        );
+        const stalePaths = [
+          oldContentPath && oldContentPath !== replacementContentPath ? oldContentPath : '',
+          oldCoverPath && oldCoverPath !== coverImagePath ? oldCoverPath : '',
+          ...oldContentImagePaths.filter(path => !referencedContentImagePaths.includes(path))
+        ].filter((path): path is string => Boolean(path) && !retainedPaths.has(path));
+
+        await writeBlogPostWithSlugReservation({
+          postId: editingPost.id,
+          slug: validationResult.data.slug,
+          previousSlug: editingPost.slug,
+          data: postData,
+          mode: 'update',
+        });
+        contentPathUploadedForSave = '';
+        // Solo dopo il write Firestore riuscito, pulisci le risorse sostituite.
+        await deleteStoragePaths(stalePaths);
         toast({ title: "Successo", description: "Post aggiornato con successo" });
       } else {
         postData.createdAt = Timestamp.now();
         if (formData.status === BlogPostStatus.PUBLISHED) {
           postData.publishedAt = Timestamp.now();
         }
-        await addDoc(collection(db, 'blogPosts'), postData);
+        await writeBlogPostWithSlugReservation({
+          postId: targetId,
+          slug: validationResult.data.slug,
+          data: postData,
+          mode: 'create',
+        });
+        contentPathUploadedForSave = '';
         toast({ title: "Successo", description: "Post creato con successo" });
       }
 
+      const retainedPaths = new Set([coverImagePath, ...referencedContentImagePaths].filter(Boolean));
+      const unusedSessionUploads = [...uploadedThisSessionRef.current].filter(path => !retainedPaths.has(path));
+      await deleteStoragePaths(unusedSessionUploads);
+      uploadedThisSessionRef.current.clear();
+      editorSessionRef.current += 1;
+      openDialogCallRef.current += 1;
       setDialogOpen(false);
       resetForm();
       loadPosts();
     } catch (error) {
       console.error('Errore salvataggio post:', error);
+      if (contentPathUploadedForSave) {
+        await deleteStoragePaths([contentPathUploadedForSave]);
+      }
       toast({
         title: "Errore",
-        description: "Impossibile salvare il post",
+        description: error instanceof BlogSlugConflictError
+          ? error.message
+          : "Impossibile salvare il post",
         variant: "destructive"
       });
     } finally {
       setSaving(false);
     }
+  };
+
+  const closeEditorWithoutSaving = () => {
+    if (saving || uploadingCover || uploadingContentImage) return;
+    editorSessionRef.current += 1;
+    openDialogCallRef.current += 1;
+    const pendingPaths = [...uploadedThisSessionRef.current];
+    uploadedThisSessionRef.current.clear();
+    if (pendingPaths.length > 0) {
+      void deleteStoragePaths(pendingPaths);
+    }
+    setDialogOpen(false);
+    resetForm();
   };
 
   const openDeleteDialog = (postId: string) => {
@@ -560,14 +738,14 @@ export default function BlogManager() {
     if (!postToDelete) return;
 
     try {
-      // Cancella il file HTML da Storage (path standard: blog-content/{id}.html)
-      try {
-        await deleteObject(ref(storage, `blog-content/${postToDelete}.html`));
-      } catch {
-        // Il file potrebbe non esistere (post piccoli o path legacy)
+      const post = posts.find(item => item.id === postToDelete);
+      // Prima rimuovi il documento: se Firestore fallisce, i file restano integri e recuperabili.
+      await deleteBlogPostsWithSlugReservations([
+        { id: postToDelete, slug: post?.slug },
+      ]);
+      if (post) {
+        await deleteStoragePaths(getStoragePaths(post));
       }
-
-      await deleteDoc(doc(db, 'blogPosts', postToDelete));
 
       // Reset dello stato
       setDeleteDialogOpen(false);
@@ -635,34 +813,42 @@ export default function BlogManager() {
 
     try {
       const postIds = Array.from(selectedPosts);
-      const CHUNK_SIZE = 400; // Limite sicuro per evitare "Transaction too big"
+      // La cancellazione può usare due write per post (post + prenotazione slug).
+      const CHUNK_SIZE = bulkAction === 'delete' ? 200 : 400;
       let successCount = 0;
 
       // Dividi in chunks per evitare limite Firebase
       for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
         const chunk = postIds.slice(i, i + CHUNK_SIZE);
-        const batch = writeBatch(db);
-
         if (bulkAction === 'publish') {
+          const batch = writeBatch(db);
           chunk.forEach(postId => {
             const postRef = doc(db, 'blogPosts', postId);
             const existingPost = posts.find(p => p.id === postId);
-            // Imposta publishedAt solo se il post non era già pubblicato (preserva data originale)
-            const alreadyPublished = existingPost?.status === BlogPostStatus.PUBLISHED;
+            // publishedAt resta la data della prima pubblicazione, anche dopo bozza/archivio.
+            const wasEverPublished = Boolean((existingPost as any)?.publishedAt);
             batch.update(postRef, {
               status: BlogPostStatus.PUBLISHED,
-              ...(alreadyPublished ? {} : { publishedAt: Timestamp.now() }),
+              ...(wasEverPublished ? {} : { publishedAt: Timestamp.now() }),
               updatedAt: Timestamp.now()
             });
           });
+          await batch.commit();
         } else if (bulkAction === 'delete') {
-          chunk.forEach(postId => {
-            const postRef = doc(db, 'blogPosts', postId);
-            batch.delete(postRef);
-          });
+          await deleteBlogPostsWithSlugReservations(
+            chunk.map(postId => {
+              const post = posts.find(item => item.id === postId);
+              return { id: postId, slug: post?.slug };
+            }),
+          );
         }
-
-        await batch.commit();
+        if (bulkAction === 'delete') {
+          const paths = chunk.flatMap(postId => {
+            const post = posts.find(item => item.id === postId);
+            return post ? getStoragePaths(post) : [];
+          });
+          await deleteStoragePaths(paths);
+        }
         successCount += chunk.length;
       }
 
@@ -701,9 +887,10 @@ export default function BlogManager() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
 
-  // Reset pagina quando cambia il filtro
+  // Reset pagina e selezione quando cambia il filtro: mai agire su post non più visibili.
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedPosts(new Set());
   }, [filterStatus]);
 
   if (loading) {
@@ -755,14 +942,28 @@ export default function BlogManager() {
             Incolla JSON
           </Button>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              if (open) setDialogOpen(true);
+              else closeEditorWithoutSaving();
+            }}
+          >
             <DialogTrigger asChild>
               <Button onClick={() => openDialog()} data-testid="button-create-post">
                 <Plus className="h-4 w-4 mr-2" />
                 Nuovo Post
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent
+              className="max-w-4xl max-h-[90vh] overflow-y-auto"
+              onEscapeKeyDown={(event) => {
+                if (saving || uploadingCover || uploadingContentImage) event.preventDefault();
+              }}
+              onPointerDownOutside={(event) => {
+                if (saving || uploadingCover || uploadingContentImage) event.preventDefault();
+              }}
+            >
             <DialogHeader>
               <DialogTitle>
                 {editingPost ? 'Modifica Post' : 'Nuovo Post'}
@@ -795,7 +996,10 @@ export default function BlogManager() {
                     <Label>Slug URL *</Label>
                     <Input
                       value={formData.slug}
-                      onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
+                      onChange={(e) => {
+                        setSlugManuallyEdited(true);
+                        setFormData(prev => ({ ...prev, slug: e.target.value }));
+                      }}
                       placeholder="slug-url-friendly"
                       data-testid="input-slug"
                     />
@@ -842,22 +1046,28 @@ export default function BlogManager() {
                     ) : (
                       <div className="border rounded-md">
                         <ReactQuill
+                          ref={quillRef}
                           theme="snow"
                           value={formData.content}
                           onChange={(value) => {
                             setFormData(prev => ({ ...prev, content: value }));
                           }}
                           modules={{
-                            toolbar: [
-                              [{ 'header': [1, 2, 3, false] }],
-                              ['bold', 'italic', 'underline', 'strike'],
-                              ['link', 'image', 'video'],
-                              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                              ['blockquote', 'code-block'],
-                              [{ 'align': [] }],
-                              [{ 'color': [] }, { 'background': [] }],
-                              ['clean']
-                            ]
+                            toolbar: {
+                              container: [
+                                [{ 'header': [1, 2, 3, false] }],
+                                ['bold', 'italic', 'underline', 'strike'],
+                                ['link', 'image', 'video'],
+                                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                ['blockquote', 'code-block'],
+                                [{ 'align': [] }],
+                                [{ 'color': [] }, { 'background': [] }],
+                                ['clean']
+                              ],
+                              handlers: {
+                                image: handleEditorImageUpload
+                              }
+                            }
                           }}
                           formats={[
                             'header',
@@ -870,6 +1080,12 @@ export default function BlogManager() {
                           ]}
                           style={{ minHeight: '300px' }}
                         />
+                        {uploadingContentImage && (
+                          <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border-t">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Caricamento immagine nell'articolo...
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -948,7 +1164,12 @@ export default function BlogManager() {
                         />
                         <Input
                           value={formData.coverImage}
-                          onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
+                          onChange={(e) => {
+                            const nextUrl = e.target.value;
+                            const originalPath = (editingPost as any)?.coverImagePath || '';
+                            setCoverImagePath(nextUrl === editingPost?.coverImage ? originalPath : '');
+                            setFormData(prev => ({ ...prev, coverImage: nextUrl }));
+                          }}
                           placeholder="oppure incolla URL"
                           data-testid="input-cover-image"
                           className="flex-1"
@@ -1043,7 +1264,7 @@ export default function BlogManager() {
                     )}
 
                     <div 
-                      dangerouslySetInnerHTML={{ __html: formData.content || '<p class="text-gray-400">Il contenuto apparirà qui...</p>' }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeBlogHtml(formData.content || '<p class="text-gray-400">Il contenuto apparirà qui...</p>') }}
                       className="blog-content"
                     />
 
@@ -1060,10 +1281,18 @@ export default function BlogManager() {
             </Tabs>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={closeEditorWithoutSaving}
+                disabled={saving || uploadingCover || uploadingContentImage}
+              >
                 Annulla
               </Button>
-              <Button onClick={handleSave} disabled={saving} data-testid="button-save-post">
+              <Button
+                onClick={handleSave}
+                disabled={saving || uploadingCover || uploadingContentImage}
+                data-testid="button-save-post"
+              >
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

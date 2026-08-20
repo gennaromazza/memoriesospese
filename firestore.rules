@@ -479,6 +479,11 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update blog posts
       allow delete: if isAdmin(); // Only admin can delete blog posts
     }
+
+    // Prenotazione atomica degli slug Blog per evitare URL duplicati
+    match /blogSlugs/{slug} {
+      allow read, create, update, delete: if isAdmin();
+    }
     
     // Site Content - CMS for public website sections (hero, about, services, etc.)
     match /siteContent/{contentId} {

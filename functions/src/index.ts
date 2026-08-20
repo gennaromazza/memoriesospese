@@ -664,91 +664,12 @@ export const downloadWordPressImage = functions.https.onRequest(async (req, res)
     return;
   }
 
-  try {
-    // AUTENTICAZIONE Firebase
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({
-        error: { code: 'unauthenticated', message: 'Missing Authorization Bearer token' }
-      });
-      return;
+  res.status(410).json({
+    error: {
+      code: 'gone',
+      message: 'Endpoint dismesso: usare /api/blog/rehost-image'
     }
-
-    const idToken = authHeader.replace('Bearer ', '').trim();
-    try {
-      const decoded = await admin.auth().verifyIdToken(idToken);
-      functions.logger.info(`🔐 downloadWordPressImage called by uid=${decoded.uid}`);
-    } catch (authError) {
-      functions.logger.error('Auth verification failed:', authError);
-      res.status(401).json({
-        error: { code: 'unauthenticated', message: 'Invalid token' }
-      });
-      return;
-    }
-
-    // LETTURA DATI DAL BODY
-    const data = req.body.data || req.body;
-    const { imageUrl, postSlug } = data || {};
-
-    // VALIDAZIONI
-    if (!imageUrl || !postSlug) {
-      res.status(400).json({
-        error: { code: 'invalid-argument', message: 'imageUrl e postSlug richiesti' }
-      });
-      return;
-    }
-
-    // Converti HTTP → HTTPS se necessario
-    let urlToFetch = imageUrl;
-    if (imageUrl.startsWith('http://')) {
-      urlToFetch = imageUrl.replace('http://', 'https://');
-      functions.logger.info(`🔄 Convertito HTTP → HTTPS: ${urlToFetch}`);
-    }
-
-    // Download immagine (server-side, bypassa CORS)
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(urlToFetch);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-    }
-
-    const buffer = await response.buffer();
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    functions.logger.info(`📥 Scaricato ${buffer.length} bytes da ${urlToFetch}`);
-
-    // Upload su Firebase Storage
-    const bucket = admin.storage().bucket();
-    const timestamp = Date.now();
-    const filename = `blog-images/${postSlug}/${timestamp}.jpg`;
-    const file = bucket.file(filename);
-
-    await file.save(buffer, {
-      contentType,
-      metadata: {
-        metadata: {
-          originalUrl: imageUrl
-        }
-      }
-    });
-
-    // Rendi pubblico il file
-    await file.makePublic();
-
-    // Ottieni URL pubblico
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-    functions.logger.info(`✅ Immagine caricata su Firebase: ${publicUrl}`);
-
-    res.status(200).json({
-      result: { success: true, url: publicUrl }
-    });
-
-  } catch (error: any) {
-    functions.logger.error('❌ Errore download immagine WordPress:', error);
-    res.status(500).json({
-      error: { code: 'internal', message: error.message || 'Failed to download image' }
-    });
-  }
+  });
 });
 
 /**

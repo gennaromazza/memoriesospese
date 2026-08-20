@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, doc, getDocs, Timestamp } from 'firebase/firestore';
+import { db, storage } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Upload, FileText, Loader2, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { BlogPostStatus } from '@shared/schema';
 import { Progress } from '@/components/ui/progress';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { compressImage } from '@/lib/imageCompression';
+import { deleteObject, ref } from 'firebase/storage';
+import { hasEmbeddedDataImages, sanitizeBlogHtml } from '@/lib/blog-html';
+import { normalizeBlogSlug, writeBlogPostWithSlugReservation } from '@/lib/blog-slugs';
 
 interface WordPressPost {
   title: string;
@@ -23,6 +23,11 @@ interface WordPressPost {
   tags: string[];
 }
 
+interface RehostedImage {
+  url: string;
+  storagePath?: string;
+}
+
 export default function WordPressImporter({ onImportComplete }: { onImportComplete: () => void }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -30,10 +35,21 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
   const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
   const { toast } = useToast();
 
-  // Scarica immagine da URL esterno e la ricarica su Firebase usando Cloud Function
-  const downloadAndReuploadImage = async (imageUrl: string, postSlug: string): Promise<string> => {
+  const deleteUploadedPaths = async (paths: string[]) => {
+    await Promise.allSettled([...new Set(paths)].map(async storagePath => {
+      try {
+        await deleteObject(ref(storage, storagePath));
+      } catch (error) {
+        console.warn('Pulizia immagine WordPress non riuscita:', storagePath, error);
+      }
+    }));
+  };
+
+  // Scarica l'immagine e restituisce sia URL sia path, necessario per il cleanup futuro.
+  const downloadAndReuploadImage = async (imageUrl: string, storageFolder: string): Promise<RehostedImage> => {
+    const requestedStoragePath = `blog-images/${storageFolder}/${doc(collection(db, 'blogAssetIds')).id}.jpg`;
     try {
-      // ✅ Usa Firebase Cloud Function HTTP per bypassare CORS
+      // L'API same-origin verifica admin, host pubblico e formato immagine prima dell'upload.
       const { auth } = await import('@/lib/firebase');
       
       console.log(`🔄 Download server-side: ${imageUrl}`);
@@ -46,14 +62,17 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
       const idToken = await user.getIdToken();
       
       const response = await fetch(
-        'https://us-central1-wedding-gallery-397b6.cloudfunctions.net/downloadWordPressImage',
+        '/api/blog/rehost-image',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`
           },
-          body: JSON.stringify({ imageUrl, postSlug })
+          body: JSON.stringify({
+            imageUrl,
+            storagePath: requestedStoragePath,
+          })
         }
       );
       
@@ -63,34 +82,48 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
       
       const data = await response.json();
       
-      if (data.result?.success && data.result?.url) {
+      if (data.success && data.url && data.storagePath === requestedStoragePath) {
         console.log(`✅ Immagine migrata: ${imageUrl} → Firebase`);
-        return data.result.url;
+        return { url: data.url, storagePath: data.storagePath };
       }
       
       throw new Error('Download fallito');
       
     } catch (error: any) {
       console.error('❌ Errore download/upload immagine:', imageUrl, error);
+      // Le versioni aggiornate della Function usano il path deciso dal client:
+      // se la risposta si perde dopo l'upload, possiamo comunque ripulirlo.
+      await deleteUploadedPaths([requestedStoragePath]);
       
       // Fallback: converti almeno a HTTPS
       const httpsUrl = imageUrl.replace('http://', 'https://');
       console.warn(`⚠️ Fallback a URL HTTPS: ${httpsUrl}`);
-      return httpsUrl;
+      return { url: httpsUrl };
     }
   };
 
   // Estrae URL immagini dal contenuto HTML
   const extractImagesFromContent = (content: string): string[] => {
-    const imgRegex = /<img[^>]+src="([^">]+)"/g;
+    const imgRegex = /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/gi;
     const images: string[] = [];
     let match;
     
     while ((match = imgRegex.exec(content)) !== null) {
-      images.push(match[1]);
+      images.push(match[2]);
     }
     
-    return images;
+    return [...new Set(images)];
+  };
+
+  const reserveUniqueSlug = (value: string, title: string, usedSlugs: Set<string>): string => {
+    const base = normalizeBlogSlug(value || title) || 'articolo';
+    let candidate = base;
+    let suffix = 2;
+    while (usedSlugs.has(candidate)) {
+      candidate = `${base}-${suffix++}`;
+    }
+    usedSlugs.add(candidate);
+    return candidate;
   };
 
   const parseWordPressXML = (xmlContent: string): WordPressPost[] => {
@@ -196,9 +229,19 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
 
           let successCount = 0;
           let failedCount = 0;
+          const existingPosts = await getDocs(collection(db, 'blogPosts'));
+          const usedSlugs = new Set(
+            existingPosts.docs
+              .map(existing => existing.data().slug)
+              .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0)
+              .map(normalizeBlogSlug)
+          );
 
           for (let i = 0; i < posts.length; i++) {
             const post = posts[i];
+            const postRef = doc(collection(db, 'blogPosts'));
+            const uploadedPaths: string[] = [];
+            const uniqueSlug = reserveUniqueSlug(post.slug, post.title, usedSlugs);
             setProgress(Math.round(((i + 1) / posts.length) * 100));
 
             try {
@@ -206,6 +249,8 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
               const images = extractImagesFromContent(post.content);
               let updatedContent = post.content;
               let coverImage = '';
+              let coverImagePath = '';
+              const contentImagePaths: string[] = [];
 
               // Scarica e ricarica immagini
               for (const imageUrl of images) {
@@ -214,21 +259,36 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
                   continue;
                 }
 
-                const newUrl = await downloadAndReuploadImage(imageUrl, post.slug);
-                updatedContent = updatedContent.replace(imageUrl, newUrl);
+                const migratedImage = await downloadAndReuploadImage(imageUrl, postRef.id);
+                updatedContent = updatedContent.split(imageUrl).join(migratedImage.url);
+                if (migratedImage.storagePath) {
+                  uploadedPaths.push(migratedImage.storagePath);
+                  contentImagePaths.push(migratedImage.storagePath);
+                }
                 
                 // Usa la prima immagine come copertina se non specificata
-                if (!coverImage && newUrl !== imageUrl) {
-                  coverImage = newUrl;
+                if (!coverImage && migratedImage.url !== imageUrl) {
+                  coverImage = migratedImage.url;
+                  coverImagePath = migratedImage.storagePath || '';
                 }
               }
 
-              await addDoc(collection(db, 'blogPosts'), {
+              const sanitizedContent = sanitizeBlogHtml(updatedContent);
+              if (hasEmbeddedDataImages(sanitizedContent)) {
+                throw new Error('Il post contiene immagini Base64 non importabili');
+              }
+              const referencedImagePaths = contentImagePaths.filter(storagePath =>
+                sanitizedContent.includes(storagePath) ||
+                sanitizedContent.includes(encodeURIComponent(storagePath))
+              );
+              const retainedPaths = new Set([coverImagePath, ...referencedImagePaths].filter(Boolean));
+
+              const importedPost: Record<string, unknown> = {
                 title: post.title,
-                slug: post.slug,
+                slug: uniqueSlug,
                 excerpt: post.excerpt,
-                content: updatedContent,
-                coverImage: coverImage || undefined,
+                content: sanitizedContent,
+                contentImagePaths: referencedImagePaths,
                 status: BlogPostStatus.DRAFT, // Import as draft for review
                 category: post.category,
                 tags: post.tags,
@@ -238,10 +298,22 @@ export default function WordPressImporter({ onImportComplete }: { onImportComple
                 updatedAt: Timestamp.now(),
                 metaTitle: post.title,
                 metaDescription: post.excerpt
+              };
+              if (coverImage) importedPost.coverImage = coverImage;
+              if (coverImagePath) importedPost.coverImagePath = coverImagePath;
+
+              await writeBlogPostWithSlugReservation({
+                postId: postRef.id,
+                slug: uniqueSlug,
+                data: importedPost,
+                mode: 'create',
               });
+              await deleteUploadedPaths(uploadedPaths.filter(path => !retainedPaths.has(path)));
               successCount++;
             } catch (error) {
               console.error(`Errore importazione post "${post.title}":`, error);
+              await deleteUploadedPaths(uploadedPaths);
+              usedSlugs.delete(uniqueSlug);
               failedCount++;
             }
           }

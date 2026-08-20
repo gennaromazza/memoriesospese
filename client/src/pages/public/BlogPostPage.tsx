@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import { sanitizeBlogHtml } from "@/lib/blog-html";
 
 const FALLBACK_AUTHOR = "Gennaro Mazzacane";
 
@@ -346,7 +347,7 @@ export default function BlogPostPage() {
             prose-th:bg-beige prose-th:p-2 sm:prose-th:p-3 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-gray-300 prose-th:text-sm
             prose-td:p-2 sm:prose-td:p-3 prose-td:border prose-td:border-gray-300 prose-td:text-sm
             prose-hr:border-sage/30 prose-hr:my-6 sm:prose-hr:my-8"
-          dangerouslySetInnerHTML={{ __html: post.content }}
+          dangerouslySetInnerHTML={{ __html: sanitizeBlogHtml(post.content) }}
           data-testid="content-html"
         />
 

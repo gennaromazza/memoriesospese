@@ -31,6 +31,7 @@ import gdprRoutes from './gdpr-routes.js';
 import studioAssistantRoutes from './studio-assistant-routes.js';
 import infoFormRoutes from './info-form-routes.js';
 import photobookRoutes from './photobook-routes.js';
+import blogRoutes from './blog-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
@@ -185,6 +186,9 @@ async function startServer() {
     // Fotolibri (revisione cliente) — route admin + pubbliche a token
     app.use('/api/photobooks', photobookRoutes);
     console.log('📖 Photobook API routes mounted at /api/photobooks');
+
+    app.use('/api/blog', blogRoutes);
+    console.log('📰 Blog API routes mounted at /api/blog');
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {

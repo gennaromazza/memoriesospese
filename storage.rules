@@ -78,15 +78,28 @@ service firebase.storage {
     }
     
     // Blog content - large HTML posts stored externally
-    match /blog-content/{fileName} {
+    match /blog-content/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
     // Blog cover images - admin only write, public read
-    match /blog-covers/{fileName} {
+    match /blog-covers/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin() && isValidImageFile();
+      allow delete: if isAdmin();
+    }
+
+    // Immagini inserite nell'editor Blog
+    match /blog-article-images/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidImageFile();
+      allow delete: if isAdmin();
+    }
+
+    // Immagini importate da WordPress (upload via Admin SDK, cleanup dal pannello)
+    match /blog-images/{allPaths=**} {
+      allow read: if true;
       allow delete: if isAdmin();
     }
     
