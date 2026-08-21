@@ -3,6 +3,8 @@
  * Fornisce type safety completa per tutta l'applicazione
  */
 
+import type { JobStatus } from "./jobs-types";
+import type { WorkflowState } from "./schema";
 
 // ==================== FIREBASE TYPES ====================
 
@@ -373,7 +375,7 @@ export interface Job {
   descrizione?: string;
   dataEvento?: FirebaseTimestamp;
   dataCreazione: FirebaseTimestamp;
-  stato: JobState;
+  stato: JobStatus;
   workflowState?: WorkflowState;
   note?: string;
   notePerFoto?: NoteFotoItem[];

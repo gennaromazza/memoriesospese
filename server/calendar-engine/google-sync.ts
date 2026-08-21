@@ -314,5 +314,5 @@ export async function deleteGoogleCalendarEvent(
   calendarId: string,
   eventId: string,
 ): Promise<void> {
-  return originalDeleteEvent(calendarId, eventId);
+  await originalDeleteEvent(calendarId, eventId);
 }

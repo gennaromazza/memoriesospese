@@ -32,5 +32,4 @@
 - [Fallback e2e Playwright locale](local-playwright-e2e-fallback.md) — se il tester e2e è giù: chromium via Nix + playwright npm con executablePath; galleria test OvZM1Zt0 ha solo 5 foto/2 capitoli.
 - [Fixture e2e nel Firestore di produzione](e2e-fixtures-prod-firestore.md) — i task env hanno i secrets: test e2e col vero Admin SDK sporcano il DB reale; usare mock, ripulire per prefisso code.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
-- [Server TS target < ES2020](server-ts-target.md) — niente BigInt literal (0n/1n) nel codice server: tsc fallisce; usare BigInt(0)/BigInt(1) (tsx esegue comunque, ma il typecheck no).
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.

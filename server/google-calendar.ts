@@ -8,7 +8,7 @@
  * - Il service account deve avere accesso al calendario target
  */
 
-import { google } from "googleapis";
+import { google, type calendar_v3 } from "googleapis";
 import { DateTime } from "luxon";
 
 let cachedAuthClient: any = null;
