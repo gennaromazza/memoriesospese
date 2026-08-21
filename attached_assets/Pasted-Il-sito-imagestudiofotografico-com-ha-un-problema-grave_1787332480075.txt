@@ -1,0 +1,13 @@
+Il sito imagestudiofotografico.com ha un problema grave di indicizzazione su Google: solo 1 pagina su 79 nella sitemap risulta indicizzata dopo mesi. La causa è che l'app è una SPA React con client-side rendering puro (nessun SSR/prerendering), quindi Googlebot riceve HTML quasi vuoto (solo i meta tag) e deve eseguire JavaScript per vedere il contenuto reale — questo consuma troppo crawl budget e la maggior parte delle pagine non viene mai processata.
+
+Ho bisogno che tu implementi il prerendering lato server per le pagine pubbliche (home, portfolio e sottopagine, blog e articoli, fotografo-aversa, vision, storie, prenota, consulenze), lasciando invariato il comportamento SPA per le aree private (admin, gallerie protette da password, dashboard).
+
+Il server Express esiste già in server/. Le opzioni possibili, scegli la più adatta al setup attuale:
+
+Middleware di prerendering basato su user-agent: quando la richiesta arriva da un bot (Googlebot, Bingbot, ecc. — rilevabile da user-agent), il server serve una versione HTML pre-renderizzata della pagina invece del bundle JS vuoto. Si può usare un servizio come Prerender.io (ha un tier gratuito) integrato come middleware Express, oppure un renderer headless interno (Puppeteer) che genera e mette in cache l'HTML delle pagine pubbliche.
+Static Site Generation (SSG) in fase di build per le pagine pubbliche che cambiano poco (home, portfolio, fotografo-aversa, vision, storie) — generare l'HTML statico completo al momento del build con Vite, così quelle pagine hanno già tutto il contenuto testuale senza bisogno di JS.
+Se è troppo complesso migrare a SSR completo ora, almeno assicurati che ogni pagina pubblica abbia tag <title>, <meta description> e contenuto H1/testo principale già presenti nell'HTML iniziale restituito dal server, non generati solo lato client dopo il mount di React.
+
+Verifica il risultato controllando che facendo una richiesta HTTP semplice (es. curl https://imagestudiofotografico.com/ o "Visualizza sorgente pagina" nel browser, NON l'ispezione DOM) si veda il testo reale della pagina (titoli, descrizioni, contenuto) e non solo un div vuoto con <script> tags.
+
+Fammi sapere quale approccio scegli e quanto tempo serve per implementarlo sulle pagine pubbliche elencate sopra.
