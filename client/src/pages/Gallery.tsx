@@ -4552,7 +4552,7 @@ export default function Gallery() {
                           onClick={() => openLightbox(photos.length + index)}
                         >
                           <img
-                            src={photo.thumbnailUrl || photo.url}
+                             src={photo.thumbnailUrl || photo.url}
                             alt={photo.name || `Foto ospite ${index + 1}`}
                             className="w-full h-auto object-cover hover:opacity-95 transition-opacity duration-200"
                             loading={index < 8 ? 'eager' : 'lazy'}
