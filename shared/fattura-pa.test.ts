@@ -6,6 +6,7 @@ import {
   type FatturaPaSender,
   validateFatturaPaInput,
 } from './fattura-pa';
+import { buildFatturaPaXml, calculateInvoiceTotals, FORFETTARIO_N2_2_CAUSALE, validateFatturaPaInput } from './fattura-pa';
 
 const sender = {
   name: 'Studio & Foto <Roma>',
@@ -27,7 +28,7 @@ const recipient = {
   citta: 'Milano',
   provincia: 'MI',
   codiceSdi: '0000000',
-  pec: 'mario@example.test',
+  email: 'mario@example.test',
 };
 
 describe('FatturaPA FPR12', () => {
@@ -38,8 +39,11 @@ describe('FatturaPA FPR12', () => {
   });
 
   it('segnala tutti i dati obbligatori mancanti', () => {
-    const result = validateFatturaPaInput({} as FatturaPaSender, {} as FatturaPaRecipient, {
-      issueDate: '2026-08-21', taxableAmount: 100, taxTreatment: 'iva_ordinaria', description: 'Foto',
+    const result = validateFatturaPaInput(sender, recipient, {
+      issueDate: '2026-02-31',
+      taxableAmount: 100,
+      taxTreatment: 'aliquota_inventata' as any,
+      description: 'Foto',
     });
     expect(result.valid).toBe(false);
     expect(result.missing).toEqual(expect.arrayContaining([
@@ -51,18 +55,32 @@ describe('FatturaPA FPR12', () => {
   });
 
   it('genera XML FPR12 ben escapato e con riferimento lavoro', () => {
-    const totals = calculateInvoiceTotals({ taxableAmount: 100, taxTreatment: 'iva_ordinaria' });
+    const totals = calculateInvoiceTotals({ taxableAmount: 50, taxTreatment: 'fuori_campo' });
     const xml = buildFatturaPaXml({
       sender, recipient, totals,
       input: {
-        issueDate: '2026-08-21',
-        invoiceNumber: '2026/0001',
-        description: 'Servizio foto & video <matrimonio>',
-        jobReference: 'Matrimonio Rossi & Bianchi',
-        taxableAmount: 100,
-        taxTreatment: 'iva_ordinaria',
+        issueDate: '2026-08-21', invoiceNumber: '2026/0006', description: 'Consulenza',
+        jobReference: 'Job', taxableAmount: 50, taxTreatment: 'fuori_campo',
       },
     });
+
+    const privateRecipient = {
+      ...recipient,
+      tipoSoggetto: 'privato' as const,
+      codiceSdi: undefined,
+      pec: undefined,
+      email: 'mario.rossi@example.com',
+    };
+
+    const companyRecipient = {
+      ...recipient,
+      tipoSoggetto: 'azienda' as const,
+      ragioneSociale: 'Rossi S.r.l.',
+      partitaIva: '00743110157',
+      codiceFiscale: undefined,
+      codiceSdi: undefined,
+      pec: undefined,
+    };
     expect(xml).toContain('versione="FPR12"');
     expect(xml).toContain('xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"');
     expect(xml).toContain('Studio &amp; Foto &lt;Roma&gt;');
@@ -72,16 +90,39 @@ describe('FatturaPA FPR12', () => {
   });
 
   it('usa Natura per una riga senza IVA', () => {
-    const totals = calculateInvoiceTotals({ taxableAmount: 50, taxTreatment: 'esente' });
+    const totals = calculateInvoiceTotals({ taxableAmount: 50, taxTreatment: 'fuori_campo' });
     const xml = buildFatturaPaXml({
       sender, recipient, totals,
       input: {
-        issueDate: '2026-08-21', invoiceNumber: '2026/0002', description: 'Consulenza',
-        jobReference: 'Job', taxableAmount: 50, taxTreatment: 'esente',
+        issueDate: '2026-08-21', invoiceNumber: '2026/0006', description: 'Consulenza',
+        jobReference: 'Job', taxableAmount: 50, taxTreatment: 'fuori_campo',
       },
     });
-    expect(xml).toContain('<Natura>N4</Natura>');
+
+    const privateRecipient = {
+      ...recipient,
+      tipoSoggetto: 'privato' as const,
+      codiceSdi: undefined,
+      pec: undefined,
+      email: 'mario.rossi@example.com',
+    };
+
+    const companyRecipient = {
+      ...recipient,
+      tipoSoggetto: 'azienda' as const,
+      ragioneSociale: 'Rossi S.r.l.',
+      partitaIva: '00743110157',
+      codiceFiscale: undefined,
+      codiceSdi: undefined,
+      pec: undefined,
+    };
+
+    expect(totals).toEqual({ imponibile: 50, imposta: 0, totale: 50, aliquota: 0, natura: 'N2.2' });
+    expect(xml).toContain('<Natura>N2.2</Natura>');
+    expect(xml).toContain('<ImponibileImporto>50.00</ImponibileImporto>');
+    expect(xml).toContain('<Imposta>0.00</Imposta>');
     expect(xml).not.toContain('<EsigibilitaIVA>');
+    expect(xml).toContain(FORFETTARIO_N2_2_CAUSALE.replace("'", '&apos;'));
   });
 
   it('rifiuta trattamenti sconosciuti e date impossibili', () => {
@@ -98,3 +139,15 @@ describe('FatturaPA FPR12', () => {
     ]));
   });
 });
+
+    const validation = validateFatturaPaInput(sender, privateRecipient, {
+      issueDate: '2026-08-21', taxableAmount: 50, taxTreatment: 'iva_ordinaria', description: 'Foto',
+    });
+
+    const validPecRecipient = { ...companyRecipient, pec: 'fatture@pec.it' };
+
+    const missingDelivery = validateFatturaPaInput(sender, companyRecipient, {
+      issueDate: '2026-08-21', taxableAmount: 50, taxTreatment: 'iva_ordinaria', description: 'Foto',
+    });
+
+    const invalidPecRecipient = { ...companyRecipient, pec: 'email-non-valida' };

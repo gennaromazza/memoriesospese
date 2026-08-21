@@ -100,7 +100,8 @@ beforeEach(async () => {
     clienti: {
       client1: {
         nome: 'Mario', cognome: 'Rossi', codiceFiscale: 'RSSMRA85M01H501Q',
-        via: 'Via Cliente 2', cap: '20100', citta: 'Milano', provincia: 'MI', codiceSdi: '0000000',
+        via: 'Via Cliente 2', cap: '20100', citta: 'Milano', provincia: 'MI',
+        tipoSoggetto: 'privato', email: 'mario.rossi@example.com',
       },
     },
     invoices: {},
@@ -131,6 +132,42 @@ function invoicePayload(idempotencyKey: string) {
 }
 
 describe('invoice routes', () => {
+  it('mostra e crea l’XML per un privato con sola email usando i dati fiscali salvati dello studio', async () => {
+    state.settings.studio.regimeFiscale = 'RF19';
+    const payload = {
+      ...invoicePayload('private-forfettario'),
+      taxTreatment: 'fuori_campo',
+    };
+    const preview = await fetch(`${baseUrl}/api/invoices/preview`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const previewBody = await preview.json();
+    const created = await fetch(`${baseUrl}/api/invoices`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const createdBody = await created.json();
+    const invoice = state.invoices[createdBody.invoiceId];
+
+    expect(preview.status).toBe(200);
+    expect(previewBody).toMatchObject({
+      valid: true,
+      sender: { name: 'Studio Test', regimeFiscale: 'RF19' },
+      totals: { imponibile: 100, imposta: 0, totale: 100, natura: 'N2.2' },
+      recipient: { codiceDestinatario: '0000000' },
+    });
+    expect(created.status).toBe(201);
+    expect(invoice.senderSnapshot).toMatchObject({
+      partitaIVA: '00743110157',
+      regimeFiscale: 'RF19',
+      fiscalVia: 'Via Roma 1',
+    });
+    expect(invoice.xml).toContain('<CodiceDestinatario>0000000</CodiceDestinatario>');
+    expect(invoice.xml).not.toContain('<PECDestinatario>');
+    expect(invoice.xml).not.toContain('mario.rossi@example.com');
+    expect(invoice.xml).toContain('<Natura>N2.2</Natura>');
+    expect(invoice.xml).not.toContain('<EsigibilitaIVA>');
+  });
+
   it('assegna progressivi annuali distinti anche con richieste concorrenti', async () => {
     const [a, b] = await Promise.all(['request-a', 'request-b'].map(async (key) => {
       const response = await fetch(`${baseUrl}/api/invoices`, {

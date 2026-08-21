@@ -50,6 +50,9 @@ const NATURE_BY_TREATMENT: Partial<Record<InvoiceTaxTreatment, string>> = {
   fuori_campo: 'N2.2',
 };
 
+export const FORFETTARIO_N2_2_CAUSALE =
+  "Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della Legge n. 190/2014 e successive modificazioni";
+
 const VALID_TAX_TREATMENTS: InvoiceTaxTreatment[] = [
   'iva_ordinaria', 'iva_10', 'iva_5', 'iva_4', 'esente', 'non_imponibile', 'fuori_campo',
 ];
@@ -107,6 +110,20 @@ function validateItalianAddress(prefix: string, address: { cap?: string; provinc
   if (hasText(address.provincia) && !/^[A-Za-z]{2}$/.test(address.provincia.trim())) errors.push(`${prefix}: provincia non valida`);
 }
 
+/**
+ * I record creati prima dell'introduzione del tipo soggetto non lo possiedono.
+ * Un'anagrafica personale con solo codice fiscale resta quindi un privato,
+ * mentre le aziende continuano a richiedere un recapito telematico.
+ */
+function isPrivateRecipient(recipient: FatturaPaRecipient): boolean {
+  if (recipient.tipoSoggetto === 'privato') return true;
+  if (recipient.tipoSoggetto === 'azienda') return false;
+
+  return !hasText(recipient.partitaIva)
+    && !hasText(recipient.ragioneSociale)
+    && (hasText(recipient.codiceFiscale) || hasText(recipient.nome) || hasText(recipient.cognome));
+}
+
 export function validateFatturaPaInput(
   sender: FatturaPaSender,
   recipient: FatturaPaRecipient,
@@ -128,7 +145,10 @@ export function validateFatturaPaInput(
   validateItalianAddress('Mittente', { cap: sender.fiscalCap, provincia: sender.fiscalProvincia }, errors);
 
   if (!hasText(recipient.ragioneSociale) && (!hasText(recipient.nome) || !hasText(recipient.cognome))) missing.push('Cliente: nome e cognome o ragione sociale');
-  if (!hasText(recipient.partitaIva) && !hasText(recipient.codiceFiscale)) {
+  const privateRecipient = isPrivateRecipient(recipient);
+  if (privateRecipient && !hasText(recipient.codiceFiscale)) {
+    missing.push('Cliente: codice fiscale');
+  } else if (!hasText(recipient.partitaIva) && !hasText(recipient.codiceFiscale)) {
     missing.push('Cliente: partita IVA o codice fiscale');
   }
   if (hasText(recipient.partitaIva) && !isValidPartitaIva(recipient.partitaIva)) errors.push('Cliente: partita IVA non valida');
@@ -142,9 +162,10 @@ export function validateFatturaPaInput(
   validateItalianAddress('Cliente', { cap: recipientAddress.cap, provincia: recipientAddress.provincia }, errors);
 
   const sdi = hasText(recipient.codiceSdi) ? normalizeFiscalString(recipient.codiceSdi) : '';
+  const pec = hasText(recipient.pec) ? recipient.pec.trim() : '';
   if (sdi && !isValidCodiceSdi(sdi)) errors.push('Cliente: codice destinatario non valido');
-  if (recipient.pec && !isValidPec(recipient.pec)) errors.push('Cliente: PEC non valida');
-  if (!sdi && !recipient.pec) missing.push('Cliente: codice destinatario SDI o PEC');
+  if (pec && !isValidPec(pec)) errors.push('Cliente: PEC non valida');
+  if (!privateRecipient && !sdi && !pec) missing.push('Cliente: codice destinatario SDI o PEC');
 
   if (!validDate(input.issueDate)) errors.push('Data emissione non valida');
   if (!hasText(input.description)) missing.push('Descrizione della prestazione');
@@ -194,6 +215,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
   const recipientCf = normalizeFiscalString(recipient.codiceFiscale || '');
   const address = getIndirizzoFiscale(recipient);
   const recipientDeliveryCode = normalizeFiscalString(recipient.codiceSdi || '') || '0000000';
+  const recipientPec = hasText(recipient.pec) ? recipient.pec.trim() : '';
   const recipientName = recipient.ragioneSociale
     ? xmlTag('Denominazione', recipient.ragioneSociale)
     : `${xmlTag('Nome', recipient.nome)}${xmlTag('Cognome', recipient.cognome)}`;
@@ -203,6 +225,12 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
     xmlTag('ImponibileImporto', money(totals.imponibile)) +
     xmlTag('Imposta', money(totals.imposta)) +
     (totals.aliquota > 0 ? xmlTag('EsigibilitaIVA', 'I') : '');
+  const causali = [
+    input.jobReference,
+    ...(normalizeFiscalString(sender.regimeFiscale || '') === 'RF19' && totals.natura === 'N2.2'
+      ? [FORFETTARIO_N2_2_CAUSALE]
+      : []),
+  ].filter(hasText).map((causale) => xmlTag('Causale', causale)).join('');
   const progressivoInvio = input.invoiceNumber.replace(/\D/g, '').slice(-10).padStart(5, '0');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -213,14 +241,14 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
       ${xmlTag('ProgressivoInvio', progressivoInvio)}
       ${xmlTag('FormatoTrasmissione', 'FPR12')}
       ${xmlTag('CodiceDestinatario', recipientDeliveryCode)}
-      ${recipientDeliveryCode === '0000000' && recipient.pec ? xmlTag('PECDestinatario', recipient.pec.trim()) : ''}
+       ${recipientDeliveryCode === '0000000' && isValidPec(recipientPec) ? xmlTag('PECDestinatario', recipientPec) : ''}
     </DatiTrasmissione>
     <CedentePrestatore>
       <DatiAnagrafici>
         ${senderVat ? `<IdFiscaleIVA>${xmlTag('IdPaese', 'IT')}${xmlTag('IdCodice', senderVat)}</IdFiscaleIVA>` : ''}
         ${sender.codiceFiscale ? xmlTag('CodiceFiscale', normalizeFiscalString(sender.codiceFiscale)) : ''}
         <Anagrafica>${senderName}</Anagrafica>
-        ${xmlTag('RegimeFiscale', sender.regimeFiscale)}
+        ${xmlTag('RegimeFiscale', normalizeFiscalString(sender.regimeFiscale || ''))}
       </DatiAnagrafici>
       <Sede>
         ${xmlTag('Indirizzo', sender.fiscalVia)}
@@ -253,7 +281,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
         ${xmlTag('Data', input.issueDate)}
         ${xmlTag('Numero', input.invoiceNumber)}
         ${xmlTag('ImportoTotaleDocumento', money(totals.totale))}
-        ${xmlTag('Causale', input.jobReference)}
+        ${causali}
       </DatiGeneraliDocumento>
     </DatiGenerali>
     <DatiBeniServizi>

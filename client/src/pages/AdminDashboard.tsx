@@ -3300,7 +3300,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-sm font-semibold text-stone-700">Dati Fiscali</h3>
-                            <p className="text-xs text-stone-400">Utilizzati nelle ricevute e nei documenti ufficiali</p>
+                            <p className="text-xs text-stone-400">Dati del mittente, usati nelle ricevute e nelle fatture XML FatturaPA</p>
                           </div>
                         </div>
                         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3340,7 +3340,8 @@ export default function AdminDashboard() {
                             </Select>
                           </div>
                           <div className="sm:col-span-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3">
-                            <p className="text-xs text-amber-900 mb-3">Indirizzo fiscale strutturato del mittente, obbligatorio per creare le fatture XML FPR12.</p>
+                            <p className="text-xs text-amber-900 mb-1">Questi sono i dati fiscali del mittente/studio, non quelli del cliente: salvali qui prima di creare una fattura XML FPR12.</p>
+                            <p className="text-xs text-amber-900 mb-3">Per il regime forfettario seleziona RF19; nel modulo fattura scegli “Non soggetta IVA — N2.2” quando applicabile.</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1.5 sm:col-span-2">
                                 <Label htmlFor="studio-fiscal-via" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Via / piazza</Label>

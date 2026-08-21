@@ -37,10 +37,17 @@ const taxOptions: Array<{ value: InvoiceTaxTreatment; label: string }> = [
   { value: 'iva_4', label: 'IVA 4%' },
   { value: 'esente', label: 'Esente IVA (N4)' },
   { value: 'non_imponibile', label: 'Non imponibile (N3.5)' },
-  { value: 'fuori_campo', label: 'Fuori campo IVA (N2.2)' },
+  { value: 'fuori_campo', label: 'Non soggetta IVA — N2.2 (forfettario)' },
 ];
 
-function parseError(error: unknown): { message: string; missing: string[]; errors: string[] } {
+interface InvoiceFormError {
+  message: string;
+  missing: string[];
+  errors: string[];
+  guidance: string[];
+}
+
+function parseError(error: unknown): InvoiceFormError {
   const fallback = error instanceof Error ? error.message : 'Operazione non riuscita';
   const raw = fallback.includes(': ') ? fallback.slice(fallback.indexOf(': ') + 2) : fallback;
   try {
@@ -49,9 +56,10 @@ function parseError(error: unknown): { message: string; missing: string[]; error
       message: body.error || fallback,
       missing: Array.isArray(body.missing) ? body.missing : [],
       errors: Array.isArray(body.errors) ? body.errors : [],
+      guidance: Array.isArray(body.guidance) ? body.guidance : [],
     };
   } catch {
-    return { message: fallback, missing: [], errors: [] };
+    return { message: fallback, missing: [], errors: [], guidance: [] };
   }
 }
 
@@ -78,9 +86,10 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
   const [idempotencyKey, setIdempotencyKey] = useState(() => nanoid());
   const [preview, setPreview] = useState<{
     totals: { imponibile: number; imposta: number; totale: number; aliquota: number; natura?: string };
+    sender: { name: string; regimeFiscale: string };
     recipient: { name: string };
   } | null>(null);
-  const [formError, setFormError] = useState<{ message: string; missing: string[]; errors: string[] } | null>(null);
+  const [formError, setFormError] = useState<InvoiceFormError | null>(null);
 
   const historyQuery = useQuery<{ invoices: InvoiceHistoryItem[] }>({
     queryKey: ['invoices', jobId],
@@ -197,6 +206,10 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
             <DialogDescription>Compila i dati manuali. Il calcolo parte dall’imponibile indicato e non dai pagamenti del lavoro.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+              <p><strong>Mittente:</strong> partita IVA, regime fiscale RFxx e indirizzo strutturato vengono dalle <strong>Impostazioni studio → Dati fiscali</strong> e devono essere salvati lì.</p>
+              <p className="mt-1"><strong>Cliente:</strong> usa i dati di fatturazione dell’intestatario. Per un privato con codice fiscale e indirizzo completi, senza SDI o PEC, l’XML usa automaticamente <code>0000000</code>; l’email normale non è una PEC.</p>
+            </div>
             <div className="space-y-1.5">
               <Label>Intestatario</Label>
               <Select value={clienteId} onValueChange={(value) => { setClienteId(value); setPreview(null); }}>
@@ -222,6 +235,9 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{taxOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
               </Select>
+              {taxTreatment === 'fuori_campo' && (
+                <p className="text-xs text-muted-foreground">Con studio in regime RF19 l’XML riporta natura N2.2, IVA a zero e la causale normativa del regime forfettario.</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="invoice-description">Descrizione</Label>
@@ -232,16 +248,19 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
                 <p className="font-medium">{formError.message}</p>
                 {formError.missing.length > 0 && <><p className="mt-2 font-medium">Dati mancanti:</p><ul className="list-disc ml-5">{formError.missing.map((item) => <li key={item}>{item}</li>)}</ul></>}
                 {formError.errors.length > 0 && <ul className="list-disc ml-5 mt-1">{formError.errors.map((item) => <li key={item}>{item}</li>)}</ul>}
+                {formError.guidance.length > 0 && <><p className="mt-2 font-medium">Come correggere:</p><ul className="list-disc ml-5">{formError.guidance.map((item) => <li key={item}>{item}</li>)}</ul></>}
               </div>
             )}
             {preview && (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
                 <p className="font-medium">Riepilogo per {preview.recipient.name}</p>
+                <p className="text-xs text-amber-900">Mittente: {preview.sender.name} · {preview.sender.regimeFiscale}</p>
                 <div className="grid grid-cols-3 gap-2 mt-2 text-sm">
                   <span>Imponibile<br /><strong>€ {preview.totals.imponibile.toFixed(2)}</strong></span>
-                  <span>Imposta<br /><strong>€ {preview.totals.imposta.toFixed(2)}</strong></span>
+                  <span>IVA {preview.totals.aliquota.toFixed(0)}%<br /><strong>€ {preview.totals.imposta.toFixed(2)}</strong></span>
                   <span>Totale<br /><strong className="text-base">€ {preview.totals.totale.toFixed(2)}</strong></span>
                 </div>
+                {preview.totals.natura && <p className="mt-2 text-sm">Natura IVA: <strong>{preview.totals.natura}</strong></p>}
               </div>
             )}
           </div>

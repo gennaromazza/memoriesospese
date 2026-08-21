@@ -862,7 +862,7 @@ export default function ClienteForm({
               name="pec"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>PEC</FormLabel>
+                  <FormLabel>PEC (diversa dall’email ordinaria)</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -872,6 +872,10 @@ export default function ClienteForm({
                     />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    Inseriscila solo se il cliente possiede una PEC. L’email di contatto resta separata e non viene usata come PEC nella fattura.
+                    {!isAzienda && ' Per un privato senza PEC o codice SDI, con dati fiscali completi, la fattura usa automaticamente 0000000.'}
+                  </p>
                 </FormItem>
               )}
             />

@@ -10,6 +10,12 @@ const router = Router();
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const INVOICES_COLLECTION = 'invoices';
 
+type CreatedInvoiceResponse = {
+  invoiceId: string;
+  numero: string;
+  filename: string;
+  totals: ReturnType<typeof calculateInvoiceTotals>;
+};
 function requireAdmin(req: any, res: Response, next: any) {
   if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
     return res.status(403).json({ error: 'Accesso riservato agli amministratori' });
@@ -138,6 +144,10 @@ function validationResponse(res: Response, validation: ReturnType<typeof validat
     missing: validation.missing,
     errors: validation.errors,
     totals: validation.totals,
+    guidance: [
+      'Mittente: partita IVA, regime RFxx e indirizzo strutturato vanno configurati e salvati in Impostazioni studio > Dati fiscali.',
+      'Cliente: completa i dati di fatturazione. Per un privato con codice fiscale e indirizzo completi, senza SDI o PEC, sarà usato il codice destinatario 0000000.',
+    ],
   });
 }
 
@@ -159,6 +169,7 @@ router.post('/preview', async (req: any, res: Response) => {
       recipient: {
         name: context.recipient.ragioneSociale || `${context.recipient.nome} ${context.recipient.cognome}`.trim(),
         address: getIndirizzoFiscale(context.recipient),
+        codiceDestinatario: context.recipient.codiceSdi || '0000000',
       },
     });
   } catch (error: any) {
@@ -193,7 +204,7 @@ router.post('/', async (req: any, res: Response) => {
     const counterRef = db.collection('counters').doc(`invoices_${year}`);
     const invoiceRef = db.collection(INVOICES_COLLECTION).doc();
     const draftHash = requestHash(draft);
-    let createdResponse: { invoiceId: string; numero: string; filename: string; totals: any } | null = null;
+    let createdResponse: CreatedInvoiceResponse | null = null;
     let createdSequence = 0;
 
     await db.runTransaction(async (transaction) => {
@@ -242,6 +253,8 @@ router.post('/', async (req: any, res: Response) => {
         },
       });
       const filename = filenameForInvoice(sender, year, createdSequence);
+
+    const response = createdResponse as CreatedInvoiceResponse;
       createdResponse = { invoiceId: invoiceRef.id, numero, filename, totals };
       transaction.set(counterRef, { lastNumber: createdSequence, updatedAt: Timestamp.now() }, { merge: true });
       transaction.create(invoiceRef, {
