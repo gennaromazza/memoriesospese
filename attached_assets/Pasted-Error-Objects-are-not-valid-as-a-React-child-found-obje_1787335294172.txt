@@ -1,0 +1,45 @@
+Error: Objects are not valid as a React child (found: object with keys {code, message}). If you meant to render a collection of children, use an array instead.
+    at p
+    at div
+    at div
+    at div
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:140:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-EPUV6AE6.js?v=8e0dc1e1:63:7
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:50:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:27:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:140:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-IFBSXHKI.js?v=8e0dc1e1:43:5
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-OVJ6QGOU.js?v=8e0dc1e1:333:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-OVJ6QGOU.js?v=8e0dc1e1:256:58
+    at Presence (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-UK46CMUN.js?v=8e0dc1e1:24:11)
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-OVJ6QGOU.js?v=8e0dc1e1:247:64
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:50:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:27:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-KPRAFC6B.js?v=8e0dc1e1:140:13
+    at https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-EPUV6AE6.js?v=8e0dc1e1:262:22
+    at Presence (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-UK46CMUN.js?v=8e0dc1e1:24:11)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=8e0dc1e1:38:15)
+    at DialogPortal (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-OVJ6QGOU.js?v=8e0dc1e1:209:11)
+    at _c3 (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ui/dialog.tsx:50:12)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=8e0dc1e1:38:15)
+    at Dialog (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-OVJ6QGOU.js?v=8e0dc1e1:149:5)
+    at InvoiceSection (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/jobs/InvoiceSection.tsx?t=1787334927201:78:42)
+    at div
+    at div
+    at div
+    at div
+    at JobDetailPage (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/pages/JobDetailPage.tsx:96:21)
+    at Route (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=8e0dc1e1:226:16)
+    at Switch (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=8e0dc1e1:283:17)
+    at Suspense
+    at AppRoutes (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/App.tsx?t=1787334927183:201:3)
+    at StudioProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/StudioContext.tsx:63:34)
+    at FirebaseAuthProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/context/FirebaseAuthContext.tsx:30:40)
+    at Provider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/chunk-3OUDOBHB.js?v=8e0dc1e1:38:15)
+    at TooltipProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=8e0dc1e1:160:5)
+    at V (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=8e0dc1e1:44:25)
+    at J (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/next-themes.js?v=8e0dc1e1:42:18)
+    at QueryClientProvider (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/@tanstack_react-query.js?v=8e0dc1e1:2764:3)
+    at ErrorBoundary (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/src/components/ErrorBoundary.tsx:25:5)
+    at App
+    at Router (https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev/node_modules/.vite/deps/wouter.js?v=8e0dc1e1:180:17)

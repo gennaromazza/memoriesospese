@@ -47,16 +47,43 @@ interface InvoiceFormError {
   guidance: string[];
 }
 
+function toDisplayText(value: unknown, fallback = 'Operazione non riuscita'): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Error) return value.message;
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (typeof record.message === 'string') {
+      const code = typeof record.code === 'string' ? `${record.code}: ` : '';
+      return `${code}${record.message}`;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+}
+
+function toDisplayTextArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => toDisplayText(item)).filter(Boolean)
+    : [];
+}
+
 function parseError(error: unknown): InvoiceFormError {
-  const fallback = error instanceof Error ? error.message : 'Operazione non riuscita';
+  const fallback = toDisplayText(error);
   const raw = fallback.includes(': ') ? fallback.slice(fallback.indexOf(': ') + 2) : fallback;
   try {
     const body = JSON.parse(raw);
     return {
-      message: body.error || fallback,
-      missing: Array.isArray(body.missing) ? body.missing : [],
-      errors: Array.isArray(body.errors) ? body.errors : [],
-      guidance: Array.isArray(body.guidance) ? body.guidance : [],
+      message: toDisplayText(body?.error, fallback),
+      missing: toDisplayTextArray(body?.missing),
+      errors: toDisplayTextArray(body?.errors),
+      guidance: toDisplayTextArray(body?.guidance),
     };
   } catch {
     return { message: fallback, missing: [], errors: [], guidance: [] };
