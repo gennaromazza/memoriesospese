@@ -19,19 +19,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
-import { Job } from '@shared/jobs-types';
+import { Job, NoteFotoItem } from '@shared/jobs-types';
+import { getChangedJobNotes } from '@shared/job-notes';
 import { Pencil, Save, X, Camera, Trash2, FileText, Loader2, ZoomIn, ImagePlus } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { nanoid } from 'nanoid';
 import { compressImage } from '@/lib/imageCompression';
-
-interface NoteFotoItem {
-  id: string;
-  imageUrl: string;
-  nota: string;
-  createdAt: Timestamp;
-  storagePath?: string;
-}
 
 interface JobNotesSectionProps {
   job: Job;
@@ -69,13 +61,9 @@ async function deleteStorageObjectSafe(item: { storagePath?: string; imageUrl?: 
 export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [noteText, setNoteText] = useState(job?.note || '');
-  const [modalitaFoto, setModalitaFoto] = useState(
-    !!(job?.notePerFoto && job.notePerFoto.length > 0)
-  );
   const [notePerFoto, setNotePerFoto] = useState<NoteFotoItem[]>(job?.notePerFoto || []);
   const [uploadingIds, setUploadingIds] = useState<Set<string>>(new Set());
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [confirmSwitchTo, setConfirmSwitchTo] = useState<boolean | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -83,7 +71,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   const sessionUploadedPathsRef = useRef<Set<string>>(new Set());
   // Path che esistevano nel job all'inizio dell'edit (NON vanno mai puliti)
   const initialPathsRef = useRef<Set<string>>(new Set());
-  // "Generazione" della sessione di editing: serve per invalidare gli upload in volo dopo cancel/switch/job-change
+  // "Generazione" della sessione di editing: serve per invalidare gli upload in volo dopo annulla/job-change
   const editGenerationRef = useRef(0);
 
   const singleFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -98,9 +86,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     setIsEditing(false);
     setNoteText(job?.note || '');
     setNotePerFoto(job?.notePerFoto || []);
-    setModalitaFoto(!!(job?.notePerFoto && job.notePerFoto.length > 0));
     setUploadingIds(new Set());
-    setConfirmSwitchTo(null);
     setConfirmCancel(false);
     setConfirmDeleteId(null);
     setLightboxImage(null);
@@ -116,11 +102,11 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
   // Autosave bozza in localStorage durante l'edit (protegge da chiusura accidentale)
   useEffect(() => {
     if (!isEditing || !job?.id) return;
-    const draft = { noteText, notePerFoto, modalitaFoto, savedAt: Date.now() };
+    const draft = { noteText, notePerFoto, savedAt: Date.now() };
     try {
       localStorage.setItem(draftKey(job.id), JSON.stringify(draft));
     } catch {}
-  }, [isEditing, noteText, notePerFoto, modalitaFoto, job?.id]);
+  }, [isEditing, noteText, notePerFoto, job?.id]);
 
   const enterEditMode = useCallback(() => {
     // Snapshot dei path iniziali (per non cancellarli mai su "Annulla")
@@ -167,7 +153,6 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
             });
             setNotePerFoto(rehydrated);
           }
-          if (typeof draft.modalitaFoto === 'boolean') setModalitaFoto(draft.modalitaFoto);
           toast({ title: 'Bozza recuperata', description: 'Ho ripristinato le modifiche non salvate.' });
         }
       }
@@ -183,9 +168,9 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
       return updates;
     },
     onMutate: async (updates) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/jobs', job.id] });
-      const previousJob = queryClient.getQueryData(['/api/jobs', job.id]);
-      queryClient.setQueryData(['/api/jobs', job.id], (old: any) => {
+      await queryClient.cancelQueries({ queryKey: ['jobs', job.id] });
+      const previousJob = queryClient.getQueryData(['jobs', job.id]);
+      queryClient.setQueryData(['jobs', job.id], (old: any) => {
         if (!old) return old;
         return { ...old, ...updates };
       });
@@ -202,29 +187,40 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previousJob) {
-        queryClient.setQueryData(['/api/jobs', job.id], context.previousJob);
+        queryClient.setQueryData(['jobs', job.id], context.previousJob);
       }
       console.error('Errore durante il salvataggio:', error);
       toast({ title: 'Errore', description: 'Impossibile salvare le modifiche', variant: 'destructive' });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/jobs', job.id] });
+      queryClient.invalidateQueries({ queryKey: ['jobs', job.id] });
     },
   });
 
   const handleSave = () => {
-    if (modalitaFoto) updateNoteMutation.mutate({ notePerFoto });
-    else updateNoteMutation.mutate({ note: noteText });
+    const updates = getChangedJobNotes({
+      originalNote: job?.note,
+      originalNotePerFoto: job?.notePerFoto,
+      note: noteText,
+      notePerFoto,
+    });
+
+    if (Object.keys(updates).length === 0) {
+      try {
+        localStorage.removeItem(draftKey(job.id));
+      } catch {}
+      setIsEditing(false);
+      return;
+    }
+
+    updateNoteMutation.mutate(updates);
   };
 
   const hasUnsavedChanges = useCallback(() => {
-    if (modalitaFoto) {
-      const original = JSON.stringify(job?.notePerFoto || []);
-      const current = JSON.stringify(notePerFoto);
-      return original !== current;
-    }
-    return (job?.note || '') !== noteText;
-  }, [modalitaFoto, noteText, notePerFoto, job]);
+    const originalPhotos = JSON.stringify(job?.notePerFoto || []);
+    const currentPhotos = JSON.stringify(notePerFoto);
+    return (job?.note || '') !== noteText || originalPhotos !== currentPhotos;
+  }, [noteText, notePerFoto, job]);
 
   const cleanupSessionUploads = useCallback(async () => {
     // Invalida tutti gli upload in volo: i loro callback non aggiorneranno piu` lo state ne` registreranno il path
@@ -233,6 +229,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
       (p) => !initialPathsRef.current.has(p)
     );
     sessionUploadedPathsRef.current = new Set();
+    setUploadingIds(new Set());
     await Promise.all(paths.map((p) => deleteStorageObjectSafe({ storagePath: p })));
   }, []);
 
@@ -248,49 +245,11 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
     setConfirmCancel(false);
     setNoteText(job?.note || '');
     setNotePerFoto(job?.notePerFoto || []);
-    setModalitaFoto(!!(job?.notePerFoto && job.notePerFoto.length > 0));
     setIsEditing(false);
     try {
       localStorage.removeItem(draftKey(job.id));
     } catch {}
     await cleanupSessionUploads();
-  };
-
-  const handleToggleModalita = (checked: boolean) => {
-    const hasFotoContent =
-      notePerFoto.length > 0 && notePerFoto.some((it) => it.imageUrl || it.nota);
-    const hasGeneralContent = noteText.trim().length > 0;
-
-    if (!checked && hasFotoContent) {
-      setConfirmSwitchTo(checked);
-      return;
-    }
-    if (checked && hasGeneralContent) {
-      setConfirmSwitchTo(checked);
-      return;
-    }
-    setModalitaFoto(checked);
-  };
-
-  const confirmSwitchModalita = async () => {
-    if (confirmSwitchTo === null) return;
-    const target = confirmSwitchTo;
-    setConfirmSwitchTo(null);
-
-    if (!target) {
-      // Passando a "nota generale" pulisco le foto caricate in sessione (non quelle preesistenti del job)
-      await cleanupSessionUploads();
-      // E rimuovo dallo state le foto-note la cui foto non era nel job iniziale
-      setNotePerFoto((prev) =>
-        prev.filter((it) => {
-          const path = it.storagePath || pathFromDownloadUrl(it.imageUrl || '');
-          return path ? initialPathsRef.current.has(path) : false;
-        })
-      );
-    } else {
-      setNoteText('');
-    }
-    setModalitaFoto(target);
   };
 
   const handleAddFotoNota = () => {
@@ -322,7 +281,7 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
         return;
       }
 
-      // Cattura la generazione corrente: se cambia (cancel/switch/job-change) l'upload viene scartato
+      // Cattura la generazione corrente: se cambia (annulla/job-change) l'upload viene scartato
       const myGeneration = editGenerationRef.current;
       const myJobId = job.id;
 
@@ -454,28 +413,6 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
       >
         <div className="flex flex-col gap-2 w-full sm:w-auto">
           <CardTitle>Note</CardTitle>
-          {isEditing && (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="modalita-foto"
-                checked={modalitaFoto}
-                onCheckedChange={handleToggleModalita}
-              />
-              <Label htmlFor="modalita-foto" className="text-sm font-normal cursor-pointer">
-                {modalitaFoto ? (
-                  <span className="flex items-center gap-1">
-                    <Camera className="h-4 w-4" />
-                    Note per foto
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
-                    Nota generale
-                  </span>
-                )}
-              </Label>
-            </div>
-          )}
         </div>
         {!isEditing ? (
           <Button
@@ -520,8 +457,33 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
       </CardHeader>
       <CardContent>
         {isEditing ? (
-          modalitaFoto ? (
-            <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <FileText className="h-4 w-4" />
+                Nota generale
+              </div>
+              <Textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Scrivi una nota generale..."
+                className="min-h-[180px] w-full"
+                data-testid="textarea-general-note"
+              />
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Camera className="h-4 w-4" />
+                Note per foto
+              </div>
+
+              {notePerFoto.length === 0 && (
+                <p className="text-sm text-muted-foreground italic">
+                  Nessuna nota fotografica. Aggiungi una foto per iniziare.
+                </p>
+              )}
+
               {notePerFoto.map((item, index) => (
                 <div
                   key={item.id}
@@ -641,67 +603,15 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                   Carica più foto
                 </Button>
               </div>
-            </div>
-          ) : (
-            <Textarea
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Scrivi una nota generale..."
-              className="min-h-[120px] w-full"
-            />
-          )
+            </section>
+          </div>
         ) : (
           // Visualizzazione Read-Only
           <div>
-            {job.notePerFoto && job.notePerFoto.length > 0 ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
-                  <Camera className="h-4 w-4" />
-                  Note per foto ({job.notePerFoto.length})
-                </div>
-                {job.notePerFoto.map((item: NoteFotoItem, index: number) => (
-                  <div
-                    key={item.id}
-                    className="border rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-900/50"
-                  >
-                    <div className="flex flex-col lg:flex-row gap-4">
-                      {item.imageUrl && (
-                        <div className="w-full lg:w-1/3">
-                          <div
-                            className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 group relative cursor-pointer"
-                            onClick={() => setLightboxImage(item.imageUrl)}
-                          >
-                            <img
-                              src={item.imageUrl}
-                              alt={`Nota foto ${index + 1}`}
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-center justify-center">
-                              <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      <div className={`w-full ${item.imageUrl ? 'lg:w-2/3' : ''}`}>
-                        {item.nota ? (
-                          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                            {item.nota}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                            Nessuna descrizione
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div>
-                {job?.note ? (
-                  <div className="space-y-2">
+            {job.note || (job.notePerFoto && job.notePerFoto.length > 0) ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {job.note && (
+                  <section className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
                       <FileText className="h-4 w-4" />
                       Nota generale
@@ -709,13 +619,60 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
                     <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                       {job.note}
                     </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                    Nessuna nota disponibile
-                  </p>
+                  </section>
+                )}
+
+                {job.notePerFoto && job.notePerFoto.length > 0 && (
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 pb-2 border-b">
+                      <Camera className="h-4 w-4" />
+                      Note per foto ({job.notePerFoto.length})
+                    </div>
+                    {job.notePerFoto.map((item: NoteFotoItem, index: number) => (
+                      <div
+                        key={item.id}
+                        className="border rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-gray-900/50"
+                      >
+                        <div className="flex flex-col lg:flex-row gap-4">
+                          {item.imageUrl && (
+                            <div className="w-full lg:w-1/3">
+                              <div
+                                className="aspect-video w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800 group relative cursor-pointer"
+                                onClick={() => setLightboxImage(item.imageUrl)}
+                              >
+                                <img
+                                  src={item.imageUrl}
+                                  alt={`Nota foto ${index + 1}`}
+                                  loading="lazy"
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none flex items-center justify-center">
+                                  <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className={`w-full ${item.imageUrl ? 'lg:w-2/3' : ''}`}>
+                            {item.nota ? (
+                              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                                {item.nota}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                                Nessuna descrizione
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
                 )}
               </div>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+                Nessuna nota disponibile
+              </p>
             )}
           </div>
         )}
@@ -752,24 +709,6 @@ export default function JobNotesSection({ job }: JobNotesSectionProps) {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Conferma cambio modalità */}
-      <AlertDialog open={confirmSwitchTo !== null} onOpenChange={(o) => !o && setConfirmSwitchTo(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cambiare modalità?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmSwitchTo
-                ? 'Passando a "Note per foto" perderai la nota generale non salvata. Continuare?'
-                : 'Passando a "Nota generale" perderai le note per foto non salvate. Continuare?'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmSwitchModalita}>Continua</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Conferma annulla con modifiche non salvate */}
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
