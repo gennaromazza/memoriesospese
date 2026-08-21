@@ -87,10 +87,10 @@ export function useTogglePhotoLike(galleryId: string, photoId: string) {
         description: isLiked ? "Hai messo like a questa foto" : "Hai rimosso il like da questa foto"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'aggiunta del like",
+        description: error instanceof Error ? error.message : "Errore nell'aggiunta del like",
         variant: "destructive"
       });
     }
@@ -140,10 +140,10 @@ export function useAddPhotoComment(galleryId: string, photoId: string) {
         description: "Il tuo commento è stato aggiunto con successo"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'aggiunta del commento",
+        description: error instanceof Error ? error.message : "Errore nell'aggiunta del commento",
         variant: "destructive"
       });
     }
@@ -184,10 +184,10 @@ export function useAddVoiceMemo(galleryId: string) {
         description: "Il tuo voice memo è stato aggiunto con successo"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'aggiunta del voice memo",
+        description: error instanceof Error ? error.message : "Errore nell'aggiunta del voice memo",
         variant: "destructive"
       });
     }
@@ -216,10 +216,10 @@ export function useCreateGallery() {
         description: "La galleria è stata creata con successo"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nella creazione della galleria",
+        description: error instanceof Error ? error.message : "Errore nella creazione della galleria",
         variant: "destructive"
       });
     }
@@ -241,10 +241,10 @@ export function useUpdateGallery() {
         description: "La galleria è stata aggiornata con successo"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'aggiornamento della galleria",
+        description: error instanceof Error ? error.message : "Errore nell'aggiornamento della galleria",
         variant: "destructive"
       });
     }
@@ -264,10 +264,10 @@ export function useDeleteGallery() {
         description: "La galleria è stata eliminata con successo"
       });
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nell'eliminazione della galleria",
+        description: error instanceof Error ? error.message : "Errore nell'eliminazione della galleria",
         variant: "destructive"
       });
     }
@@ -282,10 +282,10 @@ export function useVerifyGalleryAccess() {
   return useMutation({
     mutationFn: ({ galleryId, password, securityAnswer }: { galleryId: string; password?: string; securityAnswer?: string }) => 
       verifyGalleryAccess(galleryId, password, securityAnswer),
-    onError: (error) => {
+    onError: (error: unknown) => {
       toast({
         title: "Errore",
-        description: error.message || "Errore nella verifica dell'accesso",
+        description: error instanceof Error ? error.message : "Errore nella verifica dell'accesso",
         variant: "destructive"
       });
     }

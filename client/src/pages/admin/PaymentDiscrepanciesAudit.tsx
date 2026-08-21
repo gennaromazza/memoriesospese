@@ -82,7 +82,7 @@ interface AuditResult {
 
 export default function PaymentDiscrepanciesAudit() {
   const isAdmin = useIsAdmin();
-  const { user, loading: authLoading } = useFirebaseAuth();
+  const { user, isLoading: authLoading } = useFirebaseAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 

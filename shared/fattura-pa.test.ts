@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildFatturaPaXml, calculateInvoiceTotals, validateFatturaPaInput } from './fattura-pa';
+import {
+  buildFatturaPaXml,
+  calculateInvoiceTotals,
+  type FatturaPaRecipient,
+  type FatturaPaSender,
+  validateFatturaPaInput,
+} from './fattura-pa';
 
 const sender = {
   name: 'Studio & Foto <Roma>',
@@ -32,7 +38,7 @@ describe('FatturaPA FPR12', () => {
   });
 
   it('segnala tutti i dati obbligatori mancanti', () => {
-    const result = validateFatturaPaInput({}, {}, {
+    const result = validateFatturaPaInput({} as FatturaPaSender, {} as FatturaPaRecipient, {
       issueDate: '2026-08-21', taxableAmount: 100, taxTreatment: 'iva_ordinaria', description: 'Foto',
     });
     expect(result.valid).toBe(false);

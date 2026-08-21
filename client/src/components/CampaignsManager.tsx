@@ -15,7 +15,7 @@ import {
   isCampaignCodeUnique
 } from '@/lib/booking-campaigns';
 import { getAllProducts } from '@/lib/products';
-import type { BookingCampaign, Product } from '@shared/booking-types';
+import type { BookingCampaignFE, Product } from '@shared/booking-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TimeInput } from '@/components/ui/time-input';
@@ -121,14 +121,14 @@ const defaultFormData: CampaignFormData = {
 export default function CampaignsManager() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<BookingCampaign | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<BookingCampaignFE | null>(null);
   const [formData, setFormData] = useState<CampaignFormData>(defaultFormData);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [uploadingSlider, setUploadingSlider] = useState(false);
   const [uploadingBooking, setUploadingBooking] = useState(false);
 
   // Query campaigns
-  const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<BookingCampaign[]>({
+  const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<BookingCampaignFE[]>({
     queryKey: ['booking-campaigns'],
     queryFn: getAllCampaigns,
   });
@@ -143,7 +143,7 @@ export default function CampaignsManager() {
   const createMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
       // Mantieni type safety con spread condizionale (Firestore non accetta undefined)
-      const campaignData: Omit<BookingCampaign, 'id' | 'createdAt'> = {
+      const campaignData: Omit<BookingCampaignFE, 'id' | 'createdAt'> = {
         nome: data.nome,
         descrizione: data.descrizione,
         code: data.code,
@@ -401,7 +401,7 @@ export default function CampaignsManager() {
   };
 
   // Apri dialog per modifica
-  const handleEditCampaign = (campaign: BookingCampaign) => {
+  const handleEditCampaign = (campaign: BookingCampaignFE) => {
     setEditingCampaign(campaign);
     setFormData({
       nome: campaign.nome,

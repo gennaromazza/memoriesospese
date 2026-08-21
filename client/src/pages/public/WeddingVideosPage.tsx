@@ -8,7 +8,7 @@ import { JobTypeIcon } from '@/lib/job-type-icons';
 import WeddingVideoService from '@/lib/weddingVideos';
 import { getActiveJobTypes } from '@/lib/job-types';
 import type { WeddingVideo } from '@shared/schema';
-import type { JobType } from '@shared/job-types';
+import type { JobTypeFE as JobType } from '@shared/job-types';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -208,7 +208,7 @@ export default function WeddingVideosPage() {
     if (!v.createdAt) return false;
     // FIX: Usa math per calcolo date (evita setDate())
     const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 86400000);
-    const videoDate = v.createdAt.toDate ? v.createdAt.toDate() : new Date(v.createdAt);
+    const videoDate = v.createdAt.toDate();
     return videoDate >= thirtyDaysAgo;
   }).slice(0, 8);
 

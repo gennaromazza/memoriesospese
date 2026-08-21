@@ -30,7 +30,7 @@ import { Link } from "wouter";
 import { Calendar, Clock, Sparkles, Instagram as InstagramIcon, Camera, CalendarCheck, MessageCircle, Eye } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import type { BookingCampaign } from "@shared/booking-types";
+import type { BookingCampaignFE } from "@shared/booking-types";
 import { formatPhoneForWhatsApp } from "@shared/phone-utils";
 
 export default function Home() {
@@ -40,7 +40,7 @@ export default function Home() {
   const [showSecurityQuestion, setShowSecurityQuestion] = useState(false);
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [securityError, setSecurityError] = useState("");
-  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
+  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();

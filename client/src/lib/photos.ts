@@ -145,8 +145,7 @@ export class PhotoService {
       const uploadResults = await StorageService.uploadGalleryPhotos(
         files, 
         galleryId, 
-        onProgress,
-        concurrency
+        onProgress
       );
 
       // Save metadata to Firestore (incluso contentHash per rilevamento duplicati)

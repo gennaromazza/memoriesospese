@@ -106,7 +106,7 @@ import {
   Database,
 } from "lucide-react";
 import { getJobTypes } from "@/lib/job-types";
-import type { JobType as JobTypeDoc } from "@shared/job-types";
+import type { JobTypeFE as JobTypeDoc } from "@shared/job-types";
 
 export default function ConsultationTemplatesManager() {
   const { toast } = useToast();
@@ -151,7 +151,7 @@ export default function ConsultationTemplatesManager() {
 
   // Queries
   const { data: templates = [], isLoading } = useTemplates(authReady);
-  const { data: jobTypes = [] } = useQuery<JobTypeDoc[]>({
+  const { data: jobTypes = [] } = useQuery<JobTypeDoc[], Error>({
     queryKey: ["jobTypes"],
     queryFn: getJobTypes,
   });

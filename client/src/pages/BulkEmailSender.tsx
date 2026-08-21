@@ -44,7 +44,7 @@ interface BulkEmailJob {
   totalRecipients: number;
   sentCount: number;
   failedCount: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'scheduled';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'scheduled' | 'queued';
   errors: Array<{ email: string; error: string }>;
   createdAt: any;
   completedAt?: any;
@@ -109,8 +109,13 @@ export default function BulkEmailSender() {
 
   // Query tutti i job (polling solo se c'è un job attivo)
   const hasActiveJob = !!activeJobId;
-  const { data: jobsData } = useQuery({
+  const { data: jobsData } = useQuery<{ jobs: BulkEmailJob[] }>({
     queryKey: ['/api/bulk-email/jobs'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/bulk-email/jobs');
+      if (!response.ok) return { jobs: [] };
+      return response.json();
+    },
     refetchInterval: hasActiveJob ? 5000 : false, // Polling solo durante invio attivo
     staleTime: 60000, // Dati freschi per 1 minuto
   });
@@ -118,22 +123,37 @@ export default function BulkEmailSender() {
   const allJobs: BulkEmailJob[] = jobsData?.jobs || [];
 
   // Query quota giornaliera
-  const { data: quotaData } = useQuery({
+  const { data: quotaData } = useQuery<{ quota: { sent: number; reserved: number; limit: number; remaining: number } }>({
     queryKey: ['/api/bulk-email/quota'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/bulk-email/quota');
+      if (!response.ok) return { quota: { sent: 0, reserved: 0, limit: 400, remaining: 400 } };
+      return response.json();
+    },
     refetchInterval: 30000
   });
 
   const quota = quotaData?.quota || { sent: 0, reserved: 0, limit: 400, remaining: 400 };
 
   // Query template email salvati
-  const { data: templatesData } = useQuery({
-    queryKey: ['/api/bulk-email/templates']
+  const { data: templatesData } = useQuery<{ templates: EmailTemplate[] }>({
+    queryKey: ['/api/bulk-email/templates'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/bulk-email/templates');
+      if (!response.ok) return { templates: [] };
+      return response.json();
+    },
   });
   const templates: EmailTemplate[] = templatesData?.templates || [];
 
   // Query filtri disponibili (anni dinamici + tipi lavoro)
-  const { data: filtersData } = useQuery({
-    queryKey: ['/api/bulk-email/filters']
+  const { data: filtersData } = useQuery<{ filters: { value: string; label: string }[]; jobTypeFilters: { value: string; label: string }[] }>({
+    queryKey: ['/api/bulk-email/filters'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/bulk-email/filters');
+      if (!response.ok) return { filters: [], jobTypeFilters: [] };
+      return response.json();
+    },
   });
 
   const yearFilters = filtersData?.filters || [];

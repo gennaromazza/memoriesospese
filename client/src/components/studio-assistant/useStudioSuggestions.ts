@@ -33,6 +33,7 @@ export interface UseStudioSuggestionsReturn {
     totalActions: number;
     estimatedMinutes: number;
     highPriority: number;
+    pendingApprovalCount?: number;
   };
   markAsDone: (suggestionId: string, jobId?: string) => Promise<void>;
   dismiss: (suggestionId: string) => Promise<void>;

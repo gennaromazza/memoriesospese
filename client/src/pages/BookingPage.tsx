@@ -9,7 +9,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCampaignByCode } from "@/lib/booking-campaigns";
 import { getAllProducts } from "@/lib/products";
 import { createBooking, getAvailableSlots } from "@/lib/bookings";
-import type { BookingCampaign, Product } from "@shared/booking-types";
+import type { BookingCampaignFE, Product } from "@shared/booking-types";
 import {
   Card,
   CardContent,
@@ -100,7 +100,7 @@ export default function BookingPage() {
     data: campaign,
     isLoading,
     error,
-  } = useQuery<BookingCampaign | null>({
+  } = useQuery<BookingCampaignFE | null>({
     queryKey: ["booking-campaign", code],
     queryFn: () => getCampaignByCode(code),
     enabled: !!code,

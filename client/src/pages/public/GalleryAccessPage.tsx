@@ -10,12 +10,12 @@ import {
 import { useStudio } from "@/context/StudioContext";
 import GallerySearch from "@/components/GallerySearch";
 import StudioLogo from "@/components/StudioLogo";
-import type { BookingCampaign } from "@shared/booking-types";
+import type { BookingCampaignFE } from "@shared/booking-types";
 import { useSEO } from "@/hooks/useSEO";
 
 export default function GalleryAccessPage() {
   const { studioSettings } = useStudio();
-  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaign[]>([]);
+  const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
 
   useSEO({
     title: "Accesso Galleria Memorie Sospese | Image Studio",

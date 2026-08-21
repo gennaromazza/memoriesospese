@@ -6,6 +6,15 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { createCliente } from '@/lib/clienti';
 import type { InsertCliente } from '@shared/clienti-types';
+
+/** Intermediate shape used during migration aggregation before calling createCliente */
+interface MigrationCliente extends InsertCliente {
+  sourceRefs: {
+    bookingIds: string[];
+    orderIds: string[];
+    galleryIds: string[];
+  };
+}
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +35,7 @@ export function ClientiMigrationButton() {
     setIsMigrating(true);
     
     try {
-      const clientiMap = new Map<string, Partial<InsertCliente>>();
+      const clientiMap = new Map<string, MigrationCliente>();
       
       // Step 1: Aggrega da bookings
       const bookingsSnapshot = await getDocs(collection(db, 'bookings'));
@@ -60,7 +69,7 @@ export function ClientiMigrationButton() {
         }
         
         const cliente = clientiMap.get(email)!;
-        cliente.sourceRefs!.bookingIds!.push(doc.id);
+        cliente.sourceRefs.bookingIds.push(doc.id);
         bookingsProcessed++;
       }
       
@@ -96,7 +105,7 @@ export function ClientiMigrationButton() {
         }
         
         const cliente = clientiMap.get(email)!;
-        cliente.sourceRefs!.orderIds!.push(doc.id);
+        cliente.sourceRefs.orderIds.push(doc.id);
         ordersProcessed++;
       }
       
@@ -132,7 +141,7 @@ export function ClientiMigrationButton() {
         }
         
         const cliente = clientiMap.get(email)!;
-        cliente.sourceRefs!.galleryIds!.push(doc.id);
+        cliente.sourceRefs.galleryIds.push(doc.id);
         galleriesProcessed++;
       }
       
@@ -143,7 +152,7 @@ export function ClientiMigrationButton() {
       
       for (const clienteData of clientiArray) {
         try {
-          await createCliente(clienteData as InsertCliente);
+          await createCliente(clienteData);
           created++;
         } catch (error) {
           console.error('Errore creazione cliente:', error);
@@ -156,10 +165,10 @@ export function ClientiMigrationButton() {
         description: `${created} clienti creati con successo. Elaborati ${bookingsProcessed} bookings, ${ordersProcessed} ordini, ${galleriesProcessed} gallerie. ${errors > 0 ? `${errors} errori.` : ''}`,
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: '❌ Errore migrazione',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Errore sconosciuto',
         variant: 'destructive',
       });
     } finally {

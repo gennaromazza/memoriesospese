@@ -34,7 +34,30 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// ... interfacce (rimangono uguali) ...
+// Interfacce
+interface ConflictEventMetadata {
+  googleEventId?: string;
+  [key: string]: unknown;
+}
+
+interface ConflictEvent {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  allDay?: boolean;
+  source: 'google-calendar' | 'job' | 'booking';
+  isDeletable: boolean;
+  calendarName?: string;
+  metadata: ConflictEventMetadata;
+}
+
+interface ConflictResolutionModalProps {
+  open: boolean;
+  onClose: () => void;
+  consultationId?: string;
+  onSuccess?: () => void;
+}
 
 // Helper per formattazione date (fuori dal componente per performance)
 const formatTime = (dateStr: string) => {
@@ -171,7 +194,7 @@ export default function ConflictResolutionModal({
               <div className="space-y-2">
                 {conflicts.map((conflict) => {
                   const config =
-                    SOURCE_CONFIG[conflict.source] || SOURCE_CONFIG["job"];
+                    SOURCE_CONFIG[conflict.source as keyof typeof SOURCE_CONFIG] || SOURCE_CONFIG["job"];
                   const Icon = config.icon;
                   const isSelected = selectedEventIds.includes(
                     conflict.metadata.googleEventId || conflict.id,

@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { getActiveCampaigns } from '@/lib/booking-campaigns';
-import type { BookingCampaign } from '@shared/booking-types';
+import type { BookingCampaignFE } from '@shared/booking-types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ import { FloralDivider } from '@/components/WeddingIllustrations';
 
 export default function BookingIndex() {
   // Query campagne attive (considera giorniAnticipoSlider)
-  const { data: activeCampaigns = [], isLoading } = useQuery<BookingCampaign[]>({
+  const { data: activeCampaigns = [], isLoading } = useQuery<BookingCampaignFE[]>({
     queryKey: ['active-booking-campaigns'],
     queryFn: getActiveCampaigns,
   });
@@ -92,8 +92,8 @@ export default function BookingIndex() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {activeCampaigns.map((campaign) => {
-                  const startDate = campaign.dataInizio.toDate ? campaign.dataInizio.toDate() : new Date(campaign.dataInizio);
-                  const endDate = campaign.dataFine.toDate ? campaign.dataFine.toDate() : new Date(campaign.dataFine);
+                  const startDate = campaign.dataInizio;
+                  const endDate = campaign.dataFine;
                   const daysRemaining = Math.ceil((endOfDay(endDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
                   return (

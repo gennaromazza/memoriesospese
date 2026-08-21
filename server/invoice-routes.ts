@@ -271,10 +271,11 @@ router.post('/', async (req: any, res: Response) => {
     });
 
     if (!createdResponse) throw new Error('Fattura non creata');
-    if (createdResponse.invoiceId !== invoiceRef.id) {
-      return res.json({ ...createdResponse, reused: true });
+    const finalResponse = createdResponse as { invoiceId: string; numero: string; filename: string; totals: any };
+    if (finalResponse.invoiceId !== invoiceRef.id) {
+      return res.json({ ...finalResponse, reused: true });
     }
-    return res.status(201).json(createdResponse);
+    return res.status(201).json(finalResponse);
   } catch (error: any) {
     const status = error?.statusCode || 500;
     console.error('Errore creazione fattura:', error);

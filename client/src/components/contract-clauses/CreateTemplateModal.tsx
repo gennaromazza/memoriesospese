@@ -44,7 +44,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import type { JobType as JobsJobType } from '@shared/jobs-types';
-import type { JobType as DynamicJobType } from '@shared/job-types';
+import type { JobTypeFE as DynamicJobType } from '@shared/job-types';
 
 const formSchema = z.object({
   jobType: z.string().min(1, 'Seleziona un tipo di lavoro'),

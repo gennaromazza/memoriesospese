@@ -300,7 +300,7 @@ export async function getJobAssignments(
         })) ?? [],
     }));
 
-    return assignments.sort((a, b) => {
+    return assignments.sort((a: JobCollaboratoreAssignment, b: JobCollaboratoreAssignment) => {
       const timeA = a.dataRichiesta?.toMillis() || 0;
       const timeB = b.dataRichiesta?.toMillis() || 0;
       return timeB - timeA;

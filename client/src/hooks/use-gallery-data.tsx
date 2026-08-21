@@ -521,8 +521,8 @@ export function useGalleryData(galleryCode: string) {
 
   // Listener per eventi di refresh
   useEffect(() => {
-    const handleGalleryRefresh = async (event: CustomEvent) => {
-      const { galleryId, type } = event.detail;
+    const handleGalleryRefresh = async (event: Event) => {
+      const { galleryId, type } = (event as CustomEvent).detail;
       
       if (!gallery || gallery.id !== galleryId) return;
 
@@ -532,10 +532,10 @@ export function useGalleryData(galleryCode: string) {
       }
     };
 
-    window.addEventListener('galleryRefresh', handleGalleryRefresh as EventListener);
+    window.addEventListener('galleryRefresh', handleGalleryRefresh);
     
     return () => {
-      window.removeEventListener('galleryRefresh', handleGalleryRefresh as EventListener);
+      window.removeEventListener('galleryRefresh', handleGalleryRefresh);
     };
   }, [gallery]);
 

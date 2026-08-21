@@ -166,7 +166,7 @@ const PhotoCard = memo(({
           loading={isAboveTheFold ? 'eager' : 'lazy'}
           // decoding=async non blocca mai il main thread (sync invece può causare jank)
           decoding="async"
-          fetchpriority={isAboveTheFold ? 'high' : 'auto'}
+          fetchPriority={isAboveTheFold ? 'high' : 'auto'}
           title={
             photo.createdAt
               ? new Date(photo.createdAt).toLocaleString("it-IT")
@@ -364,12 +364,12 @@ export default function Gallery() {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['gallery-all-photos', galleryData?.id],
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam }: { pageParam?: any }) => {
       if (!galleryData?.id) return { photos: [] as Photo[], lastDocument: null, hasMore: false };
       return PhotoService.getGalleryPhotosPaginated(galleryData.id, GALLERY_PAGE_SIZE, pageParam);
     },
-    initialPageParam: undefined as any,
-    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.lastDocument ?? undefined : undefined,
+    getNextPageParam: (lastPage: { photos: Photo[]; lastDocument: any; hasMore: boolean }) =>
+      lastPage.hasMore ? lastPage.lastDocument ?? undefined : undefined,
     enabled: !!galleryData?.id && hasValidAccess,
     retry: 2,
     staleTime: 5 * 60 * 1000,

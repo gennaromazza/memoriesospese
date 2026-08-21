@@ -16,7 +16,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useJobEntity } from '@/hooks/useJobEntity';
 import { ClientAutocomplete } from '@/components/clienti/ClientAutocomplete';
-import type { JobType as JobTypeDoc } from '@shared/job-types';
+import type { JobTypeFE as JobTypeDoc } from '@shared/job-types';
 import type { Cliente } from '@shared/clienti-types';
 import {
   Dialog,
@@ -132,7 +132,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
   const [checkingConflicts, setCheckingConflicts] = useState(false);
   
   // Query job types dinamici
-  const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery<JobTypeDoc[]>({
+  const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery<JobTypeDoc[], Error>({
     queryKey: ['jobTypes'],
     queryFn: getJobTypes
   });
@@ -308,7 +308,7 @@ export default function CreateJobModal({ open, onClose, initialDate, initialClie
         navigate(`/admin/jobs/${jobId}`);
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Errore',
         description: error.message || 'Errore durante la creazione del lavoro.',

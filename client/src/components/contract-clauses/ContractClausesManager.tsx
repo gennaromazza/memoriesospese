@@ -78,7 +78,7 @@ export default function ContractClausesManager() {
         description: 'Il template è stato eliminato con successo.'
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Errore',
         description: error.message,
@@ -98,7 +98,7 @@ export default function ContractClausesManager() {
         description: 'Questo template verrà usato automaticamente per i nuovi preventivi.'
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         title: 'Errore',
         description: error.message,
