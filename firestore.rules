@@ -315,6 +315,19 @@ service cloud.firestore {
       allow update: if isAdmin(); // Only admin can update cash movements
       allow delete: if isAdmin(); // Only admin can delete cash movements
     }
+
+    // Fatture elettroniche: lo storico contiene snapshot fiscali e XML immutabili.
+    match /invoices/{invoiceId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    match /invoiceIdempotency/{requestId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
     
     // Photo Selections - Guest users can select photos, admin can read all
     match /photo_selections/{selectionId} {

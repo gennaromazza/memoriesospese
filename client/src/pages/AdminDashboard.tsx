@@ -460,6 +460,11 @@ interface StudioSettings {
   whatsappButtonText: string;
   partitaIVA?: string;
   codiceFiscale?: string;
+  fiscalVia?: string;
+  fiscalCap?: string;
+  fiscalComune?: string;
+  fiscalProvincia?: string;
+  regimeFiscale?: string;
   whatsapp?: string;
   googleReviewUrl?: string;
 }
@@ -619,6 +624,11 @@ export default function AdminDashboard() {
     whatsappButtonText: "Scrivici su WhatsApp",
     whatsapp: "",
     googleReviewUrl: "",
+    fiscalVia: "",
+    fiscalCap: "",
+    fiscalComune: "",
+    fiscalProvincia: "",
+    regimeFiscale: "",
   });
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -3313,6 +3323,42 @@ export default function AdminDashboard() {
                               placeholder="RSSMRA80A01H501Z"
                               className="font-mono border-stone-200 focus:border-amber-400 focus:ring-amber-100"
                             />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-regime-fiscale" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Regime fiscale FatturaPA</Label>
+                            <Select value={studioSettings.regimeFiscale || ''} onValueChange={(value) => handleSettingsChange("regimeFiscale", value)}>
+                              <SelectTrigger id="studio-regime-fiscale" className="border-stone-200">
+                                <SelectValue placeholder="Seleziona regime fiscale" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="RF01">RF01 · Ordinario</SelectItem>
+                                <SelectItem value="RF19">RF19 · Forfettario</SelectItem>
+                                <SelectItem value="RF02">RF02 · Contribuenti minimi</SelectItem>
+                                <SelectItem value="RF04">RF04 · Agricoltura e attività connesse</SelectItem>
+                                <SelectItem value="RF18">RF18 · Altro</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="sm:col-span-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3">
+                            <p className="text-xs text-amber-900 mb-3">Indirizzo fiscale strutturato del mittente, obbligatorio per creare le fatture XML FPR12.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <Label htmlFor="studio-fiscal-via" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Via / piazza</Label>
+                                <Input id="studio-fiscal-via" value={studioSettings.fiscalVia || ''} onChange={(e) => handleSettingsChange("fiscalVia", e.target.value)} placeholder="Via Roma 1" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-cap" className="text-xs font-medium text-stone-600 uppercase tracking-wide">CAP</Label>
+                                <Input id="studio-fiscal-cap" value={studioSettings.fiscalCap || ''} onChange={(e) => handleSettingsChange("fiscalCap", e.target.value)} placeholder="80100" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-comune" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Comune</Label>
+                                <Input id="studio-fiscal-comune" value={studioSettings.fiscalComune || ''} onChange={(e) => handleSettingsChange("fiscalComune", e.target.value)} placeholder="Napoli" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-provincia" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Provincia</Label>
+                                <Input id="studio-fiscal-provincia" value={studioSettings.fiscalProvincia || ''} onChange={(e) => handleSettingsChange("fiscalProvincia", e.target.value.toUpperCase())} placeholder="NA" maxLength={2} />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>

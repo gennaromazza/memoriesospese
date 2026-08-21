@@ -62,6 +62,7 @@ import QuoteManagementPanel from '@/components/quotes/QuoteManagementPanel';
 import SendQuoteEmailButton from '@/components/quotes/SendQuoteEmailButton';
 import QuoteEmailStatusBadge from '@/components/quotes/QuoteEmailStatusBadge';
 import JobNotesSection from '@/components/jobs/JobNotesSection';
+import InvoiceSection from '@/components/jobs/InvoiceSection';
 import ShareGalleryButton from '@/components/ShareGalleryButton';
 import { db, convertFirestoreTimestamp } from '@/lib/firebase';
 import { collection, getDocs, query as fbQuery, where, orderBy as fbOrderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -1210,6 +1211,17 @@ export default function JobDetailPage() {
                   />
                 </CardContent>
               </Card>
+
+              <InvoiceSection
+                jobId={job.id}
+                jobName={job.nomeEvento}
+                clienti={clienti.map((cliente) => ({
+                  id: cliente.id,
+                  nome: cliente.nome,
+                  cognome: cliente.cognome,
+                  email: cliente.email,
+                }))}
+              />
 
               {/* Note Interne / Nota del Cliente */}
               {job.noteInterne && (

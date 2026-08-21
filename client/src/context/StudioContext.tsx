@@ -11,6 +11,12 @@ export interface StudioSettings {
   websiteUrl: string;
   partitaIVA?: string;
   codiceFiscale?: string;
+  /** Dati strutturati richiesti dal tracciato FatturaPA per il mittente. */
+  fiscalVia?: string;
+  fiscalCap?: string;
+  fiscalComune?: string;
+  fiscalProvincia?: string;
+  regimeFiscale?: string;
   socialLinks: {
     facebook?: string;
     instagram?: string;
@@ -39,6 +45,11 @@ const defaultSettings: StudioSettings = {
   websiteUrl: '',
   partitaIVA: '',
   codiceFiscale: '',
+  fiscalVia: '',
+  fiscalCap: '',
+  fiscalComune: '',
+  fiscalProvincia: '',
+  regimeFiscale: '',
   socialLinks: {
     facebook: '',
     instagram: '',
