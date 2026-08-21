@@ -28,6 +28,8 @@ export interface Photo {
   id: string;
   galleryId: string;
   name: string;
+  originalName?: string;
+  storagePath?: string;
   url: string;
   thumbnailUrl?: string;
   contentType: string;
@@ -49,6 +51,8 @@ export interface Photo {
 export interface PhotoData {
   galleryId: string;
   name: string;
+  originalName?: string;
+  storagePath?: string;
   url: string;
   thumbnailUrl?: string;
   contentType: string;
@@ -66,6 +70,28 @@ export interface PhotoStats {
   uploaders: number;
   mostLikedPhoto?: Photo;
   recentPhotos: Photo[];
+}
+
+function resolvePhotoStoragePath(photo: Pick<Photo, "galleryId" | "name" | "url" | "storagePath">): string {
+  if (photo.storagePath) return photo.storagePath;
+
+  try {
+    const parsed = new URL(photo.url);
+    const firebasePath = parsed.pathname.match(/\/o\/(.+)$/);
+    if (firebasePath) return decodeURIComponent(firebasePath[1]);
+
+    const segments = parsed.pathname.replace(/^\/+/, "").split("/");
+    if ((parsed.hostname === "storage.googleapis.com" || parsed.hostname === "www.googleapis.com") && segments.length > 1) {
+      return decodeURIComponent(segments.slice(1).join("/"));
+    }
+    if (parsed.hostname.endsWith(".storage.googleapis.com")) {
+      return decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    }
+  } catch {
+    // Old or malformed URLs retain the legacy filename fallback below.
+  }
+
+  return "galleries/" + photo.galleryId + "/photos/" + photo.name;
 }
 
 export class PhotoService {
@@ -131,6 +157,8 @@ export class PhotoService {
         const photoData: PhotoData = {
           galleryId,
           name: result.fileName,
+          originalName,
+          storagePath: "galleries/" + galleryId + "/photos/" + result.fileName,
           url: result.url,
           contentType: result.contentType,
           size: result.size,
@@ -503,7 +531,7 @@ export class PhotoService {
       
       if (photo) {
         // Usa il nome del file per costruire il path corretto
-        const storagePath = `galleries/${photo.galleryId}/photos/${photo.name}`;
+        const storagePath = resolvePhotoStoragePath(photo);
         console.log('🗑️ Eliminando foto da Storage:', storagePath);
         
         try {
