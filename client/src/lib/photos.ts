@@ -530,7 +530,7 @@ export class PhotoService {
       const photo = await this.getPhotoById(photoId);
       
       if (photo) {
-        // Usa il nome del file per costruire il path corretto
+        // Preferisce il percorso persistito; per le foto legacy lo ricava dall'URL.
         const storagePath = resolvePhotoStoragePath(photo);
         console.log('🗑️ Eliminando foto da Storage:', storagePath);
         
