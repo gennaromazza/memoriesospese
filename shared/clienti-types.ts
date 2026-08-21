@@ -39,6 +39,13 @@ export interface Cliente {
   pec?: string;
   dataNascita?: string; // YYYY-MM-DD
   luogoNascita?: string;
+  /** Se true l'indirizzo fiscale usa via/citta/cap/provincia operativi. */
+  indirizzoFiscaleUguale?: boolean;
+  /** Indirizzo fiscale alternativo, senza modificare l'indirizzo operativo. */
+  viaFiscale?: string;
+  cittaFiscale?: string;
+  capFiscale?: string;
+  provinciaFiscale?: string;
   
   // Collegamenti a entità esistenti
   sourceRefs: {
@@ -105,6 +112,11 @@ export interface InsertCliente {
   pec?: string;
   dataNascita?: string; // YYYY-MM-DD
   luogoNascita?: string;
+  indirizzoFiscaleUguale?: boolean;
+  viaFiscale?: string;
+  cittaFiscale?: string;
+  capFiscale?: string;
+  provinciaFiscale?: string;
   
   // Note e tags opzionali
   note?: string;
@@ -140,6 +152,11 @@ export interface UpdateCliente {
   pec?: string;
   dataNascita?: string; // YYYY-MM-DD
   luogoNascita?: string;
+  indirizzoFiscaleUguale?: boolean;
+  viaFiscale?: string;
+  cittaFiscale?: string;
+  capFiscale?: string;
+  provinciaFiscale?: string;
   
   note?: string;
   tags?: string[];

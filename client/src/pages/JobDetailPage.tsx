@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Job, CostoLavoro } from '@shared/jobs-types';
-import { Cliente } from '@shared/clienti-types';
+import { Cliente, UpdateCliente } from '@shared/clienti-types';
 import { format, startOfDay, endOfDay, addDays, eachDayOfInterval, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { getJob, deleteJob, updateJob, getJobTimeline } from '@/lib/jobs';
@@ -805,7 +805,7 @@ export default function JobDetailPage() {
 
   // Update cliente mutation
   const updateClienteMutation = useMutation({
-    mutationFn: async (updates: Partial<Cliente>) => {
+    mutationFn: async (updates: UpdateCliente) => {
       if (!editingCliente) throw new Error('Nessun cliente selezionato');
       await updateCliente(editingCliente.id, updates);
     },

@@ -91,6 +91,11 @@ export async function createCliente(data: InsertCliente): Promise<string> {
     pec: data.pec,
     dataNascita: data.dataNascita,
     luogoNascita: data.luogoNascita,
+    indirizzoFiscaleUguale: data.indirizzoFiscaleUguale,
+    viaFiscale: data.viaFiscale,
+    cittaFiscale: data.cittaFiscale,
+    capFiscale: data.capFiscale,
+    provinciaFiscale: data.provinciaFiscale,
     note: data.note,
     tags: data.tags || [],
     sourceRefs: {
@@ -123,9 +128,14 @@ export async function updateCliente(
   id: string,
   data: UpdateCliente
 ): Promise<void> {
+  const { email, status, ...fields } = data;
   const updateData = {
-    ...sanitizeData(data),
-    email: data.email ? normalizeEmail(data.email) : undefined,
+    ...sanitizeData(fields),
+    email: email ? normalizeEmail(email) : undefined,
+    ...(status ? {
+      "lifecycle.status": status,
+      "lifecycle.lastInteractionAt": serverTimestamp(),
+    } : {}),
     updatedAt: serverTimestamp(),
   };
 

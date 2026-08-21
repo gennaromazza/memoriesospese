@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Cliente } from '@shared/clienti-types';
+import { formatClienteAddress, getIndirizzoFiscale } from '@shared/clienti-address';
 import {
   Sheet,
   SheetContent,
@@ -81,6 +82,14 @@ export default function ClienteDetailDrawer({
   }, [cliente?.id, open]);
 
   if (!cliente) return null;
+
+  const indirizzoFiscale = getIndirizzoFiscale(cliente);
+  const indirizzoFiscaleLabel = formatClienteAddress(indirizzoFiscale);
+  const hasBillingData = Boolean(
+    cliente.tipoSoggetto || cliente.codiceFiscale || cliente.partitaIva ||
+    cliente.ragioneSociale || cliente.codiceSdi || cliente.pec ||
+    cliente.dataNascita || cliente.luogoNascita || indirizzoFiscaleLabel,
+  );
 
   const scrollToStorico = () => {
     storicoRef.current?.scrollIntoView({ 
@@ -230,7 +239,7 @@ export default function ClienteDetailDrawer({
             </div>
           </section>
 
-          {(cliente.codiceFiscale || cliente.partitaIva || cliente.ragioneSociale || cliente.codiceSdi || cliente.pec || cliente.dataNascita || cliente.luogoNascita) && (
+          {hasBillingData && (
             <>
               <Separator />
               <section>
@@ -286,6 +295,19 @@ export default function ClienteDetailDrawer({
                     <div>
                       <span className="text-muted-foreground">Luogo di nascita:</span>
                       <div className="font-medium mt-1">{cliente.luogoNascita}</div>
+                    </div>
+                  )}
+                  {indirizzoFiscaleLabel && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Indirizzo fiscale:</span>
+                      <div className="font-medium mt-1" data-testid="text-indirizzo-fiscale">
+                        {indirizzoFiscaleLabel}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {indirizzoFiscale.isAlternativo
+                          ? 'Indirizzo distinto da quello operativo'
+                          : 'Coincide con l’indirizzo operativo'}
+                      </div>
                     </div>
                   )}
                 </div>

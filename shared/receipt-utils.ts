@@ -2,6 +2,8 @@
  * Helper puri per l'intestazione fiscale delle ricevute (testabili).
  */
 
+import { getIndirizzoFiscale } from './clienti-address';
+
 export interface ClienteFiscaleSnapshot {
   codiceFiscale?: string;
   partitaIva?: string;
@@ -19,9 +21,15 @@ export function buildClienteFiscaleSnapshot(c: {
   cap?: string;
   citta?: string;
   provincia?: string;
+  indirizzoFiscaleUguale?: boolean;
+  viaFiscale?: string;
+  cittaFiscale?: string;
+  capFiscale?: string;
+  provinciaFiscale?: string;
 } | undefined | null): ClienteFiscaleSnapshot {
   if (!c) return {};
-  const indirizzo = [c.via, [c.cap, c.citta].filter(Boolean).join(' '), c.provincia]
+  const indirizzoFiscale = getIndirizzoFiscale(c);
+  const indirizzo = [indirizzoFiscale.via, [indirizzoFiscale.cap, indirizzoFiscale.citta].filter(Boolean).join(' '), indirizzoFiscale.provincia]
     .filter(Boolean)
     .join(', ');
   return {

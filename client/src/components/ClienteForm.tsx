@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -77,12 +78,64 @@ const clienteSchema = z.object({
   }),
   dataNascita: z.string().optional(),
   luogoNascita: z.string().optional(),
+  indirizzoFiscaleUguale: z.boolean(),
+  viaFiscale: z.string().optional(),
+  cittaFiscale: z.string().optional(),
+  capFiscale: z.string().optional(),
+  provinciaFiscale: z.string().optional(),
   note: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(['lead', 'prospect', 'cliente_attivo', 'archiviato']).optional(),
+}).superRefine((data, ctx) => {
+  if (!data.indirizzoFiscaleUguale) {
+    const fields: Array<[keyof ClienteFormData, string]> = [
+      ['viaFiscale', 'Via dell’indirizzo fiscale obbligatoria'],
+      ['cittaFiscale', 'Città dell’indirizzo fiscale obbligatoria'],
+      ['capFiscale', 'CAP dell’indirizzo fiscale obbligatorio'],
+      ['provinciaFiscale', 'Provincia dell’indirizzo fiscale obbligatoria'],
+    ];
+    for (const [path, message] of fields) {
+      const value = data[path];
+      if (typeof value !== 'string' || !value.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+      }
+    }
+  }
 });
 
 type ClienteFormData = z.infer<typeof clienteSchema>;
+
+function getClienteFormDefaults(cliente?: Cliente | null): ClienteFormData {
+  return {
+    nome: cliente?.nome || '',
+    cognome: cliente?.cognome || '',
+    email: cliente?.email || '',
+    cellulare1: cliente?.cellulare1 || '',
+    cellulare2: cliente?.cellulare2 || '',
+    whatsapp: cliente?.whatsapp || '',
+    instagram: cliente?.instagram || '',
+    via: cliente?.via || '',
+    citta: cliente?.citta || '',
+    cap: cliente?.cap || '',
+    provincia: cliente?.provincia || '',
+    tipoSoggetto: cliente?.tipoSoggetto || 'privato',
+    codiceFiscale: cliente?.codiceFiscale || '',
+    partitaIva: cliente?.partitaIva || '',
+    ragioneSociale: cliente?.ragioneSociale || '',
+    codiceSdi: cliente?.codiceSdi || '',
+    pec: cliente?.pec || '',
+    dataNascita: cliente?.dataNascita || '',
+    luogoNascita: cliente?.luogoNascita || '',
+    indirizzoFiscaleUguale: cliente?.indirizzoFiscaleUguale !== false,
+    viaFiscale: cliente?.viaFiscale || '',
+    cittaFiscale: cliente?.cittaFiscale || '',
+    capFiscale: cliente?.capFiscale || '',
+    provinciaFiscale: cliente?.provinciaFiscale || '',
+    note: cliente?.note || '',
+    tags: cliente?.tags || [],
+    status: cliente?.lifecycle?.status || 'lead',
+  };
+}
 
 interface ClienteFormProps {
   cliente?: Cliente | null;
@@ -101,39 +154,26 @@ export default function ClienteForm({
   
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
-    defaultValues: {
-      nome: cliente?.nome || '',
-      cognome: cliente?.cognome || '',
-      email: cliente?.email || '',
-      cellulare1: cliente?.cellulare1 || '',
-      cellulare2: cliente?.cellulare2 || '',
-      whatsapp: cliente?.whatsapp || '',
-      instagram: cliente?.instagram || '',
-      via: cliente?.via || '',
-      citta: cliente?.citta || '',
-      cap: cliente?.cap || '',
-      provincia: cliente?.provincia || '',
-      tipoSoggetto: cliente?.tipoSoggetto || 'privato',
-      codiceFiscale: cliente?.codiceFiscale || '',
-      partitaIva: cliente?.partitaIva || '',
-      ragioneSociale: cliente?.ragioneSociale || '',
-      codiceSdi: cliente?.codiceSdi || '',
-      pec: cliente?.pec || '',
-      dataNascita: cliente?.dataNascita || '',
-      luogoNascita: cliente?.luogoNascita || '',
-      note: cliente?.note || '',
-      tags: cliente?.tags || [],
-      status: cliente?.lifecycle?.status || 'lead',
-    },
+    defaultValues: getClienteFormDefaults(cliente),
   });
 
   const hasFiscalData = !!(
     cliente?.codiceFiscale || cliente?.partitaIva || cliente?.ragioneSociale ||
-    cliente?.codiceSdi || cliente?.pec || cliente?.dataNascita || cliente?.luogoNascita
+    cliente?.codiceSdi || cliente?.pec || cliente?.dataNascita || cliente?.luogoNascita ||
+    cliente?.viaFiscale || cliente?.cittaFiscale || cliente?.capFiscale || cliente?.provinciaFiscale
   );
   const [fiscaleOpen, setFiscaleOpen] = useState(hasFiscalData);
   const tipoSoggetto = useWatch({ control: form.control, name: 'tipoSoggetto' });
   const isAzienda = tipoSoggetto === 'azienda';
+  const indirizzoFiscaleUguale = useWatch({ control: form.control, name: 'indirizzoFiscaleUguale' });
+
+  // Il dialog resta montato tra un cliente e l'altro: riallinea tutti i campi
+  // (inclusi i fiscali) quando cambia il record in modifica.
+  useEffect(() => {
+    form.reset(getClienteFormDefaults(cliente));
+    setFiscaleOpen(hasFiscalData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente?.id]);
 
   const instagramRaw = useWatch({ control: form.control, name: 'instagram' });
   const instagramHandle = instagramRaw?.trim().replace(/^@+/, '').trim() || '';
@@ -242,6 +282,11 @@ export default function ClienteForm({
       pec: data.pec?.trim().toLowerCase() || emptyFiscal,
       dataNascita: data.dataNascita?.trim() || emptyFiscal,
       luogoNascita: data.luogoNascita?.trim() || emptyFiscal,
+      indirizzoFiscaleUguale: data.indirizzoFiscaleUguale,
+      viaFiscale: data.indirizzoFiscaleUguale ? emptyFiscal : data.viaFiscale?.trim() || emptyFiscal,
+      cittaFiscale: data.indirizzoFiscaleUguale ? emptyFiscal : data.cittaFiscale?.trim() || emptyFiscal,
+      capFiscale: data.indirizzoFiscaleUguale ? emptyFiscal : data.capFiscale?.trim() || emptyFiscal,
+      provinciaFiscale: data.indirizzoFiscaleUguale ? emptyFiscal : data.provinciaFiscale?.trim() || emptyFiscal,
     };
     onSubmit(formattedData);
   };
@@ -561,9 +606,71 @@ export default function ClienteForm({
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-4 space-y-4">
             <p className="text-xs text-muted-foreground" data-testid="text-billing-address-note">
-              L'indirizzo di fatturazione coincide con quello di residenza (Via, Città, CAP e
-              Provincia inseriti qui sopra): non serve reinserirlo.
+              Indica se l'indirizzo di residenza/fatturazione coincide con quello operativo già
+              inserito sopra.
             </p>
+
+            <FormField
+              control={form.control}
+              name="indirizzoFiscaleUguale"
+              render={({ field }) => (
+                <FormItem className="flex items-start gap-3 rounded-md border p-3">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                      data-testid="checkbox-indirizzo-fiscale-uguale"
+                    />
+                  </FormControl>
+                  <div className="space-y-1">
+                    <FormLabel className="cursor-pointer">
+                      L'indirizzo di residenza è uguale a quello impostato?
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      {field.value
+                        ? 'Verrà usato l’indirizzo operativo del cliente.'
+                        : 'Inserisci un indirizzo fiscale distinto, senza cambiare quello operativo.'}
+                    </p>
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            {!indirizzoFiscaleUguale && (
+              <div className="space-y-4 rounded-md border border-dashed p-4" data-testid="section-indirizzo-fiscale">
+                <h4 className="text-sm font-medium">Indirizzo di residenza / fatturazione</h4>
+                <FormField control={form.control} name="viaFiscale" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Via *</FormLabel>
+                    <FormControl><Input {...field} placeholder="Via Roma, 123" data-testid="input-via-fiscale" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField control={form.control} name="cittaFiscale" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Città *</FormLabel>
+                      <FormControl><Input {...field} placeholder="Milano" data-testid="input-citta-fiscale" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="capFiscale" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CAP *</FormLabel>
+                      <FormControl><Input {...field} placeholder="20100" data-testid="input-cap-fiscale" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="provinciaFiscale" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Provincia *</FormLabel>
+                      <FormControl><Input {...field} placeholder="MI" maxLength={2} data-testid="input-provincia-fiscale" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
+            )}
 
             <FormField
               control={form.control}

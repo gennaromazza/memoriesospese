@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useState } from 'react';
 import type { AppuntamentoCliente } from '@shared/jobs-types';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
+import { formatClienteAddress, getIndirizzoFiscale } from '@shared/clienti-address';
 
 interface ClienteJobCardProps {
   cliente: Cliente;
@@ -28,7 +29,7 @@ interface ClienteJobCardProps {
 function hasBillingData(c: Cliente): boolean {
   return Boolean(
     c.codiceFiscale || c.partitaIva || c.ragioneSociale || c.codiceSdi || c.pec ||
-    c.dataNascita || c.luogoNascita
+    c.dataNascita || c.luogoNascita || formatClienteAddress(getIndirizzoFiscale(c))
   );
 }
 
@@ -38,6 +39,8 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
   const [orario, setOrario] = useState(appuntamento?.orarioAppuntamento || '');
   const [note, setNote] = useState(appuntamento?.noteAppuntamento || '');
   const [saving, setSaving] = useState(false);
+  const indirizzoFiscale = getIndirizzoFiscale(cliente);
+  const indirizzoFiscaleLabel = formatClienteAddress(indirizzoFiscale);
 
   const isDirty =
     orario !== (appuntamento?.orarioAppuntamento || '') ||
@@ -338,7 +341,7 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                 ['PEC', cliente.pec],
                 ['Data di nascita', cliente.dataNascita],
                 ['Luogo di nascita', cliente.luogoNascita],
-                ['Indirizzo', [cliente.via, [cliente.cap, cliente.citta].filter(Boolean).join(' '), cliente.provincia].filter(Boolean).join(', ') || undefined],
+                 ['Indirizzo fiscale', indirizzoFiscaleLabel || undefined],
               ] as Array<[string, string | undefined]>)
                 .filter(([, v]) => v)
                 .map(([label, value]) => (
@@ -349,7 +352,9 @@ export default function ClienteJobCard({ cliente, appuntamento, onViewDetails, o
                 ))}
             </dl>
             <p className="text-xs text-muted-foreground">
-              L'indirizzo di fatturazione coincide con quello di residenza del cliente.
+              {indirizzoFiscale.isAlternativo
+                ? 'Indirizzo fiscale distinto dall’indirizzo operativo del cliente.'
+                : 'L’indirizzo di fatturazione coincide con quello operativo del cliente.'}
             </p>
           </DialogContent>
         </Dialog>

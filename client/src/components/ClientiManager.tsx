@@ -6,6 +6,7 @@ import {
   syncClientiFromAllSources,
   createCliente,
   updateCliente,
+  getClienteById,
   deleteCliente,
   getClienteStats,
   detectDuplicates,
@@ -95,8 +96,15 @@ export function ClientiManager() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateCliente }) =>
       updateCliente(id, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['clienti'] });
+      void getClienteById(variables.id)
+        .then((refreshedCliente) => {
+          setSelectedCliente((current) =>
+            current?.id === variables.id && refreshedCliente ? refreshedCliente : current,
+          );
+        })
+        .catch((error) => console.error('Impossibile aggiornare il dettaglio cliente:', error));
       toast({
         title: '✅ Cliente aggiornato',
         description: 'Le modifiche sono state salvate.',
