@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface SlideshowImage {
@@ -7,6 +7,7 @@ interface SlideshowImage {
   url: string;
   alt: string;
   position: number;
+  jobType?: string;
 }
 
 export default function HeroSlideshow() {
@@ -29,11 +30,7 @@ export default function HeroSlideshow() {
         const slideshowCollection = collection(db, 'slideshow');
 
         try {
-          const slideshowQuery = query(
-            slideshowCollection,
-            orderBy('position'),
-            limit(5)
-          );
+          const slideshowQuery = query(slideshowCollection, orderBy('position'));
           const querySnapshot = await getDocs(slideshowQuery);
 
           if (!querySnapshot.empty) {
@@ -44,15 +41,30 @@ export default function HeroSlideshow() {
                 id: doc.id,
                 url: data.url,
                 alt: data.alt || 'Slideshow image',
-                position: data.position || 0
+                position: data.position || 0,
+                jobType: typeof data.jobType === 'string' ? data.jobType : undefined,
               });
             });
 
-            setImages(fetchedImages);
+            const weddingImages = fetchedImages.filter(
+              (image) => image.jobType?.trim().toLowerCase() === 'matrimonio',
+            );
+            const nonWeddingImages = fetchedImages.filter(
+              (image) => image.jobType?.trim().toLowerCase() !== 'matrimonio',
+            );
+            // La priorità è data solo a immagini esplicitamente classificate
+            // come matrimonio; le altre restano un fallback sicuro.
+            const selectedImages = (
+              weddingImages.length > 0
+                ? [...weddingImages, ...nonWeddingImages]
+                : fetchedImages
+            ).slice(0, 5);
+
+            setImages(selectedImages);
             
-            if (fetchedImages.length > 1) {
+            if (selectedImages.length > 1) {
               setTimeout(() => {
-                fetchedImages.slice(1).forEach((img, idx) => {
+                selectedImages.slice(1).forEach((img, idx) => {
                   preloadImage(img.url, idx + 1);
                 });
               }, 100);

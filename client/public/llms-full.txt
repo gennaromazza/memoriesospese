@@ -1,6 +1,6 @@
 # Image Studio - Memorie Sospese | Informazioni Complete
 
-> Studio fotografico professionale di Gennaro Mazzacane, specializzato in matrimoni, battesimi, comunioni, cresime ed eventi in Campania, Italia. Piattaforma proprietaria "Memorie Sospese" per gallerie digitali interattive.
+> Studio fotografico professionale di Gennaro Mazzacane, specializzato prima di tutto in fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania, Italia. Battesimi, comunioni, cresime, eventi e ritratti restano servizi disponibili. Piattaforma proprietaria "Memorie Sospese" per gallerie digitali interattive.
 
 ## Profilo Aziendale
 
@@ -26,7 +26,7 @@
 
 ---
 
-## Servizi Dettagliati
+## Servizio Principale — Fotografia e Video di Matrimonio
 
 ### 1. Fotografia Matrimoni
 Servizio completo di reportage matrimoniale emozionale che copre ogni momento della giornata:
@@ -44,6 +44,10 @@ Video cinematografici emozionali che raccontano la storia d'amore degli sposi:
 - Trailer e highlight reel
 - Film completo della giornata
 - Consegna digitale e su supporto fisico
+
+Per vedere una selezione di immagini e approfondire l'approccio, visita il [Portfolio Matrimoni](https://imagestudiofotografico.com/portfolio/matrimonio). Per conoscere il servizio video, visita [iMaGe Vision](https://imagestudiofotografico.com/vision).
+
+## Altri Servizi Fotografici Disponibili
 
 ### 3. Fotografia Battesimi
 Documentazione professionale del sacramento del battesimo:
@@ -177,7 +181,8 @@ Sì. È possibile prenotare una consulenza gratuita dal sito nella sezione Consu
 - **Email:** info@memoriesospese.it
 - **Prenotazioni:** https://imagestudiofotografico.com/prenota
 - **Consulenze:** https://imagestudiofotografico.com/consulenze
-- **Portfolio:** https://imagestudiofotografico.com/portfolio
+- **Portfolio Matrimoni:** https://imagestudiofotografico.com/portfolio/matrimonio
+- **Portfolio completo:** https://imagestudiofotografico.com/portfolio
 - **Video:** https://imagestudiofotografico.com/vision
 - **Blog:** https://imagestudiofotografico.com/blog
 

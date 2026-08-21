@@ -7,6 +7,13 @@ import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
 import { useSEO } from "@/hooks/useSEO";
 import { portfolioCategoryContent, PortfolioInline, PortfolioParagraph } from "@shared/portfolio-seo-content";
+import {
+  WEDDING_AREAS,
+  WEDDING_PORTFOLIO_BREADCRUMB_JSON_LD,
+  WEDDING_PORTFOLIO_SEO,
+  WEDDING_PROCESS_STEPS,
+  WEDDING_SERVICE_JSON_LD,
+} from "@shared/public-seo-content";
 
 interface PortfolioPhoto {
   id: string;
@@ -37,17 +44,50 @@ export default function PortfolioCategoryPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const capitalizedCategoria = categoria ? categoria.charAt(0).toUpperCase() + categoria.slice(1) : '';
+  const isWeddingPortfolio = categoria === 'matrimonio';
 
   useSEO({
-    title: `Portfolio ${capitalizedCategoria} | Image Studio Napoli`,
-    description: `Galleria fotografica ${categoria || ''} di Image Studio. Foto professionali a Napoli, Caserta e Campania.`,
+    title: isWeddingPortfolio
+      ? WEDDING_PORTFOLIO_SEO.title
+      : `Portfolio ${capitalizedCategoria} | Image Studio Napoli`,
+    description: isWeddingPortfolio
+      ? WEDDING_PORTFOLIO_SEO.description
+      : `Galleria fotografica ${categoria || ''} di Image Studio. Foto professionali a Napoli, Caserta e Campania.`,
     canonical: `/portfolio/${categoria || ''}`,
-    keywords: `foto ${categoria || ''} napoli, ${categoria || ''} caserta, fotografo ${categoria || ''} campania`,
+    keywords: isWeddingPortfolio
+      ? WEDDING_PORTFOLIO_SEO.keywords
+      : `foto ${categoria || ''} napoli, ${categoria || ''} caserta, fotografo ${categoria || ''} campania`,
   });
 
   useEffect(() => {
     loadPhotos();
   }, [categoria]);
+
+  useEffect(() => {
+    if (!isWeddingPortfolio) return;
+
+    const script = document.createElement('script');
+    script.id = 'wedding-portfolio-jsonld';
+    script.type = 'application/ld+json';
+    const faqs = portfolioCategoryContent.matrimonio.faqs?.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.answer.map((part) => part.text).join(''),
+      },
+    }));
+    script.text = JSON.stringify([
+      WEDDING_SERVICE_JSON_LD,
+      WEDDING_PORTFOLIO_BREADCRUMB_JSON_LD,
+      ...(faqs?.length
+        ? [{ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs }]
+        : []),
+    ]);
+    document.head.appendChild(script);
+
+    return () => script.remove();
+  }, [isWeddingPortfolio]);
 
   const loadPhotos = async () => {
     if (!categoria) return;
@@ -97,10 +137,14 @@ export default function PortfolioCategoryPage() {
       <div className="max-w-7xl mx-auto px-4 py-16">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-playfair text-blue-gray mb-4">
-            {CATEGORY_LABELS[categoria || ''] || categoria?.replace('-', ' ')}
+            {isWeddingPortfolio
+              ? 'Fotografo di Matrimonio ad Aversa, Napoli e Caserta'
+              : CATEGORY_LABELS[categoria || ''] || categoria?.replace('-', ' ')}
           </h1>
           <p className="text-xl text-gray-600">
-            {loading ? 'Caricamento...' : `${photos.length} foto`}
+            {isWeddingPortfolio
+              ? 'Portfolio di fotografia e video di matrimonio in Campania'
+              : loading ? 'Caricamento...' : `${photos.length} foto`}
           </p>
         </div>
 
@@ -154,6 +198,44 @@ export default function PortfolioCategoryPage() {
             ))}
           </div>
         )}
+
+        {isWeddingPortfolio && (
+          <>
+            <WeddingPortfolioDetails />
+            <section className="max-w-4xl mx-auto mt-8 bg-sage/5 border border-sage/10 rounded-2xl p-8 sm:p-10">
+              <h2 className="text-3xl font-playfair text-blue-gray text-center mb-4">
+                Dal primo incontro alla galleria privata
+              </h2>
+              <p className="text-center text-gray-600 mb-6">
+                Lavoriamo ad {WEDDING_AREAS}. Ogni matrimonio parte da una
+                consulenza per conoscere la vostra storia e costruire un
+                racconto fedele alla giornata.
+              </p>
+              <ol className="grid sm:grid-cols-2 gap-4 mb-8">
+                {WEDDING_PROCESS_STEPS.map((step, index) => (
+                  <li key={step} className="flex gap-3 text-gray-700">
+                    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-sage text-sm font-semibold text-white">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <Link href="/consulenze">
+                  <Button className="bg-sage hover:bg-dark-sage text-white">
+                    Richiedi una consulenza gratuita
+                  </Button>
+                </Link>
+                <Link href="/vision">
+                  <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
+                    Scopri i video iMaGe Vision
+                  </Button>
+                </Link>
+              </div>
+            </section>
+          </>
+        )}
       </div>
 
       <Lightbox
@@ -202,7 +284,8 @@ function PortfolioSeoSection({ categoria }: { categoria: string }) {
   return (
     <section className="bg-gray-50 rounded-lg mb-12 py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* Intro sempre visibile */}
+        {/* Intro sempre visibile. La landing matrimonio mostra subito anche
+            percorso, aree e FAQ per mantenere il contenuto utile e leggibile. */}
         {firstSection && (
           <div>
             <h2 className="text-2xl font-playfair text-blue-gray mb-3">{firstSection.heading}</h2>
@@ -278,6 +361,46 @@ function PortfolioSeoSection({ categoria }: { categoria: string }) {
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+function WeddingPortfolioDetails() {
+  const content = portfolioCategoryContent.matrimonio;
+  const restSections = content.sections.slice(1);
+
+  return (
+    <section className="max-w-3xl mx-auto mt-16 space-y-8">
+      {restSections.map((section) => (
+        <div key={section.heading}>
+          <h2 className="text-2xl font-playfair text-blue-gray mb-3">
+            {section.heading}
+          </h2>
+          <div className="space-y-2">
+            {section.paragraphs.map((paragraph, index) => (
+              <RenderParagraph key={index} parts={paragraph} />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {content.faqs && content.faqs.length > 0 && (
+        <div>
+          <h2 className="text-2xl font-playfair text-blue-gray mb-6">
+            Domande Frequenti
+          </h2>
+          <dl className="space-y-6">
+            {content.faqs.map((faq) => (
+              <div key={faq.question} className="border-b border-gray-200 pb-6 last:border-b-0">
+                <dt className="text-lg font-semibold text-blue-gray mb-2">
+                  {faq.question}
+                </dt>
+                <dd><RenderParagraph parts={faq.answer} /></dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
     </section>
   );
 }

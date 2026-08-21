@@ -41,9 +41,10 @@ export async function generateDynamicSitemap(): Promise<string> {
   // Pagine statiche con data di ultima modifica REALE del contenuto
   // (aggiornare la data quando si modifica il contenuto/prerender della pagina)
   const staticPages: Array<{ path: string; changefreq: string; priority: string; lastmod: string }> = [
-    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-08-18' },
-    { path: '/portfolio', changefreq: 'weekly', priority: '0.95', lastmod: '2026-08-18' },
-    { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-18' },
+    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-08-21' },
+    { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.98', lastmod: '2026-08-21' },
+    { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-21' },
+    { path: '/portfolio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-21' },
     { path: '/portfolio/battesimo', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/comunione', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/cresima', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
@@ -51,7 +52,6 @@ export async function generateDynamicSitemap(): Promise<string> {
     { path: '/portfolio/ritratto', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
-    { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-02-06' },
     { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: '2026-08-18' },
     { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
     { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },

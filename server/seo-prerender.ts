@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from './firebase-admin';
 import { BlogPostStatus } from '../shared/schema';
+import { portfolioCategoryContent } from '../shared/portfolio-seo-content';
+import {
+  WEDDING_HOME_COPY,
+  WEDDING_HOME_SEO,
+  WEDDING_PORTFOLIO_BREADCRUMB_JSON_LD,
+  WEDDING_PORTFOLIO_SEO,
+  WEDDING_SERVICE_JSON_LD,
+} from '../shared/public-seo-content';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
@@ -20,6 +28,21 @@ function isBot(userAgent: string): boolean {
   return BOT_USER_AGENTS.some(bot => ua.includes(bot));
 }
 
+function isNonPrerenderablePath(path: string): boolean {
+  return (
+    path.startsWith('/api/') ||
+    path.startsWith('/admin') ||
+    path.startsWith('/gallery/') ||
+    path.startsWith('/view/') ||
+    path === '/special-gallery' ||
+    path.startsWith('/quote/') ||
+    path.startsWith('/preventivo-rapido/') ||
+    path.startsWith('/modulo/') ||
+    path.startsWith('/fotolibro/') ||
+    path.includes('.')
+  );
+}
+
 interface PageMeta {
   title: string;
   description: string;
@@ -34,30 +57,28 @@ interface PageMeta {
 function getStaticPageMeta(path: string): PageMeta | null {
   const pages: Record<string, PageMeta> = {
     '/': {
-      title: 'Fotografo Aversa | Image Studio | Matrimoni, Battesimi ed Eventi in Campania',
-      description: 'Fotografo professionista ad Aversa. Matrimoni, battesimi, comunioni ed eventi in Campania. Gennaro Mazzacane - 10+ anni di esperienza, 500+ matrimoni. Preventivo gratuito.',
+      title: WEDDING_HOME_SEO.title,
+      description: WEDDING_HOME_SEO.description,
       canonical: `${BASE_URL}/`,
-      keywords: 'fotografo Aversa, fotografo matrimoni Aversa, fotografo battesimi Aversa, fotografo matrimoni Napoli, fotografo matrimoni Caserta, fotografo professionista Campania, video matrimoni Aversa, memorie sospese, image studio, gallerie foto interattive',
+      keywords: WEDDING_HOME_SEO.keywords,
+      jsonLd: WEDDING_SERVICE_JSON_LD,
       bodyContent: `
-        <h1>Fotografo Aversa - Gennaro Mazzacane | Image Studio</h1>
-        <p>Image Studio è lo studio fotografico di Gennaro Mazzacane con sede ad Aversa (CE), specializzato in matrimoni, battesimi, comunioni, cresime ed eventi in Campania. Con oltre 10 anni di esperienza e 500+ matrimoni documentati, offriamo servizi fotografici emozionali ad Aversa, Napoli, Caserta, Salerno e Costiera Amalfitana.</p>
-        <h2>Fotografo Matrimoni Aversa</h2>
-        <p>Cerchi un fotografo di matrimonio ad Aversa? Image Studio offre un reportage fotografico completo della tua giornata: dai preparativi alla festa serale. Stile emozionale e documentaristico, galleria digitale Memorie Sospese inclusa.</p>
-        <h2>Fotografo Battesimi e Cerimonie Aversa</h2>
-        <p>Servizi fotografici professionali per battesimi, comunioni e cresime ad Aversa e nei comuni limitrofi: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, Giugliano in Campania.</p>
-        <h2>I Nostri Servizi</h2>
+        <h1>${WEDDING_HOME_COPY.heroTitle}</h1>
+        <p>${WEDDING_HOME_COPY.heroDescription}</p>
+        <h2>${WEDDING_HOME_COPY.portfolioTitle}</h2>
+        <p>${WEDDING_HOME_COPY.portfolioDescription}</p>
+        <p><a href="${BASE_URL}/portfolio/matrimonio">${WEDDING_HOME_COPY.portfolioCta}</a> | <a href="${BASE_URL}/consulenze">${WEDDING_HOME_COPY.consultationCta}</a></p>
+        <h2>Fotografia e video per matrimoni in Campania</h2>
+        <p>Image Studio è lo studio fotografico di Gennaro Mazzacane con sede ad Aversa (CE). Con oltre 10 anni di esperienza e 500+ matrimoni documentati, raccontiamo matrimoni ad Aversa, Napoli, Caserta, Salerno e Costiera Amalfitana con reportage fotografico e video iMaGe Vision.</p>
+        <h2>${WEDDING_HOME_COPY.secondaryTitle}</h2>
+        <p>${WEDDING_HOME_COPY.secondaryDescription}</p>
         <ul>
-          <li><a href="${BASE_URL}/portfolio/matrimonio">Fotografia Matrimoni Aversa</a> - Reportage emozionale completo</li>
-          <li>Video Matrimoni (iMaGe Vision) - Video cinematografici</li>
-          <li><a href="${BASE_URL}/portfolio/battesimo">Fotografia Battesimi Aversa</a>, Comunioni, Cresime</li>
-          <li>Ritratti e Book Fotografici</li>
-          <li>Gallerie Digitali "Memorie Sospese" - Gallerie interattive con selezione foto online</li>
+          <li><a href="${BASE_URL}/portfolio/matrimonio">Portfolio matrimoni</a></li>
+          <li><a href="${BASE_URL}/vision">Video matrimoni iMaGe Vision</a></li>
+          <li><a href="${BASE_URL}/portfolio/battesimo">Battesimi, comunioni e cresime</a></li>
+          <li><a href="${BASE_URL}/portfolio/evento">Eventi, ritratti e famiglia</a></li>
         </ul>
-        <h2>Aree Servite - Agro Aversano e Campania</h2>
-        <p>Operiamo principalmente ad Aversa e nell'agro aversano: Sant'Arpino, Succivo, Casal di Principe, Frignano, Parete, Carinaro, Lusciano, Teverola, San Marcellino, Orta di Atella, Giugliano in Campania, Napoli, Caserta, Salerno e Costiera Amalfitana.</p>
-        <h2>Quanto costa un fotografo di matrimonio ad Aversa?</h2>
-        <p>Il costo indicativo è tra €2.000 e €3.500 a seconda del pacchetto. Non è previsto costo di trasferta nell'area aversana. <a href="${BASE_URL}/consulenze">Richiedi un preventivo gratuito</a>.</p>
-        <p>Contattaci: info@memoriesospese.it | Tel: +39 334 710 3142 | <a href="${BASE_URL}/prenota">Prenota il tuo servizio</a> | <a href="${BASE_URL}/consulenze">Richiedi una consulenza</a></p>
+        <p><a href="${BASE_URL}/portfolio">Esplora tutte le categorie del portfolio</a> | <a href="${BASE_URL}/accesso-galleria">Accedi alla tua galleria</a></p>
       `
     },
     '/fotografo-aversa': {
@@ -141,16 +162,16 @@ function getStaticPageMeta(path: string): PageMeta | null {
       ],
     },
     '/portfolio': {
-      title: 'Portfolio Fotografico | Matrimoni, Battesimi, Eventi | Image Studio Napoli',
-      description: 'Scopri il portfolio fotografico di Image Studio: matrimoni, battesimi, comunioni, ritratti ed eventi a Napoli, Caserta e Campania. Fotografie emozionali che raccontano storie.',
+      title: 'Portfolio Matrimoni e Fotografia | Image Studio Aversa',
+      description: 'Scopri prima il portfolio matrimonio di Image Studio, poi battesimi, comunioni, eventi, ritratti e famiglia ad Aversa, Napoli, Caserta e in Campania.',
       canonical: `${BASE_URL}/portfolio`,
-      keywords: 'portfolio fotografo napoli, foto matrimoni campania, galleria fotografica matrimoni, foto battesimi napoli, foto comunioni caserta',
+      keywords: 'portfolio fotografo matrimonio aversa, foto matrimoni campania, galleria fotografica, foto battesimi napoli',
       bodyContent: `
-        <h1>Portfolio Fotografico - Image Studio</h1>
-        <p>Esplora il nostro portfolio fotografico organizzato per categorie: matrimoni, battesimi, comunioni, cresime, eventi, ritratti e foto di famiglia. Ogni servizio racconta una storia unica attraverso fotografie emozionali.</p>
+        <h1>Portfolio di fotografia di matrimonio</h1>
+        <p>In evidenza i matrimoni, poi tutti gli altri servizi fotografici dello studio.</p>
         <h2>Categorie</h2>
         <ul>
-          <li><a href="${BASE_URL}/portfolio/matrimonio">Matrimoni</a> - Reportage matrimoniali emozionali</li>
+          <li><a href="${BASE_URL}/portfolio/matrimonio">Matrimoni</a> - Reportage matrimoniali emozionali e portfolio principale</li>
           <li><a href="${BASE_URL}/portfolio/battesimo">Battesimi</a> - Documentazione professionale battesimi</li>
           <li><a href="${BASE_URL}/portfolio/comunione">Comunioni</a> - Fotografia comunioni</li>
           <li><a href="${BASE_URL}/portfolio/cresima">Cresime</a> - Fotografia cresime</li>
@@ -293,6 +314,59 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderPortfolioCategoryContent(category: string): string {
+  const content = portfolioCategoryContent[category];
+  if (!content) return '';
+
+  const sectionHtml = content.sections
+    .map(
+      (section) => `
+        <h2>${escapeHtml(section.heading)}</h2>
+        ${section.paragraphs
+          .map(
+            (paragraph) =>
+              `<p>${paragraph
+                .map((part) =>
+                  part.href
+                    ? `<a href="${BASE_URL}${escapeHtml(part.href)}">${escapeHtml(part.text)}</a>`
+                    : escapeHtml(part.text),
+                )
+                .join('')}</p>`,
+          )
+          .join('')}`,
+    )
+    .join('');
+
+  const faqHtml = content.faqs?.length
+    ? `
+      <h2>Domande Frequenti</h2>
+      ${content.faqs
+        .map(
+          (faq) => `
+            <h3>${escapeHtml(faq.question)}</h3>
+            <p>${faq.answer
+              .map((part) =>
+                part.href
+                  ? `<a href="${BASE_URL}${escapeHtml(part.href)}">${escapeHtml(part.text)}</a>`
+                  : escapeHtml(part.text),
+              )
+              .join('')}</p>`,
+        )
+        .join('')}`
+    : '';
+
+  const relatedHtml = content.relatedLinks?.length
+    ? `<p>Vedi anche: ${content.relatedLinks
+        .map(
+          (link) =>
+            `<a href="${BASE_URL}${escapeHtml(link.href)}">${escapeHtml(link.text)}</a>`,
+        )
+        .join(' | ')}</p>`
+    : '';
+
+  return `${sectionHtml}${faqHtml}${relatedHtml}`;
 }
 
 function isAllowedBlogContentUrl(value: string): boolean {
@@ -566,8 +640,8 @@ async function getBlogListMeta(): Promise<PageMeta> {
 function getPortfolioCategoryMeta(category: string): PageMeta | null {
   const categories: Record<string, { title: string; description: string }> = {
     'matrimonio': {
-      title: 'Portfolio Matrimoni | Fotografo Matrimoni Napoli Caserta | Image Studio',
-      description: 'Scopri i nostri migliori servizi fotografici matrimoniali. Reportage emozionali di matrimoni a Napoli, Caserta, Costiera Amalfitana e tutta la Campania.'
+      title: WEDDING_PORTFOLIO_SEO.title,
+      description: WEDDING_PORTFOLIO_SEO.description,
     },
     'battesimo': {
       title: 'Portfolio Battesimi | Fotografo Battesimi Napoli | Image Studio',
@@ -607,47 +681,6 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
     cresima: 'Cresime', evento: 'Eventi', ritratto: 'Ritratti', famiglia: 'Famiglia', altro: 'Altri Servizi',
   };
 
-  // Contenuto extra per categoria (approccio, aree servite, FAQ) — solo informazioni reali dello studio
-  const extraContent: Record<string, string> = {
-    matrimonio: `
-      <h2>Il Nostro Approccio alla Fotografia di Matrimonio</h2>
-      <p>Reportage documentaristico ed emozionale: raccontiamo la giornata così com'è, dai preparativi al taglio della torta, senza pose forzate. La filosofia "Lasciati Trasportare" di Gennaro Mazzacane privilegia i momenti autentici e le emozioni spontanee. Oltre 500 matrimoni documentati in più di 10 anni di attività.</p>
-      <h2>Dove Lavoriamo</h2>
-      <p>Fotografo di matrimonio ad Aversa e in tutta la Campania: Napoli, Caserta, Salerno e Costiera Amalfitana. Nessun costo di trasferta nell'agro aversano.</p>
-      <h2>Come Funziona</h2>
-      <p>Si parte da una <a href="${BASE_URL}/consulenze">consulenza gratuita</a> (di persona ad Aversa o in videocall) per conoscerci e definire il pacchetto. Dopo il matrimonio ricevi la galleria digitale privata "Memorie Sospese" per rivedere e selezionare le foto online.</p>
-      <h2>Domande Frequenti</h2>
-      <h3>Quanto costa un servizio fotografico di matrimonio?</h3>
-      <p>I pacchetti partono indicativamente da €2.000 fino a €3.500, con album fotografico e galleria digitale inclusi. <a href="${BASE_URL}/consulenze">Richiedi un preventivo gratuito</a>.</p>
-      <h3>In quanto tempo vengono consegnate le foto?</h3>
-      <p>La consegna avviene entro circa 12 settimane dal matrimonio, tramite galleria digitale privata e album.</p>
-      <h3>Fate anche il video del matrimonio?</h3>
-      <p>Sì, con <a href="${BASE_URL}/vision">iMaGe Vision</a> realizziamo video matrimoniali cinematografici, abbinabili al servizio fotografico.</p>
-      <p>Vedi anche: <a href="${BASE_URL}/fotografo-aversa">Fotografo ad Aversa</a> | <a href="${BASE_URL}/blog">Consigli e guide sul blog</a></p>`,
-    battesimo: `
-      <h2>Fotografia di Battesimo senza Pose Forzate</h2>
-      <p>Documentiamo la cerimonia e il ricevimento con discrezione: l'emozione dei genitori, i nonni, i dettagli della chiesa e della festa. Servizio disponibile ad Aversa, Napoli, Caserta e in tutta la Campania, senza costi di trasferta nell'agro aversano.</p>
-      <p>Le foto vengono consegnate nella galleria digitale privata "Memorie Sospese", da cui la famiglia può selezionare le preferite. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a> | <a href="${BASE_URL}/fotografo-aversa">Fotografo ad Aversa</a></p>`,
-    comunione: `
-      <h2>Prime Comunioni in Campania</h2>
-      <p>Reportage della cerimonia e del ricevimento, ritratti del festeggiato con la famiglia e attenzione ai dettagli. Operiamo ad Aversa e nei comuni dell'agro aversano, Napoli e Caserta. Consegna tramite galleria digitale privata. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
-    cresima: `
-      <h2>Fotografia per Cresime</h2>
-      <p>Documentiamo la celebrazione e i momenti in famiglia con uno stile naturale e discreto. Servizio attivo ad Aversa, Caserta, Napoli e provincia. Consegna tramite galleria digitale privata "Memorie Sospese". <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
-    evento: `
-      <h2>Eventi Aziendali e Privati</h2>
-      <p>Copertura fotografica di eventi, feste private e ricorrenze a Napoli, Caserta e in Campania: momenti chiave, ospiti e atmosfera, con consegna in galleria digitale. <a href="${BASE_URL}/consulenze">Parliamo del tuo evento</a></p>`,
-    ritratto: `
-      <h2>Ritratti e Book Fotografici</h2>
-      <p>Sessioni di ritratto individuali, di coppia e familiari, in studio ad Aversa o in esterna. Stile naturale, guida alla posa per chi non si sente fotogenico. <a href="${BASE_URL}/consulenze">Prenota una sessione</a></p>`,
-    famiglia: `
-      <h2>Fotografia di Famiglia</h2>
-      <p>Sessioni fotografiche di famiglia spontanee, in studio ad Aversa o nei luoghi a cui siete legati. Le foto restano disponibili nella galleria digitale privata. <a href="${BASE_URL}/consulenze">Richiedi informazioni</a></p>`,
-    altro: `
-      <h2>Altri Servizi Fotografici</h2>
-      <p>Lauree, anniversari, feste e progetti speciali ad Aversa, Napoli e Caserta. <a href="${BASE_URL}/consulenze">Raccontaci la tua idea</a></p>`,
-  };
-
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -658,49 +691,39 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
     ],
   };
 
-  // FAQPage JSON-LD per /portfolio/matrimonio — le stesse FAQ sono ora visibili
-  // anche nella pagina React (PortfolioCategoryPage.tsx via shared/portfolio-seo-content.ts).
-  const faqJsonLd = category === 'matrimonio' ? {
+  const weddingFaqs = portfolioCategoryContent.matrimonio.faqs;
+  // Le FAQ derivano dal contenuto condiviso che viene renderizzato anche in React.
+  const faqJsonLd = category === 'matrimonio' && weddingFaqs?.length ? {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    mainEntity: [
-      {
-        '@type': 'Question',
-        name: 'Quanto costa un servizio fotografico di matrimonio?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'I pacchetti partono indicativamente da €2.000 fino a €3.500, con album fotografico e galleria digitale inclusi. Richiedi un preventivo gratuito su imagestudiofotografico.com/consulenze.',
-        },
+    mainEntity: weddingFaqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: faq.answer.map((part) => part.text).join(''),
       },
-      {
-        '@type': 'Question',
-        name: 'In quanto tempo vengono consegnate le foto?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'La consegna avviene entro circa 12 settimane dal matrimonio, tramite galleria digitale privata e album.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Fate anche il video del matrimonio?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Sì, con iMaGe Vision realizziamo video matrimoniali cinematografici, abbinabili al servizio fotografico. Scopri di più su imagestudiofotografico.com/vision.',
-        },
-      },
-    ],
+    })),
   } : null;
 
   return {
     title: cat.title,
     description: cat.description,
     canonical: `${BASE_URL}/portfolio/${category}`,
-    keywords: `portfolio ${category} napoli, foto ${category} caserta, ${category} campania`,
-    jsonLd: faqJsonLd ? [breadcrumbJsonLd, faqJsonLd] : [breadcrumbJsonLd],
+    keywords: category === 'matrimonio'
+      ? WEDDING_PORTFOLIO_SEO.keywords
+      : `portfolio ${category} napoli, foto ${category} caserta, ${category} campania`,
+    jsonLd: category === 'matrimonio'
+      ? [
+          WEDDING_PORTFOLIO_BREADCRUMB_JSON_LD,
+          WEDDING_SERVICE_JSON_LD,
+          ...(faqJsonLd ? [faqJsonLd] : []),
+        ]
+      : [breadcrumbJsonLd],
     bodyContent: `
-      <h1>${cat.title.split(' | ')[0]}</h1>
-      <p>${cat.description}</p>
-      ${extraContent[category] || ''}
+      <h1>${category === 'matrimonio' ? 'Fotografo di Matrimonio ad Aversa, Napoli e Caserta' : cat.title.split(' | ')[0]}</h1>
+      <p>${category === 'matrimonio' ? 'Portfolio di fotografia e video di matrimonio in Campania' : cat.description}</p>
+      ${renderPortfolioCategoryContent(category)}
       <nav>
         <a href="${BASE_URL}/portfolio">Tutti i Portfolio</a>
         <a href="${BASE_URL}/">Home Image Studio</a>
@@ -836,7 +859,7 @@ export function createSeoMiddleware() {
 
     const path = req.path.replace(/\/$/, '') || '/';
 
-    if (path.startsWith('/api/') || path.startsWith('/admin') || path.includes('.')) {
+    if (isNonPrerenderablePath(path)) {
       return next();
     }
 

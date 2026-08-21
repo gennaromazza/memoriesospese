@@ -1,6 +1,6 @@
 # Image Studio - Memorie Sospese
 
-> Studio fotografico professionale specializzato in matrimoni, battesimi, comunioni, cresime ed eventi in Campania (Italia). Fondato da Gennaro Mazzacane, fotografo con oltre 10 anni di esperienza e 500+ matrimoni documentati.
+> Studio fotografico professionale specializzato prima di tutto in fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania (Italia). Fondato da Gennaro Mazzacane, fotografo con oltre 10 anni di esperienza e 500+ matrimoni documentati. Battesimi, comunioni, cresime, eventi e ritratti sono servizi aggiuntivi realmente disponibili.
 
 ## Informazioni Principali
 
@@ -11,10 +11,12 @@
 - **Email:** info@memoriesospese.it
 - **Aree Servite:** Napoli, Caserta, Aversa, Salerno, Costiera Amalfitana, tutta Italia e destination wedding internazionali
 
-## Servizi Offerti
+## Servizio Principale: Fotografia e Video di Matrimonio
 
-- **Fotografia Matrimoni:** Reportage emozionale completo del giorno più bello, dallo getting ready alla festa
-- **Video Matrimoni (iMaGe Vision):** Video cinematografici emozionali che raccontano la vostra storia d'amore
+- **Fotografia Matrimoni:** Reportage emozionale completo del giorno più bello, dallo getting ready alla festa. [Portfolio matrimoni](https://imagestudiofotografico.com/portfolio/matrimonio)
+- **Video Matrimoni (iMaGe Vision):** Video cinematografici emozionali che raccontano la vostra storia d'amore. [Scopri i video](https://imagestudiofotografico.com/vision)
+
+## Altri Servizi Disponibili
 - **Fotografia Battesimi:** Documentazione professionale di battesimi con attenzione ai dettagli e alle emozioni familiari
 - **Fotografia Comunioni e Cresime:** Servizi fotografici per cerimonie religiose in tutta la Campania
 - **Eventi Aziendali e Privati:** Copertura fotografica professionale per eventi corporate, feste private, compleanni
@@ -41,8 +43,9 @@ Memorie Sospese è la piattaforma digitale proprietaria di Image Studio che rivo
 
 ## Pagine Principali del Sito
 
-- [Home](https://imagestudiofotografico.com/) - Pagina principale con portfolio preview e campagne attive
-- [Portfolio](https://imagestudiofotografico.com/portfolio) - Galleria fotografica categorizzata per tipo di evento
+- [Home](https://imagestudiofotografico.com/) - Pagina principale dedicata prima a fotografia e video di matrimonio
+- [Portfolio Matrimoni](https://imagestudiofotografico.com/portfolio/matrimonio) - Landing e galleria principale per matrimoni ad Aversa, Napoli, Caserta e in Campania
+- [Portfolio completo](https://imagestudiofotografico.com/portfolio) - Galleria fotografica con tutte le categorie, inclusi i servizi non wedding
 - [Blog](https://imagestudiofotografico.com/blog) - Articoli, consigli e storie di matrimoni ed eventi
 - [Sitemap completa](https://imagestudiofotografico.com/sitemap.xml) - Elenco aggiornato delle pagine pubbliche e di tutti gli articoli pubblicati
 - [iMaGe Vision](https://imagestudiofotografico.com/vision) - Video matrimoniali cinematografici

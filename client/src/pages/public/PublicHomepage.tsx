@@ -39,6 +39,7 @@ import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import { WEDDING_HOME_COPY, WEDDING_HOME_SEO } from "@shared/public-seo-content";
 
 interface PortfolioPhoto {
   id: string;
@@ -46,12 +47,17 @@ interface PortfolioPhoto {
   galleryName: string;
   jobType: string;
   featured: boolean;
+  sortOrder?: number;
 }
+
+type PortfolioPreviewMode = "wedding" | "mixed-fallback";
 
 export default function PublicHomepage() {
   const { studioSettings } = useStudio();
   const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
+  const [portfolioPreviewMode, setPortfolioPreviewMode] =
+    useState<PortfolioPreviewMode>("wedding");
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
   const [blogPosts, setBlogPosts] = useState<any[]>([]);
@@ -62,10 +68,10 @@ export default function PublicHomepage() {
   usePrefetchPopularPages();
 
   useSEO({
-    title: "Image Studio | Fotografo Matrimoni Napoli Caserta | Memorie Sospese",
-    description: "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Memorie Sospese a Napoli, Caserta, Aversa, Costiera Amalfitana.",
+    title: WEDDING_HOME_SEO.title,
+    description: WEDDING_HOME_SEO.description,
     canonical: "/",
-    keywords: "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, memorie sospese, image studio",
+    keywords: WEDDING_HOME_SEO.keywords,
   });
 
   const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
@@ -82,60 +88,48 @@ export default function PublicHomepage() {
     setLoadingPhotos(true);
     try {
       const photosRef = collection(db, "portfolioSelections");
-      const q = query(
-        photosRef,
-        where("featured", "==", true),
-        orderBy("sortOrder", "asc"),
-        limit(6),
+      // Filtriamo prima per jobType, senza richiedere un indice composito:
+      // le foto matrimoniali devono avere precedenza anche se non sono "featured".
+      const weddingSnapshot = await getDocs(
+        query(photosRef, where("jobType", "==", "matrimonio")),
       );
-      const snapshot = await getDocs(q);
+      const weddingPhotos = weddingSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as PortfolioPhoto)
+        .sort(
+          (a, b) =>
+            Number(b.featured) - Number(a.featured) ||
+            (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+        );
 
-      let photos = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as PortfolioPhoto[];
+      let photos = weddingPhotos.slice(0, 6);
+      let previewMode: PortfolioPreviewMode = "wedding";
 
-      console.log(`[PublicHomepage] Featured photos loaded: ${photos.length}`);
-      photos.forEach((photo, idx) => {
-        console.log(`[PublicHomepage] Photo ${idx + 1}:`, {
-          id: photo.id,
-          photoUrl: photo.photoUrl,
-          galleryName: photo.galleryName,
-          featured: photo.featured,
-        });
-      });
-
-      // If less than 6 featured photos, fetch additional non-featured ones
+      // Fallback esplicito: se il catalogo wedding non basta, completiamo
+      // usando le selezioni generali già curate dall'amministratore.
       if (photos.length < 6) {
-        const remaining = 6 - photos.length;
-        const additionalQ = query(
-          photosRef,
-          where("featured", "==", false),
-          orderBy("sortOrder", "asc"),
-          limit(remaining),
+        const fallbackSnapshot = await getDocs(
+          query(
+            photosRef,
+            where("featured", "==", true),
+            orderBy("sortOrder", "asc"),
+            limit(12),
+          ),
         );
-        const additionalSnapshot = await getDocs(additionalQ);
-        const additionalPhotos = additionalSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as PortfolioPhoto[];
-
-        console.log(
-          `[PublicHomepage] Additional photos loaded: ${additionalPhotos.length}`,
-        );
-
-        // Append additional photos, deduplicating by id
-        const featuredIds = new Set(photos.map((p) => p.id));
-        const uniqueAdditional = additionalPhotos.filter(
-          (p) => !featuredIds.has(p.id),
-        );
-        photos = [...photos, ...uniqueAdditional].slice(0, 6);
+        const fallbackPhotos = fallbackSnapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }) as PortfolioPhoto)
+          .filter((photo) => !photos.some((selected) => selected.id === photo.id));
+        photos = [...photos, ...fallbackPhotos].slice(0, 6);
+        previewMode = "mixed-fallback";
       }
 
-      console.log(`[PublicHomepage] Total photos to display: ${photos.length}`);
+      setPortfolioPreviewMode(previewMode);
+      console.log(
+        `[PublicHomepage] Portfolio preview: ${photos.length} photos (${previewMode})`,
+      );
       setPortfolioPhotos(photos);
     } catch (error) {
       console.error("Errore caricamento portfolio preview:", error);
+      setPortfolioPreviewMode("mixed-fallback");
     } finally {
       setLoadingPhotos(false);
     }
@@ -247,14 +241,17 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
             <div className="animate-fade-in">
+              <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
+                {WEDDING_HOME_COPY.eyebrow}
+              </p>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
-                Fotografo di matrimoni ad Aversa, Napoli e Caserta
+                {WEDDING_HOME_COPY.heroTitle}
               </h1>
               <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
                 Lasciati Trasportare
               </p>
               <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
-                La fotografia è l'arte di immortalare momenti autentici
+                {WEDDING_HOME_COPY.heroDescription}
               </p>
               <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
                 È tutta questione di{" "}
@@ -268,10 +265,10 @@ export default function PublicHomepage() {
                     data-testid="button-prenota-hero"
                   >
                     <Calendar className="mr-2 h-5 w-5" />
-                    Prenota un Appuntamento
+                    {WEDDING_HOME_COPY.consultationCta}
                   </Button>
                 </Link>
-                <Link href="/portfolio">
+                <Link href="/portfolio/matrimonio">
                   <Button
                     size="lg"
                     variant="outline"
@@ -279,7 +276,7 @@ export default function PublicHomepage() {
                     data-testid="button-portfolio-hero"
                   >
                     <Camera className="mr-2 h-5 w-5" />
-                    Guarda il Portfolio
+                    {WEDDING_HOME_COPY.portfolioCta}
                   </Button>
                 </Link>
               </div>
@@ -344,10 +341,10 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-10 md:mb-12 animate-fade-in">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
-              Portfolio
+              {WEDDING_HOME_COPY.portfolioTitle}
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-600">
-              Ogni foto racconta una storia unica
+              {WEDDING_HOME_COPY.portfolioDescription}
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
@@ -361,7 +358,7 @@ export default function PublicHomepage() {
               ))
             ) : portfolioPhotos.length > 0 ? (
               portfolioPhotos.map((photo, index) => (
-                <Link key={photo.id} href="/portfolio">
+                <Link key={photo.id} href="/portfolio/matrimonio">
                   <div className="rounded-lg overflow-hidden group cursor-pointer">
                     <img
                       src={photo.photoUrl}
@@ -397,17 +394,40 @@ export default function PublicHomepage() {
               </div>
             )}
           </div>
+          {portfolioPreviewMode === "mixed-fallback" && (
+            <p className="text-center text-sm text-gray-500 mb-4">
+              Selezione matrimoniale in aggiornamento: mostriamo anche alcuni
+              lavori dello studio per farti conoscere il portfolio completo.
+            </p>
+          )}
           <div className="text-center">
-            <Link href="/portfolio">
+            <Link href="/portfolio/matrimonio">
               <Button
                 size="lg"
                 variant="outline"
                 className="border-sage text-sage hover:bg-sage/10"
               >
-                Vedi Tutto il Portfolio
+                {WEDDING_HOME_COPY.portfolioCta}
               </Button>
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Servizi secondari: disponibili, ma distinti dal focus wedding. */}
+      <section className="py-12 sm:py-16 bg-white px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-2xl sm:text-3xl font-playfair text-blue-gray mb-3">
+            {WEDDING_HOME_COPY.secondaryTitle}
+          </h2>
+          <p className="text-base sm:text-lg text-gray-600 mb-6">
+            {WEDDING_HOME_COPY.secondaryDescription}
+          </p>
+          <Link href="/portfolio">
+            <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
+              Esplora tutte le categorie
+            </Button>
+          </Link>
         </div>
       </section>
 
@@ -1283,10 +1303,16 @@ export default function PublicHomepage() {
                 Fotografo ad Aversa
               </Link>
               <Link
+                href="/portfolio/matrimonio"
+                className="block text-gray-300 hover:text-white"
+              >
+                Portfolio Matrimoni
+              </Link>
+              <Link
                 href="/portfolio"
                 className="block text-gray-300 hover:text-white"
               >
-                Portfolio
+                Tutte le categorie
               </Link>
               <Link
                 href="/storie"
@@ -1374,7 +1400,7 @@ export default function PublicHomepage() {
               "@type": "ProfessionalService",
               name: "Image Studio Fotografico",
               description:
-                "Fotografia professionale per matrimoni, battesimi e eventi a Napoli e Caserta",
+                "Fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Disponibili anche battesimi, comunioni ed eventi.",
               image: studioSettings.socialLinks.instagram || "",
               address: studioSettings.address
                 ? {

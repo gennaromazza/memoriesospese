@@ -41,10 +41,10 @@ export default function PortfolioPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useSEO({
-    title: "Portfolio Fotografico | Matrimoni, Battesimi, Eventi | Image Studio Napoli",
-    description: "Scopri il portfolio fotografico di Image Studio: matrimoni, battesimi, comunioni, ritratti ed eventi a Napoli, Caserta e Campania. Fotografie emozionali.",
+    title: "Portfolio Matrimoni e Fotografia | Image Studio Aversa",
+    description: "Scopri prima il portfolio matrimonio di Image Studio, poi battesimi, comunioni, eventi, ritratti e famiglia ad Aversa, Napoli, Caserta e in Campania.",
     canonical: "/portfolio",
-    keywords: "portfolio fotografo napoli, foto matrimoni campania, galleria fotografica, foto battesimi napoli",
+    keywords: "portfolio fotografo matrimonio aversa, foto matrimoni campania, galleria fotografica, foto battesimi napoli",
   });
 
   useEffect(() => {
@@ -89,7 +89,11 @@ export default function PortfolioPage() {
       }));
 
       // Ordina secondo il campo `ordine` di Firestore
-      summaries.sort((a, b) => a.ordine - b.ordine);
+      summaries.sort((a, b) => {
+        if (a.jobType === 'matrimonio') return -1;
+        if (b.jobType === 'matrimonio') return 1;
+        return a.ordine - b.ordine;
+      });
 
       setCategories(summaries);
     } catch (error) {
@@ -155,10 +159,12 @@ export default function PortfolioPage() {
 
       <div className="max-w-7xl mx-auto px-4 pt-24 sm:pt-28 md:pt-32 pb-12">
         <div className="text-center mb-12 animate-fade-in">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">Portfolio</h1>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">
+            Portfolio di fotografia di matrimonio
+          </h1>
           <p className="text-xl text-gray-600">
             {viewMode === 'categories' 
-              ? 'Esplora i miei lavori divisi per categoria' 
+              ? 'In evidenza i matrimoni, poi tutti gli altri servizi fotografici dello studio.'
               : `${filteredPhotos.length} foto`}
           </p>
         </div>

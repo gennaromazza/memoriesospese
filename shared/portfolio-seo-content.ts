@@ -66,6 +66,16 @@ export const portfolioCategoryContent: Record<string, PortfolioCategoryContent> 
           ],
         ],
       },
+      {
+        heading: 'Il Percorso del Vostro Matrimonio',
+        paragraphs: [
+          [
+            {
+              text: 'Dalla consulenza gratuita alla consegna, il percorso è costruito intorno alla vostra giornata: definiamo insieme le esigenze, raccontiamo il matrimonio dai preparativi alla festa e consegniamo le immagini nella galleria digitale privata "Memorie Sospese".',
+            },
+          ],
+        ],
+      },
     ],
     faqs: [
       {
