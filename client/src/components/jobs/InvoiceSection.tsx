@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileText, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Download, FileText, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -176,6 +176,24 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
     onError: (error) => setFormError(parseError(error)),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (invoice: InvoiceHistoryItem) => {
+      await apiRequest('DELETE', `/api/invoices/${invoice.id}`);
+      return invoice;
+    },
+    onSuccess: async (invoice) => {
+      await queryClient.invalidateQueries({ queryKey: ['invoices', jobId] });
+      toast({ title: 'Fattura eliminata', description: `${invoice.numero} è stata rimossa dallo storico.` });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Eliminazione non riuscita',
+        description: error instanceof Error ? error.message : 'Impossibile eliminare la fattura',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const downloadInvoice = async (invoice: InvoiceHistoryItem) => {
     try {
       const response = await apiRequest('GET', `/api/invoices/${invoice.id}/xml`);
@@ -183,6 +201,11 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
     } catch (error) {
       toast({ title: 'Download non riuscito', description: error instanceof Error ? error.message : 'Impossibile scaricare il file XML', variant: 'destructive' });
     }
+  };
+
+  const deleteInvoice = (invoice: InvoiceHistoryItem) => {
+    if (!window.confirm(`Eliminare definitivamente la fattura ${invoice.numero}? Il numero progressivo non verrà riutilizzato.`)) return;
+    deleteMutation.mutate(invoice);
   };
 
   const openDialog = () => {
@@ -220,9 +243,23 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
                     <p className="font-medium">{invoice.numero} · € {invoice.totals.totale.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground truncate">{invoice.issueDate} · {invoice.description}</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => downloadInvoice(invoice)}>
-                    <Download className="h-4 w-4 mr-1" /> XML
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => downloadInvoice(invoice)}>
+                      <Download className="h-4 w-4 mr-1" /> XML
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                      onClick={() => deleteInvoice(invoice)}
+                      disabled={deleteMutation.isPending}
+                      aria-label={`Elimina fattura ${invoice.numero}`}
+                    >
+                      {deleteMutation.isPending && deleteMutation.variables?.id === invoice.id
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
