@@ -102,7 +102,7 @@ export async function apiRequest(
     '/api/galleries/', // Gallery-scoped endpoints requiring auth (es. generazione miniature ospiti)
     '/api/bulk-email/', // Bulk email endpoints requiring auth
     '/api/receipts/', // Receipt endpoints requiring auth
-    '/api/invoices/', // Electronic invoice XML endpoints requiring auth
+    '/api/invoices', // Electronic invoice XML endpoints requiring auth
     '/api/reminders/', // Reminder endpoints requiring auth
     '/api/jobs', // Job endpoints requiring auth (matches /api/jobs, /api/jobs/, /api/jobs?...)
     '/api/migrations/', // Migration endpoints requiring auth
@@ -169,7 +169,7 @@ export const getQueryFn: <T>(options: {
       '/api/calendar/',
       '/api/consultations/v2/', // All V2 consultation endpoints except public ones
       '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
-      '/api/invoices/', // Electronic invoice XML endpoints requiring auth
+      '/api/invoices', // Electronic invoice XML endpoints requiring auth
     ];
     
     // Check specifico per consultations: tutti tranne i pubblici
