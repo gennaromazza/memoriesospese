@@ -116,7 +116,11 @@ function serializeInvoice(id: string, data: any): InvoiceHistoryItem {
 
 function filenameForInvoice(sender: FatturaPaSender, year: number, sequence: number): string {
   const senderId = cleanString(sender.partitaIVA || sender.codiceFiscale).replace(/[^A-Za-z0-9]/g, '') || 'MITTENTE';
-  return `IT${senderId}_${year}_${String(sequence).padStart(5, '0')}.xml`;
+  // Il progressivo nel nome file SdI può contenere al massimo 5 caratteri.
+  // Due cifre identificano l'anno; le altre tre contengono il progressivo in
+  // base 36, così restano disponibili oltre 46.000 nomi univoci per esercizio.
+  const fileProgressive = `${String(year).slice(-2)}${sequence.toString(36).toUpperCase().padStart(3, '0')}`;
+  return `IT${senderId}_${fileProgressive}.xml`;
 }
 
 async function loadDraftContext(draft: InvoiceDraftInput) {

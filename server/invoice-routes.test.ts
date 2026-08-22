@@ -156,6 +156,7 @@ describe('invoice routes', () => {
       recipient: { codiceDestinatario: '0000000' },
     });
     expect(created.status).toBe(201);
+    expect(createdBody.filename).toBe('IT00743110157_26001.xml');
     expect(invoice.senderSnapshot).toMatchObject({
       partitaIVA: '00743110157',
       regimeFiscale: 'RF19',
