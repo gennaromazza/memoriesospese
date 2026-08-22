@@ -146,6 +146,8 @@ function parseServiceAccountCredentials(): { email: string; key: string } {
     key = `-----BEGIN PRIVATE KEY-----\n${key}\n-----END PRIVATE KEY-----\n`;
   }
 
+  key = key.replace(/\\n/g, "\n");
+
   return { email, key };
 }
 
