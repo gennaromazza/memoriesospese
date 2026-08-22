@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, query, orderBy, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { useToast } from "../hooks/use-toast";
@@ -11,6 +11,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Switch } from "./ui/switch";
+import { normalizeSlideshowPositions } from '@shared/slideshow-utils';
 
 interface SlideshowImage {
   id: string;
@@ -55,7 +56,7 @@ export default function SlideshowManager() {
               id: doc.id,
               url: data.url,
               alt: data.alt || '',
-              active: data.active || false,
+              active: data.active !== false,
               position: data.position || 0
             });
           });
@@ -63,12 +64,20 @@ export default function SlideshowManager() {
           
         }
       } catch (queryError) {
-        
+        console.error('Errore query slideshow:', queryError);
+        throw queryError;
       }
-      
-      setImages(fetchedImages);
+
+      const normalized = normalizeSlideshowPositions(fetchedImages);
+      const changed = normalized.some((image, index) => fetchedImages[index]?.id !== image.id || fetchedImages[index]?.position !== image.position);
+      if (changed) {
+        const batch = writeBatch(db);
+        normalized.forEach((image) => batch.update(doc(db, 'slideshow', image.id), { position: image.position }));
+        await batch.commit();
+      }
+      setImages(normalized);
     } catch (error) {
-      
+      console.error('Errore caricamento slideshow:', error);
       toast({
         variant: "destructive",
         title: "Errore",
@@ -109,7 +118,7 @@ export default function SlideshowManager() {
         url: downloadURL,
         alt: altText || file.name,
         active: true,
-        position: images.length,
+        position: images.reduce((max, image) => Math.max(max, image.position), -1) + 1,
         createdAt: new Date()
       });
 
@@ -123,7 +132,7 @@ export default function SlideshowManager() {
       setAltText('');
       fetchSlideshowImages();
     } catch (error) {
-      
+      console.error('Errore upload slideshow:', error);
       toast({
         variant: "destructive",
         title: "Errore",
@@ -151,7 +160,7 @@ export default function SlideshowManager() {
         description: `Immagine ${!image.active ? 'attivata' : 'disattivata'}.`
       });
     } catch (error) {
-      
+      console.error('Errore aggiornamento stato slideshow:', error);
       toast({
         variant: "destructive",
         title: "Errore",
@@ -173,22 +182,15 @@ export default function SlideshowManager() {
     const swapImage = images[newIndex];
 
     try {
-      // Aggiorna le posizioni in Firestore
-      const imageDocRef = doc(db, 'slideshow', image.id);
-      const swapImageDocRef = doc(db, 'slideshow', swapImage.id);
-
-      await updateDoc(imageDocRef, { position: newIndex });
-      await updateDoc(swapImageDocRef, { position: currentIndex });
-
-      // Aggiorna l'array locale
       const newImages = [...images];
-      newImages[currentIndex] = { ...newImages[currentIndex], position: newIndex };
-      newImages[newIndex] = { ...newImages[newIndex], position: currentIndex };
-      newImages.sort((a, b) => a.position - b.position);
-      
-      setImages(newImages);
+      [newImages[currentIndex], newImages[newIndex]] = [swapImage, image];
+      const normalized = newImages.map((item, position) => ({ ...item, position }));
+      const batch = writeBatch(db);
+      normalized.forEach((item) => batch.update(doc(db, 'slideshow', item.id), { position: item.position }));
+      await batch.commit();
+      setImages(normalized);
     } catch (error) {
-      
+      console.error('Errore riordino slideshow:', error);
       toast({
         variant: "destructive",
         title: "Errore",
@@ -215,18 +217,23 @@ export default function SlideshowManager() {
       try {
         await deleteObject(imageRef);
       } catch (storageError) {
-        
+        console.warn('File slideshow non eliminato da Storage:', storageError);
       }
 
-      // Aggiorna la lista locale
-      setImages(images.filter(img => img.id !== image.id));
+      const remaining = images.filter(img => img.id !== image.id).map((item, position) => ({ ...item, position }));
+      if (remaining.length > 0) {
+        const batch = writeBatch(db);
+        remaining.forEach((item) => batch.update(doc(db, 'slideshow', item.id), { position: item.position }));
+        await batch.commit();
+      }
+      setImages(remaining);
       
       toast({
         title: "Immagine eliminata",
         description: "L'immagine è stata rimossa dallo slideshow."
       });
     } catch (error) {
-      
+      console.error('Errore eliminazione slideshow:', error);
       toast({
         variant: "destructive",
         title: "Errore",
