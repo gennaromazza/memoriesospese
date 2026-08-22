@@ -263,7 +263,7 @@ router.post('/', async (req: any, res: Response) => {
         numero,
         year,
         issueDate: draft.issueDate,
-        input: draft,
+        input: Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== undefined)),
         totals,
         filename,
         xml,
