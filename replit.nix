@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.psmisc
     pkgs.xorg.libXScrnSaver
     pkgs.xorg.libXtst
     pkgs.xorg.libXrender
