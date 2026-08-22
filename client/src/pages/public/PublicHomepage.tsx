@@ -24,6 +24,7 @@ import {
   Sparkles,
   Lock,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
@@ -39,7 +40,9 @@ import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
-import { WEDDING_HOME_COPY, WEDDING_HOME_SEO } from "@shared/public-seo-content";
+import { WEDDING_HOME_SEO } from "@shared/public-seo-content";
+import { resolveHomepageContent } from "@shared/homepage-content";
+import { instagramHandle, normalizeSocialUrl } from "@/lib/social-links";
 
 interface PortfolioPhoto {
   id: string;
@@ -54,6 +57,9 @@ type PortfolioPreviewMode = "wedding" | "mixed-fallback";
 
 export default function PublicHomepage() {
   const { studioSettings } = useStudio();
+  const homepageContent = resolveHomepageContent(studioSettings.homepageContent);
+  const instagramUrl = normalizeSocialUrl("instagram", studioSettings.socialLinks?.instagram);
+  const instagramUsername = instagramHandle(studioSettings.socialLinks?.instagram);
   const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
   const [portfolioPreviewMode, setPortfolioPreviewMode] =
@@ -242,20 +248,19 @@ export default function PublicHomepage() {
           <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
             <div className="animate-fade-in">
               <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
-                {WEDDING_HOME_COPY.eyebrow}
+                {homepageContent.hero.eyebrow}
               </p>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
-                {WEDDING_HOME_COPY.heroTitle}
+                {homepageContent.hero.title}
               </h1>
               <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
-                Lasciati Trasportare
+                {homepageContent.hero.tagline}
               </p>
               <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
-                {WEDDING_HOME_COPY.heroDescription}
+                {homepageContent.hero.description}
               </p>
               <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
-                È tutta questione di{" "}
-                <span className="font-semibold text-sage">Image</span>
+                {homepageContent.hero.signature}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/consulenze">
@@ -265,7 +270,7 @@ export default function PublicHomepage() {
                     data-testid="button-prenota-hero"
                   >
                     <Calendar className="mr-2 h-5 w-5" />
-                    {WEDDING_HOME_COPY.consultationCta}
+                    {homepageContent.hero.primaryCta}
                   </Button>
                 </Link>
                 <Link href="/portfolio/matrimonio">
@@ -276,7 +281,7 @@ export default function PublicHomepage() {
                     data-testid="button-portfolio-hero"
                   >
                     <Camera className="mr-2 h-5 w-5" />
-                    {WEDDING_HOME_COPY.portfolioCta}
+                    {homepageContent.hero.portfolioCta}
                   </Button>
                 </Link>
               </div>
@@ -288,7 +293,7 @@ export default function PublicHomepage() {
                     data-testid="link-accesso-galleria-hero"
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Hai partecipato a un evento? Accedi alla tua galleria
+                    {homepageContent.hero.galleryAccessText}
                   </Button>
                 </Link>
               </div>
@@ -341,10 +346,10 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-10 md:mb-12 animate-fade-in">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
-              {WEDDING_HOME_COPY.portfolioTitle}
+              {homepageContent.portfolio.title}
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-600">
-              {WEDDING_HOME_COPY.portfolioDescription}
+              {homepageContent.portfolio.description}
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
@@ -407,7 +412,7 @@ export default function PublicHomepage() {
                 variant="outline"
                 className="border-sage text-sage hover:bg-sage/10"
               >
-                {WEDDING_HOME_COPY.portfolioCta}
+                {homepageContent.portfolio.cta}
               </Button>
             </Link>
           </div>
@@ -418,14 +423,14 @@ export default function PublicHomepage() {
       <section className="py-12 sm:py-16 bg-white px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-playfair text-blue-gray mb-3">
-            {WEDDING_HOME_COPY.secondaryTitle}
+            {homepageContent.secondaryServices.title}
           </h2>
           <p className="text-base sm:text-lg text-gray-600 mb-6">
-            {WEDDING_HOME_COPY.secondaryDescription}
+            {homepageContent.secondaryServices.description}
           </p>
           <Link href="/portfolio">
             <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
-              Esplora tutte le categorie
+              {homepageContent.secondaryServices.cta}
             </Button>
           </Link>
         </div>
@@ -1180,7 +1185,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Instagram Feed */}
-      {studioSettings.socialLinks?.instagram && (
+      {instagramUrl && instagramUsername && (
         <section className="py-20 bg-gradient-to-b from-cream/30 to-white relative overflow-hidden">
           <FloralCorner
             position="top-left"
@@ -1207,18 +1212,7 @@ export default function PublicHomepage() {
               </p>
 
               <a
-                href={(() => {
-                  const normalized = studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "");
-                  return normalized
-                    ? `https://www.instagram.com/${normalized}`
-                    : studioSettings.socialLinks.instagram.startsWith("http")
-                      ? studioSettings.socialLinks.instagram
-                      : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`;
-                })()}
+                href={instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
@@ -1227,11 +1221,7 @@ export default function PublicHomepage() {
                 <Instagram className="w-5 h-5" />
                 <span>
                   @
-                  {studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "")}
+                  {instagramUsername}
                 </span>
               </a>
             </div>
@@ -1243,11 +1233,7 @@ export default function PublicHomepage() {
                 style={{ maxHeight: "600px", overflowY: "auto" }}
               >
                 <iframe
-                  src={`https://www.instagram.com/${studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "")}/embed`}
+                  src={`https://www.instagram.com/${instagramUsername}/embed`}
                   className="w-full border-0 rounded-lg"
                   style={{ minHeight: "350px", height: "450px" }}
                   scrolling="yes"
@@ -1267,6 +1253,33 @@ export default function PublicHomepage() {
         </section>
       )}
 
+      {(studioSettings.whatsapp || studioSettings.phone) && (
+        <section className="bg-white px-4 py-16">
+          <div className="mx-auto max-w-4xl rounded-2xl bg-gradient-to-br from-sage/15 to-mint/20 px-6 py-10 text-center shadow-sm">
+            <MessageCircle className="mx-auto mb-4 h-12 w-12 text-sage" />
+            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-sage">
+              {homepageContent.whatsapp.subtitle}
+            </p>
+            <h2 className="mb-4 text-3xl font-playfair text-blue-gray">
+              {homepageContent.whatsapp.title}
+            </h2>
+            <p className="mx-auto mb-6 max-w-2xl text-gray-600">
+              {homepageContent.whatsapp.description}
+            </p>
+            <a
+              href={`https://wa.me/${(studioSettings.whatsapp || studioSettings.phone).replace(/\D/g, '')}?text=${encodeURIComponent(homepageContent.whatsapp.initialMessage)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="lg" className="bg-sage text-white hover:bg-dark-sage">
+                <MessageCircle className="mr-2 h-5 w-5" />
+                {homepageContent.whatsapp.buttonText}
+              </Button>
+            </a>
+          </div>
+        </section>
+      )}
+
       {/* Footer */}
       <footer className="bg-blue-gray text-white py-12 px-4">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
@@ -1280,9 +1293,9 @@ export default function PublicHomepage() {
               {studioSettings.about ||
                 "Studio fotografico per matrimoni ed eventi a Napoli e Caserta"}
             </p>
-            {studioSettings.socialLinks.instagram && (
+            {instagramUrl && (
               <a
-                href={studioSettings.socialLinks.instagram}
+                href={instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition"
@@ -1386,7 +1399,7 @@ export default function PublicHomepage() {
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
           <p>
-            © {new Date().getFullYear()} iMaGe Studio Fotografico - Gennaro Mazzacane. Tutti i
+            © {new Date().getFullYear()} {studioSettings.name}. Tutti i
             diritti riservati.
           </p>
         </div>
@@ -1398,22 +1411,22 @@ export default function PublicHomepage() {
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "ProfessionalService",
-              name: "Image Studio Fotografico",
+              name: studioSettings.name,
               description:
                 "Fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Disponibili anche battesimi, comunioni ed eventi.",
-              image: studioSettings.socialLinks.instagram || "",
+              image: studioSettings.logo || "",
               address: studioSettings.address
                 ? {
                     "@type": "PostalAddress",
                     streetAddress: studioSettings.address,
-                    addressLocality: "Napoli",
-                    addressRegion: "Campania",
+                    addressLocality: studioSettings.fiscalComune || "Aversa",
+                    addressRegion: studioSettings.fiscalProvincia || "CE",
                     addressCountry: "IT",
                   }
                 : undefined,
               telephone: studioSettings.phone || "",
               email: studioSettings.email || "",
-              url: window.location.origin,
+              url: studioSettings.websiteUrl || window.location.origin,
               priceRange: "€€€",
               openingHours: "Mo-Fr 09:00-18:00",
             }),
