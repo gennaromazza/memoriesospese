@@ -245,8 +245,8 @@ export default function PublicHomepage() {
       {/* Hero Section */}
       <section className="pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
-            <div className="animate-fade-in">
+          <div className="grid w-full min-w-0 grid-cols-1 items-center gap-8 sm:gap-10 md:grid-cols-2 md:gap-12">
+            <div className="min-w-0 max-w-full animate-fade-in">
               <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
                 {homepageContent.hero.eyebrow}
               </p>
@@ -298,7 +298,7 @@ export default function PublicHomepage() {
                 </Link>
               </div>
             </div>
-            <div className="relative h-[280px] sm:h-[400px] md:h-[500px] rounded-xl sm:rounded-2xl overflow-hidden shadow-lg sm:shadow-2xl animate-slide-up">
+            <div className="relative isolate mx-auto h-[280px] w-full min-w-0 max-w-full overflow-hidden rounded-xl shadow-lg sm:h-[400px] sm:rounded-2xl sm:shadow-2xl md:mx-0 md:h-[500px] md:animate-slide-up">
               <HeroSlideshow />
             </div>
           </div>
