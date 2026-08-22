@@ -53,6 +53,9 @@ const NATURE_BY_TREATMENT: Partial<Record<InvoiceTaxTreatment, string>> = {
 export const FORFETTARIO_N2_2_CAUSALE =
   "Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della Legge n. 190/2014 e successive modificazioni";
 
+export const IMPOSTA_DI_BOLLO = 2;
+export const SOGLIA_IMPOSTA_DI_BOLLO = 77.47;
+
 const VALID_TAX_TREATMENTS: InvoiceTaxTreatment[] = [
   'iva_ordinaria', 'iva_10', 'iva_5', 'iva_4', 'esente', 'non_imponibile', 'fuori_campo',
 ];
@@ -207,6 +210,16 @@ function money(value: number): string {
   return (Math.round(value * 100) / 100).toFixed(2);
 }
 
+function italianProvince(value: string | undefined): string {
+  return normalizeFiscalString(value || '').slice(0, 2);
+}
+
+function requiresStampDuty(sender: FatturaPaSender, totals: InvoiceTotals): boolean {
+  return normalizeFiscalString(sender.regimeFiscale || '') === 'RF19'
+    && totals.natura === 'N2.2'
+    && totals.imponibile > SOGLIA_IMPOSTA_DI_BOLLO;
+}
+
 export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
   const { sender, recipient, input, totals } = document;
   const senderVat = normalizeFiscalString(sender.partitaIVA || '').replace(/^IT/, '');
@@ -232,6 +245,9 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
       : []),
   ].filter(hasText).map((causale) => xmlTag('Causale', causale)).join('');
   const progressivoInvio = input.invoiceNumber.replace(/\D/g, '').slice(-10).padStart(5, '0');
+  const datiBollo = requiresStampDuty(sender, totals)
+    ? `<DatiBollo>${xmlTag('BolloVirtuale', 'SI')}${xmlTag('ImportoBollo', money(IMPOSTA_DI_BOLLO))}</DatiBollo>`
+    : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <p:FatturaElettronica versione="FPR12" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
@@ -254,7 +270,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
         ${xmlTag('Indirizzo', sender.fiscalVia)}
         ${xmlTag('CAP', sender.fiscalCap)}
         ${xmlTag('Comune', sender.fiscalComune)}
-        ${xmlTag('Provincia', sender.fiscalProvincia)}
+        ${xmlTag('Provincia', italianProvince(sender.fiscalProvincia))}
         ${xmlTag('Nazione', 'IT')}
       </Sede>
     </CedentePrestatore>
@@ -268,7 +284,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
         ${xmlTag('Indirizzo', address.via)}
         ${xmlTag('CAP', address.cap)}
         ${xmlTag('Comune', address.citta)}
-        ${xmlTag('Provincia', address.provincia)}
+        ${xmlTag('Provincia', italianProvince(address.provincia))}
         ${xmlTag('Nazione', 'IT')}
       </Sede>
     </CessionarioCommittente>
@@ -280,6 +296,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
         ${xmlTag('Divisa', 'EUR')}
         ${xmlTag('Data', input.issueDate)}
         ${xmlTag('Numero', input.invoiceNumber)}
+        ${datiBollo}
         ${xmlTag('ImportoTotaleDocumento', money(totals.totale))}
         ${causali}
       </DatiGeneraliDocumento>
