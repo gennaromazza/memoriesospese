@@ -250,7 +250,7 @@ export function buildFatturaPaXml(document: FatturaPaDocumentInput): string {
     : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<p:FatturaElettronica versione="FPR12" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
+<p:FatturaElettronica versione="FPR12" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
   <FatturaElettronicaHeader>
     <DatiTrasmissione>
       <IdTrasmittente>${xmlTag('IdPaese', 'IT')}${xmlTag('IdCodice', senderFiscalId)}</IdTrasmittente>
