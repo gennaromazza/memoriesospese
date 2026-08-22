@@ -322,4 +322,25 @@ router.get('/:invoiceId/xml', async (req: any, res: Response) => {
   }
 });
 
+router.delete('/:invoiceId', async (req: any, res: Response) => {
+  try {
+    const invoiceRef = db.collection(INVOICES_COLLECTION).doc(req.params.invoiceId);
+    const invoiceDoc = await invoiceRef.get();
+    if (!invoiceDoc.exists) return res.status(404).json({ error: 'Fattura non trovata' });
+
+    const idempotencySnapshot = await db.collection('invoiceIdempotency')
+      .where('invoiceId', '==', req.params.invoiceId)
+      .get();
+    await Promise.all([
+      invoiceRef.delete(),
+      ...idempotencySnapshot.docs.map((doc) => doc.ref.delete()),
+    ]);
+
+    return res.json({ deleted: true, invoiceId: req.params.invoiceId });
+  } catch (error) {
+    console.error('Errore eliminazione fattura:', error);
+    return res.status(500).json({ error: 'Impossibile eliminare la fattura' });
+  }
+});
+
 export default router;
