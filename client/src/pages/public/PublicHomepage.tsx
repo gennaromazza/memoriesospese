@@ -24,6 +24,7 @@ import {
   Sparkles,
   Lock,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
@@ -39,6 +40,9 @@ import ReviewsWidget from "@/components/ReviewsWidget";
 import { usePrefetchPopularPages } from "@/hooks/usePrefetch";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import { WEDDING_HOME_SEO } from "@shared/public-seo-content";
+import { resolveHomepageContent } from "@shared/homepage-content";
+import { instagramHandle, normalizeSocialUrl } from "@/lib/social-links";
 
 interface PortfolioPhoto {
   id: string;
@@ -46,12 +50,20 @@ interface PortfolioPhoto {
   galleryName: string;
   jobType: string;
   featured: boolean;
+  sortOrder?: number;
 }
+
+type PortfolioPreviewMode = "wedding" | "mixed-fallback";
 
 export default function PublicHomepage() {
   const { studioSettings } = useStudio();
+  const homepageContent = resolveHomepageContent(studioSettings.homepageContent);
+  const instagramUrl = normalizeSocialUrl("instagram", studioSettings.socialLinks?.instagram);
+  const instagramUsername = instagramHandle(studioSettings.socialLinks?.instagram);
   const [, navigate] = useLocation();
   const [portfolioPhotos, setPortfolioPhotos] = useState<PortfolioPhoto[]>([]);
+  const [portfolioPreviewMode, setPortfolioPreviewMode] =
+    useState<PortfolioPreviewMode>("wedding");
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
   const [blogPosts, setBlogPosts] = useState<any[]>([]);
@@ -62,10 +74,10 @@ export default function PublicHomepage() {
   usePrefetchPopularPages();
 
   useSEO({
-    title: "Image Studio | Fotografo Matrimoni Napoli Caserta | Memorie Sospese",
-    description: "Fotografo professionista per matrimoni, battesimi, eventi in Campania. 10+ anni esperienza, 500+ matrimoni. Gallerie digitali Memorie Sospese a Napoli, Caserta, Aversa, Costiera Amalfitana.",
+    title: WEDDING_HOME_SEO.title,
+    description: WEDDING_HOME_SEO.description,
     canonical: "/",
-    keywords: "fotografo matrimoni napoli, fotografo matrimoni caserta, fotografo professionista aversa, video matrimoni campania, memorie sospese, image studio",
+    keywords: WEDDING_HOME_SEO.keywords,
   });
 
   const [emblaRef] = useEmblaCarousel({ loop: true, align: "center" }, [
@@ -82,60 +94,48 @@ export default function PublicHomepage() {
     setLoadingPhotos(true);
     try {
       const photosRef = collection(db, "portfolioSelections");
-      const q = query(
-        photosRef,
-        where("featured", "==", true),
-        orderBy("sortOrder", "asc"),
-        limit(6),
+      // Filtriamo prima per jobType, senza richiedere un indice composito:
+      // le foto matrimoniali devono avere precedenza anche se non sono "featured".
+      const weddingSnapshot = await getDocs(
+        query(photosRef, where("jobType", "==", "matrimonio")),
       );
-      const snapshot = await getDocs(q);
+      const weddingPhotos = weddingSnapshot.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as PortfolioPhoto)
+        .sort(
+          (a, b) =>
+            Number(b.featured) - Number(a.featured) ||
+            (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+        );
 
-      let photos = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as PortfolioPhoto[];
+      let photos = weddingPhotos.slice(0, 6);
+      let previewMode: PortfolioPreviewMode = "wedding";
 
-      console.log(`[PublicHomepage] Featured photos loaded: ${photos.length}`);
-      photos.forEach((photo, idx) => {
-        console.log(`[PublicHomepage] Photo ${idx + 1}:`, {
-          id: photo.id,
-          photoUrl: photo.photoUrl,
-          galleryName: photo.galleryName,
-          featured: photo.featured,
-        });
-      });
-
-      // If less than 6 featured photos, fetch additional non-featured ones
+      // Fallback esplicito: se il catalogo wedding non basta, completiamo
+      // usando le selezioni generali già curate dall'amministratore.
       if (photos.length < 6) {
-        const remaining = 6 - photos.length;
-        const additionalQ = query(
-          photosRef,
-          where("featured", "==", false),
-          orderBy("sortOrder", "asc"),
-          limit(remaining),
+        const fallbackSnapshot = await getDocs(
+          query(
+            photosRef,
+            where("featured", "==", true),
+            orderBy("sortOrder", "asc"),
+            limit(12),
+          ),
         );
-        const additionalSnapshot = await getDocs(additionalQ);
-        const additionalPhotos = additionalSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as PortfolioPhoto[];
-
-        console.log(
-          `[PublicHomepage] Additional photos loaded: ${additionalPhotos.length}`,
-        );
-
-        // Append additional photos, deduplicating by id
-        const featuredIds = new Set(photos.map((p) => p.id));
-        const uniqueAdditional = additionalPhotos.filter(
-          (p) => !featuredIds.has(p.id),
-        );
-        photos = [...photos, ...uniqueAdditional].slice(0, 6);
+        const fallbackPhotos = fallbackSnapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() }) as PortfolioPhoto)
+          .filter((photo) => !photos.some((selected) => selected.id === photo.id));
+        photos = [...photos, ...fallbackPhotos].slice(0, 6);
+        previewMode = "mixed-fallback";
       }
 
-      console.log(`[PublicHomepage] Total photos to display: ${photos.length}`);
+      setPortfolioPreviewMode(previewMode);
+      console.log(
+        `[PublicHomepage] Portfolio preview: ${photos.length} photos (${previewMode})`,
+      );
       setPortfolioPhotos(photos);
     } catch (error) {
       console.error("Errore caricamento portfolio preview:", error);
+      setPortfolioPreviewMode("mixed-fallback");
     } finally {
       setLoadingPhotos(false);
     }
@@ -247,18 +247,20 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-center max-w-full">
             <div className="animate-fade-in">
+              <p className="text-sm sm:text-base font-semibold uppercase tracking-[0.2em] text-sage mb-3">
+                {homepageContent.hero.eyebrow}
+              </p>
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 sm:mb-6 leading-tight">
-                Fotografo di matrimoni ad Aversa, Napoli e Caserta
+                {homepageContent.hero.title}
               </h1>
               <p className="text-2xl sm:text-3xl font-playfair text-[#C67B5C] mb-4">
-                Lasciati Trasportare
+                {homepageContent.hero.tagline}
               </p>
               <p className="text-lg sm:text-xl text-gray-600 mb-3 sm:mb-4">
-                La fotografia è l'arte di immortalare momenti autentici
+                {homepageContent.hero.description}
               </p>
               <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
-                È tutta questione di{" "}
-                <span className="font-semibold text-sage">Image</span>
+                {homepageContent.hero.signature}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/consulenze">
@@ -268,10 +270,10 @@ export default function PublicHomepage() {
                     data-testid="button-prenota-hero"
                   >
                     <Calendar className="mr-2 h-5 w-5" />
-                    Prenota un Appuntamento
+                    {homepageContent.hero.primaryCta}
                   </Button>
                 </Link>
-                <Link href="/portfolio">
+                <Link href="/portfolio/matrimonio">
                   <Button
                     size="lg"
                     variant="outline"
@@ -279,7 +281,7 @@ export default function PublicHomepage() {
                     data-testid="button-portfolio-hero"
                   >
                     <Camera className="mr-2 h-5 w-5" />
-                    Guarda il Portfolio
+                    {homepageContent.hero.portfolioCta}
                   </Button>
                 </Link>
               </div>
@@ -291,7 +293,7 @@ export default function PublicHomepage() {
                     data-testid="link-accesso-galleria-hero"
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    Hai partecipato a un evento? Accedi alla tua galleria
+                    {homepageContent.hero.galleryAccessText}
                   </Button>
                 </Link>
               </div>
@@ -344,10 +346,10 @@ export default function PublicHomepage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-10 md:mb-12 animate-fade-in">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair text-blue-gray mb-3 sm:mb-4">
-              Portfolio
+              {homepageContent.portfolio.title}
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-gray-600">
-              Ogni foto racconta una storia unica
+              {homepageContent.portfolio.description}
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
@@ -361,7 +363,7 @@ export default function PublicHomepage() {
               ))
             ) : portfolioPhotos.length > 0 ? (
               portfolioPhotos.map((photo, index) => (
-                <Link key={photo.id} href="/portfolio">
+                <Link key={photo.id} href="/portfolio/matrimonio">
                   <div className="rounded-lg overflow-hidden group cursor-pointer">
                     <img
                       src={photo.photoUrl}
@@ -397,17 +399,40 @@ export default function PublicHomepage() {
               </div>
             )}
           </div>
+          {portfolioPreviewMode === "mixed-fallback" && (
+            <p className="text-center text-sm text-gray-500 mb-4">
+              Selezione matrimoniale in aggiornamento: mostriamo anche alcuni
+              lavori dello studio per farti conoscere il portfolio completo.
+            </p>
+          )}
           <div className="text-center">
-            <Link href="/portfolio">
+            <Link href="/portfolio/matrimonio">
               <Button
                 size="lg"
                 variant="outline"
                 className="border-sage text-sage hover:bg-sage/10"
               >
-                Vedi Tutto il Portfolio
+                {homepageContent.portfolio.cta}
               </Button>
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Servizi secondari: disponibili, ma distinti dal focus wedding. */}
+      <section className="py-12 sm:py-16 bg-white px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-2xl sm:text-3xl font-playfair text-blue-gray mb-3">
+            {homepageContent.secondaryServices.title}
+          </h2>
+          <p className="text-base sm:text-lg text-gray-600 mb-6">
+            {homepageContent.secondaryServices.description}
+          </p>
+          <Link href="/portfolio">
+            <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
+              {homepageContent.secondaryServices.cta}
+            </Button>
+          </Link>
         </div>
       </section>
 
@@ -1160,7 +1185,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Instagram Feed */}
-      {studioSettings.socialLinks?.instagram && (
+      {instagramUrl && instagramUsername && (
         <section className="py-20 bg-gradient-to-b from-cream/30 to-white relative overflow-hidden">
           <FloralCorner
             position="top-left"
@@ -1187,18 +1212,7 @@ export default function PublicHomepage() {
               </p>
 
               <a
-                href={(() => {
-                  const normalized = studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "");
-                  return normalized
-                    ? `https://www.instagram.com/${normalized}`
-                    : studioSettings.socialLinks.instagram.startsWith("http")
-                      ? studioSettings.socialLinks.instagram
-                      : `https://www.instagram.com/${studioSettings.socialLinks.instagram}`;
-                })()}
+                href={instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-sage hover:bg-dark-sage text-white font-medium rounded-lg shadow-md transition-all hover:shadow-lg hover:scale-105"
@@ -1207,11 +1221,7 @@ export default function PublicHomepage() {
                 <Instagram className="w-5 h-5" />
                 <span>
                   @
-                  {studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "")}
+                  {instagramUsername}
                 </span>
               </a>
             </div>
@@ -1223,11 +1233,7 @@ export default function PublicHomepage() {
                 style={{ maxHeight: "600px", overflowY: "auto" }}
               >
                 <iframe
-                  src={`https://www.instagram.com/${studioSettings.socialLinks.instagram
-                    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
-                    .replace(/^@/, "")
-                    .replace(/\/$/, "")
-                    .replace(/[?#].*$/, "")}/embed`}
+                  src={`https://www.instagram.com/${instagramUsername}/embed`}
                   className="w-full border-0 rounded-lg"
                   style={{ minHeight: "350px", height: "450px" }}
                   scrolling="yes"
@@ -1247,6 +1253,33 @@ export default function PublicHomepage() {
         </section>
       )}
 
+      {(studioSettings.whatsapp || studioSettings.phone) && (
+        <section className="bg-white px-4 py-16">
+          <div className="mx-auto max-w-4xl rounded-2xl bg-gradient-to-br from-sage/15 to-mint/20 px-6 py-10 text-center shadow-sm">
+            <MessageCircle className="mx-auto mb-4 h-12 w-12 text-sage" />
+            <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-sage">
+              {homepageContent.whatsapp.subtitle}
+            </p>
+            <h2 className="mb-4 text-3xl font-playfair text-blue-gray">
+              {homepageContent.whatsapp.title}
+            </h2>
+            <p className="mx-auto mb-6 max-w-2xl text-gray-600">
+              {homepageContent.whatsapp.description}
+            </p>
+            <a
+              href={`https://wa.me/${(studioSettings.whatsapp || studioSettings.phone).replace(/\D/g, '')}?text=${encodeURIComponent(homepageContent.whatsapp.initialMessage)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="lg" className="bg-sage text-white hover:bg-dark-sage">
+                <MessageCircle className="mr-2 h-5 w-5" />
+                {homepageContent.whatsapp.buttonText}
+              </Button>
+            </a>
+          </div>
+        </section>
+      )}
+
       {/* Footer */}
       <footer className="bg-blue-gray text-white py-12 px-4">
         <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
@@ -1260,9 +1293,9 @@ export default function PublicHomepage() {
               {studioSettings.about ||
                 "Studio fotografico per matrimoni ed eventi a Napoli e Caserta"}
             </p>
-            {studioSettings.socialLinks.instagram && (
+            {instagramUrl && (
               <a
-                href={studioSettings.socialLinks.instagram}
+                href={instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition"
@@ -1283,10 +1316,16 @@ export default function PublicHomepage() {
                 Fotografo ad Aversa
               </Link>
               <Link
+                href="/portfolio/matrimonio"
+                className="block text-gray-300 hover:text-white"
+              >
+                Portfolio Matrimoni
+              </Link>
+              <Link
                 href="/portfolio"
                 className="block text-gray-300 hover:text-white"
               >
-                Portfolio
+                Tutte le categorie
               </Link>
               <Link
                 href="/storie"
@@ -1360,7 +1399,7 @@ export default function PublicHomepage() {
         </div>
         <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-700 text-center text-gray-400">
           <p>
-            © {new Date().getFullYear()} iMaGe Studio Fotografico - Gennaro Mazzacane. Tutti i
+            © {new Date().getFullYear()} {studioSettings.name}. Tutti i
             diritti riservati.
           </p>
         </div>
@@ -1372,22 +1411,22 @@ export default function PublicHomepage() {
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "ProfessionalService",
-              name: "Image Studio Fotografico",
+              name: studioSettings.name,
               description:
-                "Fotografia professionale per matrimoni, battesimi e eventi a Napoli e Caserta",
-              image: studioSettings.socialLinks.instagram || "",
+                "Fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Disponibili anche battesimi, comunioni ed eventi.",
+              image: studioSettings.logo || "",
               address: studioSettings.address
                 ? {
                     "@type": "PostalAddress",
                     streetAddress: studioSettings.address,
-                    addressLocality: "Napoli",
-                    addressRegion: "Campania",
+                    addressLocality: studioSettings.fiscalComune || "Aversa",
+                    addressRegion: studioSettings.fiscalProvincia || "CE",
                     addressCountry: "IT",
                   }
                 : undefined,
               telephone: studioSettings.phone || "",
               email: studioSettings.email || "",
-              url: window.location.origin,
+              url: studioSettings.websiteUrl || window.location.origin,
               priceRange: "€€€",
               openingHours: "Mo-Fr 09:00-18:00",
             }),

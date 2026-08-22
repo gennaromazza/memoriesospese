@@ -1,5 +1,6 @@
 import { db } from './firebase-admin';
 import { BlogPost, BlogPostStatus } from '../shared/schema';
+import { getPublishedWeddingStories } from './wedding-seo';
 
 interface BlogPostMedia {
   url: string;
@@ -130,6 +131,12 @@ export async function generateDynamicSitemap(): Promise<string> {
     <priority>0.95</priority>
   </url>
 
+  <!-- Landing page matrimonio ad alta intenzione -->
+  <url><loc>${baseUrl}/fotografo-matrimonio-caserta</loc><changefreq>monthly</changefreq><priority>0.95</priority></url>
+  <url><loc>${baseUrl}/fotografo-matrimonio-napoli</loc><changefreq>monthly</changefreq><priority>0.95</priority></url>
+  <url><loc>${baseUrl}/fotografo-matrimonio-spontaneo</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>${baseUrl}/quanto-costa-fotografo-matrimonio-caserta</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+
   <!-- Prenota - Campagne Booking -->
   <url>
     <loc>${baseUrl}/prenota</loc>
@@ -216,6 +223,17 @@ export async function generateDynamicSitemap(): Promise<string> {
     }
 
     sitemap += `  </url>
+`;
+  }
+
+  // Matrimoni reali pubblicati: ogni URL nasce da una galleria approvata nel gestionale.
+  const weddingStories = await getPublishedWeddingStories();
+  for (const story of weddingStories) {
+    sitemap += `  <url>
+    <loc>${escapeXml(`${baseUrl}/matrimoni/${story.slug}`)}</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+${story.coverImage ? `    <image:image><image:loc>${escapeXml(story.coverImage)}</image:loc><image:caption>${escapeXml(story.title)}</image:caption></image:image>\n` : ''}  </url>
 `;
   }
 

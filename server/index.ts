@@ -33,6 +33,7 @@ import infoFormRoutes from './info-form-routes.js';
 import photobookRoutes from './photobook-routes.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
+import { getWeddingStoryBySlug } from './wedding-seo';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
 
@@ -53,6 +54,20 @@ async function startServer() {
     const defaultJson = express.json();
     app.use(defaultJson);
     app.use(express.urlencoded({ extended: true }));
+
+    // Dati pubblici, già approvati dall'amministratore, per le pagine SEO dei matrimoni.
+    // L'endpoint non restituisce note interne, contatti o dati sensibili dei clienti.
+    app.get('/api/public/matrimoni/:slug', async (req, res) => {
+      try {
+        const story = await getWeddingStoryBySlug(req.params.slug);
+        if (!story) return res.status(404).json({ message: 'Matrimonio non pubblicato' });
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.json(story);
+      } catch (error) {
+        console.error('Errore caricamento pagina matrimonio SEO:', error);
+        res.status(500).json({ message: 'Errore caricamento matrimonio' });
+      }
+    });
 
     // URL pubblico stabile per l'immagine profilo: il workflow Replit usa
     // Vite in middleware mode e non deve esporre il percorso locale /@fs.

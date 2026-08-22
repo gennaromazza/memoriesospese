@@ -89,6 +89,17 @@ export interface Gallery {
   
   // Workflow Management
   workflowState?: WorkflowState;
+  // Metadati facoltativi della pagina SEO/GEO di un matrimonio, pubblicata solo con consenso.
+  seoPublished?: boolean;
+  seoSlug?: string;
+  seoCoupleNames?: string;
+  seoLocation?: string;
+  seoMunicipality?: string;
+  seoChurch?: string;
+  seoStyle?: string;
+  seoStory?: string;
+  seoImages?: Array<{ photoId: string; url: string; section: string; alt: string }>;
+  seoStatus?: 'draft' | 'published';
   
   // Chapters System - Organizzazione foto in capitoli
   chaptersEnabled?: boolean;

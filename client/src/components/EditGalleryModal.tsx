@@ -31,6 +31,7 @@ import { Info } from 'lucide-react';
 import { createAbsoluteUrl } from "../lib/basePath";
 import { PhotoService, type Photo } from "../lib/photos";
 import { MultiClienteSelector } from "./MultiClienteSelector";
+import WeddingSeoDraftPanel from './WeddingSeoDraftPanel';
 
 // Helper function to extract YouTube video ID from URL - supports multiple formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -74,6 +75,8 @@ interface PhotoData {
   uploadedBy?: 'admin' | 'guest' | 'legacy';
   contentHash?: string;
   thumbnailUrl?: string;
+  chapterId?: string | null;
+  chapterPosition?: number;
 }
 
 interface GalleryType {
@@ -94,6 +97,14 @@ interface GalleryType {
   specialPin?: string;
   jobType?: string;
   jobId?: string;
+  clientiIds?: string[];
+  seoPublished?: boolean;
+  seoImages?: Array<{ photoId: string; url: string; section: string; alt: string }>;
+  seoCoupleNames?: string;
+  seoLocation?: string;
+  seoChurch?: string;
+  seoMunicipality?: string;
+  seoStory?: string;
 }
 
 interface EditGalleryModalProps {
@@ -389,6 +400,8 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         uploaderRole: photo.uploadedBy === 'guest' ? 'guest' : 'admin',
         uploadedBy: photo.uploadedBy || 'legacy',
         contentHash: photo.contentHash,
+        chapterId: photo.chapterId,
+        chapterPosition: photo.chapterPosition,
       } as PhotoData));
 
       console.log('📸 [EditGalleryModal] Foto caricate via PhotoService:', loadedPhotos.length);
@@ -2080,9 +2093,10 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
             <TabsTrigger value="details">Dettagli</TabsTrigger>
             <TabsTrigger value="photos">Foto ({photos.length})</TabsTrigger>
+            <TabsTrigger value="seo">Storia SEO</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1 pr-2 min-h-0">
@@ -3150,6 +3164,17 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
                 {isLoading ? "Salvando..." : "Salva Modifiche"}
               </Button>
             </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="seo" className="flex-1 min-h-0">
+            <WeddingSeoDraftPanel
+              gallery={gallery}
+              photos={photos}
+              jobId={jobId}
+              clientiIds={clientiIds}
+              isWedding={jobType === 'matrimonio'}
+              onSaved={() => queryClient.invalidateQueries({ queryKey: ['galleries'] })}
+            />
           </TabsContent>
 
           <TabsContent value="photos" className="space-y-4 overflow-y-auto flex-1 pr-2 min-h-0">

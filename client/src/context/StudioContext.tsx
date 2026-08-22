@@ -1,6 +1,11 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import {
+  DEFAULT_HOMEPAGE_CONTENT,
+  resolveHomepageContent,
+  type HomepageContent,
+} from '@shared/homepage-content';
 
 export interface StudioSettings {
   name: string;
@@ -11,6 +16,12 @@ export interface StudioSettings {
   websiteUrl: string;
   partitaIVA?: string;
   codiceFiscale?: string;
+  /** Dati strutturati richiesti dal tracciato FatturaPA per il mittente. */
+  fiscalVia?: string;
+  fiscalCap?: string;
+  fiscalComune?: string;
+  fiscalProvincia?: string;
+  regimeFiscale?: string;
   socialLinks: {
     facebook?: string;
     instagram?: string;
@@ -28,6 +39,8 @@ export interface StudioSettings {
   whatsappSubtitle: string;
   whatsappText: string;
   whatsappButtonText: string;
+  homepageContent?: HomepageContent;
+  googleReviewUrl?: string;
 }
 
 const defaultSettings: StudioSettings = {
@@ -39,6 +52,11 @@ const defaultSettings: StudioSettings = {
   websiteUrl: '',
   partitaIVA: '',
   codiceFiscale: '',
+  fiscalVia: '',
+  fiscalCap: '',
+  fiscalComune: '',
+  fiscalProvincia: '',
+  regimeFiscale: '',
   socialLinks: {
     facebook: '',
     instagram: '',
@@ -55,7 +73,8 @@ const defaultSettings: StudioSettings = {
   whatsappTitle: 'Contattaci su WhatsApp',
   whatsappSubtitle: 'Assistenza rapida e personalizzata',
   whatsappText: 'Per ricevere informazioni sui nostri servizi fotografici per matrimoni o per qualsiasi altra domanda, contattaci direttamente su WhatsApp. Riceverai una risposta rapida e personalizzata per le tue esigenze.',
-  whatsappButtonText: 'Scrivici su WhatsApp'
+  whatsappButtonText: 'Scrivici su WhatsApp',
+  homepageContent: DEFAULT_HOMEPAGE_CONTENT,
 };
 
 interface StudioContextType {
@@ -82,29 +101,22 @@ export function StudioProvider({ children }: StudioProviderProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchStudioSettings() {
-      try {
-        setLoading(true);
-        const settingsDoc = doc(db, "settings", "studio");
-        const settingsSnapshot = await getDoc(settingsDoc);
-        
-        if (settingsSnapshot.exists()) {
-          const settingsData = settingsSnapshot.data() as Partial<StudioSettings>;
-          // Merge diretto dei dati di Firebase con i default
-          setStudioSettings({
-            ...defaultSettings,
-            ...settingsData
-          });
-        }
-      } catch (err) {
-        
-        setError("Impossibile caricare le impostazioni dello studio");
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    fetchStudioSettings();
+    setLoading(true);
+    const settingsRef = doc(db, 'settings', 'studio');
+    return onSnapshot(settingsRef, (snapshot) => {
+      const settingsData = snapshot.exists() ? snapshot.data() as Partial<StudioSettings> : {};
+      setStudioSettings({
+        ...defaultSettings,
+        ...settingsData,
+        socialLinks: { ...defaultSettings.socialLinks, ...(settingsData.socialLinks || {}) },
+        homepageContent: resolveHomepageContent(settingsData.homepageContent),
+      });
+      setError(null);
+      setLoading(false);
+    }, () => {
+      setError('Impossibile caricare le impostazioni dello studio');
+      setLoading(false);
+    });
   }, []);
 
   return (

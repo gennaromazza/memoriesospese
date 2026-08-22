@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { createSeoMiddleware } from './seo-prerender';
 import { generateDynamicSitemap } from './sitemap-generator';
 import { runReminderCheck } from './reminder-routes';
+import { getWeddingStoryBySlug } from './wedding-seo';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,18 @@ const buildSubfolder = basePath !== '/'
 const buildPath = path.join(__dirname, '../dist', buildSubfolder);
 
 app.use(createSeoMiddleware());
+
+app.get('/api/public/matrimoni/:slug', async (req, res) => {
+  try {
+    const story = await getWeddingStoryBySlug(req.params.slug);
+    if (!story) return res.status(404).json({ message: 'Matrimonio non pubblicato' });
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json(story);
+  } catch (error) {
+    console.error('Errore caricamento pagina matrimonio SEO:', error);
+    res.status(500).json({ message: 'Errore caricamento matrimonio' });
+  }
+});
 
 app.get('/sitemap.xml', async (req, res) => {
   try {

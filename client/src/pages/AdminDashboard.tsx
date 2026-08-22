@@ -164,6 +164,12 @@ import {
   type NavTarget,
 } from "@/components/admin/adminNavigation";
 import OspitiQrCard from "@/components/admin/OspitiQrCard";
+import HomepageContentEditor from "@/components/admin/HomepageContentEditor";
+import {
+  DEFAULT_HOMEPAGE_CONTENT,
+  resolveHomepageContent,
+  type HomepageContent,
+} from "@shared/homepage-content";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(
   () => import("@/components/studio-assistant/StudioAssistant"),
@@ -460,8 +466,14 @@ interface StudioSettings {
   whatsappButtonText: string;
   partitaIVA?: string;
   codiceFiscale?: string;
+  fiscalVia?: string;
+  fiscalCap?: string;
+  fiscalComune?: string;
+  fiscalProvincia?: string;
+  regimeFiscale?: string;
   whatsapp?: string;
   googleReviewUrl?: string;
+  homepageContent: HomepageContent;
 }
 
 export default function AdminDashboard() {
@@ -619,6 +631,12 @@ export default function AdminDashboard() {
     whatsappButtonText: "Scrivici su WhatsApp",
     whatsapp: "",
     googleReviewUrl: "",
+    homepageContent: DEFAULT_HOMEPAGE_CONTENT,
+    fiscalVia: "",
+    fiscalCap: "",
+    fiscalComune: "",
+    fiscalProvincia: "",
+    regimeFiscale: "",
   });
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -905,13 +923,9 @@ export default function AdminDashboard() {
           // Merge con i valori di default per garantire che tutti i campi siano presenti
           setStudioSettings((prev) => ({
             ...prev,
-            ...Object.entries(settingsData).reduce(
-              (acc, [key, value]) => ({
-                ...acc,
-                [key]: value ?? prev[key as keyof StudioSettings],
-              }),
-              {},
-            ),
+            ...settingsData,
+            socialLinks: { ...prev.socialLinks, ...(settingsData.socialLinks || {}) },
+            homepageContent: resolveHomepageContent(settingsData.homepageContent),
           }));
         }
       } catch (error) {
@@ -950,6 +964,23 @@ export default function AdminDashboard() {
         [field]: value,
       }));
     }
+  };
+
+  const handleHomepageContentChange = <Section extends keyof Omit<HomepageContent, 'version'>>(
+    section: Section,
+    field: keyof HomepageContent[Section],
+    value: string,
+  ) => {
+    setStudioSettings((prev) => ({
+      ...prev,
+      homepageContent: {
+        ...resolveHomepageContent(prev.homepageContent),
+        [section]: {
+          ...resolveHomepageContent(prev.homepageContent)[section],
+          [field]: value,
+        },
+      },
+    }));
   };
 
   // Funzione per gestire l'upload del logo
@@ -1023,7 +1054,10 @@ export default function AdminDashboard() {
   const saveStudioSettings = async () => {
     try {
       const settingsRef = doc(db, "settings", "studio");
-      await setDoc(settingsRef, studioSettings);
+      await setDoc(settingsRef, {
+        ...studioSettings,
+        homepageContent: resolveHomepageContent(studioSettings.homepageContent),
+      }, { merge: true });
 
       toast({
         title: "Impostazioni salvate",
@@ -3290,7 +3324,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-sm font-semibold text-stone-700">Dati Fiscali</h3>
-                            <p className="text-xs text-stone-400">Utilizzati nelle ricevute e nei documenti ufficiali</p>
+                            <p className="text-xs text-stone-400">Dati del mittente, usati nelle ricevute e nelle fatture XML FatturaPA</p>
                           </div>
                         </div>
                         <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3313,6 +3347,43 @@ export default function AdminDashboard() {
                               placeholder="RSSMRA80A01H501Z"
                               className="font-mono border-stone-200 focus:border-amber-400 focus:ring-amber-100"
                             />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="studio-regime-fiscale" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Regime fiscale FatturaPA</Label>
+                            <Select value={studioSettings.regimeFiscale || ''} onValueChange={(value) => handleSettingsChange("regimeFiscale", value)}>
+                              <SelectTrigger id="studio-regime-fiscale" className="border-stone-200">
+                                <SelectValue placeholder="Seleziona regime fiscale" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="RF01">RF01 · Ordinario</SelectItem>
+                                <SelectItem value="RF19">RF19 · Forfettario</SelectItem>
+                                <SelectItem value="RF02">RF02 · Contribuenti minimi</SelectItem>
+                                <SelectItem value="RF04">RF04 · Agricoltura e attività connesse</SelectItem>
+                                <SelectItem value="RF18">RF18 · Altro</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="sm:col-span-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3">
+                            <p className="text-xs text-amber-900 mb-1">Questi sono i dati fiscali del mittente/studio, non quelli del cliente: salvali qui prima di creare una fattura XML FPR12.</p>
+                            <p className="text-xs text-amber-900 mb-3">Per il regime forfettario seleziona RF19: il modulo fattura applicherà automaticamente natura N2.2, IVA zero, causale normativa e bollo quando dovuto.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <Label htmlFor="studio-fiscal-via" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Via / piazza</Label>
+                                <Input id="studio-fiscal-via" value={studioSettings.fiscalVia || ''} onChange={(e) => handleSettingsChange("fiscalVia", e.target.value)} placeholder="Via Roma 1" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-cap" className="text-xs font-medium text-stone-600 uppercase tracking-wide">CAP</Label>
+                                <Input id="studio-fiscal-cap" value={studioSettings.fiscalCap || ''} onChange={(e) => handleSettingsChange("fiscalCap", e.target.value)} placeholder="80100" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-comune" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Comune</Label>
+                                <Input id="studio-fiscal-comune" value={studioSettings.fiscalComune || ''} onChange={(e) => handleSettingsChange("fiscalComune", e.target.value)} placeholder="Napoli" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="studio-fiscal-provincia" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Provincia</Label>
+                                <Input id="studio-fiscal-provincia" value={studioSettings.fiscalProvincia || ''} onChange={(e) => handleSettingsChange("fiscalProvincia", e.target.value.toUpperCase())} placeholder="NA" maxLength={2} />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3419,101 +3490,14 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-sm font-semibold text-stone-700">Testi Homepage</h3>
-                            <p className="text-xs text-stone-400">Personalizza i testi della sezione hero e del pulsante WhatsApp</p>
+                            <p className="text-xs text-stone-400">I testi attuali restano come fallback se un campo viene lasciato vuoto</p>
                           </div>
                         </div>
-                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Hero */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="h-px flex-1 bg-stone-100" />
-                              <span className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">Sezione Hero</span>
-                              <div className="h-px flex-1 bg-stone-100" />
-                            </div>
-                            <div className="space-y-3">
-                              <div className="space-y-1.5">
-                                <Label htmlFor="hero-title" className="text-xs font-medium text-stone-600">Titolo principale</Label>
-                                <Input
-                                  id="hero-title"
-                                  value={studioSettings.heroTitle || ""}
-                                  onChange={(e) => handleSettingsChange("heroTitle", e.target.value)}
-                                  placeholder="Fotografo di matrimoni ad Aversa"
-                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="hero-subtitle" className="text-xs font-medium text-stone-600">Sottotitolo</Label>
-                                <Input
-                                  id="hero-subtitle"
-                                  value={studioSettings.heroSubtitle || ""}
-                                  onChange={(e) => handleSettingsChange("heroSubtitle", e.target.value)}
-                                  placeholder="Raccontiamo la tua storia con emozione"
-                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="hero-button" className="text-xs font-medium text-stone-600">Testo pulsante</Label>
-                                <Input
-                                  id="hero-button"
-                                  value={studioSettings.heroButtonText || ""}
-                                  onChange={(e) => handleSettingsChange("heroButtonText", e.target.value)}
-                                  placeholder="Prenota il tuo shooting"
-                                  className="border-stone-200 focus:border-[#c4724a] focus:ring-[#c4724a]/20"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          {/* WhatsApp */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <div className="h-px flex-1 bg-stone-100" />
-                              <span className="text-[11px] font-semibold uppercase tracking-widest text-stone-400">Sezione WhatsApp</span>
-                              <div className="h-px flex-1 bg-stone-100" />
-                            </div>
-                            <div className="space-y-3">
-                              <div className="space-y-1.5">
-                                <Label htmlFor="whatsapp-title" className="text-xs font-medium text-stone-600">Titolo</Label>
-                                <Input
-                                  id="whatsapp-title"
-                                  value={studioSettings.whatsappTitle || ""}
-                                  onChange={(e) => handleSettingsChange("whatsappTitle", e.target.value)}
-                                  placeholder="Contattaci su WhatsApp"
-                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="whatsapp-subtitle" className="text-xs font-medium text-stone-600">Sottotitolo</Label>
-                                <Input
-                                  id="whatsapp-subtitle"
-                                  value={studioSettings.whatsappSubtitle || ""}
-                                  onChange={(e) => handleSettingsChange("whatsappSubtitle", e.target.value)}
-                                  placeholder="Rispondiamo in pochi minuti"
-                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="whatsapp-text" className="text-xs font-medium text-stone-600">Testo descrittivo</Label>
-                                <Textarea
-                                  id="whatsapp-text"
-                                  value={studioSettings.whatsappText || ""}
-                                  onChange={(e) => handleSettingsChange("whatsappText", e.target.value)}
-                                  placeholder="Scrivici per info, disponibilità e preventivi..."
-                                  rows={2}
-                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100 resize-none"
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor="whatsapp-button" className="text-xs font-medium text-stone-600">Testo pulsante</Label>
-                                <Input
-                                  id="whatsapp-button"
-                                  value={studioSettings.whatsappButtonText || ""}
-                                  onChange={(e) => handleSettingsChange("whatsappButtonText", e.target.value)}
-                                  placeholder="Scrivici su WhatsApp"
-                                  className="border-stone-200 focus:border-green-400 focus:ring-green-100"
-                                />
-                              </div>
-                            </div>
-                          </div>
+                        <div className="p-5">
+                          <HomepageContentEditor
+                            value={resolveHomepageContent(studioSettings.homepageContent)}
+                            onChange={handleHomepageContentChange}
+                          />
                         </div>
                       </div>
 

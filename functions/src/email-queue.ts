@@ -133,6 +133,11 @@ export class EmailQueue {
     return docRef.id;
   }
 
+  /** Compatibilità con i call-site legacy: accoda con priorità normale. */
+  static async addEmailToQueue(to: string[], subject: string, htmlContent: string): Promise<string> {
+    return this.enqueue({ to, subject, htmlContent });
+  }
+
   /**
    * Verifica se possiamo inviare email (controllo rate limit)
    */

@@ -83,6 +83,17 @@ export interface Gallery {
   
   createdAt: Timestamp;
   updatedAt?: Timestamp;
+  // SEO pubblico: la pubblicazione è esplicita per evitare che dati privati finiscano online.
+  seoPublished?: boolean;
+  seoSlug?: string;
+  seoCoupleNames?: string;
+  seoLocation?: string;
+  seoMunicipality?: string;
+  seoChurch?: string;
+  seoStyle?: string;
+  seoStory?: string;
+  seoImages?: Array<{ photoId: string; url: string; section: string; alt: string }>;
+  seoStatus?: 'draft' | 'published';
 }
 
 // Photo schema

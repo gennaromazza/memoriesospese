@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from './firebase-admin';
 import { BlogPostStatus } from '../shared/schema';
+import { getWeddingStoryBySlug, weddingJsonLd, STUDIO_IDENTITY } from './wedding-seo';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
@@ -33,6 +34,10 @@ interface PageMeta {
 
 function getStaticPageMeta(path: string): PageMeta | null {
   const pages: Record<string, PageMeta> = {
+    '/fotografo-matrimonio-caserta': { title: 'Fotografo Matrimonio Caserta | Image Studio', description: 'Fotografo di matrimonio a Caserta: reportage spontaneo, editoriale e consulenza personalizzata con Image Studio di Gennaro Mazzacane.', canonical: `${BASE_URL}/fotografo-matrimonio-caserta`, keywords: 'fotografo matrimonio caserta, fotografo nozze caserta, reportage matrimonio caserta', bodyContent: `<h1>Fotografo matrimonio Caserta</h1><p>${STUDIO_IDENTITY}</p><h2>Cerchi un fotografo di matrimonio a Caserta?</h2><p>Image Studio racconta matrimoni a Caserta con fotografia spontanea, reportage ed editoriale. <a href="${BASE_URL}/portfolio/matrimonio">Guarda i matrimoni reali</a> e <a href="${BASE_URL}/consulenze">richiedi una consulenza</a>.</p>` },
+    '/fotografo-matrimonio-napoli': { title: 'Fotografo Matrimonio Napoli | Image Studio', description: 'Fotografo di matrimonio a Napoli: fotografia spontanea, reportage ed editoriale per coppie che desiderano un racconto autentico.', canonical: `${BASE_URL}/fotografo-matrimonio-napoli`, keywords: 'fotografo matrimonio napoli, reportage matrimonio napoli', bodyContent: `<h1>Fotografo matrimonio Napoli</h1><p>${STUDIO_IDENTITY}</p><h2>Cerchi un fotografo di matrimonio a Napoli?</h2><p>Raccontiamo ogni matrimonio con discrezione, cura della luce e attenzione ai momenti irripetibili. <a href="${BASE_URL}/portfolio/matrimonio">Guarda i matrimoni reali</a>.</p>` },
+    '/fotografo-matrimonio-spontaneo': { title: 'Fotografo Matrimonio Spontaneo | Image Studio', description: 'Fotografia di matrimonio spontanea: reportage, emozioni vere e immagini editoriali firmate Image Studio.', canonical: `${BASE_URL}/fotografo-matrimonio-spontaneo`, keywords: 'fotografo matrimonio spontaneo, reportage matrimonio', bodyContent: `<h1>Fotografo matrimonio spontaneo</h1><p>${STUDIO_IDENTITY}</p><h2>Che cosa significa fotografia di matrimonio spontanea?</h2><p>Significa lasciare spazio alle persone e alle emozioni reali, intervenendo solo quando serve per immagini curate senza pose continue.</p>` },
+    '/quanto-costa-fotografo-matrimonio-caserta': { title: 'Quanto Costa un Fotografo di Matrimonio a Caserta | Image Studio', description: 'Quanto costa un fotografo di matrimonio a Caserta? Una guida chiara su servizi, variabili di prezzo e preventivo personalizzato.', canonical: `${BASE_URL}/quanto-costa-fotografo-matrimonio-caserta`, keywords: 'quanto costa fotografo matrimonio caserta, prezzi fotografo matrimonio caserta', bodyContent: `<h1>Quanto costa un fotografo di matrimonio a Caserta?</h1><p>Il prezzo dipende da durata, numero di operatori, video, album e servizi inclusi. Per un servizio completo professionale nella zona di Caserta la fascia può variare sensibilmente: per questo Image Studio prepara un preventivo chiaro e personalizzato.</p><p>${STUDIO_IDENTITY} <a href="${BASE_URL}/consulenze">Richiedi una consulenza</a>.</p>` },
     '/': {
       title: 'Fotografo Aversa | Image Studio | Matrimoni, Battesimi ed Eventi in Campania',
       description: 'Fotografo professionista ad Aversa. Matrimoni, battesimi, comunioni ed eventi in Campania. Gennaro Mazzacane - 10+ anni di esperienza, 500+ matrimoni. Preventivo gratuito.',
@@ -449,6 +454,22 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
   }
 }
 
+async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
+  const story = await getWeddingStoryBySlug(slug);
+  if (!story) return null;
+  const url = `${BASE_URL}/matrimoni/${story.slug}`;
+  return {
+    title: story.title,
+    description: story.description,
+    canonical: url,
+    ogType: 'article',
+    ogImage: story.coverImage,
+    keywords: `matrimonio ${story.municipality}, fotografo matrimonio ${story.municipality}, ${story.style}`,
+    jsonLd: weddingJsonLd(story),
+    bodyContent: `<article><h1>${escapeHtml(story.title)}</h1><p>${escapeHtml(story.description)}</p><dl><dt>Sposi</dt><dd>${escapeHtml(story.names)}</dd><dt>Location</dt><dd>${escapeHtml(story.location)}, ${escapeHtml(story.municipality)}</dd>${story.church ? `<dt>Cerimonia</dt><dd>${escapeHtml(story.church)}</dd>` : ''}<dt>Stile</dt><dd>${escapeHtml(story.style)}</dd></dl><p>${escapeHtml(story.story)}</p><h2>Domande frequenti</h2>${story.faq.map(f => `<h3>${escapeHtml(f.question)}</h3><p>${escapeHtml(f.answer)}</p>`).join('')}<nav><a href="${BASE_URL}/fotografo-matrimonio-caserta">Fotografo matrimonio Caserta</a> | <a href="${BASE_URL}/fotografo-matrimonio-napoli">Fotografo matrimonio Napoli</a> | <a href="${BASE_URL}/fotografo-aversa">Fotografo Aversa</a></nav></article>`,
+  };
+}
+
 async function getBlogListMeta(): Promise<PageMeta> {
   try {
     const snapshot = await db.collection('blogPosts')
@@ -582,12 +603,15 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
     },
     {
       '@context': 'https://schema.org',
-      '@type': 'Organization',
+      '@type': ['LocalBusiness', 'Organization'],
       '@id': `${BASE_URL}/#organization`,
-      name: 'Image Studio',
+      name: 'Image Studio Fotografico – Gennaro Mazzacane',
       url: BASE_URL,
       logo: `${BASE_URL}/favicon.png`,
       email: 'info@memoriesospese.it',
+      description: STUDIO_IDENTITY,
+      address: { '@type': 'PostalAddress', addressLocality: 'Aversa', addressRegion: 'CE', addressCountry: 'IT' },
+      areaServed: ['Aversa', 'Caserta', 'Napoli', 'Campania'],
       founder: { '@id': `${BASE_URL}/#photographer` },
     },
     {
@@ -677,7 +701,9 @@ export function createSeoMiddleware() {
     try {
       let meta: PageMeta | null = null;
 
-      if (path.startsWith('/blog/') && path !== '/blog') {
+      if (path.startsWith('/matrimoni/') && path !== '/matrimoni') {
+        meta = await getWeddingStoryMeta(path.replace('/matrimoni/', ''));
+      } else if (path.startsWith('/blog/') && path !== '/blog') {
         const slug = path.replace('/blog/', '');
         meta = await getBlogPostMeta(slug);
       } else if (path === '/blog') {

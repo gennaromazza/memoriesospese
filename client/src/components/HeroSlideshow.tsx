@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { filterActiveSlideshowImages } from '@shared/slideshow-utils';
 
 interface SlideshowImage {
   id: string;
   url: string;
   alt: string;
   position: number;
+  jobType?: string;
+  active?: boolean;
 }
 
 export default function HeroSlideshow() {
@@ -14,6 +17,7 @@ export default function HeroSlideshow() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+  const [error, setError] = useState(false);
 
   const preloadImage = useCallback((url: string, index: number) => {
     const img = new Image();
@@ -29,11 +33,7 @@ export default function HeroSlideshow() {
         const slideshowCollection = collection(db, 'slideshow');
 
         try {
-          const slideshowQuery = query(
-            slideshowCollection,
-            orderBy('position'),
-            limit(5)
-          );
+          const slideshowQuery = query(slideshowCollection, orderBy('position'));
           const querySnapshot = await getDocs(slideshowQuery);
 
           if (!querySnapshot.empty) {
@@ -44,25 +44,47 @@ export default function HeroSlideshow() {
                 id: doc.id,
                 url: data.url,
                 alt: data.alt || 'Slideshow image',
-                position: data.position || 0
+                position: data.position || 0,
+                jobType: typeof data.jobType === 'string' ? data.jobType : undefined,
+                active: data.active !== false,
               });
             });
 
-            setImages(fetchedImages);
+            const activeImages = filterActiveSlideshowImages(fetchedImages);
+
+            const weddingImages = activeImages.filter(
+              (image) => image.jobType?.trim().toLowerCase() === 'matrimonio',
+            );
+            const nonWeddingImages = activeImages.filter(
+              (image) => image.jobType?.trim().toLowerCase() !== 'matrimonio',
+            );
+            // La priorità è data solo a immagini esplicitamente classificate
+            // come matrimonio; le altre restano un fallback sicuro.
+            const selectedImages = (
+              weddingImages.length > 0
+                ? [...weddingImages, ...nonWeddingImages]
+                : activeImages
+            ).slice(0, 5);
+
+            setImages(selectedImages);
             
-            if (fetchedImages.length > 1) {
+            if (selectedImages.length > 1) {
               setTimeout(() => {
-                fetchedImages.slice(1).forEach((img, idx) => {
+                selectedImages.slice(1).forEach((img, idx) => {
                   preloadImage(img.url, idx + 1);
                 });
               }, 100);
             }
           }
         } catch (innerError) {
+          console.error('Errore caricamento slideshow:', innerError);
+          setError(true);
         }
 
         setLoading(false);
       } catch (error) {
+        console.error('Errore inizializzazione slideshow:', error);
+        setError(true);
         setLoading(false);
       }
     }
@@ -86,8 +108,8 @@ export default function HeroSlideshow() {
     );
   }
 
-  if (images.length === 0) {
-    return null;
+  if (error || images.length === 0) {
+    return <div className="absolute inset-0 bg-gradient-to-br from-sage/30 to-mint/40" aria-label="Slideshow non disponibile" />;
   }
 
   return (
