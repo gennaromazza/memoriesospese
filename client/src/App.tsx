@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import { trackPageView } from "./lib/analytics";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
+import { isAdminPath, manifestForPath } from "./lib/pwa-manifest";
 
 import PublicHomepage from "./pages/public/PublicHomepage";
 import NotFound from "./pages/NotFound";
@@ -111,8 +112,19 @@ function useAnalytics() {
   return null;
 }
 
+function usePwaManifest() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    manifest?.setAttribute('href', manifestForPath(location));
+    const appTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    appTitle?.setAttribute('content', isAdminPath(location) ? 'Studio Admin' : 'Image Studio');
+  }, [location]);
+}
+
 function AppRoutes() {
   useAnalytics();
+  usePwaManifest();
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>

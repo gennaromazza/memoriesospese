@@ -7,11 +7,28 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1, interactive-widget=resizes-content"
     />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta id="apple-mobile-web-app-title" name="apple-mobile-web-app-title" content="Image Studio" />
+    <script>
+      (function () {
+        var isAdmin = window.location.pathname === "/admin" || window.location.pathname.indexOf("/admin/") === 0;
+        var manifest = document.createElement("link");
+        manifest.id = "app-manifest";
+        manifest.rel = "manifest";
+        manifest.href = isAdmin ? "/admin-manifest.json?v=1" : "/manifest.json?v=3";
+        document.head.appendChild(manifest);
+        if (isAdmin) {
+          document.getElementById("apple-mobile-web-app-title").content = "Studio Admin";
+        }
+      })();
+    </script>
 
-    <title>Fotografo Matrimoni Aversa, Napoli e Caserta | Image Studio</title>
+    <title>Fotografo Aversa | Image Studio | Matrimoni, Battesimi ed Eventi in Campania</title>
     <meta
       name="description"
-      content="Fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Reportage emozionale, consulenza gratuita e galleria digitale Memorie Sospese."
+      content="Fotografo professionista ad Aversa. Matrimoni, battesimi, comunioni ed eventi in Campania. Gennaro Mazzacane - 10+ anni di esperienza, 500+ matrimoni. Preventivo gratuito."
     />
 
     <!-- SEO -->
@@ -20,9 +37,9 @@
     <meta name="bingbot" content="index, follow" />
 
     <!-- AI & Chatbot Optimization -->
-    <meta name="abstract" content="Studio fotografico specializzato prima di tutto in fotografia e video di matrimonio in Campania, con gallerie digitali Memorie Sospese." />
-    <meta name="topic" content="Fotografia e video matrimoni, Campania, gallerie digitali" />
-    <meta name="summary" content="Fotografo e videografo di matrimonio ad Aversa, Napoli, Caserta e in Campania. Reportage emozionale, consulenza gratuita e gallerie digitali Memorie Sospese." />
+    <meta name="abstract" content="Studio fotografico specializzato in matrimoni, battesimi, comunioni e eventi in Campania con gallerie digitali Memorie Sospese" />
+    <meta name="topic" content="Fotografia matrimoni, eventi, Campania, gallerie digitali" />
+    <meta name="summary" content="Fotografo professionista per matrimoni ed eventi in Campania. Servizi fotografici emozionali con gallerie digitali interattive Memorie Sospese. 10+ anni di esperienza, 500+ matrimoni documentati." />
     <meta name="Classification" content="Fotografia Professionale, Wedding Photography, Eventi" />
     <meta name="designer" content="Image Studio - Gennaro Mazzacane" />
     <meta name="reply-to" content="info@memoriesospese.it" />
@@ -52,11 +69,11 @@
     <meta property="og:locale" content="it_IT" />
     <meta
       property="og:title"
-      content="Fotografo Matrimoni Aversa, Napoli e Caserta | Image Studio"
+      content="Fotografo Aversa | Image Studio | Matrimoni ed Eventi Campania"
     />
     <meta
       property="og:description"
-      content="Fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Reportage emozionale, consulenza gratuita e galleria digitale Memorie Sospese."
+      content="Studio fotografico ad Aversa. Matrimoni, eventi, ritratti. Memorie Sospese: gallerie digitali interattive per rivivere le tue emozioni. Servizi foto e video professionali in Campania."
     />
     <meta
       property="og:image"
@@ -72,11 +89,11 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="Fotografo Matrimoni Aversa, Napoli e Caserta | Image Studio"
+      content="Image Studio – Fotografia e storytelling digitale"
     />
     <meta
       name="twitter:description"
-      content="Fotografia e video di matrimonio in Campania, con reportage emozionale e galleria digitale Memorie Sospese."
+      content="Dai matrimoni alle gallerie interattive di Memorie Sospese, ogni ricordo prende vita con Image Studio."
     />
     <meta
       name="twitter:image"
@@ -93,7 +110,7 @@
       "alternateName": ["Image Studio Fotografia", "Image Studio Fotografico", "Memorie Sospese"],
       "image": "https://imagestudiofotografico.com/1200x630px.jpg",
       "logo": "https://imagestudiofotografico.com/favicon.png",
-      "description": "Studio fotografico specializzato prima di tutto in fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania. Offre anche battesimi, comunioni, cresime, eventi, ritratti e gallerie digitali Memorie Sospese.",
+      "description": "Fotografo professionista specializzato in matrimoni, battesimi, comunioni, cresime, eventi e storytelling digitale in Campania. Servizi fotografici emozionali con gallerie digitali interattive Memorie Sospese per rivivere le tue emozioni. Oltre 10 anni di esperienza e 500+ matrimoni documentati.",
       "address": {
         "@type": "PostalAddress",
         "streetAddress": "Aversa",
@@ -303,7 +320,7 @@
       "telephone": "+39 334 710 3142",
       "email": "info@memoriesospese.it",
       "priceRange": "€€€",
-      "description": "Fotografo professionista ad Aversa specializzato prima di tutto in matrimoni e video matrimoniali. Gennaro Mazzacane offre anche battesimi, comunioni e altri servizi fotografici in Campania.",
+      "description": "Fotografo professionista ad Aversa specializzato in matrimoni, battesimi, comunioni e cerimonie. Gennaro Mazzacane - oltre 10 anni di esperienza e 500+ matrimoni documentati in Campania.",
       "openingHoursSpecification": {
         "@type": "OpeningHoursSpecification",
         "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -355,7 +372,7 @@
       "alternateName": ["Memorie Sospese", "Image Studio Fotografico"],
       "url": "https://imagestudiofotografico.com",
       "logo": "https://imagestudiofotografico.com/favicon.png",
-      "description": "Studio fotografico professionale specializzato prima di tutto in fotografia e video di matrimonio in Campania. Offre anche battesimi, comunioni, cresime ed eventi, con gallerie digitali Memorie Sospese.",
+      "description": "Studio fotografico professionale specializzato in matrimoni, battesimi, comunioni, cresime e eventi in Campania. Gallerie digitali interattive Memorie Sospese. Fondato da Gennaro Mazzacane, fotografo con 10+ anni di esperienza e 500+ matrimoni.",
       "foundingDate": "2014",
       "foundingLocation": {
         "@type": "Place",
@@ -404,7 +421,7 @@
       "@id": "https://imagestudiofotografico.com/#website",
       "url": "https://imagestudiofotografico.com",
       "name": "Image Studio - Memorie Sospese",
-      "description": "Studio fotografico specializzato in fotografia e video di matrimonio ad Aversa, Napoli, Caserta e in Campania, con gallerie digitali Memorie Sospese.",
+      "description": "Studio fotografico professionale specializzato in matrimoni ed eventi con gallerie digitali interattive Memorie Sospese. Servizi a Napoli, Caserta, Aversa, Costiera Amalfitana.",
       "publisher": {
         "@type": "Organization",
         "@id": "https://imagestudiofotografico.com/#organization"
@@ -565,7 +582,6 @@
     </script>
 
     <!-- Favicon -->
-    <link rel="manifest" href="/manifest.json?v=2" />
     <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
     <link rel="apple-touch-icon" href="/favicon.png?v=2" />
 
@@ -577,7 +593,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
     <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png?v=2" />
     <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png?v=2" />
-    <link rel="manifest" href="/site.webmanifest?v=2" />
 
     <!-- Performance -->
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
