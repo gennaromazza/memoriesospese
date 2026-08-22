@@ -3341,7 +3341,7 @@ export default function AdminDashboard() {
                           </div>
                           <div className="sm:col-span-2 rounded-lg border border-amber-100 bg-amber-50/50 p-3">
                             <p className="text-xs text-amber-900 mb-1">Questi sono i dati fiscali del mittente/studio, non quelli del cliente: salvali qui prima di creare una fattura XML FPR12.</p>
-                            <p className="text-xs text-amber-900 mb-3">Per il regime forfettario seleziona RF19; nel modulo fattura scegli “Non soggetta IVA — N2.2” quando applicabile.</p>
+                            <p className="text-xs text-amber-900 mb-3">Per il regime forfettario seleziona RF19: il modulo fattura applicherà automaticamente natura N2.2, IVA zero, causale normativa e bollo quando dovuto.</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1.5 sm:col-span-2">
                                 <Label htmlFor="studio-fiscal-via" className="text-xs font-medium text-stone-600 uppercase tracking-wide">Via / piazza</Label>
