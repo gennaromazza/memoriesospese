@@ -300,7 +300,7 @@ Aggiornare questa tabella dopo ogni intervento rilevante.
 
 | Data | Fase | Intervento | PR | Esito | Note |
 | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 | Preparazione | Creazione piano e mappa tecnica | Da assegnare | Completato | Prima versione del riferimento |
+| 2026-08-22 | Preparazione | Creazione piano e mappa tecnica | #26 | Completato | Prima versione del riferimento |
 
 ## Definition of Done generale
 
