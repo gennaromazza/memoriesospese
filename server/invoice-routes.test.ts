@@ -13,6 +13,9 @@ function ref(collection: string, id: string) {
       const value = state[collection]?.[id];
       return { exists: value !== undefined, id, data: () => value };
     },
+    async delete() {
+      delete state[collection]?.[id];
+    },
   };
 }
 
@@ -27,7 +30,7 @@ function collection(name: string) {
     async get() {
       const docs = Object.entries(state[name] || {})
         .filter(([, value]) => filters.every(([field, expected]) => value[field] === expected))
-        .map(([id, value]) => ({ id, exists: true, data: () => value }));
+        .map(([id, value]) => ({ id, exists: true, data: () => value, ref: ref(name, id) }));
       return { docs, empty: docs.length === 0 };
     },
   };
@@ -226,5 +229,20 @@ describe('invoice routes', () => {
     });
     expect(retry.status).toBe(409);
     expect((await retry.json()).error).toContain('idempotenza');
+  });
+
+  it('elimina una fattura e la relativa chiave di idempotenza senza modificare il progressivo', async () => {
+    const created = await fetch(`${baseUrl}/api/invoices`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(invoicePayload('delete-me')),
+    });
+    const createdBody = await created.json();
+
+    const deleted = await fetch(`${baseUrl}/api/invoices/${createdBody.invoiceId}`, { method: 'DELETE' });
+
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toMatchObject({ deleted: true, invoiceId: createdBody.invoiceId });
+    expect(state.invoices[createdBody.invoiceId]).toBeUndefined();
+    expect(state.invoiceIdempotency['delete-me']).toBeUndefined();
+    expect(state.counters.invoices_2026.lastNumber).toBe(1);
   });
 });
