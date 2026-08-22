@@ -136,7 +136,8 @@ describe('invoice routes', () => {
     state.settings.studio.regimeFiscale = 'RF19';
     const payload = {
       ...invoicePayload('private-forfettario'),
-      taxTreatment: 'fuori_campo',
+      // Il client invia il vecchio default: RF19 deve comunque prevalere lato server.
+      taxTreatment: 'iva_ordinaria',
     };
     const preview = await fetch(`${baseUrl}/api/invoices/preview`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -167,6 +168,7 @@ describe('invoice routes', () => {
     expect(invoice.xml).not.toContain('mario.rossi@example.com');
     expect(invoice.xml).toContain('<Natura>N2.2</Natura>');
     expect(invoice.xml).not.toContain('<EsigibilitaIVA>');
+    expect(invoice.input.taxTreatment).toBe('fuori_campo');
   });
 
   it('assegna progressivi annuali distinti anche con richieste concorrenti', async () => {

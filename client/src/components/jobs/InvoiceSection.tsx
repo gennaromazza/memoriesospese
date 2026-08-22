@@ -4,6 +4,7 @@ import { Download, FileText, Loader2, Plus, RefreshCw } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useStudio } from '@/context/StudioContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -103,6 +104,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSectionProps) {
   const { toast } = useToast();
+  const { studioSettings } = useStudio();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteId, setClienteId] = useState('');
@@ -117,6 +119,7 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
     recipient: { name: string };
   } | null>(null);
   const [formError, setFormError] = useState<InvoiceFormError | null>(null);
+  const isForfettario = studioSettings.regimeFiscale?.toUpperCase() === 'RF19';
 
   const historyQuery = useQuery<{ invoices: InvoiceHistoryItem[] }>({
     queryKey: ['invoices', jobId],
@@ -127,6 +130,10 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
   useEffect(() => {
     if (!clienteId && clienti[0]) setClienteId(clienti[0].id);
   }, [clienti, clienteId]);
+
+  useEffect(() => {
+    if (dialogOpen && isForfettario) setTaxTreatment('fuori_campo');
+  }, [dialogOpen, isForfettario]);
 
   const draft = {
     jobId,
@@ -183,7 +190,7 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
     setIssueDate(new Date().toISOString().slice(0, 10));
     setTaxableAmount('');
     setDescription(`Servizio fotografico - ${jobName}`);
-    setTaxTreatment('iva_ordinaria');
+    setTaxTreatment(isForfettario ? 'fuori_campo' : 'iva_ordinaria');
     setIdempotencyKey(nanoid());
     setPreview(null);
     setFormError(null);
@@ -258,12 +265,16 @@ export default function InvoiceSection({ jobId, jobName, clienti }: InvoiceSecti
             </div>
             <div className="space-y-1.5">
               <Label>Trattamento IVA/fiscale</Label>
-              <Select value={taxTreatment} onValueChange={(value) => { setTaxTreatment(value as InvoiceTaxTreatment); setPreview(null); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{taxOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
-              </Select>
-              {taxTreatment === 'fuori_campo' && (
-                <p className="text-xs text-muted-foreground">Con studio in regime RF19 l’XML riporta natura N2.2, IVA a zero e la causale normativa del regime forfettario.</p>
+              {isForfettario ? (
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                  <strong>RF19 · Regime forfettario</strong>
+                  <p className="mt-1 text-xs text-muted-foreground">Riconosciuto dalle Impostazioni studio: l’XML applica automaticamente natura N2.2, IVA zero, causale normativa e bollo quando dovuto.</p>
+                </div>
+              ) : (
+                <Select value={taxTreatment} onValueChange={(value) => { setTaxTreatment(value as InvoiceTaxTreatment); setPreview(null); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{taxOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                </Select>
               )}
             </div>
             <div className="space-y-1.5">

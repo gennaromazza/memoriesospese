@@ -123,6 +123,11 @@ function filenameForInvoice(sender: FatturaPaSender, year: number, sequence: num
   return `IT${senderId}_${fileProgressive}.xml`;
 }
 
+function applyStudioTaxRegime(draft: InvoiceDraftInput, sender: FatturaPaSender): InvoiceDraftInput {
+  if (cleanString(sender.regimeFiscale).toUpperCase() !== 'RF19') return draft;
+  return { ...draft, taxTreatment: 'fuori_campo', taxRate: undefined };
+}
+
 async function loadDraftContext(draft: InvoiceDraftInput) {
   const [settingsDoc, jobDoc, clienteDoc] = await Promise.all([
     db.collection('settings').doc('studio').get(),
@@ -138,7 +143,8 @@ async function loadDraftContext(draft: InvoiceDraftInput) {
   }
   const sender = senderFromSettings(settingsDoc.exists ? settingsDoc.data() : {});
   const recipient = recipientFromDocument(cliente);
-  const validation = validateFatturaPaInput(sender, recipient, draft);
+  const effectiveDraft = applyStudioTaxRegime(draft, sender);
+  const validation = validateFatturaPaInput(sender, recipient, effectiveDraft);
   return { sender, recipient, validation, job, cliente };
 }
 
@@ -238,7 +244,8 @@ router.post('/', async (req: any, res: Response) => {
       }
       const sender = senderFromSettings(settingsDoc.exists ? settingsDoc.data() : {});
       const recipient = recipientFromDocument(clienteDoc.data() || {});
-      const validation = validateFatturaPaInput(sender, recipient, draft);
+      const effectiveDraft = applyStudioTaxRegime(draft, sender);
+      const validation = validateFatturaPaInput(sender, recipient, effectiveDraft);
       if (!validation.valid) throw Object.assign(new Error('Dati insufficienti per creare la fattura elettronica'), {
         statusCode: 422, validation,
       });
@@ -251,7 +258,7 @@ router.post('/', async (req: any, res: Response) => {
         recipient,
         totals,
         input: {
-          ...draft,
+          ...effectiveDraft,
           invoiceNumber: numero,
           jobReference: job.nomeEvento || draft.jobId,
         },
@@ -267,7 +274,7 @@ router.post('/', async (req: any, res: Response) => {
         numero,
         year,
         issueDate: draft.issueDate,
-        input: Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== undefined)),
+        input: Object.fromEntries(Object.entries(effectiveDraft).filter(([, value]) => value !== undefined)),
         totals,
         filename,
         xml,
