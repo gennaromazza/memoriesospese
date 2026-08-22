@@ -51,6 +51,9 @@ describe('FatturaPA FPR12', () => {
   it('genera XML FPR12 escapato e normalizza le province', () => {
     const xml = xmlFor(100, 'iva_ordinaria');
     expect(xml).toContain('versione="FPR12"');
+    expect(xml).toContain('xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"');
+    expect(xml).not.toContain('xmlns="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2"');
+    expect(xml).toContain('<FatturaElettronicaHeader>');
     expect(xml).toContain('Studio &amp; Foto &lt;Roma&gt;');
     expect(xml).toContain('Servizio foto &amp; video &lt;matrimonio&gt;');
     expect(xml).toContain('<ImportoTotaleDocumento>122.00</ImportoTotaleDocumento>');
