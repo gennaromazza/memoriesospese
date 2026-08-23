@@ -15,6 +15,7 @@ vi.mock('./email-routes.js', () => ({
 import {
   buildAuthorizedSources,
   buildGroqPrompt,
+  inspectWeddingDraftQuality,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingStoryInput,
@@ -67,6 +68,24 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).not.toContain('https://full.example/photo.jpg');
     expect(prompt).not.toContain('preparativi.jpg');
     expect(prompt).toContain('Non inventare');
+    expect(prompt).toContain("passato prossimo e imperfetto");
+    expect(prompt).toContain('omettilo in silenzio');
+    expect(prompt).toContain('non un riepilogo del modulo');
+  });
+
+  it('rejects operational, speculative drafts like the bad generated example', () => {
+    const issues = inspectWeddingDraftQuality({
+      title: 'Biagio e Roberta',
+      excerpt: 'Il loro matrimonio',
+      story: `## Preparativi\n\nBiagio e Roberta si prepareranno a casa. Non sono indicati ulteriori dettagli.\n\n` +
+        `## Cerimonia\n\nLa cerimonia è prevista alle 15:30.\n\n` +
+        `## Fornitori\n\nPassaro, probabilmente per gli abiti.`,
+    });
+
+    expect(issues).toContain('commenta informazioni mancanti o il processo editoriale');
+    expect(issues).toContain('contiene inferenze non verificabili');
+    expect(issues).toContain('usa il futuro o un tono da programma operativo');
+    expect(issues).toContain('usa intestazioni generiche da dossier');
   });
 
   it('makes completed legacy submissions available to the admin migration flow', () => {

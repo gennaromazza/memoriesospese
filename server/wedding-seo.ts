@@ -175,24 +175,50 @@ export function buildGroqPrompt(params: {
   };
 
   const hasAuthorizedSources = params.sources.length > 0;
-  const storyLength = hasAuthorizedSources ? '900-1500 parole, 4-6 sezioni' : '250-450 parole, 2-3 sezioni';
+  const storyLength = hasAuthorizedSources ? '500-900 parole, 3-5 sezioni' : '220-350 parole, 2-3 sezioni';
 
   return `Sei un editor italiano specializzato in reportage di matrimonio.\n` +
     `Scrivi esclusivamente usando i FATTI, le RISPOSTE AUTORIZZATE e le SEZIONI FOTOGRAFICHE qui sotto.\n` +
     `Non inventare nomi, luoghi, emozioni, eventi, rapporti, fornitori o citazioni. ` +
     `Non dedurre informazioni dalla reputazione, dalla storia o dalla geografia di un luogo. ` +
-    `Non citare note interne, ID, nomi file o il processo di generazione. ` +
-    `Evita frasi generiche, superlativi non verificabili e keyword stuffing. ` +
-    `Se un dettaglio manca, omettilo. Il testo resta una bozza privata e non deve dichiararsi pubblicato.\n\n` +
+    `Non attribuire mai un ruolo a un fornitore se il ruolo non è scritto esplicitamente. ` +
+    `Non citare note interne, ID, nomi file, questionari, risposte autorizzate o il processo di generazione.\n` +
+    `Scrivi come racconto successivo all'evento, usando passato prossimo e imperfetto. ` +
+    `Non usare il futuro né formule da programma come “è previsto”, “sono previsti” o “avrà inizio”.\n` +
+    `Tratta orari, numero degli ospiti, composizione familiare, richieste di scatto e indicazioni logistiche come contesto operativo: ` +
+    `non trasformarli in una checklist e non usarli come riempitivo. Inseriscili soltanto quando migliorano davvero il racconto.\n` +
+    `Se un dettaglio manca, omettilo in silenzio. Non scrivere mai “non è indicato”, “non sono forniti dettagli”, ` +
+    `“dati disponibili”, “probabilmente” o “presumibilmente”. ` +
+    `Non commentare ciò che non sai e non spiegare i limiti delle fonti.\n` +
+    `Crea titoli di sezione specifici per questa coppia e questo matrimonio: evita intestazioni da dossier come ` +
+    `“Preparativi”, “Cerimonia”, “Famiglia e Ospiti”, “Fornitori” e “Ricevimento”. ` +
+    `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n\n` +
     `FATTI: ${JSON.stringify(facts)}\n` +
     `RISPOSTE AUTORIZZATE: ${JSON.stringify(sourcePayload)}\n` +
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
     `Restituisci solo JSON valido con: title (max 140), excerpt (max 300), ` +
     `story (${storyLength} con titoli Markdown ##), seoTitle (max 60), ` +
-    `seoDescription (max 155). Mantieni un tono specifico, sobrio e leggibile. ` +
+    `seoDescription (max 155). Il racconto deve sembrare un articolo editoriale finito, non un riepilogo del modulo. ` +
     (hasAuthorizedSources
       ? 'Ogni affermazione deve essere riconducibile ai dati disponibili.'
       : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
+}
+
+export function inspectWeddingDraftQuality(draft: Record<string, any>): string[] {
+  const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
+  const issues: string[] = [];
+  if (/\b(?:non (?:è|sono|risultano) (?:indicat[oi]|fornit[ei]|disponibil[ei])|non (?:sono|vengono) descritt[ei]|dati disponibili|risposte autorizzate|questionario)\b/i.test(text)) {
+    issues.push('commenta informazioni mancanti o il processo editoriale');
+  }
+  if (/\b(?:probabilmente|presumibilmente|verosimilmente)\b/i.test(text)) {
+    issues.push('contiene inferenze non verificabili');
+  }
+  if (/\b(?:sarà|saranno|avrà inizio|si prepareranno|è previsto|sono previsti)\b/i.test(text)) {
+    issues.push('usa il futuro o un tono da programma operativo');
+  }
+  const genericHeadings = String(draft.story || '').match(/^##\s+(?:Preparativi|Cerimonia|Famiglia e Ospiti|Fornitori|Ricevimento)\s*$/gim) || [];
+  if (genericHeadings.length >= 2) issues.push('usa intestazioni generiche da dossier');
+  return issues;
 }
 
 function parseGroqJson(raw: string): Record<string, any> {
@@ -401,6 +427,13 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     }
     const completion: any = await response.json();
     const generated = parseGroqJson(completion?.choices?.[0]?.message?.content || '');
+    const qualityIssues = inspectWeddingDraftQuality(generated);
+    if (qualityIssues.length > 0) {
+      console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
+      return res.status(502).json({
+        error: `La bozza IA non ha superato il controllo editoriale (${qualityIssues.join('; ')}). Riprova: il testo corrente è rimasto invariato.`,
+      });
+    }
     return res.json({
       draft: {
         title: safeString(generated.title, 140),
