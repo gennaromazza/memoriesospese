@@ -33,3 +33,4 @@
 - [Fixture e2e nel Firestore di produzione](e2e-fixtures-prod-firestore.md) — i task env hanno i secrets: test e2e col vero Admin SDK sporcano il DB reale; usare mock, ripulire per prefisso code.
 - [Ambienti task isolati senza connettori](isolated-env-no-connectors.md) — Drive & co. non raggiungibili nei task env: testare con mock (pattern fake Firestore + drive) e route lunghe sempre in background.
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.
+- [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
