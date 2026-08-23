@@ -368,6 +368,13 @@ export function inspectWeddingDraftQuality(
   return issues;
 }
 
+export function buildWeddingDraftRevisionPrompt(issues: string[]): string {
+  return `La prima bozza è stata respinta dal controllo editoriale per questi motivi: ${issues.join('; ')}.\n` +
+    `Riscrivila integralmente, non limitarti ad aggiungere un paragrafo. Mantieni esclusivamente i fatti forniti nel messaggio iniziale, ` +
+    `correggi tutti i problemi indicati e porta il corpo story tra 850 e 1200 parole reali. ` +
+    `Conserva il formato JSON richiesto e restituisci soltanto JSON valido.`;
+}
+
 function parseGroqJson(raw: string): Record<string, any> {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = JSON.parse(cleaned);
@@ -563,37 +570,52 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'GROQ_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.' });
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
-        temperature: 0.35,
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: buildGroqPrompt({ gallery, sources, photos, jobFacts }) }],
-      }),
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error('[wedding-seo] Groq:', response.status, detail.slice(0, 500));
-      return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
-    }
-    const completion: any = await response.json();
-    const generated = parseGroqJson(completion?.choices?.[0]?.message?.content || '');
     const requiredVendors = sources.flatMap(vendorNamesFromSource);
     const unverifiedVendorNames = sources
       .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
       .flatMap(vendorNamesFromSource);
-    const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, {
+    const qualityContext = {
       allowedText: JSON.stringify({ jobFacts, sources: promptSourcePayload(sources) }),
       unverifiedVendorNames,
       minimumWords: sources.length > 0 ? 700 : undefined,
       requiredBrand: 'Image Studio',
-    });
-    if (qualityIssues.length > 0) {
-      console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
+    };
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      { role: 'user', content: buildGroqPrompt({ gallery, sources, photos, jobFacts }) },
+    ];
+    let generated: Record<string, any> | null = null;
+    let qualityIssues: string[] = [];
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+          temperature: attempt === 1 ? 0.35 : 0.25,
+          max_completion_tokens: 6000,
+          response_format: { type: 'json_object' },
+          messages,
+        }),
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        console.error('[wedding-seo] Groq:', response.status, detail.slice(0, 500));
+        return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
+      }
+      const completion: any = await response.json();
+      const raw = completion?.choices?.[0]?.message?.content || '';
+      generated = parseGroqJson(raw);
+      qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
+      if (qualityIssues.length === 0) break;
+      console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
+      if (attempt === 1) {
+        messages.push({ role: 'assistant', content: raw });
+        messages.push({ role: 'user', content: buildWeddingDraftRevisionPrompt(qualityIssues) });
+      }
+    }
+    if (!generated || qualityIssues.length > 0) {
       return res.status(502).json({
-        error: `La bozza IA non ha superato il controllo editoriale (${qualityIssues.join('; ')}). Riprova: il testo corrente è rimasto invariato.`,
+        error: `La bozza IA non ha superato il controllo editoriale dopo la correzione automatica (${qualityIssues.join('; ')}). Il testo corrente è rimasto invariato.`,
       });
     }
     return res.json({

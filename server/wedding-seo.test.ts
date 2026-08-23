@@ -14,6 +14,7 @@ vi.mock('./email-routes.js', () => ({
 
 import {
   buildAuthorizedSources,
+  buildWeddingDraftRevisionPrompt,
   buildGroqPrompt,
   buildWeddingEditorialJobFacts,
   inspectWeddingDraftQuality,
@@ -192,6 +193,14 @@ describe('Real Wedding editorial safety', () => {
     expect(issues).toContain('non valorizza il brand fotografico: Image Studio');
     expect(inspectWeddingDraftQuality({ story: 'Il reportage di Image Studio.' }, [], { requiredBrand: 'Image Studio' }))
       .not.toContain('non valorizza il brand fotografico: Image Studio');
+  });
+
+  it('builds a precise automatic revision request after a rejected first draft', () => {
+    const prompt = buildWeddingDraftRevisionPrompt(['racconto troppo breve: 561 parole, minimo 700']);
+    expect(prompt).toContain('Riscrivila integralmente');
+    expect(prompt).toContain('850 e 1200 parole reali');
+    expect(prompt).toContain('racconto troppo breve: 561 parole, minimo 700');
+    expect(prompt).toContain('soltanto JSON valido');
   });
 
   it('makes completed legacy submissions available to the admin migration flow', () => {
