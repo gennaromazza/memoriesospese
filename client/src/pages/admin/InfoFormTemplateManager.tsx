@@ -43,7 +43,7 @@ const PRESETS: Preset[] = PRESETS_RAW as Preset[];
 
 function normalizeImportedFields(raw: any[]): InfoFormField[] {
   return raw.map(f => {
-    const type: InfoFormField['type'] = ['text','textarea','number','select','radio','checkbox','instagram'].includes(f.type) ? f.type : 'text';
+    const type: InfoFormField['type'] = ['text','textarea','number','select','radio','checkbox','instagram','vendor'].includes(f.type) ? f.type : 'text';
     return {
       id: crypto.randomUUID(),
       label: typeof f.label === 'string' ? f.label : '',
@@ -54,6 +54,8 @@ function normalizeImportedFields(raw: any[]): InfoFormField[] {
       ...(type === 'instagram'
         ? { clientTarget: f.clientTarget === 'client2' ? 'client2' : 'client1' as const }
         : {}),
+      editorialUse: f.editorialUse === true || type === 'vendor',
+      editorialCategory: type === 'vendor' || f.editorialCategory === 'vendor' ? 'vendor' : 'story',
     };
   });
 }
@@ -66,6 +68,7 @@ const FIELD_TYPE_LABELS: Record<InfoFormField['type'], string> = {
   radio: 'Scelta singola',
   checkbox: 'Scelte multiple',
   instagram: 'Account Instagram',
+  vendor: 'Fornitore (nome, ruolo, link)',
 };
 
 function newField(): InfoFormField {
@@ -76,6 +79,8 @@ function newField(): InfoFormField {
     required: false,
     options: [],
     placeholder: '',
+    editorialUse: false,
+    editorialCategory: 'story',
   };
 }
 
@@ -154,6 +159,10 @@ function FieldEditor({
               } else {
                 delete next.clientTarget;
               }
+              if (type === 'vendor') {
+                next.editorialUse = true;
+                next.editorialCategory = 'vendor';
+              }
               onChange(next);
             }}
           >
@@ -207,6 +216,25 @@ function FieldEditor({
             className="h-4 w-4 text-[#6b7f6b] border-gray-300 rounded"
           />
           <Label htmlFor={`req-${field.id}`} className="text-xs cursor-pointer">Campo obbligatorio</Label>
+        </div>
+
+        <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={field.editorialUse === true}
+              onChange={e => onChange({
+                ...field,
+                editorialUse: e.target.checked,
+                editorialCategory: field.type === 'vendor' ? 'vendor' : 'story',
+              })}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300"
+            />
+            <span className="text-xs text-gray-700">
+              <strong className="block">Risposta candidabile per la Storia Real Wedding</strong>
+              Resta privata: serviranno il consenso separato del cliente e la selezione manuale dell’admin.
+            </span>
+          </label>
         </div>
       </div>
 

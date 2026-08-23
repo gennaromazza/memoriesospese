@@ -6,13 +6,17 @@
 export interface InfoFormField {
   id: string;
   label: string;
-  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'instagram';
+  type: 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'number' | 'instagram' | 'vendor';
   required: boolean;
   options?: string[];
   placeholder?: string;
   // Solo per type === 'instagram': indica di quale cliente del job aggiornare
   // automaticamente il profilo Instagram (client1 = primo, client2 = secondo).
   clientTarget?: 'client1' | 'client2';
+  // I campi editoriali restano privati finché il cliente non concede il
+  // consenso separato e l'admin non seleziona la singola risposta.
+  editorialUse?: boolean;
+  editorialCategory?: 'story' | 'vendor';
 }
 
 export interface InfoFormTemplate {
@@ -36,6 +40,8 @@ export interface InfoFormSubmission {
   clientName: string;
   status: 'pending' | 'completed';
   answers: Record<string, any>;
+  editorialConsent?: boolean;
+  editorialConsentAt?: any;
   sentAt: any;
   completedAt?: any;
 }

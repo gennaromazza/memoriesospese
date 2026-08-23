@@ -24,6 +24,24 @@ function timestampSeconds(value: unknown): number | null {
   return timestamp.seconds ?? timestamp._seconds ?? null;
 }
 
+export function buildWeddingSitemapEntries(
+  stories: Array<Record<string, any>>,
+  baseUrl = 'https://imagestudiofotografico.com',
+): string {
+  let entries = '';
+  for (const story of stories) {
+    // Difesa aggiuntiva: anche se la query Firestore è già filtrata, una bozza
+    // non deve mai produrre una voce pubblica.
+    if (story.status !== 'published' || !story.slug) continue;
+    const modifiedSeconds = timestampSeconds(story.updatedAt) ?? timestampSeconds(story.publishedAt);
+    const lastmod = modifiedSeconds
+      ? new Date(modifiedSeconds * 1000).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+    entries += `  <url>\n    <loc>${escapeXml(`${baseUrl}/real-wedding/${encodeURIComponent(story.slug)}`)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+  }
+  return entries;
+}
+
 export async function generateDynamicSitemap(): Promise<string> {
   const baseUrl = 'https://imagestudiofotografico.com';
 
@@ -37,6 +55,12 @@ export async function generateDynamicSitemap(): Promise<string> {
     id: doc.id,
     ...doc.data()
   })) as (BlogPost & { images?: BlogPostMedia[]; videos?: BlogPostMedia[] })[];
+
+  // Solo le storie pubblicate entrano nella sitemap; le bozze non hanno URL indicizzabile.
+  const storiesSnapshot = await db.collection('weddingSeoStories')
+    .where('status', '==', 'published')
+    .get();
+  const weddingStories = storiesSnapshot.docs.map(document => ({ id: document.id, ...document.data() })) as Array<Record<string, any>>;
 
   // Pagine statiche con data di ultima modifica REALE del contenuto
   // (aggiornare la data quando si modifica il contenuto/prerender della pagina)
@@ -128,6 +152,9 @@ export async function generateDynamicSitemap(): Promise<string> {
     sitemap += `  </url>
 `;
   }
+
+  sitemap += `\n  <!-- Real Wedding pubblicati -->\n`;
+  sitemap += buildWeddingSitemapEntries(weddingStories, baseUrl);
 
   sitemap += `</urlset>`;
 

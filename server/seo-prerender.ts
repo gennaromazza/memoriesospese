@@ -637,6 +637,66 @@ async function getBlogListMeta(): Promise<PageMeta> {
   }
 }
 
+export function buildWeddingStoryPageMeta(story: Record<string, any>, images: string[] = []): PageMeta {
+  const slug = String(story.slug || '');
+  const canonical = `${BASE_URL}/real-wedding/${encodeURIComponent(slug)}`;
+  const title = String(story.seoTitle || story.title || 'Real Wedding | Image Studio').slice(0, 70);
+  const description = String(story.seoDescription || story.excerpt || story.title || '').slice(0, 170);
+  const blocks = String(story.story || '')
+    .split(/\n\s*\n/)
+    .map(value => value.trim())
+    .filter(Boolean)
+    .map(value => value.startsWith('## ')
+      ? `<h2>${escapeHtml(value.slice(3).trim())}</h2>`
+      : `<p>${escapeHtml(value.replace(/^#+\s*/, ''))}</p>`)
+    .join('');
+  const publishedDate = story.publishedAt?.toDate?.()?.toISOString?.()
+    || (story.publishedAt?.seconds ? new Date(story.publishedAt.seconds * 1000).toISOString() : undefined);
+  const modifiedDate = story.updatedAt?.toDate?.()?.toISOString?.()
+    || (story.updatedAt?.seconds ? new Date(story.updatedAt.seconds * 1000).toISOString() : publishedDate);
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    '@id': canonical,
+    headline: story.title,
+    description,
+    mainEntityOfPage: canonical,
+    image: images,
+    datePublished: publishedDate,
+    dateModified: modifiedDate,
+    author: { '@id': `${BASE_URL}/#photographer` },
+    publisher: { '@id': `${BASE_URL}/#organization` },
+    inLanguage: 'it-IT',
+  };
+  return {
+    title,
+    description,
+    canonical,
+    ogType: 'article',
+    ogImage: images[0] || OG_IMAGE,
+    jsonLd: articleSchema,
+    bodyContent: `<article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${images.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>`,
+  };
+}
+
+async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
+  const snapshot = await db.collection('weddingSeoStories')
+    .where('slug', '==', slug)
+    .get();
+  const publishedDocument = snapshot.docs.find(document => document.data().status === 'published');
+  if (!publishedDocument) return null;
+  const story = publishedDocument.data();
+  const photoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds.slice(0, 24) : [];
+  const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
+    ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
+    : db.collection('photos').doc(id).get()));
+  const images = photoDocuments
+    .filter((document, index) => document.exists && (photoIds[index].startsWith('legacy-') || document.data()?.galleryId === story.galleryId))
+    .map(document => String(document.data()?.url || ''))
+    .filter(Boolean);
+  return buildWeddingStoryPageMeta(story, images);
+}
+
 function getPortfolioCategoryMeta(category: string): PageMeta | null {
   const categories: Record<string, { title: string; description: string }> = {
     'matrimonio': {
@@ -808,6 +868,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const seoHead = `
     <title>${escapeHtml(meta.title)}</title>
     <meta name="description" content="${escapeHtml(meta.description)}" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
     ${meta.keywords ? `<meta name="keywords" content="${escapeHtml(meta.keywords)}" />` : ''}
     <link rel="canonical" href="${escapeHtml(meta.canonical)}" />
     <meta property="og:title" content="${escapeHtml(meta.title)}" />
@@ -829,6 +890,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   html = html.replace(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
   html = html.replace(/<title>[^<]*<\/title>/, '');
   html = html.replace(/<meta\s+name="description"[^>]*>/g, '');
+  html = html.replace(/<meta\s+name="robots"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:title"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:description"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:type"[^>]*>/g, '');
@@ -866,7 +928,14 @@ export function createSeoMiddleware() {
     try {
       let meta: PageMeta | null = null;
 
-      if (path.startsWith('/blog/') && path !== '/blog') {
+      if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
+        const slug = path.replace('/real-wedding/', '');
+        meta = await getWeddingStoryMeta(slug);
+        if (!meta) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          return next();
+        }
+      } else if (path.startsWith('/blog/') && path !== '/blog') {
         const slug = path.replace('/blog/', '');
         meta = await getBlogPostMeta(slug);
       } else if (path === '/blog') {

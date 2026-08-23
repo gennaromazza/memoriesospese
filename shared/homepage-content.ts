@@ -68,10 +68,10 @@ function textOrDefault(value: unknown, fallback: string): string {
 }
 
 export function resolveHomepageContent(value?: Partial<HomepageContent> | null): HomepageContent {
-  const hero = value?.hero || {};
-  const portfolio = value?.portfolio || {};
-  const secondaryServices = value?.secondaryServices || {};
-  const whatsapp = value?.whatsapp || {};
+  const hero: Partial<HomepageContent['hero']> = value?.hero || {};
+  const portfolio: Partial<HomepageContent['portfolio']> = value?.portfolio || {};
+  const secondaryServices: Partial<HomepageContent['secondaryServices']> = value?.secondaryServices || {};
+  const whatsapp: Partial<HomepageContent['whatsapp']> = value?.whatsapp || {};
   return {
     version: 2,
     hero: {

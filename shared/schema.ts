@@ -487,6 +487,16 @@ export interface CoupleStory {
   updatedBy?: string; // admin email
 }
 
+// Il nuovo flusso editoriale Real Wedding usa tipi condivisi separati per non
+// confondersi con il legacy CoupleStory importato da JSON.
+export type {
+  WeddingSeoStory,
+  WeddingStoryStatus,
+  WeddingStorySource,
+  WeddingStoryEditorContext,
+  PublicWeddingStory,
+} from './wedding-seo-types';
+
 // Validation schema for story content from ChatGPT JSON
 export const insertCoupleStorySchema = z.object({
   galleryId: z.string().min(1, "Gallery ID è obbligatorio"),

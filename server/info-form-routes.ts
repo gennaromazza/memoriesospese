@@ -148,6 +148,7 @@ router.get('/by-token/:token', async (req: Request, res: Response) => {
       clientEmail: data.clientEmail,
       status: data.status || 'pending',
       answers: data.answers || {},
+      editorialConsent: data.editorialConsent === true,
       sentAt,
       completedAt,
     });
@@ -166,7 +167,7 @@ router.get('/by-token/:token', async (req: Request, res: Response) => {
 router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
-    const { answers } = req.body || {};
+    const { answers, editorialConsent } = req.body || {};
 
     if (!token || typeof token !== 'string' || token.length < 8) {
       return res.status(400).json({ error: 'Token non valido' });
@@ -194,6 +195,9 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
 
     await docSnap.ref.update({
       answers,
+      // Consenso separato, esplicito e false per impostazione predefinita.
+      editorialConsent: editorialConsent === true,
+      editorialConsentAt: editorialConsent === true ? FieldValue.serverTimestamp() : null,
       status: 'completed',
       completedAt: FieldValue.serverTimestamp(),
     });

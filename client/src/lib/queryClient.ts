@@ -108,6 +108,7 @@ export async function apiRequest(
     '/api/migrations/', // Migration endpoints requiring auth
     '/api/photobooks', // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)
     '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
+    '/api/wedding-seo/gallery/', // Editor Real Wedding (la route /public resta pubblica)
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
@@ -170,6 +171,7 @@ export const getQueryFn: <T>(options: {
       '/api/consultations/v2/', // All V2 consultation endpoints except public ones
       '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
       '/api/invoices', // Electronic invoice XML endpoints requiring auth
+      '/api/wedding-seo/gallery/', // Editor Real Wedding
     ];
     
     // Check specifico per consultations: tutti tranne i pubblici

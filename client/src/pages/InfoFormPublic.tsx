@@ -28,6 +28,7 @@ export default function InfoFormPublic() {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [editorialConsent, setEditorialConsent] = useState(false);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
@@ -36,6 +37,14 @@ export default function InfoFormPublic() {
   const cardRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+
+  useEffect(() => {
+    const robots = document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex,nofollow,noarchive';
+    document.head.appendChild(robots);
+    return () => robots.remove();
+  }, []);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -67,6 +76,7 @@ export default function InfoFormPublic() {
         const initial: Record<string, any> = {};
         sub.templateFields?.forEach(f => {
           if (f.type === 'checkbox') initial[f.id] = [];
+          else if (f.type === 'vendor') initial[f.id] = { name: '', role: '', url: '' };
           else initial[f.id] = '';
         });
         setAnswers(initial);
@@ -76,6 +86,7 @@ export default function InfoFormPublic() {
   }, [token]);
 
   const fields = submission?.templateFields || [];
+  const hasEditorialFields = fields.some(field => field.editorialUse);
   const total = fields.length;
   const current = fields[currentIndex];
   const isLast = currentIndex === total - 1;
@@ -87,6 +98,12 @@ export default function InfoFormPublic() {
     if (current.type === 'checkbox') {
       if (!Array.isArray(val) || val.length === 0) {
         setFieldError('Seleziona almeno un\'opzione per continuare');
+        return false;
+      }
+    } else if (current.type === 'vendor') {
+      const vendor = val && typeof val === 'object' ? val : {};
+      if (!String(vendor.name || '').trim() || !String(vendor.role || '').trim()) {
+        setFieldError('Inserisci almeno nome e ruolo del fornitore');
         return false;
       }
     } else {
@@ -139,7 +156,7 @@ export default function InfoFormPublic() {
     if (!submission) return;
     setSubmitting(true);
     try {
-      await submitInfoForm(submission.id, token, answers);
+      await submitInfoForm(submission.id, token, answers, editorialConsent);
       try {
         await apiRequest('POST', '/api/email/send-info-form-submitted', { token });
       } catch (_) { }
@@ -193,6 +210,33 @@ export default function InfoFormPublic() {
             </p>
           </div>
         );
+      case 'vendor': {
+        const vendor = answers[field.id] || { name: '', role: '', url: '' };
+        return (
+          <div className="grid gap-3">
+            <Input
+              autoFocus
+              value={vendor.name || ''}
+              onChange={e => handleChange(field.id, { ...vendor, name: e.target.value })}
+              placeholder="Nome del fornitore"
+              className={`text-lg h-12 ${baseInput}`}
+            />
+            <Input
+              value={vendor.role || ''}
+              onChange={e => handleChange(field.id, { ...vendor, role: e.target.value })}
+              placeholder="Ruolo, es. floral designer"
+              className={`text-lg h-12 ${baseInput}`}
+            />
+            <Input
+              type="url"
+              value={vendor.url || ''}
+              onChange={e => handleChange(field.id, { ...vendor, url: e.target.value })}
+              placeholder="Sito o profilo pubblico (opzionale)"
+              className={`text-lg h-12 ${baseInput}`}
+            />
+          </div>
+        );
+      }
       case 'textarea':
         return (
           <Textarea
@@ -421,6 +465,21 @@ export default function InfoFormPublic() {
               </div>
             )}
           </div>
+
+          {isLast && hasEditorialFields && (
+            <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={editorialConsent}
+                onChange={event => setEditorialConsent(event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+              />
+              <span>
+                <strong className="block text-gray-900">Consenso editoriale facoltativo</strong>
+                Autorizzo lo studio a valutare le risposte indicate come editoriali per una possibile storia del matrimonio. La pubblicazione non è automatica e le altre risposte restano private.
+              </span>
+            </label>
+          )}
 
           {/* Navigazione */}
           <div className="flex items-center justify-between mt-5 gap-3">

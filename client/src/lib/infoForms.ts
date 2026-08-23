@@ -84,6 +84,8 @@ export async function sendInfoForm(
       clientName: client.clientName,
       status: 'pending',
       answers: {},
+      editorialConsent: false,
+      editorialConsentAt: null,
       sentAt: serverTimestamp(),
       completedAt: null,
     });
@@ -117,7 +119,8 @@ export async function getSubmissionsByJobId(jobId: string): Promise<InfoFormSubm
 export async function submitInfoForm(
   submissionId: string,
   token: string,
-  answers: Record<string, any>
+  answers: Record<string, any>,
+  editorialConsent: boolean = false,
 ): Promise<void> {
   // Endpoint pubblico server-side: il server valida il token, completa la
   // submission e crea la notifica admin. Il parametro submissionId è mantenuto
@@ -129,7 +132,7 @@ export async function submitInfoForm(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, editorialConsent }),
     }
   );
   if (!res.ok) {

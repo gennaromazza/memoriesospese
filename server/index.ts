@@ -33,6 +33,7 @@ import studioAssistantRoutes from './studio-assistant-routes.js';
 import infoFormRoutes from './info-form-routes.js';
 import photobookRoutes from './photobook-routes.js';
 import blogRoutes from './blog-routes.js';
+import weddingSeoRoutes from './wedding-seo.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
@@ -192,6 +193,15 @@ async function startServer() {
 
     app.use('/api/blog', blogRoutes);
     console.log('📰 Blog API routes mounted at /api/blog');
+
+    app.use('/api/wedding-seo', weddingSeoRoutes);
+    console.log('💍 Real Wedding API routes mounted at /api/wedding-seo');
+
+    // I link dei moduli sono sempre privati e non devono entrare negli indici.
+    app.use('/modulo', (_req, res, next) => {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      next();
+    });
 
     // Sitemap dinamica
     app.get('/sitemap.xml', async (req, res) => {

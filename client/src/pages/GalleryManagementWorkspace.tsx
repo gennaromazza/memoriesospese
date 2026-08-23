@@ -20,13 +20,15 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { ArrowLeft, Upload, Users, Settings, CheckCircle, XCircle, Loader2, Search, Trash2, ImageIcon, Folder, Pencil, Mail, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Eye, BookOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import EditGalleryModal from '@/components/EditGalleryModal';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import imageCompression from 'browser-image-compression';
 import ChaptersManager from '@/components/gallery/ChaptersManager';
+import WeddingSeoDraftPanel from '@/components/WeddingSeoDraftPanel';
+import { isWeddingJobType } from '@/lib/wedding-seo';
 
 interface UploadProgress {
   fileName: string;
@@ -848,7 +850,7 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
 
         {/* Tabs */}
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className={`grid w-full ${isWeddingJobType(gallery.jobType) ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="upload" data-testid="tab-upload">
               <Upload className="w-4 h-4 mr-2" />
               Carica Foto
@@ -861,6 +863,12 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
               <Users className="w-4 h-4 mr-2" />
               Selezioni Cliente
             </TabsTrigger>
+            {isWeddingJobType(gallery.jobType) && (
+              <TabsTrigger value="real-wedding" data-testid="tab-real-wedding">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Storia Real Wedding
+              </TabsTrigger>
+            )}
             <TabsTrigger value="settings" data-testid="tab-settings">
               <Settings className="w-4 h-4 mr-2" />
               Impostazioni
@@ -1985,7 +1993,13 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Impostazioni */}
+          {isWeddingJobType(gallery.jobType) && (
+            <TabsContent value="real-wedding">
+              <WeddingSeoDraftPanel gallery={gallery} photos={allPhotos} />
+            </TabsContent>
+          )}
+
+          {/* Tab Impostazioni */}
           <TabsContent value="settings">
             <Card>
               <CardHeader>
