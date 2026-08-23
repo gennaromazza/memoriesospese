@@ -45,6 +45,17 @@ export interface WeddingStoryVendor {
   url?: string;
 }
 
+export interface WeddingEditorialJobFacts {
+  coupleNames: string[];
+  eventName?: string;
+  eventDate?: string;
+  receptionVenue?: string;
+  receptionCity?: string;
+  ceremonyVenue?: string;
+  ceremonyCity?: string;
+  clientCities: string[];
+}
+
 export interface WeddingStoryEditorContext {
   story: WeddingSeoStory | null;
   gallery: {
@@ -56,6 +67,7 @@ export interface WeddingStoryEditorContext {
     jobType?: string;
   };
   sources: WeddingStorySource[];
+  jobFacts?: WeddingEditorialJobFacts | null;
   warning?: string;
 }
 

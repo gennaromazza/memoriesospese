@@ -15,6 +15,7 @@ vi.mock('./email-routes.js', () => ({
 import {
   buildAuthorizedSources,
   buildGroqPrompt,
+  buildWeddingEditorialJobFacts,
   inspectWeddingDraftQuality,
   slugifyWeddingStory,
   toPublicWeddingStory,
@@ -71,6 +72,58 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain("passato prossimo e imperfetto");
     expect(prompt).toContain('omettilo in silenzio');
     expect(prompt).toContain('non un riepilogo del modulo');
+  });
+
+  it('projects only safe Job facts and derives cities without exposing exact addresses', () => {
+    const facts = buildWeddingEditorialJobFacts({
+      nomeEvento: 'Matrimonio Biagio e Roberta',
+      eventDate: new Date('2026-07-09T10:00:00Z'),
+      eventLocation: 'Punta Castello',
+      rituLocation: 'Monastero San Francesco ad Aversa',
+      noteInterne: 'Dato segreto',
+      financials: { total: 2700 },
+    }, [{
+      nome: 'Biagio', cognome: 'Martinelli', citta: 'Aversa',
+      via: 'via Michelangelo 151', email: 'biagio@example.com', cellulare1: '3331234567',
+    }, {
+      nome: 'Roberta', cognome: 'Fabozzi', citta: 'Trentola Ducenta', via: 'via Marconi 6',
+    }]);
+
+    expect(facts).toMatchObject({
+      coupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'],
+      eventDate: '2026-07-09',
+      receptionVenue: 'Punta Castello',
+      ceremonyVenue: 'Monastero San Francesco ad Aversa',
+      ceremonyCity: 'Aversa',
+      clientCities: ['Aversa', 'Trentola Ducenta'],
+    });
+    expect(JSON.stringify(facts)).not.toMatch(/Michelangelo|Marconi|example\.com|3331234567|Dato segreto|2700/);
+  });
+
+  it('treats selected vendors as mandatory and other answers as optional', () => {
+    const prompt = buildGroqPrompt({
+      gallery: { name: 'Galleria' },
+      jobFacts: {
+        coupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'], clientCities: ['Aversa'],
+        ceremonyVenue: 'Monastero San Francesco ad Aversa', ceremonyCity: 'Aversa',
+      },
+      sources: [
+        { id: 'v', submissionId: 's', fieldId: 'v', label: 'Fornitore', value: { name: 'Kadoa', role: 'Floral designer', url: 'https://example.com' }, clientName: 'Roberta', category: 'vendor', consentGranted: true },
+        { id: 'a', submissionId: 's', fieldId: 'a', label: 'Indirizzo di casa', value: 'Via Roma 12, Aversa', clientName: 'Roberta', category: 'story', consentGranted: true },
+      ],
+      photos: [],
+    });
+
+    expect(prompt).toContain('FORNITORI SELEZIONATI DA CITARE SEMPRE');
+    expect(prompt).toContain('Kadoa');
+    expect(prompt).toContain('materiale secondario e facoltativo');
+    expect(prompt).toContain('Monastero San Francesco ad Aversa');
+    expect(prompt).not.toContain('Via Roma 12');
+    expect(prompt).not.toContain('https://example.com');
+    expect(inspectWeddingDraftQuality({ story: 'Un racconto senza crediti' }, ['Kadoa']))
+      .toContain('non cita i fornitori selezionati: Kadoa');
+    expect(inspectWeddingDraftQuality({ story: 'Gli allestimenti floreali di Kadoa.' }, ['Kadoa']))
+      .not.toContain('non cita i fornitori selezionati: Kadoa');
   });
 
   it('rejects operational, speculative drafts like the bad generated example', () => {

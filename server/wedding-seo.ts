@@ -3,6 +3,7 @@ import { db, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
 import type {
   PublicWeddingStory,
+  WeddingEditorialJobFacts,
   WeddingSeoStory,
   WeddingStoryPhoto,
   WeddingStorySource,
@@ -125,6 +126,70 @@ async function loadSourcesForJob(jobId?: string, options: { includeLegacy?: bool
   return buildAuthorizedSources(completed, options);
 }
 
+function uniqueNonEmpty(values: unknown[]): string[] {
+  return [...new Set(values.map(value => safeString(value, 120)).filter(Boolean))];
+}
+
+function editorialDate(value: any): string | undefined {
+  const date = typeof value?.toDate === 'function' ? value.toDate() : value instanceof Date ? value : null;
+  if (date && !Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  return safeString(value, 30) || undefined;
+}
+
+export function sanitizeEditorialPlace(value: unknown): { venue?: string; city?: string } {
+  const raw = safeString(value, 220).replace(/\s+/g, ' ');
+  if (!raw) return {};
+  const parts = raw.split(',').map(part => part.trim()).filter(Boolean);
+  const street = /\b(?:via|viale|corso|piazza|strada|contrada|vicolo|largo|civico)\b/i;
+  const cleanParts = parts.filter(part => !street.test(part) && !/\b\d{5}\b/.test(part) && !/\b\d{1,4}\s*[a-z]?\b/i.test(part));
+  const suffix = raw.match(/\b(?:ad|a|di)\s+([A-ZÀ-ÖØ-Ý][\p{L}' -]{1,60})$/u)?.[1]?.trim();
+  const lastClean = cleanParts.at(-1);
+  const city = suffix || (parts.length > 1 && lastClean && !/\d/.test(lastClean) ? lastClean : undefined);
+  const venue = cleanParts[0] && cleanParts[0] !== city ? cleanParts[0] : undefined;
+  return { venue: venue || undefined, city: city || undefined };
+}
+
+export function buildWeddingEditorialJobFacts(job: Record<string, any>, clients: Array<Record<string, any>>): WeddingEditorialJobFacts {
+  const reception = sanitizeEditorialPlace(job.eventLocation);
+  const ceremony = sanitizeEditorialPlace(job.rituLocation || job.locationCerimonia);
+  return {
+    coupleNames: uniqueNonEmpty(clients.map(client => `${safeString(client.nome, 60)} ${safeString(client.cognome, 60)}`)),
+    eventName: safeString(job.nomeEvento, 140) || undefined,
+    eventDate: editorialDate(job.eventDate),
+    receptionVenue: reception.venue,
+    receptionCity: reception.city,
+    ceremonyVenue: ceremony.venue,
+    ceremonyCity: ceremony.city,
+    clientCities: uniqueNonEmpty(clients.map(client => client.citta)),
+  };
+}
+
+async function loadWeddingEditorialJobFacts(jobId?: string): Promise<WeddingEditorialJobFacts | null> {
+  if (!jobId) return null;
+  const snapshot = await db.collection('jobs').doc(jobId).get();
+  if (!snapshot.exists) return null;
+  const job = snapshot.data() || {};
+  const ids = uniqueNonEmpty([...(Array.isArray(job.clientiIds) ? job.clientiIds : []), job.clienteId]);
+  const clients = await Promise.all(ids.map(async id => {
+    const client = await db.collection('clienti').doc(id).get();
+    return client.exists ? client.data() || {} : {};
+  }));
+  return buildWeddingEditorialJobFacts(job, clients);
+}
+
+function promptSourcePayload(sources: WeddingStorySource[]) {
+  const sensitive = /\b(?:indirizzo|via|viale|corso|civico|telefono|cellulare|whatsapp|e-?mail|codice fiscale|partita iva|saldo|pagamento)\b/i;
+  return sources.flatMap(source => {
+    const serialized = JSON.stringify(source.value ?? '');
+    if (sensitive.test(source.label) || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(serialized) || /\b(?:via|viale|corso|strada)\b[^\n,]{0,80}\d/i.test(serialized)) return [];
+    if (source.category === 'vendor' && source.value && typeof source.value === 'object') {
+      const vendor = source.value as Record<string, unknown>;
+      return [{ label: source.label, category: source.category, value: { name: safeString(vendor.name, 120), role: safeString(vendor.role, 120) } }];
+    }
+    return [{ label: source.label, category: source.category, value: source.value }];
+  });
+}
+
 async function uniqueSlug(requested: string, galleryId: string): Promise<string> {
   const base = slugifyWeddingStory(requested) || `matrimonio-${galleryId.slice(0, 8)}`;
   const snap = await db.collection(STORIES_COL).where('slug', '==', base).limit(2).get();
@@ -159,22 +224,20 @@ export function buildGroqPrompt(params: {
   gallery: Record<string, any>;
   sources: WeddingStorySource[];
   photos: Array<Record<string, any>>;
+  jobFacts?: WeddingEditorialJobFacts | null;
 }): string {
-  const sourcePayload = params.sources.map(source => ({
-    label: source.label,
-    category: source.category,
-    value: source.value,
-  }));
+  const sourcePayload = promptSourcePayload(params.sources);
   const photoPayload = params.photos.map(photo => ({
     chapter: photo.chapterTitle || '',
   }));
-  const facts = {
+  const facts = params.jobFacts || {
     coupleOrGalleryName: params.gallery.name || '',
     date: params.gallery.date || '',
     location: params.gallery.location || '',
   };
 
-  const hasAuthorizedSources = params.sources.length > 0;
+  const vendors = sourcePayload.filter(source => source.category === 'vendor');
+  const hasAuthorizedSources = sourcePayload.length > 0;
   const storyLength = hasAuthorizedSources ? '500-900 parole, 3-5 sezioni' : '220-350 parole, 2-3 sezioni';
 
   return `Sei un editor italiano specializzato in reportage di matrimonio.\n` +
@@ -193,8 +256,12 @@ export function buildGroqPrompt(params: {
     `Crea titoli di sezione specifici per questa coppia e questo matrimonio: evita intestazioni da dossier come ` +
     `“Preparativi”, “Cerimonia”, “Famiglia e Ospiti”, “Fornitori” e “Ricevimento”. ` +
     `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n\n` +
-    `FATTI: ${JSON.stringify(facts)}\n` +
-    `RISPOSTE AUTORIZZATE: ${JSON.stringify(sourcePayload)}\n` +
+    `I DATI STRUTTURATI DEL JOB sono la fonte primaria per coppia, data, luogo della cerimonia, location e città. ` +
+    `Le altre risposte sono materiale secondario e facoltativo: usa soltanto quelle che migliorano davvero l'articolo, senza riassumerle tutte. ` +
+    `Eccezione obbligatoria: cita nel testo tutti i FORNITORI SELEZIONATI, usando esclusivamente il nome e il ruolo dichiarati.\n\n` +
+    `DATI STRUTTURATI DEL JOB: ${JSON.stringify(facts)}\n` +
+    `RISPOSTE SELEZIONATE: ${JSON.stringify(sourcePayload)}\n` +
+    `FORNITORI SELEZIONATI DA CITARE SEMPRE: ${JSON.stringify(vendors)}\n` +
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
     `Restituisci solo JSON valido con: title (max 140), excerpt (max 300), ` +
     `story (${storyLength} con titoli Markdown ##), seoTitle (max 60), ` +
@@ -204,7 +271,7 @@ export function buildGroqPrompt(params: {
       : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
 }
 
-export function inspectWeddingDraftQuality(draft: Record<string, any>): string[] {
+export function inspectWeddingDraftQuality(draft: Record<string, any>, requiredVendors: string[] = []): string[] {
   const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
   const issues: string[] = [];
   if (/\b(?:non (?:è|sono|risultano) (?:indicat[oi]|fornit[ei]|disponibil[ei])|non (?:sono|vengono) descritt[ei]|dati disponibili|risposte autorizzate|questionario)\b/i.test(text)) {
@@ -218,6 +285,8 @@ export function inspectWeddingDraftQuality(draft: Record<string, any>): string[]
   }
   const genericHeadings = String(draft.story || '').match(/^##\s+(?:Preparativi|Cerimonia|Famiglia e Ospiti|Fornitori|Ricevimento)\s*$/gim) || [];
   if (genericHeadings.length >= 2) issues.push('usa intestazioni generiche da dossier');
+  const missingVendors = requiredVendors.filter(name => name && !text.toLocaleLowerCase('it').includes(name.toLocaleLowerCase('it')));
+  if (missingVendors.length > 0) issues.push(`non cita i fornitori selezionati: ${missingVendors.join(', ')}`);
   return issues;
 }
 
@@ -319,6 +388,7 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
     const storyDocument = await db.collection(STORIES_COL).doc(gallery.id).get();
     const story = storyDocument.exists ? storyFromDocument(storyDocument.id, storyDocument.data()!) : null;
     const sources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
+    const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     return res.json({
       story,
       gallery: {
@@ -330,6 +400,7 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
         jobType: gallery.jobType || undefined,
       },
       sources,
+      jobFacts,
       warning: gallery.jobId ? undefined : 'Questa galleria non è associata a un Job: nessuna risposta dei Moduli Informativi verrà mostrata.',
     });
   } catch (error) {
@@ -408,6 +479,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     if (sources.length === 0 && photos.length === 0) {
       return res.status(400).json({ error: 'Seleziona almeno una risposta autorizzata o una fotografia.' });
     }
+    const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'GROQ_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.' });
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -417,7 +489,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
         model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
         temperature: 0.35,
         response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: buildGroqPrompt({ gallery, sources, photos }) }],
+        messages: [{ role: 'user', content: buildGroqPrompt({ gallery, sources, photos, jobFacts }) }],
       }),
     });
     if (!response.ok) {
@@ -427,7 +499,11 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     }
     const completion: any = await response.json();
     const generated = parseGroqJson(completion?.choices?.[0]?.message?.content || '');
-    const qualityIssues = inspectWeddingDraftQuality(generated);
+    const requiredVendors = sources
+      .filter(source => source.category === 'vendor' && source.value && typeof source.value === 'object')
+      .map(source => safeString((source.value as Record<string, unknown>).name, 120))
+      .filter(Boolean);
+    const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors);
     if (qualityIssues.length > 0) {
       console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
       return res.status(502).json({
