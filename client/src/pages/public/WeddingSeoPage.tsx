@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'wouter';
 import { Loader2 } from 'lucide-react';
 import { getPublicWeddingStory } from '@/lib/wedding-seo';
 import type { PublicWeddingStory } from '@shared/wedding-seo-types';
+import { parseWeddingStoryMarkdown } from '@/lib/wedding-story-format';
 
 function useStoryMetadata(story: PublicWeddingStory | null, missing: boolean) {
   useEffect(() => {
@@ -87,21 +88,7 @@ export default function WeddingSeoPage() {
 
   useStoryMetadata(story, missing);
 
-  const blocks = useMemo(() => {
-    if (!story) return [];
-    const result: Array<{ heading?: string; paragraphs: string[] }> = [];
-    let current: { heading?: string; paragraphs: string[] } = { paragraphs: [] };
-    for (const chunk of story.story.split(/\n\s*\n/).map(value => value.trim()).filter(Boolean)) {
-      if (chunk.startsWith('## ')) {
-        if (current.heading || current.paragraphs.length) result.push(current);
-        current = { heading: chunk.slice(3).trim(), paragraphs: [] };
-      } else {
-        current.paragraphs.push(chunk.replace(/^#+\s*/, ''));
-      }
-    }
-    if (current.heading || current.paragraphs.length) result.push(current);
-    return result;
-  }, [story]);
+  const blocks = story ? parseWeddingStoryMarkdown(story.story) : [];
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#f7f3ed]"><Loader2 className="h-8 w-8 animate-spin text-[#6b7f6b]" /></div>;
   if (missing || !story) return <main className="min-h-screen flex items-center justify-center bg-[#f7f3ed] px-6 text-center"><div><h1 className="font-playfair text-4xl text-gray-800">Storia non disponibile</h1><p className="mt-3 text-gray-600">La pagina non è pubblicata oppure non esiste.</p></div></main>;

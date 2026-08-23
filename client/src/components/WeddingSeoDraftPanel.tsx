@@ -10,6 +10,7 @@ import {
   WEDDING_PHOTO_PAGE_SIZE,
   weddingPhotoPreview,
 } from '@/lib/wedding-seo';
+import { parseWeddingStoryMarkdown, weddingStorySlug } from '@/lib/wedding-story-format';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,7 @@ function sourceValue(source: WeddingStorySource): string {
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<DraftFields>(EMPTY_DRAFT);
+  const [slugIsCustom, setSlugIsCustom] = useState(false);
   const [status, setStatus] = useState<'draft' | 'published'>('draft');
   const [sources, setSources] = useState<WeddingStorySource[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
@@ -92,13 +94,23 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
             seoDescription: context.story.seoDescription,
           });
           setStatus(context.story.status);
+          setSlugIsCustom(Boolean(context.story.slug));
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
           setSelectedPhotoIds(new Set(context.story.selectedPhotoIds));
+        } else {
+          setSlugIsCustom(false);
         }
       })
       .catch(reason => setError(readableError(reason)))
       .finally(() => setLoading(false));
   }, [gallery.id]);
+
+  useEffect(() => {
+    if (slugIsCustom || !draft.title) return;
+    const automaticSlug = weddingStorySlug(draft.title);
+    if (draft.slug === automaticSlug) return;
+    setDraft(current => ({ ...current, slug: automaticSlug }));
+  }, [draft.title, draft.slug, slugIsCustom]);
 
   const visiblePhotos = useMemo(
     () => visibleWeddingPhotos(photos, visiblePhotoCount),
@@ -109,9 +121,16 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const availablePhotoIds = new Set(photos.map(photo => photo.id));
   const validSelectedSourceIds = [...selectedSourceIds].filter(id => authorizedSourceIds.has(id));
   const validSelectedPhotoIds = [...selectedPhotoIds].filter(id => availablePhotoIds.has(id));
+  const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
 
   const updateDraft = (field: keyof DraftFields, value: string) => {
-    setDraft(current => ({ ...current, [field]: value }));
+    if (field === 'slug') setSlugIsCustom(true);
+    setDraft(current => {
+      if (field === 'title' && !slugIsCustom) {
+        return { ...current, title: value, slug: weddingStorySlug(value) };
+      }
+      return { ...current, [field]: value };
+    });
     setError(undefined);
   };
 
@@ -143,7 +162,14 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         validSelectedSourceIds,
         validSelectedPhotoIds,
       );
-      setDraft(current => ({ ...current, ...generated }));
+      setDraft(current => {
+        const title = generated.title || current.title;
+        return {
+          ...current,
+          ...generated,
+          slug: slugIsCustom ? current.slug : weddingStorySlug(title),
+        };
+      });
       setStatus('draft');
       toast({
         title: 'Bozza IA generata',
@@ -225,6 +251,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
             </label>
             <label className="space-y-1 text-sm font-medium">Slug pubblico
               <Input value={draft.slug} onChange={event => updateDraft('slug', event.target.value)} placeholder="generato automaticamente dal titolo" />
+              <span className="block text-xs font-normal text-gray-500">
+                {slugIsCustom ? 'Slug personalizzato: resta invariato quando modifichi il titolo.' : 'Si aggiorna automaticamente dal titolo finché non lo modifichi.'}
+              </span>
             </label>
           </div>
           <label className="block space-y-1 text-sm font-medium">Introduzione
@@ -233,6 +262,21 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           <label className="block space-y-1 text-sm font-medium">Racconto
             <Textarea value={draft.story} onChange={event => updateDraft('story', event.target.value)} rows={18} placeholder="Scrivi o genera una bozza strutturata. Puoi modificarla prima di salvarla." />
           </label>
+          <details className="rounded-lg border bg-stone-50/60 p-4">
+            <summary className="cursor-pointer font-medium">Anteprima formattata della pagina pubblica</summary>
+            <div className="mt-4 space-y-6 text-gray-700">
+              {storyBlocks.length === 0 ? (
+                <p className="text-sm text-gray-500">Scrivi o genera il racconto per vedere titoli e paragrafi formattati.</p>
+              ) : storyBlocks.map((block, index) => (
+                <section key={`${block.heading || 'intro'}-${index}`}>
+                  {block.heading && <h2 className="mb-3 font-playfair text-2xl text-gray-900">{block.heading}</h2>}
+                  <div className="space-y-3 leading-7">
+                    {block.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </details>
 
           {/* Le azioni restano accanto al Racconto, prima della griglia foto. */}
           <div className="sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-xl border bg-white/95 p-3 shadow-lg backdrop-blur">

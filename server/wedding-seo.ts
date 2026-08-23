@@ -166,9 +166,13 @@ export function buildGroqPrompt(params: {
     location: params.gallery.location || '',
   };
 
+  const hasAuthorizedSources = params.sources.length > 0;
+  const storyLength = hasAuthorizedSources ? '900-1500 parole, 4-6 sezioni' : '250-450 parole, 2-3 sezioni';
+
   return `Sei un editor italiano specializzato in reportage di matrimonio.\n` +
     `Scrivi esclusivamente usando i FATTI, le RISPOSTE AUTORIZZATE e le SEZIONI FOTOGRAFICHE qui sotto.\n` +
     `Non inventare nomi, luoghi, emozioni, eventi, rapporti, fornitori o citazioni. ` +
+    `Non dedurre informazioni dalla reputazione, dalla storia o dalla geografia di un luogo. ` +
     `Non citare note interne, ID, nomi file o il processo di generazione. ` +
     `Evita frasi generiche, superlativi non verificabili e keyword stuffing. ` +
     `Se un dettaglio manca, omettilo. Il testo resta una bozza privata e non deve dichiararsi pubblicato.\n\n` +
@@ -176,8 +180,11 @@ export function buildGroqPrompt(params: {
     `RISPOSTE AUTORIZZATE: ${JSON.stringify(sourcePayload)}\n` +
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
     `Restituisci solo JSON valido con: title (max 140), excerpt (max 300), ` +
-    `story (900-1500 parole, 4-6 sezioni con titoli Markdown ##), seoTitle (max 60), ` +
-    `seoDescription (max 155). Mantieni un tono specifico, sobrio e leggibile.`;
+    `story (${storyLength} con titoli Markdown ##), seoTitle (max 60), ` +
+    `seoDescription (max 155). Mantieni un tono specifico, sobrio e leggibile. ` +
+    (hasAuthorizedSources
+      ? 'Ogni affermazione deve essere riconducibile ai dati disponibili.'
+      : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
 }
 
 function parseGroqJson(raw: string): Record<string, any> {
