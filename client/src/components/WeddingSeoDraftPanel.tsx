@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2, Eye, ImageIcon, Loader2, Lock, Save, Send, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles } from 'lucide-react';
 
 interface Props {
   gallery: Gallery;
@@ -70,6 +70,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'draft' | 'published' | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [refreshingSources, setRefreshingSources] = useState(false);
   const [error, setError] = useState<string>();
   const [visiblePhotoCount, setVisiblePhotoCount] = useState(WEDDING_PHOTO_PAGE_SIZE);
   const [viewer, setViewer] = useState<Photo | null>(null);
@@ -151,6 +152,23 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       else toast({ title: 'Limite raggiunto', description: 'Puoi usare fino a 24 fotografie per una storia.' });
       return next;
     });
+  };
+
+  const refreshSources = async () => {
+    setRefreshingSources(true);
+    setError(undefined);
+    try {
+      const context = await getWeddingStoryEditor(gallery.id);
+      setSources(context.sources);
+      setWarning(context.warning);
+      toast({ title: 'Risposte aggiornate', description: `${context.sources.length} risposte editoriali trovate per questo Job.` });
+    } catch (reason) {
+      const message = readableError(reason);
+      setError(message);
+      toast({ title: 'Aggiornamento non riuscito', description: message, variant: 'destructive' });
+    } finally {
+      setRefreshingSources(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -311,7 +329,13 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Risposte autorizzate dai Moduli Informativi</CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardTitle className="text-lg">Risposte autorizzate dai Moduli Informativi</CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={refreshSources} disabled={refreshingSources}>
+              {refreshingSources ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Aggiorna risposte
+            </Button>
+          </div>
           <CardDescription>
             Mostrate solo dal Job <strong>{gallery.jobId || 'non associato'}</strong>. Seleziona manualmente ciò che Groq può ricevere.
           </CardDescription>
