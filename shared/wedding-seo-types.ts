@@ -51,8 +51,12 @@ export interface WeddingEditorialJobFacts {
   eventDate?: string;
   receptionVenue?: string;
   receptionCity?: string;
+  receptionProvince?: string;
+  receptionPlaceType?: string;
   ceremonyVenue?: string;
   ceremonyCity?: string;
+  ceremonyProvince?: string;
+  ceremonyPlaceType?: string;
   clientCities: string[];
 }
 

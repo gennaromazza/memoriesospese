@@ -72,6 +72,10 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain("passato prossimo e imperfetto");
     expect(prompt).toContain('omettilo in silenzio');
     expect(prompt).toContain('non un riepilogo del modulo');
+    expect(prompt).toContain('800-1200 parole');
+    expect(prompt).toContain('approccio deve essere chiaramente fotografico');
+    expect(prompt).toContain('studio fotografico di Gennaro Mazzacane');
+    expect(prompt).toContain('SEO locale');
   });
 
   it('projects only safe Job facts and derives cities without exposing exact addresses', () => {
@@ -103,12 +107,12 @@ describe('Real Wedding editorial safety', () => {
   it('prefers verified Job place names and cities without exposing their private address', () => {
     const facts = buildWeddingEditorialJobFacts({
       eventLocation: 'testo precedente',
-      eventPlace: { name: 'Villa Verificata', city: 'Pozzuoli', formattedAddress: 'Via Privata 12, Pozzuoli', websiteUri: 'https://villa.example' },
+      eventPlace: { name: 'Villa Verificata', city: 'Pozzuoli', province: 'NA', primaryType: 'location per matrimoni', formattedAddress: 'Via Privata 12, Pozzuoli', websiteUri: 'https://villa.example' },
       rituLocation: 'testo rito precedente',
       ceremonyPlace: { name: 'Chiesa Verificata', city: 'Aversa', formattedAddress: 'Piazza Segreta 4, Aversa' },
     }, []);
 
-    expect(facts).toMatchObject({ receptionVenue: 'Villa Verificata', receptionCity: 'Pozzuoli', ceremonyVenue: 'Chiesa Verificata', ceremonyCity: 'Aversa' });
+    expect(facts).toMatchObject({ receptionVenue: 'Villa Verificata', receptionCity: 'Pozzuoli', receptionProvince: 'NA', receptionPlaceType: 'location per matrimoni', ceremonyVenue: 'Chiesa Verificata', ceremonyCity: 'Aversa' });
     expect(JSON.stringify(facts)).not.toMatch(/Via Privata|Piazza Segreta|villa\.example/);
   });
 
@@ -167,6 +171,27 @@ describe('Real Wedding editorial safety', () => {
     expect(issues).toContain('deduce la provenienza degli invitati dalle città dei clienti');
     expect(issues.some(issue => issue.startsWith('attribuisce caratteristiche non documentate'))).toBe(true);
     expect(issues.some(issue => issue.startsWith('attribuisce ruoli non verificati'))).toBe(true);
+  });
+
+  it('rejects internal migration language and generic invented endings', () => {
+    const issues = inspectWeddingDraftQuality({
+      story: 'I fornitori presenti sono registrati nell’elenco storico. La serata si è conclusa con un brindisi condiviso e uno scambio di promesse.',
+    }, [], { allowedText: 'Passaro; Kadoa' });
+
+    expect(issues).toContain('espone linguaggio amministrativo o interno');
+    expect(issues.some(issue => issue.startsWith('aggiunge scene o conclusioni non documentate'))).toBe(true);
+  });
+
+  it('rejects an article that ignores the requested editorial length', () => {
+    const issues = inspectWeddingDraftQuality({ story: 'Un racconto fotografico troppo breve.' }, [], { minimumWords: 700 });
+    expect(issues.some(issue => issue.startsWith('racconto troppo breve'))).toBe(true);
+  });
+
+  it('requires the article to reinforce the photography brand', () => {
+    const issues = inspectWeddingDraftQuality({ story: 'Un racconto fotografico senza firma.' }, [], { requiredBrand: 'Image Studio' });
+    expect(issues).toContain('non valorizza il brand fotografico: Image Studio');
+    expect(inspectWeddingDraftQuality({ story: 'Il reportage di Image Studio.' }, [], { requiredBrand: 'Image Studio' }))
+      .not.toContain('non valorizza il brand fotografico: Image Studio');
   });
 
   it('makes completed legacy submissions available to the admin migration flow', () => {

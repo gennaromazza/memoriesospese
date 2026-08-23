@@ -160,8 +160,12 @@ export function buildWeddingEditorialJobFacts(job: Record<string, any>, clients:
     eventDate: editorialDate(job.eventDate),
     receptionVenue: safeString(eventPlace.name, 160) || reception.venue,
     receptionCity: safeString(eventPlace.city, 100) || reception.city,
+    receptionProvince: safeString(eventPlace.province, 80) || undefined,
+    receptionPlaceType: safeString(eventPlace.primaryType, 120) || undefined,
     ceremonyVenue: safeString(ceremonyPlace.name, 160) || ceremony.venue,
     ceremonyCity: safeString(ceremonyPlace.city, 100) || ceremony.city,
+    ceremonyProvince: safeString(ceremonyPlace.province, 80) || undefined,
+    ceremonyPlaceType: safeString(ceremonyPlace.primaryType, 120) || undefined,
     clientCities: uniqueNonEmpty(clients.map(client => client.citta)),
   };
 }
@@ -261,14 +265,17 @@ export function buildGroqPrompt(params: {
 
   const vendors = sourcePayload.filter(source => source.category === 'vendor');
   const hasAuthorizedSources = sourcePayload.length > 0;
-  const storyLength = hasAuthorizedSources ? '500-900 parole, 3-5 sezioni' : '220-350 parole, 2-3 sezioni';
+  const storyLength = hasAuthorizedSources ? '800-1200 parole, 4-6 sezioni' : '300-450 parole, 2-3 sezioni';
 
-  return `Sei un editor italiano specializzato in reportage di matrimonio.\n` +
+  return `Sei un editor italiano specializzato in reportage fotografici di matrimonio per il sito di un fotografo professionista.\n` +
+    `Il committente è Image Studio, studio fotografico di Gennaro Mazzacane con sede ad Aversa e attivo nella fotografia di matrimonio in Campania. ` +
+    `Queste informazioni di identità sono verificate e possono essere usate.\n` +
     `Scrivi esclusivamente usando i FATTI, le RISPOSTE AUTORIZZATE e le SEZIONI FOTOGRAFICHE qui sotto.\n` +
     `Non inventare nomi, luoghi, emozioni, eventi, rapporti, fornitori o citazioni. ` +
     `Non dedurre informazioni dalla reputazione, dalla storia o dalla geografia di un luogo. ` +
     `Non attribuire mai un ruolo a un fornitore se il ruolo non è scritto esplicitamente. ` +
     `Non citare note interne, ID, nomi file, questionari, risposte autorizzate o il processo di generazione.\n` +
+    `Non usare espressioni amministrative come “elenco storico”, “registrato”, “dato acquisito” o “fornitore presente”.\n` +
     `Scrivi come racconto successivo all'evento, usando passato prossimo e imperfetto. ` +
     `Non usare il futuro né formule da programma come “è previsto”, “sono previsti” o “avrà inizio”.\n` +
     `Tratta orari, numero degli ospiti, composizione familiare, richieste di scatto e indicazioni logistiche come contesto operativo: ` +
@@ -277,13 +284,24 @@ export function buildGroqPrompt(params: {
     `Non affermare che una foto sia stata realizzata, che una persona fosse presente o abbia svolto un'attività, se questo non è dichiarato esplicitamente. ` +
     `Le città dei clienti indicano soltanto la loro residenza: non attribuirle agli invitati. ` +
     `Per i fornitori storici con ruoli non verificati cita i nomi senza assegnare attività, prodotti o responsabilità. ` +
+    `Presentali con una formula editoriale naturale e prudente, per esempio “Tra le realtà scelte dalla coppia figurano…”, senza sostenere che fossero presenti o cosa abbiano realizzato. ` +
     `Non descrivere costa, mare, spiaggia, panorama, architettura o interni di una location se tali caratteristiche non compaiono espressamente nelle fonti.\n` +
     `Se un dettaglio manca, omettilo in silenzio. Non scrivere mai “non è indicato”, “non sono forniti dettagli”, ` +
     `“dati disponibili”, “probabilmente” o “presumibilmente”. ` +
     `Non commentare ciò che non sai e non spiegare i limiti delle fonti.\n` +
     `Crea titoli di sezione specifici per questa coppia e questo matrimonio: evita intestazioni da dossier come ` +
     `“Preparativi”, “Cerimonia”, “Famiglia e Ospiti”, “Fornitori” e “Ricevimento”. ` +
-    `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n\n` +
+    `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n` +
+    `L'approccio deve essere chiaramente fotografico: costruisci il racconto come una sequenza visiva, collegando i momenti alle sezioni fotografiche selezionate. ` +
+    `Parla di ritmo del reportage, passaggi della giornata, ritratti, gesti, relazioni e dettagli soltanto quando sono sostenuti dalle fonti. ` +
+    `Non affermare che uno scatto esista o descriverne il contenuto specifico: i titoli delle sezioni indicano temi, non ciò che è visibile nelle fotografie. ` +
+    `Dedica spazio alle location usando nome, comune, provincia e tipologia verificati da Google Places, ma non inventare luce, architettura, panorama, storia o atmosfera. ` +
+    `Se le informazioni verificate sul luogo sono poche, descrivi il suo ruolo nel percorso fotografico della giornata senza aggiungere caratteristiche fisiche. ` +
+    `Inserisci Image Studio una volta nel corpo del racconto e dedica la parte finale al punto di vista del fotografo: spiega in modo concreto come il reportage segue la continuità tra persone, luoghi e momenti documentati. ` +
+    `La voce può passare alla prima persona plurale soltanto in questo breve passaggio sul metodo fotografico. Non usare slogan, autoelogi o inviti commerciali aggressivi. ` +
+    `Per la SEO locale, usa in modo naturale “fotografo di matrimonio” insieme alla città della cerimonia o del ricevimento quando disponibile, senza ripetizioni artificiali. ` +
+    `Il titolo, seoTitle e seoDescription devono contenere i nomi della coppia o della location e almeno un riferimento pertinente a fotografia, matrimonio e località. ` +
+    `Evita finali generici con brindisi, luci che si spengono, promesse, sorrisi o emozioni se questi fatti non sono nelle fonti.\n\n` +
     `I DATI STRUTTURATI DEL JOB sono la fonte primaria per coppia, data, luogo della cerimonia, location e città. ` +
     `Le altre risposte sono materiale secondario e facoltativo: usa soltanto quelle che migliorano davvero l'articolo, senza riassumerle tutte. ` +
     `Eccezione obbligatoria: cita nel testo tutti i FORNITORI SELEZIONATI, usando esclusivamente il nome e il ruolo dichiarati.\n\n` +
@@ -293,7 +311,7 @@ export function buildGroqPrompt(params: {
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
     `Restituisci solo JSON valido con: title (max 140), excerpt (max 300), ` +
     `story (${storyLength} con titoli Markdown ##), seoTitle (max 60), ` +
-    `seoDescription (max 155). Il racconto deve sembrare un articolo editoriale finito, non un riepilogo del modulo. ` +
+    `seoDescription (max 155). Il racconto deve sembrare un articolo fotografico ampio e finito, non un riepilogo del modulo. ` +
     (hasAuthorizedSources
       ? 'Ogni affermazione deve essere riconducibile ai dati disponibili.'
       : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
@@ -302,15 +320,25 @@ export function buildGroqPrompt(params: {
 export function inspectWeddingDraftQuality(
   draft: Record<string, any>,
   requiredVendors: string[] = [],
-  context: { allowedText?: string; unverifiedVendorNames?: string[] } = {},
+  context: { allowedText?: string; unverifiedVendorNames?: string[]; minimumWords?: number; requiredBrand?: string } = {},
 ): string[] {
   const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
   const issues: string[] = [];
+  const wordCount = String(draft.story || '').trim().split(/\s+/u).filter(Boolean).length;
+  if (context.minimumWords && wordCount < context.minimumWords) {
+    issues.push(`racconto troppo breve: ${wordCount} parole, minimo ${context.minimumWords}`);
+  }
+  if (context.requiredBrand && !text.toLocaleLowerCase('it').includes(context.requiredBrand.toLocaleLowerCase('it'))) {
+    issues.push(`non valorizza il brand fotografico: ${context.requiredBrand}`);
+  }
   if (/\b(?:non (?:è|sono|risultano) (?:indicat[oi]|fornit[ei]|disponibil[ei])|non (?:sono|vengono) descritt[ei]|dati disponibili|risposte autorizzate|questionario)\b/i.test(text)) {
     issues.push('commenta informazioni mancanti o il processo editoriale');
   }
   if (/\b(?:probabilmente|presumibilmente|verosimilmente)\b/i.test(text)) {
     issues.push('contiene inferenze non verificabili');
+  }
+  if (/\b(?:elenco storico|registrat[oaie]|dato acquisito|fornitor[ei] present[ei])\b/i.test(text)) {
+    issues.push('espone linguaggio amministrativo o interno');
   }
   if (/\b(?:sarà|saranno|avrà inizio|si prepareranno|è previsto|sono previsti)\b/i.test(text)) {
     issues.push('usa il futuro o un tono da programma operativo');
@@ -327,6 +355,10 @@ export function inspectWeddingDraftQuality(
     text.toLocaleLowerCase('it').includes(detail) && !allowedText.includes(detail),
   );
   if (unsupportedSetting.length > 0) issues.push(`attribuisce caratteristiche non documentate alle location: ${unsupportedSetting.join(', ')}`);
+  const unsupportedScenes = [
+    'scambio di promesse', 'brindisi condiviso', 'le luci si sono spente', 'ricordi condivisi',
+  ].filter(detail => text.toLocaleLowerCase('it').includes(detail) && !allowedText.includes(detail));
+  if (unsupportedScenes.length > 0) issues.push(`aggiunge scene o conclusioni non documentate: ${unsupportedScenes.join(', ')}`);
   const roleWords = '(?:wedding planner|fior(?:aio|ista)|floral designer|abiti?|atelier|musica|musicisti|colonna sonora|coordinat[oa]|decorat[oa])';
   const attributed = (context.unverifiedVendorNames || []).filter(name => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -555,6 +587,8 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, {
       allowedText: JSON.stringify({ jobFacts, sources: promptSourcePayload(sources) }),
       unverifiedVendorNames,
+      minimumWords: sources.length > 0 ? 700 : undefined,
+      requiredBrand: 'Image Studio',
     });
     if (qualityIssues.length > 0) {
       console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
