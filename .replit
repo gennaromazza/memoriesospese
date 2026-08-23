@@ -20,16 +20,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install --force && npm run dev"
-
-[[workflows.workflow]]
-name = "Dev Workflow"
-mode = "sequential"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm install --force && node patches/fix-radix-compose-refs.cjs && npm run dev"
+args = "node patches/fix-radix-compose-refs.cjs && npm run dev"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
