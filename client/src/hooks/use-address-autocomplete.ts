@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@/lib/queryClient';
-import type { ParsedAddress } from '@shared/places-utils';
+import type { VerifiedAddressReference, VerifiedPlaceReference } from '@shared/places-utils';
 
 export interface AddressSuggestion {
   placeId: string;
@@ -63,7 +63,7 @@ export function useAddressAutocomplete() {
     }, 300);
   }, []);
 
-  const resolveDetails = useCallback(async (placeId: string): Promise<ParsedAddress | null> => {
+  const resolveDetails = useCallback(async (placeId: string): Promise<VerifiedAddressReference | null> => {
     const generation = ++detailsGenerationRef.current;
     try {
       const res = await apiRequest(
@@ -77,7 +77,19 @@ export function useAddressAutocomplete() {
       if (data.available === false || !data.address) return null;
       // Se nel frattempo è stata selezionata un'altra voce, scarta questo risultato
       if (generation !== detailsGenerationRef.current) return null;
-      return data.address as ParsedAddress;
+      return { ...data.address, placeId, formattedAddress: data.formattedAddress } as VerifiedAddressReference;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const resolveBusinessDetails = useCallback(async (placeId: string): Promise<VerifiedPlaceReference | null> => {
+    try {
+      const res = await apiRequest('GET', `/api/places/business-details/${encodeURIComponent(placeId)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      sessionTokenRef.current = crypto.randomUUID();
+      return data.available && data.place ? data.place as VerifiedPlaceReference : null;
     } catch {
       return null;
     }
@@ -104,7 +116,7 @@ export function useAddressAutocomplete() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
   }, []);
 
-  return { suggestions, loading, search, clear, resolveDetails, resolveCapByCity };
+  return { suggestions, loading, search, clear, resolveDetails, resolveBusinessDetails, resolveCapByCity };
 }
 
 export interface CapMatch {

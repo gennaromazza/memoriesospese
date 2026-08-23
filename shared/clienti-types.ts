@@ -29,6 +29,8 @@ export interface Cliente {
   citta?: string;
   cap?: string;
   provincia?: string;
+  addressPlaceId?: string;
+  addressFormatted?: string;
   
   // Dati di fatturazione (tutti opzionali)
   tipoSoggetto?: 'privato' | 'azienda';
@@ -102,6 +104,8 @@ export interface InsertCliente {
   citta?: string;
   cap?: string;
   provincia?: string;
+  addressPlaceId?: string;
+  addressFormatted?: string;
   
   // Dati di fatturazione opzionali
   tipoSoggetto?: 'privato' | 'azienda';
@@ -143,6 +147,8 @@ export interface UpdateCliente {
   citta?: string;
   cap?: string;
   provincia?: string;
+  addressPlaceId?: string;
+  addressFormatted?: string;
   
   tipoSoggetto?: 'privato' | 'azienda';
   codiceFiscale?: string;

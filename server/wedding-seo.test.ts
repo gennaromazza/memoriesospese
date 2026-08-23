@@ -100,6 +100,18 @@ describe('Real Wedding editorial safety', () => {
     expect(JSON.stringify(facts)).not.toMatch(/Michelangelo|Marconi|example\.com|3331234567|Dato segreto|2700/);
   });
 
+  it('prefers verified Job place names and cities without exposing their private address', () => {
+    const facts = buildWeddingEditorialJobFacts({
+      eventLocation: 'testo precedente',
+      eventPlace: { name: 'Villa Verificata', city: 'Pozzuoli', formattedAddress: 'Via Privata 12, Pozzuoli', websiteUri: 'https://villa.example' },
+      rituLocation: 'testo rito precedente',
+      ceremonyPlace: { name: 'Chiesa Verificata', city: 'Aversa', formattedAddress: 'Piazza Segreta 4, Aversa' },
+    }, []);
+
+    expect(facts).toMatchObject({ receptionVenue: 'Villa Verificata', receptionCity: 'Pozzuoli', ceremonyVenue: 'Chiesa Verificata', ceremonyCity: 'Aversa' });
+    expect(JSON.stringify(facts)).not.toMatch(/Via Privata|Piazza Segreta|villa\.example/);
+  });
+
   it('treats selected vendors as mandatory and other answers as optional', () => {
     const prompt = buildGroqPrompt({
       gallery: { name: 'Galleria' },

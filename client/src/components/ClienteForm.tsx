@@ -62,6 +62,8 @@ const clienteSchema = z.object({
   citta: z.string().optional(),
   cap: z.string().optional(),
   provincia: z.string().optional(),
+  addressPlaceId: z.string().optional(),
+  addressFormatted: z.string().optional(),
   tipoSoggetto: z.enum(['privato', 'azienda']).optional(),
   codiceFiscale: z.string().optional().refine(isEmptyOrValidCodiceFiscale, {
     message: 'Codice fiscale non valido (controlla il carattere finale)',
@@ -118,6 +120,8 @@ function getClienteFormDefaults(cliente?: Cliente | null): ClienteFormData {
     citta: cliente?.citta || '',
     cap: cliente?.cap || '',
     provincia: cliente?.provincia || '',
+    addressPlaceId: cliente?.addressPlaceId || '',
+    addressFormatted: cliente?.addressFormatted || '',
     tipoSoggetto: cliente?.tipoSoggetto || 'privato',
     codiceFiscale: cliente?.codiceFiscale || '',
     partitaIva: cliente?.partitaIva || '',
@@ -185,6 +189,11 @@ export default function ClienteForm({
   const capLookup = useCapLookup();
   const capValue = useWatch({ control: form.control, name: 'cap' });
   const cittaValue = useWatch({ control: form.control, name: 'citta' });
+  const addressPlaceId = useWatch({ control: form.control, name: 'addressPlaceId' });
+  const clearAddressVerification = () => {
+    form.setValue('addressPlaceId', '', { shouldDirty: true });
+    form.setValue('addressFormatted', '', { shouldDirty: true });
+  };
 
   const handleSelectSuggestion = async (placeId: string) => {
     setShowSuggestions(false);
@@ -196,6 +205,8 @@ export default function ClienteForm({
     if (address.citta) form.setValue('citta', address.citta, { shouldDirty: true });
     if (address.cap) form.setValue('cap', address.cap, { shouldDirty: true });
     if (address.provincia) form.setValue('provincia', address.provincia, { shouldDirty: true });
+    form.setValue('addressPlaceId', address.placeId, { shouldDirty: true });
+    form.setValue('addressFormatted', address.formattedAddress || '', { shouldDirty: true });
     capLookup.clearMatch();
     // Indirizzo senza civico: Google non fornisce il CAP → lo ricaviamo dalla
     // città (compilato solo se univoco, nelle grandi città resta vuoto)
@@ -477,6 +488,7 @@ export default function ClienteForm({
                         autoComplete="off"
                         onChange={(e) => {
                           field.onChange(e);
+                          clearAddressVerification();
                           addressAc.search(e.target.value);
                           setShowSuggestions(true);
                         }}
@@ -524,6 +536,7 @@ export default function ClienteForm({
                     {...field} 
                     placeholder="Milano" 
                     data-testid="input-citta"
+                    onChange={event => { field.onChange(event); clearAddressVerification(); }}
                   />
                 </FormControl>
                 <FormMessage />
@@ -544,6 +557,7 @@ export default function ClienteForm({
                     data-testid="input-cap"
                     onChange={(e) => {
                       field.onChange(e);
+                      clearAddressVerification();
                       capLookup.lookup(e.target.value);
                     }}
                   />
@@ -580,12 +594,19 @@ export default function ClienteForm({
                   placeholder="MI" 
                   maxLength={2}
                   data-testid="input-provincia"
+                  onChange={event => { field.onChange(event); clearAddressVerification(); }}
                 />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {addressPlaceId && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+            <MapPin className="h-3.5 w-3.5" /> Indirizzo verificato con Google Places
+          </div>
+        )}
 
         <Collapsible open={fiscaleOpen} onOpenChange={setFiscaleOpen}>
           <CollapsibleTrigger asChild>

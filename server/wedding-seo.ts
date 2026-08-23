@@ -152,14 +152,16 @@ export function sanitizeEditorialPlace(value: unknown): { venue?: string; city?:
 export function buildWeddingEditorialJobFacts(job: Record<string, any>, clients: Array<Record<string, any>>): WeddingEditorialJobFacts {
   const reception = sanitizeEditorialPlace(job.eventLocation);
   const ceremony = sanitizeEditorialPlace(job.rituLocation || job.locationCerimonia);
+  const eventPlace = job.eventPlace && typeof job.eventPlace === 'object' ? job.eventPlace : {};
+  const ceremonyPlace = job.ceremonyPlace && typeof job.ceremonyPlace === 'object' ? job.ceremonyPlace : {};
   return {
     coupleNames: uniqueNonEmpty(clients.map(client => `${safeString(client.nome, 60)} ${safeString(client.cognome, 60)}`)),
     eventName: safeString(job.nomeEvento, 140) || undefined,
     eventDate: editorialDate(job.eventDate),
-    receptionVenue: reception.venue,
-    receptionCity: reception.city,
-    ceremonyVenue: ceremony.venue,
-    ceremonyCity: ceremony.city,
+    receptionVenue: safeString(eventPlace.name, 160) || reception.venue,
+    receptionCity: safeString(eventPlace.city, 100) || reception.city,
+    ceremonyVenue: safeString(ceremonyPlace.name, 160) || ceremony.venue,
+    ceremonyCity: safeString(ceremonyPlace.city, 100) || ceremony.city,
     clientCities: uniqueNonEmpty(clients.map(client => client.citta)),
   };
 }

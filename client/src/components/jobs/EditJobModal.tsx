@@ -58,6 +58,8 @@ import { cn } from '@/lib/utils';
 import { convertFirestoreTimestamp } from '@/lib/firebase';
 import { JobTypeIcon } from '@/lib/job-type-icons';
 import type { AppuntamentoCliente } from '@shared/jobs-types';
+import type { VerifiedPlaceReference } from '@shared/places-utils';
+import { BusinessPlaceInput } from '@/components/places/BusinessPlaceInput';
 
 // Helper per formattare date in modo sicuro (gestisce null/undefined/invalid)
 const formatConflictDate = (dateStr: string | undefined, allDay: boolean = false): string => {
@@ -135,6 +137,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
     clientName?: string;
   }>>([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [eventPlace, setEventPlace] = useState<VerifiedPlaceReference | undefined>(job.eventPlace);
+  const [ceremonyPlace, setCeremonyPlace] = useState<VerifiedPlaceReference | undefined>(job.ceremonyPlace);
   
   const { data: jobTypes = [], isLoading: loadingJobTypes } = useQuery({
     queryKey: ['jobTypes'],
@@ -188,6 +192,8 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         oraCerimonia: job.oraCerimonia || job.rituTime || '',
         noteInterne: job.noteInterne || ''
       });
+      setEventPlace(job.eventPlace);
+      setCeremonyPlace(job.ceremonyPlace);
       
       if (eventDateValue && !isNaN(eventDateValue.getTime())) {
         const day = String(eventDateValue.getDate()).padStart(2, '0');
@@ -198,7 +204,7 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         setDateInputValue('');
       }
     }
-  }, [open, job.id, job.nomeEvento, job.eventDate, job.clientiIds, job.allDay, job.startTime, job.endTime, job.jobType, job.provenance, job.dataNonDefinita, job.noteInterne, job.eventLocation]);
+  }, [open, job.id, job.nomeEvento, job.eventDate, job.clientiIds, job.allDay, job.startTime, job.endTime, job.jobType, job.provenance, job.dataNonDefinita, job.noteInterne, job.eventLocation, job.eventPlace, job.ceremonyPlace]);
 
   useEffect(() => {
     const fetchClienti = async () => {
@@ -390,7 +396,9 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
         startTime: data.allDay ? undefined : data.startTime,
         endTime: data.allDay ? undefined : data.endTime,
         eventLocation: data.eventLocation,
+        eventPlace,
         locationCerimonia: data.locationCerimonia,
+        ceremonyPlace,
         oraCerimonia: data.oraCerimonia,
         provenance: data.provenance,
         noteInterne: data.noteInterne,
@@ -763,10 +771,13 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                   <FormItem>
                     <FormLabel>Location Evento</FormLabel>
                     <FormControl>
-                      <Input
-                        {...field}
+                      <BusinessPlaceInput
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        place={eventPlace}
+                        onPlaceChange={setEventPlace}
                         placeholder="es. Casale dei Baroni"
-                        data-testid="input-location"
+                        testId="input-location"
                       />
                     </FormControl>
                     <FormMessage />
@@ -783,10 +794,13 @@ export default function EditJobModal({ open, onClose, job }: EditJobModalProps) 
                     <FormItem>
                       <FormLabel>Luogo Rito/Cerimonia</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
+                        <BusinessPlaceInput
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          place={ceremonyPlace}
+                          onPlaceChange={setCeremonyPlace}
                           placeholder="es. Chiesa San Francesco"
-                          data-testid="input-location-cerimonia"
+                          testId="input-location-cerimonia"
                         />
                       </FormControl>
                       <FormMessage />

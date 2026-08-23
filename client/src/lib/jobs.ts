@@ -270,6 +270,8 @@ export async function updateJob(
       ...data,
       updatedAt: Timestamp.now()
     };
+    if (data.eventLocation !== undefined && data.eventPlace === undefined) updateData.eventPlace = deleteField();
+    if (data.locationCerimonia !== undefined && data.ceremonyPlace === undefined) updateData.ceremonyPlace = deleteField();
     
     // Mappa locationCerimonia -> rituLocation per compatibilità
     if (data.locationCerimonia !== undefined) {

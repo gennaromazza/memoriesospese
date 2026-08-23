@@ -15,6 +15,22 @@ export interface ParsedAddress {
   provincia?: string;
 }
 
+export interface VerifiedAddressReference extends ParsedAddress {
+  placeId: string;
+  formattedAddress?: string;
+}
+
+export interface VerifiedPlaceReference {
+  placeId: string;
+  name: string;
+  formattedAddress?: string;
+  city?: string;
+  province?: string;
+  websiteUri?: string;
+  googleMapsUri?: string;
+  primaryType?: string;
+}
+
 /**
  * Converte gli addressComponents di Place Details (New) nei 4 campi
  * indirizzo dell'anagrafica: via (con civico), città, CAP, provincia (sigla).

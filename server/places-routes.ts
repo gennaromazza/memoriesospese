@@ -124,6 +124,52 @@ router.get('/details/:placeId', authenticateFirebase, async (req: any, res) => {
 });
 
 /**
+ * GET /api/places/business-details/:placeId
+ * Dati pubblici di una location/attività. Viene chiamato solo dopo la scelta
+ * dell'admin perché websiteUri appartiene alla fascia Enterprise di Places.
+ */
+router.get('/business-details/:placeId', authenticateFirebase, async (req: any, res) => {
+  const apiKey = getApiKey();
+  if (!apiKey) return res.json({ available: false });
+  const placeId = String(req.params.placeId || '');
+  if (!placeId || placeId.length > 512 || !/^[\w-]+$/.test(placeId)) {
+    return res.status(400).json({ error: 'placeId non valido' });
+  }
+  try {
+    const response = await fetch(`${PLACES_BASE}/places/${encodeURIComponent(placeId)}?languageCode=it`, {
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'id,displayName,formattedAddress,addressComponents,websiteUri,googleMapsUri,primaryTypeDisplayName',
+      },
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.warn(`⚠️ Places business details errore ${response.status}: ${detail.slice(0, 300)}`);
+      return res.json({ available: false });
+    }
+    const data = await response.json();
+    if (!isItalianPlace(data.addressComponents)) return res.json({ available: true, place: null });
+    const address = parseAddressComponents(data.addressComponents);
+    return res.json({
+      available: true,
+      place: {
+        placeId: data.id || placeId,
+        name: data.displayName?.text || '',
+        formattedAddress: data.formattedAddress || undefined,
+        city: address.citta,
+        province: address.provincia,
+        websiteUri: data.websiteUri || undefined,
+        googleMapsUri: data.googleMapsUri || undefined,
+        primaryType: data.primaryTypeDisplayName?.text || undefined,
+      },
+    });
+  } catch (error) {
+    console.warn('⚠️ Places business details non raggiungibile:', error);
+    return res.json({ available: false });
+  }
+});
+
+/**
  * GET /api/places/cap-lookup?cap=20100
  * Rete di sicurezza CAP→città/provincia (suggerimento non bloccante).
  */

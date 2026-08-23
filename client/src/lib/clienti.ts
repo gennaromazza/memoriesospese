@@ -83,6 +83,8 @@ export async function createCliente(data: InsertCliente): Promise<string> {
     citta: data.citta,
     cap: data.cap,
     provincia: data.provincia,
+    addressPlaceId: data.addressPlaceId,
+    addressFormatted: data.addressFormatted,
     tipoSoggetto: data.tipoSoggetto,
     codiceFiscale: data.codiceFiscale,
     partitaIva: data.partitaIva,

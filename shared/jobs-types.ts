@@ -4,6 +4,7 @@
  */
 
 import { Timestamp } from 'firebase/firestore';
+import type { VerifiedPlaceReference } from './places-utils';
 
 /**
  * Tipi di lavoro fotografico - Dynamic job type slugs from Firestore
@@ -131,8 +132,10 @@ export interface Job {
   startTime?: string;           // Orario inizio (HH:mm) - opzionale se allDay = true
   endTime?: string;             // Orario fine (HH:mm) - opzionale
   eventLocation?: string;       // Luogo evento (es. "Casale dei Baroni")
+  eventPlace?: VerifiedPlaceReference;
   locationCerimonia?: string;   // @deprecated Legacy - usare rituLocation
   rituLocation?: string;        // Luogo rito/celebrazione (es. "Chiesa San Giuseppe")
+  ceremonyPlace?: VerifiedPlaceReference;
   oraCerimonia?: string;        // @deprecated Legacy - usare rituTime
   rituTime?: string;            // Orario rito/celebrazione (HH:mm)
   provenance: string;           // Dynamic provenance slug from Firestore jobProvenances collection
@@ -199,7 +202,9 @@ export interface InsertJob {
   startTime?: string;  // HH:mm format
   endTime?: string;    // HH:mm format
   eventLocation?: string;
+  eventPlace?: VerifiedPlaceReference;
   rituLocation?: string;  // Luogo rito/celebrazione
+  ceremonyPlace?: VerifiedPlaceReference;
   rituTime?: string;      // Orario rito/celebrazione (HH:mm)
   provenance: string;  // Dynamic provenance slug from Firestore jobProvenances collection
   noteInterne?: string;
@@ -219,7 +224,9 @@ export interface UpdateJob {
   startTime?: string;
   endTime?: string;
   eventLocation?: string;
+  eventPlace?: VerifiedPlaceReference;
   rituLocation?: string;
+  ceremonyPlace?: VerifiedPlaceReference;
   rituTime?: string;
   locationCerimonia?: string;  // Alias per rituLocation
   oraCerimonia?: string;       // Alias per rituTime
