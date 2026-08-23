@@ -118,6 +118,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     [photos, visiblePhotoCount],
   );
   const authorizedSources = sources.filter(source => source.consentGranted);
+  const legacySources = sources.filter(source => source.legacyImported);
   const authorizedSourceIds = new Set(authorizedSources.map(source => source.id));
   const availablePhotoIds = new Set(photos.map(photo => photo.id));
   const validSelectedSourceIds = [...selectedSourceIds].filter(id => authorizedSourceIds.has(id));
@@ -341,6 +342,12 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
+          {legacySources.length > 0 && (
+            <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              <strong>{legacySources.length} risposte storiche recuperate.</strong>{' '}
+              Provengono da moduli completati prima dei nuovi campi editoriali: restano escluse da Groq finché non le selezioni singolarmente.
+            </div>
+          )}
           {sources.length === 0 && <p className="text-sm text-gray-500">Nessuna risposta editoriale disponibile per questo Job.</p>}
           {sources.map(source => (
             <label key={source.id} className={`flex items-start gap-3 rounded-lg border p-3 ${source.consentGranted ? 'cursor-pointer bg-white' : 'bg-gray-50 text-gray-500'}`}>
@@ -353,9 +360,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                 <span className="block font-medium">{source.label} · {source.clientName}</span>
                 <span className="block break-words text-gray-600">{sourceValue(source)}</span>
               </span>
-               <Badge variant="outline" className="ml-auto shrink-0">
-                 {source.legacyImported ? 'Storica' : source.category === 'vendor' ? 'Fornitore' : 'Racconto'}
-               </Badge>
+              <Badge variant="outline" className="ml-auto shrink-0">
+                {source.legacyImported
+                  ? `Storica · ${source.category === 'vendor' ? 'Fornitore' : 'Racconto'}`
+                  : source.category === 'vendor' ? 'Fornitore' : 'Racconto'}
+              </Badge>
             </label>
           ))}
           {authorizedSources.length > 0 && <p className="pt-2 text-xs text-gray-500">Selezionate: {validSelectedSourceIds.length} di {authorizedSources.length} risposte autorizzate.</p>}
