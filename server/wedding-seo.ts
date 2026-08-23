@@ -73,7 +73,10 @@ function sourceValueIsPresent(value: unknown): boolean {
   return true;
 }
 
-export function buildAuthorizedSources(submissions: Array<{ id: string; data: Record<string, any> }>): WeddingStorySource[] {
+export function buildAuthorizedSources(
+  submissions: Array<{ id: string; data: Record<string, any> }>,
+  options: { includeLegacy?: boolean } = {},
+): WeddingStorySource[] {
   const sources: WeddingStorySource[] = [];
   for (const submission of submissions) {
     const fields: InfoFormField[] = Array.isArray(submission.data.templateFields)
@@ -82,9 +85,13 @@ export function buildAuthorizedSources(submissions: Array<{ id: string; data: Re
     const answers = submission.data.answers && typeof submission.data.answers === 'object'
       ? submission.data.answers
       : {};
-    const consentGranted = submission.data.editorialConsent === true;
-    for (const field of fields) {
-      if (!field?.editorialUse) continue;
+    const explicitEditorialMetadata = fields.some(field => (
+      typeof field?.editorialUse === 'boolean' || typeof field?.editorialCategory === 'string'
+    ));
+    const legacyImported = options.includeLegacy === true && !explicitEditorialMetadata;
+    const consentGranted = submission.data.editorialConsent === true || legacyImported;
+    const candidateFields = legacyImported ? fields : fields.filter(field => field?.editorialUse);
+    for (const field of candidateFields) {
       const value = answers[field.id];
       if (!sourceValueIsPresent(value)) continue;
       sources.push({
@@ -96,6 +103,7 @@ export function buildAuthorizedSources(submissions: Array<{ id: string; data: Re
         clientName: submission.data.clientName || 'Cliente',
         category: field.editorialCategory === 'vendor' || field.type === 'vendor' ? 'vendor' : 'story',
         consentGranted,
+        legacyImported: legacyImported || undefined,
       });
     }
   }
@@ -108,13 +116,13 @@ async function loadGallery(galleryId: string) {
   return { id: snapshot.id, ...snapshot.data()! } as Record<string, any> & { id: string };
 }
 
-async function loadSourcesForJob(jobId?: string): Promise<WeddingStorySource[]> {
+async function loadSourcesForJob(jobId?: string, options: { includeLegacy?: boolean } = {}): Promise<WeddingStorySource[]> {
   if (!jobId) return [];
   const snapshot = await db.collection('infoFormSubmissions').where('jobId', '==', jobId).get();
   const completed = snapshot.docs
     .map(document => ({ id: document.id, data: document.data() }))
     .filter(item => item.data.status === 'completed');
-  return buildAuthorizedSources(completed);
+  return buildAuthorizedSources(completed, options);
 }
 
 async function uniqueSlug(requested: string, galleryId: string): Promise<string> {
@@ -284,7 +292,7 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
     if (!isWeddingGallery(gallery)) return res.status(400).json({ error: 'La Storia Real Wedding è disponibile solo per gallerie matrimonio.' });
     const storyDocument = await db.collection(STORIES_COL).doc(gallery.id).get();
     const story = storyDocument.exists ? storyFromDocument(storyDocument.id, storyDocument.data()!) : null;
-    const sources = await loadSourcesForJob(gallery.jobId);
+    const sources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
     return res.json({
       story,
       gallery: {
@@ -311,7 +319,7 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
     if (!isWeddingGallery(gallery)) return res.status(400).json({ error: 'Questa non è una galleria matrimonio.' });
     const status: WeddingStoryStatus = req.body?.status === 'published' ? 'published' : 'draft';
     const input = validateWeddingStoryInput(req.body || {}, status === 'published');
-    const availableSources = await loadSourcesForJob(gallery.jobId);
+    const availableSources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
     const allowedIds = new Set(availableSources.filter(source => source.consentGranted).map(source => source.id));
     const unauthorized = input.approvedSourceIds.filter(id => !allowedIds.has(id));
     if (unauthorized.length > 0) {
@@ -361,7 +369,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const selectedPhotoIds: string[] = Array.from(new Set<string>(
       Array.isArray(req.body?.selectedPhotoIds) ? req.body.selectedPhotoIds.map((value: unknown) => String(value)) : [],
     )).slice(0, MAX_PHOTOS);
-    const availableSources = await loadSourcesForJob(gallery.jobId);
+    const availableSources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
     const sourceMap = new Map(availableSources.filter(source => source.consentGranted).map(source => [source.id, source]));
     const sources = selectedSourceIds.map(id => sourceMap.get(id)).filter(Boolean) as WeddingStorySource[];
     if (sources.length !== selectedSourceIds.length) {

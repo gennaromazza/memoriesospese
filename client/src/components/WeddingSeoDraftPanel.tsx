@@ -353,7 +353,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                 <span className="block font-medium">{source.label} · {source.clientName}</span>
                 <span className="block break-words text-gray-600">{sourceValue(source)}</span>
               </span>
-              <Badge variant="outline" className="ml-auto shrink-0">{source.category === 'vendor' ? 'Fornitore' : 'Racconto'}</Badge>
+               <Badge variant="outline" className="ml-auto shrink-0">
+                 {source.legacyImported ? 'Storica' : source.category === 'vendor' ? 'Fornitore' : 'Racconto'}
+               </Badge>
             </label>
           ))}
           {authorizedSources.length > 0 && <p className="pt-2 text-xs text-gray-500">Selezionate: {validSelectedSourceIds.length} di {authorizedSources.length} risposte autorizzate.</p>}

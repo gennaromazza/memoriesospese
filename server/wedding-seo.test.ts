@@ -69,6 +69,28 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain('Non inventare');
   });
 
+  it('makes completed legacy submissions available to the admin migration flow', () => {
+    const sources = buildAuthorizedSources([
+      {
+        id: 'legacy-submission',
+        data: {
+          status: 'completed',
+          clientName: 'Anna',
+          editorialConsent: false,
+          templateFields: [
+            { id: 'story', label: 'Il loro racconto', type: 'textarea', required: false },
+            { id: 'schedule', label: 'Orario', type: 'text', required: false },
+          ],
+          answers: { story: 'Una risposta storica', schedule: '16:00' },
+        },
+      },
+    ], { includeLegacy: true });
+
+    expect(sources).toHaveLength(2);
+    expect(sources.every(source => source.consentGranted && source.legacyImported)).toBe(true);
+    expect(sources.map(source => source.value)).toEqual(['Una risposta storica', '16:00']);
+  });
+
   it('requires meaningful copy and a photo only for explicit publication', () => {
     const draft = validateWeddingStoryInput({ title: 'Anna e Luca', story: 'Bozza iniziale' }, false);
     expect(draft.selectedPhotoIds).toEqual([]);

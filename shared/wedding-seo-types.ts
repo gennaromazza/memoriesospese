@@ -9,6 +9,7 @@ export interface WeddingStorySource {
   clientName: string;
   category: 'story' | 'vendor';
   consentGranted: boolean;
+  legacyImported?: boolean;
 }
 
 export interface WeddingSeoStory {
