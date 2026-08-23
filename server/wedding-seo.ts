@@ -177,17 +177,28 @@ async function loadWeddingEditorialJobFacts(jobId?: string): Promise<WeddingEdit
   return buildWeddingEditorialJobFacts(job, clients);
 }
 
-function promptSourcePayload(sources: WeddingStorySource[]) {
+function promptSourcePayload(sources: WeddingStorySource[]): Array<{
+  label: string;
+  category: 'story' | 'vendor';
+  value: unknown;
+}> {
   const sensitive = /\b(?:indirizzo|via|viale|corso|civico|telefono|cellulare|whatsapp|e-?mail|codice fiscale|partita iva|saldo|pagamento)\b/i;
-  return sources.flatMap(source => {
+  const payload: Array<{ label: string; category: 'story' | 'vendor'; value: unknown }> = [];
+  for (const source of sources) {
     const serialized = JSON.stringify(source.value ?? '');
-    if (sensitive.test(source.label) || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(serialized) || /\b(?:via|viale|corso|strada)\b[^\n,]{0,80}\d/i.test(serialized)) return [];
-    if (source.category === 'vendor' && source.value && typeof source.value === 'object') {
-      const vendor = source.value as Record<string, unknown>;
-      return [{ label: source.label, category: source.category, value: { name: safeString(vendor.name, 120), role: safeString(vendor.role, 120) } }];
+    if (sensitive.test(source.label) || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(serialized) || /\b(?:via|viale|corso|strada)\b[^\n,]{0,80}\d/i.test(serialized)) continue;
+    if (source.category === 'vendor') {
+      if (source.value && typeof source.value === 'object') {
+        const vendor = source.value as Record<string, unknown>;
+        payload.push({ label: 'Fornitore verificato', category: source.category, value: { name: safeString(vendor.name, 120), role: safeString(vendor.role, 120) } });
+      } else {
+        payload.push({ label: 'Elenco storico di fornitori; ruoli non verificati', category: source.category, value: { names: vendorNamesFromSource(source), rolesVerified: false } });
+      }
+      continue;
     }
-    return [{ label: source.label, category: source.category, value: source.value }];
-  });
+    payload.push({ label: source.label, category: source.category, value: source.value });
+  }
+  return payload;
 }
 
 function vendorNamesFromSource(source: WeddingStorySource): string[] {
@@ -260,6 +271,11 @@ export function buildGroqPrompt(params: {
     `Non usare il futuro né formule da programma come “è previsto”, “sono previsti” o “avrà inizio”.\n` +
     `Tratta orari, numero degli ospiti, composizione familiare, richieste di scatto e indicazioni logistiche come contesto operativo: ` +
     `non trasformarli in una checklist e non usarli come riempitivo. Inseriscili soltanto quando migliorano davvero il racconto.\n` +
+    `Le risposte al modulo descrivono desideri e indicazioni raccolti prima dell'evento, non provano che un fatto sia avvenuto. ` +
+    `Non affermare che una foto sia stata realizzata, che una persona fosse presente o abbia svolto un'attività, se questo non è dichiarato esplicitamente. ` +
+    `Le città dei clienti indicano soltanto la loro residenza: non attribuirle agli invitati. ` +
+    `Per i fornitori storici con ruoli non verificati cita i nomi senza assegnare attività, prodotti o responsabilità. ` +
+    `Non descrivere costa, mare, spiaggia, panorama, architettura o interni di una location se tali caratteristiche non compaiono espressamente nelle fonti.\n` +
     `Se un dettaglio manca, omettilo in silenzio. Non scrivere mai “non è indicato”, “non sono forniti dettagli”, ` +
     `“dati disponibili”, “probabilmente” o “presumibilmente”. ` +
     `Non commentare ciò che non sai e non spiegare i limiti delle fonti.\n` +
@@ -281,7 +297,11 @@ export function buildGroqPrompt(params: {
       : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
 }
 
-export function inspectWeddingDraftQuality(draft: Record<string, any>, requiredVendors: string[] = []): string[] {
+export function inspectWeddingDraftQuality(
+  draft: Record<string, any>,
+  requiredVendors: string[] = [],
+  context: { allowedText?: string; unverifiedVendorNames?: string[] } = {},
+): string[] {
   const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
   const issues: string[] = [];
   if (/\b(?:non (?:è|sono|risultano) (?:indicat[oi]|fornit[ei]|disponibil[ei])|non (?:sono|vengono) descritt[ei]|dati disponibili|risposte autorizzate|questionario)\b/i.test(text)) {
@@ -297,6 +317,20 @@ export function inspectWeddingDraftQuality(draft: Record<string, any>, requiredV
   if (genericHeadings.length >= 2) issues.push('usa intestazioni generiche da dossier');
   const missingVendors = requiredVendors.filter(name => name && !text.toLocaleLowerCase('it').includes(name.toLocaleLowerCase('it')));
   if (missingVendors.length > 0) issues.push(`non cita i fornitori selezionati: ${missingVendors.join(', ')}`);
+  if (/\b(?:ospiti|invitati)\b[^.!?]{0,100}\bprovenient[ei]\s+da\b/i.test(text)) {
+    issues.push('deduce la provenienza degli invitati dalle città dei clienti');
+  }
+  const allowedText = String(context.allowedText || '').toLocaleLowerCase('it');
+  const unsupportedSetting = ['sulla costa', 'sulla spiaggia', 'vista sul mare', 'navata'].filter(detail =>
+    text.toLocaleLowerCase('it').includes(detail) && !allowedText.includes(detail),
+  );
+  if (unsupportedSetting.length > 0) issues.push(`attribuisce caratteristiche non documentate alle location: ${unsupportedSetting.join(', ')}`);
+  const roleWords = '(?:wedding planner|fior(?:aio|ista)|floral designer|abiti?|atelier|musica|musicisti|colonna sonora|coordinat[oa]|decorat[oa])';
+  const attributed = (context.unverifiedVendorNames || []).filter(name => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:${escaped}[^.!?]{0,80}${roleWords}|${roleWords}[^.!?]{0,80}${escaped})`, 'i').test(text);
+  });
+  if (attributed.length > 0) issues.push(`attribuisce ruoli non verificati ai fornitori: ${attributed.join(', ')}`);
   return issues;
 }
 
@@ -513,7 +547,13 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const completion: any = await response.json();
     const generated = parseGroqJson(completion?.choices?.[0]?.message?.content || '');
     const requiredVendors = sources.flatMap(vendorNamesFromSource);
-    const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors);
+    const unverifiedVendorNames = sources
+      .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
+      .flatMap(vendorNamesFromSource);
+    const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, {
+      allowedText: JSON.stringify({ jobFacts, sources: promptSourcePayload(sources) }),
+      unverifiedVendorNames,
+    });
     if (qualityIssues.length > 0) {
       console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
       return res.status(502).json({

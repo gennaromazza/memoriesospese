@@ -141,6 +141,22 @@ describe('Real Wedding editorial safety', () => {
     expect(issues).toContain('usa intestazioni generiche da dossier');
   });
 
+  it('rejects unsupported geography, guest origins and roles inferred from a legacy vendor list', () => {
+    const issues = inspectWeddingDraftQuality({
+      story: `Gli invitati erano provenienti da Aversa e Trentola Ducenta. ` +
+        `Il wedding planner Bruno della Vecchia ha coordinato i tempi. ` +
+        `I fiori di Kadoa hanno decorato i tavoli e gli abiti di Passaro hanno completato l'estetica. ` +
+        `Punta Castello, sulla costa, ha ospitato il ricevimento sulla spiaggia.`,
+    }, ['Passaro', 'Kadoa', 'Bruno della Vecchia'], {
+      allowedText: 'Punta Castello; Aversa; Trentola Ducenta',
+      unverifiedVendorNames: ['Passaro', 'Kadoa', 'Bruno della Vecchia'],
+    });
+
+    expect(issues).toContain('deduce la provenienza degli invitati dalle città dei clienti');
+    expect(issues.some(issue => issue.startsWith('attribuisce caratteristiche non documentate'))).toBe(true);
+    expect(issues.some(issue => issue.startsWith('attribuisce ruoli non verificati'))).toBe(true);
+  });
+
   it('makes completed legacy submissions available to the admin migration flow', () => {
     const sources = buildAuthorizedSources([
       {
