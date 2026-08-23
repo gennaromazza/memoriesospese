@@ -163,6 +163,23 @@ describe('Real Wedding editorial safety', () => {
     expect(sources.map(source => source.value)).toEqual(['Una risposta storica', '16:00']);
   });
 
+  it('recognizes a historical free-text supplier list as mandatory vendor material', () => {
+    const sources = buildAuthorizedSources([{
+      id: 'legacy-vendors',
+      data: {
+        status: 'completed',
+        clientName: 'Roberta',
+        templateFields: [{ id: 'vendors', label: 'Quali fornitori avete scelto?', type: 'text', required: false }],
+        answers: { vendors: 'Passaro, Kadoa, Bruno della Vecchia, gruppo Arechi' },
+      },
+    }], { includeLegacy: true });
+
+    expect(sources[0]).toMatchObject({ category: 'vendor', legacyImported: true });
+    const prompt = buildGroqPrompt({ gallery: {}, sources, photos: [] });
+    expect(prompt).toContain('Passaro');
+    expect(prompt).toContain('gruppo Arechi');
+  });
+
   it('does not treat modern fields explicitly disabled for editorial use as legacy', () => {
     const sources = buildAuthorizedSources([
       {

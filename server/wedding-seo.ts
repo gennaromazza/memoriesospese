@@ -102,7 +102,7 @@ export function buildAuthorizedSources(
         label: field.label,
         value: consentGranted ? value : undefined,
         clientName: submission.data.clientName || 'Cliente',
-        category: field.editorialCategory === 'vendor' || field.type === 'vendor' ? 'vendor' : 'story',
+        category: field.editorialCategory === 'vendor' || field.type === 'vendor' || /\bfornitor[ei]\b/i.test(field.label || '') ? 'vendor' : 'story',
         consentGranted,
         legacyImported: legacyImported || undefined,
       });
@@ -188,6 +188,16 @@ function promptSourcePayload(sources: WeddingStorySource[]) {
     }
     return [{ label: source.label, category: source.category, value: source.value }];
   });
+}
+
+function vendorNamesFromSource(source: WeddingStorySource): string[] {
+  if (source.category !== 'vendor') return [];
+  if (source.value && typeof source.value === 'object' && !Array.isArray(source.value)) {
+    return uniqueNonEmpty([(source.value as Record<string, unknown>).name]);
+  }
+  const raw = safeString(source.value, 600);
+  if (!raw) return [];
+  return uniqueNonEmpty(raw.split(/[,;\n]+/).map(name => name.replace(/^[-–•]\s*/, '').trim()));
 }
 
 async function uniqueSlug(requested: string, galleryId: string): Promise<string> {
@@ -359,7 +369,10 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
     const authorizedSources = await loadSourcesForJob(story.jobId);
     const vendors: WeddingStoryVendor[] = authorizedSources
       .filter(source => approvedIds.has(source.id) && source.consentGranted && source.category === 'vendor')
-      .map(source => {
+      .flatMap(source => {
+        if (!source.value || typeof source.value !== 'object' || Array.isArray(source.value)) {
+          return vendorNamesFromSource(source).map(name => ({ name, role: 'Fornitore del matrimonio' }));
+        }
         const value = source.value && typeof source.value === 'object' ? source.value as Record<string, unknown> : {};
         const rawUrl = safeString(value.url, 500);
         let url: string | undefined;
@@ -367,7 +380,7 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
           const parsed = new URL(rawUrl);
           if (parsed.protocol === 'https:' || parsed.protocol === 'http:') url = parsed.toString();
         } catch { /* link facoltativo non valido: viene omesso */ }
-        return { name: safeString(value.name, 120), role: safeString(value.role, 120), url };
+        return [{ name: safeString(value.name, 120), role: safeString(value.role, 120) || 'Fornitore del matrimonio', url }];
       })
       .filter(vendor => vendor.name && vendor.role);
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
@@ -499,10 +512,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     }
     const completion: any = await response.json();
     const generated = parseGroqJson(completion?.choices?.[0]?.message?.content || '');
-    const requiredVendors = sources
-      .filter(source => source.category === 'vendor' && source.value && typeof source.value === 'object')
-      .map(source => safeString((source.value as Record<string, unknown>).name, 120))
-      .filter(Boolean);
+    const requiredVendors = sources.flatMap(vendorNamesFromSource);
     const qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors);
     if (qualityIssues.length > 0) {
       console.warn('[wedding-seo] Bozza rifiutata dal controllo editoriale:', qualityIssues);
