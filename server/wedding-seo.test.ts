@@ -21,6 +21,7 @@ import {
   inspectWeddingDraftQuality,
   OPENROUTER_BASE_URL,
   OPENROUTER_MODEL,
+  OPENROUTER_MODELS,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingStoryInput,
@@ -29,9 +30,13 @@ import {
 describe('Real Wedding editorial safety', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('uses the current OpenRouter vision model and OpenAI-compatible endpoint', () => {
+  it('uses current free OpenRouter vision models and the OpenAI-compatible endpoint', () => {
     expect(OPENROUTER_BASE_URL).toBe('https://openrouter.ai/api/v1');
-    expect(OPENROUTER_MODEL).toBe('google/gemma-4-31b-a4b-it:free');
+    expect(OPENROUTER_MODEL).toBe('google/gemma-4-31b-it:free');
+    expect(OPENROUTER_MODELS).toEqual([
+      'google/gemma-4-31b-it:free',
+      'google/gemma-4-26b-a4b-it:free',
+    ]);
   });
 
   it('keeps answers private without explicit editorial consent', () => {

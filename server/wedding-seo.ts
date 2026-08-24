@@ -19,7 +19,11 @@ const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const MAX_PHOTOS = 24;
 const MAX_SOURCES = 40;
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-export const OPENROUTER_MODEL = 'google/gemma-4-31b-a4b-it:free';
+export const OPENROUTER_MODELS = [
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+] as const;
+export const OPENROUTER_MODEL = OPENROUTER_MODELS[0];
 const OPENROUTER_TITLE = 'Image Studio Real Wedding';
 
 type OpenRouterMessageContent =
@@ -638,34 +642,52 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     let qualityIssues: string[] = [];
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       let completion: any;
-      try {
-        const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
-            'X-OpenRouter-Title': OPENROUTER_TITLE,
-          },
-          body: JSON.stringify({
-          model: OPENROUTER_MODEL,
-          temperature: attempt === 1 ? 0.35 : 0.25,
-          max_tokens: 6000,
-            messages,
-          }),
-        });
-        if (!response.ok) {
-          console.error('[wedding-seo] OpenRouter:', response.status, (await response.text()).slice(0, 500));
-          return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
+      let lastProviderStatus: number | undefined;
+      for (const model of OPENROUTER_MODELS) {
+        try {
+          const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
+              'X-OpenRouter-Title': OPENROUTER_TITLE,
+            },
+            body: JSON.stringify({
+              model,
+              temperature: attempt === 1 ? 0.35 : 0.25,
+              max_tokens: 6000,
+              response_format: { type: 'json_object' },
+              messages,
+            }),
+          });
+          if (response.ok) {
+            completion = await response.json();
+            break;
+          }
+          lastProviderStatus = response.status;
+          console.error('[wedding-seo] OpenRouter:', model, response.status, (await response.text()).slice(0, 500));
+          if (![404, 408, 429, 500, 502, 503, 504].includes(response.status)) {
+            return res.status(502).json({ error: `OpenRouter ha rifiutato la richiesta (HTTP ${response.status}). La bozza corrente è rimasta invariata.` });
+          }
+        } catch (error) {
+          console.error('[wedding-seo] OpenRouter: request failed', model, error);
         }
-        completion = await response.json();
-      } catch (error) {
-        console.error('[wedding-seo] OpenRouter: request failed', error);
-        return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
+      }
+      if (!completion) {
+        return res.status(502).json({
+          error: `Nessun modello gratuito per analisi immagini è disponibile su OpenRouter (ultimo HTTP ${lastProviderStatus || 'di rete'}). La bozza corrente è rimasta invariata.`,
+        });
       }
       const raw = completion?.choices?.[0]?.message?.content || '';
-      generated = parseOpenRouterJson(raw);
-      qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
+      generated = null;
+      try {
+        generated = parseOpenRouterJson(raw);
+        qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
+      } catch (error) {
+        qualityIssues = ['la risposta del modello non contiene JSON valido'];
+        console.warn(`[wedding-seo] Tentativo ${attempt} con risposta non valida:`, error);
+      }
       if (qualityIssues.length === 0) break;
       console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
       if (attempt === 1) {
