@@ -31,3 +31,5 @@ Questo file definisce le regole operative che Codex deve seguire quando lavora s
 - Dopo le verifiche riuscite, esegui sempre il push del commit sul repository remoto, così Replit può ricevere la versione aggiornata.
 - Prima del push, verifica che la branch remota sia aggiornata e che non vengano inclusi file estranei alla modifica.
 - Dopo il push, verifica quando possibile che la versione pubblicata su Replit rifletta il comportamento atteso.
+- I commit e i push non devono includere né attivare comandi destinati ad avviare il server o il workflow di sviluppo/produzione.
+- L'avvio del server su Replit viene eseguito manualmente dall'utente: Codex non deve avviarlo automaticamente né aggiungere automatismi di avvio al solo scopo di completare una modifica.
