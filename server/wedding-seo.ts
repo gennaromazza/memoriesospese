@@ -111,6 +111,9 @@ const WEDDING_VENDOR_TAXONOMY: Record<string, string> = {
 };
 const VENDOR_CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 const VENDOR_NEGATIVE_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const VENDOR_LOOKUP_VERSION = 2;
+const VENDOR_SEARCH_TIMEOUT_MS = 90_000;
+const VENDOR_SEARCH_CONCURRENCY = 4;
 const MAX_VENDOR_LOOKUPS_PER_STORY = 12;
 const BLOCKED_VENDOR_HOSTS = [
   'google.com', 'matrimonio.com', 'zankyou.it', 'paginegialle.it',
@@ -122,6 +125,11 @@ type WeddingVendorLookup = WeddingStoryVendor & {
   confidence: number;
   sourceUrl?: string;
   checkedAt?: any;
+};
+
+type WeddingVendorSearchOutcome = {
+  status: 'matched' | 'not_found' | 'technical_error';
+  match?: WeddingVendorLookup;
 };
 
 type GeminiMessageContent =
@@ -376,18 +384,36 @@ function sameCitedVendorDestination(candidate: string, citation: string): boolea
   }
 }
 
+async function fetchWithTimeout(
+  input: string | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<globalThis.Response> {
+  const controller = new AbortController();
+  // Un timer esplicito mantiene vivo anche lo script CLI mentre una richiesta è in attesa.
+  const timer = setTimeout(() => controller.abort(new DOMException('Tempo massimo superato', 'TimeoutError')), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function validateWeddingVendorSearchResult(
   requestedName: string,
   result: Record<string, any>,
   citationUrls: string[],
 ): WeddingVendorLookup | null {
-  if (result.matched !== true || Number(result.confidence) < 0.88) return null;
+  if (result.matched !== true) return null;
   const category = safeString(result.category, 80);
   if (!Object.prototype.hasOwnProperty.call(WEDDING_VENDOR_TAXONOMY, category)) return null;
   const requestedTokens = normalizedVendorName(requestedName).split(' ').filter(token => token.length >= 3);
   const canonicalName = safeString(result.canonicalName, 120);
-  const canonical = normalizedVendorName(canonicalName);
-  if (requestedTokens.length === 0 || !requestedTokens.every(token => canonical.includes(token))) return null;
+  const matchedNameEvidence = safeString(result.matchedNameEvidence, 240);
+  const identityEvidence = normalizedVendorName(`${canonicalName} ${matchedNameEvidence}`);
+  const minimumConfidence = requestedTokens.length <= 1 ? 0.92 : 0.84;
+  if (Number(result.confidence) < minimumConfidence) return null;
+  if (requestedTokens.length === 0 || !requestedTokens.every(token => identityEvidence.includes(token))) return null;
   const candidates = [result.officialUrl, result.socialUrl].map(validExternalVendorUrl).filter(Boolean) as string[];
   const url = candidates.find(candidate => citationUrls.some(citation => sameCitedVendorDestination(candidate, citation)));
   if (!url) return null;
@@ -402,6 +428,7 @@ export function validateWeddingVendorSearchResult(
 }
 
 function cachedVendorIsFresh(data: Record<string, any>): boolean {
+  if (Number(data.lookupVersion) !== VENDOR_LOOKUP_VERSION) return false;
   const checkedAt = typeof data.checkedAt?.toMillis === 'function'
     ? data.checkedAt.toMillis()
     : Date.parse(String(data.checkedAt || ''));
@@ -433,20 +460,24 @@ async function searchWeddingVendor(
   name: string,
   jobFacts: WeddingEditorialJobFacts | null,
   apiKey: string,
-): Promise<WeddingVendorLookup | null> {
+): Promise<WeddingVendorSearchOutcome> {
   const locations = uniqueNonEmpty([
     jobFacts?.ceremonyCity, jobFacts?.receptionCity, ...(jobFacts?.clientCities || []),
   ]);
   const taxonomy = Object.entries(WEDDING_VENDOR_TAXONOMY)
     .map(([category, examples]) => `${category}: ${examples}`)
     .join('\n');
+  const locationContext = locations.join(', ') || 'Campania, Italia';
   const prompt = `Verifica tramite Google Search se “${name}” identifica con alta certezza un'attività o professionista realmente operante nel settore dei matrimoni.\n` +
-    `Contesto geografico utile ma non vincolante: ${locations.join(', ') || 'Campania, Italia'}.\n` +
+    `Contesto geografico prioritario: ${locationContext}. Prova ricerche con il nome esatto tra virgolette, le località e termini pertinenti come matrimonio, wedding, sposi e fornitori.\n` +
+    `Il testo degli sposi può contenere il nome anagrafico del titolare mentre sito e social usano il nome commerciale. Verifica anche questa relazione e descrivila in matchedNameEvidence citando una fonte che colleghi esplicitamente persona e attività.\n` +
     `Cerca il sito ufficiale e, in alternativa, un profilo social ufficiale. Non usare directory, portali di recensioni o aggregatori come destinazione.\n` +
     `Non confondere omonimi. Per nomi brevi o generici richiedi prove esplicite dell'attività matrimoniale. Se il match non è univoco restituisci matched=false.\n` +
     `Categorie ammesse:\n${taxonomy}\n` +
-    `Restituisci canonicalName, category, role, officialUrl, socialUrl, confidence tra 0 e 1 e matched. Gli URL devono appartenere all'attività verificata.`;
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    `Restituisci canonicalName, matchedNameEvidence, category, role, officialUrl, socialUrl, confidence tra 0 e 1 e matched. Gli URL devono appartenere all'attività verificata.`;
+  let response: globalThis.Response;
+  try {
+    response = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/interactions', {
     method: 'POST',
     headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -462,21 +493,25 @@ async function searchWeddingVendor(
           properties: {
             matched: { type: 'boolean' },
             canonicalName: { type: 'string' },
+            matchedNameEvidence: { type: 'string' },
             category: { type: 'string', enum: Object.keys(WEDDING_VENDOR_TAXONOMY) },
             role: { type: 'string' },
             officialUrl: { type: 'string' },
             socialUrl: { type: 'string' },
             confidence: { type: 'number' },
           },
-          required: ['matched', 'canonicalName', 'category', 'role', 'officialUrl', 'socialUrl', 'confidence'],
+          required: ['matched', 'canonicalName', 'matchedNameEvidence', 'category', 'role', 'officialUrl', 'socialUrl', 'confidence'],
         },
       },
     }),
-    signal: AbortSignal.timeout(45_000),
-  });
+    }, VENDOR_SEARCH_TIMEOUT_MS);
+  } catch (error) {
+    console.warn(`[wedding-seo] Ricerca fornitore “${name}” non completata; verrà riprovata alla prossima generazione:`, error);
+    return { status: 'technical_error' };
+  }
   if (!response.ok) {
-    console.warn(`[wedding-seo] Ricerca fornitore “${name}” non riuscita (HTTP ${response.status}).`);
-    return null;
+    console.warn(`[wedding-seo] Ricerca fornitore “${name}” non riuscita (HTTP ${response.status}); nessuna cache negativa salvata.`);
+    return { status: 'technical_error' };
   }
   const interaction: any = await response.json();
   const outputBlocks = (Array.isArray(interaction?.steps) ? interaction.steps : [])
@@ -489,9 +524,43 @@ async function searchWeddingVendor(
     .map((annotation: any) => safeString(annotation.url, 500))
     .filter(Boolean);
   try {
-    return validateWeddingVendorSearchResult(name, parseGeminiJson(String(block?.text || '')), citationUrls);
+    const parsed = parseGeminiJson(String(block?.text || ''));
+    const match = validateWeddingVendorSearchResult(name, parsed, citationUrls);
+    if (match) return { status: 'matched', match };
+    if (parsed.matched === false) return { status: 'not_found' };
+    console.warn(`[wedding-seo] Match proposto per “${name}” rifiutato perché non sufficientemente verificabile; verrà riprovato.`);
+    return { status: 'technical_error' };
   } catch (error) {
     console.warn(`[wedding-seo] Risposta di ricerca non valida per “${name}”:`, error);
+    return { status: 'technical_error' };
+  }
+}
+
+async function resolveOneWeddingVendor(
+  name: string,
+  jobFacts: WeddingEditorialJobFacts | null,
+  apiKey: string,
+): Promise<WeddingStoryVendor | null> {
+  try {
+    const cached = await loadCachedWeddingVendor(name);
+    if (cached !== undefined) return cached ? { name, role: cached.role, url: cached.url } : null;
+    const outcome = await searchWeddingVendor(name, jobFacts, apiKey);
+    if (outcome.status === 'technical_error') return null;
+    const match = outcome.match;
+    await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(name)).set({
+      lookupVersion: VENDOR_LOOKUP_VERSION,
+      requestedName: name,
+      matched: outcome.status === 'matched',
+      name: match?.name || name,
+      role: match?.role || '',
+      url: match?.url || '',
+      sourceUrl: match?.sourceUrl || '',
+      confidence: match?.confidence || 0,
+      checkedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return match ? { name, role: match.role, url: match.url } : null;
+  } catch (error) {
+    console.warn(`[wedding-seo] Ricerca fornitore “${name}” saltata senza interrompere l'articolo:`, error);
     return null;
   }
 }
@@ -503,28 +572,10 @@ async function resolveWeddingVendors(
 ): Promise<WeddingStoryVendor[]> {
   const names = uniqueNonEmpty(sources.flatMap(vendorNamesFromSource)).slice(0, MAX_VENDOR_LOOKUPS_PER_STORY);
   const resolved: WeddingStoryVendor[] = [];
-  for (const name of names) {
-    const cached = await loadCachedWeddingVendor(name);
-    if (cached !== undefined) {
-      if (cached) resolved.push({ name, role: cached.role, url: cached.url });
-      continue;
-    }
-    try {
-      const match = await searchWeddingVendor(name, jobFacts, apiKey);
-      await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(name)).set({
-        requestedName: name,
-        matched: Boolean(match),
-        name: match?.name || name,
-        role: match?.role || '',
-        url: match?.url || '',
-        sourceUrl: match?.sourceUrl || '',
-        confidence: match?.confidence || 0,
-        checkedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-      if (match) resolved.push({ name, role: match.role, url: match.url });
-    } catch (error) {
-      console.warn(`[wedding-seo] Ricerca fornitore “${name}” saltata:`, error);
-    }
+  for (let index = 0; index < names.length; index += VENDOR_SEARCH_CONCURRENCY) {
+    const batch = names.slice(index, index + VENDOR_SEARCH_CONCURRENCY);
+    const matches = await Promise.all(batch.map(name => resolveOneWeddingVendor(name, jobFacts, apiKey)));
+    resolved.push(...matches.filter((match): match is WeddingStoryVendor => Boolean(match)));
   }
   if (names.length > 0) {
     console.log(`[wedding-seo] Fornitori verificati online: ${resolved.length}/${names.length}. I match incerti restano senza link.`);
@@ -654,7 +705,7 @@ function imageDataUrl(value: string, contentType: unknown): string | null {
 
 async function downloadGeminiImage(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    const response = await fetchWithTimeout(url, {}, 20_000);
     if (!response.ok) {
       console.warn(`[wedding-seo] Immagine non scaricabile per Gemini (HTTP ${response.status}).`);
       return null;
@@ -834,6 +885,7 @@ export async function generateWeddingDraftWithGemini(params: {
   }
   const requiredVendors = sources.flatMap(vendorNamesFromSource);
   const verifiedVendors = await resolveWeddingVendors(sources, jobFacts, apiKey);
+  console.log(`[wedding-seo] Preparazione di ${Math.min(photos.length, MAX_WEDDING_STORY_PHOTOS)} fotografie per Gemini...`);
   const verifiedVendorNames = new Set(verifiedVendors.map(vendor => normalizedVendorName(vendor.name)));
   const unverifiedVendorNames = sources
     .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
@@ -847,6 +899,7 @@ export async function generateWeddingDraftWithGemini(params: {
     privateCoupleNames: jobFacts?.coupleNames || [],
   };
   const initialContent = await buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts, verifiedVendors }), photos);
+  console.log(`[wedding-seo] Fotografie preparate: ${Math.max(0, initialContent.length - 1)}. Invio richiesta articolo a Gemini...`);
   let messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
     {
       role: 'user',
@@ -860,7 +913,7 @@ export async function generateWeddingDraftWithGemini(params: {
     generated = null;
     let response: globalThis.Response;
     try {
-      response = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+      response = await fetchWithTimeout(`${GEMINI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -873,8 +926,7 @@ export async function generateWeddingDraftWithGemini(params: {
           response_format: WEDDING_DRAFT_RESPONSE_FORMAT,
           messages,
         }),
-        signal: AbortSignal.timeout(120_000),
-      });
+      }, 120_000);
     } catch (error) {
       console.error('[wedding-seo] Gemini API: request failed', error);
       throw new WeddingAiGenerationError('La richiesta a Gemini API non è riuscita o ha superato 120 secondi. La bozza corrente è rimasta invariata.');

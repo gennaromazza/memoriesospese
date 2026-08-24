@@ -376,6 +376,25 @@ describe('Real Wedding editorial safety', () => {
     });
   });
 
+  it('recognizes a proprietor name when cited evidence connects it to the public wedding brand', () => {
+    const result = validateWeddingVendorSearchResult('Bruno della Vecchia', {
+      matched: true,
+      canonicalName: "L'Angolo Verde",
+      matchedNameEvidence: "L'Angolo Verde di Della Vecchia Bruno ad Aversa",
+      category: 'fiorista_floral_designer',
+      role: 'Fiorista e floral designer',
+      officialUrl: '',
+      socialUrl: 'https://www.instagram.com/langoloverde_aversa/',
+      confidence: 0.90,
+    }, ['https://www.instagram.com/langoloverde_aversa/']);
+
+    expect(result).toMatchObject({
+      matched: true,
+      name: "L'Angolo Verde",
+      role: 'Fiorista e floral designer',
+    });
+  });
+
   it('rejects ambiguous, uncited or directory-only wedding supplier matches', () => {
     expect(validateWeddingVendorSearchResult('Passaro', {
       matched: true, canonicalName: 'Passaro', category: 'atelier_sposa', role: 'Atelier',
