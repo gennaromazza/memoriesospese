@@ -17,9 +17,8 @@ import type { InfoFormField } from '../shared/info-form-types.js';
 const router = express.Router();
 const STORIES_COL = 'weddingSeoStories';
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
-const MAX_PHOTOS = 24;
+export const MAX_WEDDING_STORY_PHOTOS = 12;
 const MAX_SOURCES = 40;
-const MAX_AI_PHOTOS = 12;
 const MAX_AI_IMAGE_BYTES = 12 * 1024 * 1024;
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 export const GEMINI_MODEL = 'gemini-3.5-flash';
@@ -69,7 +68,9 @@ function storyFromDocument(id: string, data: Record<string, any>): WeddingSeoSto
     story: data.story || '',
     seoTitle: data.seoTitle || '',
     seoDescription: data.seoDescription || '',
-    selectedPhotoIds: Array.isArray(data.selectedPhotoIds) ? data.selectedPhotoIds : [],
+    selectedPhotoIds: Array.isArray(data.selectedPhotoIds)
+      ? [...new Set(data.selectedPhotoIds.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
+      : [],
     approvedSourceIds: Array.isArray(data.approvedSourceIds) ? data.approvedSourceIds : [],
     createdAt: jsonTimestamp(data.createdAt),
     updatedAt: jsonTimestamp(data.updatedAt),
@@ -256,7 +257,7 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   const seoTitle = safeString(body.seoTitle, WEDDING_STORY_LIMITS.seoTitle);
   const seoDescription = safeString(body.seoDescription, WEDDING_STORY_LIMITS.seoDescription);
   const selectedPhotoIds = [...new Set(Array.isArray(body.selectedPhotoIds) ? body.selectedPhotoIds.map(String) : [])]
-    .slice(0, MAX_PHOTOS);
+    .slice(0, MAX_WEDDING_STORY_PHOTOS);
   const approvedSourceIds = [...new Set(Array.isArray(body.approvedSourceIds) ? body.approvedSourceIds.map(String) : [])]
     .slice(0, MAX_SOURCES);
 
@@ -380,7 +381,7 @@ export async function buildGeminiMessageContent(
   prompt: string,
   photos: Array<Record<string, any>>,
 ): Promise<GeminiMessageContent[]> {
-  const imageUrls = await Promise.all(photos.slice(0, MAX_AI_PHOTOS).map(async photo => {
+  const imageUrls = await Promise.all(photos.slice(0, MAX_WEDDING_STORY_PHOTOS).map(async photo => {
     const value = typeof photo.base64 === 'string'
       ? photo.base64
       : typeof photo.thumbnailUrl === 'string'
@@ -481,7 +482,7 @@ export async function loadSelectedPhotos(gallery: Record<string, any>, photoIds:
   const chapters = new Map<string, string>(
     (Array.isArray(gallery.chapters) ? gallery.chapters : []).map((chapter: any) => [chapter.id, chapter.titolo || '']),
   );
-  const photos = await Promise.all(photoIds.slice(0, MAX_PHOTOS).map(async id => {
+  const photos = await Promise.all(photoIds.slice(0, MAX_WEDDING_STORY_PHOTOS).map(async id => {
     const isLegacy = id.startsWith('legacy-');
     const document = isLegacy
       ? await db.collection('galleries').doc(gallery.id).collection('photos').doc(id.slice('legacy-'.length)).get()
@@ -751,7 +752,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     )).slice(0, MAX_SOURCES);
     const selectedPhotoIds: string[] = Array.from(new Set<string>(
       Array.isArray(req.body?.selectedPhotoIds) ? req.body.selectedPhotoIds.map((value: unknown) => String(value)) : [],
-    )).slice(0, MAX_PHOTOS);
+    )).slice(0, MAX_WEDDING_STORY_PHOTOS);
     const availableSources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
     const sourceMap = new Map(availableSources.filter(source => source.consentGranted).map(source => [source.id, source]));
     const sources = selectedSourceIds.map(id => sourceMap.get(id)).filter(Boolean) as WeddingStorySource[];

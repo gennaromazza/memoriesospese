@@ -22,6 +22,7 @@ import {
   inspectWeddingDraftQuality,
   GEMINI_BASE_URL,
   GEMINI_MODEL,
+  MAX_WEDDING_STORY_PHOTOS,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingStoryInput,
@@ -364,6 +365,14 @@ describe('Real Wedding editorial safety', () => {
       .toThrow('almeno una fotografia');
     expect(validateWeddingStoryInput({ title: 'Anna e Luca', story: 'x'.repeat(300), selectedPhotoIds: ['p1'] }, true).selectedPhotoIds)
       .toEqual(['p1']);
+  });
+
+  it('keeps only the first 12 selected photographs for a Real Wedding', () => {
+    const selectedPhotoIds = Array.from({ length: 15 }, (_, index) => `p${index + 1}`);
+    const draft = validateWeddingStoryInput({ title: 'Anna e Luca', story: 'Bozza iniziale', selectedPhotoIds }, false);
+
+    expect(MAX_WEDDING_STORY_PHOTOS).toBe(12);
+    expect(draft.selectedPhotoIds).toEqual(selectedPhotoIds.slice(0, 12));
   });
 
   it('removes private and operational references from the public projection', () => {

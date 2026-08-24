@@ -686,7 +686,7 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
   const publishedDocument = snapshot.docs.find(document => document.data().status === 'published');
   if (!publishedDocument) return null;
   const story = publishedDocument.data();
-  const photoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds.slice(0, 24) : [];
+  const photoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds.slice(0, 12) : [];
   const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));

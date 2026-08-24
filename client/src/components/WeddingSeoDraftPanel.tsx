@@ -58,6 +58,8 @@ function sourceValue(source: WeddingStorySource): string {
   return Array.isArray(source.value) ? source.value.join(', ') : String(source.value ?? '');
 }
 
+const MAX_WEDDING_STORY_PHOTOS = 12;
+
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<DraftFields>(EMPTY_DRAFT);
@@ -97,7 +99,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           setStatus(context.story.status);
           setSlugIsCustom(Boolean(context.story.slug));
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
-          setSelectedPhotoIds(new Set(context.story.selectedPhotoIds));
+          setSelectedPhotoIds(new Set(context.story.selectedPhotoIds.slice(0, MAX_WEDDING_STORY_PHOTOS)));
         } else {
           setSlugIsCustom(false);
         }
@@ -122,7 +124,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const authorizedSourceIds = new Set(authorizedSources.map(source => source.id));
   const availablePhotoIds = new Set(photos.map(photo => photo.id));
   const validSelectedSourceIds = [...selectedSourceIds].filter(id => authorizedSourceIds.has(id));
-  const validSelectedPhotoIds = [...selectedPhotoIds].filter(id => availablePhotoIds.has(id));
+  const validSelectedPhotoIds = [...selectedPhotoIds]
+    .filter(id => availablePhotoIds.has(id))
+    .slice(0, MAX_WEDDING_STORY_PHOTOS);
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
 
   const updateDraft = (field: keyof DraftFields, value: string) => {
@@ -149,8 +153,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     setSelectedPhotoIds(current => {
       const next = new Set(current);
       if (next.has(photoId)) next.delete(photoId);
-      else if (validSelectedPhotoIds.length < 24) next.add(photoId);
-      else toast({ title: 'Limite raggiunto', description: 'Puoi usare fino a 24 fotografie per una storia.' });
+      else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) next.add(photoId);
+      else toast({ title: 'Limite raggiunto', description: `Puoi usare fino a ${MAX_WEDDING_STORY_PHOTOS} fotografie per una storia.` });
       return next;
     });
   };
@@ -375,7 +379,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg"><ImageIcon className="h-5 w-5" /> Fotografie della storia</CardTitle>
           <CardDescription>
-            La griglia usa solo miniature leggere. L’originale viene richiesto quando apri la foto o nella pagina pubblica. Selezionate {validSelectedPhotoIds.length}/24.
+            La griglia usa solo miniature leggere. L’originale viene richiesto quando apri la foto o nella pagina pubblica. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
           </CardDescription>
         </CardHeader>
         <CardContent>

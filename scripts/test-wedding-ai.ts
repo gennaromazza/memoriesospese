@@ -40,10 +40,10 @@ async function automaticPhotoIds(gallery: Record<string, any>): Promise<{ ids: s
   const storyIds = story.exists && Array.isArray(story.data()?.selectedPhotoIds)
     ? story.data()!.selectedPhotoIds.map(String)
     : [];
-  if (storyIds.length > 0) return { ids: storyIds.slice(0, 24), origin: 'bozza Real Wedding' };
+  if (storyIds.length > 0) return { ids: storyIds.slice(0, DEFAULT_PHOTO_SAMPLE), origin: 'bozza Real Wedding' };
 
   const selectedIds = idsFromGallerySelection(gallery);
-  if (selectedIds.length > 0) return { ids: selectedIds.slice(0, 24), origin: 'selezione cliente' };
+  if (selectedIds.length > 0) return { ids: selectedIds.slice(0, DEFAULT_PHOTO_SAMPLE), origin: 'selezione cliente' };
 
   const modern = await db.collection('photos').where('galleryId', '==', gallery.id).limit(DEFAULT_PHOTO_SAMPLE).get();
   if (!modern.empty) return { ids: modern.docs.map(document => document.id), origin: 'campione automatico' };
