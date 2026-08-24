@@ -1,7 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./firebase-admin.js', () => ({
-  db: {},
+  db: {
+    collection: () => ({
+      doc: () => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({
+            lookupVersion: 2,
+            matched: false,
+            checkedAt: { toMillis: () => Date.now() },
+          }),
+        }),
+      }),
+    }),
+  },
   FieldValue: {
     serverTimestamp: vi.fn(),
     delete: vi.fn(),
@@ -22,12 +35,27 @@ import {
   inspectWeddingDraftQuality,
   GEMINI_BASE_URL,
   GEMINI_MODEL,
+  MAX_WEDDING_DRAFT_ATTEMPTS,
   MAX_WEDDING_STORY_PHOTOS,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingVendorSearchResult,
   validateWeddingStoryInput,
 } from './wedding-seo';
+
+function weddingDraft(story: string) {
+  return {
+    title: 'Anna e Luca, un matrimonio fotografico ad Aversa',
+    excerpt: 'Il racconto fotografico del matrimonio di Anna e Luca ad Aversa.',
+    story,
+    seoTitle: 'Matrimonio Anna e Luca ad Aversa',
+    seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa realizzato da Image Studio.',
+  };
+}
+
+function repeatedWords(count: number): string {
+  return Array.from({ length: count }, (_, index) => `gesto${index}`).join(' ');
+}
 
 describe('Real Wedding editorial safety', () => {
   beforeEach(() => {
@@ -44,7 +72,7 @@ describe('Real Wedding editorial safety', () => {
     const generated = {
       title: 'Anna e Luca, matrimonio fotografico ad Aversa',
       excerpt: 'Un racconto fotografico del matrimonio di Anna e Luca ad Aversa.',
-      story: '## Il racconto di Anna e Luca\nImage Studio ha seguito la continuità visiva della giornata con un reportage fotografico essenziale.',
+      story: `## Il racconto di Anna e Luca\nImage Studio ha seguito la continuità visiva della giornata con un reportage fotografico essenziale. ${repeatedWords(250)}`,
       seoTitle: 'Matrimonio Anna e Luca ad Aversa',
       seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa realizzato da Image Studio.',
     };
@@ -85,7 +113,7 @@ describe('Real Wedding editorial safety', () => {
     const generated = {
       title: 'Anna e Luca, matrimonio fotografico ad Aversa',
       excerpt: 'Il racconto fotografico del matrimonio di Anna e Luca.',
-      story: '## Il racconto di Anna e Luca\nImage Studio ha seguito la giornata attraverso un reportage fotografico discreto.',
+      story: `## Il racconto di Anna e Luca\nImage Studio ha seguito la giornata attraverso un reportage fotografico discreto. ${repeatedWords(250)}`,
       seoTitle: 'Matrimonio Anna e Luca ad Aversa',
       seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa.',
     };
@@ -110,6 +138,124 @@ describe('Real Wedding editorial safety', () => {
     expect(retryRequest.messages).toHaveLength(1);
     expect(retryRequest.messages[0].content[0].text).toContain('risposta di Gemini è stata troncata');
     expect(JSON.stringify(retryRequest.messages)).not.toContain('Testo interrotto');
+  });
+
+  it('accepts navata only when a church-related photo was actually prepared for Gemini', async () => {
+    const generated = weddingDraft(
+      `## Il passaggio nella chiesa\nNella navata Image Studio ha seguito la continuità del racconto fotografico. ${repeatedWords(250)}`,
+    );
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(generated) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-church', name: 'Anna e Luca' },
+      sources: [],
+      photos: [{
+        id: 'ceremony-photo',
+        base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZVZsAAAAASUVORK5CYII=',
+        contentType: 'image/png',
+        chapterTitle: 'Cerimonia',
+      }],
+      jobFacts: {
+        coupleNames: ['Anna Rossi', 'Luca Bianchi'],
+        ceremonyVenue: 'Chiesa di San Paolo',
+        ceremonyPlaceType: 'church',
+        clientCities: [],
+      },
+      apiKey: 'test-key',
+    })).resolves.toEqual(generated);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops after the configured number of editorial attempts when every draft stays too short', async () => {
+    const shortDraft = weddingDraft('## Un testo incompleto\nImage Studio ha seguito il matrimonio.');
+    const completion = new Response(JSON.stringify({
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(shortDraft) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const fetchMock = vi.fn().mockImplementation(async () => completion.clone());
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-short', name: 'Anna e Luca' },
+      sources: [],
+      photos: [],
+      jobFacts: null,
+      apiKey: 'test-key',
+    })).rejects.toThrow('dopo 2 correzioni automatiche');
+
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_WEDDING_DRAFT_ATTEMPTS);
+  });
+
+  it('corrects roles, location claims, schedules and length across three editorial attempts', async () => {
+    const vendorSource = {
+      id: 'legacy-vendors:vendors',
+      submissionId: 'legacy-vendors',
+      fieldId: 'vendors',
+      label: 'Quali fornitori avete scelto?',
+      value: 'gruppo Arechi, kadoa, Passaro, Bruno della Vecchia',
+      clientName: 'Anna',
+      category: 'vendor' as const,
+      consentGranted: true,
+      legacyImported: true,
+    };
+    const photos = Array.from({ length: 4 }, (_, index) => ({
+      id: `p${index + 1}`,
+      base64: 'aGVsbG8=',
+      contentType: 'image/png',
+      chapterTitle: 'Festa',
+    }));
+    const firstDraft = weddingDraft(
+      `## Un programma operativo\nLe attività sono iniziate alle 10:30 e sono proseguite alle 12:00. ` +
+      `Punta Castello, sulla costa, ha accolto la coppia. Il wedding planner Bruno della Vecchia ha coordinato i tempi. ` +
+      `Kadoa ha curato i fiori, gli abiti di Passaro hanno completato la scena e gruppo Arechi ha accompagnato la musica. ` +
+      `Image Studio ha seguito il matrimonio. ${repeatedWords(710)}`,
+    );
+    const secondDraft = weddingDraft(
+      `## Dentro la scena\nNella navata Image Studio ha seguito la continuità del racconto. ` +
+      `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
+      repeatedWords(500),
+    );
+    const finalDraft = weddingDraft(
+      `## Un racconto costruito sui gesti\nImage Studio ha seguito il matrimonio con un reportage discreto. ` +
+      `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
+      repeatedWords(710),
+    );
+    const completion = (draft: ReturnType<typeof weddingDraft>) => new Response(JSON.stringify({
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(draft) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(completion(firstDraft))
+      .mockResolvedValueOnce(completion(secondDraft))
+      .mockResolvedValueOnce(completion(finalDraft));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-1', name: 'Anna e Luca' },
+      sources: [vendorSource],
+      photos,
+      jobFacts: null,
+      apiKey: 'test-key',
+    })).resolves.toEqual(finalDraft);
+
+    expect(MAX_WEDDING_DRAFT_ATTEMPTS).toBe(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const secondRequest = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    const firstRevision = String(secondRequest.messages.at(-1)?.content || '');
+    expect(firstRevision).toContain('usa troppi orari e dettagli operativi');
+    expect(firstRevision).toContain('sulla costa');
+    expect(firstRevision).toContain('attribuisce ruoli non verificati ai fornitori');
+    expect(firstRevision).toContain('Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.');
+
+    const thirdRequest = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
+    const secondRevision = String(thirdRequest.messages.at(-1)?.content || '');
+    expect(secondRevision).toContain('racconto troppo breve');
+    expect(secondRevision).toContain('navata');
+    expect(secondRevision).toContain('usa troppi orari e dettagli operativi');
+    expect(secondRevision).toContain('attribuisce ruoli non verificati ai fornitori');
+    expect(secondRevision).toContain('punta a 900-1100 parole');
   });
 
   it('keeps answers private without explicit editorial consent', () => {
@@ -148,6 +294,7 @@ describe('Real Wedding editorial safety', () => {
         clientName: 'Anna', category: 'story', consentGranted: true,
       }],
       photos: [{ id: 'p1', name: 'preparativi.jpg', chapterTitle: 'Preparativi', url: 'https://full.example/photo.jpg' }],
+      preparedPhotoCount: 4,
     });
 
     expect(prompt).toContain('Cerimonia in giardino');
@@ -159,7 +306,8 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain("passato prossimo e imperfetto");
     expect(prompt).toContain('omettilo in silenzio');
     expect(prompt).toContain('non un riepilogo del modulo');
-    expect(prompt).toContain('800-1200 parole');
+    expect(prompt).toContain('900-1200 parole');
+    expect(prompt).toContain('punta ad almeno 900 parole');
     expect(prompt).toContain('approccio deve essere chiaramente fotografico');
     expect(prompt).toContain('studio fotografico di Gennaro Mazzacane');
     expect(prompt).toContain('SEO locale');
@@ -182,6 +330,7 @@ describe('Real Wedding editorial safety', () => {
 
     expect(facts).toMatchObject({
       coupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'],
+      coupleSurnames: ['Martinelli', 'Fabozzi'],
       eventDate: '2026-07-09',
       receptionVenue: 'Punta Castello',
       ceremonyVenue: 'Monastero San Francesco ad Aversa',
@@ -260,6 +409,48 @@ describe('Real Wedding editorial safety', () => {
     expect(issues.some(issue => issue.startsWith('attribuisce ruoli non verificati'))).toBe(true);
   });
 
+  it('accepts navata only when the selected material contains real ceremony-photo evidence', () => {
+    const draft = { story: 'La navata è entrata nel ritmo visivo seguito da Image Studio.' };
+
+    expect(inspectWeddingDraftQuality(draft, [], { hasChurchPhotoEvidence: true }))
+      .not.toContain('attribuisce caratteristiche non documentate alle location: navata');
+    expect(inspectWeddingDraftQuality(draft, [], { hasChurchPhotoEvidence: false }))
+      .toContain('attribuisce caratteristiche non documentate alle location: navata');
+  });
+
+  it('distinguishes a neutral vendor credit from real role attributions', () => {
+    const names = ['gruppo Arechi', 'kadoa', 'Passaro', 'Bruno della Vecchia'];
+    const neutral = inspectWeddingDraftQuality({
+      story: `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
+        `la musica è rimasta un elemento separato del racconto fotografico.`,
+    }, names, { unverifiedVendorNames: names });
+    expect(neutral).toEqual([]);
+
+    const attributed = inspectWeddingDraftQuality({
+      story: `Kadoa ha curato i fiori. I fiori di Kadoa hanno definito la scena. ` +
+        `Bruno della Vecchia è stato il wedding planner, Passaro per gli abiti e gruppo Arechi ha accompagnato la musica.`,
+    }, names, { unverifiedVendorNames: names });
+    expect(attributed).toContain(
+      'attribuisce ruoli non verificati ai fornitori: gruppo Arechi, kadoa, Passaro, Bruno della Vecchia',
+    );
+
+    const evasiveAttribution = inspectWeddingDraftQuality({
+      story: `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
+        `Più tardi gruppo Arechi ha suonato e Kadoa si è occupata dei fiori.`,
+    }, names, { unverifiedVendorNames: names });
+    expect(evasiveAttribution).toContain(
+      'cita fornitori non verificati fuori dal credito neutro: gruppo Arechi, kadoa',
+    );
+
+    const duplicatedInSeo = inspectWeddingDraftQuality({
+      story: 'Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.',
+      seoDescription: 'Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.',
+    }, names, { unverifiedVendorNames: names });
+    expect(duplicatedInSeo).toContain(
+      'cita fornitori non verificati fuori dal credito neutro: gruppo Arechi, kadoa, Passaro, Bruno della Vecchia',
+    );
+  });
+
   it('rejects internal migration language and generic invented endings', () => {
     const issues = inspectWeddingDraftQuality({
       story: 'I fornitori presenti sono registrati nell’elenco storico. La serata si è conclusa con un brindisi condiviso e uno scambio di promesse.',
@@ -285,6 +476,20 @@ describe('Real Wedding editorial safety', () => {
     expect(issues).toContain('usa un tono tecnico o burocratico invece di uno storytelling umano');
     expect(issues).toContain('descrive le fotografie come un inventario invece di costruire un racconto');
     expect(issues).toContain('usa troppi orari e dettagli operativi');
+    expect(issues).toContain('ripete i cognomi degli sposi nel testo pubblico');
+  });
+
+  it('protects couple surnames in SEO metadata as well as in the visible article', () => {
+    const issues = inspectWeddingDraftQuality({
+      title: 'Il matrimonio di Biagio e Roberta',
+      story: 'Image Studio ha raccontato il matrimonio di Biagio e Roberta.',
+      seoTitle: 'Matrimonio Martinelli e Fabozzi',
+      seoDescription: 'Il reportage fotografico di Martinelli e Fabozzi.',
+    }, [], {
+      privateCoupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'],
+      privateCoupleSurnames: ['Martinelli', 'Fabozzi'],
+    });
+
     expect(issues).toContain('ripete i cognomi degli sposi nel testo pubblico');
   });
 
@@ -316,7 +521,18 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain('Riscrivila integralmente');
     expect(prompt).toContain('rispetta tassativamente i limiti di ogni campo');
     expect(prompt).toContain('racconto troppo breve: 561 parole, minimo 700');
+    expect(prompt).toContain('punta a 900-1100 parole');
+    expect(prompt).toContain('5-7 sezioni sostanziose');
     expect(prompt).toContain('soltanto JSON valido');
+
+    const vendorPrompt = buildWeddingDraftRevisionPrompt(
+      ['attribuisce ruoli non verificati ai fornitori: Passaro, Kadoa, Bruno della Vecchia'],
+      { unverifiedVendorNames: ['Passaro', 'Kadoa', 'Bruno della Vecchia'] },
+    );
+    expect(vendorPrompt).toContain(
+      'Tra le realtà scelte dalla coppia figurano Passaro, Kadoa e Bruno della Vecchia.',
+    );
+    expect(vendorPrompt).toContain('Non citare altrove gli stessi nomi');
   });
 
   it('makes completed legacy submissions available to the admin migration flow', () => {
@@ -341,7 +557,7 @@ describe('Real Wedding editorial safety', () => {
     expect(sources.map(source => source.value)).toEqual(['Una risposta storica', '16:00']);
   });
 
-  it('recognizes a historical free-text supplier list as mandatory vendor material', () => {
+  it('keeps a vendor-only source compact and provides one canonical neutral credit', () => {
     const sources = buildAuthorizedSources([{
       id: 'legacy-vendors',
       data: {
@@ -356,6 +572,13 @@ describe('Real Wedding editorial safety', () => {
     const prompt = buildWeddingStoryPrompt({ gallery: {}, sources, photos: [] });
     expect(prompt).toContain('Passaro');
     expect(prompt).toContain('gruppo Arechi');
+    expect(prompt).toContain('300-450 parole, 2-3 sezioni');
+    expect(prompt).not.toContain('900-1200 parole');
+    expect(prompt).not.toContain('minimo 700');
+    expect(prompt).toContain(
+      'Tra le realtà scelte dalla coppia figurano Passaro, Kadoa, Bruno della Vecchia e gruppo Arechi.',
+    );
+    expect(prompt).toContain('Usa esattamente una volta questa frase');
   });
 
   it('accepts only a high-confidence wedding supplier URL supported by a Google citation', () => {

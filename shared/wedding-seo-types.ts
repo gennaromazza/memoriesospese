@@ -55,6 +55,7 @@ export interface WeddingStoryVendor {
 
 export interface WeddingEditorialJobFacts {
   coupleNames: string[];
+  coupleSurnames?: string[];
   eventName?: string;
   eventDate?: string;
   receptionVenue?: string;

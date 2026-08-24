@@ -19,6 +19,10 @@ const STORIES_COL = 'weddingSeoStories';
 const VENDOR_DIRECTORY_COL = 'weddingVendorDirectory';
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 export const MAX_WEDDING_STORY_PHOTOS = 12;
+const MIN_COMPACT_WEDDING_STORY_WORDS = 250;
+export const MIN_ENRICHED_WEDDING_STORY_WORDS = 700;
+export const MAX_WEDDING_DRAFT_ATTEMPTS = 3;
+const TARGET_ENRICHED_WEDDING_STORY_WORDS = 900;
 const MAX_SOURCES = 40;
 const MAX_AI_IMAGE_BYTES = 12 * 1024 * 1024;
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
@@ -135,6 +139,28 @@ type WeddingVendorSearchOutcome = {
 type GeminiMessageContent =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
+
+type WeddingDraftQualityContext = {
+  allowedText?: string;
+  unverifiedVendorNames?: string[];
+  minimumWords?: number;
+  requiredBrand?: string;
+  privateCoupleNames?: string[];
+  privateCoupleSurnames?: string[];
+  hasChurchPhotoEvidence?: boolean;
+};
+
+type WeddingDraftRevisionOptions = {
+  minimumWords?: number;
+  targetWords?: number;
+  unverifiedVendorNames?: string[];
+  attempt?: number;
+};
+
+type PreparedGeminiPhoto = {
+  content: Extract<GeminiMessageContent, { type: 'image_url' }>;
+  photo: Record<string, any>;
+};
 
 function requireAdmin(req: any, res: Response, next: NextFunction) {
   if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
@@ -261,6 +287,11 @@ function uniqueNonEmpty(values: unknown[]): string[] {
   return [...new Set(values.map(value => safeString(value, 120)).filter(Boolean))];
 }
 
+function italianList(values: string[]): string {
+  if (values.length <= 1) return values[0] || '';
+  return `${values.slice(0, -1).join(', ')} e ${values.at(-1)}`;
+}
+
 function editorialDate(value: any): string | undefined {
   const date = typeof value?.toDate === 'function' ? value.toDate() : value instanceof Date ? value : null;
   if (date && !Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
@@ -287,6 +318,7 @@ export function buildWeddingEditorialJobFacts(job: Record<string, any>, clients:
   const ceremonyPlace = job.ceremonyPlace && typeof job.ceremonyPlace === 'object' ? job.ceremonyPlace : {};
   return {
     coupleNames: uniqueNonEmpty(clients.map(client => `${safeString(client.nome, 60)} ${safeString(client.cognome, 60)}`)),
+    coupleSurnames: uniqueNonEmpty(clients.map(client => client.cognome)),
     eventName: safeString(job.nomeEvento, 140) || undefined,
     eventDate: editorialDate(job.eventDate),
     receptionVenue: safeString(eventPlace.name, 160) || reception.venue,
@@ -329,13 +361,32 @@ function promptSourcePayload(sources: WeddingStorySource[]): Array<{
         const vendor = source.value as Record<string, unknown>;
         payload.push({ label: 'Fornitore verificato', category: source.category, value: { name: safeString(vendor.name, 120), role: safeString(vendor.role, 120) } });
       } else {
-        payload.push({ label: 'Elenco storico di fornitori; ruoli non verificati', category: source.category, value: { names: vendorNamesFromSource(source), rolesVerified: false } });
+        payload.push({ label: 'Nomi di fornitori selezionati; ruolo non dichiarato', category: source.category, value: { names: vendorNamesFromSource(source), rolesVerified: false } });
       }
       continue;
     }
     payload.push({ label: source.label, category: source.category, value: source.value });
   }
   return payload;
+}
+
+function buildWeddingEditorialPlan(sources: WeddingStorySource[], photoCount = 0) {
+  const sourcePayload = promptSourcePayload(sources);
+  const narrativeCharacters = sourcePayload
+    .filter(source => source.category === 'story')
+    .reduce((total, source) => total + JSON.stringify(source.value ?? '').length, 0);
+  const enriched = photoCount >= 4
+    || narrativeCharacters >= 300
+    || (photoCount >= 2 && narrativeCharacters >= 120);
+  return {
+    sourcePayload,
+    enriched,
+    minimumWords: enriched ? MIN_ENRICHED_WEDDING_STORY_WORDS : MIN_COMPACT_WEDDING_STORY_WORDS,
+    targetWords: enriched ? TARGET_ENRICHED_WEDDING_STORY_WORDS : 350,
+    storyLength: enriched
+      ? `${TARGET_ENRICHED_WEDDING_STORY_WORDS}-1200 parole (mai meno di 800), 5-7 sezioni`
+      : '300-450 parole, 2-3 sezioni',
+  };
 }
 
 function vendorNamesFromSource(source: WeddingStorySource): string[] {
@@ -619,8 +670,13 @@ export function buildWeddingStoryPrompt(params: {
   photos: Array<Record<string, any>>;
   jobFacts?: WeddingEditorialJobFacts | null;
   verifiedVendors?: WeddingStoryVendor[];
+  preparedPhotoCount?: number;
 }): string {
-  const sourcePayload = promptSourcePayload(params.sources);
+  const editorialPlan = buildWeddingEditorialPlan(
+    params.sources,
+    params.preparedPhotoCount ?? params.photos.length,
+  );
+  const sourcePayload = editorialPlan.sourcePayload;
   const photoPayload = params.photos.map(photo => ({
     chapter: photo.chapterTitle || '',
   }));
@@ -631,8 +687,16 @@ export function buildWeddingStoryPrompt(params: {
   };
 
   const vendors = sourcePayload.filter(source => source.category === 'vendor');
-  const hasAuthorizedSources = sourcePayload.length > 0;
-  const storyLength = hasAuthorizedSources ? '800-1200 parole, 4-6 sezioni' : '300-450 parole, 2-3 sezioni';
+  const isEnrichedStory = editorialPlan.enriched;
+  const verifiedVendorNames = new Set((params.verifiedVendors || []).map(vendor => normalizedVendorName(vendor.name)));
+  const unverifiedVendorNames = uniqueNonEmpty(params.sources
+    .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
+    .flatMap(vendorNamesFromSource)
+    .filter(name => !verifiedVendorNames.has(normalizedVendorName(name))));
+  const unverifiedVendorSentence = unverifiedVendorNames.length > 0
+    ? `Tra le realtà scelte dalla coppia figurano ${italianList(unverifiedVendorNames)}.`
+    : '';
+  const storyLength = editorialPlan.storyLength;
 
   return `Sei un editor italiano specializzato in reportage fotografici di matrimonio per il sito di un fotografo professionista.\n` +
     `Il committente è Image Studio, studio fotografico di Gennaro Mazzacane con sede ad Aversa e attivo nella fotografia di matrimonio in Campania. ` +
@@ -653,9 +717,13 @@ export function buildWeddingStoryPrompt(params: {
     `Le risposte al modulo descrivono desideri e indicazioni raccolti prima dell'evento, non provano che un fatto sia avvenuto. ` +
     `Non affermare che una foto sia stata realizzata, che una persona fosse presente o abbia svolto un'attività, se questo non è dichiarato esplicitamente. ` +
     `Le città dei clienti indicano soltanto la loro residenza: non attribuirle agli invitati. ` +
-    `Per i fornitori storici con ruoli non verificati cita i nomi senza assegnare attività, prodotti o responsabilità. ` +
-    `Presentali con una formula editoriale naturale e prudente, per esempio “Tra le realtà scelte dalla coppia figurano…”, senza sostenere che fossero presenti o cosa abbiano realizzato. ` +
-    `Non descrivere costa, mare, spiaggia, panorama, architettura o interni di una location se tali caratteristiche non compaiono espressamente nelle fonti.\n` +
+    `Per i fornitori con ruolo non verificato cita i nomi senza assegnare attività, prodotti o responsabilità. ` +
+    (unverifiedVendorSentence
+      ? `Usa esattamente una volta questa frase e non citare altrove gli stessi nomi: “${unverifiedVendorSentence}” `
+      : '') +
+    `Non accostare a questi nomi parole che suggeriscano fiori, abiti, musica, allestimenti, coordinamento o altri ruoli. ` +
+    `Non dedurre costa, mare, spiaggia, panorama, architettura o interni dalla reputazione o dal nome di una location. ` +
+    `Puoi invece raccontare con prudenza spazi, gesti, abiti, luce e dettagli concretamente visibili nelle fotografie selezionate, senza identificare persone o luoghi e senza trasformare ciò che è inquadrato in una caratteristica geografica, storica o permanente della location.\n` +
     `Se un dettaglio manca, omettilo in silenzio. Non scrivere mai “non è indicato”, “non sono forniti dettagli”, ` +
     `“dati disponibili”, “probabilmente” o “presumibilmente”. ` +
     `Non commentare ciò che non sai e non spiegare i limiti delle fonti.\n` +
@@ -683,14 +751,18 @@ export function buildWeddingStoryPrompt(params: {
     `RISPOSTE SELEZIONATE: ${JSON.stringify(sourcePayload)}\n` +
     `FORNITORI SELEZIONATI DA CITARE SEMPRE: ${JSON.stringify(vendors)}\n` +
     `FORNITORI VERIFICATI ONLINE (ruolo utilizzabile solo per questi record; non inserire URL nel racconto perché i link vengono mostrati nella sezione fornitori della pagina): ${JSON.stringify(params.verifiedVendors || [])}\n` +
+    `FORNITORI CON RUOLO NON VERIFICATO (citare insieme nella sola formula neutra indicata, senza attribuzioni): ${JSON.stringify(unverifiedVendorNames)}\n` +
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
     `Restituisci solo JSON valido con: title (massimo ${WEDDING_STORY_LIMITS.title} caratteri), excerpt (massimo ${WEDDING_STORY_LIMITS.excerpt} caratteri), ` +
     `story (${storyLength} con titoli Markdown ##, massimo ${WEDDING_STORY_LIMITS.story} caratteri), seoTitle (massimo ${WEDDING_STORY_LIMITS.seoTitle} caratteri), ` +
     `seoDescription (massimo ${WEDDING_STORY_LIMITS.seoDescription} caratteri). Rispetta tassativamente tutti i limiti di caratteri. ` +
     `Il racconto deve sembrare un articolo fotografico ampio e finito, non un riepilogo del modulo. ` +
-    (hasAuthorizedSources
+    (isEnrichedStory
+      ? `Prima di restituire il JSON, conta le parole del solo campo story: punta ad almeno ${TARGET_ENRICHED_WEDDING_STORY_WORDS} parole per conservare margine rispetto al controllo editoriale. `
+      : '') +
+    (isEnrichedStory
       ? 'Ogni affermazione deve essere riconducibile ai dati disponibili.'
-      : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
+      : 'Le prove narrative e fotografiche sono limitate: mantieni il testo compatto e usa soltanto dati espliciti e titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
 }
 
 function imageDataUrl(value: string, contentType: unknown): string | null {
@@ -729,11 +801,10 @@ async function downloadGeminiImage(url: string): Promise<string | null> {
   }
 }
 
-export async function buildGeminiMessageContent(
-  prompt: string,
+async function prepareGeminiPhotos(
   photos: Array<Record<string, any>>,
-): Promise<GeminiMessageContent[]> {
-  const imageUrls = await Promise.all(photos.slice(0, MAX_WEDDING_STORY_PHOTOS).map(async photo => {
+): Promise<PreparedGeminiPhoto[]> {
+  const prepared = await Promise.all(photos.slice(0, MAX_WEDDING_STORY_PHOTOS).map(async photo => {
     const value = typeof photo.base64 === 'string'
       ? photo.base64
       : typeof photo.thumbnailUrl === 'string'
@@ -743,27 +814,40 @@ export async function buildGeminiMessageContent(
           : typeof photo.imageUrl === 'string'
             ? photo.imageUrl
             : '';
-    if (/^https?:\/\//i.test(value.trim())) return downloadGeminiImage(value.trim());
-    return imageDataUrl(value, photo.contentType);
+    const url = /^https?:\/\//i.test(value.trim())
+      ? await downloadGeminiImage(value.trim())
+      : imageDataUrl(value, photo.contentType);
+    return url ? {
+      content: { type: 'image_url' as const, image_url: { url } },
+      photo,
+    } : null;
   }));
-  const imageParts = imageUrls
-    .filter((url): url is string => Boolean(url))
-    .map(url => ({ type: 'image_url' as const, image_url: { url } }));
-  return [{ type: 'text', text: prompt }, ...imageParts];
+  return prepared.filter((item): item is PreparedGeminiPhoto => Boolean(item));
+}
+
+export async function buildGeminiMessageContent(
+  prompt: string,
+  photos: Array<Record<string, any>>,
+): Promise<GeminiMessageContent[]> {
+  const prepared = await prepareGeminiPhotos(photos);
+  return [{ type: 'text', text: prompt }, ...prepared.map(item => item.content)];
 }
 
 export function inspectWeddingDraftQuality(
   draft: Record<string, any>,
   requiredVendors: string[] = [],
-  context: { allowedText?: string; unverifiedVendorNames?: string[]; minimumWords?: number; requiredBrand?: string; privateCoupleNames?: string[] } = {},
+  context: WeddingDraftQualityContext = {},
 ): string[] {
-  const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
+  const storyText = String(draft.story || '');
+  const text = [draft.title, draft.excerpt, storyText, draft.seoTitle, draft.seoDescription]
+    .map(value => String(value || ''))
+    .join('\n');
   const issues: string[] = [];
-  const wordCount = String(draft.story || '').trim().split(/\s+/u).filter(Boolean).length;
+  const wordCount = storyText.trim().split(/\s+/u).filter(Boolean).length;
   if (context.minimumWords && wordCount < context.minimumWords) {
     issues.push(`racconto troppo breve: ${wordCount} parole, minimo ${context.minimumWords}`);
   }
-  if (context.requiredBrand && !text.toLocaleLowerCase('it').includes(context.requiredBrand.toLocaleLowerCase('it'))) {
+  if (context.requiredBrand && !storyText.toLocaleLowerCase('it').includes(context.requiredBrand.toLocaleLowerCase('it'))) {
     issues.push(`non valorizza il brand fotografico: ${context.requiredBrand}`);
   }
   const generatedFields: Array<[keyof typeof WEDDING_STORY_LIMITS, unknown, string]> = [
@@ -799,40 +883,144 @@ export function inspectWeddingDraftQuality(
     const normalized = name.trim();
     return normalized.includes(' ') && text.toLocaleLowerCase('it').includes(normalized.toLocaleLowerCase('it'));
   });
-  if (exposedFullNames.length > 0) issues.push('ripete i cognomi degli sposi nel testo pubblico');
+  const exposedSurnames = uniqueNonEmpty(context.privateCoupleSurnames || []).filter(surname => {
+    const escaped = surname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+  });
+  if (exposedFullNames.length > 0 || exposedSurnames.length > 0) {
+    issues.push('ripete i cognomi degli sposi nel testo pubblico');
+  }
   if (/\b(?:sarà|saranno|avrà inizio|si prepareranno|è previsto|sono previsti)\b/i.test(text)) {
     issues.push('usa il futuro o un tono da programma operativo');
   }
-  const genericHeadings = String(draft.story || '').match(/^##\s+(?:Preparativi|Cerimonia|Famiglia e Ospiti|Fornitori|Ricevimento)\s*$/gim) || [];
+  const genericHeadings = storyText.match(/^##\s+(?:Preparativi|Cerimonia|Famiglia e Ospiti|Fornitori|Ricevimento)\s*$/gim) || [];
   if (genericHeadings.length >= 2) issues.push('usa intestazioni generiche da dossier');
-  const missingVendors = requiredVendors.filter(name => name && !text.toLocaleLowerCase('it').includes(name.toLocaleLowerCase('it')));
+  const missingVendors = requiredVendors.filter(name => name && !storyText.toLocaleLowerCase('it').includes(name.toLocaleLowerCase('it')));
   if (missingVendors.length > 0) issues.push(`non cita i fornitori selezionati: ${missingVendors.join(', ')}`);
+  const unverifiedVendorNames = uniqueNonEmpty(context.unverifiedVendorNames || []);
+  if (unverifiedVendorNames.length > 0) {
+    const canonicalCredit = `Tra le realtà scelte dalla coppia figurano ${italianList(unverifiedVendorNames)}.`;
+    const canonicalPattern = canonicalCredit
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\s+/g, '\\s+');
+    const canonicalRegex = new RegExp(canonicalPattern, 'giu');
+    const normalizedStory = storyText.replace(/\s+/gu, ' ').trim();
+    const canonicalCount = normalizedStory.match(canonicalRegex)?.length || 0;
+    if (canonicalCount !== 1) {
+      issues.push(`non usa una sola volta il credito neutro obbligatorio per i fornitori: ${canonicalCredit}`);
+    }
+    const storyWithoutCanonicalCredit = normalizedStory.replace(canonicalRegex, ' ');
+    const publicTextWithoutCredit = [
+      draft.title,
+      draft.excerpt,
+      storyWithoutCanonicalCredit,
+      draft.seoTitle,
+      draft.seoDescription,
+    ].map(value => String(value || '').replace(/\s+/gu, ' ')).join(' ');
+    const repeatedOutsideCredit = unverifiedVendorNames.filter(name => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'iu').test(publicTextWithoutCredit);
+    });
+    if (repeatedOutsideCredit.length > 0) {
+      issues.push(`cita fornitori non verificati fuori dal credito neutro: ${repeatedOutsideCredit.join(', ')}`);
+    }
+  }
   if (/\b(?:ospiti|invitati)\b[^.!?]{0,100}\bprovenient[ei]\s+da\b/i.test(text)) {
     issues.push('deduce la provenienza degli invitati dalle città dei clienti');
   }
   const allowedText = String(context.allowedText || '').toLocaleLowerCase('it');
-  const unsupportedSetting = ['sulla costa', 'sulla spiaggia', 'vista sul mare', 'navata'].filter(detail =>
+  const unsupportedSetting = ['sulla costa', 'sulla spiaggia', 'vista sul mare'].filter(detail =>
     text.toLocaleLowerCase('it').includes(detail) && !allowedText.includes(detail),
   );
+  if (
+    text.toLocaleLowerCase('it').includes('navata')
+    && !allowedText.includes('navata')
+    && !context.hasChurchPhotoEvidence
+  ) {
+    unsupportedSetting.push('navata');
+  }
   if (unsupportedSetting.length > 0) issues.push(`attribuisce caratteristiche non documentate alle location: ${unsupportedSetting.join(', ')}`);
   const unsupportedScenes = [
     'scambio di promesse', 'brindisi condiviso', 'le luci si sono spente', 'ricordi condivisi',
   ].filter(detail => text.toLocaleLowerCase('it').includes(detail) && !allowedText.includes(detail));
   if (unsupportedScenes.length > 0) issues.push(`aggiunge scene o conclusioni non documentate: ${unsupportedScenes.join(', ')}`);
-  const roleWords = '(?:wedding planner|fior(?:aio|ista)|floral designer|abiti?|atelier|musica|musicisti|colonna sonora|coordinat[oa]|decorat[oa])';
-  const attributed = (context.unverifiedVendorNames || []).filter(name => {
+  const roleWords = '(?:wedding planner|fior(?:aio|ista)|floral designer|atelier|musicist[ai]|coordinator[ea]|decorator[ea])';
+  const suppliedElements = '(?:fior[ei]|allestimenti?|decorazioni?|abiti?|musica|colonna sonora|coordinamento)';
+  const attributionVerbs = '(?:ha|hanno)\\s+(?:curato|realizzato|firmato|coordinato|fornito|creato|decorato|accompagnato)';
+  const attributed = unverifiedVendorNames.filter(name => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(?:${escaped}[^.!?]{0,80}${roleWords}|${roleWords}[^.!?]{0,80}${escaped})`, 'i').test(text);
+    const boundedName = `(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`;
+    const patterns = [
+      `${roleWords}\\s+(?:di\\s+)?${boundedName}`,
+      `${boundedName}\\s*(?:[,—–:-]\\s*|(?:è|era)(?:\\s+stat[oa])?\\s+(?:il|la|lo|un|una)?\\s+|come\\s+(?:il|la|lo|un|una)?\\s+)${roleWords}`,
+      `${boundedName}[^.!?]{0,45}${attributionVerbs}`,
+      `${suppliedElements}\\s+(?:di|da|firmat[io]\\s+da|a\\s+cura\\s+di)\\s+${boundedName}`,
+      `${boundedName}[^.!?]{0,35}(?:per|con)\\s+(?:i|gli|le|la|il|l['’])?\\s*${suppliedElements}`,
+    ];
+    return patterns.some(pattern => new RegExp(pattern, 'iu').test(text));
   });
   if (attributed.length > 0) issues.push(`attribuisce ruoli non verificati ai fornitori: ${attributed.join(', ')}`);
   return issues;
 }
 
-export function buildWeddingDraftRevisionPrompt(issues: string[]): string {
-  return `La prima bozza è stata respinta dal controllo editoriale per questi motivi: ${issues.join('; ')}.\n` +
-    `Riscrivila integralmente, non limitarti ad aggiungere un paragrafo. Mantieni esclusivamente i fatti forniti nel messaggio iniziale, ` +
-    `correggi tutti i problemi indicati e rispetta tassativamente i limiti di ogni campo. ` +
-    `Conserva il formato JSON richiesto e restituisci soltanto JSON valido.`;
+export function buildWeddingDraftRevisionPrompt(
+  issues: string[],
+  options: WeddingDraftRevisionOptions = {},
+): string {
+  const minimumFromIssues = issues.reduce((highest, issue) => {
+    const match = issue.match(/minimo\s+(\d+)/i);
+    return Math.max(highest, match ? Number(match[1]) : 0);
+  }, 0);
+  const minimumWords = options.minimumWords || minimumFromIssues || undefined;
+  const targetWords = options.targetWords
+    || (minimumWords ? Math.max(TARGET_ENRICHED_WEDDING_STORY_WORDS, minimumWords + 150) : undefined);
+  const lowerIssues = issues.join(' ').toLocaleLowerCase('it');
+  const instructions: string[] = [];
+
+  if (minimumWords && targetWords) {
+    const targetUpperWords = targetWords >= MIN_ENRICHED_WEDDING_STORY_WORDS
+      ? targetWords + 200
+      : targetWords + 100;
+    const sectionPlan = targetWords >= MIN_ENRICHED_WEDDING_STORY_WORDS
+      ? '5-7 sezioni sostanziose'
+      : '2-3 sezioni ben sviluppate';
+    instructions.push(
+      `Il solo campo story deve contenere almeno ${minimumWords} parole: punta a ${targetWords}-${targetUpperWords} parole e conta le parole prima di rispondere. ` +
+      `Distribuisci il contenuto in ${sectionPlan}, sviluppando soltanto la sequenza visiva, i passaggi documentati, i dettagli realmente osservabili e il metodo fotografico di Image Studio.`,
+    );
+  }
+  if (
+    lowerIssues.includes('ruoli non verificati')
+    || lowerIssues.includes('credito neutro')
+    || lowerIssues.includes('fuori dal credito')
+  ) {
+    const names = uniqueNonEmpty(options.unverifiedVendorNames || []);
+    const neutralSentence = names.length > 0
+      ? `“Tra le realtà scelte dalla coppia figurano ${italianList(names)}.”`
+      : '“Tra le realtà scelte dalla coppia figurano [soli nomi].”';
+    instructions.push(
+      `Per i fornitori con ruolo non verificato usa una sola frase neutra, senza aggiungere mestieri, prodotti o azioni: ${neutralSentence} ` +
+      `Non citare altrove gli stessi nomi e tieni questa frase separata da riferimenti a fiori, abiti, musica, allestimenti e coordinamento.`,
+    );
+  }
+  if (lowerIssues.includes('caratteristiche non documentate')) {
+    instructions.push(
+      `Elimina le caratteristiche di location segnalate e non sostituirle con sinonimi o nuove deduzioni geografiche, architettoniche o storiche. ` +
+      `Puoi usare soltanto dettagli concretamente visibili nelle fotografie come elementi dell'inquadratura, senza presentarli come proprietà permanenti del luogo.`,
+    );
+  }
+  if (lowerIssues.includes('troppi orari')) {
+    instructions.push('Rimuovi gli orari esatti e racconta i passaggi con transizioni narrative, senza scalette operative.');
+  }
+  if (lowerIssues.includes('json valido') || lowerIssues.includes('troncata')) {
+    instructions.push('Ricrea tutti e cinque i campi da zero e verifica che il JSON sia completo e sintatticamente valido.');
+  }
+
+  return `La bozza precedente è stata respinta al controllo editoriale${options.attempt ? ` dopo il tentativo ${options.attempt}` : ''} per questi motivi: ${issues.join('; ')}.\n` +
+    `Riscrivila integralmente, non limitarti ad aggiungere un paragrafo. Mantieni esclusivamente i fatti e le prove visive forniti nel messaggio iniziale.\n` +
+    `${instructions.join('\n')}\n` +
+    `Correggi tutti i problemi elencati senza reintrodurre quelli già risolti e rispetta tassativamente i limiti di ogni campo. ` +
+    `Conserva il formato richiesto e restituisci soltanto JSON valido.`;
 }
 
 function parseGeminiJson(raw: string): Record<string, any> {
@@ -887,19 +1075,44 @@ export async function generateWeddingDraftWithGemini(params: {
   const verifiedVendors = await resolveWeddingVendors(sources, jobFacts, apiKey);
   console.log(`[wedding-seo] Preparazione di ${Math.min(photos.length, MAX_WEDDING_STORY_PHOTOS)} fotografie per Gemini...`);
   const verifiedVendorNames = new Set(verifiedVendors.map(vendor => normalizedVendorName(vendor.name)));
-  const unverifiedVendorNames = sources
+  const unverifiedVendorNames = uniqueNonEmpty(sources
     .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
     .flatMap(vendorNamesFromSource)
-    .filter(name => !verifiedVendorNames.has(normalizedVendorName(name)));
-  const qualityContext = {
+    .filter(name => !verifiedVendorNames.has(normalizedVendorName(name))));
+  const preparedPhotos = await prepareGeminiPhotos(photos);
+  const preparedPhotoCount = preparedPhotos.length;
+  const editorialPlan = buildWeddingEditorialPlan(sources, preparedPhotoCount);
+  const initialContent: GeminiMessageContent[] = [{
+    type: 'text',
+    text: buildWeddingStoryPrompt({
+      gallery,
+      sources,
+      photos,
+      jobFacts,
+      verifiedVendors,
+      preparedPhotoCount,
+    }),
+  }, ...preparedPhotos.map(item => item.content)];
+  const churchIndicators = /\b(?:chiesa|basilica|santuario|cattedrale|parrocchia|monastero|cappella|abbazia|duomo|church|place[_ ]of[_ ]worship|luogo di culto|rito religioso)\b/i;
+  const verifiedChurchEvidence = [
+    jobFacts?.ceremonyVenue,
+    jobFacts?.ceremonyPlaceType,
+  ].map(value => String(value || '')).join(' ');
+  const hasChurchPhotoEvidence = preparedPhotos.some(({ photo }) => {
+    const chapter = String(photo.chapterTitle || '');
+    return churchIndicators.test(chapter)
+      || (churchIndicators.test(verifiedChurchEvidence) && /\b(?:cerimonia|rito)\b/i.test(chapter));
+  });
+  const qualityContext: WeddingDraftQualityContext = {
     allowedText: JSON.stringify({ jobFacts, sources: promptSourcePayload(sources) }),
     unverifiedVendorNames,
-    minimumWords: sources.length > 0 ? 700 : undefined,
+    minimumWords: editorialPlan.minimumWords,
     requiredBrand: 'Image Studio',
     privateCoupleNames: jobFacts?.coupleNames || [],
+    privateCoupleSurnames: jobFacts?.coupleSurnames || [],
+    hasChurchPhotoEvidence,
   };
-  const initialContent = await buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts, verifiedVendors }), photos);
-  console.log(`[wedding-seo] Fotografie preparate: ${Math.max(0, initialContent.length - 1)}. Invio richiesta articolo a Gemini...`);
+  console.log(`[wedding-seo] Fotografie preparate: ${preparedPhotoCount}. Invio richiesta articolo a Gemini...`);
   let messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
     {
       role: 'user',
@@ -908,7 +1121,8 @@ export async function generateWeddingDraftWithGemini(params: {
   ];
   let generated: Record<string, any> | null = null;
   let qualityIssues: string[] = [];
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  const issueHistory = new Map<string, string>();
+  for (let attempt = 1; attempt <= MAX_WEDDING_DRAFT_ATTEMPTS; attempt += 1) {
     let raw = '';
     generated = null;
     let response: globalThis.Response;
@@ -952,12 +1166,24 @@ export async function generateWeddingDraftWithGemini(params: {
       console.warn(`[wedding-seo] Gemini API: tentativo ${attempt} con risposta non valida (finish_reason: ${finishReason}, caratteri: ${raw.length}):`, error);
     }
     if (qualityIssues.length === 0) break;
-    console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
-    if (attempt === 1) {
-      const revisionPrompt = buildWeddingDraftRevisionPrompt(qualityIssues);
+    console.warn(`[wedding-seo] Tentativo ${attempt}/${MAX_WEDDING_DRAFT_ATTEMPTS} rifiutato dal controllo editoriale:`, qualityIssues);
+    for (const issue of qualityIssues) {
+      const category = issue.split(':', 1)[0].trim();
+      issueHistory.set(category, issue);
+    }
+    if (attempt < MAX_WEDDING_DRAFT_ATTEMPTS) {
+      const revisionPrompt = buildWeddingDraftRevisionPrompt([...issueHistory.values()], {
+        minimumWords: editorialPlan.minimumWords,
+        targetWords: editorialPlan.targetWords,
+        unverifiedVendorNames,
+        attempt,
+      });
       if (generated) {
-        messages.push({ role: 'assistant', content: raw });
-        messages.push({ role: 'user', content: revisionPrompt });
+        messages = [
+          { role: 'user', content: initialContent },
+          { role: 'assistant', content: raw },
+          { role: 'user', content: revisionPrompt },
+        ];
       } else {
         messages = [{
           role: 'user',
@@ -970,7 +1196,7 @@ export async function generateWeddingDraftWithGemini(params: {
   }
   if (!generated || qualityIssues.length > 0) {
     throw new WeddingAiGenerationError(
-      `La bozza IA non ha superato il controllo editoriale dopo la correzione automatica (${qualityIssues.join('; ')}). Il testo corrente è rimasto invariato.`,
+      `La bozza IA non ha superato il controllo editoriale dopo ${MAX_WEDDING_DRAFT_ATTEMPTS - 1} correzioni automatiche (${qualityIssues.join('; ')}). Il testo corrente è rimasto invariato.`,
     );
   }
   return {
