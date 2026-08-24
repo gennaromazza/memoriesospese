@@ -25,6 +25,7 @@ import {
   MAX_WEDDING_STORY_PHOTOS,
   slugifyWeddingStory,
   toPublicWeddingStory,
+  validateWeddingVendorSearchResult,
   validateWeddingStoryInput,
 } from './wedding-seo';
 
@@ -355,6 +356,36 @@ describe('Real Wedding editorial safety', () => {
     const prompt = buildWeddingStoryPrompt({ gallery: {}, sources, photos: [] });
     expect(prompt).toContain('Passaro');
     expect(prompt).toContain('gruppo Arechi');
+  });
+
+  it('accepts only a high-confidence wedding supplier URL supported by a Google citation', () => {
+    const result = validateWeddingVendorSearchResult('Atelier Aurora', {
+      matched: true,
+      canonicalName: 'Atelier Aurora Sposa',
+      category: 'atelier_sposa',
+      role: 'Atelier di abiti da sposa',
+      officialUrl: 'https://atelieraurora.example/collezioni',
+      socialUrl: '',
+      confidence: 0.94,
+    }, ['https://atelieraurora.example/chi-siamo']);
+
+    expect(result).toMatchObject({
+      matched: true,
+      role: 'Atelier di abiti da sposa',
+      url: 'https://atelieraurora.example/collezioni',
+    });
+  });
+
+  it('rejects ambiguous, uncited or directory-only wedding supplier matches', () => {
+    expect(validateWeddingVendorSearchResult('Passaro', {
+      matched: true, canonicalName: 'Passaro', category: 'atelier_sposa', role: 'Atelier',
+      officialUrl: 'https://passaro.example', socialUrl: '', confidence: 0.70,
+    }, ['https://passaro.example'])).toBeNull();
+
+    expect(validateWeddingVendorSearchResult('Kadoa', {
+      matched: true, canonicalName: 'Kadoa', category: 'fiorista_floral_designer', role: 'Fiorista',
+      officialUrl: 'https://www.matrimonio.com/kadoa', socialUrl: '', confidence: 0.98,
+    }, ['https://www.matrimonio.com/kadoa'])).toBeNull();
   });
 
   it('keeps base64 images in the Gemini multimodal request', async () => {

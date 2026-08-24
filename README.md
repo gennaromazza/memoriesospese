@@ -139,6 +139,8 @@ npm run ai:wedding:test -- "https://dominio/admin/gallery/ID_GALLERIA/manage"
 
 Il comando include automaticamente tutte le risposte con consenso editoriale. Per le immagini usa, nell'ordine, quelle già selezionate nella bozza Real Wedding, la selezione cliente oppure un campione di 12 fotografie della galleria. Richiede `FIREBASE_ADMIN_CREDENTIALS` e `GEMINI_API_KEY` nell'ambiente Replit.
 
+Durante la generazione, fino a 12 fornitori selezionati privi di URL vengono verificati tramite Google Search Grounding nel contesto del settore matrimoniale. Sono accettati soltanto match ad alta confidenza supportati da una citazione verso il sito ufficiale o un profilo social ufficiale; directory e risultati ambigui restano senza link. Gli esiti vengono conservati nella collezione tecnica Firestore `weddingVendorDirectory` per 180 giorni (14 giorni per i mancati match), evitando di ripetere ricerche fatturate a ogni generazione. La cache non modifica né pubblica la bozza Real Wedding.
+
 ## 📱 Struttura delle Pagine
 
 ### Pubbliche

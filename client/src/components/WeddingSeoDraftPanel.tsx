@@ -342,14 +342,14 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
             </Button>
           </div>
           <CardDescription>
-            Mostrate solo dal Job <strong>{gallery.jobId || 'non associato'}</strong>. Seleziona manualmente ciò che Groq può ricevere.
+            Mostrate solo dal Job <strong>{gallery.jobId || 'non associato'}</strong>. Seleziona manualmente ciò che Gemini può ricevere.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {legacySources.length > 0 && (
             <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
               <strong>{legacySources.length} risposte storiche recuperate.</strong>{' '}
-              Provengono da moduli completati prima dei nuovi campi editoriali: restano escluse da Groq finché non le selezioni singolarmente.
+              Provengono da moduli completati prima dei nuovi campi editoriali: restano escluse da Gemini finché non le selezioni singolarmente.
             </div>
           )}
           {sources.length === 0 && <p className="text-sm text-gray-500">Nessuna risposta editoriale disponibile per questo Job.</p>}
