@@ -15,9 +15,12 @@ vi.mock('./email-routes.js', () => ({
 import {
   buildAuthorizedSources,
   buildWeddingDraftRevisionPrompt,
-  buildGroqPrompt,
+  buildOpenRouterMessageContent,
+  buildWeddingStoryPrompt,
   buildWeddingEditorialJobFacts,
   inspectWeddingDraftQuality,
+  OPENROUTER_BASE_URL,
+  OPENROUTER_MODEL,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingStoryInput,
@@ -25,6 +28,11 @@ import {
 
 describe('Real Wedding editorial safety', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('uses the current OpenRouter vision model and OpenAI-compatible endpoint', () => {
+    expect(OPENROUTER_BASE_URL).toBe('https://openrouter.ai/api/v1');
+    expect(OPENROUTER_MODEL).toBe('google/gemma-4-31b-a4b-it:free');
+  });
 
   it('keeps answers private without explicit editorial consent', () => {
     const sources = buildAuthorizedSources([
@@ -49,8 +57,8 @@ describe('Real Wedding editorial safety', () => {
     expect(JSON.stringify(sources)).not.toContain('Saldo da verificare');
   });
 
-  it('sends Groq only the selected, consented context and safe gallery fields', () => {
-    const prompt = buildGroqPrompt({
+  it('sends OpenRouter only the selected, consented context and safe gallery fields', () => {
+    const prompt = buildWeddingStoryPrompt({
       gallery: {
         name: 'Anna e Luca',
         date: '2026-06-12',
@@ -118,7 +126,7 @@ describe('Real Wedding editorial safety', () => {
   });
 
   it('treats selected vendors as mandatory and other answers as optional', () => {
-    const prompt = buildGroqPrompt({
+    const prompt = buildWeddingStoryPrompt({
       gallery: { name: 'Galleria' },
       jobFacts: {
         coupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'], clientCities: ['Aversa'],
@@ -188,6 +196,22 @@ describe('Real Wedding editorial safety', () => {
     expect(issues.some(issue => issue.startsWith('racconto troppo breve'))).toBe(true);
   });
 
+  it('rejects generated fields that exceed the editor limits instead of silently truncating them', () => {
+    const issues = inspectWeddingDraftQuality({
+      title: 'T'.repeat(141),
+      excerpt: 'E'.repeat(501),
+      story: 'R'.repeat(30_001),
+      seoTitle: 'S'.repeat(71),
+      seoDescription: 'D'.repeat(171),
+    });
+
+    expect(issues).toContain('titolo troppo lungo: 141 caratteri, massimo 140');
+    expect(issues).toContain('introduzione troppo lungo: 501 caratteri, massimo 500');
+    expect(issues).toContain('racconto troppo lungo: 30001 caratteri, massimo 30000');
+    expect(issues).toContain('titolo SEO troppo lungo: 71 caratteri, massimo 70');
+    expect(issues).toContain('descrizione SEO troppo lungo: 171 caratteri, massimo 170');
+  });
+
   it('requires the article to reinforce the photography brand', () => {
     const issues = inspectWeddingDraftQuality({ story: 'Un racconto fotografico senza firma.' }, [], { requiredBrand: 'Image Studio' });
     expect(issues).toContain('non valorizza il brand fotografico: Image Studio');
@@ -198,7 +222,7 @@ describe('Real Wedding editorial safety', () => {
   it('builds a precise automatic revision request after a rejected first draft', () => {
     const prompt = buildWeddingDraftRevisionPrompt(['racconto troppo breve: 561 parole, minimo 700']);
     expect(prompt).toContain('Riscrivila integralmente');
-    expect(prompt).toContain('850 e 1200 parole reali');
+    expect(prompt).toContain('rispetta tassativamente i limiti di ogni campo');
     expect(prompt).toContain('racconto troppo breve: 561 parole, minimo 700');
     expect(prompt).toContain('soltanto JSON valido');
   });
@@ -237,9 +261,23 @@ describe('Real Wedding editorial safety', () => {
     }], { includeLegacy: true });
 
     expect(sources[0]).toMatchObject({ category: 'vendor', legacyImported: true });
-    const prompt = buildGroqPrompt({ gallery: {}, sources, photos: [] });
+    const prompt = buildWeddingStoryPrompt({ gallery: {}, sources, photos: [] });
     expect(prompt).toContain('Passaro');
     expect(prompt).toContain('gruppo Arechi');
+  });
+
+  it('keeps real photo URLs and base64 images in the OpenRouter multimodal request', () => {
+    const content = buildOpenRouterMessageContent('Analizza queste immagini.', [
+      { url: 'https://firebasestorage.googleapis.com/v0/b/example/o/photo.jpg?alt=media', contentType: 'image/jpeg' },
+      { base64: 'aGVsbG8=', contentType: 'image/png' },
+      { url: 'not-an-image' },
+    ]);
+
+    expect(content).toEqual([
+      { type: 'text', text: 'Analizza queste immagini.' },
+      { type: 'image_url', image_url: { url: 'https://firebasestorage.googleapis.com/v0/b/example/o/photo.jpg?alt=media' } },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
+    ]);
   });
 
   it('does not treat modern fields explicitly disabled for editorial use as legacy', () => {

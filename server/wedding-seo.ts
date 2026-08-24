@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import OpenAI from 'openai';
 import { db, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
 import type {
@@ -10,6 +11,7 @@ import type {
   WeddingStoryStatus,
   WeddingStoryVendor,
 } from '../shared/wedding-seo-types.js';
+import { WEDDING_STORY_LIMITS } from '../shared/wedding-seo-types.js';
 import type { InfoFormField } from '../shared/info-form-types.js';
 
 const router = express.Router();
@@ -17,6 +19,13 @@ const STORIES_COL = 'weddingSeoStories';
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const MAX_PHOTOS = 24;
 const MAX_SOURCES = 40;
+export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+export const OPENROUTER_MODEL = 'google/gemma-4-31b-a4b-it:free';
+const OPENROUTER_TITLE = 'Image Studio Real Wedding';
+
+type OpenRouterMessageContent =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
 
 function requireAdmin(req: any, res: Response, next: NextFunction) {
   if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
@@ -229,11 +238,11 @@ function safeString(value: unknown, max: number): string {
 }
 
 export function validateWeddingStoryInput(body: Record<string, any>, publish: boolean) {
-  const title = safeString(body.title, 140);
-  const story = safeString(body.story, 30_000);
-  const excerpt = safeString(body.excerpt, 500);
-  const seoTitle = safeString(body.seoTitle, 70);
-  const seoDescription = safeString(body.seoDescription, 170);
+  const title = safeString(body.title, WEDDING_STORY_LIMITS.title);
+  const story = safeString(body.story, WEDDING_STORY_LIMITS.story);
+  const excerpt = safeString(body.excerpt, WEDDING_STORY_LIMITS.excerpt);
+  const seoTitle = safeString(body.seoTitle, WEDDING_STORY_LIMITS.seoTitle);
+  const seoDescription = safeString(body.seoDescription, WEDDING_STORY_LIMITS.seoDescription);
   const selectedPhotoIds = [...new Set(Array.isArray(body.selectedPhotoIds) ? body.selectedPhotoIds.map(String) : [])]
     .slice(0, MAX_PHOTOS);
   const approvedSourceIds = [...new Set(Array.isArray(body.approvedSourceIds) ? body.approvedSourceIds.map(String) : [])]
@@ -247,7 +256,7 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   return { title, story, excerpt, seoTitle, seoDescription, selectedPhotoIds, approvedSourceIds };
 }
 
-export function buildGroqPrompt(params: {
+export function buildWeddingStoryPrompt(params: {
   gallery: Record<string, any>;
   sources: WeddingStorySource[];
   photos: Array<Record<string, any>>;
@@ -270,7 +279,8 @@ export function buildGroqPrompt(params: {
   return `Sei un editor italiano specializzato in reportage fotografici di matrimonio per il sito di un fotografo professionista.\n` +
     `Il committente è Image Studio, studio fotografico di Gennaro Mazzacane con sede ad Aversa e attivo nella fotografia di matrimonio in Campania. ` +
     `Queste informazioni di identità sono verificate e possono essere usate.\n` +
-    `Scrivi esclusivamente usando i FATTI, le RISPOSTE AUTORIZZATE e le SEZIONI FOTOGRAFICHE qui sotto.\n` +
+    `Scrivi esclusivamente usando i FATTI, le RISPOSTE AUTORIZZATE e le IMMAGINI REALI selezionate qui sotto.\n` +
+    `Le fotografie sono prova soltanto di ciò che è visivamente osservabile: non usarle per inventare identità, nomi, relazioni, luoghi, ruoli o fatti non visibili.\n` +
     `Non inventare nomi, luoghi, emozioni, eventi, rapporti, fornitori o citazioni. ` +
     `Non dedurre informazioni dalla reputazione, dalla storia o dalla geografia di un luogo. ` +
     `Non attribuire mai un ruolo a un fornitore se il ruolo non è scritto esplicitamente. ` +
@@ -292,9 +302,9 @@ export function buildGroqPrompt(params: {
     `Crea titoli di sezione specifici per questa coppia e questo matrimonio: evita intestazioni da dossier come ` +
     `“Preparativi”, “Cerimonia”, “Famiglia e Ospiti”, “Fornitori” e “Ricevimento”. ` +
     `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n` +
-    `L'approccio deve essere chiaramente fotografico: costruisci il racconto come una sequenza visiva, collegando i momenti alle sezioni fotografiche selezionate. ` +
-    `Parla di ritmo del reportage, passaggi della giornata, ritratti, gesti, relazioni e dettagli soltanto quando sono sostenuti dalle fonti. ` +
-    `Non affermare che uno scatto esista o descriverne il contenuto specifico: i titoli delle sezioni indicano temi, non ciò che è visibile nelle fotografie. ` +
+    `L'approccio deve essere chiaramente fotografico: costruisci il racconto come una sequenza visiva, collegando i momenti alle immagini reali selezionate. ` +
+    `Parla di ritmo del reportage, passaggi della giornata, ritratti, gesti e dettagli quando sono visivamente osservabili o sostenuti dalle fonti testuali. ` +
+    `Non identificare persone, luoghi o ruoli soltanto dalla fotografia e non trasformare ciò che vedi in affermazioni non verificabili. ` +
     `Dedica spazio alle location usando nome, comune, provincia e tipologia verificati da Google Places, ma non inventare luce, architettura, panorama, storia o atmosfera. ` +
     `Se le informazioni verificate sul luogo sono poche, descrivi il suo ruolo nel percorso fotografico della giornata senza aggiungere caratteristiche fisiche. ` +
     `Inserisci Image Studio una volta nel corpo del racconto e dedica la parte finale al punto di vista del fotografo: spiega in modo concreto come il reportage segue la continuità tra persone, luoghi e momenti documentati. ` +
@@ -309,12 +319,38 @@ export function buildGroqPrompt(params: {
     `RISPOSTE SELEZIONATE: ${JSON.stringify(sourcePayload)}\n` +
     `FORNITORI SELEZIONATI DA CITARE SEMPRE: ${JSON.stringify(vendors)}\n` +
     `SEZIONI FOTOGRAFICHE: ${JSON.stringify(photoPayload)}\n\n` +
-    `Restituisci solo JSON valido con: title (max 140), excerpt (max 300), ` +
-    `story (${storyLength} con titoli Markdown ##), seoTitle (max 60), ` +
-    `seoDescription (max 155). Il racconto deve sembrare un articolo fotografico ampio e finito, non un riepilogo del modulo. ` +
+    `Restituisci solo JSON valido con: title (massimo ${WEDDING_STORY_LIMITS.title} caratteri), excerpt (massimo ${WEDDING_STORY_LIMITS.excerpt} caratteri), ` +
+    `story (${storyLength} con titoli Markdown ##, massimo ${WEDDING_STORY_LIMITS.story} caratteri), seoTitle (massimo ${WEDDING_STORY_LIMITS.seoTitle} caratteri), ` +
+    `seoDescription (massimo ${WEDDING_STORY_LIMITS.seoDescription} caratteri). Rispetta tassativamente tutti i limiti di caratteri. ` +
+    `Il racconto deve sembrare un articolo fotografico ampio e finito, non un riepilogo del modulo. ` +
     (hasAuthorizedSources
       ? 'Ogni affermazione deve essere riconducibile ai dati disponibili.'
       : 'Non ci sono risposte autorizzate: limita il testo ai dati espliciti e ai titoli delle sezioni fotografiche. Non descrivere cerimonie, promesse, emozioni o dettagli della giornata non documentati.');
+}
+
+function imageDataUrl(value: string, contentType: unknown): string | null {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(trimmed)) return trimmed;
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) return null;
+  const mimeType = typeof contentType === 'string' && /^image\/(?:png|jpeg|webp|gif)$/i.test(contentType)
+    ? contentType.toLowerCase()
+    : 'image/jpeg';
+  return `data:${mimeType};base64,${trimmed}`;
+}
+
+export function buildOpenRouterMessageContent(
+  prompt: string,
+  photos: Array<Record<string, any>>,
+): OpenRouterMessageContent[] {
+  const imageParts = photos
+    .map(photo => imageDataUrl(
+      typeof photo.url === 'string' ? photo.url : typeof photo.imageUrl === 'string' ? photo.imageUrl : typeof photo.base64 === 'string' ? photo.base64 : '',
+      photo.contentType,
+    ))
+    .filter((url): url is string => Boolean(url))
+    .map(url => ({ type: 'image_url' as const, image_url: { url } }));
+  return [{ type: 'text', text: prompt }, ...imageParts];
 }
 
 export function inspectWeddingDraftQuality(
@@ -330,6 +366,19 @@ export function inspectWeddingDraftQuality(
   }
   if (context.requiredBrand && !text.toLocaleLowerCase('it').includes(context.requiredBrand.toLocaleLowerCase('it'))) {
     issues.push(`non valorizza il brand fotografico: ${context.requiredBrand}`);
+  }
+  const generatedFields: Array<[keyof typeof WEDDING_STORY_LIMITS, unknown, string]> = [
+    ['title', draft.title, 'titolo'],
+    ['excerpt', draft.excerpt, 'introduzione'],
+    ['story', draft.story, 'racconto'],
+    ['seoTitle', draft.seoTitle, 'titolo SEO'],
+    ['seoDescription', draft.seoDescription, 'descrizione SEO'],
+  ];
+  for (const [field, value, label] of generatedFields) {
+    const length = String(value || '').trim().length;
+    if (length > WEDDING_STORY_LIMITS[field]) {
+      issues.push(`${label} troppo lungo: ${length} caratteri, massimo ${WEDDING_STORY_LIMITS[field]}`);
+    }
   }
   if (/\b(?:non (?:è|sono|risultano) (?:indicat[oi]|fornit[ei]|disponibil[ei])|non (?:sono|vengono) descritt[ei]|dati disponibili|risposte autorizzate|questionario)\b/i.test(text)) {
     issues.push('commenta informazioni mancanti o il processo editoriale');
@@ -371,11 +420,11 @@ export function inspectWeddingDraftQuality(
 export function buildWeddingDraftRevisionPrompt(issues: string[]): string {
   return `La prima bozza è stata respinta dal controllo editoriale per questi motivi: ${issues.join('; ')}.\n` +
     `Riscrivila integralmente, non limitarti ad aggiungere un paragrafo. Mantieni esclusivamente i fatti forniti nel messaggio iniziale, ` +
-    `correggi tutti i problemi indicati e porta il corpo story tra 850 e 1200 parole reali. ` +
+    `correggi tutti i problemi indicati e rispetta tassativamente i limiti di ogni campo. ` +
     `Conserva il formato JSON richiesto e restituisci soltanto JSON valido.`;
 }
 
-function parseGroqJson(raw: string): Record<string, any> {
+function parseOpenRouterJson(raw: string): Record<string, any> {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = JSON.parse(cleaned);
   if (!parsed || typeof parsed !== 'object') throw new Error('Risposta IA non valida');
@@ -568,8 +617,16 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
       return res.status(400).json({ error: 'Seleziona almeno una risposta autorizzata o una fotografia.' });
     }
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'GROQ_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.' });
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: 'OPENROUTER_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.' });
+    const openRouter = new OpenAI({
+      baseURL: OPENROUTER_BASE_URL,
+      apiKey,
+      defaultHeaders: {
+        'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
+        'X-OpenRouter-Title': OPENROUTER_TITLE,
+      },
+    });
     const requiredVendors = sources.flatMap(vendorNamesFromSource);
     const unverifiedVendorNames = sources
       .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
@@ -580,31 +637,30 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
       minimumWords: sources.length > 0 ? 700 : undefined,
       requiredBrand: 'Image Studio',
     };
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-      { role: 'user', content: buildGroqPrompt({ gallery, sources, photos, jobFacts }) },
+    const messages: Array<{ role: 'user' | 'assistant'; content: string | OpenRouterMessageContent[] }> = [
+      {
+        role: 'user',
+        content: buildOpenRouterMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos),
+      },
     ];
     let generated: Record<string, any> | null = null;
     let qualityIssues: string[] = [];
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
+      let completion: OpenAI.Chat.Completions.ChatCompletion;
+      try {
+        completion = await openRouter.chat.completions.create({
+          model: OPENROUTER_MODEL,
           temperature: attempt === 1 ? 0.35 : 0.25,
-          max_completion_tokens: 6000,
-          response_format: { type: 'json_object' },
-          messages,
-        }),
-      });
-      if (!response.ok) {
-        const detail = await response.text();
-        console.error('[wedding-seo] Groq:', response.status, detail.slice(0, 500));
+          max_tokens: 6000,
+          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        });
+      } catch (error) {
+        const status = error instanceof OpenAI.APIError ? error.status : undefined;
+        console.error('[wedding-seo] OpenRouter:', status || 'request failed');
         return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
       }
-      const completion: any = await response.json();
       const raw = completion?.choices?.[0]?.message?.content || '';
-      generated = parseGroqJson(raw);
+      generated = parseOpenRouterJson(raw);
       qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
       if (qualityIssues.length === 0) break;
       console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
@@ -620,11 +676,11 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     }
     return res.json({
       draft: {
-        title: safeString(generated.title, 140),
-        excerpt: safeString(generated.excerpt, 500),
-        story: safeString(generated.story, 30_000),
-        seoTitle: safeString(generated.seoTitle, 70),
-        seoDescription: safeString(generated.seoDescription, 170),
+        title: safeString(generated.title, WEDDING_STORY_LIMITS.title),
+        excerpt: safeString(generated.excerpt, WEDDING_STORY_LIMITS.excerpt),
+        story: safeString(generated.story, WEDDING_STORY_LIMITS.story),
+        seoTitle: safeString(generated.seoTitle, WEDDING_STORY_LIMITS.seoTitle),
+        seoDescription: safeString(generated.seoDescription, WEDDING_STORY_LIMITS.seoDescription),
       },
     });
   } catch (error) {

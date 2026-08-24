@@ -1,5 +1,13 @@
 export type WeddingStoryStatus = 'draft' | 'published';
 
+export const WEDDING_STORY_LIMITS = {
+  title: 140,
+  excerpt: 500,
+  story: 30_000,
+  seoTitle: 70,
+  seoDescription: 170,
+} as const;
+
 export interface WeddingStorySource {
   id: string;
   submissionId: string;

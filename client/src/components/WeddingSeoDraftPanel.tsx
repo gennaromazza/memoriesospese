@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Gallery } from '@/lib/galleries';
 import type { Photo } from '@/lib/photos';
-import type { WeddingSeoStory, WeddingStorySource } from '@shared/wedding-seo-types';
+import { WEDDING_STORY_LIMITS, type WeddingSeoStory, type WeddingStorySource } from '@shared/wedding-seo-types';
 import {
   generateWeddingStoryDraft,
   getWeddingStoryEditor,
@@ -265,8 +265,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           )}
 
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-medium">Titolo
-              <Input value={draft.title} onChange={event => updateDraft('title', event.target.value)} placeholder="Un titolo specifico per questo matrimonio" />
+            <label className="space-y-1 text-sm font-medium">Titolo ({draft.title.length}/{WEDDING_STORY_LIMITS.title})
+              <Input value={draft.title} onChange={event => updateDraft('title', event.target.value)} maxLength={WEDDING_STORY_LIMITS.title} placeholder="Un titolo specifico per questo matrimonio" />
             </label>
             <label className="space-y-1 text-sm font-medium">Slug pubblico
               <Input value={draft.slug} onChange={event => updateDraft('slug', event.target.value)} placeholder="generato automaticamente dal titolo" />
@@ -275,11 +275,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
               </span>
             </label>
           </div>
-          <label className="block space-y-1 text-sm font-medium">Introduzione
-            <Textarea value={draft.excerpt} onChange={event => updateDraft('excerpt', event.target.value)} rows={3} placeholder="Sintesi visibile nella pagina e nelle anteprime" />
+          <label className="block space-y-1 text-sm font-medium">Introduzione ({draft.excerpt.length}/{WEDDING_STORY_LIMITS.excerpt})
+            <Textarea value={draft.excerpt} onChange={event => updateDraft('excerpt', event.target.value)} maxLength={WEDDING_STORY_LIMITS.excerpt} rows={3} placeholder="Sintesi visibile nella pagina e nelle anteprime" />
           </label>
-          <label className="block space-y-1 text-sm font-medium">Racconto
-            <Textarea value={draft.story} onChange={event => updateDraft('story', event.target.value)} rows={18} placeholder="Scrivi o genera una bozza strutturata. Puoi modificarla prima di salvarla." />
+          <label className="block space-y-1 text-sm font-medium">Racconto ({draft.story.length}/{WEDDING_STORY_LIMITS.story})
+            <Textarea value={draft.story} onChange={event => updateDraft('story', event.target.value)} maxLength={WEDDING_STORY_LIMITS.story} rows={18} placeholder="Scrivi o genera una bozza strutturata. Puoi modificarla prima di salvarla." />
           </label>
           <details className="rounded-lg border bg-stone-50/60 p-4">
             <summary className="cursor-pointer font-medium">Anteprima formattata della pagina pubblica</summary>
@@ -317,11 +317,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           <details className="rounded-lg border p-4">
             <summary className="cursor-pointer font-medium">Segnali SEO</summary>
             <div className="mt-4 grid gap-4">
-              <label className="space-y-1 text-sm">Titolo SEO ({draft.seoTitle.length}/70)
-                <Input value={draft.seoTitle} onChange={event => updateDraft('seoTitle', event.target.value)} maxLength={70} />
+              <label className="space-y-1 text-sm">Titolo SEO ({draft.seoTitle.length}/{WEDDING_STORY_LIMITS.seoTitle})
+                <Input value={draft.seoTitle} onChange={event => updateDraft('seoTitle', event.target.value)} maxLength={WEDDING_STORY_LIMITS.seoTitle} />
               </label>
-              <label className="space-y-1 text-sm">Descrizione SEO ({draft.seoDescription.length}/170)
-                <Textarea value={draft.seoDescription} onChange={event => updateDraft('seoDescription', event.target.value)} maxLength={170} rows={3} />
+              <label className="space-y-1 text-sm">Descrizione SEO ({draft.seoDescription.length}/{WEDDING_STORY_LIMITS.seoDescription})
+                <Textarea value={draft.seoDescription} onChange={event => updateDraft('seoDescription', event.target.value)} maxLength={WEDDING_STORY_LIMITS.seoDescription} rows={3} />
               </label>
             </div>
           </details>
