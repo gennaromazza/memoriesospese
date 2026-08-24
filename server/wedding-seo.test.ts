@@ -64,6 +64,7 @@ describe('Real Wedding editorial safety', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
     expect(request).toMatchObject({ model: 'gemini-3.5-flash', response_format: { type: 'json_object' } });
+    expect(request).not.toHaveProperty('temperature');
   });
 
   it('keeps answers private without explicit editorial consent', () => {
@@ -298,16 +299,14 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain('gruppo Arechi');
   });
 
-  it('keeps real photo URLs and base64 images in the Gemini multimodal request', () => {
-    const content = buildGeminiMessageContent('Analizza queste immagini.', [
-      { url: 'https://firebasestorage.googleapis.com/v0/b/example/o/photo.jpg?alt=media', contentType: 'image/jpeg' },
+  it('keeps base64 images in the Gemini multimodal request', async () => {
+    const content = await buildGeminiMessageContent('Analizza queste immagini.', [
       { base64: 'aGVsbG8=', contentType: 'image/png' },
       { url: 'not-an-image' },
     ]);
 
     expect(content).toEqual([
       { type: 'text', text: 'Analizza queste immagini.' },
-      { type: 'image_url', image_url: { url: 'https://firebasestorage.googleapis.com/v0/b/example/o/photo.jpg?alt=media' } },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
     ]);
   });

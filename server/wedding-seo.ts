@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import sharp from 'sharp';
 import { db, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
 import type {
@@ -18,6 +19,8 @@ const STORIES_COL = 'weddingSeoStories';
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const MAX_PHOTOS = 24;
 const MAX_SOURCES = 40;
+const MAX_AI_PHOTOS = 12;
+const MAX_AI_IMAGE_BYTES = 12 * 1024 * 1024;
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 export const GEMINI_MODEL = 'gemini-3.5-flash';
 
@@ -339,7 +342,6 @@ export function buildWeddingStoryPrompt(params: {
 
 function imageDataUrl(value: string, contentType: unknown): string | null {
   const trimmed = value.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
   if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(trimmed)) return trimmed;
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) return null;
   const mimeType = typeof contentType === 'string' && /^image\/(?:png|jpeg|webp|gif)$/i.test(contentType)
@@ -348,15 +350,50 @@ function imageDataUrl(value: string, contentType: unknown): string | null {
   return `data:${mimeType};base64,${trimmed}`;
 }
 
-export function buildGeminiMessageContent(
+async function downloadGeminiImage(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) {
+      console.warn(`[wedding-seo] Immagine non scaricabile per Gemini (HTTP ${response.status}).`);
+      return null;
+    }
+    const declaredLength = Number(response.headers.get('content-length') || 0);
+    if (declaredLength > MAX_AI_IMAGE_BYTES) {
+      console.warn('[wedding-seo] Immagine esclusa da Gemini perché supera il limite di download.');
+      return null;
+    }
+    const original = Buffer.from(await response.arrayBuffer());
+    if (original.length === 0 || original.length > MAX_AI_IMAGE_BYTES) return null;
+    const optimized = await sharp(original)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+    return `data:image/jpeg;base64,${optimized.toString('base64')}`;
+  } catch (error) {
+    console.warn('[wedding-seo] Immagine esclusa dalla richiesta Gemini:', error);
+    return null;
+  }
+}
+
+export async function buildGeminiMessageContent(
   prompt: string,
   photos: Array<Record<string, any>>,
-): GeminiMessageContent[] {
-  const imageParts = photos
-    .map(photo => imageDataUrl(
-      typeof photo.url === 'string' ? photo.url : typeof photo.imageUrl === 'string' ? photo.imageUrl : typeof photo.base64 === 'string' ? photo.base64 : '',
-      photo.contentType,
-    ))
+): Promise<GeminiMessageContent[]> {
+  const imageUrls = await Promise.all(photos.slice(0, MAX_AI_PHOTOS).map(async photo => {
+    const value = typeof photo.base64 === 'string'
+      ? photo.base64
+      : typeof photo.thumbnailUrl === 'string'
+        ? photo.thumbnailUrl
+        : typeof photo.url === 'string'
+          ? photo.url
+          : typeof photo.imageUrl === 'string'
+            ? photo.imageUrl
+            : '';
+    if (/^https?:\/\//i.test(value.trim())) return downloadGeminiImage(value.trim());
+    return imageDataUrl(value, photo.contentType);
+  }));
+  const imageParts = imageUrls
     .filter((url): url is string => Boolean(url))
     .map(url => ({ type: 'image_url' as const, image_url: { url } }));
   return [{ type: 'text', text: prompt }, ...imageParts];
@@ -491,10 +528,11 @@ export async function generateWeddingDraftWithGemini(params: {
     minimumWords: sources.length > 0 ? 700 : undefined,
     requiredBrand: 'Image Studio',
   };
+  const initialContent = await buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos);
   const messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
     {
       role: 'user',
-      content: buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos),
+      content: initialContent,
     },
   ];
   let generated: Record<string, any> | null = null;
@@ -512,7 +550,6 @@ export async function generateWeddingDraftWithGemini(params: {
         },
         body: JSON.stringify({
           model: GEMINI_MODEL,
-          temperature: attempt === 1 ? 0.35 : 0.25,
           max_tokens: 6000,
           response_format: { type: 'json_object' },
           messages,
