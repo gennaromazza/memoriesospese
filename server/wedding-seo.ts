@@ -1,5 +1,4 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import OpenAI from 'openai';
 import { db, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
 import type {
@@ -619,14 +618,6 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'OPENROUTER_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.' });
-    const openRouter = new OpenAI({
-      baseURL: OPENROUTER_BASE_URL,
-      apiKey,
-      defaultHeaders: {
-        'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
-        'X-OpenRouter-Title': OPENROUTER_TITLE,
-      },
-    });
     const requiredVendors = sources.flatMap(vendorNamesFromSource);
     const unverifiedVendorNames = sources
       .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
@@ -646,17 +637,30 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     let generated: Record<string, any> | null = null;
     let qualityIssues: string[] = [];
     for (let attempt = 1; attempt <= 2; attempt += 1) {
-      let completion: OpenAI.Chat.Completions.ChatCompletion;
+      let completion: any;
       try {
-        completion = await openRouter.chat.completions.create({
+        const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
+            'X-OpenRouter-Title': OPENROUTER_TITLE,
+          },
+          body: JSON.stringify({
           model: OPENROUTER_MODEL,
           temperature: attempt === 1 ? 0.35 : 0.25,
           max_tokens: 6000,
-          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+            messages,
+          }),
         });
+        if (!response.ok) {
+          console.error('[wedding-seo] OpenRouter:', response.status, (await response.text()).slice(0, 500));
+          return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
+        }
+        completion = await response.json();
       } catch (error) {
-        const status = error instanceof OpenAI.APIError ? error.status : undefined;
-        console.error('[wedding-seo] OpenRouter:', status || 'request failed');
+        console.error('[wedding-seo] OpenRouter: request failed', error);
         return res.status(502).json({ error: 'La generazione IA non è riuscita. La bozza corrente è rimasta invariata.' });
       }
       const raw = completion?.choices?.[0]?.message?.content || '';
