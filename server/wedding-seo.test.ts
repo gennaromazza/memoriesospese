@@ -230,6 +230,20 @@ describe('Real Wedding editorial safety', () => {
     expect(issues.some(issue => issue.startsWith('racconto troppo breve'))).toBe(true);
   });
 
+  it('rejects bureaucratic photo inventories and repeated couple surnames', () => {
+    const issues = inspectWeddingDraftQuality({
+      title: 'Il matrimonio di Biagio Martinelli e Roberta Fabozzi',
+      story: `Le attività sono state scandite da orari precisi, dalle 10:30 alle 12:00. ` +
+        `Una fotografia mostra gli sposi davanti alla credenza. Un secondo scatto ritrae una persona vicino alla porta. ` +
+        `La documentazione fotografica è proseguita fino alla conclusione programmata.`,
+    }, [], { privateCoupleNames: ['Biagio Martinelli', 'Roberta Fabozzi'] });
+
+    expect(issues).toContain('usa un tono tecnico o burocratico invece di uno storytelling umano');
+    expect(issues).toContain('descrive le fotografie come un inventario invece di costruire un racconto');
+    expect(issues).toContain('usa troppi orari e dettagli operativi');
+    expect(issues).toContain('ripete i cognomi degli sposi nel testo pubblico');
+  });
+
   it('rejects generated fields that exceed the editor limits instead of silently truncating them', () => {
     const issues = inspectWeddingDraftQuality({
       title: 'T'.repeat(141),

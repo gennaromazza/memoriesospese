@@ -299,10 +299,12 @@ export function buildWeddingStoryPrompt(params: {
     `Non attribuire mai un ruolo a un fornitore se il ruolo non è scritto esplicitamente. ` +
     `Non citare note interne, ID, nomi file, questionari, risposte autorizzate o il processo di generazione.\n` +
     `Non usare espressioni amministrative come “elenco storico”, “registrato”, “dato acquisito” o “fornitore presente”.\n` +
+    `Usa nel testo pubblico soltanto i nomi propri degli sposi, senza ripetere i cognomi. ` +
+    `I cognomi nei dati servono a distinguere le persone nel gestionale, non sono materiale narrativo.\n` +
     `Scrivi come racconto successivo all'evento, usando passato prossimo e imperfetto. ` +
     `Non usare il futuro né formule da programma come “è previsto”, “sono previsti” o “avrà inizio”.\n` +
     `Tratta orari, numero degli ospiti, composizione familiare, richieste di scatto e indicazioni logistiche come contesto operativo: ` +
-    `non trasformarli in una checklist e non usarli come riempitivo. Inseriscili soltanto quando migliorano davvero il racconto.\n` +
+    `non trasformarli in una checklist e non usarli come riempitivo. Ometti gli orari esatti, il numero degli invitati, l'orario di fine e la scaletta, salvo un dettaglio davvero indispensabile alla comprensione.\n` +
     `Le risposte al modulo descrivono desideri e indicazioni raccolti prima dell'evento, non provano che un fatto sia avvenuto. ` +
     `Non affermare che una foto sia stata realizzata, che una persona fosse presente o abbia svolto un'attività, se questo non è dichiarato esplicitamente. ` +
     `Le città dei clienti indicano soltanto la loro residenza: non attribuirle agli invitati. ` +
@@ -315,8 +317,12 @@ export function buildWeddingStoryPrompt(params: {
     `Crea titoli di sezione specifici per questa coppia e questo matrimonio: evita intestazioni da dossier come ` +
     `“Preparativi”, “Cerimonia”, “Famiglia e Ospiti”, “Fornitori” e “Ricevimento”. ` +
     `Scrivi prosa continua, naturale e grammaticalmente corretta, senza elenchi, keyword stuffing, frasi generiche o superlativi non verificabili.\n` +
+    `La voce deve essere calda, elegante e umana, con un ritmo da magazine fotografico: fai percepire la progressione della giornata attraverso gesti, passaggi e relazioni sostenuti dalle fonti. ` +
+    `Evita il tono da verbale, cronaca tecnica o scheda di produzione e parole fredde come “attività”, “consenso formale”, “fasi concordate”, “conclusione programmata” e “documentazione”.\n` +
     `L'approccio deve essere chiaramente fotografico: costruisci il racconto come una sequenza visiva, collegando i momenti alle immagini reali selezionate. ` +
     `Parla di ritmo del reportage, passaggi della giornata, ritratti, gesti e dettagli quando sono visivamente osservabili o sostenuti dalle fonti testuali. ` +
+    `Non catalogare le fotografie una per una e non ripetere formule come “una foto mostra”, “uno scatto ritrae” o descrizioni inventariali di arredi, abiti e oggetti. ` +
+    `Trasforma ciò che è visibile in una narrazione fluida senza dichiarare continuamente che stai osservando una fotografia. ` +
     `Non identificare persone, luoghi o ruoli soltanto dalla fotografia e non trasformare ciò che vedi in affermazioni non verificabili. ` +
     `Dedica spazio alle location usando nome, comune, provincia e tipologia verificati da Google Places, ma non inventare luce, architettura, panorama, storia o atmosfera. ` +
     `Se le informazioni verificate sul luogo sono poche, descrivi il suo ruolo nel percorso fotografico della giornata senza aggiungere caratteristiche fisiche. ` +
@@ -403,7 +409,7 @@ export async function buildGeminiMessageContent(
 export function inspectWeddingDraftQuality(
   draft: Record<string, any>,
   requiredVendors: string[] = [],
-  context: { allowedText?: string; unverifiedVendorNames?: string[]; minimumWords?: number; requiredBrand?: string } = {},
+  context: { allowedText?: string; unverifiedVendorNames?: string[]; minimumWords?: number; requiredBrand?: string; privateCoupleNames?: string[] } = {},
 ): string[] {
   const text = [draft.title, draft.excerpt, draft.story].map(value => String(value || '')).join('\n');
   const issues: string[] = [];
@@ -436,6 +442,18 @@ export function inspectWeddingDraftQuality(
   if (/\b(?:elenco storico|registrat[oaie]|dato acquisito|fornitor[ei] present[ei])\b/i.test(text)) {
     issues.push('espone linguaggio amministrativo o interno');
   }
+  if (/\b(?:attività sono state scandite|orari precisi|consenso formale|fasi concordate|conclusione programmata|documentazione fotografica|rigorosa continuità narrativa|in qualità di fotografo)\b/i.test(text)) {
+    issues.push('usa un tono tecnico o burocratico invece di uno storytelling umano');
+  }
+  const photoCataloguePhrases = text.match(/\b(?:una|un|questa|questo)\s+(?:foto(?:grafia)?|immagine|scatto)\s+(?:mostra|documenta|ritrae|immortala)|\b(?:un|una)\s+(?:second[oa]|altr[oa])\s+(?:foto(?:grafia)?|immagine|scatto)\b/gi) || [];
+  if (photoCataloguePhrases.length >= 2) issues.push('descrive le fotografie come un inventario invece di costruire un racconto');
+  const exactTimes = text.match(/\b(?:[01]?\d|2[0-3])[:.]\d{2}\b/g) || [];
+  if (exactTimes.length >= 2) issues.push('usa troppi orari e dettagli operativi');
+  const exposedFullNames = (context.privateCoupleNames || []).filter(name => {
+    const normalized = name.trim();
+    return normalized.includes(' ') && text.toLocaleLowerCase('it').includes(normalized.toLocaleLowerCase('it'));
+  });
+  if (exposedFullNames.length > 0) issues.push('ripete i cognomi degli sposi nel testo pubblico');
   if (/\b(?:sarà|saranno|avrà inizio|si prepareranno|è previsto|sono previsti)\b/i.test(text)) {
     issues.push('usa il futuro o un tono da programma operativo');
   }
@@ -528,6 +546,7 @@ export async function generateWeddingDraftWithGemini(params: {
     unverifiedVendorNames,
     minimumWords: sources.length > 0 ? 700 : undefined,
     requiredBrand: 'Image Studio',
+    privateCoupleNames: jobFacts?.coupleNames || [],
   };
   const initialContent = await buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos);
   const messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
