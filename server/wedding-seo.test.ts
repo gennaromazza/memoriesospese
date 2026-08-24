@@ -15,14 +15,13 @@ vi.mock('./email-routes.js', () => ({
 import {
   buildAuthorizedSources,
   buildWeddingDraftRevisionPrompt,
-  buildOpenRouterMessageContent,
+  buildGeminiMessageContent,
   buildWeddingStoryPrompt,
   buildWeddingEditorialJobFacts,
-  generateWeddingDraftWithOpenRouter,
+  generateWeddingDraftWithGemini,
   inspectWeddingDraftQuality,
-  OPENROUTER_BASE_URL,
-  OPENROUTER_MODEL,
-  OPENROUTER_MODELS,
+  GEMINI_BASE_URL,
+  GEMINI_MODEL,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingStoryInput,
@@ -34,19 +33,12 @@ describe('Real Wedding editorial safety', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses current free OpenRouter vision models and the OpenAI-compatible endpoint', () => {
-    expect(OPENROUTER_BASE_URL).toBe('https://openrouter.ai/api/v1');
-    expect(OPENROUTER_MODEL).toBe('google/gemma-4-31b-it:free');
-    expect(OPENROUTER_MODELS).toEqual([
-      'google/gemma-4-31b-it:free',
-      'google/gemma-4-26b-a4b-it:free',
-      'dots-studio/dots-3-note-preview:free',
-      'stealth/ox-alpha',
-      'openrouter/free',
-    ]);
+  it('uses the direct Gemini vision model and Google OpenAI-compatible endpoint', () => {
+    expect(GEMINI_BASE_URL).toBe('https://generativelanguage.googleapis.com/v1beta/openai');
+    expect(GEMINI_MODEL).toBe('gemini-3.5-flash');
   });
 
-  it('skips rate-limited and invalid providers until a vision model returns valid JSON', async () => {
+  it('sends the generation request directly to Gemini with structured JSON enabled', async () => {
     const generated = {
       title: 'Anna e Luca, matrimonio fotografico ad Aversa',
       excerpt: 'Un racconto fotografico del matrimonio di Anna e Luca ad Aversa.',
@@ -54,18 +46,12 @@ describe('Real Wedding editorial safety', () => {
       seoTitle: 'Matrimonio Anna e Luca ad Aversa',
       seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa realizzato da Image Studio.',
     };
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
-      .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{ message: { content: '' } }],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(generated) } }],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(generated) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const draft = await generateWeddingDraftWithOpenRouter({
+    const draft = await generateWeddingDraftWithGemini({
       gallery: { id: 'gallery-1', name: 'Anna e Luca' },
       sources: [],
       photos: [],
@@ -74,13 +60,10 @@ describe('Real Wedding editorial safety', () => {
     });
 
     expect(draft).toEqual(generated);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(fetchMock.mock.calls.map(([, options]) => JSON.parse(String(options?.body)).model)).toEqual([
-      'google/gemma-4-31b-it:free',
-      'google/gemma-4-26b-a4b-it:free',
-      'dots-studio/dots-3-note-preview:free',
-      'stealth/ox-alpha',
-    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(request).toMatchObject({ model: 'gemini-3.5-flash', response_format: { type: 'json_object' } });
   });
 
   it('keeps answers private without explicit editorial consent', () => {
@@ -106,7 +89,7 @@ describe('Real Wedding editorial safety', () => {
     expect(JSON.stringify(sources)).not.toContain('Saldo da verificare');
   });
 
-  it('sends OpenRouter only the selected, consented context and safe gallery fields', () => {
+  it('sends Gemini only the selected, consented context and safe gallery fields', () => {
     const prompt = buildWeddingStoryPrompt({
       gallery: {
         name: 'Anna e Luca',
@@ -315,8 +298,8 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain('gruppo Arechi');
   });
 
-  it('keeps real photo URLs and base64 images in the OpenRouter multimodal request', () => {
-    const content = buildOpenRouterMessageContent('Analizza queste immagini.', [
+  it('keeps real photo URLs and base64 images in the Gemini multimodal request', () => {
+    const content = buildGeminiMessageContent('Analizza queste immagini.', [
       { url: 'https://firebasestorage.googleapis.com/v0/b/example/o/photo.jpg?alt=media', contentType: 'image/jpeg' },
       { base64: 'aGVsbG8=', contentType: 'image/png' },
       { url: 'not-an-image' },

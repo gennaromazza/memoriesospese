@@ -18,18 +18,10 @@ const STORIES_COL = 'weddingSeoStories';
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const MAX_PHOTOS = 24;
 const MAX_SOURCES = 40;
-export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-export const OPENROUTER_MODELS = [
-  'google/gemma-4-31b-it:free',
-  'google/gemma-4-26b-a4b-it:free',
-  'dots-studio/dots-3-note-preview:free',
-  'stealth/ox-alpha',
-  'openrouter/free',
-] as const;
-export const OPENROUTER_MODEL = OPENROUTER_MODELS[0];
-const OPENROUTER_TITLE = 'Image Studio Real Wedding';
+export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+export const GEMINI_MODEL = 'gemini-3.5-flash';
 
-type OpenRouterMessageContent =
+type GeminiMessageContent =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
 
@@ -356,10 +348,10 @@ function imageDataUrl(value: string, contentType: unknown): string | null {
   return `data:${mimeType};base64,${trimmed}`;
 }
 
-export function buildOpenRouterMessageContent(
+export function buildGeminiMessageContent(
   prompt: string,
   photos: Array<Record<string, any>>,
-): OpenRouterMessageContent[] {
+): GeminiMessageContent[] {
   const imageParts = photos
     .map(photo => imageDataUrl(
       typeof photo.url === 'string' ? photo.url : typeof photo.imageUrl === 'string' ? photo.imageUrl : typeof photo.base64 === 'string' ? photo.base64 : '',
@@ -441,7 +433,7 @@ export function buildWeddingDraftRevisionPrompt(issues: string[]): string {
     `Conserva il formato JSON richiesto e restituisci soltanto JSON valido.`;
 }
 
-function parseOpenRouterJson(raw: string): Record<string, any> {
+function parseGeminiJson(raw: string): Record<string, any> {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = JSON.parse(cleaned);
   if (!parsed || typeof parsed !== 'object') throw new Error('Risposta IA non valida');
@@ -474,7 +466,7 @@ export class WeddingAiGenerationError extends Error {
   }
 }
 
-export async function generateWeddingDraftWithOpenRouter(params: {
+export async function generateWeddingDraftWithGemini(params: {
   gallery: Record<string, any>;
   sources: WeddingStorySource[];
   photos: Array<Record<string, any>>;
@@ -482,10 +474,10 @@ export async function generateWeddingDraftWithOpenRouter(params: {
   apiKey?: string;
 }): Promise<WeddingAiDraft> {
   const { gallery, sources, photos, jobFacts } = params;
-  const apiKey = params.apiKey || process.env.OPENROUTER_API_KEY;
+  const apiKey = params.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
     throw new WeddingAiGenerationError(
-      'OPENROUTER_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.',
+      'GEMINI_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.',
       503,
     );
   }
@@ -499,68 +491,54 @@ export async function generateWeddingDraftWithOpenRouter(params: {
     minimumWords: sources.length > 0 ? 700 : undefined,
     requiredBrand: 'Image Studio',
   };
-  const messages: Array<{ role: 'user' | 'assistant'; content: string | OpenRouterMessageContent[] }> = [
+  const messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
     {
       role: 'user',
-      content: buildOpenRouterMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos),
+      content: buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos),
     },
   ];
   let generated: Record<string, any> | null = null;
   let qualityIssues: string[] = [];
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     let raw = '';
-    let lastProviderStatus: number | undefined;
     generated = null;
-    for (const model of OPENROUTER_MODELS) {
-      try {
-        const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.SITE_URL || 'https://imagestudiofotografico.com',
-            'X-OpenRouter-Title': OPENROUTER_TITLE,
-          },
-          body: JSON.stringify({
-            model,
-            temperature: attempt === 1 ? 0.35 : 0.25,
-            max_tokens: 6000,
-            response_format: { type: 'json_object' },
-            messages,
-          }),
-        });
-        if (response.ok) {
-          const completion: any = await response.json();
-          const candidateRaw = completion?.choices?.[0]?.message?.content || '';
-          try {
-            generated = parseOpenRouterJson(candidateRaw);
-          } catch (error) {
-            lastProviderStatus = response.status;
-            console.warn(`[wedding-seo] OpenRouter: ${model} ha restituito una risposta non valida, provo il fallback successivo:`, error);
-            continue;
-          }
-          raw = candidateRaw;
-          console.log(`[wedding-seo] Modello OpenRouter selezionato: ${model}`);
-          break;
-        }
-        lastProviderStatus = response.status;
-        console.error('[wedding-seo] OpenRouter:', model, response.status, (await response.text()).slice(0, 500));
-        if (![404, 408, 429, 500, 502, 503, 504].includes(response.status)) {
-          throw new WeddingAiGenerationError(
-            `OpenRouter ha rifiutato la richiesta (HTTP ${response.status}). La bozza corrente è rimasta invariata.`,
-          );
-        }
-      } catch (error) {
-        if (error instanceof WeddingAiGenerationError) throw error;
-        console.error('[wedding-seo] OpenRouter: request failed', model, error);
-      }
+    let response: globalThis.Response;
+    try {
+      response = await fetch(`${GEMINI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: GEMINI_MODEL,
+          temperature: attempt === 1 ? 0.35 : 0.25,
+          max_tokens: 6000,
+          response_format: { type: 'json_object' },
+          messages,
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+    } catch (error) {
+      console.error('[wedding-seo] Gemini API: request failed', error);
+      throw new WeddingAiGenerationError('La richiesta a Gemini API non è riuscita o ha superato 120 secondi. La bozza corrente è rimasta invariata.');
     }
-    if (!generated) {
+    if (!response.ok) {
+      const providerError = (await response.text()).slice(0, 500);
+      console.error('[wedding-seo] Gemini API:', response.status, providerError);
       throw new WeddingAiGenerationError(
-        `Nessun modello gratuito per analisi immagini ha restituito una risposta valida su OpenRouter (ultimo HTTP ${lastProviderStatus || 'di rete'}). La bozza corrente è rimasta invariata.`,
+        `Gemini API ha rifiutato la richiesta (HTTP ${response.status}). La bozza corrente è rimasta invariata.`,
       );
     }
-    qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
+    const completion: any = await response.json();
+    raw = completion?.choices?.[0]?.message?.content || '';
+    try {
+      generated = parseGeminiJson(raw);
+      qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
+    } catch (error) {
+      qualityIssues = ['la risposta di Gemini non contiene JSON valido'];
+      console.warn(`[wedding-seo] Gemini API: tentativo ${attempt} con risposta non valida:`, error);
+    }
     if (qualityIssues.length === 0) break;
     console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
     if (attempt === 1) {
@@ -751,7 +729,7 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
       return res.status(400).json({ error: 'Seleziona almeno una risposta autorizzata o una fotografia.' });
     }
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
-    const draft = await generateWeddingDraftWithOpenRouter({ gallery, sources, photos, jobFacts });
+    const draft = await generateWeddingDraftWithGemini({ gallery, sources, photos, jobFacts });
     return res.json({ draft });
   } catch (error) {
     console.error('[wedding-seo] generate:', error);

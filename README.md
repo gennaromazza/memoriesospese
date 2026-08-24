@@ -137,7 +137,7 @@ Su Replit puoi generare una bozza di prova senza aprire l'interfaccia, senza sal
 npm run ai:wedding:test -- "https://dominio/admin/gallery/ID_GALLERIA/manage"
 ```
 
-Il comando include automaticamente tutte le risposte con consenso editoriale. Per le immagini usa, nell'ordine, quelle già selezionate nella bozza Real Wedding, la selezione cliente oppure un campione di 12 fotografie della galleria. Richiede `FIREBASE_ADMIN_CREDENTIALS` e `OPENROUTER_API_KEY` nell'ambiente Replit.
+Il comando include automaticamente tutte le risposte con consenso editoriale. Per le immagini usa, nell'ordine, quelle già selezionate nella bozza Real Wedding, la selezione cliente oppure un campione di 12 fotografie della galleria. Richiede `FIREBASE_ADMIN_CREDENTIALS` e `GEMINI_API_KEY` nell'ambiente Replit.
 
 ## 📱 Struttura delle Pagine
 

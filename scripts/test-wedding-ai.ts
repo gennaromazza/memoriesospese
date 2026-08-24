@@ -1,7 +1,7 @@
 import { deleteApp } from 'firebase-admin/app';
 import { app, db } from '../server/firebase-admin.js';
 import {
-  generateWeddingDraftWithOpenRouter,
+  generateWeddingDraftWithGemini,
   loadGallery,
   loadSelectedPhotos,
   loadSourcesForJob,
@@ -55,7 +55,7 @@ async function automaticPhotoIds(gallery: Record<string, any>): Promise<{ ids: s
   };
 }
 
-function printDraft(draft: Awaited<ReturnType<typeof generateWeddingDraftWithOpenRouter>>) {
+function printDraft(draft: Awaited<ReturnType<typeof generateWeddingDraftWithGemini>>) {
   console.log('\n=== TITOLO ===\n');
   console.log(draft.title);
   console.log('\n=== INTRODUZIONE ===\n');
@@ -92,7 +92,7 @@ async function main() {
   console.log('Modalità prova: nessun salvataggio e nessuna pubblicazione.');
   console.log('\nGenerazione in corso...');
 
-  const draft = await generateWeddingDraftWithOpenRouter({ gallery, sources, photos, jobFacts });
+  const draft = await generateWeddingDraftWithGemini({ gallery, sources, photos, jobFacts });
   printDraft(draft);
 }
 
