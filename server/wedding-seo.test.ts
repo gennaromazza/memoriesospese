@@ -46,7 +46,7 @@ describe('Real Wedding editorial safety', () => {
     ]);
   });
 
-  it('falls back to an independent vision provider when Google is rate-limited upstream', async () => {
+  it('skips rate-limited and invalid providers until a vision model returns valid JSON', async () => {
     const generated = {
       title: 'Anna e Luca, matrimonio fotografico ad Aversa',
       excerpt: 'Un racconto fotografico del matrimonio di Anna e Luca ad Aversa.',
@@ -57,6 +57,9 @@ describe('Real Wedding editorial safety', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
       .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: '' } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         choices: [{ message: { content: JSON.stringify(generated) } }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -71,11 +74,12 @@ describe('Real Wedding editorial safety', () => {
     });
 
     expect(draft).toEqual(generated);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls.map(([, options]) => JSON.parse(String(options?.body)).model)).toEqual([
       'google/gemma-4-31b-it:free',
       'google/gemma-4-26b-a4b-it:free',
       'dots-studio/dots-3-note-preview:free',
+      'stealth/ox-alpha',
     ]);
   });
 

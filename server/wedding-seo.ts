@@ -508,8 +508,9 @@ export async function generateWeddingDraftWithOpenRouter(params: {
   let generated: Record<string, any> | null = null;
   let qualityIssues: string[] = [];
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    let completion: any;
+    let raw = '';
     let lastProviderStatus: number | undefined;
+    generated = null;
     for (const model of OPENROUTER_MODELS) {
       try {
         const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
@@ -529,7 +530,16 @@ export async function generateWeddingDraftWithOpenRouter(params: {
           }),
         });
         if (response.ok) {
-          completion = await response.json();
+          const completion: any = await response.json();
+          const candidateRaw = completion?.choices?.[0]?.message?.content || '';
+          try {
+            generated = parseOpenRouterJson(candidateRaw);
+          } catch (error) {
+            lastProviderStatus = response.status;
+            console.warn(`[wedding-seo] OpenRouter: ${model} ha restituito una risposta non valida, provo il fallback successivo:`, error);
+            continue;
+          }
+          raw = candidateRaw;
           console.log(`[wedding-seo] Modello OpenRouter selezionato: ${model}`);
           break;
         }
@@ -545,20 +555,12 @@ export async function generateWeddingDraftWithOpenRouter(params: {
         console.error('[wedding-seo] OpenRouter: request failed', model, error);
       }
     }
-    if (!completion) {
+    if (!generated) {
       throw new WeddingAiGenerationError(
-        `Nessun modello gratuito per analisi immagini è disponibile su OpenRouter (ultimo HTTP ${lastProviderStatus || 'di rete'}). La bozza corrente è rimasta invariata.`,
+        `Nessun modello gratuito per analisi immagini ha restituito una risposta valida su OpenRouter (ultimo HTTP ${lastProviderStatus || 'di rete'}). La bozza corrente è rimasta invariata.`,
       );
     }
-    const raw = completion?.choices?.[0]?.message?.content || '';
-    generated = null;
-    try {
-      generated = parseOpenRouterJson(raw);
-      qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
-    } catch (error) {
-      qualityIssues = ['la risposta del modello non contiene JSON valido'];
-      console.warn(`[wedding-seo] Tentativo ${attempt} con risposta non valida:`, error);
-    }
+    qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
     if (qualityIssues.length === 0) break;
     console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
     if (attempt === 1) {
