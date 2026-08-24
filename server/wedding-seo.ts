@@ -22,6 +22,25 @@ const MAX_SOURCES = 40;
 const MAX_AI_IMAGE_BYTES = 12 * 1024 * 1024;
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 export const GEMINI_MODEL = 'gemini-3.5-flash';
+const WEDDING_DRAFT_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'wedding_story_draft',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: { type: 'string', description: 'Titolo editoriale in italiano.' },
+        excerpt: { type: 'string', description: 'Introduzione breve in italiano.' },
+        story: { type: 'string', description: 'Articolo completo in italiano con titoli Markdown ##.' },
+        seoTitle: { type: 'string', description: 'Titolo SEO in italiano.' },
+        seoDescription: { type: 'string', description: 'Meta description SEO in italiano.' },
+      },
+      required: ['title', 'excerpt', 'story', 'seoTitle', 'seoDescription'],
+    },
+  },
+} as const;
 
 type GeminiMessageContent =
   | { type: 'text'; text: string }
@@ -549,7 +568,7 @@ export async function generateWeddingDraftWithGemini(params: {
     privateCoupleNames: jobFacts?.coupleNames || [],
   };
   const initialContent = await buildGeminiMessageContent(buildWeddingStoryPrompt({ gallery, sources, photos, jobFacts }), photos);
-  const messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
+  let messages: Array<{ role: 'user' | 'assistant'; content: string | GeminiMessageContent[] }> = [
     {
       role: 'user',
       content: initialContent,
@@ -570,8 +589,9 @@ export async function generateWeddingDraftWithGemini(params: {
         },
         body: JSON.stringify({
           model: GEMINI_MODEL,
-          max_tokens: 6000,
-          response_format: { type: 'json_object' },
+          max_tokens: 16_000,
+          reasoning_effort: 'low',
+          response_format: WEDDING_DRAFT_RESPONSE_FORMAT,
           messages,
         }),
         signal: AbortSignal.timeout(120_000),
@@ -588,19 +608,33 @@ export async function generateWeddingDraftWithGemini(params: {
       );
     }
     const completion: any = await response.json();
-    raw = completion?.choices?.[0]?.message?.content || '';
+    const choice = completion?.choices?.[0];
+    const finishReason = choice?.finish_reason || 'sconosciuto';
+    raw = choice?.message?.content || '';
     try {
       generated = parseGeminiJson(raw);
       qualityIssues = inspectWeddingDraftQuality(generated, requiredVendors, qualityContext);
     } catch (error) {
-      qualityIssues = ['la risposta di Gemini non contiene JSON valido'];
-      console.warn(`[wedding-seo] Gemini API: tentativo ${attempt} con risposta non valida:`, error);
+      qualityIssues = [finishReason === 'length'
+        ? 'la risposta di Gemini è stata troncata per limite di output'
+        : 'la risposta di Gemini non contiene JSON valido'];
+      console.warn(`[wedding-seo] Gemini API: tentativo ${attempt} con risposta non valida (finish_reason: ${finishReason}, caratteri: ${raw.length}):`, error);
     }
     if (qualityIssues.length === 0) break;
     console.warn(`[wedding-seo] Tentativo ${attempt} rifiutato dal controllo editoriale:`, qualityIssues);
     if (attempt === 1) {
-      messages.push({ role: 'assistant', content: raw });
-      messages.push({ role: 'user', content: buildWeddingDraftRevisionPrompt(qualityIssues) });
+      const revisionPrompt = buildWeddingDraftRevisionPrompt(qualityIssues);
+      if (generated) {
+        messages.push({ role: 'assistant', content: raw });
+        messages.push({ role: 'user', content: revisionPrompt });
+      } else {
+        messages = [{
+          role: 'user',
+          content: initialContent.map(part => part.type === 'text'
+            ? { ...part, text: `${part.text}\n\n${revisionPrompt}` }
+            : part),
+        }];
+      }
     }
   }
   if (!generated || qualityIssues.length > 0) {

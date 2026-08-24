@@ -64,8 +64,51 @@ describe('Real Wedding editorial safety', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
     const request = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
-    expect(request).toMatchObject({ model: 'gemini-3.5-flash', response_format: { type: 'json_object' } });
+    expect(request).toMatchObject({
+      model: 'gemini-3.5-flash',
+      max_tokens: 16_000,
+      reasoning_effort: 'low',
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'wedding_story_draft',
+          strict: true,
+          schema: { required: ['title', 'excerpt', 'story', 'seoTitle', 'seoDescription'] },
+        },
+      },
+    });
     expect(request).not.toHaveProperty('temperature');
+  });
+
+  it('retries truncated JSON without feeding the broken assistant response back to Gemini', async () => {
+    const generated = {
+      title: 'Anna e Luca, matrimonio fotografico ad Aversa',
+      excerpt: 'Il racconto fotografico del matrimonio di Anna e Luca.',
+      story: '## Il racconto di Anna e Luca\nImage Studio ha seguito la giornata attraverso un reportage fotografico discreto.',
+      seoTitle: 'Matrimonio Anna e Luca ad Aversa',
+      seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa.',
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ finish_reason: 'length', message: { content: '{"title":"Testo interrotto' } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(generated) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-1', name: 'Anna e Luca' },
+      sources: [],
+      photos: [],
+      jobFacts: null,
+      apiKey: 'test-key',
+    })).resolves.toEqual(generated);
+
+    const retryRequest = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(retryRequest.messages).toHaveLength(1);
+    expect(retryRequest.messages[0].content[0].text).toContain('risposta di Gemini è stata troncata');
+    expect(JSON.stringify(retryRequest.messages)).not.toContain('Testo interrotto');
   });
 
   it('keeps answers private without explicit editorial consent', () => {
