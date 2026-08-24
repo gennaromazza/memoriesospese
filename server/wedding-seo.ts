@@ -22,6 +22,9 @@ export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 export const OPENROUTER_MODELS = [
   'google/gemma-4-31b-it:free',
   'google/gemma-4-26b-a4b-it:free',
+  'dots-studio/dots-3-note-preview:free',
+  'stealth/ox-alpha',
+  'openrouter/free',
 ] as const;
 export const OPENROUTER_MODEL = OPENROUTER_MODELS[0];
 const OPENROUTER_TITLE = 'Image Studio Real Wedding';

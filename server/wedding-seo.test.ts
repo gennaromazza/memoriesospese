@@ -36,6 +36,9 @@ describe('Real Wedding editorial safety', () => {
     expect(OPENROUTER_MODELS).toEqual([
       'google/gemma-4-31b-it:free',
       'google/gemma-4-26b-a4b-it:free',
+      'dots-studio/dots-3-note-preview:free',
+      'stealth/ox-alpha',
+      'openrouter/free',
     ]);
   });
 
