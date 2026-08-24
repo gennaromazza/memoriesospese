@@ -18,6 +18,7 @@ import {
   buildOpenRouterMessageContent,
   buildWeddingStoryPrompt,
   buildWeddingEditorialJobFacts,
+  generateWeddingDraftWithOpenRouter,
   inspectWeddingDraftQuality,
   OPENROUTER_BASE_URL,
   OPENROUTER_MODEL,
@@ -28,7 +29,10 @@ import {
 } from './wedding-seo';
 
 describe('Real Wedding editorial safety', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('uses current free OpenRouter vision models and the OpenAI-compatible endpoint', () => {
     expect(OPENROUTER_BASE_URL).toBe('https://openrouter.ai/api/v1');
@@ -39,6 +43,39 @@ describe('Real Wedding editorial safety', () => {
       'dots-studio/dots-3-note-preview:free',
       'stealth/ox-alpha',
       'openrouter/free',
+    ]);
+  });
+
+  it('falls back to an independent vision provider when Google is rate-limited upstream', async () => {
+    const generated = {
+      title: 'Anna e Luca, matrimonio fotografico ad Aversa',
+      excerpt: 'Un racconto fotografico del matrimonio di Anna e Luca ad Aversa.',
+      story: '## Il racconto di Anna e Luca\nImage Studio ha seguito la continuità visiva della giornata con un reportage fotografico essenziale.',
+      seoTitle: 'Matrimonio Anna e Luca ad Aversa',
+      seoDescription: 'Il reportage fotografico del matrimonio di Anna e Luca ad Aversa realizzato da Image Studio.',
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
+      .mockResolvedValueOnce(new Response('{"error":"upstream rate limit"}', { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(generated) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const draft = await generateWeddingDraftWithOpenRouter({
+      gallery: { id: 'gallery-1', name: 'Anna e Luca' },
+      sources: [],
+      photos: [],
+      jobFacts: null,
+      apiKey: 'test-key',
+    });
+
+    expect(draft).toEqual(generated);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.map(([, options]) => JSON.parse(String(options?.body)).model)).toEqual([
+      'google/gemma-4-31b-it:free',
+      'google/gemma-4-26b-a4b-it:free',
+      'dots-studio/dots-3-note-preview:free',
     ]);
   });
 
