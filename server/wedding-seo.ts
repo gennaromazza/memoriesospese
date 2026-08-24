@@ -126,10 +126,21 @@ export function buildAuthorizedSources(
   return sources;
 }
 
-export async function loadGallery(galleryId: string) {
-  const snapshot = await db.collection('galleries').doc(galleryId).get();
-  if (!snapshot.exists) return null;
-  return { id: snapshot.id, ...snapshot.data()! } as Record<string, any> & { id: string };
+export async function loadGallery(galleryIdOrCode: string) {
+  const galleries = db.collection('galleries');
+  const snapshot = await galleries.doc(galleryIdOrCode).get();
+  if (snapshot.exists) {
+    return { id: snapshot.id, ...snapshot.data()! } as Record<string, any> & { id: string };
+  }
+  const codes = [...new Set([galleryIdOrCode, galleryIdOrCode.toUpperCase()])];
+  for (const code of codes) {
+    const byCode = await galleries.where('code', '==', code).limit(1).get();
+    const document = byCode.docs[0];
+    if (document) {
+      return { id: document.id, ...document.data() } as Record<string, any> & { id: string };
+    }
+  }
+  return null;
 }
 
 export async function loadSourcesForJob(jobId?: string, options: { includeLegacy?: boolean } = {}): Promise<WeddingStorySource[]> {

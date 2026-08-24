@@ -17,7 +17,8 @@ function galleryIdFromInput(raw: string): string {
     const url = new URL(input);
     const adminMatch = url.pathname.match(/\/admin\/gallery\/([^/]+)(?:\/manage)?/i);
     const galleryMatch = url.pathname.match(/\/gallery\/([^/]+)/i);
-    const id = adminMatch?.[1] || galleryMatch?.[1] || url.searchParams.get('galleryId');
+    const viewMatch = url.pathname.match(/\/view\/([^/]+)/i);
+    const id = adminMatch?.[1] || galleryMatch?.[1] || viewMatch?.[1] || url.searchParams.get('galleryId');
     if (id) return decodeURIComponent(id);
   } catch { /* l'argomento può essere direttamente un ID */ }
   if (/^[^/?#\s]+$/.test(input)) return decodeURIComponent(input);
