@@ -27,6 +27,7 @@ import {
 } from "./google-calendar.js";
 import multer from "multer";
 import { saveWithDownloadToken } from "./storage-download-url.js";
+import { runReminderCheck } from "./reminder-routes.js";
 
 const router = express.Router();
 
@@ -2256,6 +2257,16 @@ router.delete(
  */
 router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
+    // Lo scheduler e l'endpoint manuale devono usare lo stesso motore, così
+    // idempotenza, retry e finestra temporale non divergono nel tempo.
+    const reminderResults = await runReminderCheck();
+    return res.json({
+      message: "Reminder process completed",
+      results: reminderResults,
+    });
+
+    /* Implementazione storica mantenuta temporaneamente sotto per agevolare
+       il confronto con dati legacy; non è più raggiungibile dall'endpoint. */
     // FIX: Usa Luxon per calcoli timezone-safe
     const nowRomeDT = DateTime.now().setZone("Europe/Rome");
     const now = nowRomeDT.toJSDate();

@@ -5,6 +5,7 @@
 
 import { Timestamp } from 'firebase/firestore';
 import { WorkflowState } from './schema';
+import type { BookingStato } from './states';
 
 /**
  * PRODUCTS - Catalogo prodotti fotografici
@@ -190,7 +191,7 @@ export interface Booking {
   noteAdmin?: string;
   
   // Stato prenotazione
-  stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata';
+  stato: BookingStato;
   
   // Stato workflow operativo (gestione commesse)
   statoWorkflow?: WorkflowState; // Stato nel workflow operativo

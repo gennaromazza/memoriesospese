@@ -13,6 +13,10 @@ export const BookingStato = {
   CONFERMATA: 'confermata',
   COMPLETATA: 'completata',
   ANNULLATA: 'annullata',
+  // Stati tecnici introdotti dal worker Calendar. Non sostituiscono i documenti
+  // storici `annullata`: entrambi restano leggibili durante la transizione.
+  CANCELLATION_PENDING: 'cancellation_pending',
+  CANCELLATA: 'cancellata',
 } as const;
 
 export type BookingStato = typeof BookingStato[keyof typeof BookingStato];
@@ -57,10 +61,12 @@ export type TransactionType = typeof TransactionType[keyof typeof TransactionTyp
  * Definisce le transizioni valide tra stati booking
  */
 const BOOKING_TRANSITIONS: Record<BookingStato, BookingStato[]> = {
-  [BookingStato.IN_ATTESA]: [BookingStato.CONFERMATA, BookingStato.ANNULLATA],
-  [BookingStato.CONFERMATA]: [BookingStato.COMPLETATA, BookingStato.ANNULLATA],
+  [BookingStato.IN_ATTESA]: [BookingStato.CONFERMATA, BookingStato.ANNULLATA, BookingStato.CANCELLATION_PENDING],
+  [BookingStato.CONFERMATA]: [BookingStato.COMPLETATA, BookingStato.ANNULLATA, BookingStato.CANCELLATION_PENDING],
   [BookingStato.COMPLETATA]: [],
   [BookingStato.ANNULLATA]: [],
+  [BookingStato.CANCELLATION_PENDING]: [BookingStato.CANCELLATA],
+  [BookingStato.CANCELLATA]: [],
 };
 
 /**
