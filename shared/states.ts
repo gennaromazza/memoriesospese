@@ -117,6 +117,8 @@ export const BOOKING_STATO_COLORS: Record<BookingStato, string> = {
   [BookingStato.CONFERMATA]: 'bg-green-500 text-white',
   [BookingStato.COMPLETATA]: 'bg-blue-500 text-white',
   [BookingStato.ANNULLATA]: 'bg-gray-500 text-white',
+  [BookingStato.CANCELLATION_PENDING]: 'bg-orange-500 text-white',
+  [BookingStato.CANCELLATA]: 'bg-gray-500 text-white',
 };
 
 /**
@@ -137,6 +139,8 @@ export const BOOKING_STATO_LABELS: Record<BookingStato, string> = {
   [BookingStato.CONFERMATA]: 'Confermata',
   [BookingStato.COMPLETATA]: 'Completata',
   [BookingStato.ANNULLATA]: 'Annullata',
+  [BookingStato.CANCELLATION_PENDING]: 'Cancellazione in corso',
+  [BookingStato.CANCELLATA]: 'Cancellata',
 };
 
 /**
