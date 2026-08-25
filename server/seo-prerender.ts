@@ -588,8 +588,6 @@ async function getBlogListMeta(): Promise<PageMeta> {
     const posts: Array<Record<string, any>> = snapshot.docs.map(doc => ({ kind: 'blog', ...doc.data() }));
     const storiesSnapshot = await db.collection('weddingSeoStories')
       .where('status', '==', 'published')
-      .orderBy('publishedAt', 'desc')
-      .limit(10)
       .get();
     const stories: Array<Record<string, any>> = storiesSnapshot.docs.map(doc => ({ kind: 'real-wedding', ...doc.data() }));
     const editorialItems = [...posts, ...stories]

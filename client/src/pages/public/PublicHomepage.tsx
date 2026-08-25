@@ -164,7 +164,13 @@ export default function PublicHomepage() {
         orderBy('publishedAt', 'desc'),
         limit(3)
       );
-      const [snapshot, weddingStories] = await Promise.all([getDocs(q), getPublicWeddingStoryPreviews(3)]);
+      const [postsResult, storiesResult] = await Promise.allSettled([getDocs(q), getPublicWeddingStoryPreviews(3)]);
+      if (postsResult.status === 'rejected') throw postsResult.reason;
+      const snapshot = postsResult.value;
+      const weddingStories = storiesResult.status === 'fulfilled' ? storiesResult.value : [];
+      if (storiesResult.status === 'rejected') {
+        console.warn('Real Wedding temporaneamente non disponibili nella Home:', storiesResult.reason);
+      }
       const posts: HomepageEditorialCard[] = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),

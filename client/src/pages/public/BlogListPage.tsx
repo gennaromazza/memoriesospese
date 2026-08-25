@@ -62,7 +62,13 @@ export default function BlogListPage() {
         where('status', '==', BlogPostStatus.PUBLISHED),
         orderBy('publishedAt', 'desc')
       );
-      const [snapshot, weddingStories] = await Promise.all([getDocs(q), getPublicWeddingStoryPreviews(50)]);
+      const [postsResult, storiesResult] = await Promise.allSettled([getDocs(q), getPublicWeddingStoryPreviews(50)]);
+      if (postsResult.status === 'rejected') throw postsResult.reason;
+      const snapshot = postsResult.value;
+      const weddingStories = storiesResult.status === 'fulfilled' ? storiesResult.value : [];
+      if (storiesResult.status === 'rejected') {
+        console.warn('Real Wedding temporaneamente non disponibili nel Blog:', storiesResult.reason);
+      }
       const loadedPosts: EditorialCard[] = snapshot.docs.map(d => ({
         id: d.id,
         ...d.data(),

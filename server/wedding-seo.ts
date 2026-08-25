@@ -1231,12 +1231,15 @@ router.get('/public', async (req: Request, res: Response) => {
   try {
     const requestedLimit = Number.parseInt(String(req.query.limit || '24'), 10);
     const storyLimit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 50) : 24;
+    // Ordiniamo in memoria: in questo modo la lista pubblica non dipende da
+    // un indice composito Firebase e resta disponibile subito dopo il deploy.
     const snapshot = await db.collection(STORIES_COL)
       .where('status', '==', 'published')
-      .orderBy('publishedAt', 'desc')
-      .limit(storyLimit)
       .get();
-    const stories = await Promise.all(snapshot.docs.map(async document => {
+    const publishedDocuments = [...snapshot.docs]
+      .sort((a, b) => (b.data().publishedAt?.seconds || 0) - (a.data().publishedAt?.seconds || 0))
+      .slice(0, storyLimit);
+    const stories = await Promise.all(publishedDocuments.map(async document => {
       const story = storyFromDocument(document.id, document.data());
       const gallery = await loadGallery(story.galleryId);
       const photos = gallery ? await loadSelectedPhotos(gallery, story.selectedPhotoIds.slice(0, 1)) : [];
