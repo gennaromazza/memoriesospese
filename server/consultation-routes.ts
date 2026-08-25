@@ -710,14 +710,27 @@ router.patch(
 
       console.log(`[POST /v2/approve] ✅ No conflicts detected, proceeding with approval`);
 
-      // Step 7: Create Google Calendar event
-      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
-      const calendarEvent = await createEvent("primary", {
-        summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
-        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
-        start: startDateTime,
-        end: endDateTime,
-      });
+      // Step 7: Create Google Calendar event. Calendar is the source of truth:
+      // do not mark the consultation as confirmed if its event cannot be created.
+      // Keeping this error separate from the generic catch is essential for the
+      // admin UI and for operational diagnostics.
+      let calendarEvent: { id?: string | null };
+      try {
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
+        calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
+          start: startDateTime,
+          end: endDateTime,
+        });
+      } catch (calendarError: any) {
+        console.error("[PATCH /v2/:id/approve] ❌ Errore creazione evento Google Calendar:", calendarError.message);
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
 
       const eventId = calendarEvent.id;
 
@@ -733,15 +746,14 @@ router.patch(
           consultationUpdates.googleCalendarEventId = eventId;
         }
 
-        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
-        // FIX: Usiamo direttamente db.collection per evitare logica aggiuntiva di service.updateConsultation
-        // che potrebbe resettare lo stato se chiamata con dati parziali o in momenti sbagliati
-        await db.collection("consultations").doc(id).update(consultationUpdates);
+        // Single Firestore write: two independent updates could leave a partially
+        // confirmed consultation if the second request failed. The authenticated
+        // UID is trusted; req.body.userId is controlled by the browser.
+        consultationUpdates.confermataDa = req.user!.uid;
+        consultationUpdates.confermatail = FieldValue.serverTimestamp();
 
-        await db.collection("consultations").doc(id).update({
-          confermataDa: req.body.userId || "admin",
-          confermatail: Timestamp.now(),
-        });
+        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
+        await db.collection("consultations").doc(id).update(consultationUpdates);
 
         console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
       } catch (updateError: any) {
