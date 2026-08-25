@@ -17,6 +17,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { apiRequest } from '@/lib/queryClient';
 import type { Booking } from '@shared/booking-types';
 import { WorkflowState } from '@shared/schema';
 
@@ -43,12 +44,7 @@ export async function createBooking(data: {
   isManual?: boolean;
   createdByAdmin?: string;
 }): Promise<string> {
-  const response = await fetch('/api/booking/v2/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const response = await apiRequest('POST', '/api/booking/v2/create', {
       campaignId: data.campaignId,
       cliente: data.cliente,
       dataShootingInizio: data.dataShootingInizio.toISOString(),
@@ -59,13 +55,7 @@ export async function createBooking(data: {
       note: data.note,
       isManual: data.isManual,
       createdByAdmin: data.createdByAdmin,
-    }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || error.error || 'Errore creazione prenotazione');
-  }
 
   const result = await response.json();
   return result.bookingId;
@@ -86,22 +76,11 @@ export async function getAvailableSlots(
   startTime: string;
   endTime: string;
 }>> {
-  const response = await fetch('/api/booking/v2/available-slots', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const response = await apiRequest('POST', '/api/booking/v2/available-slots', {
       date,
       campaignId,
       isManualBooking,
-    }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Errore caricamento slot disponibili');
-  }
 
   const data = await response.json();
   return data.slots;
@@ -188,37 +167,15 @@ export async function getBookingsByStatus(
 /**
  * Approva prenotazione (admin only) - chiama API server V2 con Calendar Engine V2
  */
-export async function approveBooking(bookingId: string, adminUid: string): Promise<void> {
-  const response = await fetch(`/api/booking/v2/${bookingId}/approve`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ adminUid }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || error.error || 'Errore approvazione prenotazione');
-  }
+export async function approveBooking(bookingId: string): Promise<void> {
+  await apiRequest('PATCH', `/api/booking/v2/${bookingId}/approve`);
 }
 
 /**
  * Rifiuta prenotazione (admin only) - chiama API server e invia email con link nuova prenotazione
  */
-export async function rejectBooking(bookingId: string, adminUid: string): Promise<void> {
-  const response = await fetch(`/api/booking/${bookingId}/reject`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ adminUid }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || error.error || 'Errore rifiuto prenotazione');
-  }
+export async function rejectBooking(bookingId: string): Promise<void> {
+  await apiRequest('PATCH', `/api/booking/${bookingId}/reject`);
 }
 
 /**
@@ -228,18 +185,7 @@ export async function updateBookingStatus(
   bookingId: string,
   stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata'
 ): Promise<void> {
-  const response = await fetch(`/api/booking/${bookingId}/status`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ stato }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || error.error || 'Errore aggiornamento stato prenotazione');
-  }
+  await apiRequest('PATCH', `/api/booking/${bookingId}/status`, { stato });
 }
 
 /**
@@ -259,21 +205,10 @@ export async function updateBooking(
   },
   oldEmail?: string
 ): Promise<void> {
-  const response = await fetch(`/api/booking/${bookingId}/update`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ 
+  await apiRequest('PATCH', `/api/booking/${bookingId}/update`, {
       ...data,
       oldEmail // Inviato al server per gestire notifica cambio email
-    }),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || error.error || 'Errore aggiornamento prenotazione');
-  }
 }
 
 /**
@@ -336,15 +271,7 @@ export async function deleteBooking(bookingId: string): Promise<void> {
     }
   }
   
-  const deleteResponse = await fetch(`/api/booking/${bookingId}/delete`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (!deleteResponse.ok) {
-    const errorData = await deleteResponse.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(errorData.error || `Errore eliminazione prenotazione (HTTP ${deleteResponse.status})`);
-  }
+  await apiRequest('DELETE', `/api/booking/${bookingId}/delete`);
 }
 
 /**

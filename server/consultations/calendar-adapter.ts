@@ -262,7 +262,8 @@ export function validateConsultationTemplate(template: ConsultationTemplate): bo
  * Centralizes event loading logic from consultations, bookings, jobs
  * 
  * CRITICAL FILTERING OPTIONS:
- * - Google Calendar events are ALWAYS included (100% source of truth)
+ * - Google Calendar events are included by default; an adapter that has already
+ *   loaded them can set includeGoogle: false to avoid duplicate reads.
  * - Firestore consultations can be excluded via includeConsultations: false
  * - This ensures /available-slots and /approve use identical blocking events
  * 
@@ -280,6 +281,7 @@ export async function getAllExistingEvents(
     includeConsultations?: boolean; // default: true (for backwards compatibility)
     includeJobs?: boolean;          // default: true
     includeBookings?: boolean;      // default: true
+    includeGoogle?: boolean;        // default: true
   }
 ): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
   const { Timestamp } = await import('firebase-admin/firestore');
@@ -289,20 +291,19 @@ export async function getAllExistingEvents(
   const {
     includeConsultations = true,
     includeJobs = true,
-    includeBookings = true
+    includeBookings = true,
+    includeGoogle = true
   } = options || {};
   
   const existingEvents: Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }> = [];
   
-  // 1. Load Google Calendar busy periods
-  // CRITICAL: checkGoogleCalendarBusyPeriods uses getEventsWithDetailsAllCalendars
-  // This ensures ALL valid Google Calendar events (including orphaned events) are loaded
-  // Google Calendar events are ALWAYS included (100% source of truth)
-  const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
-  const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
-  existingEvents.push(...googleBusy);
-  
-  console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar (ALL valid events, orphans included)`);
+  // 1. Load Google Calendar busy periods (unless they were already loaded by a caller).
+  if (includeGoogle) {
+    const { checkGoogleCalendarBusyPeriods } = await import('../calendar-engine/google-sync');
+    const googleBusy = await checkGoogleCalendarBusyPeriods(dayStart, dayEnd);
+    existingEvents.push(...googleBusy);
+    console.log(`[Consultation Adapter] 📅 ${googleBusy.length} busy periods from Google Calendar (ALL valid events, orphans included)`);
+  }
   
   // 2. Load existing consultations (OPTIONAL - can be excluded via options)
   if (includeConsultations) {
@@ -426,7 +427,7 @@ export async function getAllExistingEvents(
     console.log(`[Consultation Adapter] 🚫 Jobs EXCLUDED from blocking events`);
   }
   
-  console.log(`[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events (Google: always, Firestore: ${includeConsultations ? 'consultations✓' : 'consultations✗'} ${includeBookings ? 'bookings✓' : 'bookings✗'} ${includeJobs ? 'jobs✓' : 'jobs✗'})`);
+  console.log(`[Consultation Adapter] 🎯 TOTAL: ${existingEvents.length} blocking events (Google: ${includeGoogle ? '✓' : '✗'}, Firestore: ${includeConsultations ? 'consultations✓' : 'consultations✗'} ${includeBookings ? 'bookings✓' : 'bookings✗'} ${includeJobs ? 'jobs✓' : 'jobs✗'})`);
   
   return existingEvents;
 }

@@ -9,6 +9,7 @@ import { getAllCampaigns } from '@/lib/booking-campaigns';
 import { getActiveProducts } from '@/lib/products';
 import { getActiveProductCategories } from '@/lib/product-categories';
 import { getAvailableSlots } from '@/lib/bookings';
+import { apiRequest } from '@/lib/queryClient';
 import type { Product, OrderItem, ProductCategory } from '@shared/booking-types';
 import type { BookingCampaignFE } from '@shared/booking-types';
 import ProductSelector from '@/components/ProductSelector';
@@ -160,8 +161,9 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       if (!dataShootingDate || !selectedCampaign) return [];
       
       // V2: Campaign configuration loaded server-side
-      // isManualBooking=true: admin può prenotare anche in giorni non configurati nella campagna
-      return await getAvailableSlots(dataShootingDate, selectedCampaign.id, true);
+      // Nei giorni esclusi il flusso usa già l'orario libero manuale; qui
+      // chiediamo solo gli slot pubblici, senza esporre alcun bypass al browser.
+      return await getAvailableSlots(dataShootingDate, selectedCampaign.id);
     },
     enabled: !!dataShootingDate && !!selectedCampaign && !isExcludedDay, // Skip for excluded days
   });
@@ -477,25 +479,7 @@ export default function ManualBookingModal({ isOpen, onClose, onSuccess }: Manua
       console.log('📝 Creazione prenotazione manuale (V2):', bookingPayload);
 
       // Chiamata API V2
-      const response = await fetch('/api/booking/v2/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingPayload),
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Errore durante la creazione della prenotazione';
-        try {
-          const errorData = await response.json();
-          console.log('📦 Error response data:', errorData);
-          // Server restituisce { error: "messaggio breve", message?: "dettagli" }
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (parseError) {
-          console.error('❌ Failed to parse error response:', parseError);
-          errorMessage = `Errore HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
+      const response = await apiRequest('POST', '/api/booking/v2/create', bookingPayload);
 
       const result = await response.json();
       console.log('✅ Prenotazione manuale creata:', result);

@@ -1003,10 +1003,9 @@ export default function BookingsManager({
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const adminUid = user?.uid || "admin";
       // Marca come vista prima di approvare (per far scomparire badge NUOVA)
       await markBookingAsViewed(bookingId);
-      await approveBooking(bookingId, adminUid);
+      await approveBooking(bookingId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -1028,10 +1027,9 @@ export default function BookingsManager({
   // Mutation: Rifiuta prenotazione
   const rejectMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const adminUid = user?.uid || "admin";
       // Marca come vista prima di rifiutare (per far scomparire badge NUOVA)
       await markBookingAsViewed(bookingId);
-      await rejectBooking(bookingId, adminUid);
+      await rejectBooking(bookingId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });

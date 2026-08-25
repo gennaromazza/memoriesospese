@@ -48,6 +48,13 @@ interface AuthRequest extends Request {
  */
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
 
+function requireAdmin(req: AuthRequest, res: Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || "")) {
+    return res.status(403).json({ error: "Accesso negato: solo admin" });
+  }
+  next();
+}
+
 /**
  * Helper: Normalizza Firestore Timestamp in Date
  * Gestisce: { seconds, nanoseconds }, .toDate(), ISO string, Date object
@@ -327,10 +334,10 @@ router.get("/job-types", async (req, res) => {
 
 /**
  * GET /api/consultations/client-prefill/:jobId
- * Recupera dati base cliente da un job per pre-compilare form consulenza (pubblico)
- * Restituisce solo dati non sensibili: nome, cognome, email, whatsapp, nomeEvento, eventDate
+ * Recupera dati cliente da un job per pre-compilare il form consulenza (solo admin).
+ * L'endpoint contiene dati personali e non può essere esposto tramite un id Job prevedibile.
  */
-router.get("/client-prefill/:jobId", async (req, res) => {
+router.get("/client-prefill/:jobId", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { jobId } = req.params;
     
@@ -2247,7 +2254,7 @@ router.delete(
  * Invia reminder email per consulenze nelle prossime 24 ore (da schedulare con cron)
  * NOTA: Questo endpoint può essere chiamato manualmente o via Cloud Function schedulata
  */
-router.post("/send-reminders", async (req, res) => {
+router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     // FIX: Usa Luxon per calcoli timezone-safe
     const nowRomeDT = DateTime.now().setZone("Europe/Rome");
@@ -2435,7 +2442,7 @@ router.post("/send-reminders", async (req, res) => {
  * GET /api/consultations/list-confirmed-bookings
  * 📋 Lista tutti i bookings confermati per review manuale
  */
-router.get("/list-confirmed-bookings", async (req, res) => {
+router.get("/list-confirmed-bookings", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const bookingsSnap = await db
       .collection("bookings")
@@ -2467,7 +2474,7 @@ router.get("/list-confirmed-bookings", async (req, res) => {
  * POST /api/consultations/cancel-booking/:bookingId
  * ❌ Cancella manualmente un booking specifico
  */
-router.post("/cancel-booking/:bookingId", async (req, res) => {
+router.post("/cancel-booking/:bookingId", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { reason = "Cancellato manualmente dall'admin" } = req.body;
@@ -2501,7 +2508,7 @@ router.post("/cancel-booking/:bookingId", async (req, res) => {
  * GET /api/consultations/debug/slot-conflicts/:date
  * 🔍 DEBUG: Mostra tutte le risorse che occupano slot in una data specifica
  */
-router.get("/debug/slot-conflicts/:date", async (req, res) => {
+router.get("/debug/slot-conflicts/:date", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { date } = req.params; // Format: YYYY-MM-DD
 
@@ -2919,38 +2926,10 @@ router.post("/check-pending", async (req, res) => {
       return res.json({ hasPending: false });
     }
 
-    const pendingDoc = pendingSnap.docs[0];
-    const pendingData = pendingDoc.data();
-
-    const dataConsulenza = pendingData.dataConsulenza?.toDate?.() 
-      || new Date(pendingData.dataConsulenza?.seconds * 1000)
-      || null;
-
-    const formattedDate = dataConsulenza 
-      ? dataConsulenza.toLocaleDateString("it-IT", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          timeZone: "Europe/Rome"
-        })
-      : "data non disponibile";
-
-    const orario = pendingData.orarioInizio && pendingData.orarioFine
-      ? `${pendingData.orarioInizio} - ${pendingData.orarioFine}`
-      : "orario non disponibile";
-
-    console.log(`[POST /check-pending] Found pending consultation for ${normalizedEmail}: ${formattedDate} ${orario}`);
-
-    res.json({
-      hasPending: true,
-      pendingRequest: {
-        id: pendingDoc.id,
-        dataConsulenza: formattedDate,
-        orario,
-        templateName: pendingData.templateName || pendingData.jobType || "Consulenza"
-      }
-    });
+    // Non restituire dettagli o ID: un endpoint pubblico non deve permettere
+    // di enumerare appuntamenti e dati personali conoscendo un'email.
+    console.log(`[POST /check-pending] Found a pending consultation for ${normalizedEmail}`);
+    res.json({ hasPending: true });
   } catch (error: any) {
     console.error("[POST /check-pending] Error:", error.message);
     res.status(500).json({ error: "Errore controllo richieste pendenti" });

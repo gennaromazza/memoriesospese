@@ -13,8 +13,30 @@ import { WorkflowState } from "../shared/schema.js";
 import type { SlotsResponse, TimeSlot } from "../shared/calendar-types.js";
 import type { BookingCampaign } from "../shared/booking-types.js";
 import { normalizeEmail, generateClienteIdFromEmail } from "./utils/normalize.js";
+import { authenticateFirebase } from "./email-routes.js";
 
 const router = express.Router();
+
+const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+
+/** Tutte le mutazioni amministrative devono usare un'identità verificata. */
+function requireAdmin(req: any, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || "")) {
+    return res.status(403).json({ error: "Accesso negato: solo admin" });
+  }
+  next();
+}
+
+/**
+ * Le prenotazioni pubbliche restano anonime, mentre il flag `isManual` è
+ * un privilegio amministrativo: non deve mai essere deciso dal browser.
+ */
+function requireAdminForManualBooking(req: any, res: express.Response, next: express.NextFunction) {
+  if (req.body?.isManual !== true && req.body?.isManualBooking !== true) {
+    return next();
+  }
+  return authenticateFirebase(req, res, () => requireAdmin(req, res, next));
+}
 
 /**
  * Helper: Collega booking a cliente (server-side)
@@ -466,7 +488,7 @@ router.post("/available-slots", async (req, res) => {
  *   durataMinuti: number
  * }
  */
-router.post("/create", async (req, res) => {
+router.post("/create", requireAdminForManualBooking, async (req, res) => {
   try {
     const {
       campaignId,
@@ -480,7 +502,6 @@ router.post("/create", async (req, res) => {
       workingHours,
       durataMinuti,
       isManual,
-      createdByAdmin,
     } = req.body;
 
     // Validazione parametri base
@@ -694,9 +715,9 @@ router.post("/create", async (req, res) => {
     // Aggiungi flag prenotazione manuale se presente
     if (isManual) {
       bookingData.isManual = true;
-      bookingData.createdByAdmin = createdByAdmin || "admin";
+      bookingData.createdByAdmin = (req as any).user?.uid || "admin";
       console.log(
-        `📝 Creazione prenotazione manuale da admin: ${createdByAdmin}`,
+        `📝 Creazione prenotazione manuale da admin: ${(req as any).user?.uid || "admin"}`,
       );
     }
 
@@ -845,13 +866,12 @@ router.post("/create", async (req, res) => {
  * PATCH /api/booking/v2/:id/approve
  * Approva prenotazione usando Calendar Engine V2 per conflict detection
  * 
- * Body: { adminUid: string }
+ * L'identità dell'admin è letta dal token Firebase verificato.
  */
-router.patch("/v2/:id/approve", async (req, res) => {
+router.patch("/v2/:id/approve", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     console.log("[PATCH /v2/:id/approve] 🔵 Calendar Engine V2 - Request");
     const { id } = req.params;
-    const { adminUid } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: "ID prenotazione mancante" });
@@ -1014,7 +1034,7 @@ router.patch("/v2/:id/approve", async (req, res) => {
         stato: "confermata",
         ...workflowUpdate,
         googleCalendarEventId: calendarEventId,
-        confermataDa: adminUid || "admin",
+        confermataDa: (req as any).user?.uid || "admin",
         confermatail: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -1133,12 +1153,11 @@ router.patch("/v2/:id/approve", async (req, res) => {
  * PATCH /api/booking/:id/approve
  * Approva prenotazione e invia email conferma
  *
- * Body: { adminUid: string }
+ * L'identità dell'admin è letta dal token Firebase verificato.
  */
-router.patch("/:id/approve", async (req, res) => {
+router.patch("/:id/approve", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { adminUid } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: "ID prenotazione mancante" });
@@ -1270,7 +1289,7 @@ router.patch("/:id/approve", async (req, res) => {
         stato: "confermata",
         ...workflowUpdate, // Fix #2: Spread workflow (omits if {})
         googleCalendarEventId: calendarEventId,
-        confermataDa: adminUid || "admin",
+        confermataDa: (req as any).user?.uid || "admin",
         confermatail: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -1404,12 +1423,12 @@ router.patch("/:id/approve", async (req, res) => {
  * PATCH /api/booking/:id/reject
  * Rifiuta prenotazione e invia email con link per prenotare altro giorno
  *
- * Body: { adminUid: string }
+ * L'identità dell'admin è letta dal token Firebase verificato.
  */
-router.patch("/:id/reject", async (req, res) => {
+router.patch("/:id/reject", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { adminUid } = req.body;
+    const adminUid = (req as any).user?.uid || "admin";
 
     console.log(
       `[Booking API] Rifiuto prenotazione ${id} da admin ${adminUid}`,
@@ -1447,7 +1466,7 @@ router.patch("/:id/reject", async (req, res) => {
     let updateData: any = {
       stato: "annullata",
       ...workflowUpdate, // Fix #2: Spread workflow (omits if {} for legacy)
-      rifiutataDa: adminUid || "admin",
+      rifiutataDa: (req as any).user?.uid || "admin",
       rifiutataIl: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -1554,7 +1573,7 @@ router.patch("/:id/reject", async (req, res) => {
  * GET /api/booking/calendar/:id
  * Genera e serve file .ics per aggiungere al calendario
  */
-router.get("/calendar/:id", async (req, res) => {
+router.get("/calendar/:id", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1643,7 +1662,7 @@ router.get("/calendar/:id", async (req, res) => {
  *
  * Body: { stato: 'in_attesa' | 'confermata' | 'completata' | 'annullata' }
  */
-router.patch("/:id/status", async (req, res) => {
+router.patch("/:id/status", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { stato } = req.body;
@@ -1876,7 +1895,7 @@ router.get("/health", (req, res) => {
  *   oldEmail?: string // Per rilevare cambio email
  * }
  */
-router.patch("/:id/update", async (req, res) => {
+router.patch("/:id/update", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { cliente, note, noteAdmin, oldEmail } = req.body;
@@ -2074,7 +2093,7 @@ router.patch("/:id/update", async (req, res) => {
  * - Retry automatico possibile (googleCalendarEventId mantenuto)
  * - Eventual consistency con automated/manual retry
  */
-router.delete("/:bookingId/calendar-event", async (req, res) => {
+router.delete("/:bookingId/calendar-event", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { googleCalendarEventId } = req.body;
@@ -2095,6 +2114,11 @@ router.delete("/:bookingId/calendar-event", async (req, res) => {
     }
 
     const bookingData = bookingDoc.data();
+    if (bookingData?.googleCalendarEventId !== googleCalendarEventId) {
+      return res.status(409).json({
+        error: "L'evento Calendar non corrisponde alla prenotazione",
+      });
+    }
     const currentState = bookingData?.stato;
     const currentWorkflowState = bookingData?.statoWorkflow;
 
@@ -2253,7 +2277,7 @@ router.delete("/:bookingId/calendar-event", async (req, res) => {
  * 
  * NOTA: Non richiede più workingHours/durataMinuti - vengono presi dalla campaign
  */
-router.post("/v2/create", async (req, res) => {
+router.post("/v2/create", requireAdminForManualBooking, async (req, res) => {
   try {
     console.log("[POST /v2/create] 🔵 Calendar Engine V2 - Request");
     
@@ -2268,7 +2292,6 @@ router.post("/v2/create", async (req, res) => {
       prodotti,
       note,
       isManual,
-      createdByAdmin,
       // Campi pagamento (per prenotazioni manuali con ordine integrato)
       totale,
       acconto,
@@ -2443,8 +2466,8 @@ router.post("/v2/create", async (req, res) => {
 
     if (isManual) {
       bookingData.isManual = true;
-      bookingData.createdByAdmin = createdByAdmin || "admin";
-      bookingData.confermataDa = createdByAdmin || "admin";
+      bookingData.createdByAdmin = (req as any).user?.uid || "admin";
+      bookingData.confermataDa = (req as any).user?.uid || "admin";
       bookingData.confermatail = FieldValue.serverTimestamp();
       
       // Collega a cliente esistente se fornito clienteId
@@ -2624,7 +2647,7 @@ router.post("/v2/create", async (req, res) => {
   }
 });
 
-router.post("/v2/available-slots", async (req, res) => {
+router.post("/v2/available-slots", requireAdminForManualBooking, async (req, res) => {
   try {
     console.log("[POST /v2/available-slots] 🔵 Calendar Engine V2 - Request:", JSON.stringify(req.body));
     const { date, campaignId, isManualBooking } = req.body;
@@ -2775,7 +2798,7 @@ router.post("/v2/available-slots", async (req, res) => {
  * POST /api/booking/resend-confirmation-emails
  * Rinvia email di conferma alle ultime N prenotazioni
  */
-router.post("/resend-confirmation-emails", async (req, res) => {
+router.post("/resend-confirmation-emails", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { limit = 5 } = req.body;
     
@@ -2942,7 +2965,7 @@ router.post("/resend-confirmation-emails", async (req, res) => {
  * 2. Se presente googleCalendarEventId, cancella l'evento da Google Calendar (ignora 404)
  * 3. Cancella il documento Firestore
  */
-router.delete("/:bookingId/delete", async (req, res) => {
+router.delete("/:bookingId/delete", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { bookingId } = req.params;
 

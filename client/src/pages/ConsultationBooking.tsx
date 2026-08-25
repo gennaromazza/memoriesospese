@@ -44,6 +44,14 @@ interface PendingRequest {
   templateName: string;
 }
 
+const formatRomeTime = (date: Date) =>
+  new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+
 export default function ConsultationBooking() {
   const params = useParams<{ tipo: string; id: string }>();
   const jobType = params.tipo ? decodeURIComponent(params.tipo) : '';
@@ -146,7 +154,7 @@ export default function ConsultationBooking() {
     const fetchClientPrefill = async () => {
       setIsPrefilling(true);
       try {
-        const response = await fetch(`/api/consultations/client-prefill/${jobIdParam}`);
+        const response = await apiRequest('GET', `/api/consultations/client-prefill/${jobIdParam}`);
         if (response.ok) {
           const data = await response.json();
           setClienteData({
@@ -226,8 +234,8 @@ export default function ConsultationBooking() {
       
       const data = await response.json();
       
-      if (data.hasPending && data.pendingRequest) {
-        setPendingRequest(data.pendingRequest);
+      if (data.hasPending) {
+        setPendingRequest(data.pendingRequest || null);
         setShowDuplicateModal(true);
         return true;
       }
@@ -286,8 +294,8 @@ export default function ConsultationBooking() {
           whatsapp: clienteData.whatsapp
         },
         dataConsulenza: selectedSlot.start.toISOString(),
-        orarioInizio: format(selectedSlot.start, 'HH:mm'),
-        orarioFine: format(selectedSlot.end, 'HH:mm'),
+        orarioInizio: formatRomeTime(selectedSlot.start),
+        orarioFine: formatRomeTime(selectedSlot.end),
         jobDataCollected: jobData,
         note: ''
       };
@@ -915,7 +923,7 @@ export default function ConsultationBooking() {
                 </span>
                 {' '}alle{' '}
                 <span className="font-semibold text-sage">
-                  {selectedSlot && `${format(selectedSlot.start, "HH:mm")} - ${format(selectedSlot.end, "HH:mm")}`}
+                  {selectedSlot && `${formatRomeTime(selectedSlot.start)} - ${formatRomeTime(selectedSlot.end)}`}
                 </span>
               </p>
               <p className="text-gray-600">

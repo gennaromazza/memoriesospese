@@ -514,18 +514,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Info Form Submissions - Token-based public access for clients; admin can read/delete
+    // Info Form Submissions - il token viene validato esclusivamente dall'API server-side.
     match /infoFormSubmissions/{submissionId} {
       allow read: if isAdmin();
-      allow create: if isAdmin(); // Created server-side via client lib when sending
-      allow update: if true; // Client completes form via token (validated in code)
+      allow create: if isAdmin();
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // Info Form Notifications - Admin only
     match /infoFormNotifications/{notificationId} {
       allow read: if isAdmin();
-      allow create: if true; // Created when client submits a form (token validated in code)
+      allow create: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

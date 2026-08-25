@@ -37,6 +37,40 @@ function formatAnswerValue(value: unknown): string {
   return escapeHtml(value);
 }
 
+/** Valida e riduce le risposte ai soli campi definiti nel modulo inviato. */
+function validateAnswers(
+  answers: Record<string, unknown>,
+  fields: InfoFormField[],
+): { valid: true; value: Record<string, unknown> } | { valid: false; error: string } {
+  const fieldsById = new Map(fields.map((field) => [field.id, field]));
+  const clean: Record<string, unknown> = {};
+
+  for (const [id, value] of Object.entries(answers)) {
+    const field = fieldsById.get(id);
+    if (!field) return { valid: false, error: 'Il modulo contiene un campo non valido' };
+    if (typeof value === 'string' && value.length > 10_000) {
+      return { valid: false, error: 'Una risposta supera la lunghezza massima consentita' };
+    }
+    if (field.type === 'checkbox' && !Array.isArray(value) && typeof value !== 'boolean') {
+      return { valid: false, error: `Formato non valido per ${field.label}` };
+    }
+    if (field.type === 'number' && typeof value !== 'number' && (typeof value !== 'string' || !Number.isFinite(Number(value)))) {
+      return { valid: false, error: `Formato non valido per ${field.label}` };
+    }
+    if ((field.type === 'select' || field.type === 'radio') && field.options?.length && !field.options.includes(String(value))) {
+      return { valid: false, error: `Valore non previsto per ${field.label}` };
+    }
+    clean[id] = value;
+  }
+
+  for (const field of fields) {
+    const value = clean[field.id];
+    const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+    if (field.required && empty) return { valid: false, error: `Il campo ${field.label} è obbligatorio` };
+  }
+  return { valid: true, value: clean };
+}
+
 function buildAdminEmailHtml(params: {
   clientName: string;
   clientEmail: string;
@@ -193,8 +227,14 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
       return res.json({ ok: true, alreadyCompleted: true });
     }
 
+    const fields: InfoFormField[] = Array.isArray(data.templateFields) ? data.templateFields : [];
+    const validatedAnswers = validateAnswers(answers, fields);
+    if (!validatedAnswers.valid) {
+      return res.status(400).json({ error: validatedAnswers.error });
+    }
+
     await docSnap.ref.update({
-      answers,
+      answers: validatedAnswers.value,
       // Consenso separato, esplicito e false per impostazione predefinita.
       editorialConsent: editorialConsent === true,
       editorialConsentAt: editorialConsent === true ? FieldValue.serverTimestamp() : null,
@@ -252,7 +292,7 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
           // try/catch per-campo: il fallimento di un singolo update non deve
           // impedire la sincronizzazione degli altri campi Instagram.
           try {
-            const handle = normalizeInstagramHandle((answers as Record<string, any>)[f.id]);
+            const handle = normalizeInstagramHandle((validatedAnswers.value as Record<string, any>)[f.id]);
             if (!handle) continue;
             if (!isValidInstagramHandle(handle)) {
               console.log(
@@ -302,7 +342,7 @@ router.post('/by-token/:token/submit', async (req: Request, res: Response) => {
         templateName,
         jobId: data.jobId || '',
         templateFields: data.templateFields || [],
-        answers: answers as Record<string, any>,
+        answers: validatedAnswers.value as Record<string, any>,
         siteUrl,
       });
       void sendGmailEmail(
