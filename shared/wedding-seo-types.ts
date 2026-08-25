@@ -95,3 +95,12 @@ export interface PublicWeddingStory {
   photos: WeddingStoryPhoto[];
   vendors: WeddingStoryVendor[];
 }
+
+/** Dati minimi, privi di informazioni riservate, per le liste editoriali pubbliche. */
+export interface PublicWeddingStoryPreview {
+  slug: string;
+  title: string;
+  excerpt: string;
+  publishedAt?: any;
+  coverImage?: string;
+}

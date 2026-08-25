@@ -30,7 +30,7 @@ import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
 import Navigation from "@/components/Navigation";
 import type { BookingCampaignFE } from "@shared/booking-types";
-import { BlogPost, BlogPostStatus, WeddingVideo } from "@shared/schema";
+import { BlogPostStatus, WeddingVideo } from "@shared/schema";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { FloralDivider, FloralCorner } from "@/components/WeddingIllustrations";
@@ -43,6 +43,8 @@ import { useSEO } from "@/hooks/useSEO";
 import { WEDDING_HOME_SEO } from "@shared/public-seo-content";
 import { resolveHomepageContent } from "@shared/homepage-content";
 import { instagramHandle, normalizeSocialUrl } from "@/lib/social-links";
+import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
 
 interface PortfolioPhoto {
   id: string;
@@ -52,6 +54,16 @@ interface PortfolioPhoto {
   featured: boolean;
   sortOrder?: number;
 }
+
+type HomepageEditorialCard = {
+  id: string;
+  title: string;
+  excerpt: string;
+  publishedAt?: any;
+  coverImage?: string;
+  href: string;
+  kind: 'blog' | 'real-wedding';
+};
 
 type PortfolioPreviewMode = "wedding" | "mixed-fallback";
 
@@ -66,7 +78,7 @@ export default function PublicHomepage() {
     useState<PortfolioPreviewMode>("wedding");
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [activeCampaigns, setActiveCampaigns] = useState<BookingCampaignFE[]>([]);
-  const [blogPosts, setBlogPosts] = useState<any[]>([]);
+  const [blogPosts, setBlogPosts] = useState<HomepageEditorialCard[]>([]);
   const [weddingVideos, setWeddingVideos] = useState<any[]>([]);
   const [loadingBlog, setLoadingBlog] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(true);
@@ -152,17 +164,36 @@ export default function PublicHomepage() {
         orderBy('publishedAt', 'desc'),
         limit(3)
       );
-      const snapshot = await getDocs(q);
-      const posts = snapshot.docs.map(doc => ({
+      const [snapshot, weddingStories] = await Promise.all([getDocs(q), getPublicWeddingStoryPreviews(3)]);
+      const posts: HomepageEditorialCard[] = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
-      })) as BlogPost[];
-      setBlogPosts(posts);
+        ...doc.data(),
+        href: `/blog/${doc.data().slug}`,
+        kind: 'blog' as const,
+      })) as HomepageEditorialCard[];
+      const realWeddings: HomepageEditorialCard[] = weddingStories.map((story: PublicWeddingStoryPreview) => ({
+        id: `real-wedding-${story.slug}`,
+        title: story.title,
+        excerpt: story.excerpt,
+        publishedAt: story.publishedAt,
+        coverImage: story.coverImage,
+        href: `/real-wedding/${story.slug}`,
+        kind: 'real-wedding',
+      }));
+      setBlogPosts([...posts, ...realWeddings]
+        .sort((a, b) => publishedAtValue(b.publishedAt) - publishedAtValue(a.publishedAt))
+        .slice(0, 3));
     } catch (error) {
       console.error('Errore caricamento blog posts:', error);
     } finally {
       setLoadingBlog(false);
     }
+  };
+
+  const publishedAtValue = (timestamp: any): number => {
+    if (timestamp?.seconds != null) return timestamp.seconds * 1000;
+    const value = timestamp instanceof Date ? timestamp.getTime() : new Date(timestamp || 0).getTime();
+    return Number.isNaN(value) ? 0 : value;
   };
 
   const loadLatestVideos = async () => {
@@ -903,7 +934,7 @@ export default function PublicHomepage() {
             <>
               <div className="grid md:grid-cols-3 gap-6 sm:gap-8 mb-8">
                 {blogPosts.map((post) => (
-                  <Link key={post.id} href={`/blog/${post.slug}`}>
+                  <Link key={post.id} href={post.href}>
                     <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 cursor-pointer group h-full flex flex-col">
                       {post.coverImage && (
                         <div className="overflow-hidden bg-beige h-48">
@@ -919,6 +950,7 @@ export default function PublicHomepage() {
                         <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
                           <Calendar className="h-3 w-3" />
                           <span>{formatDate(post.publishedAt)}</span>
+                          {post.kind === 'real-wedding' && <span className="rounded-full bg-sage/10 px-2 py-0.5 font-semibold text-sage">Real Wedding</span>}
                         </div>
                         <h3 className="text-xl font-playfair text-blue-gray group-hover:text-sage transition-colors mb-3 line-clamp-2">
                           {post.title}
@@ -927,7 +959,7 @@ export default function PublicHomepage() {
                           {post.excerpt}
                         </p>
                         <div className="mt-4 text-sage font-semibold text-sm group-hover:text-dark-sage transition-colors">
-                          Leggi articolo →
+                          {post.kind === 'real-wedding' ? 'Scopri il Real Wedding →' : 'Leggi articolo →'}
                         </div>
                       </div>
                     </div>

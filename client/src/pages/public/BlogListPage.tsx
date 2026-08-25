@@ -7,14 +7,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin, AlertCircle } from "lucide-react";
-import { BlogPost, BlogPostStatus } from "@shared/schema";
+import { BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
+
+type EditorialCard = {
+  id: string;
+  title: string;
+  excerpt: string;
+  publishedAt?: any;
+  coverImage?: string;
+  category: string;
+  tags: string[];
+  href: string;
+  kind: 'blog' | 'real-wedding';
+  content?: string;
+  contentUrl?: string;
+};
 
 export default function BlogListPage() {
   const { studioSettings } = useStudio();
-  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [posts, setPosts] = useState<EditorialCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -46,14 +62,26 @@ export default function BlogListPage() {
         where('status', '==', BlogPostStatus.PUBLISHED),
         orderBy('publishedAt', 'desc')
       );
-      const snapshot = await getDocs(q);
-
-      const loadedPosts = snapshot.docs.map(d => ({
+      const [snapshot, weddingStories] = await Promise.all([getDocs(q), getPublicWeddingStoryPreviews(50)]);
+      const loadedPosts: EditorialCard[] = snapshot.docs.map(d => ({
         id: d.id,
-        ...d.data()
-      })) as BlogPost[];
-
-      setPosts(loadedPosts);
+        ...d.data(),
+        href: `/blog/${d.data().slug}`,
+        kind: 'blog' as const,
+      })) as EditorialCard[];
+      const weddingCards: EditorialCard[] = weddingStories.map((story: PublicWeddingStoryPreview) => ({
+        id: `real-wedding-${story.slug}`,
+        title: story.title,
+        excerpt: story.excerpt,
+        publishedAt: story.publishedAt,
+        coverImage: story.coverImage,
+        category: 'Real Wedding',
+        tags: ['matrimonio'],
+        href: `/real-wedding/${story.slug}`,
+        kind: 'real-wedding',
+        content: story.excerpt,
+      }));
+      setPosts([...loadedPosts, ...weddingCards].sort((a, b) => timestampValue(b.publishedAt) - timestampValue(a.publishedAt)));
     } catch (error) {
       console.error('Errore caricamento blog:', error);
       setLoadError(true);
@@ -90,6 +118,12 @@ export default function BlogListPage() {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedTag]);
 
+  const timestampValue = (timestamp: any): number => {
+    if (timestamp?.seconds != null) return timestamp.seconds * 1000;
+    const value = timestamp instanceof Date ? timestamp.getTime() : new Date(timestamp || 0).getTime();
+    return Number.isNaN(value) ? 0 : value;
+  };
+
   const formatDate = (timestamp: any): string => {
     if (!timestamp) return '';
     try {
@@ -113,7 +147,7 @@ export default function BlogListPage() {
   // Stima tempo di lettura su testo pulito (HTML strippato).
   // Per post grandi (content='', contentUrl set) non è possibile calcolare il tempo
   // senza scaricare il file: in quel caso mostriamo un placeholder.
-  const estimateReadTime = (post: BlogPost): string => {
+  const estimateReadTime = (post: EditorialCard): string => {
     const content = post.content || '';
     if (!content && post.contentUrl) return 'lettura lunga';
     if (!content) return '0 min';
@@ -284,7 +318,7 @@ export default function BlogListPage() {
                           </Badge>
                         ))}
                       </div>
-                      <Link href={`/blog/${post.slug}`}>
+                      <Link href={post.href}>
                         <CardTitle className="text-2xl font-playfair text-blue-gray hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
                           {post.title}
                         </CardTitle>
@@ -304,9 +338,9 @@ export default function BlogListPage() {
                       <p className="text-gray-600 mb-4 line-clamp-3">
                         {post.excerpt}
                       </p>
-                      <Link href={`/blog/${post.slug}`}>
+                      <Link href={post.href}>
                         <Button variant="link" className="text-sage hover:text-dark-sage p-0 font-semibold" data-testid={`button-read-${post.id}`}>
-                          Leggi articolo →
+                          {post.kind === 'real-wedding' ? 'Scopri il Real Wedding →' : 'Leggi articolo →'}
                         </Button>
                       </Link>
                     </CardContent>

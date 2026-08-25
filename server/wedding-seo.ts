@@ -4,6 +4,7 @@ import { db, FieldValue } from './firebase-admin.js';
 import { authenticateFirebase } from './email-routes.js';
 import type {
   PublicWeddingStory,
+  PublicWeddingStoryPreview,
   WeddingEditorialJobFacts,
   WeddingSeoStory,
   WeddingStoryPhoto,
@@ -1225,6 +1226,36 @@ export function toPublicWeddingStory(
     vendors,
   };
 }
+
+router.get('/public', async (req: Request, res: Response) => {
+  try {
+    const requestedLimit = Number.parseInt(String(req.query.limit || '24'), 10);
+    const storyLimit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 50) : 24;
+    const snapshot = await db.collection(STORIES_COL)
+      .where('status', '==', 'published')
+      .orderBy('publishedAt', 'desc')
+      .limit(storyLimit)
+      .get();
+    const stories = await Promise.all(snapshot.docs.map(async document => {
+      const story = storyFromDocument(document.id, document.data());
+      const gallery = await loadGallery(story.galleryId);
+      const photos = gallery ? await loadSelectedPhotos(gallery, story.selectedPhotoIds.slice(0, 1)) : [];
+      const preview: PublicWeddingStoryPreview = {
+        slug: story.slug,
+        title: story.title,
+        excerpt: story.excerpt,
+        publishedAt: story.publishedAt,
+        coverImage: photos[0]?.url || undefined,
+      };
+      return preview;
+    }));
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    return res.json({ stories });
+  } catch (error) {
+    console.error('[wedding-seo] public stories:', error);
+    return res.status(500).json({ error: 'Impossibile caricare le storie.' });
+  }
+});
 
 router.get('/public/:slug', async (req: Request, res: Response) => {
   try {

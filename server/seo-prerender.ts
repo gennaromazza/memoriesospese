@@ -585,19 +585,33 @@ async function getBlogListMeta(): Promise<PageMeta> {
       .limit(10)
       .get();
 
-    const posts = snapshot.docs.map(doc => doc.data());
+    const posts: Array<Record<string, any>> = snapshot.docs.map(doc => ({ kind: 'blog', ...doc.data() }));
+    const storiesSnapshot = await db.collection('weddingSeoStories')
+      .where('status', '==', 'published')
+      .orderBy('publishedAt', 'desc')
+      .limit(10)
+      .get();
+    const stories: Array<Record<string, any>> = storiesSnapshot.docs.map(doc => ({ kind: 'real-wedding', ...doc.data() }));
+    const editorialItems = [...posts, ...stories]
+      .sort((a, b) => {
+        const aDate = a.publishedAt?.seconds || 0;
+        const bDate = b.publishedAt?.seconds || 0;
+        return bDate - aDate;
+      })
+      .slice(0, 10);
 
-    const articlesHtml = posts.length > 0
+    const articlesHtml = editorialItems.length > 0
       ? `<section>
-          <h2>Articoli Recenti</h2>
+          <h2>Articoli e Real Wedding recenti</h2>
           <ul>
-            ${posts.map(post => {
+            ${editorialItems.map(post => {
               const dateMs = post.publishedAt?.seconds ? post.publishedAt.seconds * 1000 : null;
               const dateStr = dateMs
                 ? new Date(dateMs).toLocaleDateString('it-IT', { year: 'numeric', month: 'long', day: 'numeric' })
                 : '';
               return `<li>
-                <h3><a href="${BASE_URL}/blog/${encodeURIComponent(post.slug)}">${escapeHtml(post.title)}</a></h3>
+                <h3><a href="${BASE_URL}/${post.kind === 'real-wedding' ? 'real-wedding' : 'blog'}/${encodeURIComponent(post.slug)}">${escapeHtml(post.title)}</a></h3>
+                ${post.kind === 'real-wedding' ? '<p>Real Wedding</p>' : ''}
                 ${dateStr ? `<time datetime="${new Date(dateMs!).toISOString()}">${dateStr}</time>` : ''}
                 ${post.excerpt ? `<p>${escapeHtml(post.excerpt)}</p>` : ''}
               </li>`;
@@ -675,7 +689,19 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     ogType: 'article',
     ogImage: images[0] || OG_IMAGE,
     jsonLd: articleSchema,
-    bodyContent: `<article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${images.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>`,
+    bodyContent: `
+      <article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${images.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>
+      <aside>
+        <h2>Image Studio</h2>
+        <p>Raccontiamo matrimoni con fotografie autentiche e senza tempo.</p>
+        <p><a href="${BASE_URL}/portfolio/matrimonio">Guarda il portfolio matrimoni</a></p>
+        <p><a href="${BASE_URL}/consulenze">Prenota una consulenza</a></p>
+      </aside>
+      <nav>
+        <a href="${BASE_URL}/blog">Tutte le storie e gli articoli</a> &nbsp;|&nbsp;
+        <a href="${BASE_URL}/portfolio">Portfolio Image Studio</a> &nbsp;|&nbsp;
+        <a href="${BASE_URL}/">Home Image Studio</a>
+      </nav>`,
   };
 }
 
