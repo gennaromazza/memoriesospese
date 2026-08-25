@@ -150,6 +150,7 @@ const STATI_BOOKING = [
   { value: "confermata", label: "Confermate", icon: CheckCircle },
   { value: "completata", label: "Completate", icon: Package },
   { value: "annullata", label: "Annullate", icon: XCircle },
+  { value: "cancellation_pending", label: "Cancellazione Calendar in corso", icon: Clock },
 ] as const;
 
 const STATI_WORKFLOW = [
@@ -214,6 +215,18 @@ function getStatoBadge(stato: string) {
           className="bg-red-50 text-red-700 border-red-200"
         >
           Annullata
+        </Badge>
+      );
+    case "cancellata":
+      return (
+        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+          Annullata
+        </Badge>
+      );
+    case "cancellation_pending":
+      return (
+        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+          Cancellazione Calendar in corso
         </Badge>
       );
     default:
@@ -642,8 +655,12 @@ export default function BookingsManager({
 
       // 1. Filtra per stato (escludi annullate se "all")
       if (selectedStato === "all") {
-        // Escludi le annullate dalla vista "Tutte" per evitare confusione
-        filtered = filtered.filter((b) => b.stato !== "annullata");
+        // Escludi gli stati terminali/tecnici dalla vista "Tutte" per evitare confusione.
+        filtered = filtered.filter((b) => !["annullata", "cancellata", "cancellation_pending"].includes(b.stato));
+      } else if (selectedStato === "annullata") {
+        // Compatibilità dati storici: entrambe le forme di annullamento sono
+        // mostrate nello stesso filtro, senza migrare documenti esistenti.
+        filtered = filtered.filter((b) => ["annullata", "cancellata"].includes(b.stato));
       } else {
         filtered = filtered.filter((b) => b.stato === selectedStato);
       }
@@ -1003,10 +1020,9 @@ export default function BookingsManager({
   // Mutation: Approva prenotazione
   const approveMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const adminUid = user?.uid || "admin";
       // Marca come vista prima di approvare (per far scomparire badge NUOVA)
       await markBookingAsViewed(bookingId);
-      await approveBooking(bookingId, adminUid);
+      await approveBooking(bookingId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -1028,10 +1044,9 @@ export default function BookingsManager({
   // Mutation: Rifiuta prenotazione
   const rejectMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const adminUid = user?.uid || "admin";
       // Marca come vista prima di rifiutare (per far scomparire badge NUOVA)
       await markBookingAsViewed(bookingId);
-      await rejectBooking(bookingId, adminUid);
+      await rejectBooking(bookingId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });

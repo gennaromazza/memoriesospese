@@ -1,7 +1,8 @@
 /**
  * Booking Calendar Adapter
  * Converte le campaign di booking in AvailabilityConfig per Calendar Engine V2
- * Carica tutti gli eventi esistenti (Google Calendar + Firestore bookings) per conflict detection
+ * Carica tutte le fonti bloccanti (Google Calendar, booking, consulenze e Job)
+ * tramite l'adapter centrale delle consulenze per conflict detection coerente.
  */
 
 import { db } from '../firebase-admin.js';
@@ -189,8 +190,36 @@ export async function getAllExistingBookingEvents(
     console.error('[getAllExistingBookingEvents] ❌ Google Calendar non disponibile, blocco la disponibilità:', error.message);
     throw error;
   }
+
+  // 2. Le prenotazioni condividono le stesse risorse delle consulenze. Aggiungi
+  // quindi consulenze e Job CRM dalla fonte centrale, senza rileggere Google e
+  // senza duplicare le prenotazioni (che vengono caricate qui sotto includendo
+  // anche lo stato `in_attesa`).
+  try {
+    const { getAllExistingEvents } = await import('../consultations/calendar-adapter.js');
+    const platformEvents = await getAllExistingEvents(dayStart, dayEnd, firestoreDb, {
+      includeGoogle: false,
+      includeConsultations: true,
+      includeBookings: false,
+      includeJobs: true,
+    });
+
+    for (const event of platformEvents) {
+      events.push({
+        start: event.start,
+        end: event.end,
+        source: event.source === 'job' ? 'firestore_job' : 'firestore_consultation',
+        id: `${event.source || 'platform'}-${event.start.getTime()}-${event.end.getTime()}`,
+        allDay: event.allDay,
+      });
+    }
+    console.log(`[getAllExistingBookingEvents] ✅ ${platformEvents.length} consulenze/Job dalla fonte centrale`);
+  } catch (error: any) {
+    console.error('[getAllExistingBookingEvents] ❌ Errore caricamento consulenze/Job:', error.message);
+    throw error;
+  }
   
-  // 2. Carica booking Firestore con stato in_attesa o confermata
+  // 3. Carica booking Firestore con stato in_attesa o confermata
   // OTTIMIZZAZIONE: 2 query separate per evitare composite index complessi
   try {
     // Estendi range di ricerca per catturare booking che iniziano il giorno prima

@@ -27,6 +27,7 @@ import {
 } from "./google-calendar.js";
 import multer from "multer";
 import { saveWithDownloadToken } from "./storage-download-url.js";
+import { runReminderCheck } from "./reminder-routes.js";
 
 const router = express.Router();
 
@@ -47,6 +48,13 @@ interface AuthRequest extends Request {
  * Admin emails (consistente con email-routes.ts)
  */
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+
+function requireAdmin(req: AuthRequest, res: Response, next: express.NextFunction) {
+  if (!ADMIN_EMAILS.includes(req.user?.email || "")) {
+    return res.status(403).json({ error: "Accesso negato: solo admin" });
+  }
+  next();
+}
 
 /**
  * Helper: Normalizza Firestore Timestamp in Date
@@ -327,10 +335,10 @@ router.get("/job-types", async (req, res) => {
 
 /**
  * GET /api/consultations/client-prefill/:jobId
- * Recupera dati base cliente da un job per pre-compilare form consulenza (pubblico)
- * Restituisce solo dati non sensibili: nome, cognome, email, whatsapp, nomeEvento, eventDate
+ * Recupera dati cliente da un job per pre-compilare il form consulenza (solo admin).
+ * L'endpoint contiene dati personali e non può essere esposto tramite un id Job prevedibile.
  */
-router.get("/client-prefill/:jobId", async (req, res) => {
+router.get("/client-prefill/:jobId", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { jobId } = req.params;
     
@@ -710,14 +718,27 @@ router.patch(
 
       console.log(`[POST /v2/approve] ✅ No conflicts detected, proceeding with approval`);
 
-      // Step 7: Create Google Calendar event
-      // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
-      const calendarEvent = await createEvent("primary", {
-        summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
-        description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
-        start: startDateTime,
-        end: endDateTime,
-      });
+      // Step 7: Create Google Calendar event. Calendar is the source of truth:
+      // do not mark the consultation as confirmed if its event cannot be created.
+      // Keeping this error separate from the generic catch is essential for the
+      // admin UI and for operational diagnostics.
+      let calendarEvent: { id?: string | null };
+      try {
+        // NOTA: no attendees - Service Account non supporta invite senza Domain-Wide Delegation
+        calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${consultation.jobType} - ${consultation.cliente.nome} ${consultation.cliente.cognome}`,
+          description: `Template: ${consultation.jobType}\nCliente: ${consultation.cliente.nome} ${consultation.cliente.cognome}\nEmail: ${consultation.cliente.email}\nWhatsApp: ${consultation.cliente.whatsapp}\nNote: ${consultation.note || "Nessuna"}`,
+          start: startDateTime,
+          end: endDateTime,
+        });
+      } catch (calendarError: any) {
+        console.error("[PATCH /v2/:id/approve] ❌ Errore creazione evento Google Calendar:", calendarError.message);
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
 
       const eventId = calendarEvent.id;
 
@@ -733,15 +754,14 @@ router.patch(
           consultationUpdates.googleCalendarEventId = eventId;
         }
 
-        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
-        // FIX: Usiamo direttamente db.collection per evitare logica aggiuntiva di service.updateConsultation
-        // che potrebbe resettare lo stato se chiamata con dati parziali o in momenti sbagliati
-        await db.collection("consultations").doc(id).update(consultationUpdates);
+        // Single Firestore write: two independent updates could leave a partially
+        // confirmed consultation if the second request failed. The authenticated
+        // UID is trusted; req.body.userId is controlled by the browser.
+        consultationUpdates.confermataDa = req.user!.uid;
+        consultationUpdates.confermatail = FieldValue.serverTimestamp();
 
-        await db.collection("consultations").doc(id).update({
-          confermataDa: req.body.userId || "admin",
-          confermatail: Timestamp.now(),
-        });
+        console.log(`[POST /v2/approve] 📝 Updating Firestore status to 'confermata' for consultation ${id}`);
+        await db.collection("consultations").doc(id).update(consultationUpdates);
 
         console.log(`[POST /v2/approve] ✅ Updated Firestore consultation ${id}`);
       } catch (updateError: any) {
@@ -2235,8 +2255,18 @@ router.delete(
  * Invia reminder email per consulenze nelle prossime 24 ore (da schedulare con cron)
  * NOTA: Questo endpoint può essere chiamato manualmente o via Cloud Function schedulata
  */
-router.post("/send-reminders", async (req, res) => {
+router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
+    // Lo scheduler e l'endpoint manuale devono usare lo stesso motore, così
+    // idempotenza, retry e finestra temporale non divergono nel tempo.
+    const reminderResults = await runReminderCheck();
+    return res.json({
+      message: "Reminder process completed",
+      results: reminderResults,
+    });
+
+    /* Implementazione storica mantenuta temporaneamente sotto per agevolare
+       il confronto con dati legacy; non è più raggiungibile dall'endpoint. */
     // FIX: Usa Luxon per calcoli timezone-safe
     const nowRomeDT = DateTime.now().setZone("Europe/Rome");
     const now = nowRomeDT.toJSDate();
@@ -2423,7 +2453,7 @@ router.post("/send-reminders", async (req, res) => {
  * GET /api/consultations/list-confirmed-bookings
  * 📋 Lista tutti i bookings confermati per review manuale
  */
-router.get("/list-confirmed-bookings", async (req, res) => {
+router.get("/list-confirmed-bookings", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const bookingsSnap = await db
       .collection("bookings")
@@ -2455,7 +2485,7 @@ router.get("/list-confirmed-bookings", async (req, res) => {
  * POST /api/consultations/cancel-booking/:bookingId
  * ❌ Cancella manualmente un booking specifico
  */
-router.post("/cancel-booking/:bookingId", async (req, res) => {
+router.post("/cancel-booking/:bookingId", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { reason = "Cancellato manualmente dall'admin" } = req.body;
@@ -2489,7 +2519,7 @@ router.post("/cancel-booking/:bookingId", async (req, res) => {
  * GET /api/consultations/debug/slot-conflicts/:date
  * 🔍 DEBUG: Mostra tutte le risorse che occupano slot in una data specifica
  */
-router.get("/debug/slot-conflicts/:date", async (req, res) => {
+router.get("/debug/slot-conflicts/:date", authenticateFirebase, requireAdmin, async (req, res) => {
   try {
     const { date } = req.params; // Format: YYYY-MM-DD
 
@@ -2907,38 +2937,10 @@ router.post("/check-pending", async (req, res) => {
       return res.json({ hasPending: false });
     }
 
-    const pendingDoc = pendingSnap.docs[0];
-    const pendingData = pendingDoc.data();
-
-    const dataConsulenza = pendingData.dataConsulenza?.toDate?.() 
-      || new Date(pendingData.dataConsulenza?.seconds * 1000)
-      || null;
-
-    const formattedDate = dataConsulenza 
-      ? dataConsulenza.toLocaleDateString("it-IT", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          timeZone: "Europe/Rome"
-        })
-      : "data non disponibile";
-
-    const orario = pendingData.orarioInizio && pendingData.orarioFine
-      ? `${pendingData.orarioInizio} - ${pendingData.orarioFine}`
-      : "orario non disponibile";
-
-    console.log(`[POST /check-pending] Found pending consultation for ${normalizedEmail}: ${formattedDate} ${orario}`);
-
-    res.json({
-      hasPending: true,
-      pendingRequest: {
-        id: pendingDoc.id,
-        dataConsulenza: formattedDate,
-        orario,
-        templateName: pendingData.templateName || pendingData.jobType || "Consulenza"
-      }
-    });
+    // Non restituire dettagli o ID: un endpoint pubblico non deve permettere
+    // di enumerare appuntamenti e dati personali conoscendo un'email.
+    console.log(`[POST /check-pending] Found a pending consultation for ${normalizedEmail}`);
+    res.json({ hasPending: true });
   } catch (error: any) {
     console.error("[POST /check-pending] Error:", error.message);
     res.status(500).json({ error: "Errore controllo richieste pendenti" });

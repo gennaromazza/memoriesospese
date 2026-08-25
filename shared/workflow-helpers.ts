@@ -47,6 +47,8 @@ export function syncBookingWorkflowState(
       break;
 
     case 'annullata':
+    case 'cancellata':
+    case 'cancellation_pending':
       // Booking annullato → PRESERVA workflow esistente (no changes)
       // Fix: return {} per omettere campo da Firestore update (evita undefined rejection)
       return {};
