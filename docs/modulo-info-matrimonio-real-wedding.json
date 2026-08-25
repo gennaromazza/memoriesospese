@@ -1,0 +1,240 @@
+{
+  "name": "Modulo Info del Matrimonio",
+  "description": "Un unico modulo per raccogliere le informazioni operative del servizio fotografico e, con consenso separato, gli elementi utili al racconto Real Wedding.",
+  "fields": [
+    {
+      "label": "SPOSA — Dove ti preparerai e a che ora inizieranno trucco e acconciatura? Quanto tempo è previsto?",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Es: A casa della sposa; trucco ore 8:30, acconciatura ore 10:00, conclusione prevista ore 11:30",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "SPOSO — Dove ti preparerai e a che ora inizierà la preparazione? Quanto tempo è previsto?",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Es: A casa dello sposo; preparazione dalle ore 10:30 alle 11:30",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Ci sono variazioni rispetto all’orario della cerimonia già concordato con lo studio?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Lasciate vuoto se l’orario è confermato; altrimenti indicate il nuovo orario e il motivo della variazione",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "SPOSA — Com’è composta la tua famiglia e quali familiari o persone sono particolarmente importanti per te?",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Es: genitori, fratelli, sorelle, nonni, testimoni o altre persone alle quali sei particolarmente legata",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "SPOSO — Com’è composta la tua famiglia e quali familiari o persone sono particolarmente importanti per te?",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Es: genitori, fratelli, sorelle, nonni, testimoni o altre persone alle quali sei particolarmente legato",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Ci saranno nonni o persone anziane particolarmente importanti?",
+      "type": "checkbox",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Nonni o persone anziane importanti per la sposa",
+        "Nonni o persone anziane importanti per lo sposo",
+        "Altre persone anziane importanti",
+        "No"
+      ],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Ci sono amici o altre persone alle quali siete particolarmente legati e che desiderate valorizzare nelle fotografie?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Indicate il nome, se sono legati alla sposa o allo sposo e perché sono importanti per voi",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Saranno presenti animali importanti per voi? Desiderate delle fotografie con loro?",
+      "type": "radio",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Sì, saranno presenti e desideriamo delle fotografie",
+        "Sì, saranno presenti ma non chiediamo fotografie dedicate",
+        "No"
+      ],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Raccontateci brevemente la vostra storia",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Non serve scrivere un testo perfetto: bastano poche righe. Potete raccontare come vi siete conosciuti, un ricordo importante e come avete deciso di sposarvi.",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "C’è un dettaglio, una tradizione, una persona o un episodio che rende questo matrimonio particolarmente vostro?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Raccontateci soltanto ciò che sentite davvero importante; potete lasciare vuoto se non avete nulla da aggiungere",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Ci sono momenti particolari durante il rito che desiderate siano ripresi e che dovremmo assolutamente conoscere?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Es: letture, rituali, dediche, persone coinvolte o momenti simbolici",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "A che ora prevedete di arrivare al ristorante o alla location del ricevimento?",
+      "type": "text",
+      "required": true,
+      "placeholder": "Es: 13:30",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Quali fornitori avete scelto?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Scrivete un fornitore per riga indicando nome e ruolo. Es: Atelier Rossi — abito sposa; Fiori Bianchi — floral designer; Music Live — musica",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "vendor"
+    },
+    {
+      "label": "Durante il ricevimento sono previsti momenti speciali?",
+      "type": "checkbox",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Giochi o animazione",
+        "Flash mob",
+        "Lancio del bouquet",
+        "Lancio della giarrettiera",
+        "Regali a testimoni o genitori",
+        "Fuochi pirotecnici",
+        "Cambio di abito",
+        "Spettacoli durante il taglio della torta",
+        "Altro",
+        "Nessuno"
+      ],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "I musicisti avranno un impianto audio?",
+      "type": "radio",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Sì, con impianto audio",
+        "Solo musica dal vivo senza impianto",
+        "Non è prevista musica dal vivo",
+        "Non lo sappiamo ancora"
+      ],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "A che ora è prevista la conclusione del matrimonio?",
+      "type": "text",
+      "required": true,
+      "placeholder": "Es: 01:00",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Sono previsti il lancio del bouquet e/o della giarrettiera?",
+      "type": "radio",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Solo lancio del bouquet",
+        "Solo lancio della giarrettiera",
+        "Entrambi",
+        "Nessuno"
+      ],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Sono previsti fuochi d’artificio o spettacoli particolari durante il taglio della torta?",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Descrivete brevemente cosa è previsto e, se lo conoscete, l’orario indicativo",
+      "options": [],
+      "editorialUse": true,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Quanti ospiti sono previsti?",
+      "type": "number",
+      "required": false,
+      "placeholder": "Es: 120",
+      "options": [],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Fotografie degli ospiti — quali modalità preferite?",
+      "type": "checkbox",
+      "required": false,
+      "placeholder": "",
+      "options": [
+        "Stile Image Studio: fotografie spontanee e ritratti degli ospiti",
+        "Foto famiglia per famiglia, con gli sposi al centro e gli ospiti che si avvicinano",
+        "Selfie Tablet Station"
+      ],
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Instagram sposo",
+      "type": "instagram",
+      "required": false,
+      "placeholder": "@nomeutente",
+      "options": [],
+      "clientTarget": "client1",
+      "editorialUse": false,
+      "editorialCategory": "story"
+    },
+    {
+      "label": "Instagram sposa",
+      "type": "instagram",
+      "required": false,
+      "placeholder": "@nomeutente",
+      "options": [],
+      "clientTarget": "client2",
+      "editorialUse": false,
+      "editorialCategory": "story"
+    }
+  ]
+}
