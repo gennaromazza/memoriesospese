@@ -141,6 +141,23 @@ Il comando include automaticamente tutte le risposte con consenso editoriale. Pe
 
 Durante la generazione, fino a 12 fornitori selezionati privi di URL vengono verificati tramite Google Search Grounding nel contesto del settore matrimoniale. La verifica considera anche il caso in cui gli sposi abbiano indicato il nome del titolare ma l'attività utilizzi pubblicamente un marchio diverso. Sono accettati soltanto match ad alta confidenza supportati da una citazione verso il sito ufficiale o un profilo social ufficiale; directory e risultati ambigui restano senza link. Gli esiti definitivi vengono conservati nella collezione tecnica Firestore `weddingVendorDirectory` per 180 giorni (14 giorni per i mancati match), mentre timeout, errori API e risposte non verificabili non producono cache negativa e vengono riprovati. La ricerca dei fornitori è accessoria: un suo errore non interrompe la generazione dell'articolo. La cache non modifica né pubblica la bozza Real Wedding.
 
+### Backfill Google Places dei Job
+
+Per completare i metadati verificati `eventPlace` e `ceremonyPlace` dei Job già esistenti, esiste uno script amministrativo. Non modifica mai i testi delle location; la modalità predefinita è una simulazione e non esegue scritture.
+
+```bash
+# Anteprima completa, senza modifiche a Firestore
+npm run backfill:job-places
+
+# Applica solo i campi assenti o non validi dopo aver controllato l'anteprima
+npm run backfill:job-places -- --apply
+
+# Ri-verifica anche i riferimenti già presenti (comporta nuove chiamate Places)
+npm run backfill:job-places -- --apply --refresh
+```
+
+Richiede `FIREBASE_ADMIN_CREDENTIALS` e `GOOGLE_PLACES_API_KEY` nell'ambiente Replit. Lo script salva solo risultati Google italiani ad alta confidenza e riporta separatamente i luoghi ambigui o non risolti, che restano invariati per revisione manuale.
+
 ## 📱 Struttura delle Pagine
 
 ### Pubbliche

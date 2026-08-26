@@ -10,6 +10,7 @@
     "build:client": "vite build",
     "build:server:tsc": "tsc --project tsconfig.server.json",
     "ai:wedding:test": "tsx scripts/test-wedding-ai.ts",
+    "backfill:job-places": "tsx scripts/backfill-job-google-places.ts",
     "preview": "vite preview --port 5000 --host 0.0.0.0",
     "start": "NODE_ENV=production node dist/index.js",
     "build-deploy": "vite build --base=/basepath/",
