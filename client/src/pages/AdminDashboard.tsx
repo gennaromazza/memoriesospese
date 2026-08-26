@@ -102,6 +102,7 @@ import {
   FileText,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
+  MoreHorizontal,
   Grid3x3,
   BookOpen,
   Upload,
@@ -2232,36 +2233,6 @@ export default function AdminDashboard() {
                                           galleryName={gallery.name}
                                           clienteId={(gallery as any).clienteId}
                                         />
-                                        {isWeddingJobType(gallery.jobType) && (
-                                          <Link
-                                            to={createUrl(
-                                              `/admin/gallery/${gallery.id}/manage?tab=real-wedding`,
-                                            )}
-                                          >
-                                            <Button
-                                              variant="outline"
-                                              size="icon"
-                                              className="h-9 w-9 bg-cream/60 hover:bg-cream border-terracotta/40 transition-colors"
-                                              title="Apri la storia Real Wedding"
-                                              data-testid={`button-real-wedding-${gallery.id}`}
-                                            >
-                                              <BookOpen className="h-4 w-4 text-terracotta" />
-                                            </Button>
-                                          </Link>
-                                        )}
-                                        {gallery.jobId && (
-                                          <Link to={createUrl(`/admin/jobs/${gallery.jobId}`)}>
-                                            <Button
-                                              variant="outline"
-                                              size="icon"
-                                              className="h-9 w-9 bg-mint/60 hover:bg-mint border-sage transition-colors"
-                                              title="Apri il lavoro associato"
-                                              data-testid={`button-linked-job-${gallery.id}`}
-                                            >
-                                              <Briefcase className="h-4 w-4 text-dark-sage" />
-                                            </Button>
-                                          </Link>
-                                        )}
                                         {isCurrentUserAdmin() && (
                                           <Link
                                             to={createUrl(
@@ -2279,52 +2250,52 @@ export default function AdminDashboard() {
                                             </Button>
                                           </Link>
                                         )}
-                                        <Button
-                                          variant={
-                                            gallery.active
-                                              ? "destructive"
-                                              : "default"
-                                          }
-                                          size="icon"
-                                          className="h-9 w-9 transition-colors"
-                                          onClick={() =>
-                                            toggleGalleryStatus(gallery)
-                                          }
-                                          title={
-                                            gallery.active
-                                              ? "Disattiva galleria"
-                                              : "Attiva galleria"
-                                          }
-                                        >
-                                          {gallery.active ? (
-                                            <EyeOff className="h-4 w-4" />
-                                          ) : (
-                                            <Eye className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                        <Link
-                                          to={createUrl(
-                                            `/admin/galleries/${gallery.id}/questionnaire`,
-                                          )}
-                                        >
-                                          <Button
-                                            variant="outline"
-                                            size="icon"
-                                            className="h-9 w-9 bg-cream/60 hover:bg-cream border-terracotta/40 transition-colors"
-                                            title="Gestisci questionario"
-                                          >
-                                            <HelpCircle className="h-4 w-4 text-terracotta" />
-                                          </Button>
-                                        </Link>
-                                        <Button
-                                          variant="destructive"
-                                          size="icon"
-                                          className="h-9 w-9 transition-colors"
-                                          onClick={() => deleteGallery(gallery)}
-                                          title="Elimina galleria"
-                                        >
-                                          <Trash className="h-4 w-4" />
-                                        </Button>
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-9 w-9 border-beige bg-off-white text-blue-gray hover:bg-cream"
+                                              title="Altre azioni"
+                                              data-testid={`button-more-gallery-actions-${gallery.id}`}
+                                            >
+                                              <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            {isWeddingJobType(gallery.jobType) && (
+                                              <DropdownMenuItem asChild>
+                                                <Link to={createUrl(`/admin/gallery/${gallery.id}/manage?tab=real-wedding`)} data-testid={`button-real-wedding-${gallery.id}`}>
+                                                  <BookOpen className="mr-2 h-4 w-4 text-terracotta" />
+                                                  Real Wedding
+                                                </Link>
+                                              </DropdownMenuItem>
+                                            )}
+                                            {gallery.jobId && (
+                                              <DropdownMenuItem asChild>
+                                                <Link to={createUrl(`/admin/jobs/${gallery.jobId}`)} data-testid={`button-linked-job-${gallery.id}`}>
+                                                  <Briefcase className="mr-2 h-4 w-4 text-dark-sage" />
+                                                  Apri lavoro
+                                                </Link>
+                                              </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuItem onClick={() => toggleGalleryStatus(gallery)}>
+                                              {gallery.active ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                                              {gallery.active ? "Disattiva galleria" : "Attiva galleria"}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem asChild>
+                                              <Link to={createUrl(`/admin/galleries/${gallery.id}/questionnaire`)}>
+                                                <HelpCircle className="mr-2 h-4 w-4 text-terracotta" />
+                                                Questionario
+                                              </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onClick={() => deleteGallery(gallery)} className="text-red-600 focus:text-red-600">
+                                              <Trash className="mr-2 h-4 w-4" />
+                                              Elimina galleria
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                       </div>
                                     </td>
                                   </tr>
@@ -2395,11 +2366,11 @@ export default function AdminDashboard() {
                                   </div>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 pt-3 border-t border-beige">
+                                <div className="grid grid-cols-2 gap-2 pt-3 border-t border-beige">
                                   <Link
                                     to={createUrl(`/gallery/${gallery.code}`)}
                                     target="_blank"
-                                    className="flex-1 min-w-[120px]"
+                                    className="min-w-0"
                                   >
                                     <Button
                                       variant="outline"
@@ -2415,7 +2386,7 @@ export default function AdminDashboard() {
                                       to={createUrl(
                                         `/admin/gallery/${gallery.id}/manage`,
                                       )}
-                                      className="flex-1 min-w-[120px]"
+                                      className="min-w-0"
                                     >
                                       <Button
                                         variant="outline"
@@ -2435,69 +2406,41 @@ export default function AdminDashboard() {
                                     clienteId={(gallery as any).clienteId}
                                     variant="button"
                                     size="sm"
-                                    className="flex-1 min-w-[100px]"
+                                    className="w-full"
                                   />
-                                  {isWeddingJobType(gallery.jobType) && (
-                                    <Link
-                                      to={createUrl(
-                                        `/admin/gallery/${gallery.id}/manage?tab=real-wedding`,
-                                      )}
-                                      className="flex-1 min-w-[140px]"
-                                    >
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full bg-cream/60 hover:bg-cream border-terracotta/40 text-terracotta"
-                                        data-testid={`button-real-wedding-${gallery.id}`}
-                                      >
-                                        <BookOpen className="h-4 w-4 mr-1" />
-                                        Real Wedding
-                                      </Button>
-                                    </Link>
-                                  )}
-                                  {gallery.jobId && (
-                                    <Link
-                                      to={createUrl(`/admin/jobs/${gallery.jobId}`)}
-                                      className="flex-1 min-w-[120px]"
-                                    >
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full bg-mint/60 hover:bg-mint border-sage text-dark-sage"
-                                        data-testid={`button-linked-job-${gallery.id}`}
-                                      >
-                                        <Briefcase className="h-4 w-4 mr-1" />
-                                        Lavoro
-                                      </Button>
-                                    </Link>
-                                  )}
-                                  <Button
-                                    variant={
-                                      gallery.active ? "destructive" : "default"
-                                    }
-                                    size="sm"
-                                    className="flex-1 min-w-[100px]"
-                                    onClick={() => toggleGalleryStatus(gallery)}
-                                  >
-                                    {gallery.active ? (
-                                      <EyeOff className="h-4 w-4 mr-1" />
-                                    ) : (
-                                      <Eye className="h-4 w-4 mr-1" />
-                                    )}
-                                    {gallery.active ? "Disattiva" : "Attiva"}
-                                  </Button>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="flex-1 min-w-[80px]"
+                                        className="w-full border-beige bg-off-white text-blue-gray hover:bg-cream"
+                                        data-testid={`button-more-gallery-actions-${gallery.id}`}
                                       >
                                         Altro
-                                        <ChevronRight className="h-4 w-4 ml-1" />
+                                        <MoreHorizontal className="h-4 w-4 ml-1" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                      {isWeddingJobType(gallery.jobType) && (
+                                        <DropdownMenuItem asChild>
+                                          <Link to={createUrl(`/admin/gallery/${gallery.id}/manage?tab=real-wedding`)} data-testid={`button-real-wedding-${gallery.id}`}>
+                                            <BookOpen className="h-4 w-4 mr-2 text-terracotta" />
+                                            Real Wedding
+                                          </Link>
+                                        </DropdownMenuItem>
+                                      )}
+                                      {gallery.jobId && (
+                                        <DropdownMenuItem asChild>
+                                          <Link to={createUrl(`/admin/jobs/${gallery.jobId}`)} data-testid={`button-linked-job-${gallery.id}`}>
+                                            <Briefcase className="h-4 w-4 mr-2 text-dark-sage" />
+                                            Apri lavoro
+                                          </Link>
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem onClick={() => toggleGalleryStatus(gallery)}>
+                                        {gallery.active ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                                        {gallery.active ? "Disattiva galleria" : "Attiva galleria"}
+                                      </DropdownMenuItem>
                                       <DropdownMenuItem asChild>
                                         <Link
                                           to={createUrl(
@@ -2508,9 +2451,10 @@ export default function AdminDashboard() {
                                           Questionario
                                         </Link>
                                       </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
                                       <DropdownMenuItem
                                         onClick={() => deleteGallery(gallery)}
-                                        className="text-red-600"
+                                        className="text-red-600 focus:text-red-600"
                                       >
                                         <Trash className="h-4 w-4 mr-2" />
                                         Elimina
