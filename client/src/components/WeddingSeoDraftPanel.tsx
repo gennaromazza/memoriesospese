@@ -12,14 +12,16 @@ import {
 } from '@/lib/wedding-seo';
 import { parseWeddingStoryMarkdown, weddingStorySlug } from '@/lib/wedding-story-format';
 import { useToast } from '@/hooks/use-toast';
+import { createUrl } from '@/lib/basePath';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ToastAction } from '@/components/ui/toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles } from 'lucide-react';
 
 interface Props {
   gallery: Gallery;
@@ -227,11 +229,21 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         seoDescription: saved.seoDescription,
       });
       setStatus(saved.status);
+      const publicStoryUrl = createUrl(`/real-wedding/${saved.slug}`);
       toast({
         title: nextStatus === 'published' ? 'Storia pubblicata' : 'Bozza privata salvata',
         description: nextStatus === 'published'
-          ? `Pagina disponibile su /real-wedding/${saved.slug}`
+          ? `Pagina disponibile su ${publicStoryUrl}`
           : 'Il contenuto resta privato e non indicizzato.',
+        action: nextStatus === 'published' ? (
+          <ToastAction
+            altText="Apri la storia pubblicata in una nuova finestra"
+            onClick={() => window.open(publicStoryUrl, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink className="mr-1 h-3.5 w-3.5" />
+            Apri in nuova finestra
+          </ToastAction>
+        ) : undefined,
       });
     } catch (reason) {
       const message = readableError(reason);
