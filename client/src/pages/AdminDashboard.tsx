@@ -125,6 +125,7 @@ import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import CashDashboard from "@/components/CashDashboard";
 import { getAllThemes } from "@shared/special-themes";
+import { isWeddingJobType } from "@/lib/wedding-seo";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
 import JobTypesManager from "@/components/job-types/JobTypesManager";
@@ -2231,6 +2232,36 @@ export default function AdminDashboard() {
                                           galleryName={gallery.name}
                                           clienteId={(gallery as any).clienteId}
                                         />
+                                        {isWeddingJobType(gallery.jobType) && (
+                                          <Link
+                                            to={createUrl(
+                                              `/admin/gallery/${gallery.id}/manage?tab=real-wedding`,
+                                            )}
+                                          >
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-9 w-9 bg-amber-50 hover:bg-amber-100 border-amber-200 transition-colors"
+                                              title="Apri la storia Real Wedding"
+                                              data-testid={`button-real-wedding-${gallery.id}`}
+                                            >
+                                              <BookOpen className="h-4 w-4 text-amber-700" />
+                                            </Button>
+                                          </Link>
+                                        )}
+                                        {gallery.jobId && (
+                                          <Link to={createUrl(`/admin/jobs/${gallery.jobId}`)}>
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-9 w-9 bg-violet-50 hover:bg-violet-100 border-violet-200 transition-colors"
+                                              title="Apri il lavoro associato"
+                                              data-testid={`button-linked-job-${gallery.id}`}
+                                            >
+                                              <Briefcase className="h-4 w-4 text-violet-700" />
+                                            </Button>
+                                          </Link>
+                                        )}
                                         {isCurrentUserAdmin() && (
                                           <Link
                                             to={createUrl(
@@ -2406,6 +2437,40 @@ export default function AdminDashboard() {
                                     size="sm"
                                     className="flex-1 min-w-[100px]"
                                   />
+                                  {isWeddingJobType(gallery.jobType) && (
+                                    <Link
+                                      to={createUrl(
+                                        `/admin/gallery/${gallery.id}/manage?tab=real-wedding`,
+                                      )}
+                                      className="flex-1 min-w-[140px]"
+                                    >
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
+                                        data-testid={`button-real-wedding-${gallery.id}`}
+                                      >
+                                        <BookOpen className="h-4 w-4 mr-1" />
+                                        Real Wedding
+                                      </Button>
+                                    </Link>
+                                  )}
+                                  {gallery.jobId && (
+                                    <Link
+                                      to={createUrl(`/admin/jobs/${gallery.jobId}`)}
+                                      className="flex-1 min-w-[120px]"
+                                    >
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-800"
+                                        data-testid={`button-linked-job-${gallery.id}`}
+                                      >
+                                        <Briefcase className="h-4 w-4 mr-1" />
+                                        Lavoro
+                                      </Button>
+                                    </Link>
+                                  )}
                                   <Button
                                     variant={
                                       gallery.active ? "destructive" : "default"

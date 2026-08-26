@@ -168,6 +168,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
   const { user } = useFirebaseAuth();
   const { toast } = useToast();
   const galleryId = galleryIdProp || params?.galleryId;
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'real-wedding'
+      ? 'real-wedding'
+      : 'upload',
+  );
 
   const handleBack = useCallback(() => {
     if (onClose) {
@@ -849,7 +854,11 @@ export default function GalleryManagementWorkspace({ galleryIdProp, onClose, emb
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="upload" className="space-y-6">
+        <Tabs
+          value={activeWorkspaceTab}
+          onValueChange={setActiveWorkspaceTab}
+          className="space-y-6"
+        >
           <TabsList className={`grid w-full ${isWeddingJobType(gallery.jobType) ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="upload" data-testid="tab-upload">
               <Upload className="w-4 h-4 mr-2" />
