@@ -1875,12 +1875,12 @@ export default function AdminDashboard() {
                         </h2>
                         <p className="text-sm text-muted-foreground">
                           {referrerGallery && (
-                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium mb-2">
+                            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-light-mint text-dark-sage text-xs font-medium mb-2">
                               <span>
                                 🔗 Collegato da: {referrerGallery.name}
                               </span>
                               {referrerGallery.code && (
-                                <code className="text-[10px] bg-blue-100 px-1.5 py-0.5 rounded">
+                                <code className="text-[10px] bg-mint px-1.5 py-0.5 rounded">
                                   {referrerGallery.code}
                                 </code>
                               )}
@@ -1891,7 +1891,7 @@ export default function AdminDashboard() {
                                   );
                                   setReferrerGallery(null);
                                 }}
-                                className="ml-1 hover:text-blue-900"
+                                className="ml-1 hover:text-blue-gray"
                                 title="Rimuovi collegamento"
                               >
                                 ✕
@@ -1905,7 +1905,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <CollapsibleContent>
-                    <div className="bg-white shadow sm:rounded-lg p-5">
+                    <div className="bg-off-white shadow sm:rounded-lg p-5">
                       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
                         <div className="w-full sm:w-auto">
                           <h3 className="text-xl font-semibold text-blue-gray mb-2">
@@ -1939,7 +1939,7 @@ export default function AdminDashboard() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                         {/* Filtro Tipo Galleria */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <label className="text-xs font-medium text-dark-sage uppercase tracking-wider">
                             Tipo Galleria
                           </label>
                           <div className="flex flex-wrap gap-2">
@@ -1994,7 +1994,7 @@ export default function AdminDashboard() {
 
                         {/* Filtro Selezioni */}
                         <div className="space-y-2">
-                          <label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          <label className="text-xs font-medium text-dark-sage uppercase tracking-wider">
                             Selezioni Foto
                           </label>
                           <div className="flex flex-wrap gap-2">
@@ -2020,7 +2020,7 @@ export default function AdminDashboard() {
                               }
                               size="sm"
                               onClick={() => setSelectionFilter("approved")}
-                              className="flex-1 sm:flex-initial min-w-[140px] flex items-center justify-center gap-2 transition-all bg-green-50 hover:bg-green-100 border-green-200"
+                              className="flex-1 sm:flex-initial min-w-[140px] flex items-center justify-center gap-2 transition-all bg-light-mint hover:bg-mint border-sage text-dark-sage"
                               data-testid="filter-approved-selections"
                             >
                               <CheckCircle className="h-4 w-4" />
@@ -2035,18 +2035,18 @@ export default function AdminDashboard() {
                       {/* Filtro Categoria Evento */}
                       {dashboardJobTypes.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider mr-1">
+                          <span className="text-xs font-medium text-dark-sage uppercase tracking-wider mr-1">
                             Categoria:
                           </span>
                           <button
                             onClick={() => setGalleryJobTypeFilter("all")}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "all" ? "bg-sage text-white border-sage" : "bg-white text-gray-600 border-gray-300 hover:border-sage"}`}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "all" ? "bg-sage text-white border-sage" : "bg-off-white text-dark-sage border-beige hover:border-sage"}`}
                           >
                             Tutte
                           </button>
                           <button
                             onClick={() => setGalleryJobTypeFilter("none")}
-                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "none" ? "bg-gray-700 text-white border-gray-700" : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"}`}
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === "none" ? "bg-blue-gray text-white border-blue-gray" : "bg-off-white text-dark-sage border-beige hover:border-blue-gray"}`}
                           >
                             Senza cat.
                           </button>
@@ -2054,7 +2054,7 @@ export default function AdminDashboard() {
                             <button
                               key={jt.slug}
                               onClick={() => setGalleryJobTypeFilter(jt.slug)}
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === jt.slug ? "bg-terracotta text-white border-terracotta" : "bg-white text-gray-600 border-gray-300 hover:border-terracotta"}`}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${galleryJobTypeFilter === jt.slug ? "bg-terracotta text-white border-terracotta" : "bg-off-white text-dark-sage border-beige hover:border-terracotta"}`}
                             >
                               {jt.icona ? `${jt.icona} ` : ""}
                               {jt.nome}
@@ -2091,61 +2091,61 @@ export default function AdminDashboard() {
                         <>
                           {/* Vista Desktop - Tabella */}
                           <div className="hidden lg:block overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
+                            <table className="min-w-full divide-y divide-beige">
+                              <thead className="bg-cream/40">
                                 <tr>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Nome
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Codice
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Data
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Foto
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Selezione
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Stato
                                   </th>
                                   <th
                                     scope="col"
-                                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    className="px-4 py-3 text-left text-xs font-medium text-dark-sage uppercase tracking-wider"
                                   >
                                     Azioni
                                   </th>
                                 </tr>
                               </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
+                              <tbody className="bg-off-white divide-y divide-beige">
                                 {currentGalleries.map((gallery) => (
                                   <tr
                                     key={gallery.id}
-                                    className="hover:bg-gray-50 transition-colors"
+                                    className="hover:bg-light-mint/40 transition-colors"
                                   >
                                     <td className="px-4 py-4">
-                                      <div className="text-sm font-medium text-gray-900">
+                                      <div className="text-sm font-medium text-blue-gray">
                                         {gallery.name}
                                       </div>
                                       {(gallery as any).jobType &&
@@ -2167,32 +2167,32 @@ export default function AdminDashboard() {
                                         })()}
                                     </td>
                                     <td className="px-4 py-4">
-                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                      <code className="text-xs bg-cream/60 text-blue-gray px-2 py-1 rounded">
                                         {gallery.code}
                                       </code>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      <div className="text-sm text-gray-500">
+                                      <div className="text-sm text-dark-sage">
                                         {gallery.date}
                                       </div>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
-                                      <span className="text-sm font-semibold text-gray-700">
+                                      <span className="text-sm font-semibold text-blue-gray">
                                         {gallery.photoCount || 0}
                                       </span>
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap">
                                       {gallery.selectionStatus ===
                                       "completed" ? (
-                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-light-mint text-dark-sage">
                                           ✅ Completata
                                         </span>
                                       ) : gallery.selectionEnabled ? (
-                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-cream/70 text-terracotta">
                                           ⏳ In attesa
                                         </span>
                                       ) : (
-                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-beige/50 text-dark-sage">
                                           -
                                         </span>
                                       )}
@@ -2201,8 +2201,8 @@ export default function AdminDashboard() {
                                       <span
                                         className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                           gallery.active
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-red-100 text-red-800"
+                                            ? "bg-light-mint text-dark-sage"
+                                            : "bg-terracotta/15 text-terracotta"
                                         }`}
                                       >
                                         {gallery.active
@@ -2220,10 +2220,10 @@ export default function AdminDashboard() {
                                           <Button
                                             variant="outline"
                                             size="icon"
-                                            className="h-9 w-9 bg-green-50 hover:bg-green-100 border-green-200 transition-colors"
+                                            className="h-9 w-9 bg-light-mint hover:bg-mint border-sage transition-colors"
                                             title="Visualizza galleria (bypass admin)"
                                           >
-                                            <Eye className="h-4 w-4 text-green-600" />
+                                            <Eye className="h-4 w-4 text-dark-sage" />
                                           </Button>
                                         </Link>
                                         <ShareGalleryButton
@@ -2241,11 +2241,11 @@ export default function AdminDashboard() {
                                             <Button
                                               variant="outline"
                                               size="icon"
-                                              className="h-9 w-9 bg-amber-50 hover:bg-amber-100 border-amber-200 transition-colors"
+                                              className="h-9 w-9 bg-cream/60 hover:bg-cream border-terracotta/40 transition-colors"
                                               title="Apri la storia Real Wedding"
                                               data-testid={`button-real-wedding-${gallery.id}`}
                                             >
-                                              <BookOpen className="h-4 w-4 text-amber-700" />
+                                              <BookOpen className="h-4 w-4 text-terracotta" />
                                             </Button>
                                           </Link>
                                         )}
@@ -2254,11 +2254,11 @@ export default function AdminDashboard() {
                                             <Button
                                               variant="outline"
                                               size="icon"
-                                              className="h-9 w-9 bg-violet-50 hover:bg-violet-100 border-violet-200 transition-colors"
+                                              className="h-9 w-9 bg-mint/60 hover:bg-mint border-sage transition-colors"
                                               title="Apri il lavoro associato"
                                               data-testid={`button-linked-job-${gallery.id}`}
                                             >
-                                              <Briefcase className="h-4 w-4 text-violet-700" />
+                                              <Briefcase className="h-4 w-4 text-dark-sage" />
                                             </Button>
                                           </Link>
                                         )}
@@ -2271,11 +2271,11 @@ export default function AdminDashboard() {
                                             <Button
                                               variant="outline"
                                               size="icon"
-                                              className="h-9 w-9 bg-blue-50 hover:bg-blue-100 border-blue-200 transition-colors"
+                                              className="h-9 w-9 bg-blue-gray/10 hover:bg-blue-gray/20 border-blue-gray/30 transition-colors"
                                               title="Gestisci galleria"
                                               data-testid="button-manage-gallery"
                                             >
-                                              <FolderOpen className="h-4 w-4 text-blue-600" />
+                                              <FolderOpen className="h-4 w-4 text-blue-gray" />
                                             </Button>
                                           </Link>
                                         )}
@@ -2310,10 +2310,10 @@ export default function AdminDashboard() {
                                           <Button
                                             variant="outline"
                                             size="icon"
-                                            className="h-9 w-9 bg-purple-50 hover:bg-purple-100 border-purple-200 transition-colors"
+                                            className="h-9 w-9 bg-cream/60 hover:bg-cream border-terracotta/40 transition-colors"
                                             title="Gestisci questionario"
                                           >
-                                            <HelpCircle className="h-4 w-4 text-purple-600" />
+                                            <HelpCircle className="h-4 w-4 text-terracotta" />
                                           </Button>
                                         </Link>
                                         <Button
@@ -2338,22 +2338,22 @@ export default function AdminDashboard() {
                             {currentGalleries.map((gallery) => (
                               <div
                                 key={gallery.id}
-                                className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                                className="bg-off-white border border-beige rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
                               >
                                 <div className="flex items-start justify-between mb-3">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="text-base font-semibold text-gray-900 truncate">
+                                    <h3 className="text-base font-semibold text-blue-gray truncate">
                                       {gallery.name}
                                     </h3>
                                     <div className="flex items-center gap-2 mt-1">
-                                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                      <code className="text-xs bg-cream/60 text-blue-gray px-2 py-1 rounded">
                                         {gallery.code}
                                       </code>
                                       <span
                                         className={`px-2 py-1 inline-flex text-xs font-semibold rounded-full ${
                                           gallery.active
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-red-100 text-red-800"
+                                            ? "bg-light-mint text-dark-sage"
+                                            : "bg-terracotta/15 text-terracotta"
                                         }`}
                                       >
                                         {gallery.active ? "✓ Attiva" : "✕ Off"}
@@ -2364,38 +2364,38 @@ export default function AdminDashboard() {
 
                                 <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                                   <div>
-                                    <span className="text-gray-500">Data:</span>
-                                    <p className="font-medium text-gray-900">
+                                    <span className="text-dark-sage">Data:</span>
+                                    <p className="font-medium text-blue-gray">
                                       {gallery.date}
                                     </p>
                                   </div>
                                   <div>
-                                    <span className="text-gray-500">Foto:</span>
-                                    <p className="font-semibold text-gray-900">
+                                    <span className="text-dark-sage">Foto:</span>
+                                    <p className="font-semibold text-blue-gray">
                                       {gallery.photoCount || 0}
                                     </p>
                                   </div>
                                   <div className="col-span-2">
-                                    <span className="text-gray-500 block mb-1">
+                                    <span className="text-dark-sage block mb-1">
                                       Selezione:
                                     </span>
                                     {gallery.selectionStatus === "completed" ? (
-                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-light-mint text-dark-sage">
                                         ✅ Completata
                                       </span>
                                     ) : gallery.selectionEnabled ? (
-                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-cream/70 text-terracotta">
                                         ⏳ In attesa
                                       </span>
                                     ) : (
-                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
+                                      <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-beige/50 text-dark-sage">
                                         Non attiva
                                       </span>
                                     )}
                                   </div>
                                 </div>
 
-                                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
+                                <div className="flex flex-wrap gap-2 pt-3 border-t border-beige">
                                   <Link
                                     to={createUrl(`/gallery/${gallery.code}`)}
                                     target="_blank"
@@ -2404,7 +2404,7 @@ export default function AdminDashboard() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="w-full bg-green-50 hover:bg-green-100 border-green-200 text-green-700"
+                                      className="w-full bg-light-mint hover:bg-mint border-sage text-dark-sage"
                                     >
                                       <Eye className="h-4 w-4 mr-1" />
                                       Visualizza
@@ -2420,7 +2420,7 @@ export default function AdminDashboard() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                                        className="w-full bg-blue-gray/10 hover:bg-blue-gray/20 border-blue-gray/30 text-blue-gray"
                                         data-testid="button-manage-gallery"
                                       >
                                         <FolderOpen className="h-4 w-4 mr-1" />
@@ -2447,7 +2447,7 @@ export default function AdminDashboard() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
+                                        className="w-full bg-cream/60 hover:bg-cream border-terracotta/40 text-terracotta"
                                         data-testid={`button-real-wedding-${gallery.id}`}
                                       >
                                         <BookOpen className="h-4 w-4 mr-1" />
@@ -2463,7 +2463,7 @@ export default function AdminDashboard() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full bg-violet-50 hover:bg-violet-100 border-violet-200 text-violet-800"
+                                        className="w-full bg-mint/60 hover:bg-mint border-sage text-dark-sage"
                                         data-testid={`button-linked-job-${gallery.id}`}
                                       >
                                         <Briefcase className="h-4 w-4 mr-1" />
