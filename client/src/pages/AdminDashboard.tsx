@@ -45,7 +45,6 @@ import {
 } from "firebase/storage";
 import Navigation from "@/components/Navigation";
 import NewGalleryModal from "@/components/NewGalleryModal";
-import EditGalleryModal from "@/components/EditGalleryModal";
 import ShareGalleryButton from "@/components/ShareGalleryButton";
 import SlideshowManager from "@/components/SlideshowManager";
 import ClientiManager from "@/components/ClientiManager";
@@ -84,8 +83,6 @@ import {
   RefreshCw,
   Download,
   Key,
-  ChevronLeft,
-  ChevronRight,
   Users,
   Play,
   Mail,
@@ -142,8 +139,12 @@ import GalleryJobTypeBackfill from "@/components/GalleryJobTypeBackfill";
 import SyncClientJobRefs from "@/components/SyncClientJobRefs";
 import GalleryRecoveryTool from "@/components/admin/GalleryRecoveryTool";
 import CalendarioManager from "@/components/admin/CalendarioManager";
+import { GoogleCalendarStatus } from "@/components/admin/GoogleCalendarStatus";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useNotifications } from "@/hooks/useNotifications";
+import { usePagination } from "@/hooks/usePagination";
+import { useSessionStorageState } from "@/hooks/useSessionStorageState";
+import { PaginationControls } from "@/components/admin/PaginationControls";
 import {
   Collapsible,
   CollapsibleContent,
@@ -172,246 +173,15 @@ import {
   resolveHomepageContent,
   type HomepageContent,
 } from "@shared/homepage-content";
+import {
+  filterAdminGalleries,
+  type GalleryTypeFilter,
+  type SelectionFilter,
+} from "./admin/adminGalleryFilters";
 // Lazy load StudioAssistant per migliorare il caricamento iniziale
 const StudioAssistant = lazy(
   () => import("@/components/studio-assistant/StudioAssistant"),
 );
-
-function GoogleCalendarStatus({
-  toast,
-}: {
-  toast: ReturnType<typeof useToast>["toast"];
-}) {
-  const [status, setStatus] = useState<{
-    connected: boolean;
-    accountEmail?: string;
-    calendarId?: string;
-    authMethod?: string;
-    error?: string;
-    loading: boolean;
-  }>({ connected: false, loading: true });
-
-  const checkStatus = async () => {
-    setStatus((prev) => ({ ...prev, loading: true }));
-    try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) {
-        setStatus({
-          connected: false,
-          loading: false,
-          error: "Non autenticato",
-        });
-        return;
-      }
-
-      const response = await fetch("/api/calendar/connection-status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setStatus({ ...data, loading: false });
-    } catch (error: any) {
-      setStatus({ connected: false, loading: false, error: error.message });
-    }
-  };
-
-  useEffect(() => {
-    checkStatus();
-  }, []);
-
-  if (status.loading) {
-    return (
-      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <RefreshCw className="h-5 w-5 text-gray-400 animate-spin" />
-        <span className="text-sm text-gray-600">
-          Verifica connessione in corso...
-        </span>
-      </div>
-    );
-  }
-
-  if (status.connected) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <div>
-              <span className="text-sm text-green-800">
-                Service Account: <strong>{status.accountEmail}</strong>
-              </span>
-              <p className="text-xs text-green-600">
-                Calendario: {status.calendarId} — Connessione permanente
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={checkStatus}
-            className="text-green-700 hover:text-green-800"
-            data-testid="button-refresh-calendar"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg border border-red-200">
-        <AlertCircle className="h-5 w-5 text-red-600" />
-        <div className="flex-1">
-          <span className="text-sm text-red-800 font-medium">
-            Google Calendar non connesso
-          </span>
-          {status.error && (
-            <p className="text-xs text-red-600 mt-1">{status.error}</p>
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={checkStatus}
-          className="text-red-700"
-          data-testid="button-retry-calendar"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-sm text-blue-800 mb-2">
-          <strong>Per connettere Google Calendar:</strong>
-        </p>
-        <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
-          <li>Vai nella sezione "Deployments" del tuo progetto Replit</li>
-          <li>Clicca su "Integrations"</li>
-          <li>Trova "Google Calendar" e clicca "Connect"</li>
-          <li>Autorizza l'accesso con l'account desiderato</li>
-        </ol>
-      </div>
-    </div>
-  );
-}
-
-// Componente di paginazione riutilizzabile
-interface PaginationControlsProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  onPrevious: () => void;
-  onNext: () => void;
-}
-
-function PaginationControls({
-  currentPage,
-  totalPages,
-  onPageChange,
-  onPrevious,
-  onNext,
-}: PaginationControlsProps) {
-  // Non mostrare controlli se c'è solo una pagina
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className="flex justify-center items-center mt-6 space-x-1">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onPrevious}
-        disabled={currentPage === 1}
-      >
-        <ChevronLeft className="h-4 w-4 mr-1" /> Prec
-      </Button>
-
-      {totalPages <= 5 ? (
-        // Se ci sono 5 o meno pagine, mostra tutti i numeri
-        Array.from({ length: totalPages }, (_, i) => (
-          <Button
-            key={i}
-            variant={currentPage === i + 1 ? "default" : "outline"}
-            size="sm"
-            className="w-8"
-            onClick={() => onPageChange(i + 1)}
-          >
-            {i + 1}
-          </Button>
-        ))
-      ) : (
-        // Se ci sono più di 5 pagine, mostra un sottoinsieme con "..."
-        <>
-          {/* Prima pagina */}
-          <Button
-            variant={currentPage === 1 ? "default" : "outline"}
-            size="sm"
-            className="w-8"
-            onClick={() => onPageChange(1)}
-          >
-            1
-          </Button>
-
-          {/* Ellipsis o pagine vicine all'attuale */}
-          {currentPage > 3 && <span className="mx-1">...</span>}
-
-          {/* Pagine adiacenti */}
-          {currentPage > 2 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-8"
-              onClick={() => onPageChange(currentPage - 1)}
-            >
-              {currentPage - 1}
-            </Button>
-          )}
-
-          {/* Pagina corrente (se non è la prima o l'ultima) */}
-          {currentPage !== 1 && currentPage !== totalPages && (
-            <Button variant="default" size="sm" className="w-8">
-              {currentPage}
-            </Button>
-          )}
-
-          {/* Pagina successiva */}
-          {currentPage < totalPages - 1 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-8"
-              onClick={() => onPageChange(currentPage + 1)}
-            >
-              {currentPage + 1}
-            </Button>
-          )}
-
-          {/* Ellipsis finale */}
-          {currentPage < totalPages - 2 && <span className="mx-1">...</span>}
-
-          {/* Ultima pagina */}
-          <Button
-            variant={currentPage === totalPages ? "default" : "outline"}
-            size="sm"
-            className="w-8"
-            onClick={() => onPageChange(totalPages)}
-          >
-            {totalPages}
-          </Button>
-        </>
-      )}
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onNext}
-        disabled={currentPage === totalPages}
-      >
-        Succ <ChevronRight className="h-4 w-4 ml-1" />
-      </Button>
-    </div>
-  );
-}
 
 interface GalleryItem {
   id: string;
@@ -478,107 +248,90 @@ interface StudioSettings {
   homepageContent: HomepageContent;
 }
 
+type AdminTab =
+  | "galleries"
+  | "users"
+  | "clienti"
+  | "slideshow"
+  | "requests"
+  | "email"
+  | "questionnaire"
+  | "settings"
+  | "cassa"
+  | "bookings"
+  | "commesse"
+  | "themes"
+  | "lavori"
+  | "consulenze"
+  | "consulenze-templates"
+  | "calendario"
+  | "collaboratori"
+  | "sitoPublico"
+  | "videos"
+  | "quote-templates"
+  | "photobooks"
+  | "photobook-changes";
+
+type BookingSection = "bookings-list" | "campaigns";
+type ConsultationSection = "consulenze" | "consulenze-templates";
+type SettingsSection =
+  | "studio"
+  | "slideshow"
+  | "products"
+  | "product-categories"
+  | "migration"
+  | "email-logs"
+  | "integrations";
+type SitoSection = "portfolio" | "blog";
+type JobSection =
+  | "jobs-list"
+  | "clienti"
+  | "job-types"
+  | "laboratori"
+  | "contract-clauses"
+  | "quote-templates"
+  | "moduli-informativi";
+
+function isBookingSection(value: string): value is BookingSection {
+  return value === "bookings-list" || value === "campaigns";
+}
+
 export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(
-    null,
+  const [searchQuery, setSearchQuery] = useSessionStorageState<string>(
+    "gallerySearchQuery",
+    "",
   );
-  const [searchQuery, setSearchQuery] = useState<string>(
-    () => sessionStorage.getItem("gallerySearchQuery") || "",
-  );
-  const [galleryTypeFilter, setGalleryTypeFilter] = useState<
-    "all" | "generic" | "special"
-  >(
-    () =>
-      (sessionStorage.getItem("galleryTypeFilter") as
-        | "all"
-        | "generic"
-        | "special") || "generic",
-  );
-  const [selectionFilter, setSelectionFilter] = useState<"all" | "approved">(
-    () =>
-      (sessionStorage.getItem("gallerySelectionFilter") as
-        | "all"
-        | "approved") || "all",
-  );
-  const [galleryJobTypeFilter, setGalleryJobTypeFilter] = useState<string>(
-    () => sessionStorage.getItem("galleryJobTypeFilter") || "all",
-  );
+  const [galleryTypeFilter, setGalleryTypeFilter] =
+    useSessionStorageState<GalleryTypeFilter>("galleryTypeFilter", "generic");
+  const [selectionFilter, setSelectionFilter] =
+    useSessionStorageState<SelectionFilter>("gallerySelectionFilter", "all");
+  const [galleryJobTypeFilter, setGalleryJobTypeFilter] =
+    useSessionStorageState<string>("galleryJobTypeFilter", "all");
   const [dashboardJobTypes, setDashboardJobTypes] = useState<JobTypeFE[]>([]); // 🏷️ Tipi evento disponibili
   const [passwordRequests, setPasswordRequests] = useState<any[]>([]);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<
-    | "galleries"
-    | "users"
-    | "clienti"
-    | "slideshow"
-    | "requests"
-    | "email"
-    | "questionnaire"
-    | "settings"
-    | "cassa"
-    | "bookings"
-    | "commesse"
-    | "themes"
-    | "lavori"
-    | "consulenze"
-    | "consulenze-templates"
-    | "calendario"
-    | "collaboratori"
-    | "sitoPublico"
-    | "videos"
-    | "quote-templates"
-    | "photobooks"
-    | "photobook-changes"
-  >(() => {
-    return (sessionStorage.getItem("activeTab") as any) || "calendario";
-  });
-  const [activeBookingSection, setActiveBookingSection] = useState<
-    "bookings-list" | "campaigns"
-  >(() => {
-    const stored = sessionStorage.getItem("activeBookingSection") as any;
-    // Sanitize legacy values
-    if (!["bookings-list", "campaigns"].includes(stored)) {
-      return "bookings-list";
-    }
-    return stored || "bookings-list";
-  });
-  const [activeConsultationSection, setActiveConsultationSection] = useState<
-    "consulenze" | "consulenze-templates"
-  >(() => {
-    return (
-      (sessionStorage.getItem("activeConsultationSection") as any) ||
-      "consulenze"
+  const [activeTab, setActiveTab] = useSessionStorageState<AdminTab>(
+    "activeTab",
+    "calendario",
+  );
+  const [activeBookingSection, setActiveBookingSection] =
+    useSessionStorageState<BookingSection>(
+      "activeBookingSection",
+      "bookings-list",
+      isBookingSection,
     );
-  });
-  const [settingsSection, setSettingsSection] = useState<
-    | "studio"
-    | "slideshow"
-    | "products"
-    | "product-categories"
-    | "migration"
-    | "email-logs"
-    | "integrations"
-  >(() => {
-    return (sessionStorage.getItem("settingsSection") as any) || "studio";
-  });
-  const [activeSitoSection, setActiveSitoSection] = useState<
-    "portfolio" | "blog"
-  >(() => {
-    return (sessionStorage.getItem("activeSitoSection") as any) || "portfolio";
-  });
-  const [activeJobSection, setActiveJobSection] = useState<
-    | "jobs-list"
-    | "clienti"
-    | "job-types"
-    | "laboratori"
-    | "contract-clauses"
-    | "quote-templates"
-    | "moduli-informativi"
-  >(() => {
-    return (sessionStorage.getItem("activeJobSection") as any) || "jobs-list";
-  });
+  const [activeConsultationSection, setActiveConsultationSection] =
+    useSessionStorageState<ConsultationSection>(
+      "activeConsultationSection",
+      "consulenze",
+    );
+  const [settingsSection, setSettingsSection] =
+    useSessionStorageState<SettingsSection>("settingsSection", "studio");
+  const [activeSitoSection, setActiveSitoSection] =
+    useSessionStorageState<SitoSection>("activeSitoSection", "portfolio");
+  const [activeJobSection, setActiveJobSection] =
+    useSessionStorageState<JobSection>("activeJobSection", "jobs-list");
   const [highlightBookingId, setHighlightBookingId] = useState<string | null>(
     null,
   );
@@ -600,13 +353,6 @@ export default function AdminDashboard() {
     from: string;
   } | null>(null);
 
-  // Stati per la paginazione delle gallerie
-  const [currentGalleryPage, setCurrentGalleryPage] = useState(1);
-  const [galleriesPerPage] = useState(5); // Numero di gallerie per pagina
-
-  // Stati per la paginazione delle richieste password
-  const [currentRequestPage, setCurrentRequestPage] = useState(1);
-  const [requestsPerPage] = useState(10); // Numero di richieste per pagina
   const [studioSettings, setStudioSettings] = useState<StudioSettings>({
     name: "",
     slogan: "",
@@ -670,50 +416,6 @@ export default function AdminDashboard() {
     (n) => n?.type === "booking" && !n?.isRead,
   );
   const hasPendingBookings = pendingBookings.length > 0;
-
-  // Persist state changes to sessionStorage
-  useEffect(() => {
-    sessionStorage.setItem("activeTab", activeTab);
-  }, [activeTab]);
-
-  useEffect(() => {
-    sessionStorage.setItem("activeBookingSection", activeBookingSection);
-  }, [activeBookingSection]);
-
-  useEffect(() => {
-    sessionStorage.setItem(
-      "activeConsultationSection",
-      activeConsultationSection,
-    );
-  }, [activeConsultationSection]);
-
-  useEffect(() => {
-    sessionStorage.setItem("settingsSection", settingsSection);
-  }, [settingsSection]);
-
-  useEffect(() => {
-    sessionStorage.setItem("activeSitoSection", activeSitoSection);
-  }, [activeSitoSection]);
-
-  useEffect(() => {
-    sessionStorage.setItem("activeJobSection", activeJobSection);
-  }, [activeJobSection]);
-
-  useEffect(() => {
-    sessionStorage.setItem("gallerySearchQuery", searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    sessionStorage.setItem("galleryTypeFilter", galleryTypeFilter);
-  }, [galleryTypeFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem("gallerySelectionFilter", selectionFilter);
-  }, [selectionFilter]);
-
-  useEffect(() => {
-    sessionStorage.setItem("galleryJobTypeFilter", galleryJobTypeFilter);
-  }, [galleryJobTypeFilter]);
 
   // Carica JobTypes per il filtro gallerie
   useEffect(() => {
@@ -1086,18 +788,6 @@ export default function AdminDashboard() {
     queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
   };
 
-  const openEditModal = (gallery: GalleryItem) => {
-    // Redirect to GalleryManagementWorkspace instead of opening modal
-    navigate(`/admin/gallery/${gallery.id}/manage`);
-  };
-
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setSelectedGallery(null);
-    // Refresh the gallery list via React Query
-    queryClient.invalidateQueries({ queryKey: ["galleries", "admin"] });
-  };
-
   // Handler: Apri booking specifico e scroll + highlight
   const handleOpenBooking = (bookingId: string) => {
     setHighlightBookingId(bookingId);
@@ -1414,101 +1104,14 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filtra le gallerie in base alla query di ricerca E tipo (generiche/special)
-  const filteredGalleries = galleries.filter((gallery) => {
-    // Escludi gallerie senza dati essenziali (documenti vuoti in Firebase)
-    if (!gallery.name && !gallery.code) return false;
-
-    // Filtro ricerca testuale
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch =
-        (gallery.name?.toLowerCase() || "").includes(query) ||
-        (gallery.code?.toLowerCase() || "").includes(query) ||
-        (gallery.date?.toLowerCase() || "").includes(query);
-      if (!matchesSearch) return false;
-    }
-
-    // Filtro selezioni approvate
-    if (selectionFilter === "approved") {
-      if (gallery.selectionStatus !== "completed") return false;
-    }
-
-    // Filtro tipo galleria
-    if (galleryTypeFilter === "generic") {
-      if (!!gallery.specialTheme) return false; // Generiche = senza specialTheme
-    } else if (galleryTypeFilter === "special") {
-      if (!gallery.specialTheme) return false; // Special = con specialTheme
-    }
-
-    // Filtro per categoria evento (jobType)
-    if (galleryJobTypeFilter !== "all") {
-      const galleryJobType = (gallery as any).jobType;
-      if (galleryJobTypeFilter === "none") {
-        if (galleryJobType) return false; // Solo senza categoria
-      } else {
-        if (galleryJobType !== galleryJobTypeFilter) return false;
-      }
-    }
-
-    return true; // 'all' mostra tutte
+  const filteredGalleries = filterAdminGalleries(galleries, {
+    searchQuery,
+    galleryTypeFilter,
+    selectionFilter,
+    galleryJobTypeFilter,
   });
-
-  // Calcola gli indici per la paginazione delle gallerie
-  const indexOfLastGallery = currentGalleryPage * galleriesPerPage;
-  const indexOfFirstGallery = indexOfLastGallery - galleriesPerPage;
-  const currentGalleries = filteredGalleries.slice(
-    indexOfFirstGallery,
-    indexOfLastGallery,
-  );
-  const totalGalleryPages = Math.ceil(
-    filteredGalleries.length / galleriesPerPage,
-  );
-
-  // Gestione del cambio pagina per le gallerie
-  const paginateGalleries = (pageNumber: number) =>
-    setCurrentGalleryPage(pageNumber);
-
-  // Funzioni per navigare tra le pagine delle gallerie
-  const goToNextGalleryPage = () => {
-    if (currentGalleryPage < totalGalleryPages) {
-      setCurrentGalleryPage(currentGalleryPage + 1);
-    }
-  };
-
-  const goToPreviousGalleryPage = () => {
-    if (currentGalleryPage > 1) {
-      setCurrentGalleryPage(currentGalleryPage - 1);
-    }
-  };
-
-  // Calcola gli indici per la paginazione delle richieste password
-  const indexOfLastRequest = currentRequestPage * requestsPerPage;
-  const indexOfFirstRequest = indexOfLastRequest - requestsPerPage;
-  const currentRequests = passwordRequests.slice(
-    indexOfFirstRequest,
-    indexOfLastRequest,
-  );
-  const totalRequestPages = Math.ceil(
-    passwordRequests.length / requestsPerPage,
-  );
-
-  // Gestione del cambio pagina per le richieste
-  const paginateRequests = (pageNumber: number) =>
-    setCurrentRequestPage(pageNumber);
-
-  // Funzioni per navigare tra le pagine delle richieste
-  const goToNextRequestPage = () => {
-    if (currentRequestPage < totalRequestPages) {
-      setCurrentRequestPage(currentRequestPage + 1);
-    }
-  };
-
-  const goToPreviousRequestPage = () => {
-    if (currentRequestPage > 1) {
-      setCurrentRequestPage(currentRequestPage - 1);
-    }
-  };
+  const galleryPagination = usePagination(filteredGalleries, 5);
+  const passwordRequestPagination = usePagination(passwordRequests, 10);
 
   // Navigazione unificata: usata dalla barra menu e dalla Command Palette
   const navigateToTarget = (target: NavTarget) => {
@@ -2140,7 +1743,7 @@ export default function AdminDashboard() {
                                 </tr>
                               </thead>
                               <tbody className="bg-off-white divide-y divide-beige">
-                                {currentGalleries.map((gallery) => (
+                                {galleryPagination.currentItems.map((gallery) => (
                                   <tr
                                     key={gallery.id}
                                     className="hover:bg-light-mint/40 transition-colors"
@@ -2306,7 +1909,7 @@ export default function AdminDashboard() {
 
                           {/* Vista Mobile/Tablet - Card */}
                           <div className="lg:hidden space-y-4">
-                            {currentGalleries.map((gallery) => (
+                            {galleryPagination.currentItems.map((gallery) => (
                               <div
                                 key={gallery.id}
                                 className="bg-off-white border border-beige rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
@@ -2470,11 +2073,11 @@ export default function AdminDashboard() {
 
                       {/* Controlli di paginazione per le gallerie */}
                       <PaginationControls
-                        currentPage={currentGalleryPage}
-                        totalPages={totalGalleryPages}
-                        onPageChange={paginateGalleries}
-                        onPrevious={goToPreviousGalleryPage}
-                        onNext={goToNextGalleryPage}
+                        currentPage={galleryPagination.currentPage}
+                        totalPages={galleryPagination.totalPages}
+                        onPageChange={galleryPagination.setCurrentPage}
+                        onPrevious={galleryPagination.goToPreviousPage}
+                        onNext={galleryPagination.goToNextPage}
                       />
                     </div>
                   </CollapsibleContent>
@@ -2724,7 +2327,7 @@ export default function AdminDashboard() {
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                              {currentRequests.map((request) => (
+                              {passwordRequestPagination.currentItems.map((request) => (
                                 <tr key={request.id}>
                                   <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="text-sm text-gray-500">
@@ -2766,17 +2369,11 @@ export default function AdminDashboard() {
 
                           {/* Paginazione */}
                           <PaginationControls
-                            currentPage={currentRequestPage}
-                            totalPages={totalRequestPages}
-                            onPageChange={setCurrentRequestPage}
-                            onPrevious={() =>
-                              setCurrentRequestPage((p) => Math.max(1, p - 1))
-                            }
-                            onNext={() =>
-                              setCurrentRequestPage((p) =>
-                                Math.min(totalRequestPages, p + 1),
-                              )
-                            }
+                            currentPage={passwordRequestPagination.currentPage}
+                            totalPages={passwordRequestPagination.totalPages}
+                            onPageChange={passwordRequestPagination.setCurrentPage}
+                            onPrevious={passwordRequestPagination.goToPreviousPage}
+                            onNext={passwordRequestPagination.goToNextPage}
                           />
                         </div>
                       )}
@@ -3868,14 +3465,6 @@ export default function AdminDashboard() {
         }}
       />
 
-      {/* Finestra modale per modificare una galleria esistente */}
-      {selectedGallery && (
-        <EditGalleryModal
-          isOpen={isEditModalOpen}
-          onClose={closeEditModal}
-          gallery={selectedGallery}
-        />
-      )}
     </div>
   );
 }
