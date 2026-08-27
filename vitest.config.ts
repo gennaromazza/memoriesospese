@@ -6,7 +6,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["server/**/*.test.ts", "shared/**/*.test.ts", "client/src/lib/wedding-seo.test.ts"],
+    include: [
+      "server/**/*.test.ts",
+      "shared/**/*.test.ts",
+      "client/src/lib/wedding-seo.test.ts",
+      "client/src/pages/admin/adminGalleryFilters.test.ts",
+    ],
     globals: false,
     clearMocks: true,
   },
