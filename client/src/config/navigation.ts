@@ -1,4 +1,4 @@
-import { Camera, BookOpen, Sparkles, Star, Phone, Image } from 'lucide-react';
+import { Camera, BookOpen, Sparkles, Star, Phone, Image, Printer } from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -47,13 +47,22 @@ export const mainNavItems: NavItem[] = [
     mobileOrder: 3,
   },
   {
+    label: 'Stampa foto',
+    href: '/stampa-foto-aversa',
+    icon: Printer,
+    showInHeader: true,
+    showInFooter: true,
+    showInMobile: true,
+    mobileOrder: 4,
+  },
+  {
     label: 'Recensioni',
     href: '/#recensioni',
     icon: Star,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 4,
+    mobileOrder: 5,
   },
   {
     label: 'Prenota una chiamata',
@@ -62,7 +71,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: false,
     showInMobile: true,
-    mobileOrder: 5,
+    mobileOrder: 6,
     highlight: true,
   },
   {
@@ -72,7 +81,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: false,
     showInFooter: true,
     showInMobile: false,
-    mobileOrder: 6,
+    mobileOrder: 7,
   },
 ];
 

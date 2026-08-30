@@ -3,6 +3,13 @@ import { db } from './firebase-admin';
 import { BlogPostStatus } from '../shared/schema';
 import { portfolioCategoryContent } from '../shared/portfolio-seo-content';
 import {
+  PRINT_FAQS,
+  PRINT_PRICE_UPDATED_AT,
+  PRINT_SERVICE_PATH,
+  PRINT_SERVICE_SEO,
+  countPrintFormats,
+} from '../shared/print-service-content';
+import {
   WEDDING_HOME_COPY,
   WEDDING_HOME_SEO,
   WEDDING_PORTFOLIO_BREADCRUMB_JSON_LD,
@@ -158,6 +165,72 @@ function getStaticPageMeta(path: string): PageMeta | null {
               acceptedAnswer: { '@type': 'Answer', text: "La consegna della galleria digitale avviene entro 10-12 settimane dalla data dell'evento, a seconda del pacchetto scelto." },
             },
           ],
+        },
+      ],
+    },
+    [PRINT_SERVICE_PATH]: {
+      title: PRINT_SERVICE_SEO.title,
+      description: PRINT_SERVICE_SEO.description,
+      canonical: `${BASE_URL}${PRINT_SERVICE_PATH}`,
+      keywords: PRINT_SERVICE_SEO.keywords,
+      bodyContent: `
+        <h1>Stampa foto ad Aversa: vacanze, Polaroid e ricordi</h1>
+        <p>Le fotografie della tua vacanza meritano più della memoria del telefono. Image Studio e Memorie Sospese trasformano fotografie, sorrisi e panorami in stampe da toccare, regalare e vivere ogni giorno ad Aversa, vicino Napoli e Caserta.</p>
+        <h2>Stampe fotografiche classiche, Polaroid e grandi formati</h2>
+        <ul>
+          <li><strong>10×15 classico</strong> da €0,20 per album, scatole dei ricordi e fotografie da regalare.</li>
+          <li><strong>Polaroid Wide 10×9</strong>: confezione promozionale da 50 fotografie a €9,90, salvo disponibilità.</li>
+          <li><strong>20×30 e grandi formati</strong> per panorami, ritratti e fotografie da parete.</li>
+          <li><strong>Carta lucida o opaca</strong> in base al soggetto e all'utilizzo della fotografia.</li>
+        </ul>
+        <h2>Prezzi e formati delle stampe</h2>
+        <p>Il listino comprende ${countPrintFormats()} formati dall'8×10 al 50×80. I prezzi per singola stampa diminuiscono in base alla quantità e partono da €0,20. Listino aggiornato al ${PRINT_PRICE_UPDATED_AT}.</p>
+        <h2>Come ordinare le stampe fotografiche</h2>
+        <ol>
+          <li>Scegli le fotografie dal telefono.</li>
+          <li>Indica quantità, formato e carta lucida oppure opaca.</li>
+          <li>Contatta Image Studio su WhatsApp per ricevere le istruzioni di invio.</li>
+          <li>Conferma prezzo finale, tempi e modalità di ritiro o consegna.</li>
+        </ol>
+        <h2>Domande frequenti</h2>
+        ${PRINT_FAQS.map((faq) => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
+        <p>Image Studio Fotografico · Aversa (CE) · Telefono e WhatsApp: +39 334 710 3142 · Email: info@memoriesospese.it</p>
+        <p><a href="${BASE_URL}/">Home Image Studio</a> | <a href="${BASE_URL}/portfolio">Portfolio</a> | <a href="${BASE_URL}/blog">Blog</a></p>
+      `,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE_URL}/` },
+            { '@type': 'ListItem', position: 2, name: 'Stampa foto ad Aversa', item: `${BASE_URL}${PRINT_SERVICE_PATH}` },
+          ],
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Service',
+          name: 'Stampa foto ad Aversa',
+          description: PRINT_SERVICE_SEO.description,
+          url: `${BASE_URL}${PRINT_SERVICE_PATH}`,
+          serviceType: 'Stampa fotografica digitale',
+          provider: { '@id': `${BASE_URL}/#localbusiness` },
+          areaServed: ['Aversa', 'Napoli', 'Caserta', 'Agro Aversano'],
+          offers: {
+            '@type': 'AggregateOffer',
+            priceCurrency: 'EUR',
+            lowPrice: '0.20',
+            highPrice: '17.00',
+            offerCount: countPrintFormats(),
+          },
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: PRINT_FAQS.map((faq) => ({
+            '@type': 'Question',
+            name: faq.question,
+            acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+          })),
         },
       ],
     },

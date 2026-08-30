@@ -79,6 +79,7 @@ export async function generateDynamicSitemap(): Promise<string> {
     { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: '2026-08-18' },
     { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
     { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
+    { path: '/stampa-foto-aversa', changefreq: 'weekly', priority: '0.92', lastmod: '2026-08-30' },
     { path: '/prenota', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-05' },
     { path: '/consulenze', changefreq: 'monthly', priority: '0.85', lastmod: '2026-08-05' },
     { path: '/lasciati-trasportare', changefreq: 'monthly', priority: '0.8', lastmod: '2026-02-06' },

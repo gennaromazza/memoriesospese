@@ -43,6 +43,7 @@ const BlogPostPage = lazyWithRetry(() => import("./pages/public/BlogPostPage"));
 const WeddingVideosPage = lazyWithRetry(() => import("./pages/public/WeddingVideosPage"));
 const WeddingSeoPage = lazyWithRetry(() => import("./pages/public/WeddingSeoPage"));
 const FotografoAversaPage = lazyWithRetry(() => import("./pages/public/FotografoAversaPage"));
+const StampaFotoAversaPage = lazyWithRetry(() => import("./pages/public/StampaFotoAversaPage"));
 const GalleryAccess = lazyWithRetry(() => import("./pages/GalleryAccess"));
 const Gallery = lazyWithRetry(() => import("./pages/Gallery"));
 const SpecialGalleryAccess = lazyWithRetry(() => import("./pages/SpecialGalleryAccess"));
@@ -137,6 +138,7 @@ function AppRoutes() {
         <Route path="/real-wedding/:slug" component={WeddingSeoPage} />
         <Route path="/lasciati-trasportare" component={LasciatiTrasportarePage} />
         <Route path="/fotografo-aversa" component={FotografoAversaPage} />
+        <Route path="/stampa-foto-aversa" component={StampaFotoAversaPage} />
         <Route path="/blog" component={BlogListPage} />
         <Route path="/blog/:slug" component={BlogPostPage} />
         <Route path="/vision" component={WeddingVideosPage} />

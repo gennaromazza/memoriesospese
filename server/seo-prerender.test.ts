@@ -91,6 +91,17 @@ describe('SEO prerender wedding-first', () => {
     expect(meta.jsonLd).toMatchObject({ '@type': 'Article', headline: 'Anna e Luca ad Aversa' });
   });
 
+  it('renders the print landing with canonical content, pricing and FAQ schema', async () => {
+    const { response, next } = await renderForCrawler('/stampa-foto-aversa');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.headers['Content-Type']).toBe('text/html');
+    expect(response.body).toContain('<h1>Stampa foto ad Aversa: vacanze, Polaroid e ricordi</h1>');
+    expect(response.body).toContain('33 formati');
+    expect(response.body).toContain('FAQPage');
+    expect(response.body).toContain('https://imagestudiofotografico.com/stampa-foto-aversa');
+  });
+
   it('serves a published Real Wedding as indexable HTML to a crawler', async () => {
     const story = {
       galleryId: 'gallery-1', status: 'published', slug: 'anna-e-luca', title: 'Anna e Luca',

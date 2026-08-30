@@ -7,6 +7,7 @@ Allow: /portfolio
 Allow: /portfolio/*
 Allow: /blog
 Allow: /blog/*
+Allow: /stampa-foto-aversa
 Allow: /vision
 Allow: /storie
 Allow: /prenota

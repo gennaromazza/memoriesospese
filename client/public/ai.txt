@@ -11,6 +11,7 @@ Image Studio è uno studio fotografico professionale specializzato in matrimoni,
 - Eventi aziendali e privati
 - Ritratti famiglia e book fotografici
 - Gallerie digitali interattive "Memorie Sospese"
+- Stampe fotografiche classiche, grandi formati e stile Polaroid
 
 ## Founder
 Gennaro Mazzacane - Fotografo professionista con oltre 10 anni di esperienza e 500+ matrimoni documentati
@@ -30,6 +31,7 @@ Gennaro Mazzacane - Fotografo professionista con oltre 10 anni di esperienza e 5
 ## Key Content Sections
 - /portfolio - Portfolio fotografico categorizzato per tipo di evento
 - /blog - Articoli su fotografia, consigli matrimoni, storie
+- /stampa-foto-aversa - Listino e guida alla stampa di fotografie ad Aversa, Napoli e Caserta
 - /vision - Video matrimoniali (iMaGe Vision)
 - /storie - Storia del fotografo
 - /consulenze - Prenotazione consulenze
