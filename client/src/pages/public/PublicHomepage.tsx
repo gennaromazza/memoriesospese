@@ -299,38 +299,38 @@ export default function PublicHomepage() {
               <p className="text-base sm:text-lg text-gray-500 mb-6 sm:mb-8">
                 {homepageContent.hero.signature}
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/consulenze">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
+                <Link href="/consulenze" className="w-full sm:w-auto">
                   <Button
                     size="lg"
-                    className="bg-sage hover:bg-dark-sage text-white"
+                    className="h-auto min-h-11 w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage sm:w-auto"
                     data-testid="button-prenota-hero"
                   >
                     <Calendar className="mr-2 h-5 w-5" />
-                    {homepageContent.hero.primaryCta}
+                    <span className="min-w-0">{homepageContent.hero.primaryCta}</span>
                   </Button>
                 </Link>
-                <Link href="/portfolio/matrimonio">
+                <Link href="/portfolio/matrimonio" className="w-full sm:w-auto">
                   <Button
                     size="lg"
                     variant="outline"
-                    className="border-sage text-sage hover:bg-sage/10"
+                    className="h-auto min-h-11 w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10 sm:w-auto"
                     data-testid="button-portfolio-hero"
                   >
                     <Camera className="mr-2 h-5 w-5" />
-                    {homepageContent.hero.portfolioCta}
+                    <span className="min-w-0">{homepageContent.hero.portfolioCta}</span>
                   </Button>
                 </Link>
               </div>
-              <div className="mt-6">
-                <Link href="/accesso-galleria">
+              <div className="mt-5 w-full sm:mt-6">
+                <Link href="/accesso-galleria" className="block w-full sm:inline-block sm:w-auto">
                   <Button
                     variant="link"
-                    className="text-blue-gray hover:text-sage"
+                    className="h-auto min-h-11 w-full max-w-full whitespace-normal px-3 py-2 text-center leading-snug text-blue-gray hover:text-sage sm:w-auto"
                     data-testid="link-accesso-galleria-hero"
                   >
                     <ImageIcon className="mr-2 h-4 w-4" />
-                    {homepageContent.hero.galleryAccessText}
+                    <span className="min-w-0">{homepageContent.hero.galleryAccessText}</span>
                   </Button>
                 </Link>
               </div>
@@ -443,13 +443,13 @@ export default function PublicHomepage() {
             </p>
           )}
           <div className="text-center">
-            <Link href="/portfolio/matrimonio">
+            <Link href="/portfolio/matrimonio" className="inline-block max-w-full">
               <Button
                 size="lg"
                 variant="outline"
-                className="border-sage text-sage hover:bg-sage/10"
+                className="h-auto max-w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10"
               >
-                {homepageContent.portfolio.cta}
+                <span className="min-w-0">{homepageContent.portfolio.cta}</span>
               </Button>
             </Link>
           </div>
@@ -465,9 +465,9 @@ export default function PublicHomepage() {
           <p className="text-base sm:text-lg text-gray-600 mb-6">
             {homepageContent.secondaryServices.description}
           </p>
-          <Link href="/portfolio">
-            <Button variant="outline" className="border-sage text-sage hover:bg-sage/10">
-              {homepageContent.secondaryServices.cta}
+          <Link href="/portfolio" className="inline-block max-w-full">
+            <Button variant="outline" className="h-auto max-w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10">
+              <span className="min-w-0">{homepageContent.secondaryServices.cta}</span>
             </Button>
           </Link>
         </div>
@@ -524,7 +524,7 @@ export default function PublicHomepage() {
                         </div>
 
                         {!campaign.immagineSlider && (
-                          <h2 className="text-4xl md:text-5xl font-playfair text-blue-gray">
+                          <h2 className="break-words text-3xl font-playfair leading-tight text-blue-gray sm:text-4xl md:text-5xl">
                             {campaign.nome}
                           </h2>
                         )}
@@ -584,7 +584,7 @@ export default function PublicHomepage() {
                       Prenotazioni Aperte
                     </span>
                   </div>
-                  <h2 className="text-4xl font-playfair text-blue-gray mb-2">
+                  <h2 className="text-3xl sm:text-4xl font-playfair text-blue-gray mb-2">
                     Offerte Speciali
                   </h2>
                   <p className="text-xl text-gray-600">
@@ -623,7 +623,7 @@ export default function PublicHomepage() {
 
                             <div className="p-8 md:p-12 text-center">
                               {!campaign.immagineSlider && (
-                                <h3 className="text-3xl md:text-4xl font-playfair text-blue-gray mb-4">
+                                <h3 className="break-words text-2xl font-playfair leading-tight text-blue-gray sm:text-3xl md:text-4xl mb-4">
                                   {campaign.nome}
                                 </h3>
                               )}
@@ -730,7 +730,7 @@ export default function PublicHomepage() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-sage rounded-full mb-4">
               <Lock className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-4xl font-playfair text-blue-gray mb-4">
+            <h2 className="text-3xl sm:text-4xl font-playfair text-blue-gray mb-4">
               Gallerie Speciali
             </h2>
             <p className="text-xl text-gray-600">
@@ -803,7 +803,7 @@ export default function PublicHomepage() {
       </section>
 
       {/* Accesso Gallerie CTA */}
-      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
+      <section className="py-10 sm:py-16 md:py-20 bg-gradient-to-r from-terracotta to-[#C67B5C] px-4">
         <div className="max-w-4xl mx-auto text-center text-white">
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-3 sm:mb-4">
             Hai partecipato a un evento?
@@ -811,10 +811,10 @@ export default function PublicHomepage() {
           <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8">
             Accedi alla galleria e rivivi le emozioni del giorno speciale
           </p>
-          <Link href="/accesso-galleria">
+          <Link href="/accesso-galleria" className="inline-block max-w-full">
             <Button
               size="lg"
-              className="bg-white text-terracotta hover:bg-gray-100"
+              className="h-auto max-w-full whitespace-normal bg-white px-5 py-3 text-center leading-snug text-terracotta hover:bg-gray-100"
               data-testid="button-accesso-galleria-cta"
             >
               <ImageIcon className="mr-2 h-5 w-5" />
@@ -836,9 +836,9 @@ export default function PublicHomepage() {
         </div>
 
         <div className="max-w-6xl mx-auto relative z-10">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="grid items-center gap-7 md:grid-cols-2 md:gap-8">
             <div className="flex justify-center md:justify-end">
-              <div className="relative group">
+              <div className="relative group max-w-[260px] sm:max-w-sm">
                 <div className="absolute inset-0 bg-white/20 rounded-2xl transform rotate-3 group-hover:rotate-6 transition-transform duration-300" />
                 <img
                   src={`${import.meta.env.BASE_URL || '/'}images/libro-copertina.jpg`}
@@ -848,18 +848,16 @@ export default function PublicHomepage() {
               </div>
             </div>
 
-            <div className="text-white space-y-6">
+            <div className="space-y-5 text-center text-white md:space-y-6 md:text-left">
               <div>
                 <h2 className="text-3xl sm:text-4xl md:text-5xl font-playfair mb-4">
                   Lasciati <span className="text-[#F5E6D3]">Trasportare</span>
                 </h2>
-                <p className="text-lg sm:text-xl text-white/90 mb-2">
-                  Un viaggio emozionante attraverso il mondo dei matrimoni e
-                  della fotografia
+                <p className="text-base sm:text-xl text-white/90 mb-2 leading-relaxed">
+                  Un libro sul matrimonio, le emozioni e le fotografie che resteranno.
                 </p>
-                <p className="text-base sm:text-lg text-white/80">
-                  La guida completa per organizzare il tuo matrimonio perfetto,
-                  raccontata da un fotografo professionista
+                <p className="text-sm sm:text-lg text-white/80 leading-relaxed">
+                  Leggi l’anteprima e scarica gratuitamente il PDF nella pagina dedicata.
                 </p>
               </div>
 
@@ -880,24 +878,19 @@ export default function PublicHomepage() {
                 </div>
               </div>
 
-              <a
-                href={`${import.meta.env.BASE_URL || '/'}docs/lasciati-trasportare.pdf`}
-                download="Lasciati-Trasportare.pdf"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <Link href="/lasciati-trasportare" className="inline-block max-w-full">
                 <Button
                   size="lg"
-                  className="bg-white text-sage hover:bg-cream hover:text-sage transition-colors shadow-lg"
+                  className="h-auto max-w-full whitespace-normal bg-white px-5 py-3 text-center leading-snug text-sage shadow-lg transition-colors hover:bg-cream hover:text-sage"
                   data-testid="button-libro"
                 >
                   <BookOpen className="mr-2 h-5 w-5" />
-                  Scarica GRATIS il Libro
+                  Scopri il libro
                 </Button>
-              </a>
+              </Link>
 
               <p className="text-sm text-white/70">
-                Download immediato - File PDF - Nessuna registrazione richiesta
+                Anteprima e download gratuito · Nessuna registrazione
               </p>
             </div>
           </div>
@@ -1056,7 +1049,7 @@ export default function PublicHomepage() {
               </div>
               <div className="text-center">
                 <Link href="/vision">
-                  <Button size="lg" className="bg-terracotta hover:bg-terracotta/90 text-white shadow-lg hover:shadow-xl transition-all">
+                  <Button size="lg" className="h-auto max-w-full whitespace-normal bg-terracotta px-5 py-3 text-center leading-snug text-white shadow-lg transition-all hover:bg-terracotta/90 hover:shadow-xl">
                     <Camera className="mr-2 h-5 w-5" />
                     Scopri tutti i Video
                   </Button>
@@ -1148,7 +1141,7 @@ export default function PublicHomepage() {
               </div>
 
               <Link href="/consulenze">
-                <Button size="lg" className="w-full bg-sage hover:bg-dark-sage text-white shadow-lg hover:shadow-xl transition-all">
+                <Button size="lg" className="h-auto w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white shadow-lg transition-all hover:bg-dark-sage hover:shadow-xl">
                   <Calendar className="mr-2 h-5 w-5" />
                   Prenota un Appuntamento
                 </Button>
@@ -1190,7 +1183,7 @@ export default function PublicHomepage() {
       {/* SEO Local - Fotografo Aversa */}
       <section className="py-14 px-4 bg-[#F5EFE6]/50">
         <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-8 bg-white rounded-2xl p-8 shadow-sm border border-[#c4724a]/10">
+          <div className="flex flex-col items-center gap-6 rounded-2xl border border-[#c4724a]/10 bg-white p-5 shadow-sm sm:p-8 md:flex-row md:gap-8">
             <div className="flex-1">
               <div className="inline-flex items-center gap-2 text-[#c4724a] text-xs font-semibold uppercase tracking-widest mb-3">
                 <MapPin className="h-4 w-4" />
@@ -1205,8 +1198,8 @@ export default function PublicHomepage() {
                 Casal di Principe, Frignano, Parete, Lusciano, Teverola, Giugliano e tutta la provincia.
               </p>
               <Link href="/fotografo-aversa">
-                <Button className="bg-[#c4724a] hover:bg-[#a85d3b] text-white rounded-full px-6">
-                  Scopri i servizi ad Aversa
+                <Button className="h-auto max-w-full whitespace-normal rounded-full bg-[#c4724a] px-5 py-3 text-center leading-snug text-white hover:bg-[#a85d3b]">
+                  Scopri lo studio ad Aversa
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -1240,7 +1233,7 @@ export default function PublicHomepage() {
                 <Instagram className="w-10 h-10 text-sage" />
               </div>
 
-              <h2 className="text-4xl font-playfair text-blue-gray mb-4">
+              <h2 className="text-3xl sm:text-4xl font-playfair text-blue-gray mb-4">
                 Seguici su Instagram
               </h2>
 
@@ -1309,9 +1302,9 @@ export default function PublicHomepage() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Button size="lg" className="bg-sage text-white hover:bg-dark-sage">
+              <Button size="lg" className="h-auto max-w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage">
                 <MessageCircle className="mr-2 h-5 w-5" />
-                {homepageContent.whatsapp.buttonText}
+                <span className="min-w-0">{homepageContent.whatsapp.buttonText}</span>
               </Button>
             </a>
           </div>

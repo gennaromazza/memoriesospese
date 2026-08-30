@@ -20,11 +20,11 @@ export default function StoriePage() {
 
       <div className="max-w-4xl mx-auto px-4 pt-24 sm:pt-28 md:pt-32 pb-12">
         <div className="text-center mb-12 animate-fade-in">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">
-            La Mia Storia
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4 leading-tight">
+            Gennaro e Image Studio
           </h1>
           <p className="text-2xl text-[#C67B5C] mb-8">
-            È tutta questione di <span className="font-semibold">Image</span>
+            Una storia iniziata con una piccola macchina fotografica
           </p>
         </div>
 
@@ -130,11 +130,14 @@ export default function StoriePage() {
           </p>
         </div>
 
-        <div className="mt-16 text-center">
+        <div className="mt-12 rounded-2xl border border-sage/15 bg-white/70 px-5 py-7 text-center sm:px-8">
+          <p className="mx-auto mb-4 max-w-2xl text-base leading-relaxed text-gray-600 sm:text-lg">
+            La filosofia dello studio continua in <em>Lasciati Trasportare</em>, il libro dedicato alle emozioni, al matrimonio e al valore della fotografia.
+          </p>
           <Link href="/lasciati-trasportare">
-            <Button size="lg" className="bg-sage hover:bg-dark-sage text-white">
+            <Button size="lg" className="h-auto max-w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage">
               <BookOpen className="mr-2 h-5 w-5" />
-              Leggi il Libro Completo
+              Scopri il libro Lasciati Trasportare
             </Button>
           </Link>
         </div>

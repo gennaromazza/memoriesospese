@@ -3,7 +3,6 @@ import {
   CalendarDays,
   Camera,
   Clapperboard,
-  Compass,
   Image,
   MapPin,
   Phone,
@@ -85,36 +84,36 @@ export const mainNavItems: NavItem[] = [
  */
 export const discoverNavGroups: DiscoverNavGroup[] = [
   {
-    label: 'Studio e ispirazione',
+    label: 'Il nostro mondo',
     items: [
       {
-        label: 'La nostra storia',
+        label: 'Gennaro e Image Studio',
         href: '/storie',
         icon: Sparkles,
-        description: 'Persone, visione e valori dietro ogni fotografia.',
+        description: 'La storia, le persone e i valori dietro ogni fotografia.',
         showInFooter: true,
       },
       {
-        label: 'Fotografo ad Aversa',
+        label: 'Il libro · Lasciati Trasportare',
+        href: '/lasciati-trasportare',
+        icon: BookOpen,
+        description: 'Anteprima e download del libro di Gennaro Mazzacane.',
+        showInFooter: true,
+      },
+      {
+        label: 'Lo studio ad Aversa',
         href: '/fotografo-aversa',
         icon: MapPin,
-        description: 'Scopri lo studio e i servizi tra Aversa, Napoli e Caserta.',
-        showInFooter: true,
-      },
-      {
-        label: 'Lasciati trasportare',
-        href: '/lasciati-trasportare',
-        icon: Compass,
-        description: 'Il nostro modo di trasformare fotografie in memoria.',
+        description: 'Dove siamo e come lavoriamo tra Aversa, Napoli e Caserta.',
         showInFooter: true,
       },
     ],
   },
   {
-    label: 'Esperienze e servizi',
+    label: 'Esperienze',
     items: [
       {
-        label: 'Stampa foto',
+        label: 'Stampa le tue foto',
         href: '/stampa-foto-aversa',
         icon: Printer,
         description: 'Formati, prezzi e consigli per stampare i tuoi ricordi.',
@@ -128,22 +127,29 @@ export const discoverNavGroups: DiscoverNavGroup[] = [
         showInFooter: true,
       },
       {
-        label: 'Sessioni e promozioni',
+        label: 'Sessioni fotografiche',
         href: '/prenota',
         icon: CalendarDays,
-        description: 'Scopri le esperienze disponibili e prenota il tuo posto.',
+        description: 'Scopri le esperienze disponibili e scegli il tuo posto.',
         showInFooter: true,
       },
     ],
   },
   {
-    label: 'Area clienti',
+    label: 'Il tuo spazio',
     items: [
       {
         label: 'Accedi alla galleria',
         href: '/accesso-galleria',
         icon: Image,
         description: 'Apri la tua galleria privata e ritrova le fotografie.',
+        showInFooter: true,
+      },
+      {
+        label: 'Prenota una consulenza',
+        href: '/consulenze',
+        icon: Phone,
+        description: 'Scegli quando sentirci e raccontaci cosa immagini.',
         showInFooter: true,
       },
     ],

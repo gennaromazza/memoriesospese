@@ -40,15 +40,15 @@ export default function LasciatiTrasportarePage() {
       <Navigation />
 
       <div className="max-w-6xl mx-auto px-4 pb-16 pt-24 sm:pt-28">
-        <div className="text-center mb-12">
-          <h1 className="text-6xl font-playfair text-blue-gray mb-4">
+        <div className="text-center mb-8 sm:mb-12">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-terracotta sm:text-sm">
+            Il libro di Gennaro Mazzacane
+          </p>
+          <h1 className="break-words text-4xl font-playfair leading-tight text-blue-gray mb-4 sm:text-5xl md:text-6xl">
             Lasciati Trasportare
           </h1>
-          <p className="text-2xl text-gray-600 mb-2">
-            di Gennaro Mazzacane
-          </p>
-          <p className="text-lg text-gray-500">
-            La guida completa per organizzare il tuo matrimonio perfetto
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-gray-500 sm:text-lg">
+            Una guida per vivere il matrimonio con autenticità e comprendere il valore delle fotografie che resteranno.
           </p>
         </div>
 
@@ -69,13 +69,11 @@ export default function LasciatiTrasportarePage() {
             <h2 className="text-3xl font-playfair text-blue-gray mb-6">
               Un Viaggio Emozionante
             </h2>
-            <p className="text-lg text-gray-600 mb-6">
-              "Lasciati Trasportare" è un viaggio emozionante attraverso il mondo dei matrimoni 
-              e della fotografia, un'esperienza avvincente e coinvolgente.
+            <p className="text-base sm:text-lg text-gray-600 mb-6 leading-relaxed">
+              "Lasciati Trasportare" accompagna gli sposi tra scelte, imprevisti ed emozioni, con lo sguardo di chi racconta matrimoni da oltre dieci anni.
             </p>
-            <p className="text-lg text-gray-600 mb-8">
-              Come un viaggiatore curioso che si addentra in nuove terre, questo libro ti invita 
-              a esplorare i confini del matrimonio, del racconto e dell'immortalare emozioni.
+            <p className="text-base sm:text-lg text-gray-600 mb-8 leading-relaxed">
+              Non è un'altra biografia dello studio: è uno strumento concreto per prepararsi al giorno del matrimonio e custodirne la memoria.
             </p>
 
             <div className="bg-white rounded-lg p-6 shadow-lg mb-8">
@@ -83,7 +81,7 @@ export default function LasciatiTrasportarePage() {
               <ul className="space-y-3">
                 <li className="flex items-start">
                   <span className="text-sage mr-2">✓</span>
-                  <span>Chi sono e perché ho scritto questo libro</span>
+                  <span>Perché le fotografie diventano memoria</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-sage mr-2">✓</span>
@@ -110,13 +108,13 @@ export default function LasciatiTrasportarePage() {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <a href={libroPdf} download="Lasciati-Trasportare.pdf" target="_blank" rel="noopener noreferrer" className="flex-1">
-                <Button size="lg" className="bg-sage hover:bg-dark-sage text-white w-full">
+                <Button size="lg" className="h-auto w-full whitespace-normal bg-sage px-5 py-3 text-center leading-snug text-white hover:bg-dark-sage">
                   <Download className="mr-2 h-5 w-5" />
                   Scarica GRATIS (PDF)
                 </Button>
               </a>
               <Link href="/prenota" className="flex-1">
-                <Button size="lg" variant="outline" className="border-sage text-sage hover:bg-sage/10 w-full">
+                <Button size="lg" variant="outline" className="h-auto w-full whitespace-normal border-sage px-5 py-3 text-center leading-snug text-sage hover:bg-sage/10">
                   <Calendar className="mr-2 h-5 w-5" />
                   Prenota Consulenza
                 </Button>
