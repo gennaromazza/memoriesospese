@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin, AlertCircle } from "lucide-react";
+import { Loader2, Calendar, Clock, Instagram, Mail, Phone, MapPin, AlertCircle } from "lucide-react";
 import { BlogPostStatus } from "@shared/schema";
 import { useStudio } from "@/context/StudioContext";
 import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
+import Navigation from "@/components/Navigation";
 import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
 import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
 
@@ -185,24 +186,7 @@ export default function BlogListPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <StudioLogo 
-              imgClassName="h-12 w-auto" 
-              textClassName="text-blue-gray font-playfair font-bold text-2xl"
-            />
-            <Link href="/">
-              <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                <span className="relative z-10">Torna alla Home</span>
-                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Hero Section */}
       <section className="pt-24 bg-gradient-to-r from-sage to-blue-gray text-white py-20 px-4">

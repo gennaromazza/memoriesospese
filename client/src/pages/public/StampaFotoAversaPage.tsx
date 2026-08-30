@@ -1,23 +1,29 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import {
   ArrowDown,
   Check,
   Heart,
-  Image as ImageIcon,
   Mail,
   MapPin,
-  Maximize2,
   MessageCircle,
   Phone,
+  Search,
   Send,
   Smartphone,
-  Sparkles,
+  X,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import StudioLogo from '@/components/StudioLogo';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { useSEO } from '@/hooks/useSEO';
 import { useStudio } from '@/context/StudioContext';
 import { createUrl } from '@/lib/basePath';
@@ -31,6 +37,8 @@ import {
   PRINT_SERVICE_SEO,
   PRINT_WHATSAPP_MESSAGE,
   countPrintFormats,
+  searchPrintFormats,
+  type PrintPriceRow,
 } from '@shared/print-service-content';
 
 const FALLBACK_PHONE = '+39 334 710 3142';
@@ -39,25 +47,28 @@ const BASE_URL = 'https://imagestudiofotografico.com';
 
 const formatCards = [
   {
-    icon: ImageIcon,
     title: '10×15 classico',
     price: 'da €0,20',
     description: 'Il formato più versatile per album, scatole dei ricordi e fotografie da regalare.',
     tag: 'Più scelto',
+    image: '/images/print-service/printed-memories-table.jpg',
+    imageAlt: 'Stampe fotografiche reali disposte su un tavolo in legno',
   },
   {
-    icon: Sparkles,
     title: 'Polaroid 10×9',
     price: '50 foto · €9,90',
     description: 'Bordo iconico per pareti, fili con mollette, dediche e piccoli regali.',
     tag: 'Idea creativa',
+    image: '/images/print-service/travel-polaroid-prints.jpg',
+    imageAlt: 'Fotografie di viaggio reali stampate in stile Polaroid',
   },
   {
-    icon: Maximize2,
     title: '20×30 e oltre',
     price: 'da €2,00',
     description: 'Per dare spazio a un panorama, un ritratto o alla fotografia simbolo della vacanza.',
     tag: 'Da parete',
+    image: '/images/print-service/family-vacation-beach.jpg',
+    imageAlt: 'Famiglia davanti al mare durante una vacanza estiva',
   },
 ];
 
@@ -88,8 +99,49 @@ const steps = [
   },
 ];
 
+interface PriceBreakdownProps {
+  row: PrintPriceRow;
+  quantityHeaders: string[];
+}
+
+function PriceBreakdown({ row, quantityHeaders }: PriceBreakdownProps) {
+  return (
+    <dl className="grid gap-2 border-t border-sage/10 bg-off-white/60 p-4 sm:grid-cols-2">
+      {quantityHeaders.map((quantity, index) => (
+        <div key={`${row.format}-${quantity}`} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
+          <dt className="text-xs font-medium text-blue-gray/55">{quantity} foto</dt>
+          <dd className="font-semibold tabular-nums text-blue-gray">{row.prices[index]}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function PriceFormatDisclosure({ row, quantityHeaders }: PriceBreakdownProps) {
+  const lowestPrice = row.prices[row.prices.length - 1];
+  const isPolaroidPackage = row.format.toLocaleLowerCase('it-IT').includes('polaroid');
+
+  return (
+    <details className="group overflow-hidden rounded-2xl border border-sage/15 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden">
+        <span>
+          <span className="block text-lg font-semibold text-blue-gray">{row.format} cm</span>
+          <span className="mt-0.5 block text-xs text-blue-gray/50">
+            {isPolaroidPackage ? `confezione da 50 foto · ${lowestPrice}` : `a partire da ${lowestPrice} per stampa`}
+          </span>
+        </span>
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-sage/10 text-lg text-dark-sage transition-transform duration-200 group-open:rotate-45" aria-hidden="true">+</span>
+      </summary>
+      <PriceBreakdown row={row} quantityHeaders={quantityHeaders} />
+    </details>
+  );
+}
+
 export default function StampaFotoAversaPage() {
   const { studioSettings } = useStudio();
+  const [formatQuery, setFormatQuery] = useState('');
+  const formatResults = useMemo(() => searchPrintFormats(formatQuery), [formatQuery]);
+  const hasFormatQuery = formatQuery.trim().length > 0;
 
   useSEO({
     title: PRINT_SERVICE_SEO.title,
@@ -224,34 +276,33 @@ export default function StampaFotoAversaPage() {
               </div>
             </div>
 
-            <div className="relative mx-auto h-[430px] w-full max-w-[520px] sm:h-[500px]" aria-label="Composizione di stampe fotografiche Image Studio">
-              <div className="absolute left-4 top-14 h-72 w-56 -rotate-6 rounded-sm bg-cream p-4 shadow-2xl sm:left-8 sm:h-80 sm:w-64">
-                <div className="flex h-full flex-col justify-between bg-terracotta/15 p-5 text-blue-gray">
-                  <Sparkles className="h-9 w-9 text-terracotta" />
-                  <div>
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em]">Estate 2026</span>
-                    <p className="mt-2 font-playfair text-3xl leading-tight">Ricordi da tenere tra le mani.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute right-3 top-2 h-72 w-56 rotate-6 rounded-sm bg-white p-3 shadow-2xl sm:right-6 sm:h-80 sm:w-64">
+            <div className="relative mx-auto h-[430px] w-full max-w-[540px] sm:h-[510px]" aria-label="Fotografie vere di una vacanza e stampe in stile Polaroid">
+              <figure className="absolute inset-x-4 top-3 overflow-hidden rounded-[2rem] border-[10px] border-white bg-white shadow-2xl sm:inset-x-8 sm:top-4">
                 <img
-                  src={createUrl('/1200x630px.jpg')}
-                  alt="Una fotografia firmata Image Studio pronta per la stampa"
-                  className="h-[77%] w-full object-cover"
+                  src={createUrl('/images/print-service/family-vacation-beach.jpg')}
+                  alt="Famiglia che guarda il mare durante una vacanza"
+                  className="h-72 w-full object-cover sm:h-80"
+                  fetchPriority="high"
                 />
-                <div className="px-2 pt-4 text-center font-playfair text-xl italic text-blue-gray">Memorie Sospese</div>
-              </div>
+                <figcaption className="flex items-center justify-between gap-4 bg-white px-4 py-3 text-blue-gray">
+                  <span className="font-playfair text-lg italic">La fotografia simbolo dell’estate</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-terracotta">Stampa 20×30</span>
+                </figcaption>
+              </figure>
 
-              <div className="absolute bottom-3 right-14 w-64 -rotate-2 rounded-sm bg-white p-3 shadow-2xl sm:right-20 sm:w-72">
-                <div className="flex h-28 items-center justify-center bg-sage/20 text-center text-blue-gray">
-                  <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-dark-sage">Formato Polaroid</span>
-                    <p className="mt-1 font-playfair text-2xl">Una foto. Una storia.</p>
-                  </div>
-                </div>
-                <p className="pt-3 text-center text-sm font-medium text-blue-gray/75">Aversa · Image Studio</p>
+              <figure className="absolute bottom-1 right-3 w-[52%] rotate-3 rounded-sm bg-white p-3 shadow-2xl sm:right-1 sm:w-[50%]">
+                <img
+                  src={createUrl('/images/print-service/travel-polaroid-prints.jpg')}
+                  alt="Fotografie vere di viaggio stampate in stile Polaroid"
+                  className="h-44 w-full object-cover object-center sm:h-52"
+                  loading="eager"
+                />
+                <figcaption className="pt-3 text-center font-playfair text-lg italic text-blue-gray">Ricordi da tenere tra le mani</figcaption>
+              </figure>
+
+              <div className="absolute bottom-12 left-2 max-w-[190px] -rotate-3 rounded-2xl border border-white/20 bg-blue-gray/90 px-5 py-4 text-white shadow-xl backdrop-blur sm:left-0 sm:max-w-[220px]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cream">Foto vere. Carta vera.</p>
+                <p className="mt-2 font-playfair text-xl leading-tight">La vacanza non resta più nascosta nel telefono.</p>
               </div>
             </div>
           </div>
@@ -276,18 +327,22 @@ export default function StampaFotoAversaPage() {
 
             <div className="mt-14 grid gap-6 md:grid-cols-3">
               {formatCards.map((card) => {
-                const Icon = card.icon;
                 return (
-                  <article key={card.title} className="group rounded-[2rem] border border-sage/15 bg-white p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sage/15 text-dark-sage">
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <span className="rounded-full bg-cream/70 px-3 py-1 text-xs font-semibold text-blue-gray/70">{card.tag}</span>
+                  <article key={card.title} className="group overflow-hidden rounded-[2rem] border border-sage/15 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+                    <div className="relative h-52 overflow-hidden">
+                      <img
+                        src={createUrl(card.image)}
+                        alt={card.imageAlt}
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                      <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-blue-gray shadow-sm backdrop-blur">{card.tag}</span>
                     </div>
-                    <h3 className="mt-7 text-2xl font-semibold text-blue-gray">{card.title}</h3>
-                    <p className="mt-2 text-xl font-semibold text-terracotta">{card.price}</p>
-                    <p className="mt-4 leading-relaxed text-blue-gray/65">{card.description}</p>
+                    <div className="p-7">
+                      <h3 className="text-2xl font-semibold text-blue-gray">{card.title}</h3>
+                      <p className="mt-2 text-xl font-semibold text-terracotta">{card.price}</p>
+                      <p className="mt-4 leading-relaxed text-blue-gray/65">{card.description}</p>
+                    </div>
                   </article>
                 );
               })}
@@ -305,65 +360,130 @@ export default function StampaFotoAversaPage() {
               </p>
               <p className="mt-5 text-blue-gray/70">Non devi decidere da solo: raccontaci dove metterai le fotografie e ti aiuteremo a scegliere.</p>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="rounded-[2rem] bg-gradient-to-br from-terracotta/20 to-cream p-7">
-                <div className="mb-20 h-2 w-16 rounded-full bg-terracotta" />
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Carta lucida</p>
-                <p className="mt-3 font-playfair text-3xl text-blue-gray">Colore, luce, contrasto.</p>
-              </div>
-              <div className="rounded-[2rem] bg-gradient-to-br from-sage/25 to-light-mint p-7 sm:mt-10">
-                <div className="mb-20 h-2 w-16 rounded-full bg-dark-sage" />
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-dark-sage">Carta opaca</p>
-                <p className="mt-3 font-playfair text-3xl text-blue-gray">Tatto, eleganza, niente riflessi.</p>
+            <div className="relative min-h-[430px] overflow-hidden rounded-[2.5rem] shadow-xl">
+              <img
+                src={createUrl('/images/print-service/printed-memories-table.jpg')}
+                alt="Fotografie stampate realmente e appoggiate su un tavolo"
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-blue-gray/85 via-blue-gray/10 to-transparent" aria-hidden="true" />
+              <div className="absolute inset-x-4 bottom-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white/95 p-5 shadow-lg backdrop-blur">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-terracotta">Carta lucida</p>
+                  <p className="mt-2 font-playfair text-2xl text-blue-gray">Colore, luce, contrasto.</p>
+                </div>
+                <div className="rounded-2xl bg-white/95 p-5 shadow-lg backdrop-blur">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-dark-sage">Carta opaca</p>
+                  <p className="mt-2 font-playfair text-2xl text-blue-gray">Tatto, eleganza, niente riflessi.</p>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         <section id="listino" className="scroll-mt-20 bg-cream/35 px-4 py-20 sm:py-24">
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-6xl">
             <div className="mx-auto max-w-3xl text-center">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-terracotta">Prezzi chiari, ricordi senza misura</span>
               <h2 className="mt-4 text-3xl font-semibold text-blue-gray sm:text-5xl">Listino stampe fotografiche</h2>
               <p className="mt-5 text-blue-gray/70">
-                I prezzi sono per singola stampa e diminuiscono in base alla quantità. Tutti i formati sono espressi in centimetri.
+                Cerca direttamente il formato che ti serve oppure apri una categoria. I prezzi sono per singola stampa e diminuiscono in base alla quantità.
               </p>
             </div>
 
-            <div className="mt-12 space-y-10">
-              {PRINT_PRICE_TABLES.map((table) => (
-                <section key={table.id} aria-labelledby={`prezzi-${table.id}`} className="overflow-hidden rounded-[2rem] border border-sage/20 bg-white shadow-sm">
-                  <div className="border-b border-sage/15 px-6 py-6 sm:px-8">
-                    <h3 id={`prezzi-${table.id}`} className="text-2xl font-semibold text-blue-gray">{table.title}</h3>
-                    <p className="mt-2 text-sm text-blue-gray/60">{table.description}</p>
+            <div className="mx-auto mt-10 max-w-3xl rounded-[2rem] border border-sage/20 bg-white p-5 shadow-sm sm:p-7">
+              <label htmlFor="format-search" className="text-sm font-semibold text-blue-gray">Quale formato stai cercando?</label>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-sage" aria-hidden="true" />
+                <Input
+                  id="format-search"
+                  type="search"
+                  inputMode="search"
+                  value={formatQuery}
+                  onChange={(event) => setFormatQuery(event.target.value)}
+                  placeholder="Es. 10×15, 20×30, 50×70"
+                  className="h-14 rounded-2xl border-sage/25 bg-off-white/50 pl-12 pr-12 text-base text-blue-gray placeholder:text-blue-gray/35 focus-visible:ring-sage"
+                  autoComplete="off"
+                />
+                {hasFormatQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setFormatQuery('')}
+                    className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-blue-gray/45 transition-colors hover:bg-sage/10 hover:text-blue-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage"
+                    aria-label="Cancella la ricerca del formato"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-blue-gray/55">
+                <span>Prova:</span>
+                {['10×15', '13×18', '20×30', '50×70', 'Polaroid'].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setFormatQuery(suggestion)}
+                    className="rounded-full border border-sage/20 bg-off-white px-3 py-1.5 font-semibold text-blue-gray transition-colors hover:border-sage hover:bg-sage/10"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-8" aria-live="polite">
+              {hasFormatQuery ? (
+                formatResults.length > 0 ? (
+                  <div>
+                    <p className="mb-4 text-sm font-medium text-blue-gray/65">
+                      {formatResults.length === 1 ? 'Formato trovato' : `${formatResults.length} formati trovati`} per “{formatQuery}”
+                    </p>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {formatResults.map((result) => (
+                        <article key={`${result.tableId}-${result.row.format}`} className="overflow-hidden rounded-2xl border border-sage/20 bg-white shadow-sm">
+                          <div className="flex items-start justify-between gap-4 px-5 py-4">
+                            <div>
+                              <h3 className="text-xl font-semibold text-blue-gray">{result.row.format} cm</h3>
+                              <p className="mt-1 text-xs text-blue-gray/50">{result.tableTitle}</p>
+                            </div>
+                            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-dark-sage">Prezzi per quantità</span>
+                          </div>
+                          <PriceBreakdown row={result.row} quantityHeaders={result.quantityHeaders} />
+                        </article>
+                      ))}
+                    </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[680px] border-collapse text-left text-sm">
-                      <caption className="sr-only">Prezzi per {table.title.toLowerCase()}, suddivisi per quantità</caption>
-                      <thead>
-                        <tr className="bg-sage/10 text-blue-gray">
-                          <th scope="col" className="sticky left-0 z-10 bg-[#eef2eb] px-6 py-4 font-semibold sm:px-8">Formato</th>
-                          {table.quantityHeaders.map((quantity) => (
-                            <th key={quantity} scope="col" className="px-5 py-4 text-right font-semibold">{quantity} foto</th>
+                ) : (
+                  <div className="rounded-[2rem] border border-dashed border-sage/30 bg-white px-6 py-10 text-center">
+                    <p className="text-lg font-semibold text-blue-gray">Nessun formato corrisponde a “{formatQuery}”.</p>
+                    <p className="mt-2 text-sm text-blue-gray/55">Prova a scrivere solo le misure, per esempio 30×40, oppure consulta le categorie.</p>
+                    <Button variant="outline" onClick={() => setFormatQuery('')} className="mt-5 rounded-full border-sage/30 text-blue-gray hover:bg-sage/10">
+                      Mostra tutti i formati
+                    </Button>
+                  </div>
+                )
+              ) : (
+                <Accordion type="single" collapsible defaultValue="classici" className="space-y-4">
+                  {PRINT_PRICE_TABLES.map((table) => (
+                    <AccordionItem key={table.id} value={table.id} className="overflow-hidden rounded-[2rem] border border-sage/20 bg-white px-0 shadow-sm">
+                      <AccordionTrigger className="px-6 py-5 text-left hover:no-underline sm:px-8">
+                        <span className="pr-4">
+                          <span className="block text-xl font-semibold text-blue-gray sm:text-2xl">{table.title}</span>
+                          <span className="mt-1 block text-sm font-normal leading-relaxed text-blue-gray/55">{table.rows.length} formati · {table.description}</span>
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="border-t border-sage/10 px-4 pb-5 pt-5 sm:px-6">
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {table.rows.map((row) => (
+                            <PriceFormatDisclosure key={row.format} row={row} quantityHeaders={table.quantityHeaders} />
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {table.rows.map((row, rowIndex) => (
-                          <tr key={row.format} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-off-white/60'}>
-                            <th scope="row" className={`sticky left-0 z-10 px-6 py-4 font-semibold text-blue-gray sm:px-8 ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-[#f6f6f2]'}`}>
-                              {row.format}
-                            </th>
-                            {row.prices.map((price, priceIndex) => (
-                              <td key={`${row.format}-${priceIndex}`} className="px-5 py-4 text-right tabular-nums text-blue-gray/75">{price}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
             </div>
 
             <div className="mt-8 rounded-2xl border border-terracotta/20 bg-terracotta/10 p-5 text-sm leading-relaxed text-blue-gray/75">

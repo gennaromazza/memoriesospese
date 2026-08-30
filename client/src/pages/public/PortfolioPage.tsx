@@ -4,9 +4,9 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Grid, LayoutGrid } from "lucide-react";
+import { Loader2, Grid, LayoutGrid } from "lucide-react";
 import Lightbox from "@/components/public/Lightbox";
-import StudioLogo from "@/components/StudioLogo";
+import Navigation from "@/components/Navigation";
 import { useSEO } from "@/hooks/useSEO";
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
@@ -118,46 +118,29 @@ export default function PortfolioPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <StudioLogo 
-              imgClassName="h-12 w-auto" 
-              textClassName="text-2xl font-playfair text-blue-gray"
-            />
-            <Link href="/">
-              <Button variant="ghost" className="text-sage hover:text-dark-sage" data-testid="button-back-home">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Home
-              </Button>
-            </Link>
-
-            {/* View mode toggle */}
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === 'categories' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('categories')}
-                data-testid="button-view-categories"
-              >
-                <LayoutGrid className="mr-2 h-4 w-4" />
-                Categorie
-              </Button>
-              <Button
-                variant={viewMode === 'grid' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('grid')}
-                data-testid="button-view-grid"
-              >
-                <Grid className="mr-2 h-4 w-4" />
-                Tutte le Foto
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       <div className="max-w-7xl mx-auto px-4 pt-24 sm:pt-28 md:pt-32 pb-12">
+        <div className="mb-8 flex justify-center gap-2 sm:justify-end" aria-label="Modalità di visualizzazione del portfolio">
+          <Button
+            variant={viewMode === 'categories' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('categories')}
+            data-testid="button-view-categories"
+          >
+            <LayoutGrid className="mr-2 h-4 w-4" />
+            Categorie
+          </Button>
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+            data-testid="button-view-grid"
+          >
+            <Grid className="mr-2 h-4 w-4" />
+            Tutte le foto
+          </Button>
+        </div>
         <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-playfair text-blue-gray mb-4">
             Portfolio di fotografia di matrimonio

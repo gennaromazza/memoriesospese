@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 import {
-  ArrowLeft,
   Lock,
   Calendar,
   ImageIcon,
@@ -12,6 +10,7 @@ import GallerySearch from "@/components/GallerySearch";
 import StudioLogo from "@/components/StudioLogo";
 import type { BookingCampaignFE } from "@shared/booking-types";
 import { useSEO } from "@/hooks/useSEO";
+import Navigation from "@/components/Navigation";
 
 export default function GalleryAccessPage() {
   const { studioSettings } = useStudio();
@@ -39,23 +38,7 @@ export default function GalleryAccessPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-beige">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <StudioLogo 
-              imgClassName="h-12 w-auto" 
-              textClassName="text-2xl font-playfair text-blue-gray"
-            />
-            <Link href="/">
-              <Button variant="ghost" className="text-sage hover:text-dark-sage">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Torna alla Home
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Hero Section */}
       <section className="pt-24 sm:pt-28 md:pt-32 pb-8 sm:pb-12 px-4 relative overflow-hidden">

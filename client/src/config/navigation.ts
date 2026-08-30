@@ -1,4 +1,16 @@
-import { Camera, BookOpen, Sparkles, Star, Phone, Image, Printer } from 'lucide-react';
+import {
+  BookOpen,
+  CalendarDays,
+  Camera,
+  Clapperboard,
+  Compass,
+  Image,
+  MapPin,
+  Phone,
+  Printer,
+  Sparkles,
+  Star,
+} from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -18,6 +30,15 @@ export interface SocialLink {
   icon: 'facebook' | 'instagram' | 'twitter' | 'google';
 }
 
+export interface DiscoverNavItem extends NavItem {
+  description: string;
+}
+
+export interface DiscoverNavGroup {
+  label: string;
+  items: DiscoverNavItem[];
+}
+
 export const mainNavItems: NavItem[] = [
   {
     label: 'Portfolio',
@@ -29,31 +50,13 @@ export const mainNavItems: NavItem[] = [
     mobileOrder: 1,
   },
   {
-    label: 'Experience',
-    href: '/storie',
-    icon: Sparkles,
-    showInHeader: true,
-    showInFooter: true,
-    showInMobile: true,
-    mobileOrder: 2,
-  },
-  {
     label: 'Blog',
     href: '/blog',
     icon: BookOpen,
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 3,
-  },
-  {
-    label: 'Stampa foto',
-    href: '/stampa-foto-aversa',
-    icon: Printer,
-    showInHeader: true,
-    showInFooter: true,
-    showInMobile: true,
-    mobileOrder: 4,
+    mobileOrder: 2,
   },
   {
     label: 'Recensioni',
@@ -62,7 +65,7 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: true,
     showInMobile: true,
-    mobileOrder: 5,
+    mobileOrder: 3,
   },
   {
     label: 'Prenota una chiamata',
@@ -71,17 +74,79 @@ export const mainNavItems: NavItem[] = [
     showInHeader: true,
     showInFooter: false,
     showInMobile: true,
-    mobileOrder: 6,
+    mobileOrder: 4,
     highlight: true,
   },
+];
+
+/**
+ * Pagine pubbliche utili ma troppo numerose per la navigazione principale.
+ * Sono raccolte in un unico menu editoriale, disponibile sia desktop sia mobile.
+ */
+export const discoverNavGroups: DiscoverNavGroup[] = [
   {
-    label: 'Accedi alla Galleria',
-    href: '/accesso-galleria',
-    icon: Image,
-    showInHeader: false,
-    showInFooter: true,
-    showInMobile: false,
-    mobileOrder: 7,
+    label: 'Studio e ispirazione',
+    items: [
+      {
+        label: 'La nostra storia',
+        href: '/storie',
+        icon: Sparkles,
+        description: 'Persone, visione e valori dietro ogni fotografia.',
+        showInFooter: true,
+      },
+      {
+        label: 'Fotografo ad Aversa',
+        href: '/fotografo-aversa',
+        icon: MapPin,
+        description: 'Scopri lo studio e i servizi tra Aversa, Napoli e Caserta.',
+        showInFooter: true,
+      },
+      {
+        label: 'Lasciati trasportare',
+        href: '/lasciati-trasportare',
+        icon: Compass,
+        description: 'Il nostro modo di trasformare fotografie in memoria.',
+        showInFooter: true,
+      },
+    ],
+  },
+  {
+    label: 'Esperienze e servizi',
+    items: [
+      {
+        label: 'Stampa foto',
+        href: '/stampa-foto-aversa',
+        icon: Printer,
+        description: 'Formati, prezzi e consigli per stampare i tuoi ricordi.',
+        showInFooter: true,
+      },
+      {
+        label: 'Vision',
+        href: '/vision',
+        icon: Clapperboard,
+        description: 'Film e racconti di matrimonio da guardare e rivivere.',
+        showInFooter: true,
+      },
+      {
+        label: 'Sessioni e promozioni',
+        href: '/prenota',
+        icon: CalendarDays,
+        description: 'Scopri le esperienze disponibili e prenota il tuo posto.',
+        showInFooter: true,
+      },
+    ],
+  },
+  {
+    label: 'Area clienti',
+    items: [
+      {
+        label: 'Accedi alla galleria',
+        href: '/accesso-galleria',
+        icon: Image,
+        description: 'Apri la tua galleria privata e ritrova le fotografie.',
+        showInFooter: true,
+      },
+    ],
   },
 ];
 
@@ -99,7 +164,11 @@ export const socialLinks: SocialLink[] = [
 ];
 
 export const getHeaderItems = () => mainNavItems.filter(item => item.showInHeader);
-export const getFooterItems = () => mainNavItems.filter(item => item.showInFooter);
+export const getFooterItems = () => [
+  ...mainNavItems.filter(item => item.showInFooter),
+  ...discoverNavGroups.flatMap(group => group.items).filter(item => item.showInFooter),
+];
+export const getDiscoverGroups = () => discoverNavGroups;
 export const getMobileItems = () =>
   mainNavItems
     .filter(item => item.showInMobile)

@@ -16,6 +16,13 @@ export interface PrintFaq {
   answer: string;
 }
 
+export interface PrintFormatSearchResult {
+  tableId: string;
+  tableTitle: string;
+  quantityHeaders: string[];
+  row: PrintPriceRow;
+}
+
 export const PRINT_SERVICE_PATH = '/stampa-foto-aversa';
 export const PRINT_PRICE_UPDATED_AT = '30 agosto 2026';
 
@@ -88,6 +95,15 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
       { format: '50×80', prices: ['€17,00', '€11,00', '€8,00'] },
     ],
   },
+  {
+    id: 'polaroid',
+    title: 'Formato Polaroid',
+    description: 'Stampe con il bordo iconico, pronte per pareti, dediche e piccoli regali.',
+    quantityHeaders: ['50'],
+    rows: [
+      { format: '10×9 Polaroid Wide', prices: ['€9,90'] },
+    ],
+  },
 ];
 
 export const PRINT_FAQS: PrintFaq[] = [
@@ -120,4 +136,29 @@ export const PRINT_FAQS: PrintFaq[] = [
 
 export function countPrintFormats(): number {
   return PRINT_PRICE_TABLES.reduce((total, table) => total + table.rows.length, 0);
+}
+
+export function normalizePrintFormat(value: string): string {
+  return value
+    .toLocaleLowerCase('it-IT')
+    .replace(/centimetri|centimetro|cm/g, '')
+    .replace(/[×*]/g, 'x')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+export function searchPrintFormats(query: string): PrintFormatSearchResult[] {
+  const normalizedQuery = normalizePrintFormat(query);
+  if (!normalizedQuery) return [];
+
+  return PRINT_PRICE_TABLES.flatMap((table) =>
+    table.rows
+      .filter((row) => normalizePrintFormat(row.format).includes(normalizedQuery))
+      .map((row) => ({
+        tableId: table.id,
+        tableTitle: table.title,
+        quantityHeaders: table.quantityHeaders,
+        row,
+      })),
+  );
 }

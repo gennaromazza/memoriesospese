@@ -9,6 +9,7 @@ export default defineConfig({
     include: [
       "server/**/*.test.ts",
       "shared/**/*.test.ts",
+      "client/src/config/**/*.test.ts",
       "client/src/lib/wedding-seo.test.ts",
       "client/src/pages/admin/adminGalleryFilters.test.ts",
     ],

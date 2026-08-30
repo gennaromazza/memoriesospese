@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
-import StudioLogo from "@/components/StudioLogo";
 import { useSEO } from "@/hooks/useSEO";
 import { sanitizeBlogHtml } from "@/lib/blog-html";
+import Navigation from "@/components/Navigation";
 
 const FALLBACK_AUTHOR = "Gennaro Mazzacane";
 
@@ -213,26 +213,7 @@ export default function BlogPostPage() {
   if (notFound || !post) {
     return (
       <div className="min-h-screen bg-cream">
-        <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16 sm:h-20">
-              <StudioLogo imgClassName="h-9 sm:h-12 w-auto" textClassName="text-blue-gray font-playfair font-bold text-lg sm:text-2xl" />
-              <div className="flex gap-1 sm:gap-2">
-                <Link href="/blog">
-                  <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
-                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Tutti gli Articoli</span>
-                  </Button>
-                </Link>
-                <Link href="/">
-                  <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
-                    Home
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <Navigation />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
           <h1 className="font-serif text-4xl text-dark mb-4">Articolo non trovato</h1>
           <p className="text-muted-foreground mb-8">L'articolo che stai cercando non esiste o non è più disponibile.</p>
@@ -248,28 +229,15 @@ export default function BlogPostPage() {
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
-      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16 sm:h-20">
-            <StudioLogo imgClassName="h-9 sm:h-12 w-auto" textClassName="text-blue-gray font-playfair font-bold text-lg sm:text-2xl" />
-            <div className="flex gap-1 sm:gap-2">
-              <Link href="/blog">
-                <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
-                  <ArrowLeft className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Tutti gli Articoli</span>
-                </Button>
-              </Link>
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="font-medium text-blue-gray hover:text-sage px-2 sm:px-4 py-2 rounded-xl transition-all duration-300">
-                  Home
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
-      <article className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-16 min-w-0 box-border">
+      <article className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16 min-w-0 box-border">
+        <Link href="/blog">
+          <Button variant="ghost" size="sm" className="mb-5 -ml-2 font-medium text-blue-gray hover:text-sage">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Tutti gli articoli
+          </Button>
+        </Link>
         {post.coverImage && (
           <div className="mb-8 sm:mb-12 rounded-xl overflow-hidden shadow-lg">
             <img

@@ -1,12 +1,23 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "../context/StudioContext";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { createUrl } from "@/lib/basePath";
 import { useLogout } from "../hooks/useLogout";
 import { useIsAdmin } from "../hooks/useIsAdmin";
 import { Button } from "@/components/ui/button";
-import { getHeaderItems, getMobileItems } from "@/config/navigation";
+import { getDiscoverGroups, getHeaderItems, getMobileItems } from "@/config/navigation";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface NavigationProps {
   isAdminNav?: boolean;
@@ -16,6 +27,7 @@ interface NavigationProps {
 
 export default function Navigation({ isAdminNav = false, galleryOwner, galleryCode }: NavigationProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [, navigate] = useLocation();
   const { studioSettings } = useStudio();
   const { handleLogout } = useLogout();
@@ -128,6 +140,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   // Default public navigation bar (homepage e tutte le pagine pubbliche)
   const headerItems = getHeaderItems();
   const mobileItems = getMobileItems();
+  const discoverGroups = getDiscoverGroups();
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-white/85 backdrop-blur-xl border-b border-sage/10 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -161,6 +174,56 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 {item.label}
               </Link>
             ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="group inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-[15px] font-medium text-blue-gray/85 outline-none transition-colors duration-200 hover:text-sage focus-visible:ring-2 focus-visible:ring-sage/40 data-[state=open]:bg-sage/10 data-[state=open]:text-dark-sage"
+                  aria-label="Apri il menu Scopri"
+                >
+                  Scopri
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={12}
+                className="w-[min(720px,calc(100vw-2rem))] rounded-3xl border-sage/15 bg-white/95 p-4 shadow-2xl backdrop-blur-xl"
+              >
+                <div className="grid gap-3 md:grid-cols-3">
+                  {discoverGroups.map((group) => (
+                    <div key={group.label} className="rounded-2xl bg-off-white/70 p-2">
+                      <p className="px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-terracotta">
+                        {group.label}
+                      </p>
+                      <div className="space-y-1">
+                        {group.items.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <DropdownMenuItem key={item.href} asChild className="cursor-pointer rounded-xl p-0 focus:bg-sage/10">
+                              <Link
+                                to={createUrl(item.href)}
+                                className="flex items-start gap-3 rounded-xl px-3 py-3 text-left outline-none"
+                              >
+                                {Icon && (
+                                  <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-xl bg-white text-dark-sage shadow-sm">
+                                    <Icon className="h-4 w-4" />
+                                  </span>
+                                )}
+                                <span>
+                                  <span className="block text-sm font-semibold text-blue-gray">{item.label}</span>
+                                  <span className="mt-1 block text-xs leading-relaxed text-blue-gray/55">{item.description}</span>
+                                </span>
+                              </Link>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {headerItems.filter(i => i.highlight).map((item) => (
               <Link
                 key={item.href}
@@ -200,6 +263,49 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               {item.label}
             </Link>
           ))}
+          <Collapsible open={isDiscoverOpen} onOpenChange={setIsDiscoverOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-base font-medium text-blue-gray transition-colors duration-200 hover:bg-sage/5 hover:text-sage"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sage/15 text-xs font-semibold text-dark-sage">+</span>
+                  Scopri tutti i servizi
+                </span>
+                <ChevronDown className={`h-5 w-5 text-sage transition-transform duration-200 ${isDiscoverOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="px-2 pb-2">
+              <div className="mt-1 space-y-3 rounded-2xl bg-off-white/80 p-3">
+                {discoverGroups.map((group) => (
+                  <div key={group.label}>
+                    <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-terracotta">{group.label}</p>
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.href}
+                          to={createUrl(item.href)}
+                          onClick={() => {
+                            setIsDiscoverOpen(false);
+                            setIsMenuOpen(false);
+                          }}
+                          className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-blue-gray transition-colors hover:bg-white hover:text-sage"
+                        >
+                          {Icon && <Icon className="mt-0.5 h-4 w-4 flex-none text-sage" />}
+                          <span>
+                            <span className="block text-sm font-semibold">{item.label}</span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-blue-gray/50">{item.description}</span>
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
           {mobileItems.filter(i => i.highlight).map((item) => (
             <Link
               key={item.href}

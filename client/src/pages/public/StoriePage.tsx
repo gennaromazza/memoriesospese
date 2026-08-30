@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, BookOpen } from "lucide-react";
-import StudioLogo from "@/components/StudioLogo";
+import { BookOpen } from "lucide-react";
+import Navigation from "@/components/Navigation";
 import gennaroWithCamera from "@assets/DSCF7392_1_1763485862385.jpg";
 import gennaroArtistic from "@assets/DSCF7358_1_1763485862385.jpg";
 import { useSEO } from "@/hooks/useSEO";
@@ -16,24 +16,7 @@ export default function StoriePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-[#F5EFE6]">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-lg z-50 border-b border-sage/10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <StudioLogo 
-              imgClassName="h-12 w-auto" 
-              textClassName="text-blue-gray font-playfair font-bold text-2xl"
-            />
-            <Link href="/">
-              <Button variant="ghost" className="relative font-medium text-blue-gray hover:text-sage px-4 py-2 rounded-xl transition-all duration-300 group">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                <span className="relative z-10">Torna alla Home</span>
-                <span className="absolute inset-0 bg-gradient-to-r from-sage/0 via-sage/5 to-sage/0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       <div className="max-w-4xl mx-auto px-4 pt-24 sm:pt-28 md:pt-32 pb-12">
         <div className="text-center mb-12 animate-fade-in">

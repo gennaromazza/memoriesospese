@@ -97,7 +97,7 @@ describe('SEO prerender wedding-first', () => {
     expect(next).not.toHaveBeenCalled();
     expect(response.headers['Content-Type']).toBe('text/html');
     expect(response.body).toContain('<h1>Stampa foto ad Aversa: vacanze, Polaroid e ricordi</h1>');
-    expect(response.body).toContain('33 formati');
+    expect(response.body).toContain('34 formati');
     expect(response.body).toContain('FAQPage');
     expect(response.body).toContain('https://imagestudiofotografico.com/stampa-foto-aversa');
   });
