@@ -165,15 +165,19 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
 
           {/* Desktop nav */}
           <div className="hidden md:flex md:items-center md:gap-1">
-            {headerItems.filter(i => !i.highlight).map((item) => (
-              <Link
-                key={item.href}
-                to={createUrl(item.href)}
-                className="relative text-[15px] font-medium text-blue-gray/85 hover:text-sage px-3.5 py-2 rounded-full transition-colors duration-200"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {headerItems.filter(i => !i.highlight).map((item) => {
+              const className = "relative text-[15px] font-medium text-blue-gray/85 hover:text-sage px-3.5 py-2 rounded-full transition-colors duration-200";
+
+              return item.href.includes('#') ? (
+                <a key={item.href} href={createUrl(item.href)} className={className}>
+                  {item.label}
+                </a>
+              ) : (
+                <Link key={item.href} to={createUrl(item.href)} className={className}>
+                  {item.label}
+                </Link>
+              );
+            })}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -252,17 +256,35 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
       {/* Mobile menu */}
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden bg-white/95 backdrop-blur-xl border-t border-sage/10 shadow-lg fixed left-0 right-0 top-16 max-h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain`}>
         <div className="px-4 pt-4 pb-6 space-y-1">
-          {mobileItems.filter(i => !i.highlight).map((item) => (
-            <Link
-              key={item.href}
-              to={createUrl(item.href)}
-              onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 text-base font-medium text-blue-gray rounded-xl hover:text-sage hover:bg-sage/5 transition-colors duration-200"
-            >
-              {item.icon && <item.icon className="h-5 w-5 text-sage/70" />}
-              {item.label}
-            </Link>
-          ))}
+          {mobileItems.filter(i => !i.highlight).map((item) => {
+            const className = "flex items-center gap-3 px-4 py-3 text-base font-medium text-blue-gray rounded-xl hover:text-sage hover:bg-sage/5 transition-colors duration-200";
+            const content = (
+              <>
+                {item.icon && <item.icon className="h-5 w-5 text-sage/70" />}
+                {item.label}
+              </>
+            );
+
+            return item.href.includes('#') ? (
+              <a
+                key={item.href}
+                href={createUrl(item.href)}
+                onClick={() => setIsMenuOpen(false)}
+                className={className}
+              >
+                {content}
+              </a>
+            ) : (
+              <Link
+                key={item.href}
+                to={createUrl(item.href)}
+                onClick={() => setIsMenuOpen(false)}
+                className={className}
+              >
+                {content}
+              </Link>
+            );
+          })}
           <Collapsible open={isDiscoverOpen} onOpenChange={setIsDiscoverOpen}>
             <CollapsibleTrigger asChild>
               <button
@@ -271,7 +293,7 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               >
                 <span className="flex items-center gap-3">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sage/15 text-xs font-semibold text-dark-sage">+</span>
-                  Scopri tutti i servizi
+                  Scopri Image Studio
                 </span>
                 <ChevronDown className={`h-5 w-5 text-sage transition-transform duration-200 ${isDiscoverOpen ? 'rotate-180' : ''}`} />
               </button>

@@ -7,6 +7,7 @@ describe('public navigation', () => {
     const discoverLabels = getDiscoverGroups().flatMap((group) => group.items.map((item) => item.label));
 
     expect(headerLabels).toEqual(['Portfolio', 'Blog', 'Recensioni', 'Prenota una chiamata']);
+    expect(getHeaderItems().find((item) => item.label === 'Recensioni')?.href).toBe('/#recensioni');
     expect(getDiscoverGroups().map((group) => group.label)).toEqual(['Il nostro mondo', 'Esperienze', 'Il tuo spazio']);
     expect(discoverLabels).toContain('Stampa le tue foto');
     expect(discoverLabels).toContain('Gennaro e Image Studio');
