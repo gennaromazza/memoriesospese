@@ -32,6 +32,8 @@ export interface WeddingSeoStory {
   seoTitle: string;
   seoDescription: string;
   selectedPhotoIds: string[];
+  /** Foto usata come hero della pagina e copertina nelle liste editoriali. */
+  coverPhotoId?: string;
   approvedSourceIds: string[];
   createdAt?: any;
   updatedAt?: any;

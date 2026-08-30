@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles, Star } from 'lucide-react';
 
 interface Props {
   gallery: Gallery;
@@ -70,6 +70,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [sources, setSources] = useState<WeddingStorySource[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const [coverPhotoId, setCoverPhotoId] = useState<string>();
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'draft' | 'published' | null>(null);
@@ -102,6 +103,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           setSlugIsCustom(Boolean(context.story.slug));
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
           setSelectedPhotoIds(new Set(context.story.selectedPhotoIds.slice(0, MAX_WEDDING_STORY_PHOTOS)));
+          setCoverPhotoId(context.story.coverPhotoId || context.story.selectedPhotoIds[0]);
         } else {
           setSlugIsCustom(false);
         }
@@ -129,6 +131,9 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const validSelectedPhotoIds = [...selectedPhotoIds]
     .filter(id => availablePhotoIds.has(id))
     .slice(0, MAX_WEDDING_STORY_PHOTOS);
+  const validCoverPhotoId = coverPhotoId && validSelectedPhotoIds.includes(coverPhotoId)
+    ? coverPhotoId
+    : validSelectedPhotoIds[0];
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
 
   const updateDraft = (field: keyof DraftFields, value: string) => {
@@ -152,13 +157,29 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   };
 
   const togglePhoto = (photoId: string) => {
-    setSelectedPhotoIds(current => {
-      const next = new Set(current);
-      if (next.has(photoId)) next.delete(photoId);
-      else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) next.add(photoId);
-      else toast({ title: 'Limite raggiunto', description: `Puoi usare fino a ${MAX_WEDDING_STORY_PHOTOS} fotografie per una storia.` });
-      return next;
-    });
+    const next = new Set(selectedPhotoIds);
+    if (next.has(photoId)) {
+      next.delete(photoId);
+      if (coverPhotoId === photoId) setCoverPhotoId([...next][0]);
+    } else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) {
+      next.add(photoId);
+      if (!coverPhotoId) setCoverPhotoId(photoId);
+    } else {
+      toast({ title: 'Limite raggiunto', description: `Puoi usare fino a ${MAX_WEDDING_STORY_PHOTOS} fotografie per una storia.` });
+      return;
+    }
+    setSelectedPhotoIds(next);
+  };
+
+  const chooseCoverPhoto = (photoId: string) => {
+    if (!selectedPhotoIds.has(photoId)) {
+      if (validSelectedPhotoIds.length >= MAX_WEDDING_STORY_PHOTOS) {
+        toast({ title: 'Limite raggiunto', description: 'Deseleziona una fotografia prima di scegliere questa copertina.' });
+        return;
+      }
+      setSelectedPhotoIds(new Set(selectedPhotoIds).add(photoId));
+    }
+    setCoverPhotoId(photoId);
   };
 
   const refreshSources = async () => {
@@ -218,6 +239,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         ...draft,
         status: nextStatus,
         selectedPhotoIds: validSelectedPhotoIds,
+        coverPhotoId: validCoverPhotoId,
         approvedSourceIds: validSelectedSourceIds,
       });
       setDraft({
@@ -229,6 +251,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         seoDescription: saved.seoDescription,
       });
       setStatus(saved.status);
+      setCoverPhotoId(saved.coverPhotoId || saved.selectedPhotoIds[0]);
       const publicStoryUrl = createUrl(`/real-wedding/${saved.slug}`);
       toast({
         title: nextStatus === 'published' ? 'Storia pubblicata' : 'Bozza privata salvata',
@@ -391,18 +414,30 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg"><ImageIcon className="h-5 w-5" /> Fotografie della storia</CardTitle>
           <CardDescription>
-            La griglia usa solo miniature leggere. L’originale viene richiesto quando apri la foto o nella pagina pubblica. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
+            Seleziona fino a {MAX_WEDDING_STORY_PHOTOS} foto e usa la stella per scegliere la copertina del blog. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10">
             {visiblePhotos.map(photo => {
               const selected = selectedPhotoIds.has(photo.id);
+              const isCover = validCoverPhotoId === photo.id;
               return (
-                <div key={photo.id} className={`relative aspect-square overflow-hidden rounded-lg border-2 ${selected ? 'border-sage ring-2 ring-sage/30' : 'border-gray-200'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '120px 120px' }}>
+                <div key={photo.id} className={`relative aspect-square overflow-hidden rounded-lg border-2 ${isCover ? 'border-amber-500 ring-2 ring-amber-300/60' : selected ? 'border-sage ring-2 ring-sage/30' : 'border-gray-200'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '120px 120px' }}>
                   <img src={weddingPhotoPreview(photo)} alt={photo.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   <button type="button" aria-label={`Seleziona ${photo.name}`} className="absolute inset-0" onClick={() => togglePhoto(photo.id)} />
                   <Checkbox checked={selected} className="pointer-events-none absolute left-2 top-2 bg-white" />
+                  <Button
+                    type="button"
+                    variant={isCover ? 'default' : 'secondary'}
+                    size="icon"
+                    aria-label={isCover ? `${photo.name} è la copertina` : `Usa ${photo.name} come copertina`}
+                    title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
+                    className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                    onClick={event => { event.stopPropagation(); chooseCoverPhoto(photo.id); }}
+                  >
+                    <Star className={`h-3.5 w-3.5 ${isCover ? 'fill-current' : ''}`} />
+                  </Button>
                   <Button type="button" variant="secondary" size="icon" className="absolute bottom-1 right-1 h-7 w-7" onClick={event => { event.stopPropagation(); setViewer(photo); }}>
                     <Eye className="h-3.5 w-3.5" />
                   </Button>

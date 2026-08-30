@@ -207,6 +207,7 @@ function storyFromDocument(id: string, data: Record<string, any>): WeddingSeoSto
     selectedPhotoIds: Array.isArray(data.selectedPhotoIds)
       ? [...new Set(data.selectedPhotoIds.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
       : [],
+    coverPhotoId: data.coverPhotoId ? String(data.coverPhotoId) : undefined,
     approvedSourceIds: Array.isArray(data.approvedSourceIds) ? data.approvedSourceIds : [],
     createdAt: jsonTimestamp(data.createdAt),
     updatedAt: jsonTimestamp(data.updatedAt),
@@ -654,6 +655,10 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   const seoDescription = safeString(body.seoDescription, WEDDING_STORY_LIMITS.seoDescription);
   const selectedPhotoIds = [...new Set(Array.isArray(body.selectedPhotoIds) ? body.selectedPhotoIds.map(String) : [])]
     .slice(0, MAX_WEDDING_STORY_PHOTOS);
+  const requestedCoverPhotoId = safeString(body.coverPhotoId, 200);
+  const coverPhotoId = selectedPhotoIds.includes(requestedCoverPhotoId)
+    ? requestedCoverPhotoId
+    : selectedPhotoIds[0];
   const approvedSourceIds = [...new Set(Array.isArray(body.approvedSourceIds) ? body.approvedSourceIds.map(String) : [])]
     .slice(0, MAX_SOURCES);
 
@@ -662,7 +667,7 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   if (publish && story.length < 250) throw new Error('Il racconto è troppo breve per la pubblicazione.');
   if (publish && selectedPhotoIds.length === 0) throw new Error('Seleziona almeno una fotografia prima di pubblicare.');
 
-  return { title, story, excerpt, seoTitle, seoDescription, selectedPhotoIds, approvedSourceIds };
+  return { title, story, excerpt, seoTitle, seoDescription, selectedPhotoIds, coverPhotoId, approvedSourceIds };
 }
 
 export function buildWeddingStoryPrompt(params: {
@@ -1242,7 +1247,10 @@ router.get('/public', async (req: Request, res: Response) => {
     const stories = await Promise.all(publishedDocuments.map(async document => {
       const story = storyFromDocument(document.id, document.data());
       const gallery = await loadGallery(story.galleryId);
-      const photos = gallery ? await loadSelectedPhotos(gallery, story.selectedPhotoIds.slice(0, 1)) : [];
+      const coverPhotoId = story.coverPhotoId && story.selectedPhotoIds.includes(story.coverPhotoId)
+        ? story.coverPhotoId
+        : story.selectedPhotoIds[0];
+      const photos = gallery && coverPhotoId ? await loadSelectedPhotos(gallery, [coverPhotoId]) : [];
       const preview: PublicWeddingStoryPreview = {
         slug: story.slug,
         title: story.title,
@@ -1274,7 +1282,10 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
     const story = storyFromDocument(document.id, document.data());
     const gallery = await loadGallery(story.galleryId);
     if (!gallery) return res.status(404).json({ error: 'Galleria non trovata' });
-    const photos = await loadSelectedPhotos(gallery, story.selectedPhotoIds);
+    const orderedPhotoIds = story.coverPhotoId && story.selectedPhotoIds.includes(story.coverPhotoId)
+      ? [story.coverPhotoId, ...story.selectedPhotoIds.filter(id => id !== story.coverPhotoId)]
+      : story.selectedPhotoIds;
+    const photos = await loadSelectedPhotos(gallery, orderedPhotoIds);
     const publicPhotos: WeddingStoryPhoto[] = photos.map(photo => ({
       id: photo.id,
       name: photo.name || '',

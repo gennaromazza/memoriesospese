@@ -705,6 +705,13 @@ describe('Real Wedding editorial safety', () => {
     expect(draft.selectedPhotoIds).toEqual(selectedPhotoIds.slice(0, 12));
   });
 
+  it('persists an explicit cover photo and safely falls back to the first selected photo', () => {
+    const fields = { title: 'Anna e Luca', story: 'Bozza iniziale', selectedPhotoIds: ['p1', 'p2'] };
+
+    expect(validateWeddingStoryInput({ ...fields, coverPhotoId: 'p2' }, false).coverPhotoId).toBe('p2');
+    expect(validateWeddingStoryInput({ ...fields, coverPhotoId: 'photo-estranea' }, false).coverPhotoId).toBe('p1');
+  });
+
   it('removes private and operational references from the public projection', () => {
     const publicStory = toPublicWeddingStory({
       id: 'g1', galleryId: 'g1', jobId: 'j1', status: 'published', slug: 'anna-luca',
