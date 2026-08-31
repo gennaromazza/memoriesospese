@@ -27,7 +27,7 @@ import {
   uidRateLimiter,
 } from './rate-limit.js';
 import { authenticatePrintShop, requireVerifiedGoogle } from './auth.js';
-import { verifyCronSecret } from './maintenance-auth.js';
+import { requireMaintenanceOidc } from './maintenance-auth.js';
 
 const DEFAULT_ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const PRINT_SHOP_CATEGORY_IDS = PRINT_SHOP_CATEGORIES.map(category => category.id) as [
@@ -248,7 +248,7 @@ export function createPrintShopRouter(
     res.json(result);
   }));
 
-  router.post('/internal/retention', requireCronSecret, route(async (_req, res) => {
+  router.post('/internal/retention', requireMaintenanceOidc, route(async (_req, res) => {
     const lifecycle = await deps.service.retryPendingGcsLifecycle(25);
     const cleanup = await deps.service.purgeExpiredAssets();
     const lab = await deps.runLabExpiry();
@@ -549,21 +549,6 @@ function requireAdmin(adminEmails: readonly string[]) {
     }
     next();
   };
-}
-
-function requireCronSecret(req: Request, res: Response, next: NextFunction): void {
-  const configured = process.env.PRINT_SHOP_CRON_SECRET;
-  if (!configured || configured.length < 32) {
-    res.status(503).json({ error: { code: 'maintenance_not_configured', message: 'Manutenzione non configurata' } });
-    return;
-  }
-  const bearer = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  const candidate = String(req.get('x-print-shop-cron-secret') || bearer || '').trim();
-  if (!verifyCronSecret(candidate, configured)) {
-    res.status(401).json({ error: { code: 'unauthenticated', message: 'Accesso negato' } });
-    return;
-  }
-  next();
 }
 
 function configuredAdminEmails(): string[] {
