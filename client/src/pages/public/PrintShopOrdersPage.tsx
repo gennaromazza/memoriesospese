@@ -56,7 +56,7 @@ export default function PrintShopOrdersPage() {
     noindex: true,
   });
   const [, navigate] = useLocation();
-  const { user, isLoading: authLoading } = useFirebaseAuth();
+  const { user } = useFirebaseAuth();
   const { studioSettings } = useStudio();
   const [orders, setOrders] = useState<PrintShopOrderListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -146,9 +146,7 @@ export default function PrintShopOrdersPage() {
               <span>{actionError}</span>
             </div>
           )}
-          {authLoading ? (
-            <div className="flex min-h-64 items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" /></div>
-          ) : !user ? (
+          {!user ? (
             <div className="mx-auto max-w-3xl"><PrintShopAuthGate /></div>
           ) : loading && orders.length === 0 ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-3" role="status"><Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" /><p className="text-sm text-blue-gray/55">Caricamento ordini…</p></div>

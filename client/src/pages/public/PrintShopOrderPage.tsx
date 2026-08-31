@@ -223,7 +223,7 @@ export default function PrintShopOrderPage() {
   });
 
   const [, navigate] = useLocation();
-  const { user, userProfile, isLoading: authLoading } = useFirebaseAuth();
+  const { user, userProfile } = useFirebaseAuth();
   const { studioSettings, loading: studioLoading } = useStudio();
   const [step, setStep] = useState<OrderStep>('upload');
   const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
@@ -852,7 +852,7 @@ export default function PrintShopOrderPage() {
             </div>
           )}
 
-          {catalogLoading || authLoading || (Boolean(user) && draftResumeLoading) ? (
+          {catalogLoading || (Boolean(user) && draftResumeLoading) ? (
             <div className="flex min-h-72 flex-col items-center justify-center gap-3" role="status">
               <Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" />
               <p className="text-sm text-blue-gray/55">Prepariamo il tuo ordine…</p>
