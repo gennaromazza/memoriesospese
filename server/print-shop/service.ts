@@ -757,6 +757,7 @@ export class PrintShopService {
     orderId: string,
     candidate: { fileName: string; contentType: string; sizeBytes: number },
     idempotencyKey?: string,
+    uploadOrigin?: string,
   ): Promise<Record<string, unknown>> {
     const order = await this.requireOwnerOrder(identity, orderId);
     assertModifiable(order, this.now().toMillis());
@@ -900,9 +901,24 @@ export class PrintShopService {
         throw new PrintShopHttpError(409, 'idempotency_incomplete', 'Richiesta precedente non completata');
       }
     }
+    const [uploadUrl] = await this.deps.storage.bucket().file(storagePath).createResumableUpload({
+      origin: uploadOrigin,
+      metadata: {
+        contentType: 'image/jpeg',
+        cacheControl: 'private,max-age=0,no-store',
+        metadata: {
+          ownerUid: identity.uid,
+          orderId,
+          assetId: assetRef.id,
+          originalFileName: candidate.fileName.trim(),
+        },
+      },
+      preconditionOpts: { ifGenerationMatch: 0 },
+    });
     return {
       assetId: assetRef.id,
       storagePath,
+      uploadUrl,
       contentType: 'image/jpeg',
       maxFileBytes: this.maxJpegBytes,
       requiredMetadata: {

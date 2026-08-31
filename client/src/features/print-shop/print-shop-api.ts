@@ -129,13 +129,14 @@ function normalizePreparedUpload(raw: unknown): PreparedPrintUpload {
   const storagePath = typeof candidate.storagePath === 'string'
     ? candidate.storagePath
     : typeof candidate.path === 'string' ? candidate.path : '';
-  if (!assetId || !storagePath) {
+  const uploadUrl = typeof candidate.uploadUrl === 'string' ? candidate.uploadUrl : '';
+  if (!assetId || !storagePath || !uploadUrl.startsWith('https://')) {
     throw new PrintShopApiError('Il server non ha restituito il percorso sicuro della foto.', 502, 'INVALID_UPLOAD_PATH');
   }
   const requiredMetadata = isRecord(candidate.requiredMetadata)
     ? Object.fromEntries(Object.entries(candidate.requiredMetadata).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
     : undefined;
-  return { assetId, storagePath, requiredMetadata };
+  return { assetId, storagePath, uploadUrl, requiredMetadata };
 }
 
 function normalizeCatalog(raw: unknown): PrintShopCatalogPayload {
@@ -237,7 +238,7 @@ export const printShopApi = {
 
   async finalizeUpload(
     orderId: string,
-    prepared: PreparedPrintUpload,
+    prepared: Pick<PreparedPrintUpload, 'assetId' | 'storagePath'>,
     file: File,
     widthPx: number,
     heightPx: number,

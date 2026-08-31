@@ -80,6 +80,8 @@ async function startServer() {
       'http://localhost:5173',
       'http://localhost:3000',
       'http://localhost:5000',
+      'https://imagestudiofotografico.com',
+      'https://www.imagestudiofotografico.com',
       'https://gennaromazzacane.it',
       'https://www.gennaromazzacane.it'
     ];

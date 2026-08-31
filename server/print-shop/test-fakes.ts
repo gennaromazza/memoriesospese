@@ -199,6 +199,7 @@ export class FakeStorage {
   readonly metadataUpdates: Array<{ path: string; metadata: Record<string, unknown> }> = [];
   readonly failDeletePaths = new Set<string>();
   readonly failMetadataPaths = new Set<string>();
+  readonly resumableUploads: Array<{ path: string; options: Record<string, unknown> }> = [];
   lifecycleRules: any[] = [];
   onDelete?: (path: string) => void | Promise<void>;
   onDownload?: (path: string) => void | Promise<void>;
@@ -216,6 +217,10 @@ export class FakeStorage {
         return [{ lifecycle: { rule: clone(this.lifecycleRules) } }];
       },
       file: (path: string) => ({
+        createResumableUpload: async (options: Record<string, unknown>) => {
+          this.resumableUploads.push({ path, options: clone(options) });
+          return [`https://storage.test/upload/${encodeURIComponent(path)}?upload_id=fake`];
+        },
         exists: async () => [this.files.has(path)],
         getMetadata: async () => {
           const file = this.files.get(path);

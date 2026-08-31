@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Link } from 'wouter';
 import {
   ArrowDown,
@@ -320,6 +320,13 @@ export default function StampaFotoAversaPage() {
     trackEvent('view_price_list', 'stampa_foto', 'hero');
   };
 
+  const openPriceList = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    trackPriceList();
+    document.getElementById('listino')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#listino`);
+  };
+
   const trackOrderStart = (location: string) => {
     trackEvent('start_checkout', 'stampa_foto', location);
   };
@@ -362,7 +369,7 @@ export default function StampaFotoAversaPage() {
                     {catalogLoading ? 'Verifica del listino…' : 'Ordini temporaneamente sospesi'}
                   </Button>
                 )}
-                <a href="#listino" onClick={trackPriceList}>
+                <a href={`${createUrl(PRINT_SERVICE_PATH)}#listino`} onClick={openPriceList}>
                   <Button variant="outline" className="w-full rounded-full border-white/40 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto">
                     Vedi prezzi e formati
                     <ArrowDown className="ml-2 h-5 w-5" />

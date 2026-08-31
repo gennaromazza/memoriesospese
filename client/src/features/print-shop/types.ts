@@ -132,6 +132,7 @@ export interface PrintShopDraftPayload {
 export interface PreparedPrintUpload {
   assetId: string;
   storagePath: string;
+  uploadUrl: string;
   requiredMetadata?: Record<string, string>;
 }
 

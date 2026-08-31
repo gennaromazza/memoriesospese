@@ -233,7 +233,7 @@ describe('PrintShopService durable idempotency', () => {
   });
 
   it('replays the same prepared upload resource under concurrency', async () => {
-    const { db, service } = createService();
+    const { db, storage, service } = createService();
     db.seed('orders/order_upload', baseOrder());
     const candidate = {
       fileName: 'ritratto.jpg',
@@ -242,12 +242,31 @@ describe('PrintShopService durable idempotency', () => {
     };
     const key = '34392b16-8953-4f1d-upload';
     const [first, second] = await Promise.all([
-      service.prepareUpload(identity, 'order_upload', candidate, key),
-      service.prepareUpload(identity, 'order_upload', candidate, key),
+      service.prepareUpload(identity, 'order_upload', candidate, key, 'https://imagestudiofotografico.com'),
+      service.prepareUpload(identity, 'order_upload', candidate, key, 'https://imagestudiofotografico.com'),
     ]);
     expect(first.assetId).toBe(second.assetId);
     expect(db.countCollection('orders/order_upload/assets')).toBe(1);
     expect([first.idempotentReplay, second.idempotentReplay]).toContain(true);
+    expect(first.uploadUrl).toMatch(/^https:\/\/storage\.test\/upload\//);
+    expect(storage.resumableUploads).toHaveLength(2);
+    expect(storage.resumableUploads[0]).toMatchObject({
+      path: first.storagePath,
+      options: {
+        origin: 'https://imagestudiofotografico.com',
+        preconditionOpts: { ifGenerationMatch: 0 },
+        metadata: {
+          contentType: 'image/jpeg',
+          cacheControl: 'private,max-age=0,no-store',
+          metadata: {
+            ownerUid: identity.uid,
+            orderId: 'order_upload',
+            assetId: first.assetId,
+            originalFileName: candidate.fileName,
+          },
+        },
+      },
+    });
   });
 });
 

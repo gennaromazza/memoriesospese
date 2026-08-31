@@ -28,6 +28,7 @@ import {
 } from './rate-limit.js';
 import { authenticatePrintShop, requireVerifiedGoogle } from './auth.js';
 import { requireMaintenanceOidc } from './maintenance-auth.js';
+import { resolvePrintUploadOrigin } from './upload-origin.js';
 
 const DEFAULT_ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 const PRINT_SHOP_CATEGORY_IDS = PRINT_SHOP_CATEGORIES.map(category => category.id) as [
@@ -313,6 +314,11 @@ export function createPrintShopRouter(
       req.params.orderId,
       input,
       req.get('idempotency-key') || undefined,
+      resolvePrintUploadOrigin({
+        origin: req.get('origin'),
+        protocol: req.protocol,
+        host: req.get('host'),
+      }),
     );
     res.status(201).json({ upload });
   }));

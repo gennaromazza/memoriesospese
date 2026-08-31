@@ -211,17 +211,36 @@ export default function PrintShopOrderPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15_000);
     setCatalogLoading(true);
     printShopApi.getCatalog(controller.signal)
       .then((payload) => {
+        if (!active) return;
         setCatalog(payload);
         setCatalogError(payload.products.length > 0 ? null : 'Il listino non contiene ancora formati disponibili.');
       })
       .catch((error) => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) setCatalogError(readableError(error));
+        if (!active) return;
+        if (timedOut) {
+          setCatalogError('Il listino sta impiegando troppo tempo a rispondere. Ricarica la pagina per riprovare.');
+        } else if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setCatalogError(readableError(error));
+        }
       })
-      .finally(() => setCatalogLoading(false));
-    return () => controller.abort();
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (active) setCatalogLoading(false);
+      });
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -251,10 +270,17 @@ export default function PrintShopOrderPage() {
     }
 
     const controller = new AbortController();
+    let active = true;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15_000);
     setDraftResumeLoading(true);
     setDraftResumeNotice(null);
     printShopApi.getOrder(savedOrderId, controller.signal)
       .then((savedOrder) => {
+        if (!active) return;
         if (!isResumablePrintDraft(savedOrder)) {
           sessionStorage.removeItem(draftKey);
           sessionStorage.removeItem(requestKey);
@@ -291,6 +317,11 @@ export default function PrintShopOrderPage() {
         );
       })
       .catch((error) => {
+        if (!active) return;
+        if (timedOut) {
+          setDraftResumeNotice('Il recupero della bozza sta impiegando troppo tempo. Puoi iniziare un nuovo ordine oppure ricaricare la pagina per riprovare.');
+          return;
+        }
         if (error instanceof DOMException && error.name === 'AbortError') return;
         if (error instanceof PrintShopApiError && (error.status === 404 || error.code === 'order_not_found')) {
           sessionStorage.removeItem(draftKey);
@@ -300,9 +331,17 @@ export default function PrintShopOrderPage() {
         setPageError(readableError(error));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setDraftResumeLoading(false);
+        window.clearTimeout(timeout);
+        if (active) setDraftResumeLoading(false);
       });
-    return () => controller.abort();
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+      if (resumedDraftForUserRef.current === user.uid) {
+        resumedDraftForUserRef.current = null;
+      }
+    };
   }, [isGoogleAuthenticated, updatePhotos, user]);
 
   useEffect(() => {
@@ -378,6 +417,7 @@ export default function PrintShopOrderPage() {
       });
       await uploadPrintFileResumable({
         file,
+        uploadUrl: prepared.uploadUrl,
         storagePath: prepared.storagePath,
         orderId: draftId,
         assetId: prepared.assetId,

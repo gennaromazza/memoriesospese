@@ -170,18 +170,12 @@ describe('Firestore rules — privilegi e compatibilità ordini', () => {
 });
 
 describe('Storage rules — originali privati dello shop', () => {
-  it('accetta una sola creazione JPEG esattamente preparata dal backend', async () => {
+  it('nega ogni scrittura diretta: gli upload passano dalla sessione temporanea del backend', async () => {
     const seeded = await seedPrintUpload();
     const storage = testEnv.authenticatedContext(seeded.uid, {
       email: 'cliente@example.com',
     }).storage();
     const objectRef = ref(storage, seeded.storagePath);
-    await assertSucceeds(uploadBytes(
-      objectRef,
-      new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
-      jpegMetadata(seeded.uid, seeded.orderId, seeded.assetId),
-    ));
-    await assertSucceeds(getBytes(objectRef));
     await assertFails(uploadBytes(
       objectRef,
       new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
