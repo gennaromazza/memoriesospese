@@ -2296,6 +2296,7 @@ export class PrintShopService {
       .get();
     return snapshot.docs
       .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+      .filter((order: any) => order.adminVisibility?.hidden !== true)
       .filter((order: any) =>
         !filters.status || order.fulfillment?.status === filters.status,
       )
@@ -2310,6 +2311,61 @@ export class PrintShopService {
     const order = await this.requirePrintOrder(orderId);
     const assets = await this.listAssets(orderId);
     return { ...order, assets: assets.map(publicAsset) };
+  }
+
+  async removeAdminOrder(orderId: string, adminEmail: string): Promise<{
+    success: true;
+    financialRecordRetained: boolean;
+  }> {
+    const orderRef = this.deps.db.collection('orders').doc(orderId);
+    const now = this.now();
+    let financialRecordRetained = false;
+    await this.deps.db.runTransaction(async (transaction: any) => {
+      const doc = await transaction.get(orderRef);
+      if (!doc.exists || doc.data()?.orderType !== 'print_shop') {
+        throw new PrintShopHttpError(404, 'order_not_found', 'Ordine non trovato');
+      }
+      const order = doc.data();
+      financialRecordRetained = ['paid', 'paid_action_required', 'partially_refunded', 'refunded']
+        .includes(order.payment?.status);
+      const update: any = {
+        adminVisibility: {
+          hidden: true,
+          hiddenAt: now,
+          hiddenBy: adminEmail,
+          financialRecordRetained,
+        },
+        updatedAt: now,
+      };
+      if (!financialRecordRetained) {
+        update.payment = {
+          ...order.payment,
+          method: 'paypal',
+          status: 'expired',
+          cancelledAt: now,
+        };
+        update.fulfillment = {
+          ...order.fulfillment,
+          method: 'studio_pickup',
+          status: 'cancelled',
+          cancelledAt: now,
+          cancellationReason: 'admin_deleted_unpaid_order',
+        };
+        update.retention = {
+          status: 'scheduled',
+          reason: 'cancelled',
+          assetRetentionDays: 0,
+          deleteAfter: now,
+        };
+        update.stato = 'annullato';
+      }
+      transaction.update(orderRef, update);
+    });
+    if (!financialRecordRetained) {
+      await this.purgeExpiredAssets().catch(() => undefined);
+      await this.cleanupTerminalLabShipments(orderId).catch(() => undefined);
+    }
+    return { success: true, financialRecordRetained };
   }
 
   async updateAdminStatus(
@@ -2620,10 +2676,35 @@ export class PrintShopService {
       .join('\r\n');
   }
 
+  async manifestHtml(orderId: string): Promise<string> {
+    const { order, rows } = await this.manifest(orderId);
+    const details = order as any;
+    const customer = details.customer || {};
+    const totalCents = Number(details.totals?.totalCents || 0);
+    const bodyRows = rows.map((row, index) => `<tr>
+      <td>${index + 1}</td>
+      <td><strong>${escapeHtml(row.fileName)}</strong><br><small>${escapeHtml(row.assetId)}</small></td>
+      <td>${escapeHtml(row.productName)}<br><small>${row.widthMm} × ${row.heightMm} mm</small></td>
+      <td>${row.finish === 'glossy' ? 'Lucida' : 'Opaca'}</td>
+      <td>${row.fitMode === 'border' ? 'Foto intera con bordo bianco' : 'Riempi tutto il foglio'}</td>
+      <td class="copies">${Number(row.copies)}</td>
+      <td>${row.widthPx && row.heightPx ? `${row.widthPx} × ${row.heightPx} px` : '—'}</td>
+    </tr>`).join('');
+    return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Distinta ${escapeHtml(details.orderNumber)}</title>
+    <style>
+      :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f2ed;color:#425563;font-family:Arial,sans-serif}.page{max-width:1100px;margin:24px auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 10px 40px rgba(66,85,99,.12)}header{padding:30px 36px;background:#708594;color:#fff}header p{margin:5px 0 0;color:#edf0ea}.brand{font-family:Georgia,serif;letter-spacing:.18em;font-size:13px}.content{padding:30px 36px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}.card{padding:14px;border:1px solid #dce2da;border-radius:12px;background:#f9faf7}.label{display:block;color:#788a94;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}.value{font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}th{padding:12px 10px;background:#e7ece5;text-align:left;color:#425563}td{padding:12px 10px;border-bottom:1px solid #e7ebe5;vertical-align:top}small{color:#788a94}.copies{font-size:18px;font-weight:700;color:#b77f68;text-align:center}footer{padding:20px 36px;background:#f6f3ee;color:#788a94;font-size:12px}@media(max-width:760px){.page{margin:0;border-radius:0}.content,header,footer{padding:22px 16px}.summary{grid-template-columns:1fr 1fr}.table-wrap{overflow:auto}table{min-width:850px}}@media print{body{background:#fff}.page{margin:0;box-shadow:none;max-width:none}}
+    </style></head><body><main class="page"><header><div class="brand">IMAGE STUDIO</div><h1>Distinta di stampa</h1><p>Ordine ${escapeHtml(details.orderNumber)}</p></header><div class="content"><section class="summary">
+      <div class="card"><span class="label">Cliente</span><span class="value">${escapeHtml(customer.name || customer.displayName || '—')}</span></div>
+      <div class="card"><span class="label">Fotografie</span><span class="value">${Number(details.assetCount || 0)}</span></div>
+      <div class="card"><span class="label">Stampe totali</span><span class="value">${Number(details.copyCount || 0)}</span></div>
+      <div class="card"><span class="label">Totale ordine</span><span class="value">€ ${centsToEuros(totalCents).toFixed(2).replace('.', ',')}</span></div>
+    </section><div class="table-wrap"><table><thead><tr><th>#</th><th>File</th><th>Formato</th><th>Carta</th><th>Adattamento</th><th>Copie</th><th>Risoluzione</th></tr></thead><tbody>${bodyRows}</tbody></table></div></div><footer>Documento generato dal gestionale Image Studio · Puoi aprirlo e stamparlo con qualsiasi browser.</footer></main></body></html>`;
+  }
+
   async archiveData(orderId: string): Promise<{
     order: any;
     assets: any[];
-    manifestCsv: string;
+    manifestHtml: string;
     manifestJson: Record<string, unknown>;
   }> {
     const order = await this.requirePrintOrder(orderId);
@@ -2643,11 +2724,11 @@ export class PrintShopService {
       );
     }
     const manifestJson = await this.manifest(orderId);
-    const manifestCsv = await this.manifestCsv(orderId);
+    const manifestHtml = await this.manifestHtml(orderId);
     return {
       order,
       assets: referencedAssets,
-      manifestCsv,
+      manifestHtml,
       manifestJson,
     };
   }
@@ -2867,19 +2948,19 @@ export class PrintShopService {
       assertLabOrderAction(order, LAB_TRANSFER_STATUSES);
 
       if (!files.some(file => file.kind === 'manifest')) {
-        const csv = await this.manifestCsv(shipment.orderId);
+        const html = await this.manifestHtml(shipment.orderId);
         const uploaded = await this.deps.drive.uploadStreamToDriveFolder(
           folderId,
-          `${order.orderNumber}-distinta.csv`,
-          'text/csv',
-          Readable.from([Buffer.from(csv, 'utf8')]),
+          `${order.orderNumber}-distinta.html`,
+          'text/html',
+          Readable.from([Buffer.from(html, 'utf8')]),
         );
         files.push({
           kind: 'manifest',
           driveFileId: uploaded.fileId,
-          name: `${order.orderNumber}-distinta.csv`,
+          name: `${order.orderNumber}-distinta.html`,
           size: uploaded.size,
-          mimeType: 'text/csv',
+          mimeType: 'text/html',
           ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
           uploadedAt: this.now(),
         });
@@ -4730,7 +4811,7 @@ function createLabEmail(input: {
       <p>Ciao <strong>${escapeHtml(input.labName)}</strong>,</p>
       <p>${escapeHtml(input.studio.name)} ti ha inviato l’ordine
       <strong>${escapeHtml(input.orderNumber)}</strong>.</p>
-      <p>Originali JPG: <strong>${input.assetCount}</strong>. Nella cartella trovi anche la distinta CSV con formato, carta, adattamento e copie.</p>
+      <p>Originali JPG: <strong>${input.assetCount}</strong>. Nella cartella trovi anche la distinta HTML con formato, carta, adattamento e copie: si apre con qualsiasi browser.</p>
       <p style="margin:28px 0"><a href="${escapeHtml(input.link)}" style="background:#8b5a3c;color:#fff;padding:14px 24px;text-decoration:none;border-radius:6px">Scarica file e distinta</a></p>
       <p>Il collegamento sarà disponibile fino al <strong>${escapeHtml(expiry)}</strong>.</p>
       <p>${escapeHtml(input.studio.name)}<br>${escapeHtml(input.studio.email)} · ${escapeHtml(input.studio.phone)}</p>
@@ -4746,22 +4827,44 @@ function createCustomerOrderEmail(
   const rows = (order.printShop?.items || [])
     .map(
       (item: any) => `<tr>
-        <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(item.productName)}<br><small>${item.widthMm}×${item.heightMm} mm · ${item.finish === 'glossy' ? 'lucida' : 'opaca'} · ${item.fitMode === 'border' ? 'bordo bianco' : 'a tutta pagina'}</small></td>
-        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${Number(item.copyCount || 0)}</td>
-        <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">€ ${centsToEuros(Number(item.lineTotalCents || 0)).toFixed(2).replace('.', ',')}</td>
+        <td style="padding:16px 12px;border-bottom:1px solid #e5e9e3;color:#425563"><strong>${escapeHtml(item.productName)}</strong><br><span style="font-size:12px;color:#7d8e97">${item.widthMm}×${item.heightMm} mm · ${item.finish === 'glossy' ? 'carta lucida' : 'carta opaca'} · ${item.fitMode === 'border' ? 'foto intera con bordo bianco' : 'riempi tutto il foglio'}</span></td>
+        <td style="padding:16px 8px;border-bottom:1px solid #e5e9e3;text-align:center;color:#425563;font-weight:700">${Number(item.copyCount || 0)}</td>
+        <td style="padding:16px 12px;border-bottom:1px solid #e5e9e3;text-align:right;color:#425563;font-weight:700">€ ${centsToEuros(Number(item.lineTotalCents || 0)).toFixed(2).replace('.', ',')}</td>
       </tr>`,
     )
     .join('');
   const isPaid = kind === 'payment_confirmed';
-  return `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#333;background:#faf8f5;padding:20px">
-    <div style="max-width:620px;margin:auto;background:#fff;border-radius:12px;overflow:hidden">
-      <div style="background:#8b5a3c;color:#fff;padding:24px"><h1 style="margin:0">${isPaid ? 'Ordine ricevuto' : 'Stampe pronte per il ritiro'}</h1></div>
-      <div style="padding:24px"><p>Ciao <strong>${customerName}</strong>,</p>
-      <p>${isPaid
-        ? `il pagamento dell’ordine <strong>${escapeHtml(order.orderNumber)}</strong> è stato acquisito. Controlleremo i file e avvieremo la stampa.`
-        : `l’ordine <strong>${escapeHtml(order.orderNumber)}</strong> è pronto. Puoi ritirarlo presso la nostra sede.`}</p>
-      <table style="width:100%;border-collapse:collapse"><tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="2" style="padding:12px 8px;font-weight:bold">Totale pagato</td><td style="padding:12px 8px;text-align:right;font-weight:bold">€ ${centsToEuros(Number(order.totals?.totalCents || 0)).toFixed(2).replace('.', ',')}</td></tr></tfoot></table>
-      <p style="margin-top:24px"><strong>${escapeHtml(studio.name)}</strong><br>${escapeHtml(studio.email)} · ${escapeHtml(studio.phone)}</p>
-      </div></div></body></html>`;
+  return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  <body style="margin:0;padding:0;background:#f4f2ed;font-family:Arial,sans-serif;color:#425563">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2ed"><tr><td align="center" style="padding:28px 12px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border-radius:22px;overflow:hidden;box-shadow:0 8px 30px rgba(66,85,99,.10)">
+        <tr><td style="padding:24px 32px;background:#ffffff;border-bottom:1px solid #e5e9e3;text-align:center">
+          <div style="font-family:Georgia,serif;font-size:13px;letter-spacing:.22em;color:#708594">IMAGE STUDIO</div>
+        </td></tr>
+        <tr><td style="padding:38px 32px;background:#708594;text-align:center;color:#ffffff">
+          <div style="display:inline-block;padding:7px 13px;border-radius:20px;background:#c89b89;font-size:12px;font-weight:700;letter-spacing:.06em">${isPaid ? 'PAGAMENTO CONFERMATO' : 'PRONTO PER IL RITIRO'}</div>
+          <h1 style="margin:18px 0 8px;font-family:Georgia,serif;font-size:34px;font-weight:400;line-height:1.15">${isPaid ? 'Le tue fotografie stanno per diventare ricordi da toccare.' : 'Le tue stampe sono pronte.'}</h1>
+          <p style="margin:0;color:#eef1ec;font-size:15px">Ordine ${escapeHtml(order.orderNumber)}</p>
+        </td></tr>
+        <tr><td style="padding:32px">
+          <p style="margin:0 0 14px;font-size:17px">Ciao <strong>${customerName}</strong>,</p>
+          <p style="margin:0 0 24px;line-height:1.65;color:#657985">${isPaid
+            ? 'abbiamo ricevuto il tuo ordine e il pagamento è stato acquisito correttamente. Ora controlleremo con cura i file e avvieremo la stampa.'
+            : 'abbiamo terminato la lavorazione. Puoi ritirare le stampe presso il nostro studio: ti aspettiamo.'}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:24px;border:1px solid #dfe5dd;border-radius:14px;background:#f8f9f6"><tr>
+            <td style="padding:15px;text-align:center;border-right:1px solid #dfe5dd"><span style="display:block;font-size:11px;color:#7d8e97;text-transform:uppercase">Ordine</span><strong style="font-size:13px">${escapeHtml(order.orderNumber)}</strong></td>
+            <td style="padding:15px;text-align:center"><span style="display:block;font-size:11px;color:#7d8e97;text-transform:uppercase">Ritiro</span><strong style="font-size:13px">In studio</strong></td>
+          </tr></table>
+          <h2 style="margin:0 0 10px;font-family:Georgia,serif;font-size:21px;font-weight:400;color:#425563">Riepilogo delle stampe</h2>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse"><tbody>${rows}</tbody>
+            <tfoot><tr><td colspan="2" style="padding:18px 12px;background:#f3f0eb;font-weight:700;border-radius:0 0 0 12px">Totale pagato</td><td style="padding:18px 12px;background:#f3f0eb;text-align:right;font-size:20px;font-weight:700;color:#b77f68;border-radius:0 0 12px 0">€ ${centsToEuros(Number(order.totals?.totalCents || 0)).toFixed(2).replace('.', ',')}</td></tr></tfoot>
+          </table>
+          <div style="margin-top:26px;padding:18px;border-left:4px solid #aab8a4;background:#f5f7f3;border-radius:8px;color:#657985;font-size:14px;line-height:1.55">${isPaid ? 'Ti avviseremo appena le stampe saranno pronte. Non devi fare altro.' : 'Porta con te il numero d’ordine indicato in questa email.'}</div>
+        </td></tr>
+        <tr><td style="padding:24px 32px;background:#425563;color:#eef1ec;text-align:center;font-size:12px;line-height:1.65">
+          <strong style="font-family:Georgia,serif;font-size:16px">${escapeHtml(studio.name)}</strong><br>${escapeHtml(studio.email)} · ${escapeHtml(studio.phone)}
+        </td></tr>
+      </table>
+    </td></tr></table>
+  </body></html>`;
 }

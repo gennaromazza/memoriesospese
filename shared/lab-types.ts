@@ -67,7 +67,7 @@ export interface LabShipmentFile {
   size: number;          // byte
   /** Per spedizioni shop collega il file all'asset privato dell'ordine. */
   assetId?: string;
-  /** Distinta CSV oppure originale JPG; assente sui documenti legacy. */
+  /** Distinta HTML oppure originale JPG; assente sui documenti legacy. */
   kind?: 'manifest' | 'original' | 'other';
   mimeType?: string;
   webViewLink?: string;  // link diretto al file (opzionale, lo share è a livello cartella)

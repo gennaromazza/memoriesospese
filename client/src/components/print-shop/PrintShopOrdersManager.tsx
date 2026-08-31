@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Trash2,
   WalletCards,
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
@@ -191,6 +192,7 @@ export default function PrintShopOrdersManager() {
   const [costDialogOpen, setCostDialogOpen] = useState(false);
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [supplierCost, setSupplierCost] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const listQuery = useQuery<{ orders: PrintOrderSummary[] }>({
     queryKey: ['/api/print-shop/admin/orders', statusFilter],
@@ -253,6 +255,26 @@ export default function PrintShopOrdersManager() {
       toast({ title: 'Stato aggiornato', description: STATUS_LABELS[nextStatus] });
     },
     onError: (error: Error) => toast({ title: 'Aggiornamento non riuscito', description: error.message, variant: 'destructive' }),
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedOrderId) throw new Error('Ordine non selezionato');
+      const response = await apiRequest('DELETE', `/api/print-shop/admin/orders/${selectedOrderId}`);
+      return response.json() as Promise<{ financialRecordRetained: boolean }>;
+    },
+    onSuccess: async (result) => {
+      setDeleteDialogOpen(false);
+      setSelectedOrderId(null);
+      await queryClient.invalidateQueries({ queryKey: ['/api/print-shop/admin/orders'] });
+      toast({
+        title: 'Ordine eliminato dal pannello',
+        description: result.financialRecordRetained
+          ? 'Il record contabile del pagamento è stato conservato.'
+          : 'La bozza è stata annullata e i file sono stati avviati alla cancellazione.',
+      });
+    },
+    onError: (error: Error) => toast({ title: 'Eliminazione non riuscita', description: error.message, variant: 'destructive' }),
   });
 
   const labMutation = useMutation({
@@ -474,8 +496,8 @@ export default function PrintShopOrdersManager() {
                     )}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={() => downloadProtected(`/api/print-shop/admin/orders/${selectedOrder.id}/manifest?format=csv`, `${selectedOrder.orderNumber || selectedOrder.id}.csv`)}>
-                      <Download className="mr-2 h-4 w-4" />Distinta CSV
+                    <Button variant="outline" onClick={() => downloadProtected(`/api/print-shop/admin/orders/${selectedOrder.id}/manifest?format=html`, `${selectedOrder.orderNumber || selectedOrder.id}.html`)}>
+                      <Download className="mr-2 h-4 w-4" />Distinta HTML
                     </Button>
                     <Button variant="outline" onClick={() => downloadProtected(`/api/print-shop/admin/orders/${selectedOrder.id}/archive`, `${selectedOrder.orderNumber || selectedOrder.id}.zip`)}>
                       <FileArchive className="mr-2 h-4 w-4" />Originali ZIP
@@ -532,9 +554,14 @@ export default function PrintShopOrdersManager() {
               </section>
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-                <Badge variant="outline" className={STATUS_COLORS[selectedOrder.fulfillment?.status || 'submitted']}>
-                  {STATUS_LABELS[selectedOrder.fulfillment?.status || 'submitted']}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={STATUS_COLORS[selectedOrder.fulfillment?.status || 'submitted']}>
+                    {STATUS_LABELS[selectedOrder.fulfillment?.status || 'submitted']}
+                  </Badge>
+                  <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => setDeleteDialogOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />Elimina dal pannello
+                  </Button>
+                </div>
                 {availableNextStatuses.length > 0 && (
                   <Button onClick={() => {
                     setNextStatus(availableNextStatuses[0]);
@@ -546,6 +573,26 @@ export default function PrintShopOrdersManager() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminare questo ordine dal pannello?</DialogTitle>
+            <DialogDescription>
+              {selectedOrder?.payment?.status === 'paid'
+                ? 'L’ordine non sarà più visibile nella gestione operativa. Il pagamento e il record contabile verranno conservati per sicurezza e riconciliazione con PayPal.'
+                : 'La bozza o l’ordine non pagato verrà annullato e le fotografie saranno avviate alla cancellazione.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Annulla</Button>
+            <Button variant="destructive" onClick={() => deleteOrderMutation.mutate()} disabled={deleteOrderMutation.isPending}>
+              {deleteOrderMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Elimina dal pannello
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

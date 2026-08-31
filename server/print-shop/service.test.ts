@@ -795,7 +795,7 @@ describe('PrintShopService notifications and retention', () => {
   });
 
   it('sends a customer notification only once', async () => {
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn(async (..._args: any[]) => undefined);
     const mail = {
       send,
       studio: vi.fn(async () => ({
@@ -818,6 +818,9 @@ describe('PrintShopService notifications and retention', () => {
       'payment_confirmed',
     )).toEqual({ sent: false, skipped: true });
     expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][2]).toContain('IMAGE STUDIO');
+    expect(send.mock.calls[0][2]).toContain('#708594');
+    expect(send.mock.calls[0][2]).toContain('PAGAMENTO CONFERMATO');
     expect(db.value('orders/order_notify').notifications.paymentConfirmed.status).toBe('sent');
   });
 
@@ -1230,6 +1233,35 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
     expect(csv).not.toContain('"  =HYPERLINK');
   });
 
+  it('creates a self-contained HTML manifest readable in a browser', async () => {
+    const { db, service } = createService();
+    db.seed('orders/order_html', baseOrder({
+      printShop: { ...baseOrder().printShop, items: [snapshotItem(['asset_html'])] },
+    }));
+    seedReadyAsset(db, 'order_html', 'asset_html', { originalName: '<foto & prova>.jpg' });
+    const html = await service.manifestHtml('order_html');
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('Distinta di stampa');
+    expect(html).toContain('&lt;foto &amp; prova&gt;.jpg');
+    expect(html).toContain('Foto intera con bordo bianco');
+    expect(html).not.toContain('<foto & prova>');
+  });
+
+  it('hides admin-deleted orders while retaining paid financial records', async () => {
+    const { db, service } = createService();
+    db.seed('orders/order_admin_paid', baseOrder({
+      payment: { method: 'paypal', status: 'paid', paypalCaptureId: 'CAPTURE-ADMIN' },
+      fulfillment: { method: 'studio_pickup', status: 'submitted' },
+    }));
+    await expect(service.removeAdminOrder('order_admin_paid', 'admin@example.com'))
+      .resolves.toEqual({ success: true, financialRecordRetained: true });
+    expect(db.value('orders/order_admin_paid')).toMatchObject({
+      payment: { status: 'paid', paypalCaptureId: 'CAPTURE-ADMIN' },
+      adminVisibility: { hidden: true, financialRecordRetained: true },
+    });
+    expect(await service.adminOrders()).toEqual([]);
+  });
+
   it('keeps the asset retryable when Storage deletion fails', async () => {
     const { db, storage, service } = createService();
     const path = 'print-orders/user_one/order_remove/asset/original.jpg';
@@ -1614,6 +1646,7 @@ describe('PrintShopService laboratory safety', () => {
 
     const archive = await service.archiveData('order_lab_files');
     expect(archive.assets.map(asset => asset.id)).toEqual(['asset_used']);
+    expect(archive.manifestHtml).toContain('Distinta di stampa');
     await service.transferLabShipment('shipment_files');
     expect(drive.createShipmentFolder.mock.calls[0][1]).toBe('ST-2026-TEST0001');
     expect(drive.createShipmentFolder.mock.calls[0][2]).toMatchObject({
@@ -1621,6 +1654,7 @@ describe('PrintShopService laboratory safety', () => {
     });
     expect(db.value('labShipments/shipment_files').expiresAt).toBeTruthy();
     expect(uploads).toHaveLength(2);
+    expect(uploads.some(upload => upload.name.endsWith('-distinta.html'))).toBe(true);
     expect(uploads.some(upload => upload.name.includes('asset_used'))).toBe(true);
     expect(uploads.some(upload => upload.name.includes('asset_unused'))).toBe(false);
     expect(db.value('labShipments/shipment_files').files

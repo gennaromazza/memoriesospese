@@ -391,6 +391,10 @@ export function createPrintShopRouter(
     res.json({ order: await deps.service.adminOrder(req.params.orderId) });
   }));
 
+  router.delete('/admin/orders/:orderId', auth, admin, route(async (req: any, res) => {
+    res.json(await deps.service.removeAdminOrder(req.params.orderId, req.user.email));
+  }));
+
   router.patch('/admin/orders/:orderId/status', auth, admin, route(async (req: any, res) => {
     const input = statusSchema.parse(req.body);
     const order = await deps.service.updateAdminStatus(
@@ -413,6 +417,17 @@ export function createPrintShopRouter(
         `attachment; filename="${safeDownloadName(req.params.orderId)}-distinta.csv"`,
       );
       res.send(`\uFEFF${csv}`);
+      return;
+    }
+    if (format === 'html') {
+      const html = await deps.service.manifestHtml(req.params.orderId);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      setSensitiveDownloadHeaders(res);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${safeDownloadName(req.params.orderId)}-distinta.html"`,
+      );
+      res.send(html);
       return;
     }
     if (format !== 'json') {
@@ -438,7 +453,7 @@ export function createPrintShopRouter(
       else res.destroy(error);
     });
     archive.pipe(res);
-    archive.append(data.manifestCsv, { name: 'distinta.csv' });
+    archive.append(data.manifestHtml, { name: 'distinta.html' });
     archive.append(JSON.stringify(data.manifestJson, null, 2), { name: 'distinta.json' });
     data.assets.forEach((asset, index) => {
       const source = deps.storage.bucket().file(asset.storagePath).createReadStream();
