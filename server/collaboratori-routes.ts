@@ -1600,84 +1600,91 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
       return res.status(400).json({ error: 'Metodo pagamento richiesto' });
     }
     
-    // Recupera assegnazione
-    const assignmentDoc = await db.collection('jobCollaboratoreAssignments').doc(id).get();
-    if (!assignmentDoc.exists) {
+    const assignmentRef = db.collection('jobCollaboratoreAssignments').doc(id);
+    const cashMovementRef = db.collection('cashMovements').doc();
+    const paymentDate = data ? Timestamp.fromDate(new Date(data)) : Timestamp.now();
+    const paymentId = nanoid(10);
+
+    // Il movimento di cassa e l'assegnazione devono essere aggiornati insieme:
+    // in questo modo non rimangono movimenti orfani se la registrazione del pagamento fallisce.
+    const paymentResult = await db.runTransaction(async (transaction) => {
+      const assignmentDoc = await transaction.get(assignmentRef);
+      if (!assignmentDoc.exists) return null;
+
+      const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
+      const [collaboratoreDoc, jobDoc] = await Promise.all([
+        transaction.get(db.collection('collaboratori').doc(assignment.collaboratoreId)),
+        transaction.get(db.collection('jobs').doc(assignment.jobId))
+      ]);
+
+      const collaboratore = collaboratoreDoc.data();
+      const job = jobDoc.data();
+      const nomeCollaboratore = `${collaboratore?.nome || ''} ${collaboratore?.cognome || ''}`.trim();
+      const nomeJob = job?.nomeEvento || 'Lavoro senza nome';
+      const ruoliLabels: Record<string, string> = {
+        fotografo_secondario: 'Fotografo Secondario',
+        videomaker: 'Videomaker',
+        assistente: 'Assistente',
+        photo_editor: 'Photo Editor',
+        album_designer: 'Album Designer',
+        altro: 'Altro'
+      };
+
+      const cashMovementData = {
+        tipo: 'uscita' as const,
+        categoria: `Collaboratori - ${ruoliLabels[assignment.ruoloInJob] || 'Altro'}`,
+        importo,
+        descrizione: `Pagamento ${nomeCollaboratore} - ${nomeJob}`,
+        data: paymentDate,
+        metodoPagamento: metodo,
+        note: note || null,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      };
+
+      const pagamento: Omit<CollaboratorPayment, 'data'> & { data: any } = {
+        id: paymentId,
+        tipo,
+        importo,
+        data: paymentDate,
+        metodo,
+        ...(note ? { note } : {}),
+        cashMovementId: cashMovementRef.id
+      };
+
+      const nuoviPagamenti = [...(assignment.pagamenti || []), pagamento];
+      const totalePagato = nuoviPagamenti.reduce((sum, p) => sum + p.importo, 0);
+      const nuovoSaldoResiduo = assignment.compenso - totalePagato;
+      const isPagato = nuovoSaldoResiduo <= 0;
+      const assignmentUpdate = {
+        pagamenti: nuoviPagamenti,
+        saldoResiduo: nuovoSaldoResiduo,
+        isPagato,
+        ...(isPagato ? { dataPagamento: Timestamp.now() } : {}),
+        updatedAt: Timestamp.now()
+      };
+
+      transaction.create(cashMovementRef, cashMovementData);
+      transaction.update(assignmentRef, assignmentUpdate);
+
+      return {
+        collaboratore,
+        collaboratoreId: collaboratoreDoc.id,
+        job,
+        nomeJob,
+        totalePagato,
+        nuovoSaldoResiduo,
+        isPagato
+      };
+    });
+
+    if (!paymentResult) {
       return res.status(404).json({ error: 'Assegnazione non trovata' });
     }
-    const assignment = assignmentDoc.data() as JobCollaboratoreAssignment;
-    
-    // Recupera collaboratore e job per descrizione movimento cassa
-    const [collaboratoreDoc, jobDoc] = await Promise.all([
-      db.collection('collaboratori').doc(assignment.collaboratoreId).get(),
-      db.collection('jobs').doc(assignment.jobId).get()
-    ]);
-    
-    const collaboratore = collaboratoreDoc.data();
-    const job = jobDoc.data();
-    const nomeCollaboratore = `${collaboratore?.nome || ''} ${collaboratore?.cognome || ''}`.trim();
-    const nomeJob = job?.nomeEvento || 'Lavoro senza nome';
-    const ruolo = assignment.ruoloInJob;
-    
-    // Mappa ruoli per categoria
-    const ruoliLabels: Record<string, string> = {
-      fotografo_secondario: 'Fotografo Secondario',
-      videomaker: 'Videomaker',
-      assistente: 'Assistente',
-      photo_editor: 'Photo Editor',
-      album_designer: 'Album Designer',
-      altro: 'Altro'
-    };
-    
-    const categoriaMovimento = `Collaboratori - ${ruoliLabels[ruolo] || 'Altro'}`;
-    const descrizioneMovimento = `Pagamento ${nomeCollaboratore} - ${nomeJob}`;
-    
-    // Crea movimento cassa (uscita)
-    const cashMovementData = {
-      tipo: 'uscita' as const,
-      categoria: categoriaMovimento,
-      importo: importo,
-      descrizione: descrizioneMovimento,
-      data: data ? Timestamp.fromDate(new Date(data)) : Timestamp.now(),
-      metodoPagamento: metodo,
-      note: note || null,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    };
-    
-    const cashMovementRef = await db.collection('cashMovements').add(cashMovementData);
-    
-    // Crea record pagamento per assegnazione
-    const pagamento: Omit<CollaboratorPayment, 'data'> & { data: any } = {
-      id: nanoid(10),
-      tipo: tipo,
-      importo: importo,
-      data: data ? Timestamp.fromDate(new Date(data)) : Timestamp.now(),
-      metodo: metodo,
-      note: note,
-      cashMovementId: cashMovementRef.id
-    };
-    
-    // Aggiorna array pagamenti e ricalcola saldo
-    const pagamentiAttuali = assignment.pagamenti || [];
-    const nuoviPagamenti = [...pagamentiAttuali, pagamento];
-    
-    const totalePagato = nuoviPagamenti.reduce((sum, p) => sum + p.importo, 0);
-    const nuovoSaldoResiduo = assignment.compenso - totalePagato;
-    const isPagato = nuovoSaldoResiduo <= 0;
-    
-    // Aggiorna assegnazione
-    await db.collection('jobCollaboratoreAssignments').doc(id).update({
-      pagamenti: nuoviPagamenti,
-      saldoResiduo: nuovoSaldoResiduo,
-      isPagato: isPagato,
-      dataPagamento: isPagato ? Timestamp.now() : assignment.dataPagamento,
-      updatedAt: Timestamp.now()
-    });
     
     // Invia email notifica pagamento (fire-and-forget)
-    const dataJob = job?.eventDate 
-      ? formatRomeDateLocale(job.eventDate.toDate(), {
+    const dataJob = paymentResult.job?.eventDate
+      ? formatRomeDateLocale(paymentResult.job.eventDate.toDate(), {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
@@ -1687,21 +1694,21 @@ router.post('/collaboratori/assignments/:id/add-payment', authenticateFirebase, 
     
     sendPaymentRegisteredEmail(
       req,
-      { ...collaboratore, id: collaboratoreDoc.id },
-      nomeJob,
+      { ...paymentResult.collaboratore, id: paymentResult.collaboratoreId },
+      paymentResult.nomeJob,
       dataJob,
       importo,
       tipo,
       metodo,
-      totalePagato,
-      nuovoSaldoResiduo,
+      paymentResult.totalePagato,
+      paymentResult.nuovoSaldoResiduo,
       note
     ).catch(err => console.error('❌ Email pagamento fallita (non bloccante):', err));
     
     res.json({ 
       success: true,
-      saldoResiduo: nuovoSaldoResiduo,
-      isPagato: isPagato,
+      saldoResiduo: paymentResult.nuovoSaldoResiduo,
+      isPagato: paymentResult.isPagato,
       cashMovementId: cashMovementRef.id
     });
   } catch (error: any) {
