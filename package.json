@@ -84,7 +84,7 @@
     "dompurify": "^3.4.14",
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
-    "express": "^4.22.2",
+    "express": "^5.1.0",
     "firebase": "^12.18.0",
     "firebase-admin": "^14.3.0",
     "framer-motion": "^10.18.0",
