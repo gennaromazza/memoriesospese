@@ -9,6 +9,21 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/**
+ * Attende che Firebase abbia ripristinato la sessione prima di chiamare una
+ * rotta protetta. Senza questa attesa, al primo caricamento auth.currentUser
+ * può essere ancora null e la richiesta parte senza Bearer token.
+ */
+async function addFirebaseAuthorizationHeader(headers: Record<string, string>): Promise<void> {
+  await auth.authStateReady();
+
+  const currentUser = auth.currentUser;
+  if (!currentUser) return;
+
+  const token = await currentUser.getIdToken();
+  headers['Authorization'] = `Bearer ${token}`;
+}
+
 // Helper per ottenere credenziali utente autenticato
 export async function getAuthCredentials(): Promise<{ userEmail: string; userName: string } | null> {
   const user = auth.currentUser;
@@ -117,13 +132,8 @@ export async function apiRequest(
   const needsFirebaseAuth = (isConsultationsEndpoint && !isPublicConsultationEndpoint) || 
                             firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
   
-  if (needsFirebaseAuth && auth.currentUser) {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      headers['Authorization'] = `Bearer ${token}`;
-    } catch (error) {
-      console.error('Errore ottenimento token Firebase:', error);
-    }
+  if (needsFirebaseAuth) {
+    await addFirebaseAuthorizationHeader(headers);
   }
   
   const res = await fetch(finalUrl, {
@@ -181,13 +191,8 @@ export const getQueryFn: <T>(options: {
     const needsFirebaseAuth = (isConsultationsEndpoint && !isPublicConsultationEndpoint) || 
                               firebaseAuthEndpoints.some(endpoint => url.includes(endpoint));
     
-    if (needsFirebaseAuth && auth.currentUser) {
-      try {
-        const token = await auth.currentUser.getIdToken();
-        headers['Authorization'] = `Bearer ${token}`;
-      } catch (error) {
-        console.error('Errore ottenimento token Firebase:', error);
-      }
+    if (needsFirebaseAuth) {
+      await addFirebaseAuthorizationHeader(headers);
     }
     
     const res = await fetch(finalUrl, {

@@ -85,7 +85,9 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  Zap
+  Zap,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { format, isWithinInterval, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -152,14 +154,29 @@ export default function JobsManager() {
   const [collaboratoriDialogJobId, setCollaboratoriDialogJobId] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const { user } = useFirebaseAuth();
+  const { user, isLoading: isAuthLoading } = useFirebaseAuth();
   const queryClient = useQueryClient();
   
   // Query jobs
-  const { data: jobs = [], isLoading } = useQuery<Job[]>({
-    queryKey: ['jobs'],
-    queryFn: () => getAllJobs()
+  const {
+    data: jobs = [],
+    isLoading: isJobsLoading,
+    isFetching: isJobsFetching,
+    isError: isJobsError,
+    refetch: refetchJobs,
+  } = useQuery<Job[]>({
+    queryKey: ['jobs', user?.uid],
+    queryFn: () => getAllJobs(),
+    // La pagina può montarsi prima che Firebase abbia ripristinato la sessione.
+    // In quel momento una richiesta a /api/jobs partirebbe senza Bearer token.
+    enabled: !isAuthLoading && !!user,
+    retry: 2,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 5000),
+    refetchOnWindowFocus: true,
   });
+
+  const jobsAreLoading = isAuthLoading || (!!user && isJobsLoading);
+  const jobsLoadFailed = !isAuthLoading && (!user || isJobsError);
   
   const deleteMutation = useMutation({
     mutationFn: async (jobIds: string[]) => {
@@ -628,6 +645,11 @@ export default function JobsManager() {
       saldoResiduo: round2(saldoResiduo),
     };
   }, [filteredJobs, financialsByJob]);
+
+  const totalLoadedActiveJobs = useMemo(
+    () => jobs.filter(job => job.status !== 'archiviato').length,
+    [jobs]
+  );
   
   const toggleSelectJob = (jobId: string) => {
     const newSelected = new Set(selectedJobs);
@@ -665,22 +687,35 @@ export default function JobsManager() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-3xl font-playfair font-bold text-blue-gray">
             Gestione Lavori
           </h2>
           <p className="text-sm text-gray-600 mt-1">
-            {selectedJobs.size > 0 ? (
+            {jobsAreLoading ? (
+              <span>Caricamento lavori in corso...</span>
+            ) : jobsLoadFailed ? (
+              <span className="text-red-600 font-medium">Caricamento non riuscito</span>
+            ) : selectedJobs.size > 0 ? (
               <span className="text-red-600 font-medium">
                 {selectedJobs.size} lavori selezionati
               </span>
             ) : (
-              `${stats.totalJobs} lavori attivi`
+              `${totalLoadedActiveJobs} lavori caricati${stats.totalJobs !== totalLoadedActiveJobs ? ` · ${stats.totalJobs} visualizzati` : ''}`
             )}
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={() => refetchJobs()}
+            variant="outline"
+            disabled={jobsAreLoading || isJobsFetching || !user}
+            data-testid="button-refresh-jobs"
+          >
+            <RefreshCw className={cn("w-4 h-4 mr-2", isJobsFetching && "animate-spin")} />
+            Aggiorna
+          </Button>
           {selectedJobs.size > 0 && (
             <Button
               onClick={handleDeleteSelected}
@@ -1136,17 +1171,44 @@ export default function JobsManager() {
       </div>
       
       {/* Jobs Table */}
-      {isLoading ? (
+      {jobsAreLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map(i => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
+      ) : jobsLoadFailed ? (
+        <Card className="border-red-200 bg-red-50/50" data-testid="jobs-load-error">
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-4" />
+            <p className="font-medium text-red-800">Non è stato possibile caricare i lavori</p>
+            <p className="mt-1 text-sm text-red-700">
+              I lavori sono al sicuro. Si è verificato un problema temporaneo di collegamento.
+            </p>
+            <Button
+              className="mt-5"
+              variant="outline"
+              onClick={() => refetchJobs()}
+              disabled={!user || isJobsFetching}
+              data-testid="button-retry-jobs"
+            >
+              <RefreshCw className={cn("w-4 h-4 mr-2", isJobsFetching && "animate-spin")} />
+              Riprova
+            </Button>
+          </CardContent>
+        </Card>
       ) : sortedJobs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">Nessun lavoro trovato</p>
+            <p className="font-medium text-gray-600">
+              {jobs.length === 0 ? 'Non ci sono ancora lavori' : 'Nessun lavoro corrisponde ai filtri selezionati'}
+            </p>
+            {jobs.length > 0 && (
+              <p className="mt-1 text-sm text-gray-500">
+                I tuoi {totalLoadedActiveJobs} lavori sono caricati correttamente: modifica o azzera i filtri per visualizzarli.
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : (
