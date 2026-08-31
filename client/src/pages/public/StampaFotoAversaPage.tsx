@@ -88,8 +88,8 @@ const steps = [
   {
     number: '01',
     icon: LogIn,
-    title: 'Accedi con Google',
-    description: 'Entra in modo sicuro: il tuo ordine e i tuoi file restano legati solo al tuo account.',
+    title: 'Accedi o registrati',
+    description: 'Usa Google oppure email e password: ordine e file restano legati solo al tuo account.',
   },
   {
     number: '02',

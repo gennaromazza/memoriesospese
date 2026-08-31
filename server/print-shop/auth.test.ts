@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPrintShopAuthenticator, requireVerifiedGoogle } from './auth.js';
+import { createPrintShopAuthenticator, requirePrintShopCustomer } from './auth.js';
 
 function response() {
   const json = vi.fn();
@@ -34,7 +34,7 @@ describe('print-shop Firebase authentication', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid tokens, unverified email and non-Google providers', async () => {
+  it('rejects invalid tokens, unverified Google email and unsupported providers', async () => {
     const rejected = createPrintShopAuthenticator(async () => {
       throw new Error('revoked');
     });
@@ -47,7 +47,7 @@ describe('print-shop Firebase authentication', () => {
     expect(unauthorized.status).toHaveBeenCalledWith(401);
 
     const unverified = response();
-    requireVerifiedGoogle(
+    requirePrintShopCustomer(
       { user: { emailVerified: false, provider: 'google.com' } } as any,
       unverified.value,
       vi.fn(),
@@ -57,15 +57,29 @@ describe('print-shop Firebase authentication', () => {
       error: expect.objectContaining({ code: 'email_not_verified' }),
     }));
 
-    const password = response();
-    requireVerifiedGoogle(
-      { user: { emailVerified: true, provider: 'password' } } as any,
-      password.value,
+    const unsupported = response();
+    requirePrintShopCustomer(
+      { user: { emailVerified: true, provider: 'anonymous' } } as any,
+      unsupported.value,
       vi.fn(),
     );
-    expect(password.status).toHaveBeenCalledWith(403);
-    expect(password.json).toHaveBeenCalledWith(expect.objectContaining({
-      error: expect.objectContaining({ code: 'google_account_required' }),
+    expect(unsupported.status).toHaveBeenCalledWith(403);
+    expect(unsupported.json).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({ code: 'unsupported_auth_provider' }),
     }));
+  });
+
+  it('accepts Firebase password accounts for the print shop', () => {
+    const password = response();
+    const next = vi.fn();
+
+    requirePrintShopCustomer(
+      { user: { emailVerified: false, provider: 'password' } } as any,
+      password.value,
+      next,
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(password.status).not.toHaveBeenCalled();
   });
 });

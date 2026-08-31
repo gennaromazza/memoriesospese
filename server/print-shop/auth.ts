@@ -42,16 +42,17 @@ export function createPrintShopAuthenticator(
 }
 export const authenticatePrintShop = createPrintShopAuthenticator();
 
-export function requireVerifiedGoogle(req: any, res: Response, next: NextFunction) {
-  if (req.user?.emailVerified !== true) {
+export function requirePrintShopCustomer(req: any, res: Response, next: NextFunction) {
+  const provider = req.user?.provider;
+  if (provider === 'google.com' && req.user?.emailVerified !== true) {
     res.status(403).json({
       error: { code: 'email_not_verified', message: 'Verifica il tuo indirizzo email' },
     });
     return;
   }
-  if (req.user?.provider !== 'google.com') {
+  if (provider !== 'google.com' && provider !== 'password') {
     res.status(403).json({
-      error: { code: 'google_account_required', message: 'Accedi con Google per ordinare le stampe' },
+      error: { code: 'unsupported_auth_provider', message: 'Accedi con Google oppure con email e password' },
     });
     return;
   }

@@ -3,7 +3,7 @@
  * Sostituisce il doppio sistema di autenticazione esistente
  */
 
-import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, useMemo, useRef, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { AuthService, GoogleAccountLinkRequiredError, GoogleSignInResult, UserProfile } from '../lib/auth';
 
@@ -47,43 +47,71 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
   const [showProfileWelcome, setShowProfileWelcome] = useState(false);
   const [googleLinkRequest, setGoogleLinkRequest] = useState<GoogleAccountLinkRequiredError | null>(null);
+  const authSyncVersionRef = useRef(0);
+
+  /**
+   * Aggiorna in un solo punto tutto lo stato derivato dall'utente Firebase.
+   * È richiamato sia dal listener globale sia dal risultato esplicito del
+   * redirect Google: sui browser mobili il redirect ricrea completamente la
+   * pagina e non possiamo affidarci al solo evento del listener.
+   */
+  const applyAuthenticatedUser = useCallback(async (firebaseUser: User | null) => {
+    const syncVersion = ++authSyncVersionRef.current;
+    setUser(firebaseUser);
+
+    if (!firebaseUser) {
+      setUserProfile(null);
+      setIsGoogleAuthenticated(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const [googleSession, profile] = await Promise.all([
+      AuthService.isGoogleSession(firebaseUser).catch(() => false),
+      AuthService.ensureUserProfile(firebaseUser).catch((error) => {
+        console.error('Errore recupero profilo utente:', error);
+        return null;
+      }),
+    ]);
+
+    // Ignora una risposta lenta appartenente a una sessione ormai sostituita.
+    if (syncVersion !== authSyncVersionRef.current) return;
+    setUser(firebaseUser);
+    setIsGoogleAuthenticated(googleSession);
+    setUserProfile(profile);
+    setIsLoading(false);
+  }, []);
 
   // Inizializza stato autenticazione
   useEffect(() => {
-    // getRedirectResult completa il flusso iniziato su mobile. Il listener
-    // sottostante resta la fonte unica dello stato UI.
-    AuthService.completeGoogleRedirectSignIn().catch((error) => {
-      if (error instanceof GoogleAccountLinkRequiredError) {
-        setGoogleLinkRequest(error);
-        return;
-      }
-      console.error('Errore completamento accesso Google:', error);
+    let active = true;
+    const unsubscribe = AuthService.onAuthStateChange((firebaseUser) => {
+      if (active) void applyAuthenticatedUser(firebaseUser);
     });
 
-    const unsubscribe = AuthService.onAuthStateChange(async (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (firebaseUser) {
-        const googleSession = await AuthService.isGoogleSession(firebaseUser).catch(() => false);
-        setIsGoogleAuthenticated(googleSession);
-        // Fetch profilo utente da Firestore
-        try {
-          const profile = await AuthService.ensureUserProfile(firebaseUser);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error('Errore recupero profilo utente:', error);
-          setUserProfile(null);
+    // Al ritorno dal redirect mobile applichiamo esplicitamente il risultato.
+    // Questo chiude la race in cui Firebase ha effettuato il login ma la UI è
+    // rimasta sul gate di accesso fino a un successivo ricaricamento.
+    void AuthService.completeGoogleRedirectSignIn()
+      .then((redirectUser) => {
+        if (active && redirectUser) return applyAuthenticatedUser(redirectUser);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (error instanceof GoogleAccountLinkRequiredError) {
+          setGoogleLinkRequest(error);
+          setIsLoading(false);
+          return;
         }
-      } else {
-        setUserProfile(null);
-        setIsGoogleAuthenticated(false);
-      }
+        console.error('Errore completamento accesso Google:', error);
+        setIsLoading(false);
+      });
 
-      setIsLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [applyAuthenticatedUser]);
 
   const login = async (email: string, password: string, galleryId?: string) => {
     setIsLoading(true);
@@ -92,6 +120,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
       if (galleryId) {
         await AuthService.updateLastLogin(user, galleryId);
       }
+      await applyAuthenticatedUser(user);
       return user;
     } finally {
       setIsLoading(false);
@@ -102,7 +131,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     setIsLoading(true);
     try {
       const user = await AuthService.registerUser(email, password, displayName, galleryId);
-      setUserProfile(await AuthService.getUserProfile(user.uid));
+      await applyAuthenticatedUser(user);
       
       // Show profile welcome modal for new users after a brief delay
       setTimeout(() => {
@@ -120,7 +149,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     try {
       const result = await AuthService.loginWithGoogle();
       setGoogleLinkRequest(null);
-      if (result.user) setIsGoogleAuthenticated(await AuthService.isGoogleSession(result.user).catch(() => false));
+      if (result.user) await applyAuthenticatedUser(result.user);
       return result;
     } catch (error) {
       if (error instanceof GoogleAccountLinkRequiredError) setGoogleLinkRequest(error);
@@ -137,7 +166,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     try {
       const linkedUser = await AuthService.linkPendingGoogleAccount(password);
       setGoogleLinkRequest(null);
-      setIsGoogleAuthenticated(await AuthService.isGoogleSession(linkedUser).catch(() => false));
+      await applyAuthenticatedUser(linkedUser);
       return linkedUser;
     } finally {
       setIsLoading(false);

@@ -56,7 +56,7 @@ export default function PrintShopOrdersPage() {
     noindex: true,
   });
   const [, navigate] = useLocation();
-  const { user, isGoogleAuthenticated, isLoading: authLoading } = useFirebaseAuth();
+  const { user, isLoading: authLoading } = useFirebaseAuth();
   const { studioSettings } = useStudio();
   const [orders, setOrders] = useState<PrintShopOrderListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,7 @@ export default function PrintShopOrdersPage() {
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async (signal?: AbortSignal) => {
-    if (!user || !isGoogleAuthenticated) return;
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
@@ -78,17 +78,17 @@ export default function PrintShopOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [isGoogleAuthenticated, user]);
+  }, [user]);
 
   useEffect(() => {
-    if (!user || !isGoogleAuthenticated) {
+    if (!user) {
       setOrders([]);
       return;
     }
     const controller = new AbortController();
     void loadOrders(controller.signal);
     return () => controller.abort();
-  }, [isGoogleAuthenticated, loadOrders, user]);
+  }, [loadOrders, user]);
 
   const resumeDraft = (order: PrintShopOrderListItem) => {
     if (!user || !isResumablePrintDraft(order)) return;
@@ -148,7 +148,7 @@ export default function PrintShopOrdersPage() {
           )}
           {authLoading ? (
             <div className="flex min-h-64 items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" /></div>
-          ) : !user || !isGoogleAuthenticated ? (
+          ) : !user ? (
             <div className="mx-auto max-w-3xl"><PrintShopAuthGate /></div>
           ) : loading && orders.length === 0 ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-3" role="status"><Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" /><p className="text-sm text-blue-gray/55">Caricamento ordini…</p></div>

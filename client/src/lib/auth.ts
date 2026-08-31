@@ -95,12 +95,6 @@ function firebaseErrorEmail(error: unknown): string | undefined {
   return typeof customData.email === 'string' ? customData.email : undefined;
 }
 
-function shouldUseGoogleRedirect(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  return mobileUserAgent || (navigator.maxTouchPoints > 1 && window.innerWidth < 900);
-}
-
 export class AuthService {
   private static pendingGoogleCredential: OAuthCredential | null = null;
   private static pendingGoogleEmail: string | null = null;
@@ -181,9 +175,10 @@ export class AuthService {
   }
 
   /**
-   * Accesso Google con popup su desktop e redirect sui dispositivi mobili o
-   * quando il browser blocca il popup. Se l'utente è già autenticato, collega
-   * Google allo stesso UID invece di creare un secondo profilo.
+   * Accesso Google con popup avviato direttamente dal gesto dell'utente, anche
+   * su mobile. Il redirect resta un fallback per i browser che bloccano o non
+   * supportano il popup. Se l'utente è già autenticato, collega Google allo
+   * stesso UID invece di creare un secondo profilo.
    */
   static async loginWithGoogle(): Promise<GoogleSignInResult> {
     // Il redirect mobile può essere tornato con una collisione account. La
@@ -209,16 +204,6 @@ export class AuthService {
     }
 
     const shouldLinkGoogle = Boolean(currentUser && !alreadyLinked);
-
-    if (shouldUseGoogleRedirect()) {
-      sessionStorage.setItem(GOOGLE_REDIRECT_FLAG, '1');
-      if (currentUser && shouldLinkGoogle) {
-        await linkWithRedirect(currentUser, provider);
-      } else {
-        await signInWithRedirect(auth, provider);
-      }
-      return { user: null, redirecting: true };
-    }
 
     try {
       const credential = currentUser && shouldLinkGoogle

@@ -58,7 +58,7 @@ function errorMessage(body: unknown, status: number): string {
       return body.issues[0].message;
     }
   }
-  if (status === 401) return 'La sessione è scaduta. Accedi di nuovo con Google.';
+  if (status === 401) return 'La sessione è scaduta. Accedi di nuovo.';
   if (status === 403) return 'Non puoi modificare questo ordine.';
   if (status === 413) return 'Una delle fotografie è troppo grande.';
   if (status >= 500) return 'Il servizio non è disponibile in questo momento. Riprova tra poco.';
@@ -78,7 +78,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (authenticated) {
     const user = auth.currentUser;
-    if (!user) throw new PrintShopApiError('Accedi con Google per continuare.', 401, 'AUTH_REQUIRED');
+    if (!user) throw new PrintShopApiError('Accedi per continuare.', 401, 'AUTH_REQUIRED');
     headers.set('Authorization', `Bearer ${await user.getIdToken()}`);
   }
   if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);

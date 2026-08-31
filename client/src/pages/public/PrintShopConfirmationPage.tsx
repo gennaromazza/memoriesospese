@@ -33,7 +33,7 @@ export default function PrintShopConfirmationPage() {
     canonical: '/stampa-foto-aversa/ordine/conferma',
     noindex: true,
   });
-  const { user, isGoogleAuthenticated, isLoading: authLoading } = useFirebaseAuth();
+  const { user, isLoading: authLoading } = useFirebaseAuth();
   const { studioSettings } = useStudio();
   const { orderId } = readPrintShopConfirmationLocation(window.location.search);
   const [order, setOrder] = useState<PrintShopOrderListItem | null>(null);
@@ -41,7 +41,7 @@ export default function PrintShopConfirmationPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !isGoogleAuthenticated || !orderId) {
+    if (!user || !orderId) {
       setLoading(false);
       return;
     }
@@ -56,7 +56,7 @@ export default function PrintShopConfirmationPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [isGoogleAuthenticated, orderId, user]);
+  }, [orderId, user]);
 
   const confirmation = printShopConfirmationFromOrder(order);
   const paid = confirmation.paid;
@@ -76,7 +76,7 @@ export default function PrintShopConfirmationPage() {
         <div className="mx-auto max-w-3xl">
           {authLoading ? (
             <div className="flex min-h-80 items-center justify-center" role="status"><Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" /></div>
-          ) : !user || !isGoogleAuthenticated ? (
+          ) : !user ? (
             <PrintShopAuthGate />
           ) : !orderId ? (
             <section className="rounded-[2rem] border border-red-200 bg-white p-8 text-center shadow-sm">

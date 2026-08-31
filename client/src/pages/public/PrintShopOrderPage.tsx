@@ -223,7 +223,7 @@ export default function PrintShopOrderPage() {
   });
 
   const [, navigate] = useLocation();
-  const { user, userProfile, isGoogleAuthenticated, isLoading: authLoading } = useFirebaseAuth();
+  const { user, userProfile, isLoading: authLoading } = useFirebaseAuth();
   const { studioSettings, loading: studioLoading } = useStudio();
   const [step, setStep] = useState<OrderStep>('upload');
   const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
@@ -317,7 +317,7 @@ export default function PrintShopOrderPage() {
   }, [user, userProfile]);
 
   useEffect(() => {
-    if (!user || !isGoogleAuthenticated) {
+    if (!user) {
       resumedDraftForUserRef.current = null;
       setDraftResumeLoading(false);
       return;
@@ -419,7 +419,7 @@ export default function PrintShopOrderPage() {
         resumedDraftForUserRef.current = null;
       }
     };
-  }, [isGoogleAuthenticated, updatePhotos, user]);
+  }, [updatePhotos, user]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -449,7 +449,7 @@ export default function PrintShopOrderPage() {
   const issuesByGroup = useMemo(() => groupIssuesById(validationIssues), [validationIssues]);
 
   const ensureDraft = useCallback(async (): Promise<string> => {
-    if (!user || !isGoogleAuthenticated) throw new Error('Accedi con Google per caricare le foto.');
+    if (!user) throw new Error('Accedi per caricare le foto.');
     if (orderIdRef.current) return orderIdRef.current;
     if (draftPromiseRef.current) return draftPromiseRef.current;
 
@@ -467,7 +467,7 @@ export default function PrintShopOrderPage() {
       draftPromiseRef.current = null;
     });
     return draftPromiseRef.current;
-  }, [isGoogleAuthenticated, user]);
+  }, [user]);
 
   const patchPhoto = useCallback((localId: string, patch: Partial<LocalPrintPhoto>) => {
     if (!mountedRef.current) return;
@@ -475,7 +475,7 @@ export default function PrintShopOrderPage() {
   }, [updatePhotos]);
 
   const uploadOne = useCallback(async (photo: LocalPrintPhoto) => {
-    if (!user || !isGoogleAuthenticated || !photo.file) return;
+    if (!user || !photo.file) return;
     const file = photo.file;
     uploadControllersRef.current.get(photo.localId)?.abort();
     const uploadController = new AbortController();
@@ -531,7 +531,7 @@ export default function PrintShopOrderPage() {
         uploadControllersRef.current.delete(photo.localId);
       }
     }
-  }, [ensureDraft, isGoogleAuthenticated, patchPhoto, user]);
+  }, [ensureDraft, patchPhoto, user]);
 
   const uploadWithConcurrency = useCallback(async (candidates: LocalPrintPhoto[]) => {
     const queue = [...candidates];
@@ -545,7 +545,7 @@ export default function PrintShopOrderPage() {
   }, [uploadOne]);
 
   const handleFilesSelected = useCallback(async (files: File[]) => {
-    if (!user || !isGoogleAuthenticated || files.length === 0) return;
+    if (!user || files.length === 0) return;
     setValidatingFiles(true);
     setFileErrors([]);
     setPageError(null);
@@ -583,7 +583,7 @@ export default function PrintShopOrderPage() {
     setFileErrors(errors);
     setValidatingFiles(false);
     if (candidates.length > 0) void uploadWithConcurrency(candidates);
-  }, [isGoogleAuthenticated, updatePhotos, uploadWithConcurrency, user]);
+  }, [updatePhotos, uploadWithConcurrency, user]);
 
   const retryPhoto = useCallback(async (localId: string) => {
     const photo = photosRef.current.find((candidate) => candidate.localId === localId);
@@ -852,14 +852,14 @@ export default function PrintShopOrderPage() {
             </div>
           )}
 
-          {catalogLoading || authLoading || (Boolean(user && isGoogleAuthenticated) && draftResumeLoading) ? (
+          {catalogLoading || authLoading || (Boolean(user) && draftResumeLoading) ? (
             <div className="flex min-h-72 flex-col items-center justify-center gap-3" role="status">
               <Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" />
               <p className="text-sm text-blue-gray/55">Prepariamo il tuo ordine…</p>
             </div>
           ) : step === 'upload' ? (
             <div className="mx-auto max-w-4xl">
-              {!user || !isGoogleAuthenticated ? (
+              {!user ? (
                 <PrintShopAuthGate />
               ) : (
                 <section className="rounded-[2rem] border border-sage/20 bg-off-white/40 p-1 sm:p-2" aria-labelledby="upload-title">

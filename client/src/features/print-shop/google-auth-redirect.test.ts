@@ -59,6 +59,9 @@ import { AuthService, GoogleAccountLinkRequiredError } from '@/lib/auth';
 
 describe('Google redirect account linking', () => {
   beforeEach(() => {
+    (AuthService as any).pendingGoogleCredential = null;
+    (AuthService as any).pendingGoogleEmail = null;
+    (AuthService as any).pendingGoogleSignInMethods = [];
     authMocks.credentialFromError.mockReset();
     authMocks.fetchSignInMethodsForEmail.mockReset();
     authMocks.getRedirectResult.mockReset();
@@ -114,5 +117,29 @@ describe('Google redirect account linking', () => {
 
     await expect(AuthService.isGoogleSession(legacyUser as never)).resolves.toBe(false);
     await expect(AuthService.isGoogleSession(googleUser as never)).resolves.toBe(true);
+  });
+
+  it('uses the popup on mobile so the order page keeps its live state', async () => {
+    const mobileUser = {
+      uid: 'mobile-user',
+      email: 'mobile@example.com',
+      emailVerified: true,
+      providerData: [{ providerId: 'google.com' }],
+      getIdTokenResult: vi.fn().mockResolvedValue({ signInProvider: 'google.com' }),
+    };
+    authMocks.signInWithPopup.mockResolvedValueOnce({ user: mobileUser });
+    vi.spyOn(AuthService, 'ensureUserProfile').mockResolvedValueOnce(null);
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { userAgent: 'iPhone Mobile', maxTouchPoints: 5 },
+    });
+
+    await expect(AuthService.loginWithGoogle()).resolves.toEqual({
+      user: mobileUser,
+      redirecting: false,
+    });
+
+    expect(authMocks.signInWithPopup).toHaveBeenCalledOnce();
+    expect(authMocks.signInWithRedirect).not.toHaveBeenCalled();
   });
 });

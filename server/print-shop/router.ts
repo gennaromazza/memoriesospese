@@ -27,7 +27,7 @@ import {
   PRINT_SHOP_UPLOAD_RATE_LIMIT,
   uidRateLimiter,
 } from './rate-limit.js';
-import { authenticatePrintShop, requireVerifiedGoogle } from './auth.js';
+import { authenticatePrintShop, requirePrintShopCustomer } from './auth.js';
 import { requireMaintenanceOidc } from './maintenance-auth.js';
 import { resolvePrintUploadOrigin } from './upload-origin.js';
 
@@ -239,7 +239,7 @@ export function createPrintShopRouter(
   const deps: RouterDependencies = {
     service: overrides.service || printShopService,
     authenticate: overrides.authenticate || authenticatePrintShop,
-    verifiedCustomer: overrides.verifiedCustomer || requireVerifiedGoogle,
+    verifiedCustomer: overrides.verifiedCustomer || requirePrintShopCustomer,
     adminEmails: overrides.adminEmails || configuredAdminEmails(),
     storage: overrides.storage || storage,
     scheduleBackground:
