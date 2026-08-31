@@ -11,6 +11,7 @@
     "build": "npm run build:server && npm run build:client",
     "build:server": "npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --minify",
     "build:client": "vite build",
+    "postbuild:client": "node scripts/verify-client-build.mjs",
     "build:server:tsc": "tsc --project tsconfig.server.json",
     "test:rules": "firebase emulators:exec --only firestore,storage --project print-shop-rules-test \"vitest run --config vitest.rules.config.ts\"",
     "ai:wedding:test": "tsx scripts/test-wedding-ai.ts",
