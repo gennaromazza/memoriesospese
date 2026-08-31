@@ -1,4 +1,5 @@
 import type { PrintShopQuote } from '@shared/print-shop-types';
+import type { PrintShopOrderListItem } from './types';
 import type { PrintShopLegalConsents } from './types';
 
 export interface PaypalCreatePayload extends PrintShopLegalConsents {
@@ -52,6 +53,10 @@ export function requiresPaypalQuoteReview(error: unknown): boolean {
   return ['quote_changed', 'order_changed', 'low_resolution_confirmation_required'].includes(
     typeof error.code === 'string' ? error.code : '',
   );
+}
+
+export function hasRecordedPaypalPayment(order: PrintShopOrderListItem): boolean {
+  return order.payment.status === 'paid' || order.payment.status === 'paid_action_required';
 }
 
 export function sandboxPaypalNotice(environment: 'sandbox' | 'live' | undefined): string | null {

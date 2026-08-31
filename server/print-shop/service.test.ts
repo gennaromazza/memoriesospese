@@ -35,6 +35,7 @@ function paypalFake() {
       input,
     })),
     captureOrder: vi.fn(),
+    getOrder: vi.fn(),
     verifyWebhook: vi.fn(async () => true),
   } as any;
 }
@@ -644,6 +645,46 @@ describe('PrintShopService production validation', () => {
     releaseCapture();
     await expect(capture).resolves.toMatchObject({ success: true, status: 'paid' });
     expect(db.value('orders/order_capture_race').payment.status).toBe('paid');
+  });
+
+  it('reconciles a completed PayPal capture when the local order is inconsistent', async () => {
+    const paypal = paypalFake();
+    paypal.getOrder.mockResolvedValue({
+      id: 'PAYPAL-RECONCILE-1',
+      status: 'COMPLETED',
+      purchase_units: [{
+        reference_id: 'order_reconcile_paid',
+        custom_id: 'order_reconcile_paid',
+        invoice_id: 'ST-2026-TEST0001-A1',
+        payments: { captures: [{
+          id: 'CAPTURE-RECONCILE-1',
+          status: 'COMPLETED',
+          amount: { currency_code: 'EUR', value: '10.00' },
+        }] },
+      }],
+    });
+    const { db, service } = createService({ paypal });
+    db.seed('orders/order_reconcile_paid', baseOrder({
+      totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
+      totale: 10,
+      saldo: 10,
+      payment: {
+        method: 'paypal',
+        status: 'failed',
+        paypalOrderId: 'PAYPAL-RECONCILE-1',
+        invoiceId: 'ST-2026-TEST0001-A1',
+      },
+      fulfillment: { method: 'studio_pickup', status: 'awaiting_payment' },
+    }));
+
+    await expect(service.capturePaypalOrder(identity, 'order_reconcile_paid', {}))
+      .resolves.toMatchObject({ success: true, duplicate: true, status: 'paid' });
+    expect(paypal.captureOrder).not.toHaveBeenCalled();
+    expect(db.value('orders/order_reconcile_paid').payment).toMatchObject({
+      status: 'paid',
+      paypalCaptureId: 'CAPTURE-RECONCILE-1',
+    });
+    expect(db.value('orders/order_reconcile_paid').fulfillment.status).toBe('submitted');
   });
 
   it('deduplicates the same PayPal refund delivered under different webhook event IDs', async () => {

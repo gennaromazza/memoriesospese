@@ -5,6 +5,7 @@ import { printShopApi } from './print-shop-api';
 import type { PaypalCaptureResult, PaypalClientConfig, PrintShopLegalConsents } from './types';
 import {
   PrintShopQuoteReviewRequiredError,
+  hasRecordedPaypalPayment,
   paypalOrderActionNotice,
   requiresPaypalQuoteReview,
   sandboxPaypalNotice,
@@ -96,6 +97,8 @@ interface PayPalCheckoutProps {
   onQuoteReviewRequired: () => Promise<void>;
   onCaptured: (result: PaypalCaptureResult) => void;
   onCancel?: () => void;
+  disabledReasons?: string[];
+  onShowRequirements?: () => void;
 }
 
 export function PayPalCheckout({
@@ -106,6 +109,8 @@ export function PayPalCheckout({
   onQuoteReviewRequired,
   onCaptured,
   onCancel,
+  disabledReasons = [],
+  onShowRequirements,
 }: PayPalCheckoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCapturedRef = useRef(onCaptured);
@@ -192,7 +197,25 @@ export function PayPalCheckout({
               }
               onCapturedRef.current(result);
             } catch (captureError) {
-              setError(checkoutErrorMessage(captureError));
+              // The PayPal capture may have succeeded while its response or our
+              // webhook crossed this callback. Read the order once before
+              // showing an error so a paid customer is never invited to repay.
+              try {
+                const recordedOrder = await printShopApi.getOrder(orderId);
+                if (hasRecordedPaypalPayment(recordedOrder)) {
+                  onCapturedRef.current({
+                    orderId: recordedOrder.id,
+                    orderNumber: recordedOrder.orderNumber,
+                    paypalOrderId: recordedOrder.payment.paypalOrderId || orderID,
+                    paypalCaptureId: recordedOrder.payment.paypalCaptureId,
+                    paymentStatus: recordedOrder.payment.status,
+                  });
+                  return;
+                }
+              } catch {
+                // Keep the original capture error; it is more useful to the user.
+              }
+              setError(`${checkoutErrorMessage(captureError)} Non ripetere il pagamento: controlla prima “I miei ordini”.`);
             } finally {
               setProcessing(false);
             }
@@ -242,6 +265,19 @@ export function PayPalCheckout({
           {paypalOrderActionNotice(environment)}
         </p>
       )}
+      {!enabled && disabledReasons.length > 0 && (
+        <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
+          <p className="font-bold">Prima di poter pagare completa questi punti:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {disabledReasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>
+          {onShowRequirements && (
+            <button type="button" onClick={onShowRequirements} className="mt-3 font-bold text-amber-950 underline underline-offset-2">
+              Vai ai dati e consensi obbligatori
+            </button>
+          )}
+        </div>
+      )}
       {loading && (
         <div className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#ffc439]/20 text-sm font-semibold text-blue-gray" role="status">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -256,7 +292,7 @@ export function PayPalCheckout({
         </div>
       )}
       {!enabled && !loading && (
-        <p className="mt-2 text-center text-xs text-blue-gray/50">Completa i dati e accetta le condizioni per attivare il pagamento.</p>
+        <p className="mt-2 text-center text-sm font-semibold text-amber-800">Il pagamento si attiva appena completi i punti indicati sopra.</p>
       )}
       {error && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">

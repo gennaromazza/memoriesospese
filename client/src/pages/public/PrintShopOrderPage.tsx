@@ -680,17 +680,17 @@ export default function PrintShopOrderPage() {
   };
 
   const sellerDetails = resolveStudioLegalDetails(studioSettings);
-  const canPay = Boolean(
-    contact.displayName.trim() &&
-    contact.email.trim() &&
-    contact.phone.trim().length >= 6 &&
-    privacyAccepted &&
-    termsAccepted &&
-    customProductAccepted &&
-    (!lowResolution || lowResolutionAccepted) &&
-    sellerDetails.complete &&
-    !studioLoading,
-  );
+  const paymentRequirements = [
+    ...(!contact.displayName.trim() ? ['Inserisci nome e cognome'] : []),
+    ...(!contact.email.trim() ? ['Inserisci l’indirizzo email'] : []),
+    ...(contact.phone.trim().length < 6 ? ['Inserisci un numero di telefono valido'] : []),
+    ...(!(privacyAccepted && termsAccepted && customProductAccepted)
+      ? ['Seleziona tutti e tre i consensi obbligatori']
+      : []),
+    ...(lowResolution && !lowResolutionAccepted ? ['Conferma l’avviso sulla qualità delle foto'] : []),
+    ...(!sellerDetails.complete || studioLoading ? ['Attendi la verifica dei dati dello studio'] : []),
+  ];
+  const canPay = paymentRequirements.length === 0;
 
   const displayedTotal = quoteTotal(quote, estimatedTotalCents);
   const pickupAddress = sellerDetails.address;
@@ -870,8 +870,14 @@ export default function PrintShopOrderPage() {
                   </section>
                 )}
 
-                <section className="rounded-[2rem] border border-sage/20 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="consent-title">
-                  <h2 id="consent-title" className="text-xl font-semibold text-blue-gray">Prima del pagamento</h2>
+                <section id="print-shop-payment-requirements" className={`rounded-[2rem] border-2 bg-white p-6 shadow-sm sm:p-8 ${privacyAccepted && termsAccepted && customProductAccepted ? 'border-emerald-300' : 'border-amber-400'}`} aria-labelledby="consent-title">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 id="consent-title" className="text-xl font-semibold text-blue-gray">Consensi obbligatori prima del pagamento</h2>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${privacyAccepted && termsAccepted && customProductAccepted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
+                      {privacyAccepted && termsAccepted && customProductAccepted ? 'Completati' : 'Da completare'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-blue-gray/65">Per attivare PayPal devi selezionare tutte e tre le caselle qui sotto.</p>
                   <div className="mt-5 space-y-3">
                     <ConsentRow checked={privacyAccepted} onChange={setPrivacyAccepted}>
                       Ho letto l’<Link href="/privacy" target="_blank" className="font-semibold text-terracotta underline">informativa privacy</Link>, compreso l’uso delle foto per produrre l’ordine e la cancellazione degli originali dopo 90 giorni dalla consegna.
@@ -953,6 +959,8 @@ export default function PrintShopOrderPage() {
                       prepareOrder={prepareOrderForPayment}
                       onQuoteReviewRequired={refreshQuoteForReview}
                       onCaptured={handleCaptured}
+                      disabledReasons={paymentRequirements}
+                      onShowRequirements={() => document.getElementById('print-shop-payment-requirements')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                     />
                   </section>
                 )}

@@ -1574,6 +1574,35 @@ export class PrintShopService {
         status: 'paid',
       };
     }
+    // PayPal can complete the capture before our browser callback (or webhook)
+    // records it.  In that case the local order may no longer look payable even
+    // though the provider is authoritative. Reconcile before offering another
+    // payment attempt: this also prevents a possible duplicate charge.
+    if (
+      initialOrder.payment?.status !== 'pending' ||
+      initialOrder.fulfillment?.status !== 'awaiting_payment'
+    ) {
+      try {
+        const providerOrder = await this.deps.paypal.getOrder(storedPaypalOrderId);
+        const completed = extractCompletedCapture(providerOrder);
+        if (completed) {
+          await this.recordCompletedPayment(orderId, completed);
+          return {
+            success: true,
+            duplicate: true,
+            orderId,
+            paypalOrderId: storedPaypalOrderId,
+            captureId: completed.captureId,
+            status: 'paid',
+          };
+        }
+      } catch (error) {
+        if (error instanceof PrintShopHttpError) throw error;
+        // Preserve the meaningful local-state error when PayPal is unavailable
+        // or confirms that no completed capture exists.
+      }
+      throw new PrintShopHttpError(409, 'order_not_payable', 'L’ordine non è in attesa di pagamento');
+    }
     const orderRef = this.deps.db.collection('orders').doc(orderId);
     const claimNow = this.now();
     const captureClaimToken = hashId(
@@ -1637,6 +1666,25 @@ export class PrintShopService {
         paypalRequestId('print-shop', 'capture', orderId, storedPaypalOrderId),
       );
     } catch (error) {
+      // A lost response or an already-captured PayPal order is recoverable. Ask
+      // PayPal for the authoritative state before releasing the local claim.
+      try {
+        const providerOrder = await this.deps.paypal.getOrder(storedPaypalOrderId);
+        const completed = extractCompletedCapture(providerOrder);
+        if (completed) {
+          await this.recordCompletedPayment(orderId, completed);
+          return {
+            success: true,
+            duplicate: true,
+            orderId,
+            paypalOrderId: storedPaypalOrderId,
+            captureId: completed.captureId,
+            status: 'paid',
+          };
+        }
+      } catch (reconciliationError) {
+        if (reconciliationError instanceof PrintShopHttpError) throw reconciliationError;
+      }
       await this.releaseCaptureClaim(orderRef, captureClaimToken, error);
       throw mapPayPalError(error);
     }
