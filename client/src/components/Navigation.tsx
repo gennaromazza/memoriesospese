@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useStudio } from "../context/StudioContext";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, LogIn, LogOut, Menu, ShoppingBag, UserRound, X } from "lucide-react";
 import { createUrl } from "@/lib/basePath";
 import { useLogout } from "../hooks/useLogout";
 import { useIsAdmin } from "../hooks/useIsAdmin";
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext";
 import { Button } from "@/components/ui/button";
 import { getDiscoverGroups, getHeaderItems, getMobileItems } from "@/config/navigation";
 import {
@@ -32,6 +33,8 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
   const { studioSettings } = useStudio();
   const { handleLogout } = useLogout();
   const isAdmin = useIsAdmin();
+  const { user, userProfile, isLoading: authLoading } = useFirebaseAuth();
+  const accountName = userProfile?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Account';
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -228,6 +231,47 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
+            {!authLoading && (user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="ml-1 inline-flex max-w-40 items-center gap-2 rounded-full border border-sage/25 bg-white px-3.5 py-2 text-[14px] font-semibold text-blue-gray transition hover:border-sage/50 hover:bg-sage/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage/40"
+                    aria-label="Apri la tua area personale"
+                  >
+                    <UserRound className="h-4 w-4 flex-none text-dark-sage" aria-hidden="true" />
+                    <span className="truncate">{accountName}</span>
+                    <ChevronDown className="h-3.5 w-3.5 flex-none text-blue-gray/45" aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={12} className="w-64 rounded-2xl border-sage/20 bg-white p-2 shadow-xl">
+                  <div className="px-3 pb-3 pt-2">
+                    <p className="truncate text-sm font-semibold text-blue-gray">{accountName}</p>
+                    <p className="mt-0.5 truncate text-xs text-blue-gray/50">{user.email}</p>
+                  </div>
+                  <div className="border-t border-sage/15 pt-1">
+                    <DropdownMenuItem asChild className="cursor-pointer rounded-xl p-0 focus:bg-sage/10">
+                      <Link to={createUrl('/stampa-foto-aversa/i-miei-ordini')} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-blue-gray">
+                        <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> I miei ordini
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => void handleLogout()}
+                      className="cursor-pointer gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-700 focus:bg-red-50 focus:text-red-800"
+                    >
+                      <LogOut className="h-4 w-4" aria-hidden="true" /> Esci
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link
+                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                className="ml-1 inline-flex items-center gap-2 rounded-full border border-sage/30 bg-white px-4 py-2 text-[14px] font-semibold text-blue-gray transition hover:border-sage/50 hover:bg-sage/5"
+              >
+                <LogIn className="h-4 w-4 text-dark-sage" aria-hidden="true" /> Accedi
+              </Link>
+            ))}
             {headerItems.filter(i => i.highlight).map((item) => (
               <Link
                 key={item.href}
@@ -241,7 +285,25 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
           </div>
 
           {/* Mobile burger */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center gap-1.5">
+            {!authLoading && (user ? (
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(true)}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-sage/25 px-3 text-sm font-semibold text-blue-gray"
+                aria-label="Apri la tua area personale"
+              >
+                <UserRound className="h-4 w-4 text-dark-sage" aria-hidden="true" />
+                <span className="hidden min-[390px]:inline">Account</span>
+              </button>
+            ) : (
+              <Link
+                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-sage/30 px-3 text-sm font-semibold text-blue-gray"
+              >
+                <LogIn className="h-4 w-4 text-dark-sage" aria-hidden="true" /> Accedi
+              </Link>
+            ))}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-blue-gray p-2 -mr-2"
@@ -328,6 +390,42 @@ export default function Navigation({ isAdminNav = false, galleryOwner, galleryCo
               </div>
             </CollapsibleContent>
           </Collapsible>
+          {!authLoading && (
+            user ? (
+              <div className="mt-4 rounded-2xl border border-sage/20 bg-off-white/70 p-3">
+                <div className="px-2 pb-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-terracotta">Area personale</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-blue-gray">{accountName}</p>
+                  <p className="mt-0.5 truncate text-xs text-blue-gray/50">{user.email}</p>
+                </div>
+                <Link
+                  to={createUrl('/stampa-foto-aversa/i-miei-ordini')}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-xl bg-white px-3 py-3 text-sm font-semibold text-blue-gray"
+                >
+                  <ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /> I miei ordini
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    void handleLogout();
+                  }}
+                  className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" /> Esci dall’account
+                </button>
+              </div>
+            ) : (
+              <Link
+                to={createUrl('/stampa-foto-aversa/ordine#accesso')}
+                onClick={() => setIsMenuOpen(false)}
+                className="mt-4 flex items-center justify-center gap-2 rounded-full border border-sage/30 bg-sage/5 px-4 py-3 text-base font-semibold text-blue-gray"
+              >
+                <LogIn className="h-5 w-5 text-dark-sage" aria-hidden="true" /> Accedi o registrati
+              </Link>
+            )
+          )}
           {mobileItems.filter(i => i.highlight).map((item) => (
             <Link
               key={item.href}

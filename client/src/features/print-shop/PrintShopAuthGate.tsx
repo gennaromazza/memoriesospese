@@ -203,7 +203,7 @@ export function PrintShopAuthGate({ compact = false, onAuthenticated }: PrintSho
     setNotice(null);
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
-      setError('Scrivi prima la tua email, poi premi “Password dimenticata?”.');
+      setError('Scrivi prima la tua email, poi premi “Recupera la password via email”.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -239,7 +239,8 @@ export function PrintShopAuthGate({ compact = false, onAuthenticated }: PrintSho
 
   return (
     <section
-      className={`rounded-[2rem] border border-sage/25 bg-white shadow-sm ${compact ? 'p-5 sm:p-6' : 'p-6 sm:p-10'}`}
+      id="accesso"
+      className={`scroll-mt-24 rounded-[2rem] border border-sage/25 bg-white shadow-sm ${compact ? 'p-5 sm:p-6' : 'p-6 sm:p-10'}`}
       aria-labelledby="print-auth-title"
     >
       <div className={compact ? '' : 'mx-auto max-w-xl text-center'}>
@@ -384,17 +385,27 @@ export function PrintShopAuthGate({ compact = false, onAuthenticated }: PrintSho
                     disabled={busy}
                   />
                 )}
-                {emailMode === 'login' && (
-                  <button type="button" onClick={handlePasswordReset} disabled={busy} className="text-sm font-semibold text-dark-sage underline-offset-4 hover:underline disabled:opacity-50">
-                    {activeAction === 'reset' ? 'Invio in corso…' : 'Password dimenticata?'}
-                  </button>
-                )}
                 <Button type="submit" disabled={busy} className="h-12 w-full rounded-full bg-terracotta text-white hover:bg-terracotta/90">
                   {activeAction === 'email' ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
                   {activeAction === 'email'
                     ? (emailMode === 'register' ? 'Creazione account…' : 'Accesso in corso…')
                     : (emailMode === 'register' ? 'Crea account e continua' : 'Accedi e continua')}
                 </Button>
+                {emailMode === 'login' && (
+                  <div className="rounded-2xl border border-sage/25 bg-sage/5 p-3 text-center">
+                    <p className="text-xs leading-relaxed text-blue-gray/55">Non ricordi la password? Scrivi la tua email nel campo sopra.</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handlePasswordReset}
+                      disabled={busy}
+                      className="mt-1 h-10 w-full rounded-xl font-semibold text-dark-sage hover:bg-white hover:text-dark-sage"
+                    >
+                      {activeAction === 'reset' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <KeyRound className="h-4 w-4" aria-hidden="true" />}
+                      {activeAction === 'reset' ? 'Invio email in corso…' : 'Recupera la password via email'}
+                    </Button>
+                  </div>
+                )}
               </form>
             </div>
           </>
