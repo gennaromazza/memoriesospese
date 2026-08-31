@@ -171,6 +171,7 @@ export default function PrintShopOrderPage() {
   const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [paymentAttempted, setPaymentAttempted] = useState(false);
   const [photos, setPhotos] = useState<LocalPrintPhoto[]>([]);
   const photosRef = useRef<LocalPrintPhoto[]>([]);
   const objectUrlsRef = useRef(new Set<string>());
@@ -691,6 +692,23 @@ export default function PrintShopOrderPage() {
     ...(!sellerDetails.complete || studioLoading ? ['Attendi la verifica dei dati dello studio'] : []),
   ];
   const canPay = paymentRequirements.length === 0;
+  const missingContact = !contact.displayName.trim() || !contact.email.trim() || contact.phone.trim().length < 6;
+  const missingConsents = !(privacyAccepted && termsAccepted && customProductAccepted);
+  const showPaymentRequirements = () => {
+    setPaymentAttempted(true);
+    const targetId = missingContact
+      ? 'print-shop-contact'
+      : lowResolution && !lowResolutionAccepted
+        ? 'print-shop-quality-warning'
+        : missingConsents
+          ? 'print-shop-payment-requirements'
+          : 'print-shop-payment-requirements';
+    window.setTimeout(() => {
+      const target = document.getElementById(targetId);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.querySelector<HTMLElement>('input:not([readonly])')?.focus({ preventScroll: true });
+    }, 0);
+  };
 
   const displayedTotal = quoteTotal(quote, estimatedTotalCents);
   const pickupAddress = sellerDetails.address;
@@ -821,7 +839,7 @@ export default function PrintShopOrderPage() {
           ) : (
             <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
               <div className="space-y-6">
-                <section className="rounded-[2rem] border border-sage/20 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="contact-title">
+                <section id="print-shop-contact" className={`rounded-[2rem] border bg-white p-6 shadow-sm sm:p-8 ${paymentAttempted && missingContact ? 'border-2 border-red-400' : 'border-sage/20'}`} aria-labelledby="contact-title">
                   <div className="flex items-start gap-3">
                     <CircleUserRound className="mt-1 h-6 w-6 flex-none text-terracotta" aria-hidden="true" />
                     <div>
@@ -829,6 +847,9 @@ export default function PrintShopOrderPage() {
                       <p className="mt-2 text-sm text-blue-gray/55">Ti contatteremo solo per aggiornamenti su questo ordine.</p>
                     </div>
                   </div>
+                  {paymentAttempted && missingContact && (
+                    <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">Per pagare completa tutti i dati contrassegnati come obbligatori.</p>
+                  )}
                   {resumedPendingPayment && (
                     <p className="mt-5 rounded-xl border border-sage/25 bg-sage/10 p-4 text-sm leading-relaxed text-blue-gray/70">
                       Il riepilogo è già collegato a PayPal. Puoi completare il pagamento; per cambiare dati, formati o quantità elimina la bozza da <Link href="/stampa-foto-aversa/i-miei-ordini" className="font-semibold text-terracotta underline">I miei ordini</Link> e ricomincia.
@@ -836,15 +857,15 @@ export default function PrintShopOrderPage() {
                   )}
                   <div className="mt-6 grid gap-5 sm:grid-cols-2">
                     <label className="text-sm font-semibold text-blue-gray">
-                      Nome e cognome
+                      Nome e cognome <span className="text-red-700">(obbligatorio)</span>
                       <Input value={contact.displayName} onChange={(event) => setContact((current) => ({ ...current, displayName: event.target.value }))} autoComplete="name" required readOnly={resumedPendingPayment} className={`mt-2 h-12 rounded-xl font-normal ${resumedPendingPayment ? 'bg-off-white' : ''}`} />
                     </label>
                     <label className="text-sm font-semibold text-blue-gray">
-                      Telefono
-                      <Input type="tel" inputMode="tel" value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" required readOnly={resumedPendingPayment} placeholder="Es. 333 123 4567" className={`mt-2 h-12 rounded-xl font-normal ${resumedPendingPayment ? 'bg-off-white' : ''}`} />
+                      Telefono <span className="text-red-700">(obbligatorio)</span>
+                      <Input id="print-shop-phone" type="tel" inputMode="tel" value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" required readOnly={resumedPendingPayment} placeholder="Es. 333 123 4567" className={`mt-2 h-12 rounded-xl font-normal ${paymentAttempted && contact.phone.trim().length < 6 ? 'border-2 border-red-400' : ''} ${resumedPendingPayment ? 'bg-off-white' : ''}`} />
                     </label>
                     <label className="text-sm font-semibold text-blue-gray sm:col-span-2">
-                      Email
+                      Email <span className="text-red-700">(obbligatoria)</span>
                       <Input type="email" value={contact.email} readOnly className="mt-2 h-12 rounded-xl bg-off-white font-normal text-blue-gray/65" />
                     </label>
                     <label className="text-sm font-semibold text-blue-gray sm:col-span-2">
@@ -855,7 +876,7 @@ export default function PrintShopOrderPage() {
                 </section>
 
                 {lowResolution && (
-                  <section className="rounded-[2rem] border border-amber-300 bg-amber-50 p-6" aria-labelledby="quality-warning-title">
+                  <section id="print-shop-quality-warning" className={`rounded-[2rem] border bg-amber-50 p-6 ${paymentAttempted && !lowResolutionAccepted ? 'border-2 border-red-400' : 'border-amber-300'}`} aria-labelledby="quality-warning-title">
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="mt-1 h-6 w-6 flex-none text-amber-700" aria-hidden="true" />
                       <div>
@@ -870,7 +891,7 @@ export default function PrintShopOrderPage() {
                   </section>
                 )}
 
-                <section id="print-shop-payment-requirements" className={`rounded-[2rem] border-2 bg-white p-6 shadow-sm sm:p-8 ${privacyAccepted && termsAccepted && customProductAccepted ? 'border-emerald-300' : 'border-amber-400'}`} aria-labelledby="consent-title">
+                <section id="print-shop-payment-requirements" className={`rounded-[2rem] border-2 bg-white p-6 shadow-sm sm:p-8 ${paymentAttempted && missingConsents ? 'border-red-400' : privacyAccepted && termsAccepted && customProductAccepted ? 'border-emerald-300' : 'border-amber-400'}`} aria-labelledby="consent-title">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 id="consent-title" className="text-xl font-semibold text-blue-gray">Consensi obbligatori prima del pagamento</h2>
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${privacyAccepted && termsAccepted && customProductAccepted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
@@ -878,6 +899,9 @@ export default function PrintShopOrderPage() {
                     </span>
                   </div>
                   <p className="mt-2 text-sm font-medium text-blue-gray/65">Per attivare PayPal devi selezionare tutte e tre le caselle qui sotto.</p>
+                  {paymentAttempted && missingConsents && (
+                    <p className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">Seleziona tutte e tre le caselle obbligatorie per continuare con PayPal.</p>
+                  )}
                   <div className="mt-5 space-y-3">
                     <ConsentRow checked={privacyAccepted} onChange={setPrivacyAccepted}>
                       Ho letto l’<Link href="/privacy" target="_blank" className="font-semibold text-terracotta underline">informativa privacy</Link>, compreso l’uso delle foto per produrre l’ordine e la cancellazione degli originali dopo 90 giorni dalla consegna.
@@ -960,7 +984,7 @@ export default function PrintShopOrderPage() {
                       onQuoteReviewRequired={refreshQuoteForReview}
                       onCaptured={handleCaptured}
                       disabledReasons={paymentRequirements}
-                      onShowRequirements={() => document.getElementById('print-shop-payment-requirements')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                      onShowRequirements={showPaymentRequirements}
                     />
                   </section>
                 )}

@@ -123,6 +123,7 @@ export function PayPalCheckout({
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [environment, setEnvironment] = useState<'sandbox' | 'live' | undefined>();
 
   useEffect(() => { onCapturedRef.current = onCaptured; }, [onCaptured]);
@@ -132,6 +133,7 @@ export function PayPalCheckout({
   useEffect(() => { legalConsentsRef.current = legalConsents; }, [legalConsents]);
   useEffect(() => {
     enabledRef.current = enabled;
+    if (enabled) setValidationAttempted(false);
     if (enabled) buttonActionsRef.current?.enable();
     else buttonActionsRef.current?.disable();
   }, [enabled]);
@@ -284,7 +286,21 @@ export function PayPalCheckout({
           Caricamento del pagamento sicuro…
         </div>
       )}
-      <div ref={containerRef} className={loading ? 'hidden' : ''} aria-label="Paga ora con PayPal" />
+      <div className="relative">
+        <div ref={containerRef} className={`${loading ? 'hidden' : ''} ${!enabled ? 'opacity-60' : ''}`} aria-label="Paga ora con PayPal" />
+        {!enabled && !loading && (
+          <button
+            type="button"
+            className="absolute inset-0 z-[5] cursor-pointer rounded-2xl bg-transparent"
+            aria-label="Mostra cosa manca per poter pagare con PayPal"
+            onClick={() => {
+              setValidationAttempted(true);
+              setError(null);
+              onShowRequirements?.();
+            }}
+          />
+        )}
+      </div>
       {processing && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/90 text-sm font-semibold text-blue-gray backdrop-blur" role="status">
           <Loader2 className="mr-2 h-5 w-5 animate-spin text-terracotta" aria-hidden="true" />
@@ -293,6 +309,12 @@ export function PayPalCheckout({
       )}
       {!enabled && !loading && (
         <p className="mt-2 text-center text-sm font-semibold text-amber-800">Il pagamento si attiva appena completi i punti indicati sopra.</p>
+      )}
+      {validationAttempted && !enabled && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border-2 border-red-400 bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert" aria-live="assertive">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+          <span>Non puoi ancora pagare. Completa i campi e i consensi evidenziati in rosso.</span>
+        </div>
       )}
       {error && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
