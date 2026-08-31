@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+/** Valore unico iniettato da vite.config.ts e condiviso da asset e router. */
+declare const __VITE_BASE_PATH__: string;
+
 interface ImportMetaEnv {
   readonly VITE_BASE_PATH: string
   readonly VITE_FIREBASE_API_KEY: string

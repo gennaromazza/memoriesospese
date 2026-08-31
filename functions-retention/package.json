@@ -1,0 +1,20 @@
+{
+  "name": "print-shop-retention-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scheduler isolato per la conservazione dello shop stampe",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "firebase-functions": "7.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

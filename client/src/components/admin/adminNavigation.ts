@@ -29,6 +29,7 @@ import {
   Search,
   HardDrive,
   Phone,
+  Printer,
 } from "lucide-react";
 
 /**
@@ -258,6 +259,13 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     icon: Wallet,
     tabs: ["cassa"],
     target: { tab: "cassa" },
+  },
+  {
+    id: "stampe-online",
+    label: "Stampe online",
+    icon: Printer,
+    tabs: ["print-shop-orders"],
+    target: { tab: "print-shop-orders" },
   },
   {
     id: "impostazioni",

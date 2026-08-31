@@ -109,6 +109,7 @@ export async function apiRequest(
     '/api/photobooks', // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)
     '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
     '/api/wedding-seo/gallery/', // Editor Real Wedding (la route /public resta pubblica)
+    '/api/print-shop', // Shop stampe: checkout cliente e gestione ordini admin
   ];
   
   // Check specifico per consultations: tutti tranne i pubblici
@@ -172,6 +173,7 @@ export const getQueryFn: <T>(options: {
       '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
       '/api/invoices', // Electronic invoice XML endpoints requiring auth
       '/api/wedding-seo/gallery/', // Editor Real Wedding
+      '/api/print-shop', // Shop stampe: area cliente e gestione ordini admin
     ];
     
     // Check specifico per consultations: tutti tranne i pubblici

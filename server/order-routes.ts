@@ -309,6 +309,12 @@ router.patch('/:id', authenticateFirebase, async (req: any, res: Response) => {
     }
 
     const currentOrder = orderDoc.data()!;
+    if (currentOrder.orderType === 'print_shop') {
+      return res.status(409).json({
+        error: 'Gli ordini dello shop stampe si gestiscono esclusivamente dal pannello Stampe online',
+        code: 'print_shop_route_required',
+      });
+    }
 
     // 2. Ricalcola totali se prodotti cambiano
     let totale = currentOrder.totale;
@@ -974,6 +980,12 @@ router.post('/:id/register-payment', authenticateFirebase, async (req: any, res:
     }
 
     const orderData = orderDoc.data()!;
+    if (orderData.orderType === 'print_shop') {
+      return res.status(409).json({
+        error: 'I pagamenti dello shop stampe sono gestiti esclusivamente tramite PayPal',
+        code: 'print_shop_route_required',
+      });
+    }
     const totale = orderData.totale || 0;
     const accontoAttuale = orderData.acconto || 0;
     const saldoAttuale = orderData.saldo || totale - accontoAttuale;
@@ -1131,6 +1143,12 @@ router.post('/:id/delete-payment', authenticateFirebase, async (req: any, res: R
     }
 
     const orderData = orderDoc.data()!;
+    if (orderData.orderType === 'print_shop') {
+      return res.status(409).json({
+        error: 'I pagamenti dello shop stampe non possono essere modificati dalle route legacy',
+        code: 'print_shop_route_required',
+      });
+    }
     const transactions: any[] = orderData.transactions || [];
 
     if (transactionIndex >= transactions.length) {
@@ -1407,6 +1425,12 @@ router.delete('/:id', authenticateFirebase, async (req: any, res: Response) => {
     }
 
     const order = orderDoc.data()!;
+    if (order.orderType === 'print_shop') {
+      return res.status(409).json({
+        error: 'Gli ordini dello shop stampe vanno archiviati, non eliminati dalle route legacy',
+        code: 'print_shop_route_required',
+      });
+    }
 
     // Rimuovi riferimento ordine dal job associato
     if (order.jobId) {

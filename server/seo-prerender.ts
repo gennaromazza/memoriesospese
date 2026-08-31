@@ -4,10 +4,8 @@ import { BlogPostStatus } from '../shared/schema';
 import { portfolioCategoryContent } from '../shared/portfolio-seo-content';
 import {
   PRINT_FAQS,
-  PRINT_PRICE_UPDATED_AT,
   PRINT_SERVICE_PATH,
   PRINT_SERVICE_SEO,
-  countPrintFormats,
 } from '../shared/print-service-content';
 import {
   WEDDING_HOME_COPY,
@@ -19,6 +17,9 @@ import {
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
+// Il prerender è statico e non legge il catalogo Firestore: esclude quindi le
+// FAQ che contengono prezzi/quantità, per non pubblicare condizioni obsolete.
+const PRINT_SEO_FAQS = PRINT_FAQS.filter(faq => !faq.answer.includes('€'));
 
 const BOT_USER_AGENTS = [
   'googlebot', 'bingbot', 'yandexbot', 'duckduckbot',
@@ -174,27 +175,28 @@ function getStaticPageMeta(path: string): PageMeta | null {
       canonical: `${BASE_URL}${PRINT_SERVICE_PATH}`,
       keywords: PRINT_SERVICE_SEO.keywords,
       bodyContent: `
-        <h1>Stampa foto ad Aversa: vacanze, Polaroid e ricordi</h1>
-        <p>Le fotografie della tua vacanza meritano più della memoria del telefono. Image Studio e Memorie Sospese trasformano fotografie, sorrisi e panorami in stampe da toccare, regalare e vivere ogni giorno ad Aversa, vicino Napoli e Caserta.</p>
+        <h1>Stampa foto online ad Aversa: vacanze, Polaroid e ricordi</h1>
+        <p>Scopri il servizio di stampa fotografica di Image Studio e Memorie Sospese: nella pagina trovi i formati e le condizioni disponibili nel catalogo aggiornato.</p>
         <h2>Stampe fotografiche classiche, Polaroid e grandi formati</h2>
         <ul>
-          <li><strong>10×15 classico</strong> da €0,20 per album, scatole dei ricordi e fotografie da regalare.</li>
-          <li><strong>Polaroid Wide 10×9</strong>: confezione promozionale da 50 fotografie a €9,90, salvo disponibilità.</li>
+          <li><strong>Formati classici</strong> per album, scatole dei ricordi e fotografie da regalare.</li>
+          <li><strong>Stampe in stile Polaroid</strong> per raccolte di fotografie tutte diverse.</li>
           <li><strong>20×30 e grandi formati</strong> per panorami, ritratti e fotografie da parete.</li>
           <li><strong>Carta lucida o opaca</strong> in base al soggetto e all'utilizzo della fotografia.</li>
         </ul>
-        <h2>Prezzi e formati delle stampe</h2>
-        <p>Il listino comprende ${countPrintFormats()} formati dall'8×10 al 50×80. I prezzi per singola stampa diminuiscono in base alla quantità e partono da €0,20. Listino aggiornato al ${PRINT_PRICE_UPDATED_AT}.</p>
+        <h2>Catalogo e formati delle stampe</h2>
+        <p>Formati, scaglioni e disponibilità sono mostrati direttamente nel catalogo della pagina, così il riepilogo viene calcolato sui dati aggiornati del gestionale.</p>
         <h2>Come ordinare le stampe fotografiche</h2>
         <ol>
-          <li>Scegli le fotografie dal telefono.</li>
-          <li>Indica quantità, formato e carta lucida oppure opaca.</li>
-          <li>Contatta Image Studio su WhatsApp per ricevere le istruzioni di invio.</li>
-          <li>Conferma prezzo finale, tempi e modalità di ritiro o consegna.</li>
+          <li>Accedi in modo sicuro con Google.</li>
+          <li>Carica le fotografie JPG dal telefono o dal computer.</li>
+          <li>Scegli formato, quantità, carta lucida o opaca e bordo bianco o riempimento.</li>
+          <li>Paga il totale online tramite PayPal e ritira l'ordine in sede quando è pronto.</li>
         </ol>
+        <p><a href="${BASE_URL}${PRINT_SERVICE_PATH}">Consulta catalogo e modalità del servizio</a></p>
         <h2>Domande frequenti</h2>
-        ${PRINT_FAQS.map((faq) => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
-        <p>Image Studio Fotografico · Aversa (CE) · Telefono e WhatsApp: +39 334 710 3142 · Email: info@memoriesospese.it</p>
+        ${PRINT_SEO_FAQS.map((faq) => `<h3>${faq.question}</h3><p>${faq.answer}</p>`).join('')}
+        <p>Image Studio di Gennaro Mazzacane · Via Quinto Orazio Flacco 5, 81031 Aversa (CE) · Telefono e WhatsApp: +39 327 465 6179 · Email: image.studio.fotografico@gmail.com · P. IVA 08039821213</p>
         <p><a href="${BASE_URL}/">Home Image Studio</a> | <a href="${BASE_URL}/portfolio">Portfolio</a> | <a href="${BASE_URL}/blog">Blog</a></p>
       `,
       jsonLd: [
@@ -215,18 +217,11 @@ function getStaticPageMeta(path: string): PageMeta | null {
           serviceType: 'Stampa fotografica digitale',
           provider: { '@id': `${BASE_URL}/#localbusiness` },
           areaServed: ['Aversa', 'Napoli', 'Caserta', 'Agro Aversano'],
-          offers: {
-            '@type': 'AggregateOffer',
-            priceCurrency: 'EUR',
-            lowPrice: '0.20',
-            highPrice: '17.00',
-            offerCount: countPrintFormats(),
-          },
         },
         {
           '@context': 'https://schema.org',
           '@type': 'FAQPage',
-          mainEntity: PRINT_FAQS.map((faq) => ({
+          mainEntity: PRINT_SEO_FAQS.map((faq) => ({
             '@type': 'Question',
             name: faq.question,
             acceptedAnswer: { '@type': 'Answer', text: faq.answer },

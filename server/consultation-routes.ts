@@ -239,7 +239,11 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5 MB max per immagine
-  },
+    files: 1,
+    fields: 0,
+    parts: 1,
+    fieldNestingDepth: 0,
+  } as NonNullable<multer.Options["limits"]> & { fieldNestingDepth: number },
   fileFilter: (req, file, cb) => {
     const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (allowedMimes.includes(file.mimetype)) {
@@ -2093,6 +2097,7 @@ router.patch(
 router.post(
   "/templates/:id/upload-image",
   authenticateFirebase,
+  requireAdmin,
   upload.single("image"),
   async (req: AuthRequest, res) => {
     try {

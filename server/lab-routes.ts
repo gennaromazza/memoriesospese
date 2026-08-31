@@ -10,20 +10,21 @@
 
 import express from 'express';
 import { db } from './firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { nowRome, formatRomeDateLocale } from './utils/timezone.js';
 import {
   sendGmailEmail,
   getStudioContactInfo,
   getSiteBaseUrl,
-  authenticateFirebase,
 } from './email-routes.js';
+import { authenticatePrintShop as authenticateFirebase } from './print-shop/auth.js';
 import {
   findOrCreateLabParentFolder,
   createShipmentFolder,
   createResumableUploadSession,
   deleteDriveFile,
+  revokeShipmentFolderPermission,
 } from './google-drive.js';
 import {
   LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS,
@@ -32,6 +33,11 @@ import {
   type LabShipmentStatus,
 } from '@shared/lab-types';
 import type { CostoLavoro } from '@shared/jobs-types';
+import {
+  createLabDpaFields,
+  LabDpaValidationError,
+  updateLabDpaFields,
+} from './lab-dpa.js';
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
@@ -44,6 +50,15 @@ const VALID_SHIPMENT_STATUSES: LabShipmentStatus[] = [
   'ricevuto',
   'scaduto',
 ];
+
+function rejectPrintShopLegacyMutation(shipment: LabShipment, res: express.Response): boolean {
+  if (shipment.sourceType !== 'print_shop') return false;
+  res.status(409).json({
+    error: 'Questa spedizione appartiene allo shop stampe: usa le azioni dedicate dell’ordine',
+    code: 'print_shop_route_required',
+  });
+  return true;
+}
 
 /**
  * Middleware: consente l'accesso solo agli admin autorizzati.
@@ -93,29 +108,43 @@ router.get('/labs', authenticateFirebase, requireAdmin, async (req: any, res) =>
  */
 router.post('/labs', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
-    const { nome, email, telefono, note } = req.body;
+    const {
+      nome,
+      email,
+      telefono,
+      note,
+      dataProcessingAgreementStatus,
+      dataProcessingAgreementReference,
+    } = req.body;
 
     if (!nome || !email) {
       return res.status(400).json({ error: 'Nome ed email sono obbligatori' });
     }
 
     const now = Timestamp.now();
+    const dpaFields = createLabDpaFields({
+      dataProcessingAgreementStatus,
+      dataProcessingAgreementReference,
+    }, now);
     const labData: any = {
       nome,
       email,
       attivo: true,
+      ...dpaFields,
       createdAt: now,
       updatedAt: now,
     };
 
     if (telefono) labData.telefono = telefono;
     if (note) labData.note = note;
-
     const docRef = await db.collection('labs').add(labData);
 
     console.log(`✅ Laboratorio creato: ${docRef.id} (${nome})`);
     res.json({ id: docRef.id, ...labData });
   } catch (error: any) {
+    if (error instanceof LabDpaValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('❌ Error creating lab:', error);
     res.status(500).json({ error: error.message });
   }
@@ -128,7 +157,15 @@ router.post('/labs', authenticateFirebase, requireAdmin, async (req: any, res) =
 router.patch('/labs/:id', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const { nome, email, telefono, note, attivo } = req.body;
+    const {
+      nome,
+      email,
+      telefono,
+      note,
+      attivo,
+      dataProcessingAgreementStatus,
+      dataProcessingAgreementReference,
+    } = req.body;
 
     const labDoc = await db.collection('labs').doc(id).get();
     if (!labDoc.exists) {
@@ -141,12 +178,21 @@ router.patch('/labs/:id', authenticateFirebase, requireAdmin, async (req: any, r
     if (telefono !== undefined) updateData.telefono = telefono;
     if (note !== undefined) updateData.note = note;
     if (attivo !== undefined) updateData.attivo = attivo;
+    Object.assign(updateData, updateLabDpaFields(
+      labDoc.data() || {},
+      { dataProcessingAgreementStatus, dataProcessingAgreementReference },
+      Timestamp.now(),
+      FieldValue.delete(),
+    ));
 
     await db.collection('labs').doc(id).update(updateData);
 
     const updated = await db.collection('labs').doc(id).get();
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
+    if (error instanceof LabDpaValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('❌ Error updating lab:', error);
     res.status(500).json({ error: error.message });
   }
@@ -289,6 +335,7 @@ router.post('/lab-shipments/:id/upload-session', authenticateFirebase, requireAd
     }
 
     const shipment = shipmentDoc.data() as LabShipment;
+    if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
     let driveFolderId = shipment.driveFolderId;
     let shareableLink = shipment.shareableLink;
@@ -348,6 +395,7 @@ router.post('/lab-shipments/:id/file-uploaded', authenticateFirebase, requireAdm
     }
 
     const shipment = shipmentDoc.data() as LabShipment;
+    if (rejectPrintShopLegacyMutation(shipment, res)) return;
     const files: LabShipmentFile[] = Array.isArray(shipment.files) ? [...shipment.files] : [];
 
     const newFile: any = {
@@ -387,6 +435,7 @@ router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (re
     if (!shipmentDoc.exists) {
       return res.status(404).json({ error: 'Spedizione non trovata' });
     }
+    if (rejectPrintShopLegacyMutation(shipmentDoc.data() as LabShipment, res)) return;
 
     const updateData: any = { updatedAt: Timestamp.now() };
 
@@ -446,6 +495,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     }
 
     const shipment = shipmentDoc.data() as LabShipment;
+    if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
     if (!shipment.shareableLink) {
       return res.status(400).json({
@@ -476,13 +526,15 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
 
     // Recupera nome job per il contesto email
     let jobNome = 'Consegna';
-    try {
-      const jobDoc = await db.collection('jobs').doc(shipment.jobId).get();
-      if (jobDoc.exists) {
-        jobNome = jobDoc.data()?.nomeEvento || jobNome;
+    if (shipment.jobId) {
+      try {
+        const jobDoc = await db.collection('jobs').doc(shipment.jobId).get();
+        if (jobDoc.exists) {
+          jobNome = jobDoc.data()?.nomeEvento || jobNome;
+        }
+      } catch {
+        // non bloccante
       }
-    } catch {
-      // non bloccante
     }
 
     const studioInfo = await getStudioContactInfo();
@@ -613,6 +665,13 @@ router.post('/lab-shipments/:id/cost', authenticateFirebase, requireAdmin, async
     }
 
     const shipment = shipmentDoc.data() as LabShipment;
+    if (rejectPrintShopLegacyMutation(shipment, res)) return;
+
+    if (!shipment.jobId) {
+      return res.status(409).json({
+        error: 'Questa spedizione non è collegata a un job; usa la gestione costi dello shop stampe',
+      });
+    }
 
     const jobRef = db.collection('jobs').doc(shipment.jobId);
     const jobDoc = await jobRef.get();
@@ -688,21 +747,31 @@ router.delete('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (r
     }
 
     const shipment = shipmentDoc.data() as LabShipment;
+    if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
-    // 1. Elimina cartella Drive (best-effort)
+    // 1. Elimina cartella Drive. Se fallisce mantieni il doc per un retry sicuro.
     if (shipment.driveFolderId) {
       try {
         await deleteDriveFile(shipment.driveFolderId);
       } catch (driveErr: any) {
         console.error(
-          `⚠️ Eliminazione cartella Drive ${shipment.driveFolderId} fallita (non bloccante):`,
+          `⚠️ Eliminazione cartella Drive ${shipment.driveFolderId} fallita:`,
           driveErr.message
         );
+        await shipmentDoc.ref.update({
+          deleteLastAttemptAt: Timestamp.now(),
+          deleteLastError: String(driveErr?.message || driveErr).slice(0, 500),
+          updatedAt: Timestamp.now(),
+        });
+        return res.status(503).json({
+          error: 'Impossibile eliminare i file Drive; la spedizione è stata mantenuta e puoi riprovare',
+          code: 'drive_delete_failed',
+        });
       }
     }
 
     // 2. Rimuovi il costo collegato dal job
-    if (shipment.costoId) {
+    if (shipment.costoId && shipment.jobId) {
       try {
         const jobRef = db.collection('jobs').doc(shipment.jobId);
         const jobDoc = await jobRef.get();
@@ -763,21 +832,44 @@ export async function runLabShipmentExpiryCheck(): Promise<{ expired: number }> 
     if (shipment.deletedFromDrive === true) continue;
     if (shipment.status === 'scaduto') continue;
 
-    // Elimina cartella Drive (best-effort)
+    // Marca la spedizione eliminata solo dopo una cancellazione Drive riuscita.
+    // In caso di errore resta eleggibile per il prossimo ciclo scheduler.
     if (shipment.driveFolderId) {
       try {
+        if (
+          shipment.sourceType === 'print_shop' &&
+          shipment.drivePermissionId &&
+          !shipment.drivePermissionRevokedAt
+        ) {
+          await revokeShipmentFolderPermission(
+            shipment.driveFolderId,
+            shipment.drivePermissionId,
+          );
+          await db.collection('labShipments').doc(doc.id).update({
+            drivePermissionRevokedAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+        }
         await deleteDriveFile(shipment.driveFolderId);
       } catch (driveErr: any) {
         console.error(
-          `⚠️ [Expiry] Eliminazione cartella Drive ${shipment.driveFolderId} fallita (non bloccante):`,
+          `⚠️ [Expiry] Eliminazione cartella Drive ${shipment.driveFolderId} fallita; verrà ritentata:`,
           driveErr.message
         );
+        await db.collection('labShipments').doc(doc.id).update({
+          expiryDeletionLastAttemptAt: Timestamp.now(),
+          expiryDeletionLastError: String(driveErr?.message || driveErr).slice(0, 500),
+          updatedAt: Timestamp.now(),
+        });
+        continue;
       }
     }
 
     await db.collection('labShipments').doc(doc.id).update({
       status: 'scaduto' as LabShipmentStatus,
       deletedFromDrive: true,
+      expiryDeletionLastAttemptAt: Timestamp.now(),
+      expiryDeletionLastError: FieldValue.delete(),
       updatedAt: Timestamp.now(),
     });
 

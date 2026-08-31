@@ -2,15 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import {
   ArrowDown,
+  AlertTriangle,
   Check,
-  Heart,
+  CreditCard,
+  LogIn,
+  Loader2,
   Mail,
   MapPin,
   MessageCircle,
   Phone,
   Search,
-  Send,
-  Smartphone,
+  ShoppingCart,
+  SlidersHorizontal,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -32,23 +36,31 @@ import { getWhatsAppLink } from '@shared/phone-utils';
 import {
   PRINT_FAQS,
   PRINT_PRICE_TABLES,
-  PRINT_PRICE_UPDATED_AT,
   PRINT_SERVICE_PATH,
   PRINT_SERVICE_SEO,
   PRINT_WHATSAPP_MESSAGE,
   countPrintFormats,
-  searchPrintFormats,
-  type PrintPriceRow,
 } from '@shared/print-service-content';
+import { printShopApi } from '@/features/print-shop/print-shop-api';
+import type { PrintShopCatalogPayload } from '@/features/print-shop/types';
+import {
+  buildFallbackPriceSections,
+  buildPublicCatalogPriceSections,
+  catalogPriceRangeCents,
+  formatCatalogEuro,
+  lowestProductPriceCents,
+  searchPublicCatalogSections,
+  type PublicCatalogPriceRow,
+} from '@/features/print-shop/public-catalog-view';
 
-const FALLBACK_PHONE = '+39 334 710 3142';
-const FALLBACK_EMAIL = 'info@memoriesospese.it';
+const FALLBACK_PHONE = '+39 327 465 6179';
+const FALLBACK_EMAIL = 'image.studio.fotografico@gmail.com';
 const BASE_URL = 'https://imagestudiofotografico.com';
 
 const formatCards = [
   {
     title: '10×15 classico',
-    price: 'da €0,20',
+    target: 'classic' as const,
     description: 'Il formato più versatile per album, scatole dei ricordi e fotografie da regalare.',
     tag: 'Più scelto',
     image: '/images/print-service/printed-memories-table.jpg',
@@ -56,7 +68,7 @@ const formatCards = [
   },
   {
     title: 'Polaroid 10×9',
-    price: '50 foto · €9,90',
+    target: 'polaroid' as const,
     description: 'Bordo iconico per pareti, fili con mollette, dediche e piccoli regali.',
     tag: 'Idea creativa',
     image: '/images/print-service/travel-polaroid-prints.jpg',
@@ -64,7 +76,7 @@ const formatCards = [
   },
   {
     title: '20×30 e oltre',
-    price: 'da €2,00',
+    target: 'large' as const,
     description: 'Per dare spazio a un panorama, un ritratto o alla fotografia simbolo della vacanza.',
     tag: 'Da parete',
     image: '/images/print-service/family-vacation-beach.jpg',
@@ -75,39 +87,38 @@ const formatCards = [
 const steps = [
   {
     number: '01',
-    icon: Heart,
-    title: 'Scegli i ricordi',
-    description: 'Seleziona dal telefono le fotografie che vuoi finalmente rivedere su carta.',
+    icon: LogIn,
+    title: 'Accedi con Google',
+    description: 'Entra in modo sicuro: il tuo ordine e i tuoi file restano legati solo al tuo account.',
   },
   {
     number: '02',
-    icon: Smartphone,
-    title: 'Scrivici su WhatsApp',
-    description: 'Indica quantità, formato e preferenza tra carta lucida oppure opaca.',
+    icon: UploadCloud,
+    title: 'Carica le foto JPG',
+    description: 'Scegli le fotografie dal telefono o dal computer e segui il caricamento senza perdere qualità.',
   },
   {
     number: '03',
-    icon: Send,
-    title: 'Invia le fotografie',
-    description: 'Riceverai le istruzioni più comode per trasferire i file senza perdere qualità.',
+    icon: SlidersHorizontal,
+    title: 'Configura le stampe',
+    description: 'Scegli formato, carta lucida o opaca e se mantenere la foto intera oppure riempire il foglio.',
   },
   {
     number: '04',
-    icon: Check,
-    title: 'Conferma la stampa',
-    description: 'Concorda con lo studio prezzo finale, tempi e modalità di ritiro o consegna.',
+    icon: CreditCard,
+    title: 'Paga e ritira in sede',
+    description: 'Conferma il totale con PayPal. Ti avviseremo quando le stampe saranno pronte per il ritiro.',
   },
 ];
 
 interface PriceBreakdownProps {
-  row: PrintPriceRow;
-  quantityHeaders: string[];
+  row: PublicCatalogPriceRow;
 }
 
-function PriceBreakdown({ row, quantityHeaders }: PriceBreakdownProps) {
+function PriceBreakdown({ row }: PriceBreakdownProps) {
   return (
     <dl className="grid gap-2 border-t border-sage/10 bg-off-white/60 p-4 sm:grid-cols-2">
-      {quantityHeaders.map((quantity, index) => (
+      {row.quantityHeaders.map((quantity, index) => (
         <div key={`${row.format}-${quantity}`} className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
           <dt className="text-xs font-medium text-blue-gray/55">{quantity} foto</dt>
           <dd className="font-semibold tabular-nums text-blue-gray">{row.prices[index]}</dd>
@@ -117,8 +128,7 @@ function PriceBreakdown({ row, quantityHeaders }: PriceBreakdownProps) {
   );
 }
 
-function PriceFormatDisclosure({ row, quantityHeaders }: PriceBreakdownProps) {
-  const lowestPrice = row.prices[row.prices.length - 1];
+function PriceFormatDisclosure({ row }: PriceBreakdownProps) {
   const isPolaroidPackage = row.format.toLocaleLowerCase('it-IT').includes('polaroid');
 
   return (
@@ -127,12 +137,14 @@ function PriceFormatDisclosure({ row, quantityHeaders }: PriceBreakdownProps) {
         <span>
           <span className="block text-lg font-semibold text-blue-gray">{row.format} cm</span>
           <span className="mt-0.5 block text-xs text-blue-gray/50">
-            {isPolaroidPackage ? `confezione da 50 foto · ${lowestPrice}` : `a partire da ${lowestPrice} per stampa`}
+            {!row.priceAvailable
+              ? 'prezzo temporaneamente non disponibile'
+              : isPolaroidPackage ? `confezione da 50 foto · ${row.startingPrice}` : `a partire da ${row.startingPrice} per stampa`}
           </span>
         </span>
         <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-sage/10 text-lg text-dark-sage transition-transform duration-200 group-open:rotate-45" aria-hidden="true">+</span>
       </summary>
-      <PriceBreakdown row={row} quantityHeaders={quantityHeaders} />
+      <PriceBreakdown row={row} />
     </details>
   );
 }
@@ -140,8 +152,39 @@ function PriceFormatDisclosure({ row, quantityHeaders }: PriceBreakdownProps) {
 export default function StampaFotoAversaPage() {
   const { studioSettings } = useStudio();
   const [formatQuery, setFormatQuery] = useState('');
-  const formatResults = useMemo(() => searchPrintFormats(formatQuery), [formatQuery]);
+  const [catalog, setCatalog] = useState<PrintShopCatalogPayload | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const priceSections = useMemo(
+    () => catalog?.products.length
+      ? buildPublicCatalogPriceSections(catalog.products)
+      : catalogError ? buildFallbackPriceSections(PRINT_PRICE_TABLES) : [],
+    [catalog, catalogError],
+  );
+  const formatResults = useMemo(
+    () => searchPublicCatalogSections(priceSections, formatQuery),
+    [formatQuery, priceSections],
+  );
   const hasFormatQuery = formatQuery.trim().length > 0;
+  const catalogReady = Boolean(catalog?.products.length && !catalogError);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCatalogLoading(true);
+    setCatalogError(null);
+    printShopApi.getCatalog(controller.signal)
+      .then((payload) => {
+        if (payload.products.length === 0) throw new Error('Il catalogo non contiene formati acquistabili.');
+        setCatalog(payload);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setCatalog(null);
+        setCatalogError(error instanceof Error ? error.message : 'Listino non disponibile.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false); });
+    return () => controller.abort();
+  }, []);
 
   useSEO({
     title: PRINT_SERVICE_SEO.title,
@@ -156,9 +199,84 @@ export default function StampaFotoAversaPage() {
   const address = studioSettings.address || 'Aversa (CE)';
   const studioName = studioSettings.name || 'Image Studio Fotografico';
   const whatsappLink = getWhatsAppLink(phone, PRINT_WHATSAPP_MESSAGE);
+  const liveProducts = catalog?.products ?? [];
+  const priceRange = useMemo(() => catalogPriceRangeCents(liveProducts), [liveProducts]);
+  const formatCount = catalogReady ? liveProducts.length : catalogError ? countPrintFormats() : 0;
+  const classicProduct = liveProducts.find((product) =>
+    product.printSpec.widthMm === 100 && product.printSpec.heightMm === 150,
+  );
+  const polaroidProduct = liveProducts.find((product) => product.sku === 'PRINT-POLAROID-100X090');
+  const largeProduct = liveProducts.find((product) =>
+    product.printSpec.widthMm === 200 && product.printSpec.heightMm === 300,
+  );
+  const featuredCards = useMemo(() => formatCards.map((card) => {
+    const product = card.target === 'classic'
+      ? classicProduct
+      : card.target === 'polaroid' ? polaroidProduct : largeProduct;
+    const cents = catalogReady ? lowestProductPriceCents(product) : null;
+    const price = cents === null
+      ? catalogLoading ? 'Listino in verifica' : 'Prezzo non disponibile'
+      : product?.printSpec.pricing.model === 'package'
+        ? `${product.printSpec.pricing.packageSize} foto · ${formatCatalogEuro(cents)}`
+        : `da ${formatCatalogEuro(cents)}`;
+    return { ...card, price };
+  }), [catalogLoading, catalogReady, classicProduct, largeProduct, polaroidProduct]);
+  const displayedFaqs = useMemo(() => PRINT_FAQS.map((faq) => {
+    if (faq.question.startsWith('Quanto costa stampare una foto 10×15')) {
+      if (!catalogReady || !classicProduct || classicProduct.printSpec.pricing.model !== 'tiered') {
+        return { ...faq, answer: 'Il listino aggiornato viene caricato direttamente dallo shop. Se non è disponibile, l’ordine online resta disattivato per non mostrarti un prezzo non verificato.' };
+      }
+      const tiers = classicProduct.printSpec.pricing.tiers;
+      return {
+        ...faq,
+        answer: `Il prezzo è ${formatCatalogEuro(tiers[0].unitPriceCents)} per le prime quantità e scende fino a ${formatCatalogEuro(tiers[tiers.length - 1].unitPriceCents)} a fotografia secondo gli scaglioni mostrati nel listino aggiornato.`,
+      };
+    }
+    if (faq.question.startsWith('Posso stampare fotografie in stile Polaroid')) {
+      if (!catalogReady || !polaroidProduct || polaroidProduct.printSpec.pricing.model !== 'package') {
+        return { ...faq, answer: 'Sì. Il formato Polaroid Wide usa un pacchetto di fotografie tutte diverse; quantità e prezzo aggiornati compaiono appena il listino dello shop è disponibile.' };
+      }
+      return {
+        ...faq,
+        answer: `Sì. Il formato Polaroid Wide ${polaroidProduct.printSpec.widthMm / 10}×${polaroidProduct.printSpec.heightMm / 10} cm prevede ${polaroidProduct.printSpec.pricing.packageSize} fotografie tutte diverse a ${formatCatalogEuro(polaroidProduct.printSpec.pricing.packagePriceCents)}.`,
+      };
+    }
+    return faq;
+  }), [catalogReady, classicProduct, polaroidProduct]);
 
   useEffect(() => {
     const canonical = `${BASE_URL}${PRINT_SERVICE_PATH}`;
+    const serviceSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'Service',
+      name: 'Stampa foto ad Aversa',
+      description: PRINT_SERVICE_SEO.description,
+      url: canonical,
+      serviceType: 'Stampa fotografica digitale',
+      provider: {
+        '@type': 'LocalBusiness',
+        name: studioName,
+        telephone: displayPhone,
+        email,
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: studioSettings.address || undefined,
+          addressLocality: studioSettings.fiscalComune || 'Aversa',
+          addressRegion: studioSettings.fiscalProvincia || 'CE',
+          addressCountry: 'IT',
+        },
+      },
+      areaServed: ['Aversa', 'Napoli', 'Caserta', 'Agro Aversano'],
+      ...(catalogReady && priceRange ? {
+        offers: {
+          '@type': 'AggregateOffer',
+          priceCurrency: 'EUR',
+          lowPrice: (priceRange.lowCents / 100).toFixed(2),
+          highPrice: (priceRange.highCents / 100).toFixed(2),
+          offerCount: formatCount,
+        },
+      } : {}),
+    };
     const jsonLd = [
       {
         '@context': 'https://schema.org',
@@ -168,39 +286,11 @@ export default function StampaFotoAversaPage() {
           { '@type': 'ListItem', position: 2, name: 'Stampa foto ad Aversa', item: canonical },
         ],
       },
-      {
-        '@context': 'https://schema.org',
-        '@type': 'Service',
-        name: 'Stampa foto ad Aversa',
-        description: PRINT_SERVICE_SEO.description,
-        url: canonical,
-        serviceType: 'Stampa fotografica digitale',
-        provider: {
-          '@type': 'LocalBusiness',
-          name: studioName,
-          telephone: displayPhone,
-          email,
-          address: {
-            '@type': 'PostalAddress',
-            streetAddress: studioSettings.address || undefined,
-            addressLocality: studioSettings.fiscalComune || 'Aversa',
-            addressRegion: studioSettings.fiscalProvincia || 'CE',
-            addressCountry: 'IT',
-          },
-        },
-        areaServed: ['Aversa', 'Napoli', 'Caserta', 'Agro Aversano'],
-        offers: {
-          '@type': 'AggregateOffer',
-          priceCurrency: 'EUR',
-          lowPrice: '0.20',
-          highPrice: '17.00',
-          offerCount: countPrintFormats(),
-        },
-      },
+      serviceSchema,
       {
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
-        mainEntity: PRINT_FAQS.map((faq) => ({
+        mainEntity: displayedFaqs.map((faq) => ({
           '@type': 'Question',
           name: faq.question,
           acceptedAnswer: { '@type': 'Answer', text: faq.answer },
@@ -220,7 +310,7 @@ export default function StampaFotoAversaPage() {
     return () => {
       document.querySelector('script[data-print-service-schema]')?.remove();
     };
-  }, [displayPhone, email, studioName, studioSettings.address, studioSettings.fiscalComune, studioSettings.fiscalProvincia]);
+  }, [catalogReady, displayPhone, displayedFaqs, email, formatCount, priceRange, studioName, studioSettings.address, studioSettings.fiscalComune, studioSettings.fiscalProvincia]);
 
   const trackWhatsApp = (location: string) => {
     trackEvent('click_whatsapp', 'stampa_foto', location);
@@ -228,6 +318,10 @@ export default function StampaFotoAversaPage() {
 
   const trackPriceList = () => {
     trackEvent('view_price_list', 'stampa_foto', 'hero');
+  };
+
+  const trackOrderStart = (location: string) => {
+    trackEvent('start_checkout', 'stampa_foto', location);
   };
 
   return (
@@ -255,12 +349,19 @@ export default function StampaFotoAversaPage() {
               </p>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <a href={whatsappLink} target="_blank" rel="noopener noreferrer" onClick={() => trackWhatsApp('hero')}>
-                  <Button className="w-full rounded-full bg-terracotta px-7 py-6 text-base text-white shadow-lg hover:bg-terracotta/90 sm:w-auto">
-                    <MessageCircle className="mr-2 h-5 w-5" />
-                    Stampa i miei ricordi
+                {catalogReady ? (
+                  <Link href={createUrl('/stampa-foto-aversa/ordine')}>
+                    <Button onClick={() => trackOrderStart('hero')} className="w-full rounded-full bg-terracotta px-7 py-6 text-base text-white shadow-lg hover:bg-terracotta/90 sm:w-auto">
+                      <ShoppingCart className="mr-2 h-5 w-5" />
+                      Ordina ora online
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button disabled className="w-full rounded-full bg-white/15 px-7 py-6 text-base text-white/75 sm:w-auto">
+                    {catalogLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
+                    {catalogLoading ? 'Verifica del listino…' : 'Ordini temporaneamente sospesi'}
                   </Button>
-                </a>
+                )}
                 <a href="#listino" onClick={trackPriceList}>
                   <Button variant="outline" className="w-full rounded-full border-white/40 bg-white/5 px-7 py-6 text-base text-white hover:bg-white/15 hover:text-white sm:w-auto">
                     Vedi prezzi e formati
@@ -271,8 +372,8 @@ export default function StampaFotoAversaPage() {
 
               <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/70">
                 <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Carta lucida o opaca</span>
-                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> {countPrintFormats()} formati</span>
-                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Assistenza locale</span>
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> {formatCount > 0 ? `${formatCount} ${formatCount === 1 ? 'formato' : 'formati'}` : 'Listino in verifica'}</span>
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Pagamento PayPal e ritiro in sede</span>
               </div>
             </div>
 
@@ -326,7 +427,7 @@ export default function StampaFotoAversaPage() {
             </div>
 
             <div className="mt-14 grid gap-6 md:grid-cols-3">
-              {formatCards.map((card) => {
+              {featuredCards.map((card) => {
                 return (
                   <article key={card.title} className="group overflow-hidden rounded-[2rem] border border-sage/15 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
                     <div className="relative h-52 overflow-hidden">
@@ -392,6 +493,23 @@ export default function StampaFotoAversaPage() {
               </p>
             </div>
 
+            {catalogLoading ? (
+              <div className="mx-auto mt-8 flex max-w-3xl items-center gap-3 rounded-2xl border border-sage/25 bg-white p-4 text-sm text-blue-gray/65" role="status">
+                <Loader2 className="h-5 w-5 flex-none animate-spin text-terracotta" aria-hidden="true" />
+                Stiamo caricando prezzi e scaglioni aggiornati direttamente dallo shop.
+              </div>
+            ) : catalogError ? (
+              <div className="mx-auto mt-8 flex max-w-3xl items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950" role="alert">
+                <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
+                <span><strong>Listino aggiornato non verificabile.</strong> Mostriamo i formati come guida, senza prezzi. L’ordine online resta disattivato finché il collegamento con il catalogo non torna disponibile.</span>
+              </div>
+            ) : (
+              <div className="mx-auto mt-8 flex max-w-3xl items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" role="status">
+                <Check className="h-5 w-5 flex-none" aria-hidden="true" />
+                Listino verificato: questi sono gli stessi prezzi usati nel riepilogo e al pagamento.
+              </div>
+            )}
+
             <div className="mx-auto mt-10 max-w-3xl rounded-[2rem] border border-sage/20 bg-white p-5 shadow-sm sm:p-7">
               <label htmlFor="format-search" className="text-sm font-semibold text-blue-gray">Quale formato stai cercando?</label>
               <div className="relative mt-3">
@@ -402,6 +520,7 @@ export default function StampaFotoAversaPage() {
                   inputMode="search"
                   value={formatQuery}
                   onChange={(event) => setFormatQuery(event.target.value)}
+                  disabled={catalogLoading}
                   placeholder="Es. 10×15, 20×30, 50×70"
                   className="h-14 rounded-2xl border-sage/25 bg-off-white/50 pl-12 pr-12 text-base text-blue-gray placeholder:text-blue-gray/35 focus-visible:ring-sage"
                   autoComplete="off"
@@ -424,6 +543,7 @@ export default function StampaFotoAversaPage() {
                     key={suggestion}
                     type="button"
                     onClick={() => setFormatQuery(suggestion)}
+                    disabled={catalogLoading}
                     className="rounded-full border border-sage/20 bg-off-white px-3 py-1.5 font-semibold text-blue-gray transition-colors hover:border-sage hover:bg-sage/10"
                   >
                     {suggestion}
@@ -433,7 +553,12 @@ export default function StampaFotoAversaPage() {
             </div>
 
             <div className="mt-8" aria-live="polite">
-              {hasFormatQuery ? (
+              {catalogLoading ? (
+                <div className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-[2rem] border border-sage/20 bg-white" role="status">
+                  <Loader2 className="h-8 w-8 animate-spin text-terracotta" aria-hidden="true" />
+                  <p className="text-sm text-blue-gray/55">Prepariamo il listino aggiornato…</p>
+                </div>
+              ) : hasFormatQuery ? (
                 formatResults.length > 0 ? (
                   <div>
                     <p className="mb-4 text-sm font-medium text-blue-gray/65">
@@ -441,15 +566,15 @@ export default function StampaFotoAversaPage() {
                     </p>
                     <div className="grid gap-4 md:grid-cols-2">
                       {formatResults.map((result) => (
-                        <article key={`${result.tableId}-${result.row.format}`} className="overflow-hidden rounded-2xl border border-sage/20 bg-white shadow-sm">
+                        <article key={`${result.sectionId}-${result.row.sku}`} className="overflow-hidden rounded-2xl border border-sage/20 bg-white shadow-sm">
                           <div className="flex items-start justify-between gap-4 px-5 py-4">
                             <div>
                               <h3 className="text-xl font-semibold text-blue-gray">{result.row.format} cm</h3>
-                              <p className="mt-1 text-xs text-blue-gray/50">{result.tableTitle}</p>
+                              <p className="mt-1 text-xs text-blue-gray/50">{result.sectionTitle}</p>
                             </div>
-                            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-dark-sage">Prezzi per quantità</span>
+                            <span className="rounded-full bg-sage/10 px-3 py-1 text-xs font-semibold text-dark-sage">{result.row.priceAvailable ? 'Prezzi per quantità' : 'Solo formato'}</span>
                           </div>
-                          <PriceBreakdown row={result.row} quantityHeaders={result.quantityHeaders} />
+                          <PriceBreakdown row={result.row} />
                         </article>
                       ))}
                     </div>
@@ -464,19 +589,19 @@ export default function StampaFotoAversaPage() {
                   </div>
                 )
               ) : (
-                <Accordion type="single" collapsible defaultValue="classici" className="space-y-4">
-                  {PRINT_PRICE_TABLES.map((table) => (
+                <Accordion type="single" collapsible defaultValue={priceSections[0]?.id} className="space-y-4">
+                  {priceSections.map((table) => (
                     <AccordionItem key={table.id} value={table.id} className="overflow-hidden rounded-[2rem] border border-sage/20 bg-white px-0 shadow-sm">
                       <AccordionTrigger className="px-6 py-5 text-left hover:no-underline sm:px-8">
                         <span className="pr-4">
                           <span className="block text-xl font-semibold text-blue-gray sm:text-2xl">{table.title}</span>
-                          <span className="mt-1 block text-sm font-normal leading-relaxed text-blue-gray/55">{table.rows.length} formati · {table.description}</span>
+                          <span className="mt-1 block text-sm font-normal leading-relaxed text-blue-gray/55">{table.rows.length} {table.rows.length === 1 ? 'formato' : 'formati'} · {table.description}</span>
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="border-t border-sage/10 px-4 pb-5 pt-5 sm:px-6">
                         <div className="grid gap-3 md:grid-cols-2">
                           {table.rows.map((row) => (
-                            <PriceFormatDisclosure key={row.format} row={row} quantityHeaders={table.quantityHeaders} />
+                            <PriceFormatDisclosure key={row.sku} row={row} />
                           ))}
                         </div>
                       </AccordionContent>
@@ -487,16 +612,27 @@ export default function StampaFotoAversaPage() {
             </div>
 
             <div className="mt-8 rounded-2xl border border-terracotta/20 bg-terracotta/10 p-5 text-sm leading-relaxed text-blue-gray/75">
-              <strong className="text-blue-gray">Polaroid Wide 10×9:</strong> confezione promozionale da 50 fotografie a €9,90, salvo disponibilità. Listino aggiornato al {PRINT_PRICE_UPDATED_AT}. Tempi e modalità di ritiro o consegna vengono confermati prima dell’ordine.
+              {catalogReady && polaroidProduct?.printSpec.pricing.model === 'package' ? (
+                <><strong className="text-blue-gray">Polaroid Wide {polaroidProduct.printSpec.widthMm / 10}×{polaroidProduct.printSpec.heightMm / 10}:</strong> confezione da {polaroidProduct.printSpec.pricing.packageSize} fotografie tutte diverse a {formatCatalogEuro(polaroidProduct.printSpec.pricing.packagePriceCents)}. Prezzo letto dal catalogo aggiornato dello shop.</>
+              ) : (
+                <><strong className="text-blue-gray">Polaroid Wide:</strong> formato disponibile in confezione di fotografie tutte diverse; quantità e prezzo compaiono solo quando il listino aggiornato è verificato.</>
+              )} Il totale viene ricalcolato dal sistema prima del pagamento; il ritiro avviene in sede.
             </div>
 
             <div className="mt-9 text-center">
-              <a href={whatsappLink} target="_blank" rel="noopener noreferrer" onClick={() => trackWhatsApp('listino')}>
-                <Button className="rounded-full bg-terracotta px-8 py-6 text-base text-white hover:bg-terracotta/90">
-                  <MessageCircle className="mr-2 h-5 w-5" />
-                  Chiedi il prezzo del tuo ordine
+              {catalogReady ? (
+                <Link href={createUrl('/stampa-foto-aversa/ordine')}>
+                  <Button onClick={() => trackOrderStart('listino')} className="rounded-full bg-terracotta px-8 py-6 text-base text-white hover:bg-terracotta/90">
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    Crea il tuo ordine
+                  </Button>
+                </Link>
+              ) : (
+                <Button disabled className="rounded-full px-8 py-6 text-base">
+                  {catalogLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
+                  Listino non verificato
                 </Button>
-              </a>
+              )}
             </div>
           </div>
         </section>
@@ -560,7 +696,7 @@ export default function StampaFotoAversaPage() {
               <h2 className="mt-4 text-3xl font-semibold text-blue-gray sm:text-5xl">Domande frequenti</h2>
             </div>
             <div className="mt-12 space-y-4">
-              {PRINT_FAQS.map((faq, index) => (
+              {displayedFaqs.map((faq, index) => (
                 <details key={faq.question} className="group rounded-2xl border border-sage/15 bg-white p-6 shadow-sm" open={index === 0}>
                   <summary className="cursor-pointer list-none pr-8 font-semibold text-blue-gray marker:hidden">
                     <span className="flex items-start justify-between gap-4">
@@ -579,14 +715,21 @@ export default function StampaFotoAversaPage() {
           <div className="mx-auto max-w-4xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">Le hai già scelte?</p>
             <h2 className="mt-4 text-4xl font-semibold sm:text-6xl">Non lasciarle un’altra estate nel telefono.</h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/80">Scrivici “Voglio stampare i miei ricordi” e raccontaci quante fotografie hai scelto. Ti aiutiamo noi con il resto.</p>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/80">Carica i JPG, scegli le opzioni in pochi passaggi e paga online. Noi prepariamo le stampe e ti avvisiamo per il ritiro.</p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-              <a href={whatsappLink} target="_blank" rel="noopener noreferrer" onClick={() => trackWhatsApp('finale')}>
-                <Button className="w-full rounded-full bg-white px-8 py-6 text-base text-terracotta hover:bg-cream sm:w-auto">
-                  <MessageCircle className="mr-2 h-5 w-5" />
-                  Stampa i miei ricordi
+              {catalogReady ? (
+                <Link href={createUrl('/stampa-foto-aversa/ordine')}>
+                  <Button onClick={() => trackOrderStart('finale')} className="w-full rounded-full bg-white px-8 py-6 text-base text-terracotta hover:bg-cream sm:w-auto">
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    Inizia l'ordine
+                  </Button>
+                </Link>
+              ) : (
+                <Button disabled className="w-full rounded-full bg-white/20 px-8 py-6 text-base text-white/70 sm:w-auto">
+                  {catalogLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
+                  Ordini temporaneamente non disponibili
                 </Button>
-              </a>
+              )}
               <Link href="/portfolio">
                 <Button variant="outline" className="w-full rounded-full border-white/40 bg-transparent px-8 py-6 text-base text-white hover:bg-white/10 hover:text-white sm:w-auto">
                   Scopri Image Studio

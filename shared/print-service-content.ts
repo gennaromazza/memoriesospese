@@ -27,9 +27,9 @@ export const PRINT_SERVICE_PATH = '/stampa-foto-aversa';
 export const PRINT_PRICE_UPDATED_AT = '30 agosto 2026';
 
 export const PRINT_SERVICE_SEO = {
-  title: 'Stampa Foto Aversa: Vacanze e Polaroid | Image Studio',
+  title: 'Stampa Foto Online ad Aversa | Image Studio',
   description:
-    'Stampa foto di vacanze, ricordi e formato Polaroid ad Aversa, vicino Napoli e Caserta. Scopri formati, prezzi e carta lucida o opaca.',
+    'Ordina online stampe fotografiche e Polaroid ad Aversa: carica i JPG, scegli formato e carta, paga con PayPal e ritira in sede.',
   keywords:
     'stampa foto Aversa, stampe fotografiche Napoli, stampa foto Caserta, foto vacanza, stampa Polaroid, prezzi stampa foto, ricordi fotografici',
 } as const;
@@ -115,7 +115,7 @@ export const PRINT_FAQS: PrintFaq[] = [
   {
     question: 'Dove posso stampare le foto ad Aversa?',
     answer:
-      'Puoi contattare Image Studio attraverso Memorie Sospese. Ti daremo le indicazioni per inviare i file e confermeremo disponibilità, tempi e modalità di ritiro o consegna.',
+      'Puoi ordinare direttamente su Memorie Sospese: accedi con Google, carica i JPG, scegli le opzioni, paga con PayPal e ritira le stampe presso Image Studio ad Aversa.',
   },
   {
     question: 'Posso stampare fotografie in stile Polaroid?',
@@ -130,7 +130,12 @@ export const PRINT_FAQS: PrintFaq[] = [
   {
     question: 'Posso inviare le fotografie direttamente dallo smartphone?',
     answer:
-      'Sì. Scrivici su WhatsApp e riceverai le indicazioni più semplici per selezionare e inviare i file mantenendo la migliore qualità possibile.',
+      'Sì. Apri lo shop dal telefono, accedi con Google e seleziona i file JPG. Il caricamento mostra il progresso e può essere riprovato in caso di interruzione.',
+  },
+  {
+    question: 'Come pago e come ricevo le stampe?',
+    answer:
+      'Il pagamento è anticipato e avviene online tramite PayPal. Quando la produzione è conclusa riceverai l’indicazione per ritirare l’ordine presso lo studio.',
   },
 ];
 

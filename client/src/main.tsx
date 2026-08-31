@@ -14,8 +14,10 @@ import "./index.css";
   }
 })();
 
-// Basename per Wouter, SENZA slash finale: "/memoriesospese"
-const basename = (import.meta.env.VITE_BASE_PATH || "/").replace(/\/+$/, "");
+// Usa lo stesso valore già normalizzato da vite.config.ts per asset e router.
+// In questo modo una configurazione incoerente non può produrre una SPA bianca
+// sui deep link.
+const basename = (__VITE_BASE_PATH__ || "/").replace(/\/+$/, "");
 
 const container = document.getElementById("root");
 if (container) {

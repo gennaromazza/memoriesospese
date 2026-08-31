@@ -5,7 +5,6 @@
 
 import express, { type Request, Response, NextFunction } from "express";
 import path from "node:path";
-import { createServer as createViteServer } from 'vite';
 import emailRoutes from './email-routes.js';
 import bookingRoutes from './booking-routes.js';
 import orderRoutes from './order-routes.js';
@@ -34,17 +33,25 @@ import infoFormRoutes from './info-form-routes.js';
 import photobookRoutes from './photobook-routes.js';
 import blogRoutes from './blog-routes.js';
 import weddingSeoRoutes from './wedding-seo.js';
+import printShopRoutes, { runPrintShopRetentionCleanup } from './print-shop/router.js';
 import { generateDynamicSitemap } from "./sitemap-generator";
 import { createSeoMiddleware } from './seo-prerender';
 import { startCancellationRetryWorker } from './workers/cancellation-retry.js';
 import { startEventSyncWorker, stopEventSyncWorker } from './sync/event-sync-guard.js';
+import {
+  apiNotFoundHandler,
+  mountProductionClient,
+  runtimeServerLabel,
+} from './production-web.js';
 
 
 async function startServer() {
   const start = Date.now();
+  const serverMode = runtimeServerLabel();
+  const isProduction = serverMode === 'production';
 
   try {
-    console.log('⚡ Starting development server...');
+    console.log(`⚡ Starting ${serverMode} server...`);
 
     const app = express();
     const PORT = parseInt(process.env.PORT || '5000', 10);
@@ -89,8 +96,8 @@ async function startServer() {
         res.header('Access-Control-Allow-Origin', origin);
       }
 
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key');
       res.header('Access-Control-Max-Age', '3600');
 
       if (req.method === 'OPTIONS') {
@@ -197,8 +204,17 @@ async function startServer() {
     app.use('/api/wedding-seo', weddingSeoRoutes);
     console.log('💍 Real Wedding API routes mounted at /api/wedding-seo');
 
+    app.use('/api/print-shop', printShopRoutes);
+    console.log('🖨️  Print Shop API routes mounted at /api/print-shop');
+
     // I link dei moduli sono sempre privati e non devono entrare negli indici.
     app.use('/modulo', (_req, res, next) => {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      next();
+    });
+
+    // Checkout e storico ordini sono aree personali: non devono entrare negli indici.
+    app.use('/stampa-foto-aversa/ordine', (_req, res, next) => {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
       next();
     });
@@ -218,31 +234,41 @@ async function startServer() {
 
     // Health check
     app.get('/api/health', (req, res) => {
-      res.json({ status: 'ok', server: 'dev', timestamp: new Date().toISOString() });
+      res.json({ status: 'ok', server: serverMode, timestamp: new Date().toISOString() });
     });
+
+    // Una route API sconosciuta non deve mai cadere nel fallback HTML di Vite/SPA.
+    app.use('/api', apiNotFoundHandler);
 
     // SEO prerender middleware per bot e crawler (Google, ChatGPT, etc.)
     app.use(createSeoMiddleware());
     console.log('🔍 SEO prerender middleware attivo per crawler e AI');
 
-    // Vite dev server middleware
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        // In middleware mode l'HMR usa la porta fissa 24678: una seconda
-        // istanza dev (es. server e2e su porta 5001) non può fare il bind e
-        // il client Vite entra in un loop di reload che rompe i test.
-        // VITE_HMR_PORT permette di dare all'istanza secondaria una porta HMR
-        // dedicata; senza la variabile il comportamento resta invariato.
-        ...(process.env.VITE_HMR_PORT
-          ? { hmr: { port: parseInt(process.env.VITE_HMR_PORT, 10) } }
-          : {}),
-      },
-      appType: 'spa',
-    });
+    if (isProduction) {
+      const clientBuildPath = mountProductionClient(app);
+      console.log(`📦 Client production servito da ${clientBuildPath}`);
+    } else {
+      // Vite viene importato solo in sviluppo: il runtime production non carica
+      // dev server, HMR o sorgenti /src.
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          // In middleware mode l'HMR usa la porta fissa 24678: una seconda
+          // istanza dev (es. server e2e su porta 5001) non può fare il bind e
+          // il client Vite entra in un loop di reload che rompe i test.
+          // VITE_HMR_PORT permette di dare all'istanza secondaria una porta HMR
+          // dedicata; senza la variabile il comportamento resta invariato.
+          ...(process.env.VITE_HMR_PORT
+            ? { hmr: { port: parseInt(process.env.VITE_HMR_PORT, 10) } }
+            : {}),
+        },
+        appType: 'spa',
+      });
 
-    app.use(vite.middlewares);
-    console.log('⚡ Vite middleware attached');
+      app.use(vite.middlewares);
+      console.log('⚡ Vite development middleware attached');
+    }
 
     // Capture worker cleanup for graceful shutdown
     let cancellationWorkerCleanup: (() => void) | null = null;
@@ -254,7 +280,7 @@ async function startServer() {
       console.log(`🚀 Ready in ${Date.now() - start}ms`);
       console.log(`🌐 Server: http://0.0.0.0:${PORT}`);
       console.log(`📧 Email API: http://0.0.0.0:${PORT}/api/email/notify-new-photos`);
-      console.log('✅ Development server ready!');
+      console.log(`✅ ${isProduction ? 'Production' : 'Development'} server ready!`);
       
       // Start automated retry worker per cancellation_pending bookings
       cancellationWorkerCleanup = startCancellationRetryWorker();
@@ -304,6 +330,15 @@ async function startServer() {
           }
         } catch (err: any) {
           console.error('⏰ Lab shipment expiry errore:', err.message);
+        }
+        // Originali shop: eliminazione idempotente 90 giorni dopo la consegna.
+        try {
+          const retention = await runPrintShopRetentionCleanup();
+          if (retention.purged > 0) {
+            console.log(`⏰ Shop stampe: originali eliminati per ${retention.purged} ordini scaduti`);
+          }
+        } catch (err: any) {
+          console.error('⏰ Print shop retention errore:', err.message);
         }
       };
       setTimeout(runRemindersWithLog, 2 * 60 * 1000);

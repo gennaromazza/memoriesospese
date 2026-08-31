@@ -2,8 +2,23 @@ import { Link } from 'wouter';
 import { ArrowLeft, Shield, Database, Lock, UserCheck, Mail, FileText, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { createUrl } from '../lib/basePath';
+import { useSEO } from '../hooks/useSEO';
+import { useStudio } from '../context/StudioContext';
+import {
+  PRINT_SHOP_MAX_PICKUP_DAYS,
+  resolveStudioLegalDetails,
+} from '../features/print-shop/studio-legal-details';
 
 export default function Privacy() {
+  const { studioSettings } = useStudio();
+  const seller = resolveStudioLegalDetails(studioSettings);
+
+  useSEO({
+    title: 'Privacy Policy | Image Studio',
+    description: 'Informativa privacy di Image Studio per servizi fotografici, account cliente e ordini online di stampe fotografiche.',
+    canonical: '/privacy',
+  });
+
   return (
     <div className="min-h-screen bg-off-white py-12 px-4">
       <div className="max-w-4xl mx-auto">
@@ -24,15 +39,28 @@ export default function Privacy() {
           
           <div className="prose prose-blue-gray max-w-none space-y-8">
             <p className="text-gray-600 text-lg">
-              Ultimo aggiornamento: {new Date().toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+              Ultimo aggiornamento: 31 agosto 2026
             </p>
 
             <section>
               <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Titolare del Trattamento</h2>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
-                <p><strong>Image Studio Fotografico</strong></p>
-                <p>Email: <a href="mailto:image.studio.fotografico@gmail.com" className="text-sage-600 hover:underline">image.studio.fotografico@gmail.com</a></p>
+                {seller.name && <p><strong>{seller.name}</strong></p>}
+                {seller.partitaIVA && <p>P. IVA: {seller.partitaIVA}</p>}
+                {seller.address && <p>Sede: {seller.address}</p>}
+                {seller.phone && <p>Telefono: <a href={`tel:${seller.phone.replace(/[^\d+]/g, '')}`} className="text-sage-600 hover:underline">{seller.phone}</a></p>}
+                {seller.email && <p>Email: <a href={`mailto:${seller.email}`} className="text-sage-600 hover:underline">{seller.email}</a></p>}
               </div>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Ordini di stampa, pagamento e ritiro</h2>
+              <p className="mb-4 text-gray-600">
+                I dati di contatto e dell'ordine vengono utilizzati per confermare il pagamento, affidare la produzione
+                al laboratorio selezionato, comunicare lo stato e rendere le stampe disponibili per il ritiro in sede entro
+                e non oltre {PRINT_SHOP_MAX_PICKUP_DAYS} giorni dal pagamento. Quando il checkout mostra «Ambiente di prova
+                PayPal», la transazione è simulata e non produce alcun addebito reale.
+              </p>
             </section>
 
             <section>
@@ -51,6 +79,8 @@ export default function Privacy() {
                 <li>Numero di telefono</li>
                 <li>Data e dettagli dell'evento (per prenotazioni)</li>
                 <li>Foto e contenuti multimediali caricati nelle gallerie</li>
+                <li>File JPG, preferenze di stampa, quantità e note inserite negli ordini di stampa</li>
+                <li>Dati dell'ordine, del ritiro in sede e identificativi delle transazioni PayPal</li>
                 <li>Risposte ai questionari pre-servizio</li>
               </ul>
 
@@ -60,6 +90,7 @@ export default function Privacy() {
                 <li>Tipo di browser e dispositivo</li>
                 <li>Pagine visitate e tempo di permanenza</li>
                 <li>Data e ora di accesso</li>
+                <li>Metadati tecnici dei file (nome, dimensione, risoluzione e impronta di integrità)</li>
               </ul>
             </section>
 
@@ -88,6 +119,8 @@ export default function Privacy() {
                 <li>Gestire le prenotazioni e fornire i servizi fotografici</li>
                 <li>Creare e gestire le gallerie fotografiche protette</li>
                 <li>Elaborare preventivi e gestire i pagamenti</li>
+                <li>Preparare, stampare e consegnare gli ordini di stampe fotografiche</li>
+                <li>Controllare l'integrità e la risoluzione dei file destinati alla stampa</li>
                 <li>Inviare comunicazioni relative al servizio</li>
                 <li>Rispondere alle tue richieste di informazioni</li>
                 <li>Migliorare l'esperienza utente sul nostro sito</li>
@@ -106,7 +139,8 @@ export default function Privacy() {
                 <li>Crittografia SSL/TLS per tutte le comunicazioni</li>
                 <li>Accesso alle gallerie protetto da password/PIN</li>
                 <li>Autenticazione sicura tramite Firebase Authentication</li>
-                <li>Archiviazione sicura su server certificati (Google Cloud/Firebase)</li>
+                <li>Accesso tramite Google gestito da Firebase Authentication; non riceviamo la password dell'account Google</li>
+                <li>Originali degli ordini conservati in un'area Firebase Storage privata, accessibile solo al cliente proprietario e al personale autorizzato</li>
                 <li>Backup regolari e procedure di disaster recovery</li>
                 <li>Accesso ai dati limitato al personale autorizzato</li>
               </ul>
@@ -119,6 +153,8 @@ export default function Privacy() {
               </p>
               <ul className="list-disc pl-6 mb-4 text-gray-600 space-y-2">
                 <li><strong>Dati delle gallerie:</strong> Fino a 12 mesi dalla data dell'evento, salvo richiesta di prolungamento</li>
+                <li><strong>Originali degli ordini di stampa:</strong> Fino a 90 giorni dalla consegna, poi cancellazione automatica; eventuali copie già trasferite al laboratorio seguono lo stesso limite o un termine più breve concordato</li>
+                <li><strong>Bozze e caricamenti incompleti:</strong> Possono essere rimossi prima, quando non sono più necessari a completare l'ordine</li>
                 <li><strong>Dati contabili:</strong> 10 anni come richiesto dalla normativa fiscale italiana</li>
                 <li><strong>Dati di contatto:</strong> Fino alla revoca del consenso o alla cancellazione dell'account</li>
                 <li><strong>Log di accesso:</strong> 6 mesi per finalità di sicurezza</li>
@@ -131,8 +167,9 @@ export default function Privacy() {
                 I tuoi dati possono essere condivisi con:
               </p>
               <ul className="list-disc pl-6 mb-4 text-gray-600 space-y-2">
-                <li><strong>Firebase/Google:</strong> Per l'hosting e l'archiviazione dei dati</li>
-                <li><strong>Stripe:</strong> Per l'elaborazione sicura dei pagamenti</li>
+                <li><strong>Firebase/Google Cloud:</strong> Per autenticazione, hosting e archiviazione privata dei dati</li>
+                <li><strong>PayPal:</strong> Per autorizzare e incassare il pagamento anticipato; PayPal tratta i dati di pagamento secondo la propria informativa. In ambiente sandbox non avviene alcun addebito reale</li>
+                <li><strong>Laboratori di stampa incaricati:</strong> Ricevono esclusivamente i file e le informazioni tecniche necessari a produrre l'ordine, come fornitori autorizzati</li>
                 <li><strong>Collaboratori autorizzati:</strong> Fotografi e assistenti che lavorano al tuo evento</li>
               </ul>
               <p className="text-gray-600">
@@ -177,7 +214,7 @@ export default function Privacy() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   <strong>Come esercitare i tuoi diritti:</strong> Invia una richiesta via email a{' '}
-                  <a href="mailto:image.studio.fotografico@gmail.com" className="underline">image.studio.fotografico@gmail.com</a>{' '}
+                  {seller.email ? <a href={`mailto:${seller.email}`} className="underline">{seller.email}</a> : 'ai contatti del titolare indicati sopra'}{' '}
                   specificando il diritto che intendi esercitare. Risponderemo entro 30 giorni.
                 </p>
               </div>
@@ -189,8 +226,11 @@ export default function Privacy() {
                 Reclami
               </h2>
               <p className="mb-4 text-gray-600">
-                Se ritieni che il trattamento dei tuoi dati violi la normativa sulla privacy, hai il diritto di 
-                presentare un reclamo al Garante per la Protezione dei Dati Personali:
+                Per segnalazioni o reclami puoi contattare direttamente {seller.name || 'il titolare'}
+                {seller.email ? <> all'indirizzo <a href={`mailto:${seller.email}`} className="text-sage-600 hover:underline">{seller.email}</a></> : null}
+                {seller.phone ? <> o al numero <a href={`tel:${seller.phone.replace(/[^\d+]/g, '')}`} className="text-sage-600 hover:underline">{seller.phone}</a></> : null}.
+                Se ritieni che il trattamento violi la normativa sulla privacy, resta fermo il diritto di presentare
+                reclamo al Garante per la Protezione dei Dati Personali:
               </p>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
                 <p><strong>Garante per la Protezione dei Dati Personali</strong></p>
@@ -204,11 +244,14 @@ export default function Privacy() {
                 Contatti
               </h2>
               <p className="text-gray-600">
-                Per qualsiasi domanda riguardo alla privacy o al trattamento dei tuoi dati, contattaci a:{' '}
-                <a href="mailto:image.studio.fotografico@gmail.com" className="text-sage-600 hover:text-sage-700">
-                  image.studio.fotografico@gmail.com
-                </a>
+                Per qualsiasi domanda riguardo alla privacy o al trattamento dei tuoi dati, contatta {seller.name || 'il titolare'}.
               </p>
+              <ul className="mt-3 list-disc pl-6 text-gray-600">
+                {seller.email && <li>Email: <a href={`mailto:${seller.email}`} className="text-sage-600 hover:underline">{seller.email}</a></li>}
+                {seller.phone && <li>Telefono: <a href={`tel:${seller.phone.replace(/[^\d+]/g, '')}`} className="text-sage-600 hover:underline">{seller.phone}</a></li>}
+                {seller.address && <li>Sede: {seller.address}</li>}
+                {seller.partitaIVA && <li>P. IVA: {seller.partitaIVA}</li>}
+              </ul>
             </section>
 
             <section className="border-t pt-6 mt-8">

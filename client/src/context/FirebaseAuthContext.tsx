@@ -5,16 +5,20 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { User } from 'firebase/auth';
-import { AuthService, UserProfile } from '../lib/auth';
+import { AuthService, GoogleAccountLinkRequiredError, GoogleSignInResult, UserProfile } from '../lib/auth';
 
 interface FirebaseAuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isGoogleAuthenticated: boolean;
   isAdmin: boolean;
   showProfileWelcome: boolean;
+  googleLinkRequest: GoogleAccountLinkRequiredError | null;
   login: (email: string, password: string, galleryId?: string) => Promise<User>;
+  loginWithGoogle: () => Promise<GoogleSignInResult>;
+  linkGoogleAccount: (password: string) => Promise<User>;
   register: (email: string, password: string, displayName: string, galleryId?: string) => Promise<User>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -40,17 +44,31 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
   const [showProfileWelcome, setShowProfileWelcome] = useState(false);
+  const [googleLinkRequest, setGoogleLinkRequest] = useState<GoogleAccountLinkRequiredError | null>(null);
 
   // Inizializza stato autenticazione
   useEffect(() => {
+    // getRedirectResult completa il flusso iniziato su mobile. Il listener
+    // sottostante resta la fonte unica dello stato UI.
+    AuthService.completeGoogleRedirectSignIn().catch((error) => {
+      if (error instanceof GoogleAccountLinkRequiredError) {
+        setGoogleLinkRequest(error);
+        return;
+      }
+      console.error('Errore completamento accesso Google:', error);
+    });
+
     const unsubscribe = AuthService.onAuthStateChange(async (firebaseUser) => {
       setUser(firebaseUser);
 
       if (firebaseUser) {
+        const googleSession = await AuthService.isGoogleSession(firebaseUser).catch(() => false);
+        setIsGoogleAuthenticated(googleSession);
         // Fetch profilo utente da Firestore
         try {
-          const profile = await AuthService.getUserProfile(firebaseUser.uid);
+          const profile = await AuthService.ensureUserProfile(firebaseUser);
           setUserProfile(profile);
         } catch (error) {
           console.error('Errore recupero profilo utente:', error);
@@ -58,6 +76,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
         }
       } else {
         setUserProfile(null);
+        setIsGoogleAuthenticated(false);
       }
 
       setIsLoading(false);
@@ -83,6 +102,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     setIsLoading(true);
     try {
       const user = await AuthService.registerUser(email, password, displayName, galleryId);
+      setUserProfile(await AuthService.getUserProfile(user.uid));
       
       // Show profile welcome modal for new users after a brief delay
       setTimeout(() => {
@@ -95,10 +115,40 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     }
   };
 
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    try {
+      const result = await AuthService.loginWithGoogle();
+      setGoogleLinkRequest(null);
+      if (result.user) setIsGoogleAuthenticated(await AuthService.isGoogleSession(result.user).catch(() => false));
+      return result;
+    } catch (error) {
+      if (error instanceof GoogleAccountLinkRequiredError) setGoogleLinkRequest(error);
+      throw error;
+    } finally {
+      // In caso di redirect la pagina verrà sostituita; negli altri casi
+      // liberiamo subito la UI, senza attendere un secondo evento auth.
+      setIsLoading(false);
+    }
+  };
+
+  const linkGoogleAccount = async (password: string) => {
+    setIsLoading(true);
+    try {
+      const linkedUser = await AuthService.linkPendingGoogleAccount(password);
+      setGoogleLinkRequest(null);
+      setIsGoogleAuthenticated(await AuthService.isGoogleSession(linkedUser).catch(() => false));
+      return linkedUser;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async () => {
     setIsLoading(true);
     try {
       await AuthService.logoutUser();
+      setIsGoogleAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
@@ -126,12 +176,7 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
   // Fix per race condition: ora si aggiorna automaticamente quando user è disponibile
   const isAdmin = useMemo(() => {
     if (!user?.email) return false;
-    
-    const isAdminByEmail = AuthService.isAdmin(user.email);
-    const isAdminByLocalStorage = localStorage.getItem('isAdmin') === 'true';
-    const isMainAdmin = user.email === 'gennaro.mazzacane@gmail.com';
-    
-    return isAdminByEmail || isAdminByLocalStorage || isMainAdmin;
+    return AuthService.isAdmin(user.email);
   }, [user]);
 
   const value: FirebaseAuthContextType = {
@@ -139,9 +184,13 @@ export function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
     userProfile,
     isLoading,
     isAuthenticated: !!user,
+    isGoogleAuthenticated,
     isAdmin,
     showProfileWelcome,
+    googleLinkRequest,
     login,
+    loginWithGoogle,
+    linkGoogleAccount,
     register,
     logout,
     resetPassword,

@@ -191,10 +191,15 @@ export async function getAllOrders(): Promise<Order[]> {
 
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...ensureProdottiArray(doc.data()),
-  })) as Order[];
+  // Gli ordini print_shop hanno un workflow dedicato con PayPal, retention e
+  // laboratori: non devono finire nel manager legacy che scrive direttamente
+  // su Firestore.
+  return snapshot.docs
+    .filter((orderDoc) => orderDoc.data().orderType !== 'print_shop')
+    .map((orderDoc) => ({
+      id: orderDoc.id,
+      ...ensureProdottiArray(orderDoc.data()),
+    })) as Order[];
 }
 
 /**
@@ -205,6 +210,10 @@ export async function getOrderById(id: string): Promise<Order | null> {
   const docSnap = await getDoc(docRef);
 
   if (!docSnap.exists()) {
+    return null;
+  }
+
+  if (docSnap.data().orderType === 'print_shop') {
     return null;
   }
 

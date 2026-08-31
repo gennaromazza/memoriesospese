@@ -33,6 +33,11 @@
       "source": "functions",
       "codebase": "default",
       "runtime": "nodejs20"
+    },
+    {
+      "source": "functions-retention",
+      "codebase": "print-shop-retention",
+      "runtime": "nodejs22"
     }
   ],
   "storage": {
@@ -41,6 +46,9 @@
   "emulators": {
     "firestore": {
       "port": 8080
+    },
+    "storage": {
+      "port": 9199
     },
     "ui": {
       "enabled": false

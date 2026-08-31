@@ -215,32 +215,143 @@ export async function findOrCreateLabParentFolder(): Promise<string> {
 export async function createShipmentFolder(
   parentId: string,
   name: string,
+  metadata?: {
+    labShipmentId?: string;
+    orderId?: string;
+    expiresAt?: string;
+    deferPublicAccess?: boolean;
+  },
 ): Promise<{ folderId: string; webViewLink?: string }> {
   const created = await driveJson<{ id: string; webViewLink?: string }>(
     '/drive/v3/files?fields=id,webViewLink',
     {
       method: 'POST',
-      body: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
+      body: {
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+        ...(metadata
+          ? {
+              appProperties: Object.fromEntries(
+                Object.entries(metadata).filter(
+                  ([key, value]) => key !== 'deferPublicAccess' && Boolean(value),
+                ),
+              ),
+            }
+          : {}),
+      },
     },
   );
   const folderId = created.id;
+  if (metadata?.deferPublicAccess) {
+    console.log(`📁 Created private shipment folder: ${folderId}`);
+    return { folderId };
+  }
+  try {
+    const webViewLink = await shareShipmentFolder(folderId);
 
-  // Permesso "chiunque con il link" in sola lettura (una volta sola)
-  await driveJson(`/drive/v3/files/${encodeURIComponent(folderId)}/permissions`, {
-    method: 'POST',
-    body: { role: 'reader', type: 'anyone' },
-  });
+    console.log(`📁 Created shipment folder: ${folderId}`);
+    return {
+      folderId,
+      webViewLink: webViewLink || created.webViewLink || undefined,
+    };
+  } catch (error) {
+    // Se la condivisione fallisce, non lasciare una cartella orfana.
+    await deleteDriveFile(folderId).catch(() => undefined);
+    throw error;
+  }
+}
 
-  // Rileggi il webViewLink dopo aver impostato il permesso
+/** Rende pubblica-by-link una cartella già persistita con scadenza nel gestionale. */
+export async function shareShipmentFolder(folderId: string): Promise<string | undefined> {
+  const existing = await driveJson<{
+    permissions?: Array<{ id?: string; type?: string; role?: string }>;
+  }>(`/drive/v3/files/${encodeURIComponent(folderId)}/permissions?fields=permissions(id,type,role)`);
+  if (!existing.permissions?.some(permission =>
+    permission.type === 'anyone' && permission.role === 'reader')) {
+    await driveJson(`/drive/v3/files/${encodeURIComponent(folderId)}/permissions`, {
+      method: 'POST',
+      body: { role: 'reader', type: 'anyone', allowFileDiscovery: false },
+    });
+  }
   const got = await driveJson<{ webViewLink?: string }>(
     `/drive/v3/files/${encodeURIComponent(folderId)}?fields=webViewLink`,
   );
+  return got.webViewLink || undefined;
+}
 
-  console.log(`📁 Created shipment folder: ${folderId}`);
-  return {
-    folderId,
-    webViewLink: got.webViewLink || created.webViewLink || undefined,
-  };
+/**
+ * Condivide una cartella shop solo con l'account Google del laboratorio.
+ * Eventuali vecchi permessi `anyone` vengono revocati prima di restituire il link.
+ */
+export async function shareShipmentFolderWithUser(
+  folderId: string,
+  emailAddress: string,
+): Promise<{ webViewLink?: string; permissionId: string }> {
+  const normalizedEmail = emailAddress.trim().toLowerCase();
+  const permissions = await driveJson<{
+    permissions?: Array<{
+      id?: string;
+      type?: string;
+      role?: string;
+      emailAddress?: string;
+    }>;
+  }>(`/drive/v3/files/${encodeURIComponent(folderId)}/permissions?fields=${encodeURIComponent('permissions(id,type,role,emailAddress)')}`);
+  for (const permission of permissions.permissions || []) {
+    const isStaleReader =
+      permission.type === 'user' &&
+      permission.role === 'reader' &&
+      permission.emailAddress?.trim().toLowerCase() !== normalizedEmail;
+    if ((permission.type === 'anyone' || isStaleReader) && permission.id) {
+      await revokeShipmentFolderPermission(folderId, permission.id);
+    }
+  }
+  let permissionId = permissions.permissions?.find(permission =>
+    permission.type === 'user' &&
+    permission.role === 'reader' &&
+    permission.emailAddress?.trim().toLowerCase() === normalizedEmail,
+  )?.id;
+  if (!permissionId) {
+    const created = await driveJson<{ id: string }>(
+      `/drive/v3/files/${encodeURIComponent(folderId)}/permissions?sendNotificationEmail=false&fields=id`,
+      {
+        method: 'POST',
+        body: {
+          role: 'reader',
+          type: 'user',
+          emailAddress: normalizedEmail,
+        },
+      },
+    );
+    permissionId = created.id;
+  }
+  const got = await driveJson<{ webViewLink?: string }>(
+    `/drive/v3/files/${encodeURIComponent(folderId)}?fields=webViewLink`,
+  );
+  return { permissionId, webViewLink: got.webViewLink || undefined };
+}
+
+export async function revokeShipmentFolderPermission(
+  folderId: string,
+  permissionId: string,
+): Promise<void> {
+  await driveJson(
+    `/drive/v3/files/${encodeURIComponent(folderId)}/permissions/${encodeURIComponent(permissionId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+/** Recupera una cartella shop creata prima di un crash tra Drive e Firestore. */
+export async function findShipmentFolderByShipmentId(
+  labShipmentId: string,
+): Promise<{ folderId: string; webViewLink?: string } | null> {
+  const safeId = labShipmentId.replace(/['\\]/g, '');
+  const query = `appProperties has { key='labShipmentId' and value='${safeId}' } and trashed=false`;
+  const result = await driveJson<{
+    files?: Array<{ id: string; webViewLink?: string }>;
+  }>(`/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('files(id,webViewLink)')}&pageSize=1`);
+  const file = result.files?.[0];
+  return file ? { folderId: file.id, webViewLink: file.webViewLink } : null;
 }
 
 /**

@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search, RefreshCw } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, Euro, Image, Upload, X, FolderOpen, GripVertical, Layers, Search, RefreshCw, LockKeyhole, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +57,10 @@ import {
 } from '@/lib/products';
 import { apiRequest } from '@/lib/queryClient';
 import type { Product, InsertProduct, ProductCategory, BundleItem } from '@shared/booking-types';
+import { isPrintShopManagedProduct } from '@/features/print-shop/product-channel-guard';
+
+const isPrintShopProduct = (product: Product): boolean =>
+  isPrintShopManagedProduct(product as Product & { salesChannels?: unknown });
 
 interface SortableProductCardProps {
   product: Product;
@@ -254,7 +258,7 @@ export default function ProductsManager() {
     if (!over || active.id === over.id) return;
     
     // Get the visible products (filtered or all)
-    const visibleProducts = categoryFilter !== null ? filteredProducts : products;
+    const visibleProducts = categoryFilter !== null ? filteredProducts : genericProducts;
     
     // Find positions in visible list
     const oldIndex = visibleProducts.findIndex(p => p.id === active.id);
@@ -274,7 +278,7 @@ export default function ProductsManager() {
       reorderedProducts = [];
       let visibleIndex = 0;
       
-      for (const product of products) {
+      for (const product of genericProducts) {
         if (visibleIds.has(product.id)) {
           // Insert next reordered visible item
           reorderedProducts.push(reorderedVisible[visibleIndex]);
@@ -288,12 +292,19 @@ export default function ProductsManager() {
       // No filter: use reordered list directly
       reorderedProducts = reorderedVisible;
     }
+
+    // I documenti print_shop sono protetti e conservano il proprio displayOrder,
+    // amministrato esclusivamente dall'editor Listino stampe.
+    reorderedProducts = [
+      ...reorderedProducts,
+      ...products.filter(isPrintShopProduct),
+    ];
     
     // Optimistic UI update
     setProducts(reorderedProducts);
     
     // Persist to Firestore
-    const reorderedIds = reorderedProducts.map(p => p.id);
+    const reorderedIds = reorderedProducts.filter((product) => !isPrintShopProduct(product)).map(p => p.id);
     reorderMutation.mutate(reorderedIds, {
       onSuccess: () => {
         toast({
@@ -546,6 +557,9 @@ export default function ProductsManager() {
   
   // Filter products for bundle selection (exclude bundles and current product)
   const availableProductsForBundle = products.filter(p => {
+    // I formati dello shop hanno prezzi/scaglioni autonomi e non devono essere
+    // incorporati nei bundle del catalogo prenotazioni.
+    if (isPrintShopProduct(p)) return false;
     // Exclude bundles
     if (p.isBundle) return false;
     // Exclude current editing product
@@ -725,7 +739,9 @@ export default function ProductsManager() {
   }
 
   // Filtra prodotti per categoria
-  const filteredProducts = products.filter(p => 
+  const printShopProductCount = products.filter(isPrintShopProduct).length;
+  const genericProducts = products.filter((product) => !isPrintShopProduct(product));
+  const filteredProducts = genericProducts.filter(p =>
     categoryFilter === null || p.categoria === categoryFilter
   );
 
@@ -773,6 +789,28 @@ export default function ProductsManager() {
           </Button>
         </div>
       </div>
+
+      {printShopProductCount > 0 && (
+        <Card className="border-sky-200 bg-sky-50/70">
+          <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <LockKeyhole className="mt-0.5 h-5 w-5 flex-none text-sky-700" aria-hidden="true" />
+              <div>
+                <p className="font-semibold text-sky-950">{printShopProductCount} formati dello shop protetti</p>
+                <p className="mt-1 text-sm text-sky-900/70">Non compaiono in questo catalogo per evitare prezzi o eliminazioni incoerenti. Gestisci scaglioni, pacchetto Polaroid e disponibilità da Stampe online.</p>
+              </div>
+            </div>
+            <Button asChild variant="outline" className="flex-none border-sky-300 bg-white text-sky-900 hover:bg-sky-100">
+              <a href="?tab=print-shop-orders" onClick={() => {
+                sessionStorage.setItem('activeTab', 'print-shop-orders');
+                sessionStorage.setItem('printShopAdminSection', 'catalog');
+              }}>
+                Apri Listino stampe <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -828,7 +866,7 @@ export default function ProductsManager() {
       )}
 
       {/* Lista Prodotti */}
-      {products.length === 0 ? (
+      {genericProducts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

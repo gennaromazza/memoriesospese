@@ -29,7 +29,7 @@ describe('print service content', () => {
 
   it('espone contenuti SEO e FAQ per la landing pubblica', () => {
     expect(PRINT_SERVICE_PATH).toBe('/stampa-foto-aversa');
-    expect(PRINT_FAQS).toHaveLength(5);
+    expect(PRINT_FAQS).toHaveLength(6);
   });
 
   it('trova i formati anche con separatori e spazi diversi', () => {

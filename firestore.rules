@@ -11,16 +11,35 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && 
-        (request.auth.token.email == 'gennaro.mazzacane@gmail.com' ||
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+      // Azienda mono-admin: l'identità amministrativa è ancorata al token
+      // verificato, mai a un campo profilo storicamente modificabile.
+      return isSignedIn() &&
+        request.auth.token.email == 'gennaro.mazzacane@gmail.com';
+    }
+
+    // Gli ordini storici non hanno `orderType`: Map.get mantiene compatibili
+    // create/update/delete legacy senza dereferenziare un campo mancante.
+    function isPrintShopOrder(data) {
+      return data.get('orderType', '') == 'print_shop';
+    }
+
+    function isPrintShopProduct(data) {
+      return data.get('salesChannels', []).hasAny(['print_shop']);
     }
 
     // Users collection
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId) || isAdmin();
+      // Il profilo cliente contiene dati personali: ogni cliente vede solo il
+      // proprio documento, mentre il gestionale continua ad avere accesso admin.
+      allow read: if isOwner(userId) || isAdmin();
+      // Un cliente autenticato può creare soltanto un profilo ordinario e non
+      // può promuoversi modificando `role` (i privilegi usano soltanto il token).
+      allow create: if isAdmin() ||
+        (isOwner(userId) && request.resource.data.role in ['user', 'guest']);
+      allow update: if isAdmin() ||
+        (isOwner(userId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // Subscriptions collection - Email notifications for new photos
@@ -271,9 +290,16 @@ service cloud.firestore {
     // Products - Admin-only management, public read for booking form
     match /products/{productId} {
       allow read: if true; // Public read access for booking forms
-      allow create: if isAdmin(); // Only admin can create products
-      allow update: if isAdmin(); // Only admin can update products
-      allow delete: if isAdmin(); // Only admin can delete products
+      // Il listino online passa esclusivamente dall'API autorevole, che valida
+      // scaglioni e invarianti prima di scrivere con Admin SDK. Gli altri
+      // prodotti restano compatibili con il Products Manager legacy.
+      allow create: if isAdmin() &&
+        !isPrintShopProduct(request.resource.data);
+      allow update: if isAdmin() &&
+        !isPrintShopProduct(resource.data) &&
+        !isPrintShopProduct(request.resource.data);
+      allow delete: if isAdmin() &&
+        !isPrintShopProduct(resource.data);
     }
     
     // Booking Campaigns - Admin-only management, public read for active campaigns
@@ -295,9 +321,17 @@ service cloud.firestore {
     // Orders - Admin-only management
     match /orders/{orderId} {
       allow read: if isAdmin(); // Only admin can see orders
-      allow create: if isAdmin(); // Only admin can create orders
-      allow update: if isAdmin(); // Only admin can update orders (payment tracking)
-      allow delete: if isAdmin(); // Only admin can delete orders
+      // Gli ordini dello shop stampe devono essere mutati soltanto dal backend
+      // dedicato (Admin SDK), che applica invarianti PayPal, cassa e retention.
+      // Le vecchie schermate gestionali scrivono direttamente su Firestore e
+      // non devono poter aggirare quel flusso.
+      allow create: if isAdmin() &&
+        !isPrintShopOrder(request.resource.data);
+      allow update: if isAdmin() &&
+        !isPrintShopOrder(resource.data) &&
+        !isPrintShopOrder(request.resource.data);
+      allow delete: if isAdmin() &&
+        !isPrintShopOrder(resource.data);
     }
     
     // Clienti - Admin-only client management (November 2025)

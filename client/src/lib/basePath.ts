@@ -7,9 +7,7 @@
 
 /** Restituisce il base path normalizzato */
 function getBasePath(): string {
-  // Ora che Vite gestisce il <base href>, usiamo sempre "/"
-  // per evitare duplicazioni con il tag <base> di Vite
-  return "/";
+  return __VITE_BASE_PATH__ || "/";
 }
 
 /** Crea un URL assoluto completo (dominio + base path + route) */
@@ -34,7 +32,7 @@ export function createAbsoluteUrl(relativePath: string): string {
   if (import.meta.env.DEV) {
     normalizedPath = `/${cleanPath}`.replace(/\/+/g, "/");
   } else {
-    const viteBasePath = import.meta.env.VITE_BASE_PATH || "/";
+    const viteBasePath = getBasePath();
     const normalizedBasePath = viteBasePath.endsWith("/")
       ? viteBasePath
       : `${viteBasePath}/`;
@@ -76,7 +74,7 @@ export const getPathDebugInfo = () => {
 
   return {
     basePath: getBasePath(),
-    viteBase: import.meta.env.VITE_BASE_PATH,
+    viteBase: getBasePath(),
     isSubdirectory: isInSubdirectory(),
     isProduction: import.meta.env.PROD,
     isDev: import.meta.env.DEV,

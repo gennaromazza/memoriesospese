@@ -116,6 +116,7 @@ import PhotobookChangesScreen from "@/components/photobook/PhotobookChangesScree
 import CampaignsManager from "@/components/CampaignsManager";
 import BookingsManager from "@/components/BookingsManager";
 import CashDashboard from "@/components/CashDashboard";
+import PrintShopAdminManager from "@/components/print-shop/PrintShopAdminManager";
 import { getAllThemes } from "@shared/special-themes";
 import JobsManager from "@/components/jobs/JobsManager";
 import ContractClausesManager from "@/components/contract-clauses/ContractClausesManager";
@@ -264,7 +265,8 @@ type AdminTab =
   | "videos"
   | "quote-templates"
   | "photobooks"
-  | "photobook-changes";
+  | "photobook-changes"
+  | "print-shop-orders";
 
 type BookingSection = "bookings-list" | "campaigns";
 type ConsultationSection = "consulenze" | "consulenze-templates";
@@ -1962,6 +1964,10 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Cassa */}
             <TabsContent value="cassa">
               <CashDashboard />
+            </TabsContent>
+
+            <TabsContent value="print-shop-orders">
+              <PrintShopAdminManager />
             </TabsContent>
 
             {/* Contenuto Tab Richieste Info con Sub-Tabs */}

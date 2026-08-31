@@ -16,6 +16,18 @@ service firebase.storage {
     function isAdmin() {
       return isSignedIn() && request.auth.token.email == 'gennaro.mazzacane@gmail.com';
     }
+
+    function printOrder(orderId) {
+      return firestore.get(
+        /databases/(default)/documents/orders/$(orderId)
+      ).data;
+    }
+
+    function printAsset(orderId, assetId) {
+      return firestore.get(
+        /databases/(default)/documents/orders/$(orderId)/assets/$(assetId)
+      ).data;
+    }
     
     function isValidImageFile() {
       return request.resource.contentType.matches('image/.*') &&
@@ -115,6 +127,31 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin() && isValidImageFile();
       allow delete: if isAdmin();
+    }
+
+    // Originali dello shop stampe: privati, intestati all'utente e solo JPEG.
+    // La cancellazione e ogni modifica passano dal backend, che verifica anche
+    // lo stato dell'ordine prima di usare l'Admin SDK.
+    match /print-orders/{userId}/{orderId}/{assetId}/original.jpg {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if resource == null &&
+        isOwner(userId) &&
+        printOrder(orderId).orderType == 'print_shop' &&
+        printOrder(orderId).ownerUid == userId &&
+        printOrder(orderId).payment.status != 'paid' &&
+        printOrder(orderId).fulfillment.status in ['draft', 'awaiting_payment'] &&
+        printAsset(orderId, assetId).status == 'prepared' &&
+        printAsset(orderId, assetId).ownerUid == userId &&
+        printAsset(orderId, assetId).orderId == orderId &&
+        printAsset(orderId, assetId).storagePath ==
+          'print-orders/' + userId + '/' + orderId + '/' + assetId + '/original.jpg' &&
+        request.resource.contentType == 'image/jpeg' &&
+        request.resource.size > 0 &&
+        request.resource.size <= 50 * 1024 * 1024 &&
+        request.resource.metadata.ownerUid == userId &&
+        request.resource.metadata.orderId == orderId &&
+        request.resource.metadata.assetId == assetId;
+      allow update, delete: if false;
     }
 
     // Job note photos (note per foto allegate ai Jobs) - solo admin

@@ -6,7 +6,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from './firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
-import * as admin from 'firebase-admin';
 import { nanoid } from 'nanoid';
 import { DateTime } from 'luxon';
 import { authenticateFirebase } from './email-routes.js';
@@ -573,7 +572,7 @@ router.post('/generate', authenticateFirebase, requireAdmin, async (req: any, re
       try {
         const quoteRef = db.collection('quotes').doc(quoteId);
         await quoteRef.update({
-          paymentScheduleIds: admin.firestore.FieldValue.arrayUnion(scheduleId)
+          paymentScheduleIds: FieldValue.arrayUnion(scheduleId)
         });
       } catch (linkError) {
         console.error('❌ Errore linking schedule to quote:', linkError);
@@ -692,7 +691,7 @@ router.post('/generate', authenticateFirebase, requireAdmin, async (req: any, re
     try {
       const quoteRef = db.collection('quotes').doc(quoteId);
       await quoteRef.update({
-        paymentScheduleIds: admin.firestore.FieldValue.arrayUnion(scheduleId)
+        paymentScheduleIds: FieldValue.arrayUnion(scheduleId)
       });
     } catch (linkError) {
       console.error('❌ Errore linking schedule to quote:', linkError);

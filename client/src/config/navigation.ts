@@ -116,7 +116,7 @@ export const discoverNavGroups: DiscoverNavGroup[] = [
         label: 'Stampa le tue foto',
         href: '/stampa-foto-aversa',
         icon: Printer,
-        description: 'Formati, prezzi e consigli per stampare i tuoi ricordi.',
+        description: 'Carica i JPG, configura, paga con PayPal e ritira in sede.',
         showInFooter: true,
       },
       {

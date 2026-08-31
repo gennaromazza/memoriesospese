@@ -4,7 +4,11 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  // Vite resolves import.meta.env relative to `root` (client/). Load the
+  // configuration from that same directory so the asset base and the router
+  // can never be compiled from two different .env files.
+  const clientRoot = path.resolve(import.meta.dirname, "client");
+  const env = loadEnv(mode, clientRoot, "");
 
   // Base path dinamico
   const basePath = mode === "production" ? env.VITE_BASE_PATH || "/" : "/";
@@ -17,7 +21,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: basePath,
-    root: path.resolve(import.meta.dirname, "client"),
+    root: clientRoot,
+    envDir: clientRoot,
 
     server: {
       host: "0.0.0.0",
@@ -81,7 +86,6 @@ export default defineConfig(({ mode }) => {
                 return "carousel";
               }
               if (
-                id.includes("react-router-dom") ||
                 id.includes("@tanstack/react-query") ||
                 id.includes("axios") ||
                 id.includes("zod") ||

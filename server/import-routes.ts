@@ -38,7 +38,11 @@ const upload = multer({
   },
   limits: {
     fileSize: 10 * 1024 * 1024, // Max 10MB
-  },
+    files: 1,
+    fields: 2,
+    parts: 3,
+    fieldNestingDepth: 0,
+  } as NonNullable<multer.Options['limits']> & { fieldNestingDepth: number },
 });
 
 interface ImportResult {

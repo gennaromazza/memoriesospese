@@ -45,13 +45,22 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Plus,
   Loader2,
   Edit,
   Trash2,
   Printer,
   Mail,
-  Phone
+  Phone,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -61,8 +70,33 @@ const formSchema = z.object({
   nome: z.string().min(2, 'Nome troppo corto'),
   email: z.string().email('Email non valida'),
   telefono: z.string().optional(),
-  note: z.string().optional()
+  note: z.string().optional(),
+  dataProcessingAgreementStatus: z.enum(['pending', 'signed']),
+  dataProcessingAgreementReference: z.string().max(200, 'Riferimento troppo lungo').optional(),
+}).superRefine((data, context) => {
+  if (data.dataProcessingAgreementStatus === 'signed' && !data.dataProcessingAgreementReference?.trim()) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dataProcessingAgreementReference'],
+      message: 'Indica il riferimento dell’accordo firmato',
+    });
+  }
 });
+
+function formatDpaDate(value: unknown): string {
+  const candidate = typeof value === 'object' && value !== null
+    ? value as { toDate?: () => Date; seconds?: number; _seconds?: number }
+    : undefined;
+  const seconds = candidate?.seconds ?? candidate?._seconds;
+  const date = typeof candidate?.toDate === 'function'
+    ? candidate.toDate()
+    : typeof seconds === 'number'
+      ? new Date(seconds * 1_000)
+      : new Date(value as string | number | Date);
+  return Number.isNaN(date.getTime())
+    ? 'data non disponibile'
+    : new Intl.DateTimeFormat('it-IT', { dateStyle: 'long', timeZone: 'Europe/Rome' }).format(date);
+}
 
 type FormData = z.infer<typeof formSchema>;
 
@@ -83,13 +117,17 @@ function LabForm({ lab, onSuccess, onCancel }: LabFormProps) {
           nome: lab.nome,
           email: lab.email,
           telefono: lab.telefono || '',
-          note: lab.note || ''
+          note: lab.note || '',
+          dataProcessingAgreementStatus: lab.dataProcessingAgreementStatus === 'signed' ? 'signed' : 'pending',
+          dataProcessingAgreementReference: lab.dataProcessingAgreementReference || '',
         }
       : {
           nome: '',
           email: '',
           telefono: '',
-          note: ''
+          note: '',
+          dataProcessingAgreementStatus: 'pending',
+          dataProcessingAgreementReference: '',
         }
   });
 
@@ -202,6 +240,55 @@ function LabForm({ lab, onSuccess, onCancel }: LabFormProps) {
           )}
         />
 
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex items-start gap-2">
+            <ShieldAlert className="mt-0.5 h-4 w-4 flex-none" aria-hidden="true" />
+            <p>Finché l’accordo sul trattamento dati (art. 28 GDPR) è in attesa, il laboratorio non può ricevere fotografie o ordini dei clienti.</p>
+          </div>
+        </div>
+
+        <FormField
+          control={form.control}
+          name="dataProcessingAgreementStatus"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Accordo trattamento dati (DPA) *</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-lab-dpa-status"><SelectValue /></SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="pending">In attesa — invio file bloccato</SelectItem>
+                  <SelectItem value="signed">Firmato — invio file consentito</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription className="text-xs">Seleziona “Firmato” solo dopo aver ricevuto l’accordo sottoscritto. La data viene registrata dal server.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="dataProcessingAgreementReference"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Riferimento accordo</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder="es. DPA-2026-04 del 31/08/2026" data-testid="input-lab-dpa-reference" />
+              </FormControl>
+              <FormDescription className="text-xs">Protocollo, nome file o altro riferimento verificabile.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {lab?.dataProcessingAgreementStatus === 'signed' && lab.dataProcessingAgreementSignedAt && (
+          <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+            Accordo registrato il {formatDpaDate(lab.dataProcessingAgreementSignedAt)}.
+          </p>
+        )}
+
         <DialogFooter>
           <Button
             type="button"
@@ -290,6 +377,13 @@ export default function LabsManager() {
         </Button>
       </div>
 
+      {!isLoading && labs.some((lab) => lab.dataProcessingAgreementStatus !== 'signed') && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+          <ShieldAlert className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
+          <div><p className="font-semibold">Alcuni laboratori non possono ricevere file clienti</p><p className="mt-1">I laboratori legacy o con DPA “In attesa” restano bloccati finché l’accordo firmato non viene registrato esplicitamente.</p></div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -309,6 +403,7 @@ export default function LabsManager() {
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefono</TableHead>
+              <TableHead>Accordo DPA</TableHead>
               <TableHead className="w-24">Stato</TableHead>
               <TableHead className="text-right w-32">Azioni</TableHead>
             </TableRow>
@@ -336,6 +431,20 @@ export default function LabsManager() {
                     </div>
                   ) : (
                     <span className="text-muted-foreground text-sm">—</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {lab.dataProcessingAgreementStatus === 'signed' ? (
+                    <div className="space-y-1">
+                      <Badge className="gap-1 bg-emerald-100 text-emerald-900 hover:bg-emerald-100"><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />Firmato</Badge>
+                      {lab.dataProcessingAgreementSignedAt && <p className="text-xs text-muted-foreground">{formatDpaDate(lab.dataProcessingAgreementSignedAt)}</p>}
+                      {lab.dataProcessingAgreementReference && <p className="max-w-52 truncate text-xs text-muted-foreground" title={lab.dataProcessingAgreementReference}>{lab.dataProcessingAgreementReference}</p>}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-900"><ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />In attesa</Badge>
+                      <p className="text-xs font-medium text-amber-800">Invio file bloccato</p>
+                    </div>
                   )}
                 </TableCell>
                 <TableCell>
@@ -379,7 +488,7 @@ export default function LabsManager() {
 
       {/* Create Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent data-testid="modal-create-lab">
+        <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="modal-create-lab">
           <DialogHeader>
             <DialogTitle>Nuovo laboratorio</DialogTitle>
             <DialogDescription>
@@ -396,7 +505,7 @@ export default function LabsManager() {
       {/* Edit Modal */}
       {editingLab && (
         <Dialog open={!!editingLab} onOpenChange={() => setEditingLab(null)}>
-          <DialogContent data-testid="modal-edit-lab">
+          <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="modal-edit-lab">
             <DialogHeader>
               <DialogTitle>Modifica laboratorio</DialogTitle>
               <DialogDescription>

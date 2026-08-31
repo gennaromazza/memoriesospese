@@ -2,8 +2,15 @@ import { Link } from 'wouter';
 import { ArrowLeft, Cookie, Shield, Settings, BarChart3, Megaphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { createUrl } from '../lib/basePath';
+import { useSEO } from '../hooks/useSEO';
 
 export default function CookiePolicy() {
+  useSEO({
+    title: 'Cookie Policy | Image Studio',
+    description: 'Informazioni sui cookie necessari, analitici e di marketing utilizzati dal sito Image Studio.',
+    canonical: '/cookie-policy',
+  });
+
   return (
     <div className="min-h-screen bg-off-white py-12 px-4">
       <div className="max-w-4xl mx-auto">

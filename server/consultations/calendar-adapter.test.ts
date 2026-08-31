@@ -116,7 +116,12 @@ describe("getConsultationUnavailableDates", () => {
     expect(result).toContain("2026-06-13"); // past
     expect(result).toContain("2026-06-14"); // past (also Sunday)
     expect(result).not.toContain("2026-06-15"); // today, available
-  }, 15_000);
+  // Prima invocazione: il percorso production carica pigramente Luxon,
+  // firebase-admin, Google Calendar e Calendar Engine. Nella suite parallela
+  // completa il cold import puo superare 15 s per contesa CPU; isolato il test
+  // chiude in meno di 2 s. Il timeout mirato conserva un limite finito senza
+  // trasformare un cold-start legittimo in un falso negativo.
+  }, 45_000);
 
   it("marks days before the earliest-bookable date (postproduction lead) as unavailable", async () => {
     // lead = 2 working days. now = Mon 06-15 → count Tue16(1), Wed17(2) → earliest = Thu 18.

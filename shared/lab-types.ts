@@ -18,6 +18,10 @@ export interface Lab {
   email: string;
   telefono?: string;
   note?: string;
+  /** Stato del contratto da responsabile del trattamento (GDPR art. 28). */
+  dataProcessingAgreementStatus?: 'pending' | 'signed';
+  dataProcessingAgreementSignedAt?: Timestamp;
+  dataProcessingAgreementReference?: string;
   attivo: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -28,6 +32,9 @@ export interface InsertLab {
   email: string;
   telefono?: string;
   note?: string;
+  dataProcessingAgreementStatus?: 'pending' | 'signed';
+  dataProcessingAgreementSignedAt?: Timestamp;
+  dataProcessingAgreementReference?: string;
 }
 
 export interface UpdateLab {
@@ -36,6 +43,9 @@ export interface UpdateLab {
   telefono?: string;
   note?: string;
   attivo?: boolean;
+  dataProcessingAgreementStatus?: 'pending' | 'signed';
+  dataProcessingAgreementSignedAt?: Timestamp | null;
+  dataProcessingAgreementReference?: string | null;
 }
 
 /**
@@ -55,6 +65,10 @@ export interface LabShipmentFile {
   driveFileId: string;
   name: string;
   size: number;          // byte
+  /** Per spedizioni shop collega il file all'asset privato dell'ordine. */
+  assetId?: string;
+  /** Distinta CSV oppure originale JPG; assente sui documenti legacy. */
+  kind?: 'manifest' | 'original' | 'other';
   mimeType?: string;
   webViewLink?: string;  // link diretto al file (opzionale, lo share è a livello cartella)
   uploadedAt: Timestamp;
@@ -82,13 +96,41 @@ export interface LabShipmentPageTransfer {
   heartbeatAt?: Timestamp;
 }
 
+/** Trasferimento generico Storage → Drive, usato dagli ordini print_shop. */
+export interface LabShipmentTransfer {
+  status: 'pending' | 'running' | 'completed' | 'partial' | 'failed';
+  total: number;
+  transferred: number;
+  failed: Array<{ assetId?: string; error: string }>;
+  lastError?: string;
+  startedAt?: Timestamp;
+  finishedAt?: Timestamp;
+  heartbeatAt?: Timestamp;
+}
+
+export interface LabShipmentSendState {
+  status: 'sending' | 'sent' | 'failed';
+  claimToken?: string;
+  attempts: number;
+  attemptedAt: Timestamp;
+  sentAt?: Timestamp;
+  failedAt?: Timestamp;
+  lastError?: string;
+  /** L'email è partita, ma lo stato ordine non è stato regredito dopo un cambio concorrente. */
+  orderAdvanceSkipped?: boolean;
+}
+
 /**
  * Spedizione di file di stampa verso un laboratorio, collegata a un job.
  * Collezione Firestore: labShipments
  */
 export interface LabShipment {
   id: string;
-  jobId: string;
+  /** Legacy/job e fotolibri usano jobId; lo shop usa orderId. */
+  jobId?: string;
+  orderId?: string;
+  orderNumber?: string;
+  sourceType?: 'job' | 'photobook' | 'print_shop';
 
   // Laboratorio destinatario (snapshot denormalizzato per storico)
   labId?: string;
@@ -100,7 +142,11 @@ export interface LabShipment {
   // File su Google Drive
   files: LabShipmentFile[];
   driveFolderId?: string;   // sottocartella dedicata alla spedizione
-  shareableLink?: string;   // link "chiunque con il link" alla cartella
+  shareableLink?: string;   // URL Drive; nello shop richiede l'account nominativo del lab
+  /** Permission Drive nominativa usata dallo shop (mai `anyone`). */
+  drivePermissionId?: string;
+  drivePermissionEmail?: string;
+  drivePermissionRevokedAt?: Timestamp;
 
   // Stato e tempistiche
   status: LabShipmentStatus;
@@ -108,6 +154,9 @@ export interface LabShipment {
   expiryDays: number;        // giorni prima dell'auto-eliminazione (default 20)
   expiresAt?: Timestamp;     // calcolato al momento dell'invio (sentAt + expiryDays)
   deletedFromDrive?: boolean; // true dopo l'auto-eliminazione dei file
+  expiryDeletionLastAttemptAt?: Timestamp;
+  expiryDeletionLastError?: string;
+  sendState?: LabShipmentSendState;
 
   // Costo laboratorio collegato al job (tipo 'fornitore')
   costoId?: string;
@@ -116,6 +165,7 @@ export interface LabShipment {
   // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
   pageTransfer?: LabShipmentPageTransfer;
   photobookId?: string;
+  transfer?: LabShipmentTransfer;
 
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -123,7 +173,9 @@ export interface LabShipment {
 }
 
 export interface InsertLabShipment {
-  jobId: string;
+  jobId?: string;
+  orderId?: string;
+  sourceType?: 'job' | 'photobook' | 'print_shop';
   descrizione?: string;
   labId?: string;
   expiryDays?: number;
