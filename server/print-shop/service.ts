@@ -153,6 +153,7 @@ interface CompletedCapture {
   invoiceId?: string;
   merchantId?: string;
   payerEmail?: string;
+  paypalFeeCents?: number;
   raw?: unknown;
 }
 
@@ -1797,6 +1798,9 @@ export class PrintShopService {
     const cashRef = this.deps.db
       .collection('cashMovements')
       .doc(`print_paypal_${hashId(capture.captureId).slice(0, 32)}`);
+    const feeCashRef = this.deps.db
+      .collection('cashMovements')
+      .doc(`print_paypal_fee_${hashId(capture.captureId).slice(0, 32)}`);
     const now = this.now();
     let customerConfirmationAllowed = true;
     await this.deps.db.runTransaction(async (transaction: any) => {
@@ -1860,6 +1864,8 @@ export class PrintShopService {
           paypalCaptureId: capture.captureId,
           paypalStatus: 'COMPLETED',
           amountCents: capture.amountCents,
+          paypalFeeCents: capture.paypalFeeCents || 0,
+          netAmountCents: capture.amountCents - (capture.paypalFeeCents || 0),
           currency: capture.currency,
           ...(capture.payerEmail ? { payerEmail: capture.payerEmail } : {}),
           refundedCents: order.payment?.refundedCents || 0,
@@ -1892,10 +1898,15 @@ export class PrintShopService {
               assetRetentionDays: this.retentionDays,
             },
         updatedAt: now,
+        'printShop.paypalFeeCents': capture.paypalFeeCents || 0,
+        'printShop.estimatedMarginCents':
+          capture.amountCents -
+          Number(order.printShop?.totalSupplierCostCents || 0) -
+          Number(capture.paypalFeeCents || 0),
       });
       transaction.set(cashRef, {
         tipo: 'entrata',
-        categoria: 'Vendita diretta',
+        categoria: 'Vendita stampe online',
         importo: amountEuros,
         descrizione: `Shop stampe ${order.orderNumber} - ${order.nomeCliente || order.emailCliente}`,
         data: now,
@@ -1903,7 +1914,7 @@ export class PrintShopService {
         note: filesUnavailable
           ? `PayPal capture ${capture.captureId} - RIMBORSO/AZIONE MANUALE RICHIESTA: file scaduti`
           : `PayPal capture ${capture.captureId}`,
-        origine: 'walk-in',
+        origine: 'print_shop',
         origineTema: 'print_shop',
         origineRef: orderId,
         orderId,
@@ -1912,6 +1923,26 @@ export class PrintShopService {
         createdAt: now,
         updatedAt: now,
       });
+      if (Number(capture.paypalFeeCents || 0) > 0) {
+        transaction.set(feeCashRef, {
+          tipo: 'uscita',
+          categoria: 'Commissioni di pagamento',
+          importo: centsToEuros(capture.paypalFeeCents || 0),
+          descrizione: `Commissione PayPal shop stampe ${order.orderNumber}`,
+          data: now,
+          metodoPagamento: 'paypal',
+          note: `Commissione associata alla cattura PayPal ${capture.captureId}`,
+          origine: 'print_shop',
+          origineTema: 'print_shop',
+          origineRef: orderId,
+          orderId,
+          provider: 'paypal',
+          providerTransactionId: capture.captureId,
+          movementRole: 'payment_fee',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
       transaction.set(captureRef, {
         provider: 'paypal',
         orderId,
@@ -2090,7 +2121,7 @@ export class PrintShopService {
         data: now,
         metodoPagamento: 'paypal',
         note: `PayPal refund ${refundId}`,
-        origine: 'walk-in',
+        origine: 'print_shop',
         origineTema: 'print_shop',
         origineRef: orderId,
         orderId,
@@ -3324,6 +3355,9 @@ export class PrintShopService {
     }
     const orderRef = this.deps.db.collection('orders').doc(orderId);
     const shipmentRef = this.deps.db.collection('labShipments').doc(shipmentId);
+    const cashRef = this.deps.db
+      .collection('cashMovements')
+      .doc(`print_lab_cost_${hashId(shipmentId).slice(0, 32)}`);
     const now = this.now();
     await this.deps.db.runTransaction(async (transaction: any) => {
       const [orderDoc, shipmentDoc] = await Promise.all([
@@ -3370,9 +3404,33 @@ export class PrintShopService {
         'printShop.supplierCosts': supplierCosts,
         'printShop.totalSupplierCostCents': totalSupplierCostCents,
         'printShop.estimatedMarginCents':
-          Number(order.totals?.totalCents || 0) - totalSupplierCostCents,
+          Number(order.totals?.totalCents || 0) -
+          totalSupplierCostCents -
+          Number(order.payment?.paypalFeeCents || order.printShop?.paypalFeeCents || 0),
         updatedAt: now,
       });
+      if (cents > 0) {
+        transaction.set(cashRef, {
+          tipo: 'uscita',
+          categoria: 'Produzione stampe',
+          importo: importo,
+          descrizione: `Costo laboratorio shop stampe ${order.orderNumber} - ${shipmentDoc.data()?.labNome || 'Laboratorio'}`,
+          data: now,
+          metodoPagamento: 'altro',
+          note: `Costo di produzione collegato alla spedizione ${shipmentId}`,
+          origine: 'print_shop',
+          origineTema: 'print_shop',
+          origineRef: orderId,
+          orderId,
+          labShipmentId: shipmentId,
+          labId: shipmentDoc.data()?.labId || null,
+          movementRole: 'supplier_cost',
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        transaction.delete(cashRef);
+      }
     });
     const [shipment, order] = await Promise.all([shipmentRef.get(), orderRef.get()]);
     return {
@@ -4147,6 +4205,7 @@ export function extractCompletedCapture(
         invoiceId: cleanText(unit.invoice_id, 200),
         merchantId: cleanText(unit.payee?.merchant_id || capture.payee?.merchant_id, 200),
         payerEmail: cleanText(response.payer?.email_address, 254),
+        ...paypalFeeFields(capture.seller_receivable_breakdown, capture.amount?.currency_code),
         raw: response,
       };
     }
@@ -4173,8 +4232,24 @@ function captureFromWebhook(event: any): CompletedCapture | null {
     invoiceId: cleanText(resource.invoice_id, 200),
     merchantId: cleanText(resource.payee?.merchant_id, 200),
     payerEmail: cleanText(resource.payer?.email_address, 254),
+    ...paypalFeeFields(resource.seller_receivable_breakdown, resource.amount?.currency_code),
     raw: event,
   };
+}
+
+function paypalFeeFields(
+  breakdown: any,
+  captureCurrency: unknown,
+): { paypalFeeCents?: number } {
+  const fee = paypalValueToCents(breakdown?.paypal_fee?.value);
+  if (
+    fee === null ||
+    fee <= 0 ||
+    String(breakdown?.paypal_fee?.currency_code || captureCurrency || '') !== PRINT_SHOP_CURRENCY
+  ) {
+    return {};
+  }
+  return { paypalFeeCents: fee };
 }
 
 function validateCaptureAgainstOrder(

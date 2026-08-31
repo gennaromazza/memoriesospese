@@ -329,7 +329,13 @@ export default function PrintShopOrdersManager() {
       return response.json();
     },
     onSuccess: async () => {
-      await Promise.all([shipmentsQuery.refetch(), invalidateOrder()]);
+      await Promise.all([
+        shipmentsQuery.refetch(),
+        invalidateOrder(),
+        queryClient.invalidateQueries({ queryKey: ['cash-movements'] }),
+        queryClient.invalidateQueries({ queryKey: ['financial-summary'] }),
+        queryClient.invalidateQueries({ queryKey: ['monthly-data'] }),
+      ]);
       setCostDialogOpen(false);
       setSelectedShipmentId('');
       setSupplierCost('');

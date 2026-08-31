@@ -304,7 +304,7 @@ describe('PrintShopService production validation', () => {
     expect(db.countCollection('cashMovements')).toBe(0);
   });
 
-  it('records one cash movement and replays an already captured payment', async () => {
+  it('records revenue and PayPal fee once, then replays an already captured payment', async () => {
     const paypal = paypalFake();
     paypal.captureOrder.mockResolvedValue({
       id: 'PAYPAL-ORDER-123',
@@ -318,6 +318,9 @@ describe('PrintShopService production validation', () => {
           id: 'CAPTURE-OK-123',
           status: 'COMPLETED',
           amount: { currency_code: 'EUR', value: '10.00' },
+          seller_receivable_breakdown: {
+            paypal_fee: { currency_code: 'EUR', value: '0.45' },
+          },
         }] },
       }],
     });
@@ -334,8 +337,19 @@ describe('PrintShopService production validation', () => {
     expect(first).toMatchObject({ success: true, duplicate: false, captureId: 'CAPTURE-OK-123' });
     expect(replay).toMatchObject({ success: true, duplicate: true, captureId: 'CAPTURE-OK-123' });
     expect(paypal.captureOrder).toHaveBeenCalledTimes(1);
-    expect(db.countCollection('cashMovements')).toBe(1);
-    expect(db.value('orders/order_capture_ok').payment.status).toBe('paid');
+    expect(db.countCollection('cashMovements')).toBe(2);
+    expect(db.value('orders/order_capture_ok').payment).toMatchObject({
+      status: 'paid',
+      paypalFeeCents: 45,
+      netAmountCents: 955,
+    });
+    expect(db.value('orders/order_capture_ok').printShop.estimatedMarginCents).toBe(955);
+    expect(db.value(`cashMovements/print_paypal_fee_${createHash('sha256').update('CAPTURE-OK-123').digest('hex').slice(0, 32)}`)).toMatchObject({
+      tipo: 'uscita',
+      categoria: 'Commissioni di pagamento',
+      importo: 0.45,
+      origine: 'print_shop',
+    });
   });
 
   it('rejects a Polaroid package containing duplicate bytes under different asset IDs', async () => {
@@ -1589,6 +1603,42 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
 });
 
 describe('PrintShopService laboratory safety', () => {
+  it('records and updates laboratory costs in the financial cash ledger without duplicates', async () => {
+    const { db, service } = createService();
+    db.seed('orders/order_lab_cost', baseOrder({
+      totals: { subtotalCents: 2000, discountCents: 0, totalCents: 2000 },
+      payment: { method: 'paypal', status: 'paid', paypalFeeCents: 50 },
+      fulfillment: { method: 'studio_pickup', status: 'ready_to_print' },
+    }));
+    db.seed('labShipments/shipment_cost', {
+      sourceType: 'print_shop',
+      orderId: 'order_lab_cost',
+      labId: 'lab_cost',
+      labNome: 'Laboratorio Test',
+      status: 'da_inviare',
+    });
+
+    await service.setLabShipmentCost('order_lab_cost', 'shipment_cost', 6.5, 'admin@example.com');
+    expect(db.countCollection('cashMovements')).toBe(1);
+    const movementId = `print_lab_cost_${createHash('sha256').update('shipment_cost').digest('hex').slice(0, 32)}`;
+    expect(db.value(`cashMovements/${movementId}`)).toMatchObject({
+      tipo: 'uscita',
+      categoria: 'Produzione stampe',
+      importo: 6.5,
+      origine: 'print_shop',
+      orderId: 'order_lab_cost',
+    });
+    expect(db.value('orders/order_lab_cost').printShop.estimatedMarginCents).toBe(1300);
+
+    await service.setLabShipmentCost('order_lab_cost', 'shipment_cost', 7, 'admin@example.com');
+    expect(db.countCollection('cashMovements')).toBe(1);
+    expect(db.value(`cashMovements/${movementId}`).importo).toBe(7);
+    expect(db.value('orders/order_lab_cost').printShop.estimatedMarginCents).toBe(1250);
+
+    await service.setLabShipmentCost('order_lab_cost', 'shipment_cost', 0, 'admin@example.com');
+    expect(db.countCollection('cashMovements')).toBe(0);
+  });
+
   it('includes only assets referenced by the paid quote in archive and Drive transfer', async () => {
     const uploads: Array<{ name: string; body: Buffer }> = [];
     const drive = {

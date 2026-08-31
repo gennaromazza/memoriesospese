@@ -160,6 +160,7 @@ export default function CashDashboard() {
   
   // Helper per determinare origine se mancante (fallback in-memory)
   const inferOrigine = (m: CashMovementFE): CashMovementOrigine => {
+    if (m.origineTema === 'print_shop') return 'print_shop';
     if (m.origine) return m.origine;
     // Fallback: determina origine dalla descrizione o riferimenti
     if (m.jobId) return 'job';
@@ -480,8 +481,8 @@ export default function CashDashboard() {
       )}
 
       {/* Riepilogo per Origine - Con sottomenu campagne per Prenotazioni */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {(["walk-in", "booking", "job", "manuale"] as const).map((origine) => {
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {(["print_shop", "walk-in", "booking", "job", "manuale"] as const).map((origine) => {
           const stats = statsByOrigine[origine] || { entrate: 0, uscite: 0, count: 0 };
           const isActive = origineFilter === origine || (origine === "booking" && temaFilter !== "all");
           
