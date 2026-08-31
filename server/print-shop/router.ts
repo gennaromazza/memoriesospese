@@ -2,6 +2,7 @@ import express, { type NextFunction, type Request, type RequestHandler, type Res
 import archiver from 'archiver';
 import { z, ZodError } from 'zod';
 import { PRINT_SHOP_CATEGORIES } from '../../shared/print-shop-catalog.js';
+import { isValidCodiceFiscale } from '../../shared/fiscal-validation.js';
 import { db, storage } from '../firebase-admin.js';
 import { getStudioContactInfo, sendGmailEmail } from '../email-routes.js';
 import {
@@ -80,6 +81,30 @@ const customerSchema = z.object({
   phone: z.string().trim().min(3).max(40).optional(),
 }).strict();
 
+const postalAddressSchema = z.object({
+  street: z.string().trim().min(1).max(160),
+  houseNumber: z.string().trim().min(1).max(20),
+  postalCode: z.string().trim().regex(/^\d{5}$/, 'Il CAP deve contenere 5 cifre'),
+  city: z.string().trim().min(1).max(100),
+  province: z.string().trim().regex(/^[A-Za-z]{2}$/, 'La provincia deve contenere 2 lettere')
+    .transform(value => value.toUpperCase()),
+  country: z.literal('IT'),
+}).strict();
+
+const billingDetailsSchema = z.object({
+  fiscalCode: z.string().trim().transform(value => value.replace(/\s+/g, '').toUpperCase())
+    .pipe(z.string().refine(isValidCodiceFiscale, 'Inserisci un codice fiscale italiano valido')),
+  residenceAddress: postalAddressSchema,
+}).strict();
+
+const fulfillmentDraftSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('studio_pickup') }).strict(),
+  z.object({
+    method: z.literal('shipping'),
+    shippingAddress: postalAddressSchema,
+  }).strict(),
+]);
+
 const createOrderSchema = z.object({
   customer: customerSchema.optional(),
   customerNotes: z.string().trim().max(1000).optional(),
@@ -89,6 +114,8 @@ const updateOrderSchema = z.object({
   customer: customerSchema.optional(),
   customerNotes: z.string().trim().max(1000).optional(),
   lowResolutionAccepted: z.boolean().optional(),
+  fulfillment: fulfillmentDraftSchema.optional(),
+  billingDetails: billingDetailsSchema.optional(),
 }).strict().refine(value => Object.keys(value).length > 0, 'Nessuna modifica indicata');
 
 const assignmentSchema = z.object({
@@ -103,7 +130,20 @@ const quoteSchema = z.object({
     fitMode: z.enum(['border', 'cover']),
     assignments: z.array(assignmentSchema).min(1).max(2_000),
   }).strict()).min(1).max(100),
+  fulfillment: z.object({
+    method: z.enum(['studio_pickup', 'shipping']),
+  }).strict().optional(),
 }).strict();
+
+const shippingAdminSchema = z.object({
+  enabled: z.boolean(),
+  priceCents: z.number().int().min(0).max(100_000_000),
+  estimatedMinDays: z.number().int().min(1).max(60),
+  estimatedMaxDays: z.number().int().min(1).max(90),
+}).strict().refine(
+  value => value.estimatedMaxDays >= value.estimatedMinDays,
+  { message: 'Il tempo massimo non può essere inferiore al minimo', path: ['estimatedMaxDays'] },
+);
 
 const prepareUploadSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
@@ -380,6 +420,17 @@ export function createPrintShopRouter(
         input,
         req.user.email,
       ),
+    });
+  }));
+
+  router.get('/admin/shipping', auth, admin, route(async (_req, res) => {
+    res.json({ shipping: await deps.service.shippingConfiguration() });
+  }));
+
+  router.patch('/admin/shipping', auth, admin, route(async (req: any, res) => {
+    const input = shippingAdminSchema.parse(req.body);
+    res.json({
+      shipping: await deps.service.updateShippingConfiguration(input, req.user.email),
     });
   }));
 

@@ -54,12 +54,14 @@ export default function Privacy() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Ordini di stampa, pagamento e ritiro</h2>
+              <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Ordini di stampa, pagamento e consegna</h2>
               <p className="mb-4 text-gray-600">
                 I dati di contatto e dell'ordine vengono utilizzati per confermare il pagamento, affidare la produzione
                 al laboratorio selezionato, comunicare lo stato e rendere le stampe disponibili per il ritiro in sede entro
                 e non oltre {PRINT_SHOP_MAX_PICKUP_DAYS} giorni dal pagamento. Quando il checkout mostra «Ambiente di prova
-                PayPal», la transazione è simulata e non produce alcun addebito reale.
+                PayPal», la transazione è simulata e non produce alcun addebito reale. Se il cliente sceglie la spedizione,
+                trattiamo anche indirizzo di consegna, indirizzo di residenza e codice fiscale per eseguire il contratto,
+                adempiere agli obblighi amministrativi e organizzare la consegna.
               </p>
             </section>
 
@@ -81,6 +83,7 @@ export default function Privacy() {
                 <li>Foto e contenuti multimediali caricati nelle gallerie</li>
                 <li>File JPG, preferenze di stampa, quantità e note inserite negli ordini di stampa</li>
                 <li>Dati dell'ordine, del ritiro in sede e identificativi delle transazioni PayPal</li>
+                <li>Per gli ordini spediti: indirizzo di consegna, indirizzo di residenza e codice fiscale</li>
                 <li>Risposte ai questionari pre-servizio</li>
               </ul>
 
@@ -170,6 +173,7 @@ export default function Privacy() {
                 <li><strong>Firebase/Google Cloud:</strong> Per autenticazione, hosting e archiviazione privata dei dati</li>
                 <li><strong>PayPal:</strong> Per autorizzare e incassare il pagamento anticipato; PayPal tratta i dati di pagamento secondo la propria informativa. In ambiente sandbox non avviene alcun addebito reale</li>
                 <li><strong>Laboratori di stampa incaricati:</strong> Ricevono esclusivamente i file e le informazioni tecniche necessari a produrre l'ordine, come fornitori autorizzati</li>
+                <li><strong>Vettore incaricato:</strong> Solo quando viene scelta la spedizione, riceve i dati di contatto e consegna strettamente necessari a recapitare l'ordine</li>
                 <li><strong>Collaboratori autorizzati:</strong> Fotografi e assistenti che lavorano al tuo evento</li>
               </ul>
               <p className="text-gray-600">

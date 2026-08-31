@@ -1,6 +1,6 @@
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/basePath';
-import type { PrintOrderItemInput, PrintShopQuote } from '@shared/print-shop-types';
+import type { PrintOrderItemInput, PrintShopDeliveryMethod, PrintShopQuote } from '@shared/print-shop-types';
 import type {
   FinalizedPrintAsset,
   PaypalCaptureResult,
@@ -142,7 +142,12 @@ function normalizePreparedUpload(raw: unknown): PreparedPrintUpload {
 function normalizeCatalog(raw: unknown): PrintShopCatalogPayload {
   const unwrapped = unwrapResponseBody(raw);
   if (Array.isArray(unwrapped)) {
-    return { products: unwrapped as PrintShopCatalogPayload['products'], catalogVersion: 1, currency: 'EUR' };
+    return {
+      products: unwrapped as PrintShopCatalogPayload['products'],
+      catalogVersion: 1,
+      currency: 'EUR',
+      shipping: { enabled: false, priceCents: 0, estimatedMinDays: 2, estimatedMaxDays: 5 },
+    };
   }
   if (!isRecord(unwrapped)) throw new PrintShopApiError('Catalogo non disponibile.', 502, 'INVALID_CATALOG');
   const products = Array.isArray(unwrapped.products)
@@ -153,6 +158,12 @@ function normalizeCatalog(raw: unknown): PrintShopCatalogPayload {
     catalogVersion: typeof unwrapped.catalogVersion === 'number' ? unwrapped.catalogVersion : 1,
     currency: 'EUR',
     paypalClientId: typeof unwrapped.paypalClientId === 'string' ? unwrapped.paypalClientId : undefined,
+    shipping: isRecord(unwrapped.shipping) ? {
+      enabled: unwrapped.shipping.enabled === true,
+      priceCents: typeof unwrapped.shipping.priceCents === 'number' ? unwrapped.shipping.priceCents : 0,
+      estimatedMinDays: typeof unwrapped.shipping.estimatedMinDays === 'number' ? unwrapped.shipping.estimatedMinDays : 2,
+      estimatedMaxDays: typeof unwrapped.shipping.estimatedMaxDays === 'number' ? unwrapped.shipping.estimatedMaxDays : 5,
+    } : { enabled: false, priceCents: 0, estimatedMinDays: 2, estimatedMaxDays: 5 },
   };
 }
 
@@ -199,6 +210,8 @@ export const printShopApi = {
         },
         customerNotes: payload.customerNotes ?? payload.contact.customerNotes,
         lowResolutionAccepted: payload.lowResolutionAccepted,
+        fulfillment: payload.fulfillment,
+        ...(payload.billingDetails ? { billingDetails: payload.billingDetails } : {}),
       }),
     });
     return normalizeDraftOrder(response);
@@ -207,11 +220,12 @@ export const printShopApi = {
   async quoteOrder(
     orderId: string,
     items: PrintOrderItemInput[],
+    method: PrintShopDeliveryMethod = 'studio_pickup',
     signal?: AbortSignal,
   ): Promise<PrintShopQuote> {
     const response = await request<unknown>(`/orders/${encodeURIComponent(orderId)}/quote`, {
       method: 'POST',
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, fulfillment: { method } }),
       signal,
     });
     const unwrapped = unwrapResponseBody(response);

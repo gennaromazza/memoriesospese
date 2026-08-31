@@ -9,6 +9,7 @@ import {
   MapPin,
   PackageCheck,
   ShieldCheck,
+  Truck,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -62,6 +63,11 @@ export default function PrintShopConfirmationPage() {
   const actionRequired = confirmation.actionRequired;
   const orderNumber = confirmation.orderNumber || '—';
   const address = studioSettings.address?.trim();
+  const shipping = order?.fulfillment?.method === 'shipping';
+  const deliveryAddress = order?.fulfillment?.shippingAddress;
+  const deliveryAddressText = deliveryAddress
+    ? `${deliveryAddress.street} ${deliveryAddress.houseNumber}, ${deliveryAddress.postalCode} ${deliveryAddress.city} (${deliveryAddress.province})`
+    : '';
 
   return (
     <div className="min-h-screen bg-off-white text-blue-gray">
@@ -116,10 +122,10 @@ export default function PrintShopConfirmationPage() {
 
                   <div className="mx-auto mt-8 grid max-w-xl gap-4 text-left sm:grid-cols-2">
                     <div className="rounded-2xl border border-sage/15 p-4">
-                      <div className="flex items-start gap-3"><MapPin className="mt-0.5 h-5 w-5 flex-none text-terracotta" aria-hidden="true" /><div><p className="font-semibold">Ritiro in sede</p><p className="mt-1 text-sm text-blue-gray/55">{address || 'Consulta i contatti dello studio prima del ritiro.'}</p></div></div>
+                      <div className="flex items-start gap-3">{shipping ? <Truck className="mt-0.5 h-5 w-5 flex-none text-terracotta" aria-hidden="true" /> : <MapPin className="mt-0.5 h-5 w-5 flex-none text-terracotta" aria-hidden="true" />}<div><p className="font-semibold">{shipping ? 'Spedizione a domicilio' : 'Ritiro in sede'}</p><p className="mt-1 text-sm text-blue-gray/55">{shipping ? deliveryAddressText || 'Indirizzo registrato nell’ordine.' : address || 'Consulta i contatti dello studio prima del ritiro.'}</p></div></div>
                     </div>
                     <div className="rounded-2xl border border-sage/15 p-4">
-                      <div className="flex items-start gap-3"><PackageCheck className="mt-0.5 h-5 w-5 flex-none text-terracotta" aria-hidden="true" /><div><p className="font-semibold">Ti avvisiamo noi</p><p className="mt-1 text-sm text-blue-gray/55">Riceverai un messaggio quando le stampe saranno pronte.</p></div></div>
+                      <div className="flex items-start gap-3"><PackageCheck className="mt-0.5 h-5 w-5 flex-none text-terracotta" aria-hidden="true" /><div><p className="font-semibold">Ti avvisiamo noi</p><p className="mt-1 text-sm text-blue-gray/55">Riceverai un messaggio quando le stampe saranno {shipping ? 'pronte per la spedizione' : 'pronte'}.</p></div></div>
                     </div>
                   </div>
 

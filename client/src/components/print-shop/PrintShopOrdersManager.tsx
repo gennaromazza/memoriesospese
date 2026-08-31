@@ -73,10 +73,19 @@ interface PrintOrderSummary {
   nomeCliente?: string;
   emailCliente?: string;
   customer?: { displayName?: string; email?: string; phone?: string };
-  totals?: { totalCents?: number };
+  totals?: { totalCents?: number; shippingCents?: number };
   totale?: number;
   payment?: { status?: string; paidAt?: unknown; paypalCaptureId?: string };
-  fulfillment?: { status?: FulfillmentStatus; updatedAt?: unknown };
+  fulfillment?: {
+    method?: 'studio_pickup' | 'shipping';
+    status?: FulfillmentStatus;
+    updatedAt?: unknown;
+    shippingAddress?: { street: string; houseNumber: string; postalCode: string; city: string; province: string; country: 'IT' };
+  };
+  billingDetails?: {
+    fiscalCode?: string;
+    residenceAddress?: { street: string; houseNumber: string; postalCode: string; city: string; province: string; country: 'IT' };
+  };
   printShop?: {
     assetCount?: number;
     copyCount?: number;
@@ -128,6 +137,10 @@ const STATUS_COLORS: Record<FulfillmentStatus, string> = {
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as FulfillmentStatus[];
+
+function statusLabel(status: FulfillmentStatus, shipping = false): string {
+  return shipping && status === 'ready_for_pickup' ? 'Pronto per la spedizione' : STATUS_LABELS[status];
+}
 
 const NEXT_PRODUCTION_STATUSES: Partial<Record<FulfillmentStatus, FulfillmentStatus[]>> = {
   submitted: ['files_check', 'ready_to_print'],
@@ -433,7 +446,7 @@ export default function PrintShopOrdersManager() {
                       <CardTitle className="text-lg">{order.orderNumber || order.id}</CardTitle>
                       <CardDescription>{orderCustomerName(order)} · {orderCustomerEmail(order)}</CardDescription>
                     </div>
-                    <Badge variant="outline" className={STATUS_COLORS[status]}>{STATUS_LABELS[status]}</Badge>
+                    <Badge variant="outline" className={STATUS_COLORS[status]}>{statusLabel(status, order.fulfillment?.method === 'shipping')}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -471,6 +484,24 @@ export default function PrintShopOrdersManager() {
                 <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Costo laboratorio</p><p className="text-xl font-semibold">{euroFromCents(selectedOrder.printShop?.totalSupplierCostCents)}</p></CardContent></Card>
                 <Card><CardContent className="p-4"><p className="text-xs text-stone-500">Margine stimato</p><p className="text-xl font-semibold">{euroFromCents(selectedOrder.printShop?.estimatedMarginCents ?? orderTotalCents(selectedOrder))}</p></CardContent></Card>
               </div>
+
+              <section className="rounded-xl border p-4">
+                <h3 className="font-semibold text-stone-900">Consegna e fatturazione</h3>
+                {selectedOrder.fulfillment?.method === 'shipping' ? (
+                  <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="font-medium">Spedizione a domicilio · {euroFromCents(selectedOrder.totals?.shippingCents)}</p>
+                      <p className="mt-1 text-stone-600">{selectedOrder.fulfillment.shippingAddress ? `${selectedOrder.fulfillment.shippingAddress.street} ${selectedOrder.fulfillment.shippingAddress.houseNumber}, ${selectedOrder.fulfillment.shippingAddress.postalCode} ${selectedOrder.fulfillment.shippingAddress.city} (${selectedOrder.fulfillment.shippingAddress.province})` : 'Indirizzo non disponibile'}</p>
+                    </div>
+                    <div>
+                      <p><span className="font-medium">Codice fiscale:</span> {selectedOrder.billingDetails?.fiscalCode || '—'}</p>
+                      <p className="mt-1 text-stone-600"><span className="font-medium text-stone-800">Residenza:</span> {selectedOrder.billingDetails?.residenceAddress ? `${selectedOrder.billingDetails.residenceAddress.street} ${selectedOrder.billingDetails.residenceAddress.houseNumber}, ${selectedOrder.billingDetails.residenceAddress.postalCode} ${selectedOrder.billingDetails.residenceAddress.city} (${selectedOrder.billingDetails.residenceAddress.province})` : '—'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-stone-600">Ritiro gratuito in sede.</p>
+                )}
+              </section>
 
               <section>
                 <h3 className="mb-3 font-semibold text-stone-900">Configurazioni di stampa</h3>
@@ -562,7 +593,7 @@ export default function PrintShopOrdersManager() {
               <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={STATUS_COLORS[selectedOrder.fulfillment?.status || 'submitted']}>
-                    {STATUS_LABELS[selectedOrder.fulfillment?.status || 'submitted']}
+                    {statusLabel(selectedOrder.fulfillment?.status || 'submitted', selectedOrder.fulfillment?.method === 'shipping')}
                   </Badge>
                   <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => setDeleteDialogOpen(true)}>
                     <Trash2 className="mr-2 h-4 w-4" />Elimina dal pannello
@@ -606,7 +637,7 @@ export default function PrintShopOrdersManager() {
         <DialogContent>
           <DialogHeader><DialogTitle>Aggiorna produzione</DialogTitle><DialogDescription>La modifica sarà visibile anche al cliente.</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Nuovo stato</Label><Select value={nextStatus} onValueChange={(value) => setNextStatus(value as FulfillmentStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableNextStatuses.map((status) => <SelectItem key={status} value={status}>{STATUS_LABELS[status]}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Nuovo stato</Label><Select value={nextStatus} onValueChange={(value) => setNextStatus(value as FulfillmentStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableNextStatuses.map((status) => <SelectItem key={status} value={status}>{statusLabel(status, selectedOrder?.fulfillment?.method === 'shipping')}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="print-status-note">Nota interna</Label><Textarea id="print-status-note" value={statusNote} onChange={(event) => setStatusNote(event.target.value)} placeholder="Facoltativa" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Annulla</Button><Button onClick={() => statusMutation.mutate()} disabled={statusMutation.isPending}>{statusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}Salva stato</Button></DialogFooter>

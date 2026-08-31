@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import sharp from 'sharp';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { hasValidLabDpa } from '../lab-dpa.js';
+import { isValidCodiceFiscale } from '../../shared/fiscal-validation.js';
 import {
   PRINT_FINISH_OPTIONS,
   PRINT_FIT_OPTIONS,
@@ -18,9 +19,13 @@ import {
   type PrintOrderItemInput,
   type PrintOrderItemSnapshot,
   type PrintShopCatalogProduct,
+  type PrintShopBillingDetails,
+  type PrintShopDeliveryMethod,
   type PrintShopFulfillmentStatus,
+  type PrintShopPostalAddress,
   type PrintShopQuote,
   type PrintShopQuoteInput,
+  type PrintShopShippingConfig,
 } from '../../shared/print-shop-types.js';
 import {
   PRINT_SHOP_LEGAL_MANIFEST,
@@ -127,6 +132,13 @@ export interface PrintShopCatalogAdminUpdate {
   attivo?: boolean;
   printSpec: PrintShopCatalogProduct['printSpec'];
 }
+
+const DEFAULT_PRINT_SHOP_SHIPPING: PrintShopShippingConfig = {
+  enabled: false,
+  priceCents: 0,
+  estimatedMinDays: 2,
+  estimatedMaxDays: 5,
+};
 
 interface PrintShopSellerSnapshot {
   name: string;
@@ -288,7 +300,10 @@ export class PrintShopService {
   }
 
   async publicCatalog(): Promise<Record<string, unknown>> {
-    const catalog = await this.loadCatalog();
+    const [catalog, shipping] = await Promise.all([
+      this.loadCatalog(),
+      this.shippingConfiguration(),
+    ]);
     const categoryIds = new Set(catalog.map(product => product.categoria));
     const categories = PRINT_SHOP_CATEGORIES
       .filter(category => categoryIds.has(category.id))
@@ -303,6 +318,7 @@ export class PrintShopService {
       categories,
       finishOptions: PRINT_FINISH_OPTIONS,
       fitOptions: PRINT_FIT_OPTIONS,
+      shipping,
       products: catalog.map(product => ({
         id: product.id,
         nome: product.nome,
@@ -322,6 +338,38 @@ export class PrintShopService {
         printSpec: product.printSpec,
       })),
     };
+  }
+
+  async shippingConfiguration(): Promise<PrintShopShippingConfig> {
+    const doc = await this.deps.db.collection('settings').doc('printShop').get();
+    const value = doc.exists ? doc.data()?.shipping : undefined;
+    return normalizeShippingConfig(value);
+  }
+
+  async updateShippingConfiguration(
+    input: PrintShopShippingConfig,
+    adminEmail: string,
+  ): Promise<PrintShopShippingConfig> {
+    if (
+      typeof input.enabled !== 'boolean' ||
+      !Number.isSafeInteger(input.priceCents) || input.priceCents < 0 || input.priceCents > 100_000_000 ||
+      !Number.isSafeInteger(input.estimatedMinDays) || input.estimatedMinDays < 1 || input.estimatedMinDays > 60 ||
+      !Number.isSafeInteger(input.estimatedMaxDays) || input.estimatedMaxDays < input.estimatedMinDays || input.estimatedMaxDays > 90
+    ) {
+      throw new PrintShopHttpError(
+        400,
+        'invalid_shipping_configuration',
+        'La configurazione della spedizione non è valida',
+      );
+    }
+    const shipping = { ...input };
+    const now = this.now();
+    await this.deps.db.collection('settings').doc('printShop').set({
+      shipping,
+      updatedAt: now,
+      updatedBy: normalizeRequiredEmail(adminEmail),
+    }, { merge: true });
+    return shipping;
   }
 
   async createDraft(
@@ -564,7 +612,7 @@ export class PrintShopService {
         },
         fulfillment: {
           ...order.fulfillment,
-          method: 'studio_pickup',
+          method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
           status: 'cancelled',
           cancelledAt: now,
           cancellationReason: 'customer_deleted_draft',
@@ -592,6 +640,11 @@ export class PrintShopService {
       customer?: { name?: string; phone?: string };
       customerNotes?: string;
       lowResolutionAccepted?: boolean;
+      fulfillment?: {
+        method: PrintShopDeliveryMethod;
+        shippingAddress?: PrintShopPostalAddress;
+      };
+      billingDetails?: PrintShopBillingDetails;
     },
   ): Promise<any> {
     const order = await this.requireOwnerOrder(identity, orderId);
@@ -621,6 +674,32 @@ export class PrintShopService {
         ? order.quoteFingerprint || ''
         : FieldValue.delete();
     }
+    if (input.fulfillment) {
+      const method = input.fulfillment.method;
+      if (method === 'shipping') {
+        const shipping = await this.shippingConfiguration();
+        if (!shipping.enabled) {
+          throw new PrintShopHttpError(409, 'shipping_disabled', 'La spedizione non è disponibile');
+        }
+        const shippingAddress = normalizePostalAddress(input.fulfillment.shippingAddress);
+        const billingDetails = normalizeBillingDetails(input.billingDetails);
+        update.fulfillment = {
+          ...order.fulfillment,
+          method,
+          status: order.fulfillment?.status || 'draft',
+          shippingAddress,
+        };
+        update.billingDetails = billingDetails;
+      } else {
+        update.fulfillment = {
+          ...order.fulfillment,
+          method: 'studio_pickup',
+          status: order.fulfillment?.status || 'draft',
+        };
+        delete update.fulfillment.shippingAddress;
+        update.billingDetails = FieldValue.delete();
+      }
+    }
     const orderRef = this.deps.db.collection('orders').doc(orderId);
     await this.deps.db.runTransaction(async (transaction: any) => {
       const fresh = await transaction.get(orderRef);
@@ -628,14 +707,14 @@ export class PrintShopService {
         throw new PrintShopHttpError(404, 'order_not_found', 'Ordine non trovato');
       }
       assertModifiable(fresh.data(), updateNow.toMillis());
-      if (input.customer && fresh.data()?.clienteId) {
+      if ((input.customer || input.fulfillment?.method === 'shipping') && fresh.data()?.clienteId) {
         const customerRef = this.deps.db.collection('clienti').doc(fresh.data().clienteId);
         const customerDoc = await transaction.get(customerRef);
         if (customerDoc.exists) {
           const stored = customerDoc.data();
           const shopManaged = stored.source === 'print_shop';
-          const nextName = cleanText(input.customer.name, 160);
-          const nextPhone = cleanText(input.customer.phone, 40);
+          const nextName = cleanText(input.customer?.name, 160);
+          const nextPhone = cleanText(input.customer?.phone, 40);
           const crmUpdate: Record<string, unknown> = {
             'lifecycle.lastInteractionAt': updateNow,
             updatedAt: updateNow,
@@ -648,6 +727,22 @@ export class PrintShopService {
           if (nextPhone && (shopManaged || (!stored.whatsapp && !stored.cellulare1))) {
             crmUpdate.whatsapp = nextPhone;
             crmUpdate.cellulare1 = nextPhone;
+          }
+          const billing = input.fulfillment?.method === 'shipping'
+            ? update.billingDetails as PrintShopBillingDetails
+            : undefined;
+          if (billing) {
+            const residence = billing.residenceAddress;
+            const residenceStreet = `${residence.street} ${residence.houseNumber}`.trim();
+            if (shopManaged || !stored.codiceFiscale) crmUpdate.codiceFiscale = billing.fiscalCode;
+            if (shopManaged || !stored.indirizzo) crmUpdate.indirizzo = residenceStreet;
+            if (shopManaged || !stored.cap) crmUpdate.cap = residence.postalCode;
+            if (shopManaged || !stored.citta) crmUpdate.citta = residence.city;
+            if (shopManaged || !stored.provincia) crmUpdate.provincia = residence.province;
+            if (shopManaged || !stored.viaFiscale) crmUpdate.viaFiscale = residenceStreet;
+            if (shopManaged || !stored.capFiscale) crmUpdate.capFiscale = residence.postalCode;
+            if (shopManaged || !stored.cittaFiscale) crmUpdate.cittaFiscale = residence.city;
+            if (shopManaged || !stored.provinciaFiscale) crmUpdate.provinciaFiscale = residence.province;
           }
           transaction.update(customerRef, crmUpdate);
         }
@@ -666,6 +761,11 @@ export class PrintShopService {
     const order = await this.requireOwnerOrder(identity, orderId);
     assertModifiable(order, this.now().toMillis(), options);
     const catalog = await this.loadCatalog();
+    const method = input.fulfillment?.method || order.fulfillment?.method || 'studio_pickup';
+    const shipping = await this.shippingConfiguration();
+    if (method === 'shipping' && !shipping.enabled) {
+      throw new PrintShopHttpError(409, 'shipping_disabled', 'La spedizione non è disponibile');
+    }
     let quote: PrintShopQuote;
     try {
       quote = calculatePrintQuote(input, catalog);
@@ -677,7 +777,17 @@ export class PrintShopService {
     }
     const assets = await this.requireReadyAssets(orderId, quote.items);
     const qualityWarnings = calculateQualityWarnings(quote.items, assets, catalog);
-    quote = { ...quote, qualityWarnings };
+    const shippingCents = method === 'shipping' ? shipping.priceCents : 0;
+    quote = {
+      ...quote,
+      fulfillment: { method },
+      totals: {
+        ...quote.totals,
+        shippingCents,
+        totalCents: quote.totals.totalCents + shippingCents,
+      },
+      qualityWarnings,
+    };
     await Promise.all(
       [...assets.values()].map(asset => {
         const warning = qualityWarnings
@@ -714,6 +824,12 @@ export class PrintShopService {
         );
       }
       const freshData = freshOrder.data();
+      const nextFulfillment: any = {
+        ...freshData.fulfillment,
+        method,
+        status: 'draft',
+      };
+      if (method === 'studio_pickup') delete nextFulfillment.shippingAddress;
       const preservePendingPaypalOrder = Boolean(
         freshData.payment?.status === 'pending' &&
         freshData.payment?.paypalOrderId &&
@@ -741,7 +857,8 @@ export class PrintShopService {
             ? fingerprint
             : FieldValue.delete(),
         quoteFingerprint: fingerprint,
-        fulfillment: { method: 'studio_pickup', status: 'draft' },
+        'printShop.requestedFulfillmentMethod': method,
+        fulfillment: nextFulfillment,
         payment: preservePendingPaypalOrder
           ? freshData.payment
           : { method: 'paypal', status: 'pending' },
@@ -1225,7 +1342,13 @@ export class PrintShopService {
           'printShop.copyCount': 0,
           quoteFingerprint: FieldValue.delete(),
           payment: { method: 'paypal', status: 'pending' },
-          fulfillment: { method: 'studio_pickup', status: 'draft' },
+          fulfillment: {
+            ...freshOrder.data()?.fulfillment,
+            method: freshOrder.data()?.fulfillment?.method === 'shipping'
+              ? 'shipping'
+              : 'studio_pickup',
+            status: 'draft',
+          },
           stato: 'bozza',
           updatedAt: now,
         });
@@ -1335,7 +1458,12 @@ export class PrintShopService {
     const quote = await this.quote(
       identity,
       orderId,
-      { items: requestedItems },
+      {
+        items: requestedItems,
+        fulfillment: {
+          method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+        },
+      },
       { allowPendingPaypal: true },
     );
     order = await this.requireOwnerOrder(identity, orderId);
@@ -1354,6 +1482,12 @@ export class PrintShopService {
         'Conferma di voler stampare le fotografie segnalate a bassa risoluzione',
         order.printShop.qualityWarnings,
       );
+    }
+    if (order.fulfillment?.method === 'shipping') {
+      // Non basta nascondere PayPal nel browser: anche richieste costruite a mano
+      // devono essere rifiutate finché dati di consegna e fiscali non sono completi.
+      normalizePostalAddress(order.fulfillment?.shippingAddress);
+      normalizeBillingDetails(order.billingDetails);
     }
     const fingerprint = quoteFingerprint(quote);
     if (
@@ -1505,7 +1639,11 @@ export class PrintShopService {
           createdAt: now,
         },
         'printShop.paypalAttempt': paymentAttempt,
-        fulfillment: { method: 'studio_pickup', status: 'awaiting_payment' },
+        fulfillment: {
+          ...data.fulfillment,
+          method: data.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+          status: 'awaiting_payment',
+        },
         stato: 'bozza',
         legal: {
           ...(data.legal || {}),
@@ -1521,6 +1659,8 @@ export class PrintShopService {
           sellerSnapshotHash,
           quoteFingerprint: fingerprint,
           totalCents: quote.totals.totalCents,
+          fulfillmentMethod: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+          shippingCents: Number(quote.totals.shippingCents || 0),
         },
         updatedAt: now,
       });
@@ -1531,6 +1671,8 @@ export class PrintShopService {
         quoteFingerprint: fingerprint,
         totalCents: quote.totals.totalCents,
         currency: PRINT_SHOP_CURRENCY,
+        fulfillmentMethod: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+        shippingCents: Number(quote.totals.shippingCents || 0),
         termsAccepted: true,
         privacyAccepted: true,
         personalizedProductionAccepted: true,
@@ -1874,12 +2016,16 @@ export class PrintShopService {
         fulfillment: filesUnavailable
           ? {
               ...order.fulfillment,
-              method: 'studio_pickup',
+              method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
               status: 'cancelled',
               cancellationReason: 'payment_after_asset_purge',
               cancelledAt: now,
             }
-          : { ...order.fulfillment, method: 'studio_pickup', status: 'submitted' },
+          : {
+              ...order.fulfillment,
+              method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
+              status: 'submitted',
+            },
         transactions: [...existingTransactions, newTransaction],
         acconto: amountEuros,
         saldo: 0,
@@ -2377,7 +2523,7 @@ export class PrintShopService {
         };
         update.fulfillment = {
           ...order.fulfillment,
-          method: 'studio_pickup',
+          method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
           status: 'cancelled',
           cancelledAt: now,
           cancellationReason: 'admin_deleted_unpaid_order',
@@ -2581,7 +2727,9 @@ export class PrintShopService {
       const subject =
         kind === 'payment_confirmed'
           ? `Ordine ${order.orderNumber} ricevuto e pagato`
-          : `Le tue stampe ${order.orderNumber} sono pronte per il ritiro`;
+          : order.fulfillment?.method === 'shipping'
+            ? `Le tue stampe ${order.orderNumber} sono pronte per la spedizione`
+            : `Le tue stampe ${order.orderNumber} sono pronte per il ritiro`;
       const html = createCustomerOrderEmail(kind, order, studio);
       await this.deps.mail.send(email, subject, html, {
         type: kind === 'payment_confirmed' ? 'print_shop_paid' : 'print_shop_ready',
@@ -4307,6 +4455,7 @@ function quoteFingerprint(quote: PrintShopQuote): string {
         currency: quote.currency,
         catalogVersion: quote.catalogVersion,
         totals: quote.totals,
+        fulfillment: quote.fulfillment,
         items: quote.items,
       }),
     )
@@ -4596,8 +4745,11 @@ function publicOwnerOrder(order: any, assets?: any[]): any {
         : {}),
     },
     fulfillment: {
-      method: 'studio_pickup',
+      method: order.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup',
       status: order.fulfillment?.status || 'draft',
+      ...(order.fulfillment?.shippingAddress
+        ? { shippingAddress: order.fulfillment.shippingAddress }
+        : {}),
       ...(order.fulfillment?.readyAt ? { readyAt: order.fulfillment.readyAt } : {}),
       ...(order.fulfillment?.deliveredAt
         ? { deliveredAt: order.fulfillment.deliveredAt }
@@ -4606,6 +4758,7 @@ function publicOwnerOrder(order: any, assets?: any[]): any {
         ? { cancelledAt: order.fulfillment.cancelledAt }
         : {}),
     },
+    ...(order.billingDetails ? { billingDetails: order.billingDetails } : {}),
     printShop: {
       items: Array.isArray(order.printShop?.items) ? order.printShop.items : [],
       requestedItems: Array.isArray(order.printShop?.requestedItems)
@@ -4651,6 +4804,61 @@ function normalizeRequiredEmail(value: string): string {
     throw new PrintShopHttpError(400, 'email_required', 'Account senza email valida');
   }
   return normalized;
+}
+
+function normalizeShippingConfig(value: any): PrintShopShippingConfig {
+  const enabled = value?.enabled === true;
+  const priceCents = Number.isSafeInteger(value?.priceCents) && value.priceCents >= 0
+    ? Math.min(value.priceCents, 100_000_000)
+    : DEFAULT_PRINT_SHOP_SHIPPING.priceCents;
+  const estimatedMinDays = Number.isSafeInteger(value?.estimatedMinDays) && value.estimatedMinDays >= 1
+    ? Math.min(value.estimatedMinDays, 60)
+    : DEFAULT_PRINT_SHOP_SHIPPING.estimatedMinDays;
+  const estimatedMaxDays = Number.isSafeInteger(value?.estimatedMaxDays) && value.estimatedMaxDays >= estimatedMinDays
+    ? Math.min(value.estimatedMaxDays, 90)
+    : Math.max(estimatedMinDays, DEFAULT_PRINT_SHOP_SHIPPING.estimatedMaxDays);
+  return { enabled, priceCents, estimatedMinDays, estimatedMaxDays };
+}
+
+function normalizePostalAddress(value: any): PrintShopPostalAddress {
+  const address: PrintShopPostalAddress = {
+    street: cleanText(value?.street, 160) || '',
+    houseNumber: cleanText(value?.houseNumber, 20) || '',
+    postalCode: cleanText(value?.postalCode, 5) || '',
+    city: cleanText(value?.city, 100) || '',
+    province: (cleanText(value?.province, 2) || '').toUpperCase(),
+    country: 'IT',
+  };
+  if (
+    !address.street ||
+    !address.houseNumber ||
+    !/^\d{5}$/.test(address.postalCode) ||
+    !address.city ||
+    !/^[A-Z]{2}$/.test(address.province) ||
+    value?.country !== 'IT'
+  ) {
+    throw new PrintShopHttpError(
+      400,
+      'shipping_address_required',
+      'Completa correttamente via, numero civico, CAP, città e provincia dell’indirizzo',
+    );
+  }
+  return address;
+}
+
+function normalizeBillingDetails(value: any): PrintShopBillingDetails {
+  const fiscalCode = (cleanText(value?.fiscalCode, 16) || '').replace(/\s+/g, '').toUpperCase();
+  if (!isValidCodiceFiscale(fiscalCode)) {
+    throw new PrintShopHttpError(
+      400,
+      'fiscal_code_required',
+      'Inserisci un codice fiscale italiano valido',
+    );
+  }
+  return {
+    fiscalCode,
+    residenceAddress: normalizePostalAddress(value?.residenceAddress),
+  };
 }
 
 function normalizeCatalogSku(value: string): string {
@@ -4899,6 +5107,13 @@ function createCustomerOrderEmail(
   studio: { name: string; email: string; phone: string },
 ): string {
   const customerName = escapeHtml(order.customer?.name || order.nomeCliente || 'Cliente');
+  const isShipping = order.fulfillment?.method === 'shipping';
+  const shippingAddress = order.fulfillment?.shippingAddress;
+  const deliveryLabel = isShipping ? 'Spedizione' : 'Ritiro';
+  const deliveryValue = isShipping ? 'A domicilio' : 'In studio';
+  const shippingAddressText = shippingAddress
+    ? `${escapeHtml(shippingAddress.street)} ${escapeHtml(shippingAddress.houseNumber)}, ${escapeHtml(shippingAddress.postalCode)} ${escapeHtml(shippingAddress.city)} (${escapeHtml(shippingAddress.province)})`
+    : '';
   const rows = (order.printShop?.items || [])
     .map(
       (item: any) => `<tr>
@@ -4917,24 +5132,27 @@ function createCustomerOrderEmail(
           <div style="font-family:Georgia,serif;font-size:13px;letter-spacing:.22em;color:#708594">IMAGE STUDIO</div>
         </td></tr>
         <tr><td style="padding:38px 32px;background:#708594;text-align:center;color:#ffffff">
-          <div style="display:inline-block;padding:7px 13px;border-radius:20px;background:#c89b89;font-size:12px;font-weight:700;letter-spacing:.06em">${isPaid ? 'PAGAMENTO CONFERMATO' : 'PRONTO PER IL RITIRO'}</div>
-          <h1 style="margin:18px 0 8px;font-family:Georgia,serif;font-size:34px;font-weight:400;line-height:1.15">${isPaid ? 'Le tue fotografie stanno per diventare ricordi da toccare.' : 'Le tue stampe sono pronte.'}</h1>
+          <div style="display:inline-block;padding:7px 13px;border-radius:20px;background:#c89b89;font-size:12px;font-weight:700;letter-spacing:.06em">${isPaid ? 'PAGAMENTO CONFERMATO' : isShipping ? 'PRONTO PER LA SPEDIZIONE' : 'PRONTO PER IL RITIRO'}</div>
+          <h1 style="margin:18px 0 8px;font-family:Georgia,serif;font-size:34px;font-weight:400;line-height:1.15">${isPaid ? 'Le tue fotografie stanno per diventare ricordi da toccare.' : isShipping ? 'Le tue stampe stanno per partire.' : 'Le tue stampe sono pronte.'}</h1>
           <p style="margin:0;color:#eef1ec;font-size:15px">Ordine ${escapeHtml(order.orderNumber)}</p>
         </td></tr>
         <tr><td style="padding:32px">
           <p style="margin:0 0 14px;font-size:17px">Ciao <strong>${customerName}</strong>,</p>
           <p style="margin:0 0 24px;line-height:1.65;color:#657985">${isPaid
             ? 'abbiamo ricevuto il tuo ordine e il pagamento è stato acquisito correttamente. Ora controlleremo con cura i file e avvieremo la stampa.'
-            : 'abbiamo terminato la lavorazione. Puoi ritirare le stampe presso il nostro studio: ti aspettiamo.'}</p>
+            : isShipping
+              ? 'abbiamo terminato la lavorazione. Le stampe sono pronte per essere affidate alla spedizione.'
+              : 'abbiamo terminato la lavorazione. Puoi ritirare le stampe presso il nostro studio: ti aspettiamo.'}</p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:24px;border:1px solid #dfe5dd;border-radius:14px;background:#f8f9f6"><tr>
             <td style="padding:15px;text-align:center;border-right:1px solid #dfe5dd"><span style="display:block;font-size:11px;color:#7d8e97;text-transform:uppercase">Ordine</span><strong style="font-size:13px">${escapeHtml(order.orderNumber)}</strong></td>
-            <td style="padding:15px;text-align:center"><span style="display:block;font-size:11px;color:#7d8e97;text-transform:uppercase">Ritiro</span><strong style="font-size:13px">In studio</strong></td>
+            <td style="padding:15px;text-align:center"><span style="display:block;font-size:11px;color:#7d8e97;text-transform:uppercase">${deliveryLabel}</span><strong style="font-size:13px">${deliveryValue}</strong></td>
           </tr></table>
+          ${isShipping && shippingAddressText ? `<div style="margin:-12px 0 24px;padding:14px 16px;background:#f8f9f6;border:1px solid #dfe5dd;border-radius:12px;font-size:13px;line-height:1.5"><strong>Indirizzo di consegna</strong><br>${shippingAddressText}</div>` : ''}
           <h2 style="margin:0 0 10px;font-family:Georgia,serif;font-size:21px;font-weight:400;color:#425563">Riepilogo delle stampe</h2>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse"><tbody>${rows}</tbody>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse"><tbody>${rows}${Number(order.totals?.shippingCents || 0) > 0 ? `<tr><td colspan="2" style="padding:14px 12px;border-bottom:1px solid #e5e9e3;color:#657985">Spedizione</td><td style="padding:14px 12px;border-bottom:1px solid #e5e9e3;text-align:right;font-weight:700">€ ${centsToEuros(Number(order.totals.shippingCents)).toFixed(2).replace('.', ',')}</td></tr>` : ''}</tbody>
             <tfoot><tr><td colspan="2" style="padding:18px 12px;background:#f3f0eb;font-weight:700;border-radius:0 0 0 12px">Totale pagato</td><td style="padding:18px 12px;background:#f3f0eb;text-align:right;font-size:20px;font-weight:700;color:#b77f68;border-radius:0 0 12px 0">€ ${centsToEuros(Number(order.totals?.totalCents || 0)).toFixed(2).replace('.', ',')}</td></tr></tfoot>
           </table>
-          <div style="margin-top:26px;padding:18px;border-left:4px solid #aab8a4;background:#f5f7f3;border-radius:8px;color:#657985;font-size:14px;line-height:1.55">${isPaid ? 'Ti avviseremo appena le stampe saranno pronte. Non devi fare altro.' : 'Porta con te il numero d’ordine indicato in questa email.'}</div>
+          <div style="margin-top:26px;padding:18px;border-left:4px solid #aab8a4;background:#f5f7f3;border-radius:8px;color:#657985;font-size:14px;line-height:1.55">${isPaid ? isShipping ? 'Ti aggiorneremo quando le stampe saranno pronte per la spedizione.' : 'Ti avviseremo appena le stampe saranno pronte. Non devi fare altro.' : isShipping ? 'Riceverai gli aggiornamenti di consegna ai recapiti indicati nell’ordine.' : 'Porta con te il numero d’ordine indicato in questa email.'}</div>
         </td></tr>
         <tr><td style="padding:24px 32px;background:#425563;color:#eef1ec;text-align:center;font-size:12px;line-height:1.65">
           <strong style="font-family:Georgia,serif;font-size:16px">${escapeHtml(studio.name)}</strong><br>${escapeHtml(studio.email)} · ${escapeHtml(studio.phone)}

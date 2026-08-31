@@ -427,6 +427,125 @@ describe('PrintShopService production validation', () => {
     expect(paypal.createOrder).toHaveBeenCalledTimes(1);
   });
 
+  it('adds the configured shipping fee and requires shipping and billing data before PayPal', async () => {
+    const paypal = paypalFake();
+    const { db, service } = createService({ paypal });
+    const product = PRINT_SHOP_CATALOG.find(
+      item => item.printSpec.pricing.model === 'tiered',
+    )!;
+    seedProduct(db, product);
+    db.seed('settings/printShop', {
+      shipping: { enabled: true, priceCents: 690, estimatedMinDays: 2, estimatedMaxDays: 5 },
+    });
+    db.seed('orders/order_shipping', baseOrder());
+    db.seed('clienti/client_1', {
+      nome: 'Mario',
+      cognome: 'Rossi',
+      email: identity.email,
+      source: 'print_shop',
+    });
+    seedReadyAsset(db, 'order_shipping', 'asset_shipping');
+    const request = {
+      items: [{
+        sku: product.sku,
+        finish: 'matte' as const,
+        fitMode: 'border' as const,
+        assignments: [{ assetId: 'asset_shipping', copies: 1 }],
+      }],
+      fulfillment: { method: 'shipping' as const },
+    };
+
+    const quote = await service.quote(identity, 'order_shipping', request);
+    expect(quote.fulfillment).toEqual({ method: 'shipping' });
+    expect(quote.totals.shippingCents).toBe(690);
+    expect(quote.totals.totalCents).toBe(quote.totals.subtotalCents + 690);
+    expect(db.value('orders/order_shipping').fulfillment.method).toBe('shipping');
+
+    await expect(
+      service.createPaypalOrder(identity, 'order_shipping', checkoutInput(db, 'order_shipping')),
+    ).rejects.toMatchObject({ code: 'shipping_address_required' });
+    expect(paypal.createOrder).not.toHaveBeenCalled();
+
+    const address = {
+      street: 'Via Roma',
+      houseNumber: '12',
+      postalCode: '81031',
+      city: 'Aversa',
+      province: 'CE',
+      country: 'IT' as const,
+    };
+    await service.updateDraft(identity, 'order_shipping', {
+      customer: { name: 'Mario Rossi', phone: '+39 333 1234567' },
+      fulfillment: { method: 'shipping', shippingAddress: address },
+      billingDetails: { fiscalCode: 'RSSMRA85M01H501Q', residenceAddress: address },
+    });
+    expect(db.value('clienti/client_1')).toMatchObject({
+      codiceFiscale: 'RSSMRA85M01H501Q',
+      indirizzo: 'Via Roma 12',
+      cap: '81031',
+      citta: 'Aversa',
+      provincia: 'CE',
+    });
+    await expect(
+      service.createPaypalOrder(identity, 'order_shipping', checkoutInput(db, 'order_shipping')),
+    ).resolves.toMatchObject({ paypalOrderId: 'PAYPAL-ORDER-123' });
+    expect(paypal.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: quote.totals.totalCents }),
+      expect.any(String),
+    );
+  });
+
+  it('keeps shipping disabled by default and rejects a shipping quote', async () => {
+    const { db, service } = createService();
+    const product = PRINT_SHOP_CATALOG.find(
+      item => item.printSpec.pricing.model === 'tiered',
+    )!;
+    seedProduct(db, product);
+    db.seed('orders/order_shipping_disabled', baseOrder());
+    seedReadyAsset(db, 'order_shipping_disabled', 'asset_shipping_disabled');
+
+    expect(await service.shippingConfiguration()).toEqual({
+      enabled: false,
+      priceCents: 0,
+      estimatedMinDays: 2,
+      estimatedMaxDays: 5,
+    });
+    await expect(service.quote(identity, 'order_shipping_disabled', {
+      items: [{
+        sku: product.sku,
+        finish: 'glossy',
+        fitMode: 'cover',
+        assignments: [{ assetId: 'asset_shipping_disabled', copies: 1 }],
+      }],
+      fulfillment: { method: 'shipping' },
+    })).rejects.toMatchObject({ code: 'shipping_disabled', status: 409 });
+  });
+
+  it('stores a valid admin shipping configuration and rejects invalid delivery times', async () => {
+    const { db, service } = createService();
+    await expect(service.updateShippingConfiguration({
+      enabled: true,
+      priceCents: 790,
+      estimatedMinDays: 3,
+      estimatedMaxDays: 6,
+    }, 'admin@example.com')).resolves.toEqual({
+      enabled: true,
+      priceCents: 790,
+      estimatedMinDays: 3,
+      estimatedMaxDays: 6,
+    });
+    expect(db.value('settings/printShop').shipping).toMatchObject({ enabled: true, priceCents: 790 });
+    await expect(service.updateShippingConfiguration({
+      enabled: true,
+      priceCents: 790,
+      estimatedMinDays: 7,
+      estimatedMaxDays: 4,
+    }, 'admin@example.com')).rejects.toMatchObject({
+      code: 'invalid_shipping_configuration',
+      status: 400,
+    });
+  });
+
   it('requires all legal acceptances and stores their audit versions', async () => {
     const paypal = paypalFake();
     const { db, service } = createService({ paypal });

@@ -106,8 +106,8 @@ const steps = [
   {
     number: '04',
     icon: CreditCard,
-    title: 'Paga e ritira in sede',
-    description: 'Conferma il totale con PayPal. Ti avviseremo quando le stampe saranno pronte per il ritiro.',
+    title: 'Paga e scegli la consegna',
+    description: 'Conferma il totale con PayPal e scegli tra ritiro in sede e spedizione, quando disponibile.',
   },
 ];
 
@@ -380,7 +380,7 @@ export default function StampaFotoAversaPage() {
               <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/70">
                 <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Carta lucida o opaca</span>
                 <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> {formatCount > 0 ? `${formatCount} ${formatCount === 1 ? 'formato' : 'formati'}` : 'Listino in verifica'}</span>
-                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Pagamento PayPal e ritiro in sede</span>
+                <span className="flex items-center gap-2"><Check className="h-4 w-4 text-cream" /> Pagamento PayPal · {catalog?.shipping.enabled ? 'ritiro o spedizione' : 'ritiro in sede'}</span>
               </div>
             </div>
 
@@ -623,7 +623,7 @@ export default function StampaFotoAversaPage() {
                 <><strong className="text-blue-gray">Polaroid Wide {polaroidProduct.printSpec.widthMm / 10}×{polaroidProduct.printSpec.heightMm / 10}:</strong> confezione da {polaroidProduct.printSpec.pricing.packageSize} fotografie tutte diverse a {formatCatalogEuro(polaroidProduct.printSpec.pricing.packagePriceCents)}. Prezzo letto dal catalogo aggiornato dello shop.</>
               ) : (
                 <><strong className="text-blue-gray">Polaroid Wide:</strong> formato disponibile in confezione di fotografie tutte diverse; quantità e prezzo compaiono solo quando il listino aggiornato è verificato.</>
-              )} Il totale viene ricalcolato dal sistema prima del pagamento; il ritiro avviene in sede.
+              )} Il totale viene ricalcolato dal sistema prima del pagamento; {catalog?.shipping.enabled ? 'puoi scegliere ritiro in sede o spedizione a domicilio.' : 'il ritiro avviene in sede.'}
             </div>
 
             <div className="mt-9 text-center">
@@ -722,7 +722,7 @@ export default function StampaFotoAversaPage() {
           <div className="mx-auto max-w-4xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">Le hai già scelte?</p>
             <h2 className="mt-4 text-4xl font-semibold sm:text-6xl">Non lasciarle un’altra estate nel telefono.</h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/80">Carica i JPG, scegli le opzioni in pochi passaggi e paga online. Noi prepariamo le stampe e ti avvisiamo per il ritiro.</p>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/80">Carica i JPG, scegli le opzioni in pochi passaggi e paga online. Noi prepariamo le stampe e ti aggiorniamo fino al ritiro o alla consegna.</p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               {catalogReady ? (
                 <Link href={createUrl('/stampa-foto-aversa/ordine')}>

@@ -123,6 +123,18 @@ Gli SKU possono seguire una regola stabile, per esempio `PRINT-100X150`, mentre 
 
 ## Modello ordine
 
+### Ritiro e spedizione configurabile
+
+La spedizione è governata dal documento `settings/printShop.shipping` e parte disattivata. Il pannello amministrativo permette di impostare:
+
+- abilitazione pubblica;
+- costo in centesimi, aggiunto dal server al preventivo e quindi al totale PayPal;
+- giorni minimi e massimi stimati per la consegna.
+
+Il cliente sceglie `studio_pickup` oppure `shipping` prima del preventivo. Per `shipping` il checkout richiede indirizzo completo di consegna, codice fiscale e indirizzo di residenza; la residenza può coincidere con la consegna. Gli stessi controlli vengono ripetuti dal backend prima della creazione dell'ordine PayPal. Il metodo di consegna e il costo entrano nell'impronta del preventivo, impedendo modifiche silenziose dopo l'accettazione del riepilogo.
+
+I dati fiscali restano nello snapshot dell'ordine e completano, senza sovrascrivere dati già curati manualmente, l'anagrafica `clienti`. Il laboratorio riceve solo file e istruzioni tecniche; indirizzo e codice fiscale non vengono inseriti nella distinta di produzione. Il costo di spedizione incassato è compreso nel movimento finanziario dell'ordine shop.
+
 ```ts
 interface PrintShopOrderFields {
   orderType: 'print_shop';

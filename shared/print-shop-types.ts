@@ -15,6 +15,28 @@ export type PrintShopCurrency = typeof PRINT_SHOP_CURRENCY;
 export type PrintFinish = 'glossy' | 'matte';
 export type PrintFitMode = 'border' | 'cover';
 export type PrintSalesChannel = 'admin' | 'booking' | 'print_shop';
+export type PrintShopDeliveryMethod = 'studio_pickup' | 'shipping';
+
+export interface PrintShopShippingConfig {
+  enabled: boolean;
+  priceCents: number;
+  estimatedMinDays: number;
+  estimatedMaxDays: number;
+}
+
+export interface PrintShopPostalAddress {
+  street: string;
+  houseNumber: string;
+  postalCode: string;
+  city: string;
+  province: string;
+  country: 'IT';
+}
+
+export interface PrintShopBillingDetails {
+  fiscalCode: string;
+  residenceAddress: PrintShopPostalAddress;
+}
 
 export interface PrintPriceTier {
   minQuantity: number;
@@ -99,6 +121,7 @@ export interface PrintOrderItemInput {
 
 export interface PrintShopQuoteInput {
   items: readonly PrintOrderItemInput[];
+  fulfillment?: { method: PrintShopDeliveryMethod };
 }
 
 export interface AppliedPrintTier {
@@ -140,11 +163,13 @@ export interface PrintShopQuote {
   totals: {
     subtotalCents: number;
     discountCents: number;
+    shippingCents?: number;
     totalCents: number;
   };
   /** Numero di file unici, anche se uno stesso asset appare in più righe. */
   assetCount: number;
   copyCount: number;
+  fulfillment?: { method: PrintShopDeliveryMethod };
   /** Valutazione server-side della risoluzione rispetto al formato scelto. */
   qualityWarnings?: readonly PrintQualityWarning[];
   /** Hash server-side da inviare insieme ai consensi al momento del checkout. */
@@ -185,8 +210,9 @@ export interface PrintLaboratoryFulfillment<TTimestamp = unknown> {
 }
 
 export interface PrintShopFulfillment<TTimestamp = unknown> {
-  method: 'studio_pickup';
+  method: PrintShopDeliveryMethod;
   status: PrintShopFulfillmentStatus;
+  shippingAddress?: PrintShopPostalAddress;
   laboratory?: PrintLaboratoryFulfillment<TTimestamp>;
   promisedAt?: TTimestamp;
   readyAt?: TTimestamp;
@@ -220,6 +246,7 @@ export interface PrintShopOrderFields<TTimestamp = unknown> {
   currency: PrintShopCurrency;
   totals: PrintShopQuote['totals'];
   fulfillment: PrintShopFulfillment<TTimestamp>;
+  billingDetails?: PrintShopBillingDetails;
   payment: PrintShopPayment<TTimestamp>;
   printShop: {
     items: readonly PrintOrderItemSnapshot[];

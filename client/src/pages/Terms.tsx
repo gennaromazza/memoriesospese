@@ -15,7 +15,7 @@ export default function Terms() {
 
   useSEO({
     title: 'Condizioni di vendita e utilizzo | Image Studio',
-    description: 'Condizioni applicabili agli ordini online di stampe fotografiche, al pagamento PayPal e al ritiro presso Image Studio ad Aversa.',
+    description: 'Condizioni applicabili agli ordini online di stampe fotografiche, al pagamento PayPal, al ritiro e alla spedizione.',
     canonical: '/terms',
   });
 
@@ -49,7 +49,7 @@ export default function Terms() {
             <p className="mb-6 text-gray-600">
               Queste condizioni disciplinano l'uso della piattaforma di {seller.name || 'questo professionista'} e gli ordini
               personalizzati di stampe fotografiche. Prima del pagamento il cliente può controllare prodotti,
-              quantità, opzioni, prezzo totale e modalità di ritiro; l'invio dell'ordine comporta l'accettazione
+              quantità, opzioni, prezzo totale e modalità di consegna; l'invio dell'ordine comporta l'accettazione
               di queste condizioni e della Privacy Policy.
             </p>
 
@@ -74,20 +74,25 @@ export default function Terms() {
             <p className="mb-6 text-gray-600">
               Il prezzo applicato è quello mostrato nel riepilogo finale ed è calcolato nuovamente dal server
               sulla base del catalogo e delle quantità. Il totale indicato è il prezzo finale, con imposte incluse
-              ove applicabili; il ritiro in sede non comporta costi di consegna. Il click sul pulsante PayPal inoltra
+              ove applicabili; il ritiro in sede non comporta costi di consegna, mentre l'eventuale costo di spedizione
+              è mostrato separatamente nel riepilogo e incluso nel totale. Il click sul pulsante PayPal inoltra
               un ordine con obbligo di pagamento. L'ordine entra in lavorazione solo dopo il pagamento anticipato
               completo tramite PayPal e non è previsto il pagamento al ritiro. {seller.name || 'Il professionista'} non
               riceve né conserva i dati completi della carta o del conto PayPal. Quando il checkout mostra la dicitura
               «Ambiente di prova PayPal», l'operazione è simulata e non produce alcun addebito reale.
             </p>
 
-            <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Produzione, laboratorio e ritiro</h2>
+            <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Produzione, laboratorio, ritiro e spedizione</h2>
             <p className="mb-6 text-gray-600">
               Gli ordini sono ritirati presso {seller.address ? `la sede in ${seller.address}` : 'la sede indicata nei contatti'}{' '}
               quando lo stato risulta «pronto per il ritiro». L'ordine viene reso disponibile per il ritiro entro e non
               oltre {PRINT_SHOP_MAX_PICKUP_DAYS} giorni dal pagamento. {seller.name || 'Il professionista'} può affidare
               la produzione a un laboratorio di stampa qualificato, trasmettendo soltanto i file e le istruzioni necessarie;
               il cliente viene informato di eventuali impedimenti rilevanti.
+              Quando la spedizione è abilitata e scelta dal cliente, l'ordine viene inviato all'indirizzo indicato
+              nel checkout nei tempi stimati mostrati prima del pagamento. Il cliente è responsabile della correttezza
+              di indirizzo, CAP, città, provincia e recapiti forniti. Eventuali ritardi del vettore non modificano i
+              diritti del consumatore previsti dalla legge.
             </p>
 
             <h2 className="text-2xl font-semibold text-blue-gray-800 mb-4">Prodotti personalizzati, recesso e difetti</h2>

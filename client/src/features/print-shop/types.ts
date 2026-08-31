@@ -4,9 +4,13 @@ import type {
   PrintOrderItemInput,
   PrintQualityWarning,
   PrintShopCatalogProduct,
+  PrintShopBillingDetails,
+  PrintShopDeliveryMethod,
   PrintShopFulfillmentStatus,
+  PrintShopPostalAddress,
   PrintShopPaymentStatus,
   PrintShopQuote,
+  PrintShopShippingConfig,
 } from '@shared/print-shop-types';
 
 export type PrintPhotoUploadStatus =
@@ -60,6 +64,7 @@ export interface PrintShopCatalogPayload {
   catalogVersion: number;
   currency: 'EUR';
   paypalClientId?: string;
+  shipping: PrintShopShippingConfig;
 }
 
 export interface PrintShopDraftOrder {
@@ -73,9 +78,11 @@ export interface PrintShopDraftOrder {
     paypalCaptureId?: string;
   };
   fulfillment?: {
-    method: 'studio_pickup';
+    method: PrintShopDeliveryMethod;
     status: PrintShopFulfillmentStatus;
+    shippingAddress?: PrintShopPostalAddress;
   };
+  billingDetails?: PrintShopBillingDetails;
   quote?: PrintShopQuote;
   totals?: PrintShopQuote['totals'];
 }
@@ -96,9 +103,11 @@ export interface PrintShopOrderListItem extends PrintShopDraftOrder {
     paypalCaptureId?: string;
   };
   fulfillment: {
-    method: 'studio_pickup';
+    method: PrintShopDeliveryMethod;
     status: PrintShopFulfillmentStatus;
+    shippingAddress?: PrintShopPostalAddress;
   };
+  billingDetails?: PrintShopBillingDetails;
   printShop?: {
     items?: PrintShopQuote['items'];
     requestedItems?: PrintOrderItemInput[];
@@ -127,6 +136,11 @@ export interface PrintShopDraftPayload {
   contact: PrintShopContactDraft;
   lowResolutionAccepted: boolean;
   customerNotes?: string;
+  fulfillment: {
+    method: PrintShopDeliveryMethod;
+    shippingAddress?: PrintShopPostalAddress;
+  };
+  billingDetails?: PrintShopBillingDetails;
 }
 
 export interface PreparedPrintUpload {

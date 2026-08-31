@@ -14,6 +14,7 @@ import {
   PackageCheck,
   ShieldCheck,
   ShoppingBag,
+  Truck,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -23,7 +24,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { useFirebaseAuth } from '@/context/FirebaseAuthContext';
 import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
-import type { PrintShopQuote } from '@shared/print-shop-types';
+import type {
+  PrintShopDeliveryMethod,
+  PrintShopPostalAddress,
+  PrintShopQuote,
+} from '@shared/print-shop-types';
+import { isValidCodiceFiscale } from '@shared/fiscal-validation';
 import { PhotoUploadQueue } from '@/features/print-shop/PhotoUploadQueue';
 import { PayPalCheckout } from '@/features/print-shop/PayPalCheckout';
 import { PrintShopAuthGate } from '@/features/print-shop/PrintShopAuthGate';
@@ -88,6 +94,20 @@ function createInitialGroup(sku: string, photos: LocalPrintPhoto[]): PrintGroupD
     fitMode: 'border',
     assignments: photos.map((photo) => ({ localPhotoId: photo.localId, copies: 1 })),
   };
+}
+
+function blankPostalAddress(): PrintShopPostalAddress {
+  return { street: '', houseNumber: '', postalCode: '', city: '', province: '', country: 'IT' };
+}
+
+function postalAddressComplete(address: PrintShopPostalAddress): boolean {
+  return Boolean(
+    address.street.trim() &&
+    address.houseNumber.trim() &&
+    /^\d{5}$/.test(address.postalCode.trim()) &&
+    address.city.trim() &&
+    /^[A-Za-z]{2}$/.test(address.province.trim()),
+  );
 }
 
 function groupIssuesById(issues: PrintGroupIssue[]): Map<string, string[]> {
@@ -156,6 +176,44 @@ function ConsentRow({
   );
 }
 
+function AddressFields({
+  address,
+  onChange,
+  prefix,
+  readOnly,
+}: {
+  address: PrintShopPostalAddress;
+  onChange: (address: PrintShopPostalAddress) => void;
+  prefix: string;
+  readOnly?: boolean;
+}) {
+  const patch = (value: Partial<PrintShopPostalAddress>) => onChange({ ...address, ...value });
+  return (
+    <div className="grid gap-4 sm:grid-cols-6">
+      <label className="text-sm font-semibold text-blue-gray sm:col-span-4">
+        Via o piazza <span className="text-red-700">(obbligatoria)</span>
+        <Input id={`${prefix}-street`} value={address.street} onChange={(event) => patch({ street: event.target.value })} autoComplete="address-line1" readOnly={readOnly} className="mt-2 h-12 rounded-xl font-normal" />
+      </label>
+      <label className="text-sm font-semibold text-blue-gray sm:col-span-2">
+        Numero civico <span className="text-red-700">(obbligatorio)</span>
+        <Input value={address.houseNumber} onChange={(event) => patch({ houseNumber: event.target.value })} autoComplete="address-line2" readOnly={readOnly} className="mt-2 h-12 rounded-xl font-normal" />
+      </label>
+      <label className="text-sm font-semibold text-blue-gray sm:col-span-2">
+        CAP <span className="text-red-700">(obbligatorio)</span>
+        <Input inputMode="numeric" maxLength={5} value={address.postalCode} onChange={(event) => patch({ postalCode: event.target.value.replace(/\D/g, '').slice(0, 5) })} autoComplete="postal-code" readOnly={readOnly} className="mt-2 h-12 rounded-xl font-normal" />
+      </label>
+      <label className="text-sm font-semibold text-blue-gray sm:col-span-3">
+        Città <span className="text-red-700">(obbligatoria)</span>
+        <Input value={address.city} onChange={(event) => patch({ city: event.target.value })} autoComplete="address-level2" readOnly={readOnly} className="mt-2 h-12 rounded-xl font-normal" />
+      </label>
+      <label className="text-sm font-semibold text-blue-gray sm:col-span-1">
+        Provincia <span className="text-red-700">*</span>
+        <Input maxLength={2} value={address.province} onChange={(event) => patch({ province: event.target.value.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() })} autoComplete="address-level1" readOnly={readOnly} placeholder="CE" className="mt-2 h-12 rounded-xl font-normal uppercase" />
+      </label>
+    </div>
+  );
+}
+
 export default function PrintShopOrderPage() {
   useSEO({
     title: 'Ordina stampe fotografiche online | Image Studio',
@@ -201,6 +259,11 @@ export default function PrintShopOrderPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [customProductAccepted, setCustomProductAccepted] = useState(false);
   const [lowResolutionAccepted, setLowResolutionAccepted] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState<PrintShopDeliveryMethod>('studio_pickup');
+  const [shippingAddress, setShippingAddress] = useState<PrintShopPostalAddress>(blankPostalAddress);
+  const [fiscalCode, setFiscalCode] = useState('');
+  const [residenceSameAsShipping, setResidenceSameAsShipping] = useState(true);
+  const [residenceAddress, setResidenceAddress] = useState<PrintShopPostalAddress>(blankPostalAddress);
 
   const updatePhotos = useCallback((updater: (current: LocalPrintPhoto[]) => LocalPrintPhoto[]) => {
     setPhotos((current) => {
@@ -308,6 +371,19 @@ export default function PrintShopOrderPage() {
           phone: savedOrder.customer?.phone || current.phone,
           customerNotes: savedOrder.printShop?.customerNotes || current.customerNotes,
         }));
+        const restoredMethod = savedOrder.fulfillment?.method === 'shipping' ? 'shipping' : 'studio_pickup';
+        setDeliveryMethod(restoredMethod);
+        if (savedOrder.fulfillment?.shippingAddress) {
+          setShippingAddress(savedOrder.fulfillment.shippingAddress);
+        }
+        if (savedOrder.billingDetails) {
+          setFiscalCode(savedOrder.billingDetails.fiscalCode || '');
+          setResidenceAddress(savedOrder.billingDetails.residenceAddress);
+          setResidenceSameAsShipping(
+            JSON.stringify(savedOrder.billingDetails.residenceAddress) ===
+              JSON.stringify(savedOrder.fulfillment?.shippingAddress),
+          );
+        }
         setStep(pendingPayment ? 'checkout' : restored.groups.length > 0 && restored.photos.length > 0 ? 'configure' : 'upload');
         setDraftResumeNotice(
           pendingPayment
@@ -359,8 +435,9 @@ export default function PrintShopOrderPage() {
   const uploadBusy = validatingFiles || photos.some((photo) => ['queued', 'preparing', 'uploading', 'finalizing'].includes(photo.status));
   const uploadHasErrors = photos.some((photo) => photo.status === 'error');
   const estimatedTotalCents = useMemo(
-    () => estimateOrderTotalCents(groups, catalog?.products ?? []),
-    [groups, catalog],
+    () => estimateOrderTotalCents(groups, catalog?.products ?? []) +
+      (deliveryMethod === 'shipping' && catalog?.shipping.enabled ? catalog.shipping.priceCents : 0),
+    [groups, catalog, deliveryMethod],
   );
   const locallyLowResolution = useMemo(
     () => hasLowResolutionPhotos(groups, catalog?.products ?? [], uploadedPhotos),
@@ -605,7 +682,11 @@ export default function PrintShopOrderPage() {
     setQuoteLoading(true);
     try {
       const draftId = await ensureDraft();
-      const serverQuote = await printShopApi.quoteOrder(draftId, buildPrintOrderItems(groups, uploadedPhotos));
+      const serverQuote = await printShopApi.quoteOrder(
+        draftId,
+        buildPrintOrderItems(groups, uploadedPhotos),
+        deliveryMethod,
+      );
       setQuote(serverQuote);
       setLowResolutionAccepted(false);
       setStep('checkout');
@@ -640,10 +721,10 @@ export default function PrintShopOrderPage() {
       return;
     }
     const items = buildPrintOrderItems(groups, uploadedPhotos);
-    const freshQuote = await printShopApi.quoteOrder(orderId, items);
+    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod);
     setQuote(freshQuote);
     resetCheckoutAcceptances();
-  }, [groups, orderId, resetCheckoutAcceptances, resumedPendingPayment, uploadedPhotos]);
+  }, [deliveryMethod, groups, orderId, resetCheckoutAcceptances, resumedPendingPayment, uploadedPhotos]);
 
   const prepareOrderForPayment = useCallback(async (): Promise<PrintShopQuote> => {
     if (!orderId || !catalog || !quote) throw new Error('Ordine non pronto. Torna al passaggio precedente e riprova.');
@@ -659,15 +740,24 @@ export default function PrintShopOrderPage() {
       contact,
       lowResolutionAccepted: !lowResolution || lowResolutionAccepted,
       customerNotes: contact.customerNotes.trim() || undefined,
+      fulfillment: deliveryMethod === 'shipping'
+        ? { method: 'shipping', shippingAddress }
+        : { method: 'studio_pickup' },
+      ...(deliveryMethod === 'shipping' ? {
+        billingDetails: {
+          fiscalCode: fiscalCode.trim().toUpperCase(),
+          residenceAddress: residenceSameAsShipping ? shippingAddress : residenceAddress,
+        },
+      } : {}),
     });
-    const freshQuote = await printShopApi.quoteOrder(orderId, items);
+    const freshQuote = await printShopApi.quoteOrder(orderId, items, deliveryMethod);
     setQuote(freshQuote);
     if (!hasSamePaypalQuoteGuard(quote, freshQuote)) {
       resetCheckoutAcceptances();
       throw new PrintShopQuoteReviewRequiredError(true);
     }
     return freshQuote;
-  }, [catalog, contact, groups, lowResolution, lowResolutionAccepted, orderId, quote, resetCheckoutAcceptances, resumedPendingPayment, uploadedPhotos]);
+  }, [catalog, contact, deliveryMethod, fiscalCode, groups, lowResolution, lowResolutionAccepted, orderId, quote, resetCheckoutAcceptances, residenceAddress, residenceSameAsShipping, resumedPendingPayment, shippingAddress, uploadedPhotos]);
 
   const handleCaptured = (result: PaypalCaptureResult) => {
     if (user) {
@@ -681,10 +771,18 @@ export default function PrintShopOrderPage() {
   };
 
   const sellerDetails = resolveStudioLegalDetails(studioSettings);
+  const shippingSelected = deliveryMethod === 'shipping';
+  const missingShippingAddress = shippingSelected && !postalAddressComplete(shippingAddress);
+  const missingFiscalCode = shippingSelected && !isValidCodiceFiscale(fiscalCode);
+  const missingResidenceAddress = shippingSelected && !residenceSameAsShipping && !postalAddressComplete(residenceAddress);
+  const missingShippingDetails = missingShippingAddress || missingFiscalCode || missingResidenceAddress;
   const paymentRequirements = [
     ...(!contact.displayName.trim() ? ['Inserisci nome e cognome'] : []),
     ...(!contact.email.trim() ? ['Inserisci l’indirizzo email'] : []),
     ...(contact.phone.trim().length < 6 ? ['Inserisci un numero di telefono valido'] : []),
+    ...(missingShippingAddress ? ['Completa l’indirizzo di spedizione'] : []),
+    ...(missingFiscalCode ? ['Inserisci un codice fiscale italiano valido'] : []),
+    ...(missingResidenceAddress ? ['Completa l’indirizzo di residenza'] : []),
     ...(!(privacyAccepted && termsAccepted && customProductAccepted)
       ? ['Seleziona tutti e tre i consensi obbligatori']
       : []),
@@ -698,6 +796,8 @@ export default function PrintShopOrderPage() {
     setPaymentAttempted(true);
     const targetId = missingContact
       ? 'print-shop-contact'
+      : missingShippingDetails
+        ? 'print-shop-shipping-details'
       : lowResolution && !lowResolutionAccepted
         ? 'print-shop-quality-warning'
         : missingConsents
@@ -725,7 +825,7 @@ export default function PrintShopOrderPage() {
                   <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Torna alla pagina delle stampe
                 </Link>
                 <h1 className="mt-3 text-3xl font-semibold text-blue-gray sm:text-5xl">Ordina le tue stampe</h1>
-                <p className="mt-3 max-w-2xl text-blue-gray/60">Carica JPG, scegli il formato e paga online. Ritirerai tutto in studio.</p>
+                <p className="mt-3 max-w-2xl text-blue-gray/60">Carica JPG, scegli il formato, paga online e decidi se ritirare in studio o ricevere le stampe a casa.</p>
               </div>
               {user && (
                 <Link href="/stampa-foto-aversa/i-miei-ordini" className="inline-flex h-11 items-center gap-2 rounded-full border border-sage/30 bg-white px-5 text-sm font-semibold text-blue-gray hover:bg-sage/5">
@@ -812,6 +912,32 @@ export default function PrintShopOrderPage() {
                   onGroupsChange={(nextGroups) => { setGroups(nextGroups); setQuote(null); setValidationIssues([]); }}
                   onAddGroup={addGroup}
                 />
+                <section className="mt-8 rounded-[2rem] border border-sage/20 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="delivery-method-title">
+                  <h2 id="delivery-method-title" className="text-2xl font-semibold text-blue-gray">Come vuoi ricevere le stampe?</h2>
+                  <p className="mt-2 text-sm text-blue-gray/55">Scegli ora: il costo della spedizione sarà incluso nel totale prima del pagamento.</p>
+                  <div className={`mt-5 grid gap-4 ${catalog?.shipping.enabled ? 'sm:grid-cols-2' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMethod('studio_pickup'); setQuote(null); }}
+                      className={`rounded-2xl border-2 p-5 text-left transition ${deliveryMethod === 'studio_pickup' ? 'border-terracotta bg-terracotta/5' : 'border-sage/20 hover:border-sage/50'}`}
+                      aria-pressed={deliveryMethod === 'studio_pickup'}
+                    >
+                      <span className="flex items-center gap-3 font-semibold text-blue-gray"><PackageCheck className="h-5 w-5 text-terracotta" /> Ritiro in sede</span>
+                      <span className="mt-2 block text-sm text-blue-gray/55">Gratuito. Ti avvisiamo quando le stampe sono pronte.</span>
+                    </button>
+                    {catalog?.shipping.enabled && (
+                      <button
+                        type="button"
+                        onClick={() => { setDeliveryMethod('shipping'); setQuote(null); }}
+                        className={`rounded-2xl border-2 p-5 text-left transition ${deliveryMethod === 'shipping' ? 'border-terracotta bg-terracotta/5' : 'border-sage/20 hover:border-sage/50'}`}
+                        aria-pressed={deliveryMethod === 'shipping'}
+                      >
+                        <span className="flex items-center gap-3 font-semibold text-blue-gray"><Truck className="h-5 w-5 text-terracotta" /> Spedizione a domicilio</span>
+                        <span className="mt-2 block text-sm text-blue-gray/55">{formatEuroCents(catalog.shipping.priceCents)} · consegna stimata in {catalog.shipping.estimatedMinDays}–{catalog.shipping.estimatedMaxDays} giorni.</span>
+                      </button>
+                    )}
+                  </div>
+                </section>
                 <div className="mt-8 flex flex-col-reverse justify-between gap-3 sm:flex-row">
                   <Button type="button" variant="outline" onClick={() => setStep('upload')} className="h-12 rounded-full border-sage/30 px-6">
                     <ArrowLeft aria-hidden="true" /> Torna alle foto
@@ -829,6 +955,7 @@ export default function PrintShopOrderPage() {
                   <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Foto caricate</dt><dd className="font-semibold">{uploadedPhotos.length}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Gruppi</dt><dd className="font-semibold">{groups.length}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Stampe</dt><dd className="font-semibold">{groups.reduce((sum, group) => sum + groupCopyCount(group), 0)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-blue-gray/55">Consegna</dt><dd className="font-semibold">{deliveryMethod === 'shipping' ? 'Spedizione' : 'Ritiro'}</dd></div>
                 </dl>
                 <div className="mt-5 border-t border-sage/15 pt-5">
                   <div className="flex items-end justify-between gap-3"><span className="text-sm text-blue-gray/55">Totale stimato</span><strong className="text-2xl text-terracotta">{formatEuroCents(estimatedTotalCents)}</strong></div>
@@ -843,7 +970,7 @@ export default function PrintShopOrderPage() {
                   <div className="flex items-start gap-3">
                     <CircleUserRound className="mt-1 h-6 w-6 flex-none text-terracotta" aria-hidden="true" />
                     <div>
-                      <h2 id="contact-title" className="text-2xl font-semibold text-blue-gray">I tuoi dati per il ritiro</h2>
+                      <h2 id="contact-title" className="text-2xl font-semibold text-blue-gray">I tuoi dati di contatto</h2>
                       <p className="mt-2 text-sm text-blue-gray/55">Ti contatteremo solo per aggiornamenti su questo ordine.</p>
                     </div>
                   </div>
@@ -874,6 +1001,43 @@ export default function PrintShopOrderPage() {
                     </label>
                   </div>
                 </section>
+
+                {shippingSelected && (
+                  <section id="print-shop-shipping-details" className={`rounded-[2rem] border bg-white p-6 shadow-sm sm:p-8 ${paymentAttempted && missingShippingDetails ? 'border-2 border-red-400' : 'border-sage/20'}`} aria-labelledby="shipping-details-title">
+                    <div className="flex items-start gap-3">
+                      <Truck className="mt-1 h-6 w-6 flex-none text-terracotta" aria-hidden="true" />
+                      <div>
+                        <h2 id="shipping-details-title" className="text-2xl font-semibold text-blue-gray">Consegna e dati di fatturazione</h2>
+                        <p className="mt-2 text-sm text-blue-gray/55">Servono per consegnare correttamente le stampe e registrare l’acquisto.</p>
+                      </div>
+                    </div>
+                    {paymentAttempted && missingShippingDetails && (
+                      <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">Completa i campi obbligatori evidenziati prima di pagare con PayPal.</p>
+                    )}
+                    <div className="mt-6">
+                      <h3 className="mb-4 font-semibold text-blue-gray">Indirizzo di spedizione</h3>
+                      <AddressFields address={shippingAddress} onChange={setShippingAddress} prefix="print-shipping" readOnly={resumedPendingPayment} />
+                    </div>
+                    <div className="mt-7 border-t border-sage/15 pt-6">
+                      <h3 className="font-semibold text-blue-gray">Dati di fatturazione</h3>
+                      <label className="mt-4 block max-w-sm text-sm font-semibold text-blue-gray">
+                        Codice fiscale <span className="text-red-700">(obbligatorio)</span>
+                        <Input id="print-fiscal-code" value={fiscalCode} onChange={(event) => setFiscalCode(event.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 16).toUpperCase())} maxLength={16} autoComplete="off" readOnly={resumedPendingPayment} placeholder="RSSMRA85M01H501Q" className="mt-2 h-12 rounded-xl font-normal uppercase" />
+                        <span className="mt-1 block font-normal text-blue-gray/45">16 lettere e numeri, senza spazi.</span>
+                      </label>
+                      <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-sage/15 bg-off-white/45 p-4 text-sm font-medium text-blue-gray/75">
+                        <input type="checkbox" checked={residenceSameAsShipping} onChange={(event) => setResidenceSameAsShipping(event.target.checked)} disabled={resumedPendingPayment} className="mt-0.5 h-5 w-5 accent-[#b56b50]" />
+                        L’indirizzo di residenza coincide con quello di spedizione
+                      </label>
+                      {!residenceSameAsShipping && (
+                        <div className="mt-5">
+                          <h4 className="mb-4 font-semibold text-blue-gray">Indirizzo di residenza</h4>
+                          <AddressFields address={residenceAddress} onChange={setResidenceAddress} prefix="print-residence" readOnly={resumedPendingPayment} />
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
 
                 {lowResolution && (
                   <section id="print-shop-quality-warning" className={`rounded-[2rem] border bg-amber-50 p-6 ${paymentAttempted && !lowResolutionAccepted ? 'border-2 border-red-400' : 'border-amber-300'}`} aria-labelledby="quality-warning-title">
@@ -944,7 +1108,10 @@ export default function PrintShopOrderPage() {
                   </div>
                   <dl className="mt-5 space-y-3 border-t border-sage/15 pt-5 text-sm">
                     <div className="flex justify-between"><dt className="text-blue-gray/55">Subtotale</dt><dd>{formatEuroCents(quote?.totals.subtotalCents ?? displayedTotal)}</dd></div>
-                    <div className="flex justify-between gap-4"><dt className="text-blue-gray/55">Ritiro in sede <span className="block text-xs">Nessun costo di consegna</span></dt><dd className="font-semibold text-emerald-700">€0,00</dd></div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-blue-gray/55">{shippingSelected ? 'Spedizione' : 'Ritiro in sede'} <span className="block text-xs">{shippingSelected ? `Consegna stimata in ${catalog?.shipping.estimatedMinDays ?? 2}–${catalog?.shipping.estimatedMaxDays ?? 5} giorni` : 'Nessun costo di consegna'}</span></dt>
+                      <dd className={`font-semibold ${shippingSelected ? 'text-blue-gray' : 'text-emerald-700'}`}>{formatEuroCents(quote?.totals.shippingCents ?? (shippingSelected ? catalog?.shipping.priceCents ?? 0 : 0))}</dd>
+                    </div>
                     <div className="flex items-end justify-between border-t border-sage/15 pt-4"><dt className="font-semibold">Totale da pagare</dt><dd className="text-3xl font-semibold text-terracotta">{formatEuroCents(displayedTotal)}</dd></div>
                   </dl>
                   <p className="mt-3 text-right text-xs text-blue-gray/50">Prezzo finale, imposte incluse ove applicabili.</p>
@@ -965,8 +1132,17 @@ export default function PrintShopOrderPage() {
                 </section>
 
                 <section className="rounded-2xl border border-sage/20 bg-sage/5 p-4 text-sm text-blue-gray/70">
-                  <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span><strong className="text-blue-gray">Ritiro in sede</strong><br />{pickupAddress}</span></div>
-                  <div className="mt-3 flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span>Le stampe saranno rese disponibili per il ritiro entro e non oltre {PRINT_SHOP_MAX_PICKUP_DAYS} giorni dal pagamento. Riceverai un avviso quando sono pronte.</span></div>
+                  {shippingSelected ? (
+                    <>
+                      <div className="flex items-start gap-2"><Truck className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span><strong className="text-blue-gray">Spedizione a domicilio</strong><br />{postalAddressComplete(shippingAddress) ? `${shippingAddress.street} ${shippingAddress.houseNumber}, ${shippingAddress.postalCode} ${shippingAddress.city} (${shippingAddress.province})` : 'Completa l’indirizzo di consegna.'}</span></div>
+                      <div className="mt-3 flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span>Consegna stimata in {catalog?.shipping.estimatedMinDays ?? 2}–{catalog?.shipping.estimatedMaxDays ?? 5} giorni. Riceverai gli aggiornamenti ai recapiti indicati.</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span><strong className="text-blue-gray">Ritiro in sede</strong><br />{pickupAddress}</span></div>
+                      <div className="mt-3 flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 flex-none text-terracotta" aria-hidden="true" /><span>Le stampe saranno rese disponibili per il ritiro entro e non oltre {PRINT_SHOP_MAX_PICKUP_DAYS} giorni dal pagamento. Riceverai un avviso quando sono pronte.</span></div>
+                    </>
+                  )}
                 </section>
 
                 {orderId && (
@@ -992,7 +1168,7 @@ export default function PrintShopOrderPage() {
                 <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-blue-gray/50">
                   <span className="rounded-xl bg-white p-2"><LockKeyhole className="mx-auto mb-1 h-4 w-4 text-dark-sage" aria-hidden="true" />File privati</span>
                   <span className="rounded-xl bg-white p-2"><ShieldCheck className="mx-auto mb-1 h-4 w-4 text-dark-sage" aria-hidden="true" />Pagamento sicuro</span>
-                  <span className="rounded-xl bg-white p-2"><PackageCheck className="mx-auto mb-1 h-4 w-4 text-dark-sage" aria-hidden="true" />Ritiro in studio</span>
+                  <span className="rounded-xl bg-white p-2">{shippingSelected ? <Truck className="mx-auto mb-1 h-4 w-4 text-dark-sage" aria-hidden="true" /> : <PackageCheck className="mx-auto mb-1 h-4 w-4 text-dark-sage" aria-hidden="true" />}{shippingSelected ? 'Spedizione' : 'Ritiro in studio'}</span>
                 </div>
               </aside>
             </div>

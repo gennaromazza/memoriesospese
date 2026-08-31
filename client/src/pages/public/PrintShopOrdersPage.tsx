@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Trash2,
+  Truck,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -50,7 +51,7 @@ import {
 export default function PrintShopOrdersPage() {
   useSEO({
     title: 'I miei ordini di stampe | Image Studio',
-    description: 'Consulta lo stato delle tue stampe fotografiche e scopri quando sono pronte per il ritiro.',
+    description: 'Consulta lo stato delle tue stampe fotografiche, dal pagamento alla consegna.',
     canonical: '/stampa-foto-aversa/i-miei-ordini',
     noindex: true,
   });
@@ -130,7 +131,7 @@ export default function PrintShopOrdersPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-terracotta">Area personale</p>
               <h1 className="mt-2 text-3xl font-semibold sm:text-5xl">I miei ordini</h1>
-              <p className="mt-3 text-blue-gray/60">Segui ogni passaggio, dalla verifica delle foto al ritiro in studio.</p>
+              <p className="mt-3 text-blue-gray/60">Segui ogni passaggio, dalla verifica delle foto al ritiro o alla spedizione.</p>
             </div>
             {user && (
               <Link href="/stampa-foto-aversa/ordine"><Button className="h-12 rounded-full bg-terracotta px-6 text-white hover:bg-terracotta/90"><Camera aria-hidden="true" /> Nuovo ordine</Button></Link>
@@ -175,18 +176,21 @@ export default function PrintShopOrdersPage() {
                 const status = order.fulfillment?.status ?? 'draft';
                 const paymentStatus = order.payment?.status ?? 'pending';
                 const ready = status === 'ready_for_pickup';
+                const shipping = order.fulfillment?.method === 'shipping';
+                const shippingAddress = order.fulfillment?.shippingAddress;
+                const shippingAddressText = shippingAddress ? `${shippingAddress.street} ${shippingAddress.houseNumber}, ${shippingAddress.postalCode} ${shippingAddress.city} (${shippingAddress.province})` : '';
                 const resumable = isResumablePrintDraft(order);
                 return (
                   <article key={order.id} className={`overflow-hidden rounded-[2rem] border bg-white shadow-sm ${ready ? 'border-emerald-300 ring-2 ring-emerald-100' : 'border-sage/20'}`}>
                     {ready && (
-                      <div className="flex items-center justify-center gap-2 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Le tue stampe sono pronte!</div>
+                      <div className="flex items-center justify-center gap-2 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"><CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Le tue stampe sono {shipping ? 'pronte per la spedizione' : 'pronte'}!</div>
                     )}
                     <div className="p-5 sm:p-7">
                       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <h2 className="text-xl font-semibold">{order.orderNumber}</h2>
-                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${printOrderStatusTone(status)}`}>{PRINT_ORDER_STATUS_LABELS[status]}</span>
+                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${printOrderStatusTone(status)}`}>{shipping && status === 'ready_for_pickup' ? 'Pronto per la spedizione' : PRINT_ORDER_STATUS_LABELS[status]}</span>
                           </div>
                           <p className="mt-2 flex items-center gap-2 text-xs text-blue-gray/45"><Clock3 className="h-3.5 w-3.5" aria-hidden="true" /> {formatPrintOrderDate(order.createdAt)}</p>
                         </div>
@@ -199,7 +203,7 @@ export default function PrintShopOrdersPage() {
                       <div className="mt-5 grid gap-3 rounded-2xl bg-off-white/70 p-4 sm:grid-cols-3">
                         <div className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-dark-sage" aria-hidden="true" /><span className="text-sm"><strong>{order.printShop?.assetCount ?? 0}</strong> file</span></div>
                         <div className="flex items-center gap-2"><ShoppingBag className="h-4 w-4 text-dark-sage" aria-hidden="true" /><span className="text-sm"><strong>{order.printShop?.copyCount ?? 0}</strong> stampe</span></div>
-                        <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-dark-sage" aria-hidden="true" /><span className="truncate text-sm" title={address}>Ritiro in sede{address ? ` · ${address}` : ''}</span></div>
+                        <div className="flex items-center gap-2">{shipping ? <Truck className="h-4 w-4 flex-none text-dark-sage" aria-hidden="true" /> : <MapPin className="h-4 w-4 flex-none text-dark-sage" aria-hidden="true" />}<span className="truncate text-sm" title={shipping ? shippingAddressText : address}>{shipping ? `Spedizione${shippingAddressText ? ` · ${shippingAddressText}` : ''}` : `Ritiro in sede${address ? ` · ${address}` : ''}`}</span></div>
                       </div>
 
                       {order.printShop?.items && order.printShop.items.length > 0 && (
@@ -216,7 +220,7 @@ export default function PrintShopOrdersPage() {
                         </details>
                       )}
 
-                      {ready && <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-900">Puoi ritirare l’ordine{address ? ` presso ${address}` : ' in sede'}. Porta con te il numero <strong>{order.orderNumber}</strong>.</p>}
+                      {ready && <p className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-900">{shipping ? 'L’ordine è pronto per essere affidato alla spedizione. Riceverai gli aggiornamenti ai recapiti indicati.' : <>Puoi ritirare l’ordine{address ? ` presso ${address}` : ' in sede'}. Porta con te il numero <strong>{order.orderNumber}</strong>.</>}</p>}
 
                       {resumable && (
                         <div className="mt-5 flex flex-col gap-3 border-t border-sage/15 pt-5 sm:flex-row sm:justify-end">
