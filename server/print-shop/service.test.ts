@@ -859,6 +859,41 @@ describe('PrintShopService production validation', () => {
     expect(db.countCollection('printShopPaymentRefunds')).toBe(1);
   });
 
+  it('marks a pending order as failed for the current Payments V2 declined event', async () => {
+    const paypal = paypalFake();
+    const { db, service } = createService({ paypal });
+    db.seed('orders/order_declined_webhook', baseOrder({
+      totals: { subtotalCents: 1000, discountCents: 0, totalCents: 1000 },
+      payment: {
+        method: 'paypal',
+        status: 'pending',
+        paypalOrderId: 'PAYPAL-DECLINED-ORDER',
+      },
+      fulfillment: { method: 'studio_pickup', status: 'awaiting_payment' },
+    }));
+
+    await expect(service.paypalWebhook({}, {
+      id: 'WH-DECLINED-EVENT',
+      event_type: 'PAYMENT.CAPTURE.DECLINED',
+      resource: {
+        id: 'CAPTURE-DECLINED-1',
+        status: 'DECLINED',
+        custom_id: 'order_declined_webhook',
+        amount: { currency_code: 'EUR', value: '10.00' },
+        supplementary_data: {
+          related_ids: { order_id: 'PAYPAL-DECLINED-ORDER' },
+        },
+      },
+    })).resolves.toMatchObject({ ok: true, orderId: 'order_declined_webhook' });
+
+    expect(db.value('orders/order_declined_webhook').payment).toMatchObject({
+      status: 'failed',
+      paypalStatus: 'DECLINED',
+    });
+    expect(db.value('orders/order_declined_webhook').fulfillment.status)
+      .toBe('awaiting_payment');
+  });
+
   it('rejects visually identical Polaroid photos even after JPEG re-encoding', async () => {
     const { db, storage, service } = createService();
     const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'package')!;

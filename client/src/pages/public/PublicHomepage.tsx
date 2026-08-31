@@ -25,6 +25,10 @@ import {
   Lock,
   ChevronRight,
   MessageCircle,
+  CreditCard,
+  PackageCheck,
+  Printer,
+  UploadCloud,
 } from "lucide-react";
 import { useStudio } from "@/context/StudioContext";
 import HeroSlideshow from "@/components/HeroSlideshow";
@@ -452,6 +456,87 @@ export default function PublicHomepage() {
                 <span className="min-w-0">{homepageContent.portfolio.cta}</span>
               </Button>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Stampa foto online */}
+      <section className="relative overflow-hidden bg-blue-gray px-4 py-14 text-white sm:py-20 md:py-24">
+        <div className="pointer-events-none absolute -left-24 top-12 h-72 w-72 rounded-full bg-terracotta/20 blur-3xl" />
+        <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-sage/30 blur-3xl" />
+
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:gap-16">
+          <div className="order-2 lg:order-1">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-cream">
+              Stampa foto online
+            </p>
+            <h2 className="max-w-2xl text-3xl font-playfair leading-tight sm:text-4xl md:text-5xl">
+              Le fotografie più importanti meritano di uscire dal telefono.
+            </h2>
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
+              Carica i tuoi JPG, scegli formato e carta lucida o opaca e decidi se mantenere la foto intera oppure riempire tutto il foglio. Al resto pensiamo noi.
+            </p>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              {[
+                { icon: UploadCloud, title: "Caricamento semplice", text: "Direttamente da telefono o computer" },
+                { icon: Printer, title: "Stampa su carta vera", text: "Formati classici, grandi e Polaroid" },
+                { icon: CreditCard, title: "Pagamento protetto", text: "Ordine anticipato e sicuro con PayPal" },
+                { icon: PackageCheck, title: "Consegna flessibile", text: "Ritiro in studio o spedizione, se attiva" },
+              ].map(({ icon: Icon, title, text }) => (
+                <div key={title} className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+                  <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-cream/10 text-cream">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-white">{title}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-white/60">{text}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href="/stampa-foto-aversa" className="w-full sm:w-auto">
+                <Button size="lg" className="h-12 w-full rounded-full bg-terracotta px-7 text-white hover:bg-terracotta/90 sm:w-auto">
+                  Scopri prezzi e formati
+                  <ChevronRight className="ml-2 h-5 w-5" aria-hidden="true" />
+                </Button>
+              </Link>
+              <Link href="/stampa-foto-aversa/ordine" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="h-12 w-full rounded-full border-white/35 bg-transparent px-7 text-white hover:bg-white hover:text-blue-gray sm:w-auto">
+                  Ordina le tue stampe
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="order-1 mx-auto w-full max-w-xl lg:order-2">
+            <div className="relative pb-7 pr-5 sm:pb-10 sm:pr-10">
+              <div className="overflow-hidden rounded-[2rem] border border-white/15 bg-white p-2 shadow-2xl sm:p-3">
+                <img
+                  src="/images/print-service/printed-memories-table.jpg"
+                  alt="Stampe fotografiche disposte su un tavolo"
+                  className="aspect-[4/3] w-full rounded-[1.5rem] object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="absolute bottom-0 right-0 w-[42%] rotate-3 rounded-xl bg-white p-2 shadow-2xl sm:p-3">
+                <img
+                  src="/images/print-service/travel-polaroid-prints.jpg"
+                  alt="Fotografie di viaggio stampate in stile Polaroid"
+                  className="aspect-square w-full rounded-lg object-cover"
+                  loading="lazy"
+                />
+                <p className="px-1 pb-1 pt-2 text-center font-playfair text-xs italic text-blue-gray sm:text-sm">
+                  Ricordi da tenere tra le mani
+                </p>
+              </div>
+              <div className="absolute -left-2 top-5 max-w-[12rem] -rotate-3 rounded-2xl border border-white/15 bg-sage/95 px-4 py-3 shadow-xl backdrop-blur sm:-left-5 sm:top-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cream">Foto vere. Carta vera.</p>
+                <p className="mt-1 font-playfair text-base leading-snug text-white sm:text-lg">Un ricordo non dovrebbe restare in una galleria.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1389,6 +1474,12 @@ export default function PublicHomepage() {
                 className="block text-gray-300 hover:text-white"
               >
                 Accesso Galleria
+              </Link>
+              <Link
+                href="/stampa-foto-aversa"
+                className="block font-medium text-[#c4724a] hover:text-white"
+              >
+                Stampa Foto Online
               </Link>
               <Link
                 href="/privacy"

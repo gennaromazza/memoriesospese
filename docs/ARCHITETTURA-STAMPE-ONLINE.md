@@ -248,7 +248,12 @@ Flusso:
 2. Il client mostra il pulsante PayPal e restituisce solo il PayPal Order ID.
 3. `POST /api/print-shop/orders/:id/paypal/capture` cattura server-side e accetta l'ordine soltanto se capture, importo, valuta e merchant coincidono.
 4. Una transazione Firestore registra capture, pagamento gestionale e movimento cassa una sola volta.
-5. `POST /api/print-shop/paypal/webhook` verifica la firma con PayPal, salva l'event ID idempotente e riconcilia eventi di capture, denial, refund e reversal.
+5. `POST /api/print-shop/paypal/webhook` verifica la firma con PayPal, salva l'event ID idempotente e riconcilia eventi `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DECLINED` (oltre al legacy `DENIED`), `PAYMENT.CAPTURE.REFUNDED` e `PAYMENT.CAPTURE.REVERSED`.
+
+Per la produzione il webhook live dell'app PayPal deve puntare a
+`https://imagestudiofotografico.com/api/print-shop/paypal/webhook`. Client ID,
+Client Secret e Webhook ID devono appartenere tutti alla stessa app REST in
+modalità live; non è valido mescolare credenziali sandbox e live.
 
 La risposta immediata della capture chiude il checkout; il webhook è la seconda fonte di riconciliazione per eventi successivi o callback perse. `PayPal-Request-Id` rende idempotenti create e capture.
 

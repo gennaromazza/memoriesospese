@@ -1903,7 +1903,10 @@ export class PrintShopService {
       return { ok: true, orderId };
     }
 
-    if (eventType === 'PAYMENT.CAPTURE.DENIED') {
+    if (
+      eventType === 'PAYMENT.CAPTURE.DECLINED' ||
+      eventType === 'PAYMENT.CAPTURE.DENIED'
+    ) {
       const capture = captureFromWebhook(event);
       const orderId = capture ? await this.resolveWebhookOrderId(capture) : null;
       await this.recordFailedPayment(orderId, eventRef, eventRecord, event);
@@ -2138,7 +2141,7 @@ export class PrintShopService {
           payment: {
             ...order.payment,
             status: 'failed',
-            paypalStatus: event?.resource?.status || 'DENIED',
+            paypalStatus: event?.resource?.status || 'DECLINED',
             failedAt: now,
           },
           fulfillment: { ...order.fulfillment, status: 'awaiting_payment' },
