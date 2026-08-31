@@ -4,7 +4,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "dist",
+    "public": "dist/app",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -12,17 +12,26 @@
     ],
     "rewrites": [
       {
-        "source": "/memoriesospese/**",
-        "destination": "/memoriesospese/index.html"
+        "source": "**",
+        "destination": "/index.html"
       }
     ],
     "headers": [
       {
-        "source": "/memoriesospese/**/*.@(js|css|png|jpg|jpeg|gif|ico|svg|woff2|woff|ttf|eot)",
+        "source": "/assets/**",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "public, max-age=31536000"
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
           }
         ]
       }
