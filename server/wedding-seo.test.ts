@@ -7,7 +7,7 @@ vi.mock('./firebase-admin.js', () => ({
         get: async () => ({
           exists: true,
           data: () => ({
-            lookupVersion: 2,
+            lookupVersion: 3,
             matched: false,
             checkedAt: { toMillis: () => Date.now() },
           }),
@@ -30,6 +30,7 @@ import {
   buildWeddingDraftRevisionPrompt,
   buildGeminiMessageContent,
   buildWeddingStoryPrompt,
+  buildWeddingVendorSearchPrompt,
   buildWeddingEditorialJobFacts,
   generateWeddingDraftWithGemini,
   inspectWeddingDraftQuality,
@@ -107,6 +108,38 @@ describe('Real Wedding editorial safety', () => {
       },
     });
     expect(request).not.toHaveProperty('temperature');
+  });
+
+  it('adds the verified reception venue to title and slug source while removing private surnames', async () => {
+    const generated = {
+      title: 'Il matrimonio di Anna Rossi e Luca Bianchi',
+      excerpt: 'Anna Rossi e Luca Bianchi hanno celebrato il loro matrimonio.',
+      story: `## Il racconto di Anna Rossi e Luca Bianchi\nImage Studio ha seguito la giornata con discrezione. ${repeatedWords(250)}`,
+      seoTitle: 'Matrimonio Anna Rossi e Luca Bianchi',
+      seoDescription: 'Il reportage di Anna Rossi e Luca Bianchi realizzato da Image Studio.',
+    };
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(generated) } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const draft = await generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-roga', name: 'Anna e Luca' },
+      sources: [],
+      photos: [],
+      jobFacts: {
+        coupleNames: ['Anna Rossi', 'Luca Bianchi'],
+        coupleSurnames: ['Rossi', 'Bianchi'],
+        receptionVenue: 'Roga Eventi',
+        receptionCity: 'Giugliano in Campania',
+        clientCities: [],
+      },
+      apiKey: 'test-key',
+    });
+
+    expect(draft.title).toBe('Il matrimonio di Anna e Luca a Roga Eventi');
+    expect(JSON.stringify(draft)).not.toMatch(/Rossi|Bianchi/);
+    expect(slugifyWeddingStory(draft.title)).toContain('roga-eventi');
   });
 
   it('retries truncated JSON without feeding the broken assistant response back to Gemini', async () => {
@@ -189,7 +222,7 @@ describe('Real Wedding editorial safety', () => {
     expect(fetchMock).toHaveBeenCalledTimes(MAX_WEDDING_DRAFT_ATTEMPTS);
   });
 
-  it('corrects roles, location claims, schedules and length across three editorial attempts', async () => {
+  it('corrects roles, unsupported location claims and schedules across three editorial attempts', async () => {
     const vendorSource = {
       id: 'legacy-vendors:vendors',
       submissionId: 'legacy-vendors',
@@ -201,7 +234,7 @@ describe('Real Wedding editorial safety', () => {
       consentGranted: true,
       legacyImported: true,
     };
-    const photos = Array.from({ length: 4 }, (_, index) => ({
+    const photos = Array.from({ length: 6 }, (_, index) => ({
       id: `p${index + 1}`,
       base64: 'aGVsbG8=',
       contentType: 'image/png',
@@ -215,13 +248,11 @@ describe('Real Wedding editorial safety', () => {
     );
     const secondDraft = weddingDraft(
       `## Dentro la scena\nNella navata Image Studio ha seguito la continuità del racconto. ` +
-      `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
-      repeatedWords(500),
+      repeatedWords(350),
     );
     const finalDraft = weddingDraft(
       `## Un racconto costruito sui gesti\nImage Studio ha seguito il matrimonio con un reportage discreto. ` +
-      `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
-      repeatedWords(710),
+      repeatedWords(520),
     );
     const completion = (draft: ReturnType<typeof weddingDraft>) => new Response(JSON.stringify({
       choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(draft) } }],
@@ -247,15 +278,14 @@ describe('Real Wedding editorial safety', () => {
     expect(firstRevision).toContain('usa troppi orari e dettagli operativi');
     expect(firstRevision).toContain('sulla costa');
     expect(firstRevision).toContain('attribuisce ruoli non verificati ai fornitori');
-    expect(firstRevision).toContain('Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.');
+    expect(firstRevision).toContain('Rimuovi completamente dal racconto i fornitori non verificati');
 
     const thirdRequest = JSON.parse(String(fetchMock.mock.calls[2][1]?.body));
     const secondRevision = String(thirdRequest.messages.at(-1)?.content || '');
-    expect(secondRevision).toContain('racconto troppo breve');
     expect(secondRevision).toContain('navata');
     expect(secondRevision).toContain('usa troppi orari e dettagli operativi');
     expect(secondRevision).toContain('attribuisce ruoli non verificati ai fornitori');
-    expect(secondRevision).toContain('punta a 900-1100 parole');
+    expect(secondRevision).toContain('punta a 350-450 parole');
   });
 
   it('keeps answers private without explicit editorial consent', () => {
@@ -290,7 +320,7 @@ describe('Real Wedding editorial safety', () => {
         internalNotes: 'Non pubblicare questa nota',
       },
       sources: [{
-        id: 's:f', submissionId: 's', fieldId: 'f', label: 'Dettaglio', value: 'Cerimonia in giardino',
+        id: 's:f', submissionId: 's', fieldId: 'f', label: 'Dettaglio', value: 'Cerimonia in giardino. '.repeat(20),
         clientName: 'Anna', category: 'story', consentGranted: true,
       }],
       photos: [{ id: 'p1', name: 'preparativi.jpg', chapterTitle: 'Preparativi', url: 'https://full.example/photo.jpg' }],
@@ -306,8 +336,8 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain("passato prossimo e imperfetto");
     expect(prompt).toContain('omettilo in silenzio');
     expect(prompt).toContain('non un riepilogo del modulo');
-    expect(prompt).toContain('900-1200 parole');
-    expect(prompt).toContain('punta ad almeno 900 parole');
+    expect(prompt).toContain('650-850 parole');
+    expect(prompt).toContain('punta ad almeno 650 parole');
     expect(prompt).toContain('approccio deve essere chiaramente fotografico');
     expect(prompt).toContain('studio fotografico di Gennaro Mazzacane');
     expect(prompt).toContain('SEO locale');
@@ -352,7 +382,7 @@ describe('Real Wedding editorial safety', () => {
     expect(JSON.stringify(facts)).not.toMatch(/Via Privata|Piazza Segreta|villa\.example/);
   });
 
-  it('treats selected vendors as mandatory and other answers as optional', () => {
+  it('keeps supplier verification separate from the editorial story', () => {
     const prompt = buildWeddingStoryPrompt({
       gallery: { name: 'Galleria' },
       jobFacts: {
@@ -366,15 +396,13 @@ describe('Real Wedding editorial safety', () => {
       photos: [],
     });
 
-    expect(prompt).toContain('FORNITORI SELEZIONATI DA CITARE SEMPRE');
-    expect(prompt).toContain('Kadoa');
+    expect(prompt).not.toContain('FORNITORI SELEZIONATI DA CITARE SEMPRE');
+    expect(prompt).not.toContain('Kadoa');
     expect(prompt).toContain('materiale secondario e facoltativo');
     expect(prompt).toContain('Monastero San Francesco ad Aversa');
     expect(prompt).not.toContain('Via Roma 12');
     expect(prompt).not.toContain('https://example.com');
     expect(inspectWeddingDraftQuality({ story: 'Un racconto senza crediti' }, ['Kadoa']))
-      .toContain('non cita i fornitori selezionati: Kadoa');
-    expect(inspectWeddingDraftQuality({ story: 'Gli allestimenti floreali di Kadoa.' }, ['Kadoa']))
       .not.toContain('non cita i fornitori selezionati: Kadoa');
   });
 
@@ -418,13 +446,11 @@ describe('Real Wedding editorial safety', () => {
       .toContain('attribuisce caratteristiche non documentate alle location: navata');
   });
 
-  it('distinguishes a neutral vendor credit from real role attributions', () => {
+  it('does not require unverified suppliers in the story and still rejects invented roles', () => {
     const names = ['gruppo Arechi', 'kadoa', 'Passaro', 'Bruno della Vecchia'];
-    const neutral = inspectWeddingDraftQuality({
-      story: `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
-        `la musica è rimasta un elemento separato del racconto fotografico.`,
-    }, names, { unverifiedVendorNames: names });
-    expect(neutral).toEqual([]);
+    expect(inspectWeddingDraftQuality({ story: 'Il racconto non include fornitori non verificati.' }, names, {
+      unverifiedVendorNames: names,
+    })).toEqual([]);
 
     const attributed = inspectWeddingDraftQuality({
       story: `Kadoa ha curato i fiori. I fiori di Kadoa hanno definito la scena. ` +
@@ -434,21 +460,6 @@ describe('Real Wedding editorial safety', () => {
       'attribuisce ruoli non verificati ai fornitori: gruppo Arechi, kadoa, Passaro, Bruno della Vecchia',
     );
 
-    const evasiveAttribution = inspectWeddingDraftQuality({
-      story: `Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia. ` +
-        `Più tardi gruppo Arechi ha suonato e Kadoa si è occupata dei fiori.`,
-    }, names, { unverifiedVendorNames: names });
-    expect(evasiveAttribution).toContain(
-      'cita fornitori non verificati fuori dal credito neutro: gruppo Arechi, kadoa',
-    );
-
-    const duplicatedInSeo = inspectWeddingDraftQuality({
-      story: 'Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.',
-      seoDescription: 'Tra le realtà scelte dalla coppia figurano gruppo Arechi, kadoa, Passaro e Bruno della Vecchia.',
-    }, names, { unverifiedVendorNames: names });
-    expect(duplicatedInSeo).toContain(
-      'cita fornitori non verificati fuori dal credito neutro: gruppo Arechi, kadoa, Passaro, Bruno della Vecchia',
-    );
   });
 
   it('rejects internal migration language and generic invented endings', () => {
@@ -517,22 +528,20 @@ describe('Real Wedding editorial safety', () => {
   });
 
   it('builds a precise automatic revision request after a rejected first draft', () => {
-    const prompt = buildWeddingDraftRevisionPrompt(['racconto troppo breve: 561 parole, minimo 700']);
+    const prompt = buildWeddingDraftRevisionPrompt(['racconto troppo breve: 361 parole, minimo 500']);
     expect(prompt).toContain('Riscrivila integralmente');
     expect(prompt).toContain('rispetta tassativamente i limiti di ogni campo');
-    expect(prompt).toContain('racconto troppo breve: 561 parole, minimo 700');
-    expect(prompt).toContain('punta a 900-1100 parole');
-    expect(prompt).toContain('5-7 sezioni sostanziose');
+    expect(prompt).toContain('racconto troppo breve: 361 parole, minimo 500');
+    expect(prompt).toContain('punta a 650-850 parole');
+    expect(prompt).toContain('4-6 sezioni sostanziose');
     expect(prompt).toContain('soltanto JSON valido');
 
     const vendorPrompt = buildWeddingDraftRevisionPrompt(
       ['attribuisce ruoli non verificati ai fornitori: Passaro, Kadoa, Bruno della Vecchia'],
       { unverifiedVendorNames: ['Passaro', 'Kadoa', 'Bruno della Vecchia'] },
     );
-    expect(vendorPrompt).toContain(
-      'Tra le realtà scelte dalla coppia figurano Passaro, Kadoa e Bruno della Vecchia.',
-    );
-    expect(vendorPrompt).toContain('Non citare altrove gli stessi nomi');
+    expect(vendorPrompt).toContain('Rimuovi completamente dal racconto i fornitori non verificati: Passaro, Kadoa e Bruno della Vecchia.');
+    expect(vendorPrompt).toContain('testo semplice nella sezione fornitori');
   });
 
   it('makes completed legacy submissions available to the admin migration flow', () => {
@@ -557,7 +566,7 @@ describe('Real Wedding editorial safety', () => {
     expect(sources.map(source => source.value)).toEqual(['Una risposta storica', '16:00']);
   });
 
-  it('keeps a vendor-only source compact and provides one canonical neutral credit', () => {
+  it('keeps a vendor-only source compact and excludes unverified suppliers from the story', () => {
     const sources = buildAuthorizedSources([{
       id: 'legacy-vendors',
       data: {
@@ -573,15 +582,13 @@ describe('Real Wedding editorial safety', () => {
     expect(prompt).toContain('Passaro');
     expect(prompt).toContain('gruppo Arechi');
     expect(prompt).toContain('300-450 parole, 2-3 sezioni');
-    expect(prompt).not.toContain('900-1200 parole');
-    expect(prompt).not.toContain('minimo 700');
-    expect(prompt).toContain(
-      'Tra le realtà scelte dalla coppia figurano Passaro, Kadoa, Bruno della Vecchia e gruppo Arechi.',
-    );
-    expect(prompt).toContain('Usa esattamente una volta questa frase');
+    expect(prompt).not.toContain('650-850 parole');
+    expect(prompt).not.toContain('minimo 500');
+    expect(prompt).toContain('FORNITORI NON VERIFICATI (non citare nel racconto');
+    expect(prompt).not.toContain('Usa esattamente una volta questa frase');
   });
 
-  it('accepts only a high-confidence wedding supplier URL supported by a Google citation', () => {
+  it('uses an official site as evidence but links only a cited Instagram profile', () => {
     const result = validateWeddingVendorSearchResult('Atelier Aurora', {
       matched: true,
       canonicalName: 'Atelier Aurora Sposa',
@@ -595,8 +602,45 @@ describe('Real Wedding editorial safety', () => {
     expect(result).toMatchObject({
       matched: true,
       role: 'Atelier di abiti da sposa',
-      url: 'https://atelieraurora.example/collezioni',
     });
+    expect(result?.url).toBeUndefined();
+
+    const instagramResult = validateWeddingVendorSearchResult('Abito Atelier Mirage', {
+      matched: true,
+      canonicalName: 'Maison Mirage',
+      matchedNameEvidence: 'Maison Mirage, conosciuto anche come Atelier Mirage, propone abiti per sposi',
+      category: 'atelier_sposa',
+      role: 'Atelier di abiti da sposa e sposo',
+      officialUrl: 'https://maisonmirage.example/',
+      socialUrl: 'https://instagram.com/maisonmirage_official/?hl=it',
+      confidence: 0.95,
+    }, [
+      'https://maisonmirage.example/chi-siamo',
+      'https://www.instagram.com/maisonmirage_official/',
+    ]);
+    expect(instagramResult).toMatchObject({
+      name: 'Maison Mirage',
+      role: 'Atelier di abiti da sposa e sposo',
+      url: 'https://www.instagram.com/maisonmirage_official/',
+    });
+  });
+
+  it('searches suppliers with wedding, role, location, aliases and Instagram context', () => {
+    const prompt = buildWeddingVendorSearchPrompt('Abito Atelier Mirage', 'Atelier sposa', {
+      coupleNames: [],
+      receptionVenue: 'Roga Eventi',
+      receptionCity: 'Giugliano in Campania',
+      ceremonyCity: 'Aversa',
+      clientCities: ['Parete'],
+    });
+
+    expect(prompt).toContain('fornitore realmente operante nel settore dei matrimoni');
+    expect(prompt).toContain('Abito Atelier Mirage, Atelier Mirage');
+    expect(prompt).toContain('Atelier sposa');
+    expect(prompt).toContain('Giugliano in Campania');
+    expect(prompt).toContain('Aversa');
+    expect(prompt).toContain('Parete');
+    expect(prompt).toContain('profilo Instagram ufficiale');
   });
 
   it('recognizes a proprietor name when cited evidence connects it to the public wedding brand', () => {

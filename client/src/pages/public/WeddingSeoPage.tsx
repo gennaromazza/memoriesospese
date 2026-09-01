@@ -128,10 +128,10 @@ export default function WeddingSeoPage() {
               <h2 className="mb-5 font-playfair text-3xl text-gray-900">Fornitori citati</h2>
               <ul className="grid gap-3 sm:grid-cols-2">
                 {story.vendors.map((vendor, index) => (
-                  <li key={`${vendor.name}-${vendor.role}-${index}`} className="rounded-lg bg-white p-4">
+                  <li key={`${vendor.name}-${vendor.role || 'senza-ruolo'}-${index}`} className="rounded-lg bg-white p-4">
                     <span className="block font-medium">{vendor.name}</span>
-                    <span className="text-sm text-gray-600">{vendor.role}</span>
-                    {vendor.url && <a href={vendor.url} target="_blank" rel="noopener noreferrer" className="mt-2 block text-sm text-[#6b7f6b] underline">Visita il sito o profilo pubblico</a>}
+                    {vendor.role && <span className="text-sm text-gray-600">{vendor.role}</span>}
+                    {vendor.url && <a href={vendor.url} target="_blank" rel="noopener noreferrer" className="mt-2 block text-sm text-[#6b7f6b] underline">Visita il profilo Instagram</a>}
                   </li>
                 ))}
               </ul>
