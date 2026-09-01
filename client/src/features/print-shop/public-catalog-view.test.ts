@@ -36,7 +36,7 @@ describe('listino pubblico autorevole', () => {
   });
 
   it('calcola il range strutturato senza ricavare numeri dai testi statici', () => {
-    expect(catalogPriceRangeCents(PRINT_SHOP_CATALOG)).toEqual({ lowCents: 20, highCents: 1700 });
+    expect(catalogPriceRangeCents(PRINT_SHOP_CATALOG)).toEqual({ lowCents: 40, highCents: 1700 });
   });
 
   it('in errore conserva soltanto i formati e non pubblicizza prezzi statici', () => {

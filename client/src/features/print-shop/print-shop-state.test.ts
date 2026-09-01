@@ -56,8 +56,8 @@ describe('print shop client state', () => {
       assignments: Array.from({ length: 5 }, (_, index) => ({ localPhotoId: `photo-${index + 6}`, copies: 1 })),
     };
 
-    // 6 + 5 = 11: lo scaglione 11–25 del 10×15 vale 45 centesimi.
-    expect(estimateOrderTotalCents([first, second], [...PRINT_SHOP_CATALOG])).toBe(11 * 45);
+    // 6 + 5 = 11: lo scaglione 11–25 del 10×15 vale 60 centesimi.
+    expect(estimateOrderTotalCents([first, second], [...PRINT_SHOP_CATALOG])).toBe(11 * 60);
   });
 
   it('richiede esattamente 50 Polaroid diverse e una copia per file', () => {

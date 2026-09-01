@@ -44,8 +44,8 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
     description: 'Perfetti per album, scatole dei ricordi, cornici e fotografie da regalare.',
     quantityHeaders: ['1–10', '11–25', '26–50', '51–499', '500+'],
     rows: [
-      { format: '10×15', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
-      { format: '15×20', prices: ['€1,80', '€1,20', '€0,90', '€0,70', '€0,70'] },
+      { format: '10×15', prices: ['€0,70', '€0,60', '€0,50', '€0,45', '€0,40'] },
+      { format: '15×20', prices: ['€1,80', '€1,50', '€1,30', '€1,20', '€1,00'] },
     ],
   },
   {
@@ -68,9 +68,9 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
       { format: '30×50', prices: ['€8,00', '€6,00', '€4,50'] },
       { format: '30×60', prices: ['€8,00', '€6,00', '€4,70'] },
       { format: '35×50', prices: ['€8,00', '€6,00', '€4,70'] },
-      { format: '40×60', prices: ['€10,00', '€7,00', '€5,00'] },
-      { format: '40×80', prices: ['€15,00', '€10,00', '€7,50'] },
-      { format: '50×80', prices: ['€17,00', '€11,00', '€8,00'] },
+      { format: '40×60', prices: ['€10,00', '€7,00', '€5,50'] },
+      { format: '40×80', prices: ['€17,00', '€12,50', '€10,00'] },
+      { format: '50×80', prices: ['€17,00', '€12,50', '€10,00'] },
     ],
   },
 ];
@@ -79,7 +79,7 @@ export const PRINT_FAQS: PrintFaq[] = [
   {
     question: 'Quanto costa stampare una foto 10×15?',
     answer:
-      'Il prezzo parte da €0,50 per piccole quantità e scende fino a €0,20 a fotografia per ordini da 500 stampe in su.',
+      'Il prezzo parte da €0,70 per piccole quantità e scende fino a €0,40 a fotografia per ordini da 500 stampe in su.',
   },
   {
     question: 'Dove posso stampare le foto ad Aversa?',

@@ -91,8 +91,8 @@ const LARGE_BOUNDS: readonly TierBound[] = [
 ];
 
 const CLASSIC_FORMATS: readonly TieredFormatFixture[] = [
-  { format: '10×15', widthMm: 100, heightMm: 150, pricesCents: [50, 45, 35, 25, 20] },
-  { format: '15×20', widthMm: 150, heightMm: 200, pricesCents: [180, 120, 90, 70, 70] },
+  { format: '10×15', widthMm: 100, heightMm: 150, pricesCents: [70, 60, 50, 45, 40] },
+  { format: '15×20', widthMm: 150, heightMm: 200, pricesCents: [180, 150, 130, 120, 100] },
 ];
 
 const MEDIUM_FORMATS: readonly TieredFormatFixture[] = [
@@ -105,9 +105,9 @@ const LARGE_FORMATS: readonly TieredFormatFixture[] = [
   { format: '30×50', widthMm: 300, heightMm: 500, pricesCents: [800, 600, 450] },
   { format: '30×60', widthMm: 300, heightMm: 600, pricesCents: [800, 600, 470] },
   { format: '35×50', widthMm: 350, heightMm: 500, pricesCents: [800, 600, 470] },
-  { format: '40×60', widthMm: 400, heightMm: 600, pricesCents: [1000, 700, 500] },
-  { format: '40×80', widthMm: 400, heightMm: 800, pricesCents: [1500, 1000, 750] },
-  { format: '50×80', widthMm: 500, heightMm: 800, pricesCents: [1700, 1100, 800] },
+  { format: '40×60', widthMm: 400, heightMm: 600, pricesCents: [1000, 700, 550] },
+  { format: '40×80', widthMm: 400, heightMm: 800, pricesCents: [1700, 1250, 1000] },
+  { format: '50×80', widthMm: 500, heightMm: 800, pricesCents: [1700, 1250, 1000] },
 ];
 
 const COMMON_PRODUCT_FIELDS = {

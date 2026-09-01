@@ -1,5 +1,5 @@
 /**
- * Seed idempotente del catalogo stampe (4 categorie + 34 prodotti).
+ * Seed idempotente del catalogo stampe (3 categorie + 11 prodotti).
  *
  * Dry-run predefinito (sola lettura):
  *   npx tsx scripts/seed-print-shop-catalog.ts

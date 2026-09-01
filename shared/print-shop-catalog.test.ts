@@ -103,6 +103,31 @@ describe('catalogo shop stampe', () => {
     expect(getPrintProductBySku(' print-100x150 ')?.nome).toBe('Stampa 10×15 cm');
     expect(getPrintProductBySku('inesistente')).toBeUndefined();
   });
+
+  it('mantiene almeno il 50% di margine lordo sui costi IVA inclusa del laboratorio', () => {
+    const laboratoryCostCentsBySku: Readonly<Record<string, number>> = {
+      'PRINT-100X150': 20,
+      'PRINT-150X200': 50,
+      'PRINT-200X300': 70,
+      'PRINT-300X400': 130,
+      'PRINT-300X450': 140,
+      'PRINT-300X500': 170,
+      'PRINT-300X600': 200,
+      'PRINT-350X500': 200,
+      'PRINT-400X600': 260,
+      'PRINT-400X800': 500,
+      'PRINT-500X800': 500,
+    };
+
+    for (const product of PRINT_SHOP_CATALOG) {
+      const laboratoryCostCents = laboratoryCostCentsBySku[product.sku];
+      expect(laboratoryCostCents).toBeTypeOf('number');
+      if (product.printSpec.pricing.model !== 'tiered') throw new Error('Prodotto a scaglioni atteso');
+      for (const tier of product.printSpec.pricing.tiers) {
+        expect(tier.unitPriceCents).toBeGreaterThanOrEqual(laboratoryCostCents * 2);
+      }
+    }
+  });
 });
 describe('calcolo prezzi a scaglioni', () => {
   const tieredProducts = PRINT_SHOP_CATALOG.filter(product => product.printSpec.pricing.model === 'tiered');
@@ -134,16 +159,16 @@ describe('calcolo prezzi a scaglioni', () => {
     const quote = calculatePrintQuote({ items: [first, second] });
 
     expect(quote.items.map(line => line.pricingQuantity)).toEqual([11, 11]);
-    expect(quote.items.map(line => line.unitPriceCents)).toEqual([45, 45]);
-    expect(quote.totals).toEqual({ subtotalCents: 495, discountCents: 0, totalCents: 495 });
+    expect(quote.items.map(line => line.unitPriceCents)).toEqual([60, 60]);
+    expect(quote.totals).toEqual({ subtotalCents: 660, discountCents: 0, totalCents: 660 });
     expect(quote.copyCount).toBe(11);
     expect(quote.assetCount).toBe(2);
   });
 
   it('calcola grandi quantità solo con interi in centesimi', () => {
     const quote = calculatePrintQuote({ items: [item('PRINT-100X150', 500)] });
-    expect(quote.items[0].unitPriceCents).toBe(20);
-    expect(quote.totals.totalCents).toBe(10_000);
+    expect(quote.items[0].unitPriceCents).toBe(40);
+    expect(quote.totals.totalCents).toBe(20_000);
     expect(Number.isSafeInteger(quote.totals.totalCents)).toBe(true);
   });
 
