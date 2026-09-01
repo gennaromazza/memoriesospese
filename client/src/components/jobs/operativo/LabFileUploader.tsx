@@ -9,6 +9,10 @@ interface LabFileUploaderProps {
   shipmentId: string;
   disabled?: boolean;
   onUploaded: () => void;
+  kind?: "supplemental" | "other";
+  label?: string;
+  accept?: string;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 /**
@@ -19,6 +23,10 @@ export default function LabFileUploader({
   shipmentId,
   disabled,
   onUploaded,
+  kind = "other",
+  label = "Carica file",
+  accept,
+  onUploadingChange,
 }: LabFileUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -33,13 +41,19 @@ export default function LabFileUploader({
     if (!files || files.length === 0) return;
     const fileArr = Array.from(files);
     setUploading(true);
+    onUploadingChange?.(true);
     try {
       for (let i = 0; i < fileArr.length; i++) {
         const file = fileArr[i];
         setCurrentName(file.name);
         setQueue({ index: i + 1, total: fileArr.length });
         setProgress(0);
-        await uploadFileToShipment(shipmentId, file, (pct) => setProgress(pct));
+        await uploadFileToShipment(
+          shipmentId,
+          file,
+          (pct) => setProgress(pct),
+          kind,
+        );
       }
       toast({
         title: "Upload completato",
@@ -54,6 +68,7 @@ export default function LabFileUploader({
       });
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
       setProgress(0);
       setCurrentName("");
       setQueue(null);
@@ -67,6 +82,7 @@ export default function LabFileUploader({
         ref={inputRef}
         type="file"
         multiple
+        accept={accept}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         data-testid={`input-file-${shipmentId}`}
@@ -84,7 +100,7 @@ export default function LabFileUploader({
         ) : (
           <Upload className="h-4 w-4 mr-2" />
         )}
-        {uploading ? "Caricamento..." : "Carica file"}
+        {uploading ? "Caricamento..." : label}
       </Button>
       {uploading && (
         <div className="space-y-1">

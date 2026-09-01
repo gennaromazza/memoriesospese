@@ -38,6 +38,7 @@ import {
   LabDpaValidationError,
   updateLabDpaFields,
 } from './lab-dpa.js';
+import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
@@ -50,6 +51,19 @@ const VALID_SHIPMENT_STATUSES: LabShipmentStatus[] = [
   'ricevuto',
   'scaduto',
 ];
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function multilineHtml(value: unknown): string {
+  return escapeHtml(value).replace(/\r?\n/g, '<br>');
+}
 
 function rejectPrintShopLegacyMutation(shipment: LabShipment, res: express.Response): boolean {
   if (shipment.sourceType !== 'print_shop') return false;
@@ -383,10 +397,13 @@ router.post('/lab-shipments/:id/upload-session', authenticateFirebase, requireAd
 router.post('/lab-shipments/:id/file-uploaded', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const { driveFileId, name, size, mimeType, webViewLink } = req.body;
+    const { driveFileId, name, size, mimeType, webViewLink, kind } = req.body;
 
     if (!driveFileId || !name) {
       return res.status(400).json({ error: 'driveFileId e name sono obbligatori' });
+    }
+    if (kind !== undefined && !['supplemental', 'other'].includes(kind)) {
+      return res.status(400).json({ error: 'Tipo file spedizione non valido' });
     }
 
     const shipmentDoc = await db.collection('labShipments').doc(id).get();
@@ -402,6 +419,7 @@ router.post('/lab-shipments/:id/file-uploaded', authenticateFirebase, requireAdm
       driveFileId,
       name,
       size: typeof size === 'number' ? size : 0,
+      kind: kind || 'other',
       uploadedAt: Timestamp.now(),
     };
     if (mimeType) newFile.mimeType = mimeType;
@@ -409,12 +427,24 @@ router.post('/lab-shipments/:id/file-uploaded', authenticateFirebase, requireAdm
 
     files.push(newFile);
 
-    await db.collection('labShipments').doc(id).update({
+    const shipmentRef = db.collection('labShipments').doc(id);
+    await shipmentRef.update({
       files,
       updatedAt: Timestamp.now(),
     });
 
-    const updated = await db.collection('labShipments').doc(id).get();
+    try {
+      await refreshLabShipmentInstructions(shipmentRef);
+    } catch (instructionError) {
+      await shipmentRef.update({
+        files: shipment.files || [],
+        updatedAt: Timestamp.now(),
+      });
+      await deleteDriveFile(driveFileId).catch(() => undefined);
+      throw instructionError;
+    }
+
+    const updated = await shipmentRef.get();
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error registering uploaded file:', error);
@@ -429,7 +459,7 @@ router.post('/lab-shipments/:id/file-uploaded', authenticateFirebase, requireAdm
 router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const { status, descrizione, labId, expiryDays } = req.body;
+    const { status, descrizione, labNote, labId, expiryDays } = req.body;
 
     const shipmentDoc = await db.collection('labShipments').doc(id).get();
     if (!shipmentDoc.exists) {
@@ -449,6 +479,15 @@ router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (re
     }
 
     if (descrizione !== undefined) updateData.descrizione = descrizione;
+    if (labNote !== undefined) {
+      if (typeof labNote !== 'string' || labNote.length > 10000) {
+        return res.status(400).json({ error: 'Note laboratorio non valide' });
+      }
+      updateData.labNote = labNote.trim();
+      if (shipmentDoc.data()?.jobNotesSnapshot) {
+        updateData['jobNotesSnapshot.generalNote'] = labNote.trim();
+      }
+    }
 
     if (expiryDays !== undefined && typeof expiryDays === 'number' && expiryDays > 0) {
       updateData.expiryDays = expiryDays;
@@ -469,9 +508,14 @@ router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (re
       }
     }
 
-    await db.collection('labShipments').doc(id).update(updateData);
+    const shipmentRef = db.collection('labShipments').doc(id);
+    await shipmentRef.update(updateData);
 
-    const updated = await db.collection('labShipments').doc(id).get();
+    if (shipmentDoc.data()?.sourceType === 'photobook') {
+      await refreshLabShipmentInstructions(shipmentRef);
+    }
+
+    const updated = await shipmentRef.get();
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error updating lab shipment:', error);
@@ -494,8 +538,14 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       return res.status(404).json({ error: 'Spedizione non trovata' });
     }
 
-    const shipment = shipmentDoc.data() as LabShipment;
+    let shipment = shipmentDoc.data() as LabShipment;
     if (rejectPrintShopLegacyMutation(shipment, res)) return;
+
+    if (shipment.sourceType === 'photobook') {
+      shipment = await refreshLabShipmentInstructions(
+        db.collection('labShipments').doc(id),
+      );
+    }
 
     if (!shipment.shareableLink) {
       return res.status(400).json({
@@ -546,6 +596,25 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     });
 
     const numFile = Array.isArray(shipment.files) ? shipment.files.length : 0;
+    const photoNotes = Array.isArray(shipment.jobNotesSnapshot?.photoNotes)
+      ? shipment.jobNotesSnapshot.photoNotes
+      : [];
+    const labNotesHtml = shipment.labNote || photoNotes.length > 0
+      ? `
+          <div style="background:#eef4f6;border-radius:12px;padding:22px;margin-bottom:25px;border-left:4px solid #58798a;">
+            <h2 style="font-size:17px;color:#334e5c;margin:0 0 12px 0;">Istruzioni di stampa</h2>
+            ${shipment.labNote
+              ? `<p style="font-size:15px;color:#3f515a;line-height:1.6;margin:0 0 ${photoNotes.length ? '16px' : '0'} 0;">${multilineHtml(shipment.labNote)}</p>`
+              : ''}
+            ${photoNotes.map((note, index) => `
+              <div style="border-top:1px solid #ccd9df;padding-top:12px;margin-top:12px;">
+                <p style="font-size:14px;color:#3f515a;line-height:1.5;margin:0;">
+                  <strong>Nota con allegato ${index + 1}:</strong> ${multilineHtml(note.note || '')}
+                </p>
+                ${note.driveFileName ? `<p style="font-size:12px;color:#6b7d86;margin:5px 0 0 0;">File nella cartella: ${escapeHtml(note.driveFileName)}</p>` : ''}
+              </div>`).join('')}
+          </div>`
+      : '';
 
     const htmlContent = `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #ffffff;">
@@ -554,19 +623,21 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
             File pronti per la stampa
           </h1>
           <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">
-            ${studioInfo.name}
+            ${escapeHtml(studioInfo.name)}
           </p>
         </div>
 
         <div style="padding: 30px 25px;">
           <p style="font-size: 18px; color: #333; margin: 0 0 25px 0;">
-            Ciao <strong style="color: #8b5a3c;">${lab.nome || 'Laboratorio'}</strong>,
+            Ciao <strong style="color: #8b5a3c;">${escapeHtml(lab.nome || 'Laboratorio')}</strong>,
           </p>
 
           <p style="font-size: 16px; color: #555; line-height: 1.6; margin: 0 0 25px 0;">
-            Trovi pronti i file da stampare per il lavoro <strong>${jobNome}</strong>.
-            ${shipment.descrizione ? `<br><span style="color:#666;">${shipment.descrizione}</span>` : ''}
+            Trovi pronti i file da stampare per il lavoro <strong>${escapeHtml(jobNome)}</strong>.
+            ${shipment.descrizione ? `<br><span style="color:#666;">${escapeHtml(shipment.descrizione)}</span>` : ''}
           </p>
+
+          ${labNotesHtml}
 
           <div style="background: #f8f5f2; border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #8b5a3c;">
             <table style="width: 100%; border-collapse: collapse;">
@@ -576,13 +647,13 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #666; font-size: 14px;">Disponibili fino al:</td>
-                <td style="padding: 8px 0; color: #c0392b; font-size: 14px; font-weight: 600;">${scadenzaFormatted}</td>
+                <td style="padding: 8px 0; color: #c0392b; font-size: 14px; font-weight: 600;">${escapeHtml(scadenzaFormatted)}</td>
               </tr>
             </table>
           </div>
 
           <div style="text-align: center; margin-bottom: 25px;">
-            <a href="${shipment.shareableLink}"
+            <a href="${escapeHtml(shipment.shareableLink)}"
                style="display: inline-block; background: linear-gradient(135deg, #8b5a3c 0%, #a06b4c 100%);
                       color: #ffffff; padding: 16px 40px; text-decoration: none;
                       border-radius: 8px; font-weight: 600; font-size: 16px;
@@ -593,21 +664,21 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
 
           <div style="background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 25px;">
             <p style="font-size: 14px; color: #856404; margin: 0;">
-              ⚠️ I file saranno automaticamente eliminati dopo il <strong>${scadenzaFormatted}</strong>.
+              ⚠️ I file saranno automaticamente eliminati dopo il <strong>${escapeHtml(scadenzaFormatted)}</strong>.
               Ti consigliamo di scaricarli quanto prima.
             </p>
           </div>
 
           <p style="font-size: 14px; color: #666; margin: 25px 0 0 0;">
             Grazie per la collaborazione!<br>
-            <strong style="color: #8b5a3c;">${studioInfo.name}</strong>
+            <strong style="color: #8b5a3c;">${escapeHtml(studioInfo.name)}</strong>
           </p>
         </div>
 
         <div style="background: #f5f5f5; padding: 20px 25px; text-align: center; border-top: 1px solid #e0e0e0;">
-          <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${studioInfo.name}</p>
-          <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${studioInfo.email}</p>
-          <p style="margin: 0; font-size: 12px; color: #666;">${studioInfo.phone}</p>
+          <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #333;">${escapeHtml(studioInfo.name)}</p>
+          <p style="margin: 0 0 5px 0; font-size: 12px; color: #666;">${escapeHtml(studioInfo.email)}</p>
+          <p style="margin: 0; font-size: 12px; color: #666;">${escapeHtml(studioInfo.phone)}</p>
         </div>
       </div>
     `;

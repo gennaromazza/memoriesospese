@@ -451,6 +451,40 @@ export async function uploadStreamToDriveFolder(
   };
 }
 
+/** Aggiorna il contenuto di un file Drive esistente senza cambiarne ID o nome. */
+export async function updateDriveFileContent(
+  fileId: string,
+  mimeType: string,
+  body: Readable,
+): Promise<{ fileId: string; webViewLink?: string; size: number }> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const buffer = Buffer.concat(chunks);
+  const response = await driveFetch(
+    `/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&supportsAllDrives=true&fields=${encodeURIComponent('id,webViewLink,size')}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': mimeType || 'application/octet-stream',
+        'Content-Length': String(buffer.length),
+      },
+      body: buffer,
+    },
+  );
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google Drive update error: ${response.status} ${text.slice(0, 300)}`);
+  }
+  const data: any = await response.json();
+  return {
+    fileId: data.id || fileId,
+    webViewLink: data.webViewLink || undefined,
+    size: data.size ? parseInt(data.size, 10) : buffer.length,
+  };
+}
+
 /**
  * Elimina un file o cartella da Drive.
  * Per le cartelle Drive elimina ricorsivamente anche i contenuti.

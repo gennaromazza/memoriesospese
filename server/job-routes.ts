@@ -1168,14 +1168,35 @@ router.get('/', authenticateFirebase, requireAdmin, async (req: any, res) => {
     const { status, jobType, clienteId, searchQuery, dateFrom, dateTo } = req.query;
     
     // Fetch all jobs and filter server-side to avoid complex index requirements
-    const snapshot = await db.collection('jobs').get();
+    const [snapshot, clientiSnapshot] = await Promise.all([
+      db.collection('jobs').get(),
+      db.collection('clienti').select('nome', 'cognome').get(),
+    ]);
+
+    const clientNamesById = new Map<string, string>();
+    clientiSnapshot.docs.forEach((doc) => {
+      const cliente = doc.data();
+      const name = `${cliente.nome || ''} ${cliente.cognome || ''}`.trim();
+      if (name) clientNamesById.set(doc.id, name);
+    });
     
     let jobs = snapshot.docs
       .filter(doc => doc.data().deleted !== true && !doc.data().deletedAt) // Escludi eliminati (hard flag + soft-delete deletedAt)
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      .map(doc => {
+        const data = doc.data();
+        const clientIds = Array.isArray(data.clientiIds) && data.clientiIds.length > 0
+          ? data.clientiIds
+          : data.clienteId
+            ? [data.clienteId]
+            : [];
+        return {
+          id: doc.id,
+          ...data,
+          clientNames: clientIds
+            .map((id: string) => clientNamesById.get(id))
+            .filter((name: string | undefined): name is string => !!name),
+        };
+      });
     
     // Filtri server-side
     const statusArray = status ? (Array.isArray(status) ? status : [status]) : null;
@@ -1215,6 +1236,7 @@ router.get('/', authenticateFirebase, requireAdmin, async (req: any, res) => {
       const query = (searchQuery as string).toLowerCase();
       jobs = jobs.filter((job: any) => 
         job.nomeEvento?.toLowerCase().includes(query) ||
+        job.clientNames?.some((name: string) => name.toLowerCase().includes(query)) ||
         job.eventLocation?.toLowerCase().includes(query) ||
         job.noteInterne?.toLowerCase().includes(query)
       );

@@ -39,7 +39,12 @@ export async function listPhotobooks(): Promise<Photobook[]> {
   return (await json<{ photobooks: Photobook[] }>(res)).photobooks;
 }
 
-export async function createPhotobook(data: { name: string; galleryId: string }): Promise<Photobook> {
+export async function createPhotobook(data: {
+  name: string;
+  galleryId: string;
+  jobId: string;
+  allowAssociationMismatch?: boolean;
+}): Promise<Photobook> {
   const res = await apiRequest('POST', '/api/photobooks', data);
   return (await json<{ photobook: Photobook }>(res)).photobook;
 }
@@ -51,7 +56,7 @@ export async function getPhotobook(id: string): Promise<Photobook> {
 
 export async function updatePhotobook(
   id: string,
-  data: { name?: string; currentVersion?: number; locked?: boolean; approval?: null },
+  data: { name?: string; currentVersion?: number; locked?: boolean; approval?: null; jobId?: string },
 ): Promise<Photobook> {
   const res = await apiRequest('PATCH', `/api/photobooks/${id}`, data);
   return (await json<{ photobook: Photobook }>(res)).photobook;
@@ -162,7 +167,15 @@ export interface PhotobookLabTransferResult {
  */
 export async function createPhotobookLabShipment(
   id: string,
-  data: { labId?: string; descrizione?: string; expiryDays?: number; jobId?: string },
+  data: {
+    labId?: string;
+    descrizione?: string;
+    expiryDays?: number;
+    jobId?: string;
+    labNote?: string;
+    jobPhotoNotes?: Array<{ sourceNoteId: string; note: string }>;
+    lockPhotobook?: boolean;
+  },
 ): Promise<PhotobookLabTransferResult> {
   const res = await apiRequest('POST', `/api/photobooks/${id}/lab-shipment`, data);
   return json<PhotobookLabTransferResult>(res);

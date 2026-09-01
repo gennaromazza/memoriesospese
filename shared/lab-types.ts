@@ -68,10 +68,32 @@ export interface LabShipmentFile {
   /** Per spedizioni shop collega il file all'asset privato dell'ordine. */
   assetId?: string;
   /** Distinta HTML oppure originale JPG; assente sui documenti legacy. */
-  kind?: 'manifest' | 'original' | 'other';
+  kind?: 'manifest' | 'original' | 'note_attachment' | 'supplemental' | 'other';
   mimeType?: string;
   webViewLink?: string;  // link diretto al file (opzionale, lo share è a livello cartella)
   uploadedAt: Timestamp;
+}
+
+/** Copia storica di una nota con foto scelta per il laboratorio. */
+export interface LabShipmentJobPhotoNoteSnapshot {
+  sourceNoteId: string;
+  note: string;
+  sourceImageUrl?: string;
+  sourceStoragePath?: string;
+  driveFileId?: string;
+  driveFileName?: string;
+}
+
+/**
+ * Istruzioni congelate al momento della creazione della spedizione.
+ * Non vengono mai rilette o riscritte sul job originale.
+ */
+export interface LabShipmentJobNotesSnapshot {
+  jobId: string;
+  generalNote?: string;
+  photoNotes: LabShipmentJobPhotoNoteSnapshot[];
+  capturedAt: Timestamp;
+  capturedBy?: string;
 }
 
 /**
@@ -138,6 +160,10 @@ export interface LabShipment {
   labEmail?: string;
 
   descrizione?: string;
+  /** Testo modificabile destinato esclusivamente al laboratorio. */
+  labNote?: string;
+  /** Snapshot delle note del job scelte per questa singola spedizione. */
+  jobNotesSnapshot?: LabShipmentJobNotesSnapshot;
 
   // File su Google Drive
   files: LabShipmentFile[];
@@ -164,6 +190,7 @@ export interface LabShipment {
 
   // Trasferimento pagine fotolibro in background (solo spedizioni da fotolibro)
   pageTransfer?: LabShipmentPageTransfer;
+  /** Fotolibro di origine, quando sourceType='photobook'. */
   photobookId?: string;
   transfer?: LabShipmentTransfer;
 
@@ -177,12 +204,14 @@ export interface InsertLabShipment {
   orderId?: string;
   sourceType?: 'job' | 'photobook' | 'print_shop';
   descrizione?: string;
+  labNote?: string;
   labId?: string;
   expiryDays?: number;
 }
 
 export interface UpdateLabShipment {
   descrizione?: string;
+  labNote?: string;
   labId?: string;
   status?: LabShipmentStatus;
   expiryDays?: number;

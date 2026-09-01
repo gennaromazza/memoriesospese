@@ -22,11 +22,13 @@ import {
   findOrCreateLabParentFolder,
   createShipmentFolder,
   uploadStreamToDriveFolder,
+  deleteDriveFile,
 } from './google-drive.js';
 import { LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS } from '../shared/lab-types.js';
 import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-routes.js';
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
+import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
 
 const router: Router = express.Router();
 
@@ -97,6 +99,65 @@ function serializePage(id: string, d: any): any {
     createdAt: ts(d.createdAt),
     updatedAt: ts(d.updatedAt),
   };
+}
+
+function entityClientIds(data: any): string[] {
+  const ids: unknown[] = Array.isArray(data?.clientiIds) && data.clientiIds.length > 0
+    ? data.clientiIds
+    : data?.clienteId
+      ? [data.clienteId]
+      : [];
+  const validIds = ids.filter(
+    (id: unknown): id is string => typeof id === 'string' && !!id.trim(),
+  );
+  return [...new Set<string>(validIds)];
+}
+
+function galleryJobAssociationWarnings(gallery: any, jobId: string, job: any): string[] {
+  const warnings: string[] = [];
+  if (gallery.jobId && gallery.jobId !== jobId) {
+    warnings.push('La galleria è già collegata a un altro lavoro');
+  }
+
+  const galleryClientIds = entityClientIds(gallery);
+  const jobClientIds = entityClientIds(job);
+  if (
+    galleryClientIds.length > 0 &&
+    jobClientIds.length > 0 &&
+    !galleryClientIds.some((id) => jobClientIds.includes(id))
+  ) {
+    warnings.push('I clienti della galleria non coincidono con quelli del lavoro selezionato');
+  }
+  return warnings;
+}
+
+function storagePathFromFirebaseUrl(value: unknown, expectedBucket: string): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const url = new URL(value);
+    if (url.hostname === 'firebasestorage.googleapis.com') {
+      const bucketMatch = url.pathname.match(/^\/v0\/b\/([^/]+)\/o\//);
+      if (!bucketMatch || decodeURIComponent(bucketMatch[1]) !== expectedBucket) return null;
+      const marker = '/o/';
+      const index = url.pathname.indexOf(marker);
+      return index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)) : null;
+    }
+    if (url.hostname === 'storage.googleapis.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      return parts.length >= 2 && decodeURIComponent(parts[0]) === expectedBucket
+        ? decodeURIComponent(parts.slice(1).join('/'))
+        : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function safeAttachmentFileName(index: number, storagePath: string): string {
+  const original = storagePath.split('/').pop() || `nota-${index + 1}.jpg`;
+  const clean = original.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-100);
+  return `nota-lavoro-${String(index + 1).padStart(2, '0')}-${clean || 'allegato.jpg'}`;
 }
 
 /**
@@ -718,17 +779,36 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-/** POST / — crea fotolibro { name, galleryId } */
+/** POST / — crea fotolibro { name, galleryId, jobId, allowAssociationMismatch? } */
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, galleryId } = req.body || {};
-    if (!name || typeof name !== 'string' || !galleryId || typeof galleryId !== 'string') {
-      return res.status(400).json({ error: 'Nome e galleria sono obbligatori' });
+    const { name, galleryId, jobId, allowAssociationMismatch } = req.body || {};
+    if (
+      !name ||
+      typeof name !== 'string' ||
+      !galleryId ||
+      typeof galleryId !== 'string' ||
+      !jobId ||
+      typeof jobId !== 'string'
+    ) {
+      return res.status(400).json({ error: 'Nome, galleria e lavoro sono obbligatori' });
     }
 
     const galleryDoc = await db.collection('galleries').doc(galleryId).get();
     if (!galleryDoc.exists) return res.status(404).json({ error: 'Galleria non trovata' });
     const g = galleryDoc.data() || {};
+    const normalizedJobId = jobId.trim();
+    const jobDoc = await db.collection('jobs').doc(normalizedJobId).get();
+    if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+
+    const associationWarnings = galleryJobAssociationWarnings(g, normalizedJobId, jobDoc.data());
+    if (associationWarnings.length > 0 && allowAssociationMismatch !== true) {
+      return res.status(409).json({
+        error: 'I collegamenti della galleria non coincidono con il lavoro selezionato',
+        code: 'photobook_association_mismatch',
+        warnings: associationWarnings,
+      });
+    }
 
     const token = randomBytes(24).toString('base64url');
     const now = new Date();
@@ -737,8 +817,9 @@ router.post('/', async (req: Request, res: Response) => {
       galleryId,
       galleryName: g.name || '',
       clientName: g.clientName || g.clientEmail || g.name || '',
-      // Associazione esplicita al lavoro: risale da gallery.jobId
-      jobId: g.jobId || null,
+      // Il lavoro è l'associazione canonica del fotolibro. La galleria resta
+      // la sorgente delle fotografie e non viene modificata implicitamente.
+      jobId: normalizedJobId,
       token,
       currentVersion: 1,
       versions: [{ version: 1, label: null, pageCount: 0, createdAt: now }],
@@ -1048,6 +1129,7 @@ async function runPhotobookPageTransfer(
             driveFileId: uploaded.fileId,
             name: fileName,
             size: uploaded.size || Number(meta.size) || 0,
+            kind: 'original',
             mimeType: String(meta.contentType || 'image/jpeg'),
             uploadedAt: new Date(),
           };
@@ -1136,6 +1218,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     }
     const jobDoc = await db.collection('jobs').doc(jobId).get();
     if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const job = jobDoc.data() || {};
 
     // Pagine della versione corrente (originali ad alta risoluzione)
     const pagesSnap = await db
@@ -1163,6 +1246,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
     }
 
     let isNewShipment = false;
+    let jobNotesSnapshot: any = shipment?.jobNotesSnapshot || null;
     if (!shipmentRef) {
       isNewShipment = true;
       const descrizione =
@@ -1172,9 +1256,74 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
         typeof req.body?.expiryDays === 'number' && req.body.expiryDays > 0
           ? req.body.expiryDays
           : LAB_SHIPMENT_DEFAULT_EXPIRY_DAYS;
+
+      const labNote = typeof req.body?.labNote === 'string' ? req.body.labNote.trim() : '';
+      if (labNote.length > 10000) {
+        return res.status(400).json({ error: 'Le note per il laboratorio superano 10.000 caratteri' });
+      }
+
+      const requestedPhotoNotes = Array.isArray(req.body?.jobPhotoNotes)
+        ? req.body.jobPhotoNotes
+        : [];
+      if (requestedPhotoNotes.length > 30) {
+        return res.status(400).json({ error: 'Puoi allegare al massimo 30 note con foto' });
+      }
+      const sourcePhotoNotes = Array.isArray(job.notePerFoto) ? job.notePerFoto : [];
+      const bucketName = storage.bucket().name;
+      const sourceById = new Map(
+        sourcePhotoNotes
+          .filter((note: any) => typeof note?.id === 'string')
+          .map((note: any) => [note.id, note]),
+      );
+      const seenNoteIds = new Set<string>();
+      const selectedPhotoNotes: any[] = [];
+      for (const requested of requestedPhotoNotes) {
+        const sourceNoteId = typeof requested?.sourceNoteId === 'string'
+          ? requested.sourceNoteId.trim()
+          : '';
+        if (!sourceNoteId || seenNoteIds.has(sourceNoteId) || !sourceById.has(sourceNoteId)) {
+          return res.status(400).json({ error: 'Una nota fotografica selezionata non appartiene al lavoro' });
+        }
+        const editedNote = typeof requested?.note === 'string' ? requested.note.trim() : '';
+        if (editedNote.length > 5000) {
+          return res.status(400).json({ error: 'Una nota fotografica supera 5.000 caratteri' });
+        }
+        seenNoteIds.add(sourceNoteId);
+        const source = sourceById.get(sourceNoteId);
+        const sourceStoragePath =
+          (typeof source.storagePath === 'string' && source.storagePath.trim()) ||
+          storagePathFromFirebaseUrl(source.imageUrl, bucketName) ||
+          undefined;
+        if (sourceStoragePath && !sourceStoragePath.startsWith(`jobs/${jobId}/note-foto/`)) {
+          return res.status(400).json({
+            error: 'Il percorso di una foto allegata non appartiene alle note del lavoro',
+          });
+        }
+        if (source.imageUrl && !sourceStoragePath) {
+          return res.status(400).json({
+            error: 'Una foto allegata alla nota non è trasferibile da Firebase Storage',
+          });
+        }
+        selectedPhotoNotes.push({
+          sourceNoteId,
+          note: editedNote,
+          ...(sourceStoragePath ? { sourceStoragePath } : {}),
+        });
+      }
+
+      jobNotesSnapshot = {
+        jobId,
+        ...(labNote ? { generalNote: labNote } : {}),
+        photoNotes: selectedPhotoNotes,
+        capturedAt: FieldValue.serverTimestamp(),
+        ...(req.user?.email ? { capturedBy: req.user.email } : {}),
+      };
       const shipmentData: any = {
         jobId,
         descrizione,
+        sourceType: 'photobook',
+        ...(labNote ? { labNote } : {}),
+        jobNotesSnapshot,
         files: [],
         status: 'da_inviare',
         expiryDays,
@@ -1195,6 +1344,7 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       shipmentRef = await db.collection('labShipments').add(shipmentData);
       const sDoc = await shipmentRef.get();
       shipment = sDoc.data();
+      jobNotesSnapshot = shipment?.jobNotesSnapshot || jobNotesSnapshot;
       console.log(
         `📖 [photobooks] Spedizione laboratorio ${shipmentRef.id} creata per fotolibro ${ref.id} (job ${jobId})`,
       );
@@ -1216,11 +1366,69 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       });
     }
 
+    // Le fotografie scelte dalle note del job vengono copiate nella cartella
+    // Drive della spedizione. Il testo e le immagini sono snapshot: nessuna
+    // scrittura viene effettuata sul job originale.
+    if (isNewShipment && Array.isArray(jobNotesSnapshot?.photoNotes)) {
+      const bucket = storage.bucket();
+      const noteFiles: any[] = [];
+      try {
+        for (let index = 0; index < jobNotesSnapshot.photoNotes.length; index++) {
+          const note = jobNotesSnapshot.photoNotes[index];
+          if (!note.sourceStoragePath) continue;
+          const storageFile = bucket.file(note.sourceStoragePath);
+          const [meta] = await storageFile.getMetadata();
+          const fileName = safeAttachmentFileName(index, note.sourceStoragePath);
+          const uploaded = await uploadStreamToDriveFolder(
+            driveFolderId,
+            fileName,
+            String(meta.contentType || 'image/jpeg'),
+            storageFile.createReadStream(),
+          );
+          note.driveFileId = uploaded.fileId;
+          note.driveFileName = fileName;
+          noteFiles.push({
+            driveFileId: uploaded.fileId,
+            name: fileName,
+            size: uploaded.size || Number(meta.size) || 0,
+            kind: 'note_attachment',
+            mimeType: String(meta.contentType || 'image/jpeg'),
+            ...(uploaded.webViewLink ? { webViewLink: uploaded.webViewLink } : {}),
+            uploadedAt: new Date(),
+          });
+        }
+
+        if (noteFiles.length > 0) {
+          await shipmentRef.update({
+            files: noteFiles,
+            jobNotesSnapshot,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          shipment.files = noteFiles;
+        }
+        shipment = await refreshLabShipmentInstructions(shipmentRef, {
+          name: book.name,
+          version: book.currentVersion,
+        });
+      } catch (error) {
+        // Rollback best-effort: senza gli allegati scelti la spedizione non
+        // deve risultare pronta né bloccare il fotolibro.
+        try {
+          if (driveFolderId) await deleteDriveFile(driveFolderId);
+        } catch {}
+        try {
+          await shipmentRef.delete();
+        } catch {}
+        throw error;
+      }
+    }
+
     // Collega subito fotolibro ↔ spedizione (evita doppie creazioni anche se
     // il trasferimento fallisce a metà e si riprova)
     await ref.update({
       jobId,
       labShipmentId: shipmentRef.id,
+      ...(req.body?.lockPhotobook === true ? { locked: true } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

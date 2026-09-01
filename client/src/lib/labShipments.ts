@@ -282,6 +282,7 @@ export async function uploadFileToShipment(
   shipmentId: string,
   file: File,
   onProgress?: (percent: number) => void,
+  kind: "supplemental" | "other" = "other",
 ): Promise<LabShipment> {
   const session = await requestUploadSession(shipmentId, file);
   const total = file.size;
@@ -362,6 +363,7 @@ export async function uploadFileToShipment(
       name: file.name,
       size: file.size,
       mimeType: file.type || "application/octet-stream",
+      kind,
     },
   );
   if (!response.ok) {

@@ -113,8 +113,26 @@ export default function JobPicker({
   const triggerLabel = loading
     ? 'Caricamento...'
     : selectedJob
-      ? `${selectedJob.nomeEvento} - ${jobDateLabel(selectedJob)}`
+      ? `${selectedJob.nomeEvento}${
+          selectedJob.clientNames?.length ? ` · ${selectedJob.clientNames.join(', ')}` : ''
+        } - ${jobDateLabel(selectedJob)}`
       : placeholder;
+
+  const jobSearchValue = (job: Job) =>
+    `${job.nomeEvento} ${job.clientNames?.join(' ') || ''} ${jobDateLabel(job)} ${job.id}`;
+
+  const jobLabel = (job: Job) => (
+    <span className="min-w-0 truncate text-left">
+      <span className="block truncate">
+        {job.nomeEvento} - {jobDateLabel(job)}
+      </span>
+      {job.clientNames && job.clientNames.length > 0 && (
+        <span className="block truncate text-xs text-muted-foreground">
+          Clienti: {job.clientNames.join(', ')}
+        </span>
+      )}
+    </span>
+  );
 
   const handleSelect = (jobId: string) => {
     onChange(jobId);
@@ -175,7 +193,7 @@ export default function JobPicker({
                 {suggestedJobs.map((job) => (
                   <CommandItem
                     key={job.id}
-                    value={`${job.nomeEvento} ${jobDateLabel(job)} ${job.id}`}
+                    value={jobSearchValue(job)}
                     onSelect={() => handleSelect(job.id)}
                     data-testid={`${testId}-suggested-${job.id}`}
                   >
@@ -186,9 +204,7 @@ export default function JobPicker({
                       )}
                     />
                     <Sparkles className="mr-2 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                    <span className="truncate">
-                      {job.nomeEvento} - {jobDateLabel(job)}
-                    </span>
+                    {jobLabel(job)}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -198,7 +214,7 @@ export default function JobPicker({
                 {restJobs.map((job) => (
                   <CommandItem
                     key={job.id}
-                    value={`${job.nomeEvento} ${jobDateLabel(job)} ${job.id}`}
+                    value={jobSearchValue(job)}
                     onSelect={() => handleSelect(job.id)}
                     data-testid={`${testId}-option-${job.id}`}
                   >
@@ -208,9 +224,7 @@ export default function JobPicker({
                         value === job.id ? 'opacity-100' : 'opacity-0',
                       )}
                     />
-                    <span className="truncate">
-                      {job.nomeEvento} - {jobDateLabel(job)}
-                    </span>
+                    {jobLabel(job)}
                   </CommandItem>
                 ))}
               </CommandGroup>

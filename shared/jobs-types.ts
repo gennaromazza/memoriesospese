@@ -112,6 +112,12 @@ export interface JobQuoteStatus {
  */
 export interface Job {
   id: string;
+
+  /**
+   * Nomi dei clienti risolti dall'API admin. Campo derivato, non persistito
+   * nel documento job: serve ai selettori e alla ricerca testuale.
+   */
+  clientNames?: string[];
   
   // Riferimenti
   clienteId?: string;           // @deprecated Legacy campo singolo - usare clientiIds
