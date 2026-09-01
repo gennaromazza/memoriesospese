@@ -51,7 +51,9 @@ export interface WeddingStoryPhoto {
 
 export interface WeddingStoryVendor {
   name: string;
-  role: string;
+  /** Ruolo mostrato solo quando dichiarato nel modulo o verificato online. */
+  role?: string;
+  /** Profilo Instagram ufficiale verificato o inserito esplicitamente nel modulo. */
   url?: string;
 }
 
