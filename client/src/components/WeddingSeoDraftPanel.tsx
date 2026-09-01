@@ -6,6 +6,7 @@ import {
   generateWeddingStoryDraft,
   getWeddingStoryEditor,
   saveWeddingStory,
+  saveWeddingStorySelection,
   visibleWeddingPhotos,
   WEDDING_PHOTO_PAGE_SIZE,
   weddingPhotoPreview,
@@ -62,6 +63,10 @@ function sourceValue(source: WeddingStorySource): string {
 
 const MAX_WEDDING_STORY_PHOTOS = 12;
 
+function photoSelectionSignature(photoIds: string[], coverPhotoId?: string): string {
+  return JSON.stringify({ photoIds, coverPhotoId: coverPhotoId || '' });
+}
+
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const { toast } = useToast();
   const [draft, setDraft] = useState<DraftFields>(EMPTY_DRAFT);
@@ -76,14 +81,21 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [saving, setSaving] = useState<'draft' | 'published' | null>(null);
   const [generating, setGenerating] = useState(false);
   const [refreshingSources, setRefreshingSources] = useState(false);
+  const [selectionSaveState, setSelectionSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string>();
   const [visiblePhotoCount, setVisiblePhotoCount] = useState(WEDDING_PHOTO_PAGE_SIZE);
   const [viewer, setViewer] = useState<Photo | null>(null);
   const loadedGallery = useRef<string>();
+  const selectionInitialized = useRef(false);
+  const lastSavedSelection = useRef('');
+  const selectionSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const selectionSaveVersion = useRef(0);
 
   useEffect(() => {
     if (loadedGallery.current === gallery.id) return;
     loadedGallery.current = gallery.id;
+    selectionInitialized.current = false;
+    selectionSaveVersion.current += 1;
     setLoading(true);
     setError(undefined);
     getWeddingStoryEditor(gallery.id)
@@ -91,6 +103,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         setSources(context.sources);
         setWarning(context.warning);
         if (context.story) {
+          const initialPhotoIds = context.story.selectedPhotoIds.slice(0, MAX_WEDDING_STORY_PHOTOS);
+          const initialCoverPhotoId = context.story.coverPhotoId || initialPhotoIds[0];
           setDraft({
             title: context.story.title,
             slug: context.story.slug,
@@ -102,11 +116,16 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           setStatus(context.story.status);
           setSlugIsCustom(Boolean(context.story.slug));
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
-          setSelectedPhotoIds(new Set(context.story.selectedPhotoIds.slice(0, MAX_WEDDING_STORY_PHOTOS)));
-          setCoverPhotoId(context.story.coverPhotoId || context.story.selectedPhotoIds[0]);
+          setSelectedPhotoIds(new Set(initialPhotoIds));
+          setCoverPhotoId(initialCoverPhotoId);
+          lastSavedSelection.current = photoSelectionSignature(initialPhotoIds, initialCoverPhotoId);
         } else {
           setSlugIsCustom(false);
+          setSelectedPhotoIds(new Set());
+          setCoverPhotoId(undefined);
+          lastSavedSelection.current = photoSelectionSignature([]);
         }
+        selectionInitialized.current = true;
       })
       .catch(reason => setError(readableError(reason)))
       .finally(() => setLoading(false));
@@ -135,6 +154,31 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     ? coverPhotoId
     : validSelectedPhotoIds[0];
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
+  const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId);
+
+  useEffect(() => {
+    if (loading || !selectionInitialized.current || currentSelectionSignature === lastSavedSelection.current) return;
+    setSelectionSaveState('saving');
+    const timer = window.setTimeout(() => {
+      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string };
+      const saveVersion = ++selectionSaveVersion.current;
+      const request = selectionSaveQueue.current.then(
+        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
+        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
+      );
+      selectionSaveQueue.current = request.then(() => undefined, () => undefined);
+      request
+        .then(saved => {
+          if (saveVersion !== selectionSaveVersion.current) return;
+          lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId);
+          setSelectionSaveState('saved');
+        })
+        .catch(() => {
+          if (saveVersion === selectionSaveVersion.current) setSelectionSaveState('error');
+        });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [currentSelectionSignature, gallery.id, loading]);
 
   const updateDraft = (field: keyof DraftFields, value: string) => {
     if (field === 'slug') setSlugIsCustom(true);
@@ -416,6 +460,12 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           <CardDescription>
             Seleziona fino a {MAX_WEDDING_STORY_PHOTOS} foto e usa la stella per scegliere la copertina del blog. Selezionate {validSelectedPhotoIds.length}/{MAX_WEDDING_STORY_PHOTOS}.
           </CardDescription>
+          <p className={`text-xs ${selectionSaveState === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
+            {selectionSaveState === 'saving' && 'Salvataggio automatico della selezione…'}
+            {selectionSaveState === 'saved' && 'Selezione foto e copertina salvata automaticamente.'}
+            {selectionSaveState === 'error' && 'Salvataggio automatico non riuscito: la selezione resta visibile, ma ricaricando la pagina potrebbe andare persa.'}
+            {selectionSaveState === 'idle' && 'La selezione foto e la copertina vengono salvate automaticamente.'}
+          </p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10">

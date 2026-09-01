@@ -48,6 +48,19 @@ export async function saveWeddingStory(
   return data.story;
 }
 
+export async function saveWeddingStorySelection(
+  galleryId: string,
+  selectedPhotoIds: string[],
+  coverPhotoId?: string,
+): Promise<{ selectedPhotoIds: string[]; coverPhotoId?: string }> {
+  const response = await apiRequest(
+    'PUT',
+    `/api/wedding-seo/gallery/${encodeURIComponent(galleryId)}/selection`,
+    { selectedPhotoIds, coverPhotoId },
+  );
+  return responseJson<{ selectedPhotoIds: string[]; coverPhotoId?: string }>(response);
+}
+
 export async function generateWeddingStoryDraft(
   galleryId: string,
   selectedSourceIds: string[],

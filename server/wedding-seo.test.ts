@@ -42,6 +42,7 @@ import {
   toPublicWeddingStory,
   validateWeddingVendorSearchResult,
   validateWeddingStoryInput,
+  validateWeddingStorySelectionInput,
 } from './wedding-seo';
 
 function weddingDraft(story: string) {
@@ -62,6 +63,33 @@ describe('Real Wedding editorial safety', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('normalizes and limits an automatically saved photo selection', () => {
+    const selectedPhotoIds = Array.from({ length: 14 }, (_, index) => `photo-${index}`);
+    selectedPhotoIds.splice(2, 0, 'photo-1');
+
+    expect(validateWeddingStorySelectionInput({
+      selectedPhotoIds,
+      coverPhotoId: 'photo-5',
+    })).toEqual({
+      selectedPhotoIds: Array.from({ length: 12 }, (_, index) => `photo-${index}`),
+      coverPhotoId: 'photo-5',
+    });
+  });
+
+  it('falls back to the first selected photo when the requested cover is invalid', () => {
+    expect(validateWeddingStorySelectionInput({
+      selectedPhotoIds: ['photo-2', 'photo-3'],
+      coverPhotoId: 'another-gallery-photo',
+    })).toEqual({
+      selectedPhotoIds: ['photo-2', 'photo-3'],
+      coverPhotoId: 'photo-2',
+    });
+    expect(validateWeddingStorySelectionInput({ selectedPhotoIds: [] })).toEqual({
+      selectedPhotoIds: [],
+      coverPhotoId: undefined,
+    });
   });
 
   it('uses the direct Gemini vision model and Google OpenAI-compatible endpoint', () => {

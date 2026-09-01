@@ -197,7 +197,17 @@ function jsonTimestamp(value: any): string | null {
   return null;
 }
 
-function storyFromDocument(id: string, data: Record<string, any>): WeddingSeoStory {
+function storyFromDocument(
+  id: string,
+  data: Record<string, any>,
+  options: { preferDraftSelection?: boolean } = {},
+): WeddingSeoStory {
+  const selectedPhotoIdsSource = options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+    ? data.draftSelectedPhotoIds
+    : data.selectedPhotoIds;
+  const coverPhotoIdSource = options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+    ? data.draftCoverPhotoId
+    : data.coverPhotoId;
   return {
     id,
     galleryId: data.galleryId || id,
@@ -209,10 +219,10 @@ function storyFromDocument(id: string, data: Record<string, any>): WeddingSeoSto
     story: data.story || '',
     seoTitle: data.seoTitle || '',
     seoDescription: data.seoDescription || '',
-    selectedPhotoIds: Array.isArray(data.selectedPhotoIds)
-      ? [...new Set(data.selectedPhotoIds.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
+    selectedPhotoIds: Array.isArray(selectedPhotoIdsSource)
+      ? [...new Set(selectedPhotoIdsSource.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
       : [],
-    coverPhotoId: data.coverPhotoId ? String(data.coverPhotoId) : undefined,
+    coverPhotoId: coverPhotoIdSource ? String(coverPhotoIdSource) : undefined,
     approvedSourceIds: Array.isArray(data.approvedSourceIds) ? data.approvedSourceIds : [],
     createdAt: jsonTimestamp(data.createdAt),
     updatedAt: jsonTimestamp(data.updatedAt),
@@ -789,6 +799,16 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   if (publish && selectedPhotoIds.length === 0) throw new Error('Seleziona almeno una fotografia prima di pubblicare.');
 
   return { title, story, excerpt, seoTitle, seoDescription, selectedPhotoIds, coverPhotoId, approvedSourceIds };
+}
+
+export function validateWeddingStorySelectionInput(body: Record<string, any>) {
+  const selectedPhotoIds = [...new Set(Array.isArray(body.selectedPhotoIds) ? body.selectedPhotoIds.map(String) : [])]
+    .slice(0, MAX_WEDDING_STORY_PHOTOS);
+  const requestedCoverPhotoId = safeString(body.coverPhotoId, 200);
+  const coverPhotoId = selectedPhotoIds.includes(requestedCoverPhotoId)
+    ? requestedCoverPhotoId
+    : selectedPhotoIds[0];
+  return { selectedPhotoIds, coverPhotoId };
 }
 
 export function buildWeddingStoryPrompt(params: {
@@ -1417,7 +1437,9 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
     if (!gallery) return res.status(404).json({ error: 'Galleria non trovata' });
     if (!isWeddingGallery(gallery)) return res.status(400).json({ error: 'La Storia Real Wedding è disponibile solo per gallerie matrimonio.' });
     const storyDocument = await db.collection(STORIES_COL).doc(gallery.id).get();
-    const story = storyDocument.exists ? storyFromDocument(storyDocument.id, storyDocument.data()!) : null;
+    const story = storyDocument.exists
+      ? storyFromDocument(storyDocument.id, storyDocument.data()!, { preferDraftSelection: true })
+      : null;
     const sources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     return res.json({
@@ -1468,6 +1490,8 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
       ...input,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: (req as any).user?.email || '',
+      draftSelectedPhotoIds: FieldValue.delete(),
+      draftCoverPhotoId: FieldValue.delete(),
     };
     if (!previous.exists) payload.createdAt = FieldValue.serverTimestamp();
     if (status === 'published') {
@@ -1482,6 +1506,39 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Salvataggio non riuscito.';
     console.error('[wedding-seo] save:', error);
+    return res.status(400).json({ error: message });
+  }
+});
+
+router.put('/gallery/:galleryId/selection', async (req: Request, res: Response) => {
+  try {
+    const gallery = await loadGallery(req.params.galleryId);
+    if (!gallery) return res.status(404).json({ error: 'Galleria non trovata' });
+    if (!isWeddingGallery(gallery)) return res.status(400).json({ error: 'Questa non è una galleria matrimonio.' });
+    const input = validateWeddingStorySelectionInput(req.body || {});
+    const photos = await loadSelectedPhotos(gallery, input.selectedPhotoIds);
+    if (photos.length !== input.selectedPhotoIds.length) {
+      return res.status(400).json({ error: 'Una o più fotografie selezionate non appartengono alla galleria.' });
+    }
+    const ref = db.collection(STORIES_COL).doc(gallery.id);
+    const previous = await ref.get();
+    const payload: Record<string, any> = {
+      galleryId: gallery.id,
+      jobId: gallery.jobId || '',
+      draftSelectedPhotoIds: input.selectedPhotoIds,
+      draftCoverPhotoId: input.coverPhotoId || FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: (req as any).user?.email || '',
+    };
+    if (!previous.exists) {
+      payload.status = 'draft';
+      payload.createdAt = FieldValue.serverTimestamp();
+    }
+    await ref.set(payload, { merge: true });
+    return res.json({ ok: true, ...input });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Salvataggio della selezione non riuscito.';
+    console.error('[wedding-seo] save selection:', error);
     return res.status(400).json({ error: message });
   }
 });
