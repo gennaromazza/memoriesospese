@@ -3,6 +3,7 @@ import { PRINT_PRICE_TABLES } from './print-service-content';
 import {
   PRINT_FIT_OPTIONS,
   PRINT_FINISH_OPTIONS,
+  LEGACY_POLAROID_PRODUCT,
   PRINT_SHOP_CATALOG,
   PRINT_SHOP_CATEGORIES,
   calculatePrintLine,
@@ -42,20 +43,32 @@ function cents(price: string): number {
 }
 
 describe('catalogo shop stampe', () => {
-  it('contiene esattamente i 34 formati e le quattro categorie della landing', () => {
-    expect(PRINT_SHOP_CATALOG).toHaveLength(34);
+  it('contiene soltanto gli 11 formati presenti anche nel listino del laboratorio', () => {
+    expect(PRINT_SHOP_CATALOG).toHaveLength(11);
+    expect(PRINT_SHOP_CATALOG.map(product => product.nome.replace(/^Stampa | cm$/g, ''))).toEqual([
+      '10×15',
+      '15×20',
+      '20×30',
+      '30×40',
+      '30×45',
+      '30×50',
+      '30×60',
+      '35×50',
+      '40×60',
+      '40×80',
+      '50×80',
+    ]);
     expect(PRINT_SHOP_CATEGORIES.map(category => category.value)).toEqual([
       'stampe-classiche',
       'stampe-medie',
       'stampe-grandi',
-      'stampe-polaroid',
     ]);
-    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-classiche')).toHaveLength(10);
-    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-medie')).toHaveLength(10);
-    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-grandi')).toHaveLength(13);
-    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-polaroid')).toHaveLength(1);
-    expect(new Set(PRINT_SHOP_CATALOG.map(product => product.sku)).size).toBe(34);
-    expect(new Set(PRINT_SHOP_CATALOG.map(product => product.id)).size).toBe(34);
+    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-classiche')).toHaveLength(2);
+    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-medie')).toHaveLength(3);
+    expect(PRINT_SHOP_CATALOG.filter(product => product.categoria === 'stampe-grandi')).toHaveLength(6);
+    expect(PRINT_SHOP_CATALOG.some(product => product.printSpec.pricing.model === 'package')).toBe(false);
+    expect(new Set(PRINT_SHOP_CATALOG.map(product => product.sku)).size).toBe(11);
+    expect(new Set(PRINT_SHOP_CATALOG.map(product => product.id)).size).toBe(11);
   });
 
   it('replica tutti i prezzi in centesimi e nello stesso ordine del listino pubblico', () => {
@@ -128,9 +141,9 @@ describe('calcolo prezzi a scaglioni', () => {
   });
 
   it('calcola grandi quantità solo con interi in centesimi', () => {
-    const quote = calculatePrintQuote({ items: [item('PRINT-130X180', 500)] });
-    expect(quote.items[0].unitPriceCents).toBe(25);
-    expect(quote.totals.totalCents).toBe(12_500);
+    const quote = calculatePrintQuote({ items: [item('PRINT-100X150', 500)] });
+    expect(quote.items[0].unitPriceCents).toBe(20);
+    expect(quote.totals.totalCents).toBe(10_000);
     expect(Number.isSafeInteger(quote.totals.totalCents)).toBe(true);
   });
 
@@ -166,6 +179,7 @@ describe('calcolo prezzi a scaglioni', () => {
 
 describe('pacchetto Polaroid', () => {
   const sku = 'PRINT-POLAROID-100X090';
+  const legacyCatalog = [...PRINT_SHOP_CATALOG, LEGACY_POLAROID_PRODUCT];
   const validItem: PrintOrderItemInput = {
     sku,
     finish: 'matte',
@@ -174,7 +188,7 @@ describe('pacchetto Polaroid', () => {
   };
 
   it('accetta esattamente 50 fotografie tutte diverse a €9,90', () => {
-    const quote = calculatePrintQuote({ items: [validItem] });
+    const quote = calculatePrintQuote({ items: [validItem] }, legacyCatalog);
     expect(quote.totals.totalCents).toBe(990);
     expect(quote.items[0]).toMatchObject({
       pricingModel: 'package',
@@ -187,19 +201,19 @@ describe('pacchetto Polaroid', () => {
   });
 
   it('rifiuta 49 fotografie', () => {
-    const result = validatePrintOrderRequest({ items: [{ ...validItem, assignments: assignments(49) }] });
+    const result = validatePrintOrderRequest({ items: [{ ...validItem, assignments: assignments(49) }] }, legacyCatalog);
     expect(result.issues.map(issue => issue.code)).toContain('INVALID_PACKAGE_SIZE');
   });
 
   it('rifiuta fotografie duplicate e copie multiple', () => {
     const duplicateAssignments = assignments(50);
     duplicateAssignments[49] = { assetId: duplicateAssignments[0].assetId, copies: 1 };
-    const duplicateResult = validatePrintOrderRequest({ items: [{ ...validItem, assignments: duplicateAssignments }] });
+    const duplicateResult = validatePrintOrderRequest({ items: [{ ...validItem, assignments: duplicateAssignments }] }, legacyCatalog);
     expect(duplicateResult.issues.map(issue => issue.code)).toContain('PACKAGE_REQUIRES_DISTINCT_ASSETS');
 
     const multipleCopies = assignments(50);
     multipleCopies[0] = { ...multipleCopies[0], copies: 2 };
-    const copiesResult = validatePrintOrderRequest({ items: [{ ...validItem, assignments: multipleCopies }] });
+    const copiesResult = validatePrintOrderRequest({ items: [{ ...validItem, assignments: multipleCopies }] }, legacyCatalog);
     expect(copiesResult.issues.map(issue => issue.code)).toEqual(
       expect.arrayContaining(['PACKAGE_REQUIRES_SINGLE_COPIES', 'INVALID_PACKAGE_SIZE']),
     );
@@ -207,7 +221,7 @@ describe('pacchetto Polaroid', () => {
 
   it('non consente di aggirare il limite creando due righe Polaroid', () => {
     const secondItem = { ...validItem, assignments: assignments(50, 1, 'second') };
-    const result = validatePrintOrderRequest({ items: [validItem, secondItem] });
+    const result = validatePrintOrderRequest({ items: [validItem, secondItem] }, legacyCatalog);
     expect(result.issues.map(issue => issue.code)).toContain('MULTIPLE_PACKAGES_NOT_ALLOWED');
   });
 });

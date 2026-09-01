@@ -30,7 +30,6 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   'stampe-classiche': 'Perfetti per album, scatole dei ricordi, cornici e fotografie da regalare.',
   'stampe-medie': 'Per cornici importanti, composizioni fotografiche e piccoli ingrandimenti.',
   'stampe-grandi': 'Quando una fotografia merita di diventare parte della casa.',
-  'stampe-polaroid': 'Stampe dal bordo iconico, pronte per pareti, dediche e piccoli regali.',
 };
 
 export function formatCatalogEuro(cents: number): string {
@@ -47,7 +46,7 @@ function centimetres(mm: number): string {
 
 function formatName(product: PrintShopCatalogProduct): string {
   const dimensions = `${centimetres(product.printSpec.widthMm)}×${centimetres(product.printSpec.heightMm)}`;
-  return product.sku === 'PRINT-POLAROID-100X090' ? `${dimensions} Polaroid Wide` : dimensions;
+  return dimensions;
 }
 
 function quantityLabel(minQuantity: number, maxQuantity?: number): string {

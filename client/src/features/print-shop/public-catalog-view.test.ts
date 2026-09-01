@@ -41,7 +41,7 @@ describe('listino pubblico autorevole', () => {
 
   it('in errore conserva soltanto i formati e non pubblicizza prezzi statici', () => {
     const fallback = buildFallbackPriceSections(PRINT_PRICE_TABLES);
-    expect(fallback.flatMap((section) => section.rows)).toHaveLength(34);
+    expect(fallback.flatMap((section) => section.rows)).toHaveLength(11);
     expect(fallback.flatMap((section) => section.rows).every((row) =>
       row.priceAvailable === false && row.prices.every((price) => price === 'Prezzo non disponibile'),
     )).toBe(true);

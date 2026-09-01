@@ -9,14 +9,14 @@ import {
 } from './print-service-content';
 
 describe('print service content', () => {
-  it('mantiene il listino completo di 34 formati senza duplicati', () => {
+  it('mantiene gli 11 formati verificati del laboratorio senza duplicati', () => {
     const formats = PRINT_PRICE_TABLES.flatMap((table) => table.rows.map((row) => row.format));
 
-    expect(countPrintFormats()).toBe(34);
-    expect(new Set(formats).size).toBe(34);
+    expect(countPrintFormats()).toBe(11);
+    expect(new Set(formats).size).toBe(11);
     expect(formats).toContain('10×15');
     expect(formats).toContain('50×80');
-    expect(formats).toContain('10×9 Polaroid Wide');
+    expect(formats).not.toContain('50×70');
   });
 
   it('mantiene prezzi e quantità allineati in ogni tabella', () => {
@@ -29,14 +29,14 @@ describe('print service content', () => {
 
   it('espone contenuti SEO e FAQ per la landing pubblica', () => {
     expect(PRINT_SERVICE_PATH).toBe('/stampa-foto-aversa');
-    expect(PRINT_FAQS).toHaveLength(6);
+    expect(PRINT_FAQS).toHaveLength(5);
   });
 
   it('trova i formati anche con separatori e spazi diversi', () => {
     expect(normalizePrintFormat(' 20 x 30 cm ')).toBe('20x30');
     expect(searchPrintFormats('10x15').map((result) => result.row.format)).toEqual(['10×15']);
     expect(searchPrintFormats('20 × 30 centimetri').map((result) => result.row.format)).toEqual(['20×30']);
-    expect(searchPrintFormats('polaroid').map((result) => result.row.format)).toEqual(['10×9 Polaroid Wide']);
+    expect(searchPrintFormats('polaroid')).toEqual([]);
   });
 
   it('non mostra risultati quando la ricerca è vuota o inesistente', () => {

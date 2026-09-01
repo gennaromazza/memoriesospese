@@ -480,7 +480,7 @@ export default function PublicHomepage() {
             <div className="mt-7 grid gap-3 sm:grid-cols-2">
               {[
                 { icon: UploadCloud, title: "Caricamento semplice", text: "Direttamente da telefono o computer" },
-                { icon: Printer, title: "Stampa su carta vera", text: "Formati classici, grandi e Polaroid" },
+                { icon: Printer, title: "Stampa su carta vera", text: "Formati classici e grandi" },
                 { icon: CreditCard, title: "Pagamento protetto", text: "Ordine anticipato e sicuro con PayPal" },
                 { icon: PackageCheck, title: "Consegna flessibile", text: "Ritiro in studio o spedizione, se attiva" },
               ].map(({ icon: Icon, title, text }) => (
@@ -523,8 +523,8 @@ export default function PublicHomepage() {
               </div>
               <div className="absolute bottom-0 right-0 w-[42%] rotate-3 rounded-xl bg-white p-2 shadow-2xl sm:p-3">
                 <img
-                  src="/images/print-service/travel-polaroid-prints.jpg"
-                  alt="Fotografie di viaggio stampate in stile Polaroid"
+                  src="/images/print-service/printed-memories-table.jpg"
+                  alt="Fotografie di viaggio stampate su carta fotografica"
                   className="aspect-square w-full rounded-lg object-cover"
                   loading="lazy"
                 />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
+import { LEGACY_POLAROID_PRODUCT, PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
 import type { LocalPrintPhoto, PrintGroupDraft } from './types';
 import {
   buildPrintOrderItems,
@@ -45,7 +45,8 @@ describe('print shop client state', () => {
   const tenByFifteen = PRINT_SHOP_CATALOG.find((product) =>
     product.printSpec.widthMm === 100 && product.printSpec.heightMm === 150,
   )!;
-  const polaroid = PRINT_SHOP_CATALOG.find((product) => product.printSpec.pricing.model === 'package')!;
+  const polaroid = LEGACY_POLAROID_PRODUCT;
+  const legacyCatalog = [...PRINT_SHOP_CATALOG, polaroid];
 
   it('applica lo scaglione sulla quantità aggregata dello stesso SKU', () => {
     const first = group(tenByFifteen.sku, 'a', 6);
@@ -62,14 +63,14 @@ describe('print shop client state', () => {
   it('richiede esattamente 50 Polaroid diverse e una copia per file', () => {
     const photos = Array.from({ length: 50 }, (_, index) => photo(index));
     const incomplete = group(polaroid.sku, 'polaroid', 49);
-    expect(validatePrintGroups([incomplete], [...PRINT_SHOP_CATALOG], photos))
+    expect(validatePrintGroups([incomplete], legacyCatalog, photos))
       .toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining('50') })]));
 
     const complete = group(polaroid.sku, 'polaroid', 50);
-    expect(validatePrintGroups([complete], [...PRINT_SHOP_CATALOG], photos)).toEqual([]);
+    expect(validatePrintGroups([complete], legacyCatalog, photos)).toEqual([]);
 
     complete.assignments[0].copies = 2;
-    expect(validatePrintGroups([complete], [...PRINT_SHOP_CATALOG], photos))
+    expect(validatePrintGroups([complete], legacyCatalog, photos))
       .toEqual(expect.arrayContaining([expect.objectContaining({ message: expect.stringContaining('una sola copia') })]));
   });
 

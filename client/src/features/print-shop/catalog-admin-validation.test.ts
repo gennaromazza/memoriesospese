@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
+import { LEGACY_POLAROID_PRODUCT, PRINT_SHOP_CATALOG } from '@shared/print-shop-catalog';
 import type { PrintShopCatalogProduct } from '@shared/print-shop-types';
 import { validatePrintCatalogDraft } from '@/components/print-shop/PrintShopCatalogManager';
 
@@ -7,7 +7,9 @@ function withPricing(
   pricing: PrintShopCatalogProduct['printSpec']['pricing'],
   sku = PRINT_SHOP_CATALOG[0].sku,
 ): PrintShopCatalogProduct {
-  const source = PRINT_SHOP_CATALOG.find((product) => product.sku === sku) ?? PRINT_SHOP_CATALOG[0];
+  const source = sku === LEGACY_POLAROID_PRODUCT.sku
+    ? LEGACY_POLAROID_PRODUCT
+    : PRINT_SHOP_CATALOG.find((product) => product.sku === sku) ?? PRINT_SHOP_CATALOG[0];
   return {
     ...source,
     printSpec: {

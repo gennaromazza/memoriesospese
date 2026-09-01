@@ -352,38 +352,6 @@ describe('PrintShopService production validation', () => {
     });
   });
 
-  it('rejects a Polaroid package containing duplicate bytes under different asset IDs', async () => {
-    const { db, service } = createService();
-    const product = PRINT_SHOP_CATALOG.find(
-      item => item.printSpec.pricing.model === 'package',
-    )!;
-    seedProduct(db, product);
-    db.seed('orders/order_polaroid', baseOrder());
-    const assignments = Array.from({ length: 50 }, (_, index) => ({
-      assetId: `asset_${index}`,
-      copies: 1,
-    }));
-    assignments.forEach((assignment, index) =>
-      seedReadyAsset(db, 'order_polaroid', assignment.assetId, {
-        sha256: index < 2 ? 'same-content' : `unique-${index}`,
-      }),
-    );
-
-    await expect(
-      service.quote(identity, 'order_polaroid', {
-        items: [{
-          sku: product.sku,
-          finish: 'matte',
-          fitMode: 'border',
-          assignments,
-        }],
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      code: 'duplicate_photo_content',
-    });
-  });
-
   it('computes authoritative DPI warnings and blocks checkout until accepted', async () => {
     const paypal = paypalFake();
     const { db, service } = createService({ paypal });
@@ -894,63 +862,6 @@ describe('PrintShopService production validation', () => {
       .toBe('awaiting_payment');
   });
 
-  it('rejects visually identical Polaroid photos even after JPEG re-encoding', async () => {
-    const { db, storage, service } = createService();
-    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'package')!;
-    seedProduct(db, product);
-    db.seed('orders/order_visual_duplicate', baseOrder());
-    const first = await jpeg({ r: 220, g: 30, b: 40 }, 60);
-    const second = await jpeg({ r: 220, g: 30, b: 40 }, 95);
-    seedPreparedAsset(db, storage, 'order_visual_duplicate', 'asset_0', first);
-    seedPreparedAsset(db, storage, 'order_visual_duplicate', 'asset_1', second);
-    await service.finalizeUpload(identity, 'order_visual_duplicate', 'asset_0');
-    await service.finalizeUpload(identity, 'order_visual_duplicate', 'asset_1');
-    for (let index = 2; index < 50; index++) {
-      seedReadyAsset(db, 'order_visual_duplicate', `asset_${index}`);
-    }
-    const assignments = Array.from({ length: 50 }, (_, index) => ({
-      assetId: `asset_${index}`,
-      copies: 1,
-    }));
-    expect(db.value('orders/order_visual_duplicate/assets/asset_0').sha256)
-      .not.toBe(db.value('orders/order_visual_duplicate/assets/asset_1').sha256);
-    await expect(service.quote(identity, 'order_visual_duplicate', {
-      items: [{ sku: product.sku, finish: 'matte', fitMode: 'border', assignments }],
-    })).rejects.toMatchObject({ code: 'duplicate_photo_content', status: 400 });
-  });
-
-  it('accepts genuinely different Polaroid photos with different visual color', async () => {
-    const { db, storage, service } = createService();
-    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'package')!;
-    seedProduct(db, product);
-    db.seed('orders/order_visual_unique', baseOrder());
-    seedPreparedAsset(
-      db,
-      storage,
-      'order_visual_unique',
-      'asset_0',
-      await jpeg({ r: 230, g: 20, b: 20 }),
-    );
-    seedPreparedAsset(
-      db,
-      storage,
-      'order_visual_unique',
-      'asset_1',
-      await jpeg({ r: 20, g: 20, b: 230 }),
-    );
-    await service.finalizeUpload(identity, 'order_visual_unique', 'asset_0');
-    await service.finalizeUpload(identity, 'order_visual_unique', 'asset_1');
-    for (let index = 2; index < 50; index++) {
-      seedReadyAsset(db, 'order_visual_unique', `asset_${index}`);
-    }
-    const assignments = Array.from({ length: 50 }, (_, index) => ({
-      assetId: `asset_${index}`,
-      copies: 1,
-    }));
-    await expect(service.quote(identity, 'order_visual_unique', {
-      items: [{ sku: product.sku, finish: 'matte', fitMode: 'border', assignments }],
-    })).resolves.toMatchObject({ assetCount: 50, copyCount: 50 });
-  });
 });
 
 describe('PrintShopService notifications and retention', () => {
@@ -1657,7 +1568,7 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
     seedProduct(db, {
       ...product,
       id: 'invalid-price-product',
-      sku: 'INVALID-PRICE',
+      sku: product.sku,
       printSpec: {
         ...product.printSpec,
         pricing: { model: 'tiered', tiers: [{ minQuantity: 1, unitPriceCents: -1 }] },
@@ -1667,6 +1578,23 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
       code: 'catalog_invalid',
       status: 503,
     });
+  });
+
+  it('esclude dal catalogo pubblico i vecchi SKU non più presenti nel listino laboratorio', async () => {
+    const { db, service } = createService();
+    const product = PRINT_SHOP_CATALOG[0];
+    seedProduct(db, product);
+    seedProduct(db, {
+      ...product,
+      id: 'legacy-unsupported-format',
+      sku: 'PRINT-130X180',
+      nome: 'Stampa 13×18 cm',
+      printSpec: { ...product.printSpec, widthMm: 130, heightMm: 180 },
+    });
+
+    const catalog = await service.publicCatalog() as { products: Array<{ sku: string }> };
+
+    expect(catalog.products.map(item => item.sku)).toEqual([product.sku]);
   });
 
   it('updates catalog pricing with immutable SKU, contiguous tiers and version audit', async () => {
@@ -1730,30 +1658,6 @@ describe('PrintShopService privacy, quotas and abuse guardrails', () => {
     });
   });
 
-  it('enforces exactly 50 distinct single photos for the Polaroid catalog package', async () => {
-    const { db, service } = createService();
-    const product = PRINT_SHOP_CATALOG.find(item => item.printSpec.pricing.model === 'package')!;
-    seedProduct(db, product);
-    const pricing = product.printSpec.pricing;
-    if (pricing.model !== 'package') throw new Error('fixture package attesa');
-    await expect(service.updateAdminCatalogProduct(product.sku, {
-      printSpec: {
-        ...product.printSpec,
-        pricing: { ...pricing, packageSize: 49 },
-      },
-    }, 'admin@example.com')).rejects.toMatchObject({
-      code: 'catalog_validation_failed',
-      status: 400,
-    });
-
-    await expect(service.updateAdminCatalogProduct(product.sku, {
-      categoria: 'stampe-foto',
-      printSpec: product.printSpec,
-    }, 'admin@example.com')).rejects.toMatchObject({
-      code: 'catalog_validation_failed',
-      status: 400,
-    });
-  });
 });
 
 describe('PrintShopService laboratory safety', () => {

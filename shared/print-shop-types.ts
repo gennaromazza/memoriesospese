@@ -7,7 +7,7 @@
  */
 
 export const PRINT_SHOP_CURRENCY = 'EUR' as const;
-export const PRINT_SHOP_CATALOG_VERSION = 1;
+export const PRINT_SHOP_CATALOG_VERSION = 2;
 export const PRINT_SHOP_ASSET_RETENTION_DAYS = 90;
 export const PRINT_SHOP_MAX_JPEG_BYTES = 50 * 1024 * 1024;
 

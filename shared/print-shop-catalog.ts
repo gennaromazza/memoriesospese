@@ -56,7 +56,6 @@ export const PRINT_SHOP_CATEGORIES: readonly PrintShopCategorySeed[] = [
   { id: 'stampe-classiche', nome: 'Stampe classiche', value: 'stampe-classiche', attivo: true, displayOrder: 20 },
   { id: 'stampe-medie', nome: 'Stampe medie', value: 'stampe-medie', attivo: true, displayOrder: 21 },
   { id: 'stampe-grandi', nome: 'Stampe grandi e poster', value: 'stampe-grandi', attivo: true, displayOrder: 22 },
-  { id: 'stampe-polaroid', nome: 'Stampe Polaroid', value: 'stampe-polaroid', attivo: true, displayOrder: 23 },
 ];
 
 interface TierBound {
@@ -92,27 +91,12 @@ const LARGE_BOUNDS: readonly TierBound[] = [
 ];
 
 const CLASSIC_FORMATS: readonly TieredFormatFixture[] = [
-  { format: '8×10', widthMm: 80, heightMm: 100, pricesCents: [50, 45, 35, 25, 20] },
-  { format: '9×13', widthMm: 90, heightMm: 130, pricesCents: [50, 45, 35, 25, 20] },
-  { format: '10×10', widthMm: 100, heightMm: 100, pricesCents: [50, 45, 35, 25, 20] },
-  { format: '10×13', widthMm: 100, heightMm: 130, pricesCents: [50, 45, 35, 25, 20] },
   { format: '10×15', widthMm: 100, heightMm: 150, pricesCents: [50, 45, 35, 25, 20] },
-  { format: '13×13', widthMm: 130, heightMm: 130, pricesCents: [80, 55, 40, 25, 20] },
-  { format: '13×18', widthMm: 130, heightMm: 180, pricesCents: [80, 55, 40, 30, 25] },
-  { format: '13×19', widthMm: 130, heightMm: 190, pricesCents: [80, 55, 40, 30, 25] },
-  { format: '13×20', widthMm: 130, heightMm: 200, pricesCents: [180, 120, 90, 70, 70] },
   { format: '15×20', widthMm: 150, heightMm: 200, pricesCents: [180, 120, 90, 70, 70] },
 ];
 
 const MEDIUM_FORMATS: readonly TieredFormatFixture[] = [
-  { format: '15×22', widthMm: 150, heightMm: 220, pricesCents: [180, 120, 90, 70] },
-  { format: '18×24', widthMm: 180, heightMm: 240, pricesCents: [400, 300, 200, 180] },
-  { format: '20×25', widthMm: 200, heightMm: 250, pricesCents: [400, 300, 200, 180] },
-  { format: '20×27', widthMm: 200, heightMm: 270, pricesCents: [500, 350, 250, 200] },
   { format: '20×30', widthMm: 200, heightMm: 300, pricesCents: [500, 350, 250, 200] },
-  { format: '24×30', widthMm: 240, heightMm: 300, pricesCents: [600, 390, 260, 220] },
-  { format: '24×36', widthMm: 240, heightMm: 360, pricesCents: [600, 390, 260, 220] },
-  { format: '30×30', widthMm: 300, heightMm: 300, pricesCents: [600, 390, 260, 220] },
   { format: '30×40', widthMm: 300, heightMm: 400, pricesCents: [700, 450, 350, 290] },
   { format: '30×45', widthMm: 300, heightMm: 450, pricesCents: [800, 500, 390, 320] },
 ];
@@ -120,16 +104,9 @@ const MEDIUM_FORMATS: readonly TieredFormatFixture[] = [
 const LARGE_FORMATS: readonly TieredFormatFixture[] = [
   { format: '30×50', widthMm: 300, heightMm: 500, pricesCents: [800, 600, 450] },
   { format: '30×60', widthMm: 300, heightMm: 600, pricesCents: [800, 600, 470] },
-  { format: '35×35', widthMm: 350, heightMm: 350, pricesCents: [700, 550, 430] },
   { format: '35×50', widthMm: 350, heightMm: 500, pricesCents: [800, 600, 470] },
-  { format: '40×40', widthMm: 400, heightMm: 400, pricesCents: [750, 600, 450] },
-  { format: '40×50', widthMm: 400, heightMm: 500, pricesCents: [800, 650, 480] },
   { format: '40×60', widthMm: 400, heightMm: 600, pricesCents: [1000, 700, 500] },
   { format: '40×80', widthMm: 400, heightMm: 800, pricesCents: [1500, 1000, 750] },
-  { format: '50×50', widthMm: 500, heightMm: 500, pricesCents: [1300, 1000, 700] },
-  { format: '50×60', widthMm: 500, heightMm: 600, pricesCents: [1400, 1000, 700] },
-  { format: '50×70', widthMm: 500, heightMm: 700, pricesCents: [1500, 1000, 750] },
-  { format: '50×75', widthMm: 500, heightMm: 750, pricesCents: [1600, 1100, 800] },
   { format: '50×80', widthMm: 500, heightMm: 800, pricesCents: [1700, 1100, 800] },
 ];
 
@@ -186,7 +163,8 @@ function createTieredProduct(
   };
 }
 
-const POLAROID_PRODUCT: PrintShopCatalogProduct = {
+/** Conservato per leggere e validare eventuali ordini storici, ma non è più venduto. */
+export const LEGACY_POLAROID_PRODUCT: PrintShopCatalogProduct = {
   ...COMMON_PRODUCT_FIELDS,
   id: 'print-polaroid-100x090',
   sku: 'PRINT-POLAROID-100X090',
@@ -218,8 +196,11 @@ export const PRINT_SHOP_CATALOG: readonly PrintShopCatalogProduct[] = [
   ...CLASSIC_FORMATS.map((fixture, index) => createTieredProduct(fixture, 'stampe-classiche', CLASSIC_BOUNDS, 1000 + index)),
   ...MEDIUM_FORMATS.map((fixture, index) => createTieredProduct(fixture, 'stampe-medie', MEDIUM_BOUNDS, 1010 + index)),
   ...LARGE_FORMATS.map((fixture, index) => createTieredProduct(fixture, 'stampe-grandi', LARGE_BOUNDS, 1020 + index)),
-  POLAROID_PRODUCT,
 ];
+
+export const PRINT_SHOP_CATALOG_SKUS = new Set(
+  PRINT_SHOP_CATALOG.map(product => product.sku.trim().toLocaleUpperCase('en-US')),
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

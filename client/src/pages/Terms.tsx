@@ -66,7 +66,6 @@ export default function Terms() {
               <li>Il cliente dichiara di avere i diritti e le autorizzazioni necessari sulle fotografie caricate.</li>
               <li>Il cliente controlla che file, orientamento, quantità e abbinamento al formato siano corretti prima del pagamento.</li>
               <li>Gli avvisi di bassa risoluzione segnalano un possibile risultato meno nitido; proseguendo, il cliente accetta tale rischio qualitativo.</li>
-              <li>Il pacchetto Polaroid richiede esattamente 50 fotografie diverse e una copia per fotografia.</li>
               <li>Non è consentito caricare contenuti illeciti, lesivi o privi delle autorizzazioni necessarie.</li>
             </ul>
 

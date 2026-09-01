@@ -8,6 +8,7 @@ import {
   PRINT_FINISH_OPTIONS,
   PRINT_FIT_OPTIONS,
   PRINT_SHOP_CATEGORIES,
+  PRINT_SHOP_CATALOG_SKUS,
   calculatePrintQuote,
   validateJpegUpload,
 } from '../../shared/print-shop-catalog.js';
@@ -4307,7 +4308,9 @@ export class PrintShopService {
       .map((doc: any) => ({ id: doc.id, ...doc.data() }))
       .filter((product: any) =>
         Array.isArray(product.salesChannels) &&
-        product.salesChannels.includes('print_shop'),
+        product.salesChannels.includes('print_shop') &&
+        typeof product.sku === 'string' &&
+        PRINT_SHOP_CATALOG_SKUS.has(product.sku.trim().toLocaleUpperCase('en-US')),
       );
     if (candidates.length === 0) {
       throw new PrintShopHttpError(

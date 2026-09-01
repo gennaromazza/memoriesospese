@@ -29,9 +29,9 @@ export const PRINT_PRICE_UPDATED_AT = '30 agosto 2026';
 export const PRINT_SERVICE_SEO = {
   title: 'Stampa Foto Online ad Aversa | Image Studio',
   description:
-    'Ordina online stampe fotografiche e Polaroid ad Aversa: carica i JPG, scegli formato e carta, paga con PayPal e ritira in sede.',
+    'Ordina online stampe fotografiche ad Aversa: carica i JPG, scegli formato e carta, paga con PayPal e ritira in sede.',
   keywords:
-    'stampa foto Aversa, stampe fotografiche Napoli, stampa foto Caserta, foto vacanza, stampa Polaroid, prezzi stampa foto, ricordi fotografici',
+    'stampa foto Aversa, stampe fotografiche Napoli, stampa foto Caserta, foto vacanza, prezzi stampa foto, ricordi fotografici',
 } as const;
 
 export const PRINT_WHATSAPP_MESSAGE =
@@ -44,15 +44,7 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
     description: 'Perfetti per album, scatole dei ricordi, cornici e fotografie da regalare.',
     quantityHeaders: ['1–10', '11–25', '26–50', '51–499', '500+'],
     rows: [
-      { format: '8×10', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
-      { format: '9×13', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
-      { format: '10×10', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
-      { format: '10×13', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
       { format: '10×15', prices: ['€0,50', '€0,45', '€0,35', '€0,25', '€0,20'] },
-      { format: '13×13', prices: ['€0,80', '€0,55', '€0,40', '€0,25', '€0,20'] },
-      { format: '13×18', prices: ['€0,80', '€0,55', '€0,40', '€0,30', '€0,25'] },
-      { format: '13×19', prices: ['€0,80', '€0,55', '€0,40', '€0,30', '€0,25'] },
-      { format: '13×20', prices: ['€1,80', '€1,20', '€0,90', '€0,70', '€0,70'] },
       { format: '15×20', prices: ['€1,80', '€1,20', '€0,90', '€0,70', '€0,70'] },
     ],
   },
@@ -62,14 +54,7 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
     description: 'Per cornici importanti, composizioni fotografiche e piccoli ingrandimenti.',
     quantityHeaders: ['1–5', '6–25', '26–50', '51+'],
     rows: [
-      { format: '15×22', prices: ['€1,80', '€1,20', '€0,90', '€0,70'] },
-      { format: '18×24', prices: ['€4,00', '€3,00', '€2,00', '€1,80'] },
-      { format: '20×25', prices: ['€4,00', '€3,00', '€2,00', '€1,80'] },
-      { format: '20×27', prices: ['€5,00', '€3,50', '€2,50', '€2,00'] },
       { format: '20×30', prices: ['€5,00', '€3,50', '€2,50', '€2,00'] },
-      { format: '24×30', prices: ['€6,00', '€3,90', '€2,60', '€2,20'] },
-      { format: '24×36', prices: ['€6,00', '€3,90', '€2,60', '€2,20'] },
-      { format: '30×30', prices: ['€6,00', '€3,90', '€2,60', '€2,20'] },
       { format: '30×40', prices: ['€7,00', '€4,50', '€3,50', '€2,90'] },
       { format: '30×45', prices: ['€8,00', '€5,00', '€3,90', '€3,20'] },
     ],
@@ -82,26 +67,10 @@ export const PRINT_PRICE_TABLES: PrintPriceTable[] = [
     rows: [
       { format: '30×50', prices: ['€8,00', '€6,00', '€4,50'] },
       { format: '30×60', prices: ['€8,00', '€6,00', '€4,70'] },
-      { format: '35×35', prices: ['€7,00', '€5,50', '€4,30'] },
       { format: '35×50', prices: ['€8,00', '€6,00', '€4,70'] },
-      { format: '40×40', prices: ['€7,50', '€6,00', '€4,50'] },
-      { format: '40×50', prices: ['€8,00', '€6,50', '€4,80'] },
       { format: '40×60', prices: ['€10,00', '€7,00', '€5,00'] },
       { format: '40×80', prices: ['€15,00', '€10,00', '€7,50'] },
-      { format: '50×50', prices: ['€13,00', '€10,00', '€7,00'] },
-      { format: '50×60', prices: ['€14,00', '€10,00', '€7,00'] },
-      { format: '50×70', prices: ['€15,00', '€10,00', '€7,50'] },
-      { format: '50×75', prices: ['€16,00', '€11,00', '€8,00'] },
       { format: '50×80', prices: ['€17,00', '€11,00', '€8,00'] },
-    ],
-  },
-  {
-    id: 'polaroid',
-    title: 'Formato Polaroid',
-    description: 'Stampe con il bordo iconico, pronte per pareti, dediche e piccoli regali.',
-    quantityHeaders: ['50'],
-    rows: [
-      { format: '10×9 Polaroid Wide', prices: ['€9,90'] },
     ],
   },
 ];
@@ -116,11 +85,6 @@ export const PRINT_FAQS: PrintFaq[] = [
     question: 'Dove posso stampare le foto ad Aversa?',
     answer:
       'Puoi ordinare direttamente su Memorie Sospese: accedi con Google, carica i JPG, scegli le opzioni, paga con PayPal e ritira le stampe presso Image Studio ad Aversa.',
-  },
-  {
-    question: 'Posso stampare fotografie in stile Polaroid?',
-    answer:
-      'Sì. Il formato Polaroid Wide 10×9 cm è ideale per pareti, regali, scrapbooking e ricordi di viaggio. La confezione promozionale da 50 fotografie costa €9,90, salvo disponibilità.',
   },
   {
     question: 'È meglio la carta lucida o quella opaca?',

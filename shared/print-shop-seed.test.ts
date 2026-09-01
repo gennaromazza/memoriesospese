@@ -14,18 +14,18 @@ function splitPlanDocuments() {
 }
 
 describe('seed catalogo stampe', () => {
-  it('pianifica 4 categorie e 34 prodotti senza cancellazioni', () => {
+  it('pianifica 3 categorie e 11 prodotti senza cancellazioni', () => {
     const plan = buildPrintShopSeedPlan([], []);
-    expect(plan.operations).toHaveLength(38);
-    expect(plan.summary).toEqual({ create: 38, update: 0, unchanged: 0 });
-    expect(plan.operations.filter(operation => operation.collection === 'productCategories')).toHaveLength(4);
-    expect(plan.operations.filter(operation => operation.collection === 'products')).toHaveLength(34);
+    expect(plan.operations).toHaveLength(14);
+    expect(plan.summary).toEqual({ create: 14, update: 0, unchanged: 0 });
+    expect(plan.operations.filter(operation => operation.collection === 'productCategories')).toHaveLength(3);
+    expect(plan.operations.filter(operation => operation.collection === 'products')).toHaveLength(11);
   });
 
   it('è idempotente dopo l’applicazione dello stesso piano', () => {
     const { products, categories } = splitPlanDocuments();
     const secondRun = buildPrintShopSeedPlan(products, categories);
-    expect(secondRun.summary).toEqual({ create: 0, update: 0, unchanged: 38 });
+    expect(secondRun.summary).toEqual({ create: 0, update: 0, unchanged: 14 });
     expect(secondRun.operations.every(operation => operation.changedFields.length === 0)).toBe(true);
   });
 
@@ -37,7 +37,7 @@ describe('seed catalogo stampe', () => {
 
     expect(plan.operations.find(operation => operation.data.sku === products[0].data.sku)?.id).toBe('legacy-product-id');
     expect(plan.operations.find(operation => operation.data.value === categories[0].data.value)?.id).toBe('legacy-category-id');
-    expect(plan.summary).toEqual({ create: 0, update: 0, unchanged: 38 });
+    expect(plan.summary).toEqual({ create: 0, update: 0, unchanged: 14 });
   });
 
   it('aggiorna soltanto i campi gestiti e lascia intatti quelli estranei', () => {
@@ -49,7 +49,7 @@ describe('seed catalogo stampe', () => {
     const plan = buildPrintShopSeedPlan(products, categories);
     const update = plan.operations.find(operation => operation.id === products[0].id);
 
-    expect(plan.summary).toEqual({ create: 0, update: 1, unchanged: 37 });
+    expect(plan.summary).toEqual({ create: 0, update: 1, unchanged: 13 });
     expect(update?.action).toBe('update');
     expect(update?.changedFields).toEqual(['prezzo']);
     expect(update?.data).not.toHaveProperty('notaInterna');

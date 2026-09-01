@@ -175,12 +175,11 @@ function getStaticPageMeta(path: string): PageMeta | null {
       canonical: `${BASE_URL}${PRINT_SERVICE_PATH}`,
       keywords: PRINT_SERVICE_SEO.keywords,
       bodyContent: `
-        <h1>Stampa foto online ad Aversa: vacanze, Polaroid e ricordi</h1>
+        <h1>Stampa foto online ad Aversa: vacanze e ricordi</h1>
         <p>Scopri il servizio di stampa fotografica di Image Studio e Memorie Sospese: nella pagina trovi i formati e le condizioni disponibili nel catalogo aggiornato.</p>
-        <h2>Stampe fotografiche classiche, Polaroid e grandi formati</h2>
+        <h2>Stampe fotografiche classiche e grandi formati</h2>
         <ul>
           <li><strong>Formati classici</strong> per album, scatole dei ricordi e fotografie da regalare.</li>
-          <li><strong>Stampe in stile Polaroid</strong> per raccolte di fotografie tutte diverse.</li>
           <li><strong>20×30 e grandi formati</strong> per panorami, ritratti e fotografie da parete.</li>
           <li><strong>Carta lucida o opaca</strong> in base al soggetto e all'utilizzo della fotografia.</li>
         </ul>

@@ -60,27 +60,27 @@ const BASE_URL = 'https://imagestudiofotografico.com';
 const formatCards = [
   {
     title: '10×15 classico',
-    target: 'classic' as const,
+    sku: 'PRINT-100X150',
     description: 'Il formato più versatile per album, scatole dei ricordi e fotografie da regalare.',
     tag: 'Più scelto',
     image: '/images/print-service/printed-memories-table.jpg',
     imageAlt: 'Stampe fotografiche reali disposte su un tavolo in legno',
   },
   {
-    title: 'Polaroid 10×9',
-    target: 'polaroid' as const,
-    description: 'Bordo iconico per pareti, fili con mollette, dediche e piccoli regali.',
-    tag: 'Idea creativa',
-    image: '/images/print-service/travel-polaroid-prints.jpg',
-    imageAlt: 'Fotografie di viaggio reali stampate in stile Polaroid',
-  },
-  {
-    title: '20×30 e oltre',
-    target: 'large' as const,
+    title: '20×30',
+    sku: 'PRINT-200X300',
     description: 'Per dare spazio a un panorama, un ritratto o alla fotografia simbolo della vacanza.',
     tag: 'Da parete',
     image: '/images/print-service/family-vacation-beach.jpg',
     imageAlt: 'Famiglia davanti al mare durante una vacanza estiva',
+  },
+  {
+    title: '40×60',
+    sku: 'PRINT-400X600',
+    description: 'Un grande formato per trasformare una fotografia importante in parte della casa.',
+    tag: 'Grande formato',
+    image: '/images/print-service/printed-memories-table.jpg',
+    imageAlt: 'Stampe fotografiche reali disposte su un tavolo in legno',
   },
 ];
 
@@ -129,8 +129,6 @@ function PriceBreakdown({ row }: PriceBreakdownProps) {
 }
 
 function PriceFormatDisclosure({ row }: PriceBreakdownProps) {
-  const isPolaroidPackage = row.format.toLocaleLowerCase('it-IT').includes('polaroid');
-
   return (
     <details className="group overflow-hidden rounded-2xl border border-sage/15 bg-white shadow-sm">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden">
@@ -139,7 +137,7 @@ function PriceFormatDisclosure({ row }: PriceBreakdownProps) {
           <span className="mt-0.5 block text-xs text-blue-gray/50">
             {!row.priceAvailable
               ? 'prezzo temporaneamente non disponibile'
-              : isPolaroidPackage ? `confezione da 50 foto · ${row.startingPrice}` : `a partire da ${row.startingPrice} per stampa`}
+              : row.isPackage ? `confezione da ${row.quantityHeaders[0]} foto · ${row.startingPrice}` : `a partire da ${row.startingPrice} per stampa`}
           </span>
         </span>
         <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-sage/10 text-lg text-dark-sage transition-transform duration-200 group-open:rotate-45" aria-hidden="true">+</span>
@@ -205,14 +203,8 @@ export default function StampaFotoAversaPage() {
   const classicProduct = liveProducts.find((product) =>
     product.printSpec.widthMm === 100 && product.printSpec.heightMm === 150,
   );
-  const polaroidProduct = liveProducts.find((product) => product.sku === 'PRINT-POLAROID-100X090');
-  const largeProduct = liveProducts.find((product) =>
-    product.printSpec.widthMm === 200 && product.printSpec.heightMm === 300,
-  );
   const featuredCards = useMemo(() => formatCards.map((card) => {
-    const product = card.target === 'classic'
-      ? classicProduct
-      : card.target === 'polaroid' ? polaroidProduct : largeProduct;
+    const product = liveProducts.find((candidate) => candidate.sku === card.sku);
     const cents = catalogReady ? lowestProductPriceCents(product) : null;
     const price = cents === null
       ? catalogLoading ? 'Listino in verifica' : 'Prezzo non disponibile'
@@ -220,7 +212,7 @@ export default function StampaFotoAversaPage() {
         ? `${product.printSpec.pricing.packageSize} foto · ${formatCatalogEuro(cents)}`
         : `da ${formatCatalogEuro(cents)}`;
     return { ...card, price };
-  }), [catalogLoading, catalogReady, classicProduct, largeProduct, polaroidProduct]);
+  }), [catalogLoading, catalogReady, liveProducts]);
   const displayedFaqs = useMemo(() => PRINT_FAQS.map((faq) => {
     if (faq.question.startsWith('Quanto costa stampare una foto 10×15')) {
       if (!catalogReady || !classicProduct || classicProduct.printSpec.pricing.model !== 'tiered') {
@@ -232,17 +224,8 @@ export default function StampaFotoAversaPage() {
         answer: `Il prezzo è ${formatCatalogEuro(tiers[0].unitPriceCents)} per le prime quantità e scende fino a ${formatCatalogEuro(tiers[tiers.length - 1].unitPriceCents)} a fotografia secondo gli scaglioni mostrati nel listino aggiornato.`,
       };
     }
-    if (faq.question.startsWith('Posso stampare fotografie in stile Polaroid')) {
-      if (!catalogReady || !polaroidProduct || polaroidProduct.printSpec.pricing.model !== 'package') {
-        return { ...faq, answer: 'Sì. Il formato Polaroid Wide usa un pacchetto di fotografie tutte diverse; quantità e prezzo aggiornati compaiono appena il listino dello shop è disponibile.' };
-      }
-      return {
-        ...faq,
-        answer: `Sì. Il formato Polaroid Wide ${polaroidProduct.printSpec.widthMm / 10}×${polaroidProduct.printSpec.heightMm / 10} cm prevede ${polaroidProduct.printSpec.pricing.packageSize} fotografie tutte diverse a ${formatCatalogEuro(polaroidProduct.printSpec.pricing.packagePriceCents)}.`,
-      };
-    }
     return faq;
-  }), [catalogReady, classicProduct, polaroidProduct]);
+  }), [catalogReady, classicProduct]);
 
   useEffect(() => {
     const canonical = `${BASE_URL}${PRINT_SERVICE_PATH}`;
@@ -352,7 +335,7 @@ export default function StampaFotoAversaPage() {
               </h1>
 
               <p className="mt-7 max-w-2xl text-lg leading-relaxed text-white/80 sm:text-xl">
-                Trasforma fotografie, sorrisi e panorami in stampe da toccare, regalare e vivere ogni giorno. Formati classici, grandi e stile Polaroid, con l’assistenza di Image Studio.
+                Trasforma fotografie, sorrisi e panorami in stampe da toccare, regalare e vivere ogni giorno. Formati classici e grandi, con l’assistenza di Image Studio.
               </p>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -384,7 +367,7 @@ export default function StampaFotoAversaPage() {
               </div>
             </div>
 
-            <div className="relative mx-auto h-[430px] w-full max-w-[540px] sm:h-[510px]" aria-label="Fotografie vere di una vacanza e stampe in stile Polaroid">
+            <div className="relative mx-auto h-[430px] w-full max-w-[540px] sm:h-[510px]" aria-label="Fotografie vere di una vacanza e stampe fotografiche">
               <figure className="absolute inset-x-4 top-3 overflow-hidden rounded-[2rem] border-[10px] border-white bg-white shadow-2xl sm:inset-x-8 sm:top-4">
                 <img
                   src={createUrl('/images/print-service/family-vacation-beach.jpg')}
@@ -400,8 +383,8 @@ export default function StampaFotoAversaPage() {
 
               <figure className="absolute bottom-1 right-3 w-[52%] rotate-3 rounded-sm bg-white p-3 shadow-2xl sm:right-1 sm:w-[50%]">
                 <img
-                  src={createUrl('/images/print-service/travel-polaroid-prints.jpg')}
-                  alt="Fotografie vere di viaggio stampate in stile Polaroid"
+                  src={createUrl('/images/print-service/printed-memories-table.jpg')}
+                  alt="Fotografie vere di viaggio stampate su carta fotografica"
                   className="h-44 w-full object-cover object-center sm:h-52"
                   loading="eager"
                 />
@@ -528,7 +511,7 @@ export default function StampaFotoAversaPage() {
                   value={formatQuery}
                   onChange={(event) => setFormatQuery(event.target.value)}
                   disabled={catalogLoading}
-                  placeholder="Es. 10×15, 20×30, 50×70"
+                  placeholder="Es. 10×15, 20×30, 40×60"
                   className="h-14 rounded-2xl border-sage/25 bg-off-white/50 pl-12 pr-12 text-base text-blue-gray placeholder:text-blue-gray/35 focus-visible:ring-sage"
                   autoComplete="off"
                 />
@@ -545,7 +528,7 @@ export default function StampaFotoAversaPage() {
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-blue-gray/55">
                 <span>Prova:</span>
-                {['10×15', '13×18', '20×30', '50×70', 'Polaroid'].map((suggestion) => (
+                {['10×15', '15×20', '20×30', '30×40', '40×60'].map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
@@ -619,11 +602,7 @@ export default function StampaFotoAversaPage() {
             </div>
 
             <div className="mt-8 rounded-2xl border border-terracotta/20 bg-terracotta/10 p-5 text-sm leading-relaxed text-blue-gray/75">
-              {catalogReady && polaroidProduct?.printSpec.pricing.model === 'package' ? (
-                <><strong className="text-blue-gray">Polaroid Wide {polaroidProduct.printSpec.widthMm / 10}×{polaroidProduct.printSpec.heightMm / 10}:</strong> confezione da {polaroidProduct.printSpec.pricing.packageSize} fotografie tutte diverse a {formatCatalogEuro(polaroidProduct.printSpec.pricing.packagePriceCents)}. Prezzo letto dal catalogo aggiornato dello shop.</>
-              ) : (
-                <><strong className="text-blue-gray">Polaroid Wide:</strong> formato disponibile in confezione di fotografie tutte diverse; quantità e prezzo compaiono solo quando il listino aggiornato è verificato.</>
-              )} Il totale viene ricalcolato dal sistema prima del pagamento; {catalog?.shipping.enabled ? 'puoi scegliere ritiro in sede o spedizione a domicilio.' : 'il ritiro avviene in sede.'}
+              <strong className="text-blue-gray">Prezzi verificati:</strong> i formati mostrati sono quelli disponibili nel listino del laboratorio. Il totale viene ricalcolato dal sistema prima del pagamento; {catalog?.shipping.enabled ? 'puoi scegliere ritiro in sede o spedizione a domicilio.' : 'il ritiro avviene in sede.'}
             </div>
 
             <div className="mt-9 text-center">
