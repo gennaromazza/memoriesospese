@@ -36,6 +36,16 @@ interface EmailQueueItem {
   };
 }
 
+type EnqueueEmailParams = {
+  to: string | string[];
+  subject: string;
+  htmlContent: string;
+  from?: string;
+  priority?: 'high' | 'normal' | 'low';
+  scheduledFor?: Date;
+  metadata?: any;
+};
+
 export class EmailQueue {
   /**
    * Acquisisci distributed lock per processare la queue
@@ -86,15 +96,7 @@ export class EmailQueue {
   /**
    * Aggiungi email alla queue
    */
-  static async enqueue(params: {
-    to: string | string[];
-    subject: string;
-    htmlContent: string;
-    from?: string;
-    priority?: 'high' | 'normal' | 'low';
-    scheduledFor?: Date;
-    metadata?: any;
-  }): Promise<string> {
+  static async enqueue(params: EnqueueEmailParams): Promise<string> {
     const toArray = Array.isArray(params.to) ? params.to : [params.to];
     
     // Validazione mittente (solo domini autorizzati)
@@ -131,6 +133,20 @@ export class EmailQueue {
     );
     
     return docRef.id;
+  }
+
+  /**
+   * Compatibilità con i call-site legacy.
+   *
+   * I nuovi call-site devono usare enqueue(), che accetta un unico oggetto
+   * e permette di specificare priorità, scheduling e metadata.
+   */
+  static async addEmailToQueue(
+    to: string | string[],
+    subject: string,
+    htmlContent: string
+  ): Promise<string> {
+    return this.enqueue({ to, subject, htmlContent });
   }
 
   /**

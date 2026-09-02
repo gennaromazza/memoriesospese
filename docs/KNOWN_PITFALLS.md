@@ -122,9 +122,9 @@ Le miniature sono generate server-side, possono riguardare due collezioni foto e
 
 Firebase `processEmailQueue` (ogni minuto) e bulk email dispatcher Express (ogni 30 secondi) sono percorsi diversi. Non contare un marker dell'uno come idempotenza dell'altro.
 
-### API della coda email non allineata tra file
+### API della coda email
 
-`functions/src/index.ts` usa il nome `EmailQueue.addEmailToQueue`, mentre il modulo `functions/src/email-queue.ts` letto nel repository espone `EmailQueue.enqueue`. È una discrepanza concreta da verificare rispetto al build/deploy effettivo delle Functions; non correggerla implicitamente durante modifiche non correlate.
+`EmailQueue.enqueue({ to, subject, htmlContent, ... })` è l'API autorevole. `addEmailToQueue(to, subject, htmlContent)` è mantenuto solo come adapter per i call-site legacy.
 
 ### Marker prima dell'invio
 

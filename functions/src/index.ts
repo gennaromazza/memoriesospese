@@ -49,13 +49,13 @@ export const sendNewPhotosNotificationCall = functions
 
     functions.logger.info(`📨 Preparing to send notification to ${recipients.length} recipient(s)`);
 
-    const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+    const { createNewPhotosEmailHTML } = await import('./gmail');
     const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName || 'Un ospite', newPhotosCount || 1, galleryUrl);
     const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
     functions.logger.info(`📧 Sending email with subject: "${subject}"`);
     // Aggiungi l'email alla coda invece di inviarla direttamente
-    await EmailQueue.addEmailToQueue(recipients, subject, htmlContent);
+    await EmailQueue.enqueue({ to: recipients, subject, htmlContent });
 
     functions.logger.info(`✅ New photos notification added to queue for ${recipients.length} recipient(s)`);
 
@@ -172,7 +172,7 @@ export const sendNewPhotosNotificationPublic = functions
       }
 
       // INVIO EMAIL
-      const { sendGmailEmail, createNewPhotosEmailHTML } = await import('./gmail');
+      const { createNewPhotosEmailHTML } = await import('./gmail');
 
       const htmlContent = createNewPhotosEmailHTML(
         galleryName,
@@ -184,7 +184,7 @@ export const sendNewPhotosNotificationPublic = functions
       const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
 
       // Aggiungi l'email alla coda invece di inviarla direttamente
-      await EmailQueue.addEmailToQueue(recipients, subject, htmlContent);
+      await EmailQueue.enqueue({ to: recipients, subject, htmlContent });
 
       functions.logger.info(
         `✉️ Notifica nuove foto aggiunta alla coda per ${recipients.length} destinatari per ${galleryName} da uid=${uid}`
@@ -306,7 +306,7 @@ export const sendGalleryPasswordV2 = functions
       }
 
       // Lazy import di gmail
-      const { sendGmailEmail, createGalleryPasswordEmailHTML } = await import('./gmail');
+      const { createGalleryPasswordEmailHTML } = await import('./gmail');
 
       // Crea HTML email
       const htmlContent = createGalleryPasswordEmailHTML(
@@ -320,8 +320,7 @@ export const sendGalleryPasswordV2 = functions
       const subject = `Accesso autorizzato alla galleria "${galleryName}"`;
 
       // Invia email tramite Gmail API
-      // await sendGmailEmail(recipientEmail, subject, htmlContent); // Sostituito con l'aggiunta alla coda
-      await EmailQueue.addEmailToQueue([recipientEmail], subject, htmlContent);
+      await EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
       functions.logger.info(`✅ Gallery password added to queue for ${recipientEmail} for gallery ${galleryName}`);
 
       res.status(200).json({
@@ -411,7 +410,7 @@ export const sendBookingReceivedEmail = functions
       }
 
       // INVIO EMAIL
-      const { sendGmailEmail, createBookingReceivedEmailHTML } = await import('./gmail');
+      const { createBookingReceivedEmailHTML } = await import('./gmail');
 
       const htmlContent = createBookingReceivedEmailHTML({
         clienteNome,
@@ -426,8 +425,7 @@ export const sendBookingReceivedEmail = functions
       const subject = `Prenotazione Ricevuta - ${campaignNome}`;
 
       // Invia email tramite Gmail API
-      // await sendGmailEmail(recipientEmail, subject, htmlContent); // Sostituito con l'aggiunta alla coda
-      await EmailQueue.addEmailToQueue([recipientEmail], subject, htmlContent);
+      await EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
 
       functions.logger.info(
         `✉️ Email "Prenotazione Ricevuta" added to queue for ${recipientEmail} for campaign ${campaignNome}`
@@ -526,7 +524,7 @@ export const sendBookingConfirmedEmail = functions
       }
 
       // INVIO EMAIL
-      const { sendGmailEmail, createBookingConfirmedEmailHTML } = await import('./gmail');
+      const { createBookingConfirmedEmailHTML } = await import('./gmail');
 
       const htmlContent = createBookingConfirmedEmailHTML({
         clienteNome,
@@ -541,8 +539,7 @@ export const sendBookingConfirmedEmail = functions
       const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
 
       // Invia email tramite Gmail API
-      // await sendGmailEmail(recipientEmail, subject, htmlContent); // Sostituito con l'aggiunta alla coda
-      await EmailQueue.addEmailToQueue([recipientEmail], subject, htmlContent);
+      await EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
 
       functions.logger.info(
         `✉️ Email "Prenotazione Confermata" added to queue for ${recipientEmail} for campaign ${campaignNome} from admin uid=${uid}`
@@ -572,15 +569,14 @@ export const testEmailConfiguration = functions.https.onCall(async (data, contex
     const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
 
     // Lazy import di gmail (solo quando necessario)
-    const { sendGmailEmail, createTestEmailHTML } = await import('./gmail');
+    const { createTestEmailHTML } = await import('./gmail');
 
     // Crea HTML email
     const htmlContent = createTestEmailHTML();
     const subject = 'Test Configurazione Email - Wedding Gallery';
 
     // Invia email tramite Gmail API
-    // await sendGmailEmail(recipient, subject, htmlContent); // Sostituito con l'aggiunta alla coda
-    await EmailQueue.addEmailToQueue([recipient], subject, htmlContent);
+    await EmailQueue.enqueue({ to: [recipient], subject, htmlContent });
     functions.logger.info(`Test email added to queue for ${recipient} via Gmail API`);
 
     return { success: true, message: 'Test email added to queue' };
@@ -602,15 +598,14 @@ export const sendWelcomeEmail = functions.https.onCall(async (data, context) => 
     }
 
     // Lazy import di gmail (solo quando necessario)
-    const { sendGmailEmail, createWelcomeEmailHTML } = await import('./gmail');
+    const { createWelcomeEmailHTML } = await import('./gmail');
 
     // Crea HTML email
     const htmlContent = createWelcomeEmailHTML(galleryName);
     const subject = `Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
 
     // Invia email tramite Gmail API
-    // await sendGmailEmail(recipientEmail, subject, htmlContent); // Sostituito con l'aggiunta alla coda
-    await EmailQueue.addEmailToQueue([recipientEmail], subject, htmlContent);
+    await EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
     functions.logger.info(`Welcome email added to queue for ${recipientEmail} via Gmail API`);
 
     return { success: true, message: 'Welcome email added to queue' };

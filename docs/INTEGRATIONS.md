@@ -53,7 +53,7 @@ La Function `processEmailQueue` viene eseguita ogni minuto in UTC. Il dispatcher
 
 README e codice storico citano SMTP/Netsons, ma il percorso principale in `functions/src/gmail.ts` usa Gmail API tramite connector. Prima di modificare il provider verificare tutti gli import e le Function effettivamente pubblicate.
 
-Nel repository è inoltre presente una differenza di nome tra il chiamante (`EmailQueue.addEmailToQueue` in `functions/src/index.ts`) e il metodo esposto dal modulo coda letto (`enqueue` in `functions/src/email-queue.ts`). Va verificata contro il build/deploy delle Functions prima di intervenire.
+`enqueue` è l'API autorevole per i nuovi chiamanti. `addEmailToQueue(to, subject, htmlContent)` resta disponibile come adapter di compatibilità per integrazioni legacy.
 
 ## Google Drive
 

@@ -4,9 +4,10 @@
  * Gestisce invio email tramite Gmail API con Replit Integration
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendBookingConfirmedEmail = exports.sendBookingReceivedEmail = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationPublic = exports.sendNewPhotosNotificationCall = exports.getGalleryMetadata = void 0;
+exports.getEmailQueueStats = exports.processEmailQueue = exports.downloadWordPressImage = exports.sendWelcomeEmail = exports.testEmailConfiguration = exports.sendBookingConfirmedEmail = exports.sendBookingReceivedEmail = exports.sendGalleryPasswordV2 = exports.sendNewPhotosNotificationPublic = exports.sendNewPhotosNotificationCall = exports.getGalleryMetadata = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const email_queue_1 = require("./email-queue"); // Assicurati che questo percorso sia corretto
 // Initialize Firebase Admin if not already done
 if (!admin.apps?.length) {
     admin.initializeApp();
@@ -43,26 +44,27 @@ exports.sendNewPhotosNotificationCall = functions
             return { success: true, message: 'No recipients to notify', notified: 0 };
         }
         functions.logger.info(`📨 Preparing to send notification to ${recipients.length} recipient(s)`);
-        const { sendGmailEmail, createNewPhotosEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createNewPhotosEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName || 'Un ospite', newPhotosCount || 1, galleryUrl);
         const subject = `${newPhotosCount || 1} nuova${(newPhotosCount || 1) > 1 ? 'e' : ''} foto in "${galleryName}"`;
         functions.logger.info(`📧 Sending email with subject: "${subject}"`);
-        await sendGmailEmail(recipients, subject, htmlContent);
-        functions.logger.info(`✅ New photos notification sent to ${recipients.length} recipients via Gmail API`);
+        // Aggiungi l'email alla coda invece di inviarla direttamente
+        await email_queue_1.EmailQueue.enqueue({ to: recipients, subject, htmlContent });
+        functions.logger.info(`✅ New photos notification added to queue for ${recipients.length} recipient(s)`);
         return {
             success: true,
-            message: 'Notification sent successfully',
-            notified: recipients.length
+            message: 'Notification added to queue',
+            queued: recipients.length
         };
     }
     catch (error) {
-        functions.logger.error('❌ Error sending new photos notification:', {
+        functions.logger.error('❌ Error adding new photos notification to queue:', {
             error: error?.message || error,
             stack: error?.stack,
             code: error?.code
         });
         // Ritorna errore più dettagliato
-        const errorMessage = error?.message || 'Failed to send notification email';
+        const errorMessage = error?.message || 'Failed to add notification email to queue';
         throw new functions.https.HttpsError('internal', errorMessage, {
             originalError: error?.message,
             code: error?.code
@@ -146,23 +148,24 @@ exports.sendNewPhotosNotificationPublic = functions
             return;
         }
         // INVIO EMAIL
-        const { sendGmailEmail, createNewPhotosEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createNewPhotosEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         const htmlContent = createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, galleryUrl);
         const subject = `${newPhotosCount} nuova${newPhotosCount > 1 ? 'e' : ''} foto in "${galleryName}"`;
-        await sendGmailEmail(recipients, subject, htmlContent);
-        functions.logger.info(`✉️ Notifica nuove foto inviata a ${recipients.length} destinatari per ${galleryName} da uid=${uid}`);
+        // Aggiungi l'email alla coda invece di inviarla direttamente
+        await email_queue_1.EmailQueue.enqueue({ to: recipients, subject, htmlContent });
+        functions.logger.info(`✉️ Notifica nuove foto aggiunta alla coda per ${recipients.length} destinatari per ${galleryName} da uid=${uid}`);
         res.status(200).json({
             result: {
                 success: true,
-                message: 'Notification sent successfully',
-                notified: recipients.length
+                message: 'Notification added to queue',
+                queued: recipients.length
             }
         });
     }
     catch (error) {
         functions.logger.error('❌ Error sendNewPhotosNotificationPublic:', error);
         res.status(500).json({
-            error: { code: 'internal', message: 'Failed to send notification email' }
+            error: { code: 'internal', message: 'Failed to add notification email to queue' }
         });
     }
 });
@@ -251,21 +254,21 @@ exports.sendGalleryPasswordV2 = functions
             functions.logger.info(`Security question validated successfully for gallery ${galleryId}`);
         }
         // Lazy import di gmail
-        const { sendGmailEmail, createGalleryPasswordEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createGalleryPasswordEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         // Crea HTML email
         const htmlContent = createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPassword, firstName, lastName, galleryUrl);
         const subject = `Accesso autorizzato alla galleria "${galleryName}"`;
         // Invia email tramite Gmail API
-        await sendGmailEmail(recipientEmail, subject, htmlContent);
-        functions.logger.info(`✅ Gallery password sent to ${recipientEmail} for gallery ${galleryName}`);
+        await email_queue_1.EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
+        functions.logger.info(`✅ Gallery password added to queue for ${recipientEmail} for gallery ${galleryName}`);
         res.status(200).json({
-            result: { success: true, message: 'Gallery password sent successfully', recipientEmail }
+            result: { success: true, message: 'Gallery password added to queue', recipientEmail }
         });
     }
     catch (error) {
         functions.logger.error('❌ Error sending gallery password:', error);
         res.status(500).json({
-            error: { code: 'internal', message: 'Failed to send gallery password email' }
+            error: { code: 'internal', message: 'Failed to add gallery password email to queue' }
         });
     }
 });
@@ -329,7 +332,7 @@ exports.sendBookingReceivedEmail = functions
             return;
         }
         // INVIO EMAIL
-        const { sendGmailEmail, createBookingReceivedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createBookingReceivedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         const htmlContent = createBookingReceivedEmailHTML({
             clienteNome,
             clienteCognome,
@@ -340,20 +343,21 @@ exports.sendBookingReceivedEmail = functions
             note: note || ''
         });
         const subject = `Prenotazione Ricevuta - ${campaignNome}`;
-        await sendGmailEmail(recipientEmail, subject, htmlContent);
-        functions.logger.info(`✉️ Email "Prenotazione Ricevuta" inviata a ${recipientEmail} per campagna ${campaignNome}`);
+        // Invia email tramite Gmail API
+        await email_queue_1.EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
+        functions.logger.info(`✉️ Email "Prenotazione Ricevuta" added to queue for ${recipientEmail} for campaign ${campaignNome}`);
         res.status(200).json({
             result: {
                 success: true,
-                message: 'Booking received email sent successfully',
-                recipientEmail
+                message: 'Booking received email added to queue',
+                queued: 1
             }
         });
     }
     catch (error) {
         functions.logger.error('❌ Error sendBookingReceivedEmail:', error);
         res.status(500).json({
-            error: { code: 'internal', message: 'Failed to send booking received email' }
+            error: { code: 'internal', message: 'Failed to add booking received email to queue' }
         });
     }
 });
@@ -419,7 +423,7 @@ exports.sendBookingConfirmedEmail = functions
             return;
         }
         // INVIO EMAIL
-        const { sendGmailEmail, createBookingConfirmedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createBookingConfirmedEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         const htmlContent = createBookingConfirmedEmailHTML({
             clienteNome,
             clienteCognome,
@@ -430,20 +434,21 @@ exports.sendBookingConfirmedEmail = functions
             note: note || ''
         });
         const subject = `✅ Prenotazione Confermata - ${campaignNome}`;
-        await sendGmailEmail(recipientEmail, subject, htmlContent);
-        functions.logger.info(`✉️ Email "Prenotazione Confermata" inviata a ${recipientEmail} per campagna ${campaignNome} da admin uid=${uid}`);
+        // Invia email tramite Gmail API
+        await email_queue_1.EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
+        functions.logger.info(`✉️ Email "Prenotazione Confermata" added to queue for ${recipientEmail} for campaign ${campaignNome} from admin uid=${uid}`);
         res.status(200).json({
             result: {
                 success: true,
-                message: 'Booking confirmed email sent successfully',
-                recipientEmail
+                message: 'Booking confirmed email added to queue',
+                queued: 1
             }
         });
     }
     catch (error) {
         functions.logger.error('❌ Error sendBookingConfirmedEmail:', error);
         res.status(500).json({
-            error: { code: 'internal', message: 'Failed to send booking confirmed email' }
+            error: { code: 'internal', message: 'Failed to add booking confirmed email to queue' }
         });
     }
 });
@@ -455,18 +460,18 @@ exports.testEmailConfiguration = functions.https.onCall(async (data, context) =>
         const { testRecipient } = data;
         const recipient = testRecipient || 'gennaro.mazzacane@gmail.com';
         // Lazy import di gmail (solo quando necessario)
-        const { sendGmailEmail, createTestEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createTestEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         // Crea HTML email
         const htmlContent = createTestEmailHTML();
         const subject = 'Test Configurazione Email - Wedding Gallery';
         // Invia email tramite Gmail API
-        await sendGmailEmail(recipient, subject, htmlContent);
-        functions.logger.info(`Test email sent to ${recipient} via Gmail API`);
-        return { success: true, message: 'Test email sent successfully' };
+        await email_queue_1.EmailQueue.enqueue({ to: [recipient], subject, htmlContent });
+        functions.logger.info(`Test email added to queue for ${recipient} via Gmail API`);
+        return { success: true, message: 'Test email added to queue' };
     }
     catch (error) {
-        functions.logger.error('Error sending test email:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to send test email');
+        functions.logger.error('Error adding test email to queue:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to add test email to queue');
     }
 });
 /**
@@ -479,22 +484,136 @@ exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError('invalid-argument', 'Missing required parameters');
         }
         // Lazy import di gmail (solo quando necessario)
-        const { sendGmailEmail, createWelcomeEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
+        const { createWelcomeEmailHTML } = await Promise.resolve().then(() => require('./gmail'));
         // Crea HTML email
         const htmlContent = createWelcomeEmailHTML(galleryName);
         const subject = `Benvenuto! Sei iscritto alle notifiche di "${galleryName}"`;
         // Invia email tramite Gmail API
-        await sendGmailEmail(recipientEmail, subject, htmlContent);
-        functions.logger.info(`Welcome email sent to ${recipientEmail} via Gmail API`);
-        return { success: true, message: 'Welcome email sent successfully' };
+        await email_queue_1.EmailQueue.enqueue({ to: [recipientEmail], subject, htmlContent });
+        functions.logger.info(`Welcome email added to queue for ${recipientEmail} via Gmail API`);
+        return { success: true, message: 'Welcome email added to queue' };
     }
     catch (error) {
-        functions.logger.error('Error sending welcome email:', error);
-        throw new functions.https.HttpsError('internal', 'Failed to send welcome email');
+        functions.logger.error('Error adding welcome email to queue:', error);
+        throw new functions.https.HttpsError('internal', 'Failed to add welcome email to queue');
     }
 });
 // Import altre funzioni - TEMPORANEAMENTE DISABILITATI PER DEBUG
 // import { exportGalleryAccessCSV } from './csv-export';
 // Export functions
 // export { exportGalleryAccessCSV };
+/**
+ * Proxy per scaricare immagini WordPress (bypassa CORS)
+ * HTTP endpoint con CORS abilitati per supporto Replit
+ */
+exports.downloadWordPressImage = functions.https.onRequest(async (req, res) => {
+    // CORS - Identico alle altre funzioni
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it'
+    ];
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+        origin.includes('.replit.dev') ||
+        origin.includes('replit.app');
+    if (isAllowedOrigin) {
+        res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Max-Age', '3600');
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'POST') {
+        res.status(405).json({
+            error: { code: 'method-not-allowed', message: 'Only POST allowed' }
+        });
+        return;
+    }
+    res.status(410).json({
+        error: {
+            code: 'gone',
+            message: 'Endpoint dismesso: usare /api/blog/rehost-image'
+        }
+    });
+});
+/**
+ * Cloud Function SCHEDULATA: processa la coda delle email ogni minuto.
+ * Legge le email in attesa da Firestore e le invia tramite Gmail API, rispettando i limiti.
+ */
+exports.processEmailQueue = functions
+    .runWith({
+    secrets: ['REPL_IDENTITY'],
+    timeoutSeconds: 540, // 9 minuti max
+    memory: '512MB' // Memoria sufficiente per processing
+})
+    .pubsub.schedule('*/1 * * * *') // Esegui ogni minuto
+    .timeZone('UTC')
+    .onRun(async (context) => {
+    functions.logger.info('⏳ Starting email queue processing...');
+    try {
+        // Usa il metodo processQueue che ha già distributed lock
+        await email_queue_1.EmailQueue.processQueue();
+        functions.logger.info('✅ Email queue processing finished.');
+        return null;
+    }
+    catch (error) {
+        functions.logger.error('❌ Unhandled error during email queue processing:', {
+            error: error?.message || error,
+            stack: error?.stack
+        });
+        // In caso di errore critico, la funzione riproverà al prossimo trigger (1 minuto)
+        return null;
+    }
+});
+/**
+ * HTTP Endpoint per statistiche Email Queue (dashboard admin)
+ * GET /getEmailQueueStats
+ */
+exports.getEmailQueueStats = functions.https.onRequest(async (req, res) => {
+    // CORS
+    const allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://gennaromazzacane.it',
+        'https://www.gennaromazzacane.it'
+    ];
+    const origin = req.headers.origin || '';
+    const isAllowedOrigin = allowedOrigins.some(allowed => allowed === origin) ||
+        origin.includes('.replit.dev') ||
+        origin.includes('replit.app');
+    if (isAllowedOrigin) {
+        res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    if (req.method !== 'GET') {
+        res.status(405).json({ error: 'Method not allowed' });
+        return;
+    }
+    try {
+        const stats = await email_queue_1.EmailQueue.getStats();
+        res.status(200).json({
+            success: true,
+            stats,
+            timestamp: new Date().toISOString()
+        });
+    }
+    catch (error) {
+        functions.logger.error('❌ Error getEmailQueueStats:', error);
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'Failed to get queue stats'
+        });
+    }
+});
 //# sourceMappingURL=index.js.map

@@ -5,7 +5,14 @@
  * VERSIONE RISCRITTA - Gestione uniforme credenziali REPL_IDENTITY
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createBookingConfirmedEmailHTML = exports.createBookingReceivedEmailHTML = exports.createTestEmailHTML = exports.createWelcomeEmailHTML = exports.createGalleryPasswordEmailHTML = exports.createNewPhotosEmailHTML = exports.sendGmailEmail = exports.getGmailClient = void 0;
+exports.getGmailClient = getGmailClient;
+exports.sendGmailEmail = sendGmailEmail;
+exports.createNewPhotosEmailHTML = createNewPhotosEmailHTML;
+exports.createGalleryPasswordEmailHTML = createGalleryPasswordEmailHTML;
+exports.createWelcomeEmailHTML = createWelcomeEmailHTML;
+exports.createTestEmailHTML = createTestEmailHTML;
+exports.createBookingReceivedEmailHTML = createBookingReceivedEmailHTML;
+exports.createBookingConfirmedEmailHTML = createBookingConfirmedEmailHTML;
 const googleapis_1 = require("googleapis");
 const functions = require("firebase-functions");
 // Cache per access token (evita troppe chiamate al connector)
@@ -83,7 +90,6 @@ async function getGmailClient() {
     });
     return googleapis_1.google.gmail({ version: 'v1', auth: oauth2Client });
 }
-exports.getGmailClient = getGmailClient;
 /**
  * Invia email tramite Gmail API
  * @param to - Singolo destinatario (string) o array di destinatari (string[])
@@ -130,7 +136,6 @@ async function sendGmailEmail(to, subject, htmlContent, from = 'Memorie Sospese 
         throw error;
     }
 }
-exports.sendGmailEmail = sendGmailEmail;
 /**
  * Template HTML per email nuove foto
  */
@@ -158,7 +163,6 @@ function createNewPhotosEmailHTML(galleryName, uploaderName, newPhotosCount, gal
     </div>
   `;
 }
-exports.createNewPhotosEmailHTML = createNewPhotosEmailHTML;
 /**
  * Template HTML per email password galleria
  */
@@ -207,7 +211,6 @@ function createGalleryPasswordEmailHTML(galleryName, galleryCode, galleryPasswor
     </div>
   `;
 }
-exports.createGalleryPasswordEmailHTML = createGalleryPasswordEmailHTML;
 /**
  * Template HTML per email di benvenuto
  */
@@ -226,7 +229,6 @@ function createWelcomeEmailHTML(galleryName) {
     </div>
   `;
 }
-exports.createWelcomeEmailHTML = createWelcomeEmailHTML;
 /**
  * Template HTML per test configurazione
  */
@@ -243,7 +245,6 @@ function createTestEmailHTML() {
     </div>
   `;
 }
-exports.createTestEmailHTML = createTestEmailHTML;
 /**
  * Template HTML email "Prenotazione Ricevuta" (dopo creazione booking)
  */
@@ -329,7 +330,6 @@ function createBookingReceivedEmailHTML(bookingDetails) {
     </div>
   `;
 }
-exports.createBookingReceivedEmailHTML = createBookingReceivedEmailHTML;
 /**
  * Template HTML email "Prenotazione Confermata" (dopo approvazione admin)
  */
@@ -426,5 +426,4 @@ function createBookingConfirmedEmailHTML(bookingDetails) {
     </div>
   `;
 }
-exports.createBookingConfirmedEmailHTML = createBookingConfirmedEmailHTML;
 //# sourceMappingURL=gmail.js.map
