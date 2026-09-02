@@ -46,6 +46,8 @@ function makeDb() {
     resolveLockAttempts = resolve;
   });
   let transactionTail = Promise.resolve();
+  let beforeProcessingQuery:
+    (() => void | Promise<void>) | undefined;
 
   const getQuery = (filters: Array<[string, string, any]>, limit?: number) => {
     let entries = [...emails.entries()].filter(([, email]) =>
@@ -66,22 +68,36 @@ function makeDb() {
 
     if (limit !== undefined) entries = entries.slice(0, limit);
 
-    const docs = entries.map(([id, data]) => ({
-      id,
-      data: () => ({ ...data }),
-      ref: {
+    const docs = entries.map(([id, data]) => {
+      const snapshotData = { ...data };
+      const ref = {
+        __emailId: id,
         update: async (updates: StoredEmail) => {
           Object.assign(data, updates);
         },
-      },
-    }));
+      };
+      return {
+        id,
+        data: () => ({ ...snapshotData }),
+        ref,
+      };
+    });
 
     return {
-      get: async () => ({
-        empty: docs.length === 0,
-        size: docs.length,
-        docs,
-      }),
+      get: async () => {
+        if (filters.some(([field, operator, expected]) =>
+          field === "status" && operator === "==" && expected === "processing"
+        )) {
+          const callback = beforeProcessingQuery;
+          beforeProcessingQuery = undefined;
+          await callback?.();
+        }
+        return {
+          empty: docs.length === 0,
+          size: docs.length,
+          docs,
+        };
+      },
     };
   };
 
@@ -113,7 +129,7 @@ function makeDb() {
   const db = {
     collection: () => collection,
     doc: () => {
-      const ref = {};
+      const ref = { __lockRef: true };
       return {
         get: async () => {
           const observedLock = lock ? { ...lock } : null;
@@ -153,16 +169,32 @@ function makeDb() {
         | { type: "set"; data: StoredEmail }
         | { type: "delete" }
         | undefined;
+      const pendingEmailUpdates: Array<{ id: string; updates: StoredEmail }> = [];
       const transaction = {
-        get: async () => ({
-          exists: lock !== null,
-          data: () => (lock ? { ...lock } : lock),
-        }),
+        get: async (ref: { __emailId?: string }) => {
+          if (ref.__emailId) {
+            const email = emails.get(ref.__emailId);
+            return {
+              exists: email !== undefined,
+              data: () => (email ? { ...email } : email),
+            };
+          }
+          return {
+            exists: lock !== null,
+            data: () => (lock ? { ...lock } : lock),
+          };
+        },
         set: (_ref: unknown, data: StoredEmail) => {
           pendingWrite = { type: "set", data };
         },
         delete: (_ref: unknown) => {
           pendingWrite = { type: "delete" };
+        },
+        update: (ref: { __emailId?: string }, updates: StoredEmail) => {
+          if (!ref.__emailId) {
+            throw new Error("The test transaction can only update email documents");
+          }
+          pendingEmailUpdates.push({ id: ref.__emailId, updates });
         },
       };
 
@@ -172,6 +204,12 @@ function makeDb() {
           lock = { ...pendingWrite.data };
         } else if (pendingWrite?.type === "delete") {
           lock = null;
+        }
+        for (const { id, updates } of pendingEmailUpdates) {
+          const email = emails.get(id);
+          if (email) {
+            Object.assign(email, updates);
+          }
         }
         return result;
       } finally {
@@ -184,6 +222,9 @@ function makeDb() {
     db,
     emails,
     getEmail: (id: string) => emails.get(id),
+    setBeforeProcessingQuery: (callback: () => void | Promise<void>) => {
+      beforeProcessingQuery = callback;
+    },
     waitForLockAttempts: () => lockAttemptsReady,
   };
 }
@@ -315,6 +356,32 @@ describe("EmailQueue", () => {
     expect(h.sendGmailEmail).not.toHaveBeenCalled();
     expect(queued.status).toBe("processing");
     expect(queued.processingWorkerId).toBe("worker-attivo");
+  });
+
+  it("non sovrascrive un worker che rinnova la lease dopo la lettura del recupero", async () => {
+    const store = makeDb();
+    h.db = store.db;
+    const id = await EmailQueue.enqueue({
+      to: ["cliente@example.com"],
+      subject: "Email rinnovata",
+      htmlContent: "<p>Test</p>",
+    });
+    const queued = store.getEmail(id)!;
+    queued.status = "processing";
+    queued.processingStartedAt = new Date(Date.now() - 16 * 60 * 1000);
+    queued.processingLeaseUntil = new Date(Date.now() - 1);
+    queued.processingWorkerId = "worker-originale";
+
+    store.setBeforeProcessingQuery(() => {
+      queued.processingLeaseUntil = new Date(Date.now() + 5 * 60 * 1000);
+    });
+
+    await EmailQueue.processQueue();
+
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+    expect(queued.status).toBe("processing");
+    expect(queued.processingWorkerId).toBe("worker-originale");
+    expect(queued.processingLeaseUntil.getTime()).toBeGreaterThan(Date.now());
   });
 
   it("consente a un solo worker di processare la coda in caso di avvio concorrente", async () => {

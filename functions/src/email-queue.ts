@@ -104,6 +104,7 @@ export class EmailQueue {
 
     for (const doc of snapshot.docs) {
       const email = doc.data() as EmailQueueItem;
+      const observedWorkerId = email.processingWorkerId;
       const leaseUntil = this.timestampToMillis(email.processingLeaseUntil);
       const startedAt = this.timestampToMillis(email.processingStartedAt);
       const createdAt = this.timestampToMillis(email.createdAt);
@@ -118,15 +119,50 @@ export class EmailQueue {
         continue;
       }
 
-      await doc.ref.update({
-        status: 'pending',
-        scheduledFor: new Date(now),
-        processingStartedAt: null,
-        processingLeaseUntil: null,
-        processingWorkerId: null,
-        processingRecoveredAt: new Date(now),
-        processingRecoveryReason: 'worker lease expired'
+      // La query precedente è solo una preselezione. Il worker originale può
+      // aver rinnovato la lease nel frattempo: rileggi e verifica il token in
+      // transazione prima di reclamare il documento.
+      const recovered = await db.runTransaction(async (transaction: any) => {
+        const currentDoc = await transaction.get(doc.ref);
+        if (!currentDoc.exists) {
+          return false;
+        }
+
+        const currentEmail = currentDoc.data() as EmailQueueItem;
+        if (
+          currentEmail.status !== 'processing' ||
+          currentEmail.processingWorkerId !== observedWorkerId
+        ) {
+          return false;
+        }
+
+        const currentLeaseUntil = this.timestampToMillis(currentEmail.processingLeaseUntil);
+        const currentStartedAt = this.timestampToMillis(currentEmail.processingStartedAt);
+        const currentCreatedAt = this.timestampToMillis(currentEmail.createdAt);
+        const currentSafeLeaseUntil = currentLeaseUntil ??
+          (currentStartedAt !== null ? currentStartedAt + PROCESSING_LEASE_MS : null) ??
+          (currentCreatedAt !== null ? currentCreatedAt + PROCESSING_LEASE_MS : null);
+
+        if (currentSafeLeaseUntil === null || currentSafeLeaseUntil > now) {
+          return false;
+        }
+
+        transaction.update(doc.ref, {
+          status: 'pending',
+          scheduledFor: new Date(now),
+          processingStartedAt: null,
+          processingLeaseUntil: null,
+          processingWorkerId: null,
+          processingRecoveredAt: new Date(now),
+          processingRecoveryReason: 'worker lease expired'
+        });
+        return true;
       });
+
+      if (!recovered) {
+        continue;
+      }
+
       recoveredCount++;
 
       functions.logger.warn(
@@ -201,6 +237,57 @@ export class EmailQueue {
     } catch (error) {
       functions.logger.warn('⚠️ Errore rilascio lock:', error);
     }
+  }
+
+  /**
+   * Acquisisce una singola email solo se è ancora pending.
+   *
+   * La query della coda può diventare obsoleta mentre il worker aspetta il
+   * lock o una transazione precedente. La transazione evita di processare un
+   * documento che un altro worker ha già reclamato.
+   */
+  private static async claimEmail(
+    docRef: any,
+    workerId: string,
+    processingStartedAt: Date
+  ): Promise<boolean> {
+    return db.runTransaction(async (transaction: any) => {
+      const currentDoc = await transaction.get(docRef);
+      if (!currentDoc.exists || currentDoc.data()?.status !== 'pending') {
+        return false;
+      }
+
+      transaction.update(docRef, {
+        status: 'processing',
+        processingStartedAt,
+        processingLeaseUntil: new Date(processingStartedAt.getTime() + PROCESSING_LEASE_MS),
+        processingWorkerId: workerId
+      });
+      return true;
+    });
+  }
+
+  /**
+   * Aggiorna un'email solo se il worker possiede ancora la lease.
+   */
+  private static async updateOwnedEmail(
+    docRef: any,
+    workerId: string,
+    updates: Record<string, any>
+  ): Promise<boolean> {
+    return db.runTransaction(async (transaction: any) => {
+      const currentDoc = await transaction.get(docRef);
+      if (
+        !currentDoc.exists ||
+        currentDoc.data()?.status !== 'processing' ||
+        currentDoc.data()?.processingWorkerId !== workerId
+      ) {
+        return false;
+      }
+
+      transaction.update(docRef, updates);
+      return true;
+    });
   }
 
   /**
@@ -339,12 +426,10 @@ export class EmailQueue {
         try {
           // Marca come processing
           const processingStartedAt = new Date();
-          await doc.ref.update({
-            status: 'processing',
-            processingStartedAt,
-            processingLeaseUntil: new Date(processingStartedAt.getTime() + PROCESSING_LEASE_MS),
-            processingWorkerId: lockId
-          });
+          const claimed = await this.claimEmail(doc.ref, lockId, processingStartedAt);
+          if (!claimed) {
+            continue;
+          }
 
           // Invia email
           await sendGmailEmail(
@@ -355,7 +440,7 @@ export class EmailQueue {
           );
 
           // Marca come inviata
-          await doc.ref.update({
+          await this.updateOwnedEmail(doc.ref, lockId, {
             status: 'sent',
             processedAt: new Date(),
             processingStartedAt: null,
@@ -385,7 +470,7 @@ export class EmailQueue {
           
           if (newAttempts >= email.maxAttempts) {
             // Troppi tentativi, marca come failed
-            await doc.ref.update({
+            await this.updateOwnedEmail(doc.ref, lockId, {
               status: 'failed',
               attempts: newAttempts,
               errorMessage: error.message,
@@ -399,7 +484,7 @@ export class EmailQueue {
           } else {
             // Retry dopo 5 minuti
             const retryAt = new Date(Date.now() + 5 * 60 * 1000);
-            await doc.ref.update({
+            await this.updateOwnedEmail(doc.ref, lockId, {
               status: 'pending',
               attempts: newAttempts,
               scheduledFor: retryAt,
