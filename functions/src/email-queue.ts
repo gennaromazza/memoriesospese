@@ -5,6 +5,7 @@
  */
 
 import * as functions from 'firebase-functions';
+import { randomUUID } from 'node:crypto';
 import { db } from './firebase-admin';
 import { sendGmailEmail } from './gmail';
 
@@ -51,42 +52,57 @@ export class EmailQueue {
    * Acquisisci distributed lock per processare la queue
    * Previene processing concorrente su più istanze Cloud Functions
    */
-  private static async acquireLock(): Promise<boolean> {
+  private static async acquireLock(): Promise<string | null> {
     const lockRef = db.doc('locks/emailQueue');
     const lockDuration = 120000; // 2 minuti
     const now = Date.now();
+    const lockId = randomUUID();
 
     try {
-      const lockDoc = await lockRef.get();
-      
-      if (lockDoc.exists) {
-        const lockedUntil = lockDoc.data()?.lockedUntil || 0;
-        if (lockedUntil > now) {
-          functions.logger.info('⏸️ Queue già in elaborazione da altra istanza');
-          return false;
-        }
-      }
+      const acquired = await db.runTransaction(async (transaction: any) => {
+        const lockDoc = await transaction.get(lockRef);
 
-      // Imposta lock atomico
-      await lockRef.set({ 
-        lockedUntil: now + lockDuration,
-        lockedAt: new Date(),
-        instanceId: process.env.K_SERVICE || 'unknown'
+        if (lockDoc.exists) {
+          const lockedUntil = lockDoc.data()?.lockedUntil || 0;
+          if (lockedUntil > now) {
+            return false;
+          }
+        }
+
+        transaction.set(lockRef, {
+          lockedUntil: now + lockDuration,
+          lockedAt: new Date(),
+          lockId,
+          instanceId: process.env.K_SERVICE || 'unknown'
+        });
+
+        return true;
       });
 
-      return true;
+      if (!acquired) {
+        functions.logger.info('⏸️ Queue già in elaborazione da altra istanza');
+        return null;
+      }
+
+      return lockId;
     } catch (error) {
       functions.logger.error('❌ Errore acquisizione lock:', error);
-      return false;
+      return null;
     }
   }
 
   /**
    * Rilascia distributed lock
    */
-  private static async releaseLock(): Promise<void> {
+  private static async releaseLock(lockId: string): Promise<void> {
     try {
-      await db.doc('locks/emailQueue').delete();
+      const lockRef = db.doc('locks/emailQueue');
+      await db.runTransaction(async (transaction: any) => {
+        const lockDoc = await transaction.get(lockRef);
+        if (lockDoc.exists && lockDoc.data()?.lockId === lockId) {
+          transaction.delete(lockRef);
+        }
+      });
       functions.logger.info('🔓 Lock rilasciato');
     } catch (error) {
       functions.logger.warn('⚠️ Errore rilascio lock:', error);
@@ -187,8 +203,8 @@ export class EmailQueue {
    */
   static async processQueue(): Promise<void> {
     // Acquisisci distributed lock
-    const hasLock = await this.acquireLock();
-    if (!hasLock) {
+    const lockId = await this.acquireLock();
+    if (!lockId) {
       return;
     }
 
@@ -289,7 +305,7 @@ export class EmailQueue {
 
     } finally {
       // Rilascia sempre il lock, anche in caso di errore
-      await this.releaseLock();
+      await this.releaseLock(lockId);
     }
   }
 

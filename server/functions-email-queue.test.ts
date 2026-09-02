@@ -35,6 +35,17 @@ function makeDb() {
   const emails = new Map<string, StoredEmail>();
   let nextId = 1;
   let lock: StoredEmail | null = null;
+  let lockReadCount = 0;
+  let resolveLockReads: (() => void) | undefined;
+  const lockReadsReady = new Promise<void>((resolve) => {
+    resolveLockReads = resolve;
+  });
+  let lockAttempts = 0;
+  let resolveLockAttempts: (() => void) | undefined;
+  const lockAttemptsReady = new Promise<void>((resolve) => {
+    resolveLockAttempts = resolve;
+  });
+  let transactionTail = Promise.resolve();
 
   const getQuery = (filters: Array<[string, string, any]>, limit?: number) => {
     let entries = [...emails.entries()].filter(([, email]) =>
@@ -101,24 +112,79 @@ function makeDb() {
 
   const db = {
     collection: () => collection,
-    doc: () => ({
-      get: async () => ({
-        exists: lock !== null,
-        data: () => lock,
-      }),
-      set: async (data: StoredEmail) => {
-        lock = { ...data };
-      },
-      delete: async () => {
-        lock = null;
-      },
-    }),
+    doc: () => {
+      const ref = {};
+      return {
+        get: async () => {
+          const observedLock = lock ? { ...lock } : null;
+          lockReadCount++;
+          if (lockReadCount === 2) {
+            resolveLockReads?.();
+          }
+          await lockReadsReady;
+          return {
+            exists: observedLock !== null,
+            data: () => observedLock,
+          };
+        },
+        set: async (data: StoredEmail) => {
+          lock = { ...data };
+        },
+        delete: async () => {
+          lock = null;
+        },
+        ref,
+      };
+    },
+    runTransaction: async (callback: (transaction: any) => Promise<any>) => {
+      lockAttempts++;
+      if (lockAttempts === 2) {
+        resolveLockAttempts?.();
+      }
+
+      const previousTransaction = transactionTail;
+      let releaseTransaction!: () => void;
+      transactionTail = new Promise<void>((resolve) => {
+        releaseTransaction = resolve;
+      });
+      await previousTransaction;
+
+      let pendingWrite:
+        | { type: "set"; data: StoredEmail }
+        | { type: "delete" }
+        | undefined;
+      const transaction = {
+        get: async () => ({
+          exists: lock !== null,
+          data: () => (lock ? { ...lock } : lock),
+        }),
+        set: (_ref: unknown, data: StoredEmail) => {
+          pendingWrite = { type: "set", data };
+        },
+        delete: (_ref: unknown) => {
+          pendingWrite = { type: "delete" };
+        },
+      };
+
+      try {
+        const result = await callback(transaction);
+        if (pendingWrite?.type === "set") {
+          lock = { ...pendingWrite.data };
+        } else if (pendingWrite?.type === "delete") {
+          lock = null;
+        }
+        return result;
+      } finally {
+        releaseTransaction();
+      }
+    },
   };
 
   return {
     db,
     emails,
     getEmail: (id: string) => emails.get(id),
+    waitForLockAttempts: () => lockAttemptsReady,
   };
 }
 
@@ -197,5 +263,38 @@ describe("EmailQueue", () => {
     expect(queued.attempts).toBe(1);
     expect(queued.processedAt).toBeInstanceOf(Date);
     expect(h.sendGmailEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("consente a un solo worker di processare la coda in caso di avvio concorrente", async () => {
+    const store = makeDb();
+    h.db = store.db;
+    await EmailQueue.enqueue({
+      to: ["cliente@example.com"],
+      subject: "Invio concorrente",
+      htmlContent: "<p>Test</p>",
+    });
+
+    let firstSendStarted!: () => void;
+    const sendStarted = new Promise<void>((resolve) => {
+      firstSendStarted = resolve;
+    });
+    let releaseSend!: () => void;
+    const sendGate = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    h.sendGmailEmail.mockImplementation(async () => {
+      firstSendStarted();
+      await sendGate;
+    });
+
+    const firstWorker = EmailQueue.processQueue();
+    const secondWorker = EmailQueue.processQueue();
+
+    await store.waitForLockAttempts();
+    await sendStarted;
+    releaseSend();
+    await Promise.all([firstWorker, secondWorker]);
+
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
   });
 });
