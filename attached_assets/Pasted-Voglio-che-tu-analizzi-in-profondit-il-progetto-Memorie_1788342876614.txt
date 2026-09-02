@@ -1,0 +1,382 @@
+Voglio che tu analizzi in profondità il progetto **Memorie Sospese** e crei una documentazione tecnica pensata per aiutare futuri agenti AI e sviluppatori a lavorare sul progetto senza dover ricostruire ogni volta da zero l'architettura.
+
+IMPORTANTE: non modificare il comportamento dell'applicazione e non rifattorizzare il codice. Questo task è esclusivamente di **analisi e documentazione**.
+
+Prima di scrivere qualsiasi documento:
+
+1. analizza il repository reale;
+2. leggi `package.json`, configurazioni, `.replit`, Firebase, routing, server, `shared/`, Functions e test;
+3. individua le principali aree funzionali;
+4. cerca le relazioni reali tra frontend, backend, Firestore, Storage, servizi esterni e tipi condivisi;
+5. non assumere nulla dalla sola nomenclatura;
+6. verifica nel codice ogni informazione che inserisci nella documentazione;
+7. quando qualcosa non è determinabile con certezza, segnalarlo chiaramente invece di inventarlo.
+
+Usa `AGENTS.md` come regolamento operativo e come indicazione del livello di rigore richiesto, ma considera sempre il codice reale come fonte primaria di verità.
+
+Voglio creare la seguente knowledge base dentro `docs/`.
+
+---
+
+# 1. `docs/PROJECT_MAP.md`
+
+Crea una mappa tecnica completa della piattaforma.
+
+Per ogni area funzionale importante indica, quando presenti:
+
+- pagine/componenti frontend;
+- route;
+- hook;
+- servizi;
+- endpoint server;
+- Firebase Functions;
+- collezioni Firestore coinvolte;
+- Firebase Storage;
+- tipi in `shared/`;
+- integrazioni esterne;
+- test disponibili;
+- file principali.
+
+Le aree da cercare devono includere almeno:
+
+- autenticazione e utenti;
+- clienti;
+- lavori;
+- booking/prenotazioni;
+- consulenze;
+- preventivi;
+- piani pagamento;
+- cassa;
+- fatture/FatturaPA;
+- gallerie;
+- fotografie;
+- selezione fotografie;
+- commenti;
+- voice memo;
+- fotolibri;
+- prodotti;
+- ordini;
+- laboratori;
+- spedizioni;
+- collaboratori;
+- Google Calendar;
+- Google Drive;
+- email;
+- notifiche;
+- SEO;
+- blog/portfolio;
+- GDPR;
+- backup;
+- audit;
+- migrazioni;
+- job periodici;
+- pagine pubbliche/token.
+
+Usa una struttura leggibile del tipo:
+
+## Gallerie
+
+Frontend:
+- ...
+
+Backend:
+- ...
+
+Firestore:
+- ...
+
+Storage:
+- ...
+
+Tipi:
+- ...
+
+Flusso:
+1. ...
+2. ...
+3. ...
+
+Dipendenze / rischi:
+- ...
+
+---
+
+# 2. `docs/DATA_MODEL.md`
+
+Ricostruisci il modello dati reale di Firestore.
+
+Per ogni collection rilevante indica:
+
+- nome collection;
+- scopo;
+- document ID;
+- campi principali;
+- tipi;
+- campi opzionali;
+- relazioni con altre collection;
+- riferimenti tramite ID;
+- codice che legge i dati;
+- codice che scrive i dati;
+- eventuali sottocollezioni;
+- dati legacy individuati;
+- eventuali campi equivalenti o duplicati storicamente;
+- eventuali normalizzazioni eseguite dal codice.
+
+NON inventare uno schema ideale.
+
+Documenta esclusivamente lo schema che riesci a ricostruire dal codice reale.
+
+Quando esistono più formati storici dello stesso documento, documentali separatamente.
+
+Aggiungi anche una sezione:
+
+## Relazioni principali
+
+Esempio concettuale:
+
+Cliente
+→ Lavoro
+→ Preventivo
+→ Piano pagamenti
+→ Fatture
+→ Galleria
+
+ma deve riflettere esclusivamente le relazioni realmente presenti nel progetto.
+
+---
+
+# 3. `docs/ARCHITECTURE.md`
+
+Descrivi l'architettura reale del progetto.
+
+Includi:
+
+- struttura frontend;
+- struttura backend;
+- ruolo di `server/index.ts`;
+- routing;
+- API;
+- Firebase client;
+- Firebase Admin;
+- Firebase Functions;
+- Firestore;
+- Storage;
+- autenticazione;
+- `shared/`;
+- gestione stato/query;
+- integrazioni esterne;
+- hosting Replit;
+- Firebase Hosting;
+- `VITE_BASE_PATH`;
+- build e deployment.
+
+Spiega inoltre il flusso completo di una richiesta tipo:
+
+Browser
+→ React
+→ API/server oppure Firebase
+→ Firestore/Storage
+→ risposta
+→ React Query/UI
+
+Se esistono più percorsi architetturali, documentali.
+
+---
+
+# 4. `docs/KNOWN_PITFALLS.md`
+
+Crea un documento con tutte le trappole tecniche e i comportamenti non ovvi individuati durante l'analisi.
+
+Esempi di cose da cercare:
+
+- file storici non più utilizzati;
+- entry point che possono essere confusi;
+- logica apparentemente duplicata ma necessaria;
+- vecchi formati dati;
+- compatibilità con gallerie legacy;
+- dipendenze implicite;
+- comportamenti particolari di Firebase;
+- differenze Replit/Firebase Hosting;
+- `VITE_BASE_PATH`;
+- token;
+- URL pubblici;
+- permessi;
+- processi che non devono essere semplificati senza analisi;
+- workaround presenti nel codice con una ragione identificabile.
+
+Per ogni elemento indica:
+
+- problema/trappola;
+- file coinvolti;
+- perché esiste;
+- cosa rischia di rompersi;
+- cosa deve verificare un futuro sviluppatore/agente prima di modificarlo.
+
+---
+
+# 5. `docs/DEVELOPMENT.md`
+
+Ricostruisci i comandi REALI disponibili nel progetto.
+
+Controlla `package.json`, `.replit` e configurazioni.
+
+Documenta solo comandi realmente esistenti:
+
+- build;
+- typecheck;
+- lint;
+- test;
+- test e2e;
+- eventuali script di manutenzione.
+
+Per ogni comando indica:
+
+- cosa fa;
+- quali file/servizi coinvolge;
+- se è sicuro da eseguire;
+- se può interagire con servizi reali;
+- eventuali variabili d'ambiente necessarie.
+
+Non aggiungere comandi "standard" che il progetto non possiede.
+
+Includi anche la configurazione reale di Replit verificata nel repository.
+
+---
+
+# 6. `docs/TESTING_GUIDE.md`
+
+Crea una guida di verifica per area funzionale.
+
+Non inventare test inesistenti.
+
+Prima individua quelli realmente presenti.
+
+Poi crea una matrice simile a:
+
+| Area | Verifiche consigliate |
+| --- | --- |
+| UI | build, pagina, responsive |
+| Firestore | tipi, query, regole, compatibilità dati |
+| Gallerie | accesso, PIN, foto, Storage |
+| Preventivi | calcoli, salvataggio, PDF |
+| Pagamenti | importi, stato, relazioni |
+| Fatture | calcoli, XML, dati fiscali |
+| Email | template, destinatario, idempotenza |
+
+Adatta la matrice al progetto reale.
+
+Distingui:
+
+- test automatici esistenti;
+- verifiche manuali necessarie;
+- aree attualmente senza copertura.
+
+---
+
+# 7. `docs/INTEGRATIONS.md`
+
+Documenta tutte le integrazioni esterne realmente individuate.
+
+Per ciascuna indica:
+
+- servizio;
+- file coinvolti;
+- utilizzo;
+- configurazione;
+- variabili d'ambiente utilizzate, riportando SOLO il nome della variabile e MAI il valore;
+- flusso dati;
+- possibili effetti reali di una chiamata;
+- eventuale ambiente test/produzione.
+
+Cerca almeno:
+
+- Firebase;
+- Google Calendar;
+- Google Drive;
+- Gmail/SMTP;
+- Google Places;
+- FatturaPA;
+- eventuali servizi AI;
+- altri provider realmente presenti.
+
+NON riportare mai segreti o credenziali.
+
+---
+
+# 8. `docs/decisions/`
+
+Se dal codice o dalla documentazione esistente riesci a ricostruire decisioni architetturali importanti, crea piccoli documenti ADR.
+
+Esempi:
+
+`001-firebase-architecture.md`
+`002-gallery-access.md`
+`003-token-flows.md`
+`004-replit-firebase-hosting.md`
+
+Ogni documento deve contenere:
+
+# Decisione
+
+# Contesto
+
+# Motivazione verificabile
+
+# Conseguenze
+
+# Cosa non modificare senza rivalutare questa decisione
+
+NON inventare motivazioni che non riesci a dedurre dal progetto.
+
+Se la motivazione storica non è verificabile, scrivi esplicitamente:
+
+"Motivazione storica non determinabile dal repository."
+
+---
+
+# Regole di qualità
+
+La documentazione deve essere utile soprattutto a un agente AI che apre il repository per la prima volta.
+
+Quindi:
+
+- usa percorsi file reali;
+- usa nomi reali di funzioni, componenti, servizi e tipi;
+- evita descrizioni generiche;
+- inserisci esempi concreti quando verificabili;
+- segnala codice legacy;
+- segnala punti ad alto rischio;
+- segnala ambiguità;
+- segnala documentazione esistente non più coerente col codice;
+- non correggere automaticamente le discrepanze trovate.
+
+Non modificare codice applicativo durante questo task.
+
+Puoi creare o aggiornare esclusivamente i documenti richiesti in `docs/`.
+
+---
+
+# Verifica finale
+
+Prima di terminare:
+
+1. rileggi tutti i documenti creati;
+2. confrontali nuovamente con il codice;
+3. elimina affermazioni non verificabili;
+4. controlla che non siano presenti credenziali;
+5. controlla il `git diff`;
+6. assicurati che siano stati modificati esclusivamente file di documentazione.
+
+Alla fine dammi un riepilogo con:
+
+## Documenti creati
+
+## Aree analizzate
+
+## Informazioni che non è stato possibile determinare con certezza
+
+## Discrepanze trovate tra documentazione esistente e codice reale
+
+## Aree che consiglieresti di documentare meglio in futuro
+
+Non modificare il codice per correggere i problemi eventualmente individuati: limitati a segnalarli.
