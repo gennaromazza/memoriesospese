@@ -265,6 +265,58 @@ describe("EmailQueue", () => {
     expect(h.sendGmailEmail).toHaveBeenCalledTimes(2);
   });
 
+  it("recupera una email lasciata in processing dopo la scadenza della lease", async () => {
+    const store = makeDb();
+    h.db = store.db;
+    const id = await EmailQueue.enqueue({
+      to: ["cliente@example.com"],
+      subject: "Email interrotta",
+      htmlContent: "<p>Test</p>",
+    });
+    const queued = store.getEmail(id)!;
+    queued.status = "processing";
+    queued.attempts = 1;
+    queued.processingStartedAt = new Date(Date.now() - 16 * 60 * 1000);
+    queued.processingLeaseUntil = new Date(Date.now() - 1);
+    queued.processingWorkerId = "worker-arrestato";
+
+    h.sendGmailEmail.mockImplementation(async () => {
+      expect(queued.status).toBe("processing");
+      expect(queued.processingWorkerId).not.toBe("worker-arrestato");
+    });
+
+    await EmailQueue.processQueue();
+
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
+    expect(queued.status).toBe("sent");
+    expect(queued.attempts).toBe(1);
+    expect(queued.processingLeaseUntil).toBeNull();
+    expect(queued.processingWorkerId).toBeNull();
+    expect(queued.processingRecoveredAt).toBeInstanceOf(Date);
+    expect(queued.processingRecoveryReason).toBe("worker lease expired");
+  });
+
+  it("non recupera né reinvia una email con lease ancora valida", async () => {
+    const store = makeDb();
+    h.db = store.db;
+    const id = await EmailQueue.enqueue({
+      to: ["cliente@example.com"],
+      subject: "Email ancora attiva",
+      htmlContent: "<p>Test</p>",
+    });
+    const queued = store.getEmail(id)!;
+    queued.status = "processing";
+    queued.processingStartedAt = new Date();
+    queued.processingLeaseUntil = new Date(Date.now() + 5 * 60 * 1000);
+    queued.processingWorkerId = "worker-attivo";
+
+    await EmailQueue.processQueue();
+
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+    expect(queued.status).toBe("processing");
+    expect(queued.processingWorkerId).toBe("worker-attivo");
+  });
+
   it("consente a un solo worker di processare la coda in caso di avvio concorrente", async () => {
     const store = makeDb();
     h.db = store.db;

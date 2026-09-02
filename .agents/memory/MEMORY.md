@@ -19,6 +19,7 @@
 - [Gallery public access gate](gallery-public-access-gate.md) — gate di /view/:id redirige a /gallery/:id (pagina password); per test senza password impostare localStorage gallery_auth_<id>.
 - [Job REST API timestamp serialization](job-rest-timestamp-serialization.md) — getJob/GET /api/jobs/:id ritorna i Timestamp come {_seconds,_nanoseconds}: convertire con convertFirestoreTimestamp, mai .toDate() diretto.
 - [Auto-send email scheduler idempotency](auto-send-scheduler-idempotency.md) — marker in transazione PRIMA dell'invio; rollback SOLO se l'invio email fallisce; timeline post-invio best-effort (mai rollback) → evita doppi invii.
+- [Email queue processing leases](email-queue-processing-leases.md) — gli elementi processing devono avere una lease oltre il timeout del worker; recuperare solo lease scadute per evitare doppie elaborazioni.
 - [Test framework (vitest) setup](testing-setup.md) — `npx vitest run` (niente npm script); config standalone evita i plugin Vite; pattern per mockare Firestore/Gmail in test server.
 - [Job denormalized aggregates](job-denormalized-aggregates.md) — quoteStatus/transactionCount da ricalcolare sui write-path; financials.totalePagato/saldoResiduo STALE → incassi reali da paymentSchedules.importoPagato.
 - [Caricamento dati nei modal](modal-data-load-on-open.md) — modal sempre montati: fetch Firestore gated su isOpen, non al mount (auth non pronta → liste vuote silenziose).

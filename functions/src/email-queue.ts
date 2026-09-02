@@ -17,6 +17,11 @@ const RATE_LIMITS = {
   BATCH_DELAY_MS: 7000   // 7 secondi tra batch (safety margin)
 };
 
+// Deve essere più lungo del timeout massimo della Cloud Function (9 minuti).
+// In questo modo un worker ancora attivo non può perdere la proprietà
+// dell'email mentre sta aspettando Gmail.
+const PROCESSING_LEASE_MS = 15 * 60 * 1000;
+
 interface EmailQueueItem {
   id?: string;
   to: string[];
@@ -31,6 +36,11 @@ interface EmailQueueItem {
   processedAt?: any;
   status: 'pending' | 'processing' | 'sent' | 'failed';
   errorMessage?: string;
+  processingStartedAt?: any;
+  processingLeaseUntil?: any;
+  processingWorkerId?: string;
+  processingRecoveredAt?: any;
+  processingRecoveryReason?: string;
   metadata?: {
     galleryId?: string;
     type?: string;
@@ -48,6 +58,90 @@ type EnqueueEmailParams = {
 };
 
 export class EmailQueue {
+  /**
+   * Converte in millisecondi sia Date sia Timestamp dell'Admin SDK.
+   * I dati esistenti possono avere uno dei due formati.
+   */
+  private static timestampToMillis(value: any): number | null {
+    if (!value) {
+      return null;
+    }
+
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    if (typeof value.toMillis === 'function') {
+      return value.toMillis();
+    }
+
+    if (typeof value.seconds === 'number') {
+      return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1_000_000);
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    return null;
+  }
+
+  /**
+   * Recupera le email lasciate in processing da un worker terminato.
+   *
+   * La query intenzionalmente filtra solo per status: così funziona anche
+   * senza un indice composto e consente di gestire i documenti legacy privi
+   * dei campi di lease. Per i documenti legacy usiamo createdAt come
+   * riferimento conservativo; un documento senza alcun riferimento temporale
+   * non viene toccato.
+   */
+  private static async recoverStaleProcessing(now: number): Promise<number> {
+    const snapshot = await db.collection('emailQueue')
+      .where('status', '==', 'processing')
+      .get();
+
+    let recoveredCount = 0;
+
+    for (const doc of snapshot.docs) {
+      const email = doc.data() as EmailQueueItem;
+      const leaseUntil = this.timestampToMillis(email.processingLeaseUntil);
+      const startedAt = this.timestampToMillis(email.processingStartedAt);
+      const createdAt = this.timestampToMillis(email.createdAt);
+      const safeLeaseUntil = leaseUntil ??
+        (startedAt !== null ? startedAt + PROCESSING_LEASE_MS : null) ??
+        (createdAt !== null ? createdAt + PROCESSING_LEASE_MS : null);
+
+      // Non reclamare documenti senza una data: non possiamo distinguere un
+      // vecchio arresto da un worker attivo, quindi è più sicuro lasciarli
+      // osservabili che rischiare un doppio invio.
+      if (safeLeaseUntil === null || safeLeaseUntil > now) {
+        continue;
+      }
+
+      await doc.ref.update({
+        status: 'pending',
+        scheduledFor: new Date(now),
+        processingStartedAt: null,
+        processingLeaseUntil: null,
+        processingWorkerId: null,
+        processingRecoveredAt: new Date(now),
+        processingRecoveryReason: 'worker lease expired'
+      });
+      recoveredCount++;
+
+      functions.logger.warn(
+        `♻️ Email recuperata dopo lease scaduta: ${doc.id} ` +
+        `(leaseUntil=${new Date(safeLeaseUntil).toISOString()})`
+      );
+    }
+
+    if (recoveredCount > 0) {
+      functions.logger.info(`♻️ Recuperate ${recoveredCount} email bloccate`);
+    }
+
+    return recoveredCount;
+  }
+
   /**
    * Acquisisci distributed lock per processare la queue
    * Previene processing concorrente su più istanze Cloud Functions
@@ -209,6 +303,11 @@ export class EmailQueue {
     }
 
     try {
+      // Prima di selezionare i pending, riporta in coda solo le email la cui
+      // lease è scaduta. Una lease ancora valida indica che il worker
+      // proprietario potrebbe essere ancora dentro sendGmailEmail.
+      await this.recoverStaleProcessing(Date.now());
+
       // Verifica rate limit
       const rateCheck = await this.canSendEmail();
       
@@ -239,7 +338,13 @@ export class EmailQueue {
         
         try {
           // Marca come processing
-          await doc.ref.update({ status: 'processing' });
+          const processingStartedAt = new Date();
+          await doc.ref.update({
+            status: 'processing',
+            processingStartedAt,
+            processingLeaseUntil: new Date(processingStartedAt.getTime() + PROCESSING_LEASE_MS),
+            processingWorkerId: lockId
+          });
 
           // Invia email
           await sendGmailEmail(
@@ -252,7 +357,10 @@ export class EmailQueue {
           // Marca come inviata
           await doc.ref.update({
             status: 'sent',
-            processedAt: new Date()
+            processedAt: new Date(),
+            processingStartedAt: null,
+            processingLeaseUntil: null,
+            processingWorkerId: null
           });
 
           // Log dettagliato successo con metadata
@@ -281,7 +389,10 @@ export class EmailQueue {
               status: 'failed',
               attempts: newAttempts,
               errorMessage: error.message,
-              processedAt: new Date()
+              processedAt: new Date(),
+              processingStartedAt: null,
+              processingLeaseUntil: null,
+              processingWorkerId: null
             });
             
             functions.logger.error(`❌ Email failed definitivamente: ${doc.id}`, error);
@@ -292,7 +403,10 @@ export class EmailQueue {
               status: 'pending',
               attempts: newAttempts,
               scheduledFor: retryAt,
-              errorMessage: error.message
+              errorMessage: error.message,
+              processingStartedAt: null,
+              processingLeaseUntil: null,
+              processingWorkerId: null
             });
             
             functions.logger.warn(`⚠️ Email retry schedulato: ${doc.id} (attempt ${newAttempts})`);

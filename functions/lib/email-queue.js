@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailQueue = void 0;
 const functions = require("firebase-functions");
+const node_crypto_1 = require("node:crypto");
 const firebase_admin_1 = require("./firebase-admin");
 const gmail_1 = require("./gmail");
 // Limiti Gmail API
@@ -15,7 +16,79 @@ const RATE_LIMITS = {
     BATCH_SIZE: 10, // Email per batch
     BATCH_DELAY_MS: 7000 // 7 secondi tra batch (safety margin)
 };
+// Deve essere più lungo del timeout massimo della Cloud Function (9 minuti).
+// In questo modo un worker ancora attivo non può perdere la proprietà
+// dell'email mentre sta aspettando Gmail.
+const PROCESSING_LEASE_MS = 15 * 60 * 1000;
 class EmailQueue {
+    /**
+     * Converte in millisecondi sia Date sia Timestamp dell'Admin SDK.
+     * I dati esistenti possono avere uno dei due formati.
+     */
+    static timestampToMillis(value) {
+        if (!value) {
+            return null;
+        }
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+        if (typeof value.toMillis === 'function') {
+            return value.toMillis();
+        }
+        if (typeof value.seconds === 'number') {
+            return value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1_000_000);
+        }
+        if (typeof value === 'number') {
+            return value;
+        }
+        return null;
+    }
+    /**
+     * Recupera le email lasciate in processing da un worker terminato.
+     *
+     * La query intenzionalmente filtra solo per status: così funziona anche
+     * senza un indice composto e consente di gestire i documenti legacy privi
+     * dei campi di lease. Per i documenti legacy usiamo createdAt come
+     * riferimento conservativo; un documento senza alcun riferimento temporale
+     * non viene toccato.
+     */
+    static async recoverStaleProcessing(now) {
+        const snapshot = await firebase_admin_1.db.collection('emailQueue')
+            .where('status', '==', 'processing')
+            .get();
+        let recoveredCount = 0;
+        for (const doc of snapshot.docs) {
+            const email = doc.data();
+            const leaseUntil = this.timestampToMillis(email.processingLeaseUntil);
+            const startedAt = this.timestampToMillis(email.processingStartedAt);
+            const createdAt = this.timestampToMillis(email.createdAt);
+            const safeLeaseUntil = leaseUntil ??
+                (startedAt !== null ? startedAt + PROCESSING_LEASE_MS : null) ??
+                (createdAt !== null ? createdAt + PROCESSING_LEASE_MS : null);
+            // Non reclamare documenti senza una data: non possiamo distinguere un
+            // vecchio arresto da un worker attivo, quindi è più sicuro lasciarli
+            // osservabili che rischiare un doppio invio.
+            if (safeLeaseUntil === null || safeLeaseUntil > now) {
+                continue;
+            }
+            await doc.ref.update({
+                status: 'pending',
+                scheduledFor: new Date(now),
+                processingStartedAt: null,
+                processingLeaseUntil: null,
+                processingWorkerId: null,
+                processingRecoveredAt: new Date(now),
+                processingRecoveryReason: 'worker lease expired'
+            });
+            recoveredCount++;
+            functions.logger.warn(`♻️ Email recuperata dopo lease scaduta: ${doc.id} ` +
+                `(leaseUntil=${new Date(safeLeaseUntil).toISOString()})`);
+        }
+        if (recoveredCount > 0) {
+            functions.logger.info(`♻️ Recuperate ${recoveredCount} email bloccate`);
+        }
+        return recoveredCount;
+    }
     /**
      * Acquisisci distributed lock per processare la queue
      * Previene processing concorrente su più istanze Cloud Functions
@@ -24,34 +97,47 @@ class EmailQueue {
         const lockRef = firebase_admin_1.db.doc('locks/emailQueue');
         const lockDuration = 120000; // 2 minuti
         const now = Date.now();
+        const lockId = (0, node_crypto_1.randomUUID)();
         try {
-            const lockDoc = await lockRef.get();
-            if (lockDoc.exists) {
-                const lockedUntil = lockDoc.data()?.lockedUntil || 0;
-                if (lockedUntil > now) {
-                    functions.logger.info('⏸️ Queue già in elaborazione da altra istanza');
-                    return false;
+            const acquired = await firebase_admin_1.db.runTransaction(async (transaction) => {
+                const lockDoc = await transaction.get(lockRef);
+                if (lockDoc.exists) {
+                    const lockedUntil = lockDoc.data()?.lockedUntil || 0;
+                    if (lockedUntil > now) {
+                        return false;
+                    }
                 }
-            }
-            // Imposta lock atomico
-            await lockRef.set({
-                lockedUntil: now + lockDuration,
-                lockedAt: new Date(),
-                instanceId: process.env.K_SERVICE || 'unknown'
+                transaction.set(lockRef, {
+                    lockedUntil: now + lockDuration,
+                    lockedAt: new Date(),
+                    lockId,
+                    instanceId: process.env.K_SERVICE || 'unknown'
+                });
+                return true;
             });
-            return true;
+            if (!acquired) {
+                functions.logger.info('⏸️ Queue già in elaborazione da altra istanza');
+                return null;
+            }
+            return lockId;
         }
         catch (error) {
             functions.logger.error('❌ Errore acquisizione lock:', error);
-            return false;
+            return null;
         }
     }
     /**
      * Rilascia distributed lock
      */
-    static async releaseLock() {
+    static async releaseLock(lockId) {
         try {
-            await firebase_admin_1.db.doc('locks/emailQueue').delete();
+            const lockRef = firebase_admin_1.db.doc('locks/emailQueue');
+            await firebase_admin_1.db.runTransaction(async (transaction) => {
+                const lockDoc = await transaction.get(lockRef);
+                if (lockDoc.exists && lockDoc.data()?.lockId === lockId) {
+                    transaction.delete(lockRef);
+                }
+            });
             functions.logger.info('🔓 Lock rilasciato');
         }
         catch (error) {
@@ -127,11 +213,15 @@ class EmailQueue {
      */
     static async processQueue() {
         // Acquisisci distributed lock
-        const hasLock = await this.acquireLock();
-        if (!hasLock) {
+        const lockId = await this.acquireLock();
+        if (!lockId) {
             return;
         }
         try {
+            // Prima di selezionare i pending, riporta in coda solo le email la cui
+            // lease è scaduta. Una lease ancora valida indica che il worker
+            // proprietario potrebbe essere ancora dentro sendGmailEmail.
+            await this.recoverStaleProcessing(Date.now());
             // Verifica rate limit
             const rateCheck = await this.canSendEmail();
             if (!rateCheck.allowed) {
@@ -156,13 +246,22 @@ class EmailQueue {
                 const email = doc.data();
                 try {
                     // Marca come processing
-                    await doc.ref.update({ status: 'processing' });
+                    const processingStartedAt = new Date();
+                    await doc.ref.update({
+                        status: 'processing',
+                        processingStartedAt,
+                        processingLeaseUntil: new Date(processingStartedAt.getTime() + PROCESSING_LEASE_MS),
+                        processingWorkerId: lockId
+                    });
                     // Invia email
                     await (0, gmail_1.sendGmailEmail)(email.to, email.subject, email.htmlContent, email.from);
                     // Marca come inviata
                     await doc.ref.update({
                         status: 'sent',
-                        processedAt: new Date()
+                        processedAt: new Date(),
+                        processingStartedAt: null,
+                        processingLeaseUntil: null,
+                        processingWorkerId: null
                     });
                     // Log dettagliato successo con metadata
                     const metaInfo = email.metadata ?
@@ -181,7 +280,10 @@ class EmailQueue {
                             status: 'failed',
                             attempts: newAttempts,
                             errorMessage: error.message,
-                            processedAt: new Date()
+                            processedAt: new Date(),
+                            processingStartedAt: null,
+                            processingLeaseUntil: null,
+                            processingWorkerId: null
                         });
                         functions.logger.error(`❌ Email failed definitivamente: ${doc.id}`, error);
                     }
@@ -192,7 +294,10 @@ class EmailQueue {
                             status: 'pending',
                             attempts: newAttempts,
                             scheduledFor: retryAt,
-                            errorMessage: error.message
+                            errorMessage: error.message,
+                            processingStartedAt: null,
+                            processingLeaseUntil: null,
+                            processingWorkerId: null
                         });
                         functions.logger.warn(`⚠️ Email retry schedulato: ${doc.id} (attempt ${newAttempts})`);
                     }
@@ -203,7 +308,7 @@ class EmailQueue {
         }
         finally {
             // Rilascia sempre il lock, anche in caso di errore
-            await this.releaseLock();
+            await this.releaseLock(lockId);
         }
     }
     /**
