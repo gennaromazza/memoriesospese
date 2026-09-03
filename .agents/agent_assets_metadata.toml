@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "-z2Ch1cWmofW0m3QbjbHn"
+uri = "file://docs/seo-audit-report.md"
+type = "text"
+title = "Report audit SEO preliminare"
+description = "Audit tecnico SEO di imagestudiofotografico.com con evidenze separate, inventario route, sitemap/robots e analisi miniatura homepage."
