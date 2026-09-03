@@ -1,0 +1,97 @@
+Procediamo con un task di correzione SOLO sui problemi tecnici provati dall'audit #172.
+
+NON intervenire ancora sui 53 duplicati Search Console, sulle 74 URL non indicizzate o sui vecchi articoli blog.
+
+Implementa esclusivamente questi interventi:
+
+P0
+1. Correggere il fallback SPA per le URL realmente inesistenti.
+
+Obiettivo:
+- route pubblica valida -> 200
+- slug blog inesistente -> 404
+- slug Real Wedding inesistente -> 404
+- route completamente sconosciuta -> 404
+
+Non rompere:
+- deep link React validi
+- route dinamiche valide
+- route private/token esistenti
+
+Per le route private/token applicare la policy esistente senza trasformarle automaticamente in 404 se l'applicazione le utilizza.
+
+P1
+2. Eliminare i duplicati:
+- og:image
+- twitter:image
+
+nel prerender.
+
+Ogni risposta pubblica deve contenere una sola occorrenza corretta per ciascun metadata.
+
+P1
+3. Rendere disponibile una vera immagine della homepage nel primo HTML ricevuto dal crawler.
+
+La homepage prerenderizzata deve contenere almeno una <img> fotografica reale, coerente con il contenuto della homepage.
+
+Requisiti:
+- src stabile
+- HTTP 200
+- alt descrittivo naturale
+- width e height
+- immagine indicizzabile
+- nessun lazy-loading se è la principale immagine above-the-fold del prerender
+- non inserire immagini nascoste solo per SEO
+
+Valuta come candidata iniziale /1200x630px.jpg ma controlla visivamente e semanticamente se è realmente adatta come hero/preferred image prima di utilizzarla.
+
+P2
+4. Allineare i metadata statici di client/index.html alla versione wedding-first utilizzata dal prerender:
+title
+description
+og:title
+og:description
+twitter:title
+twitter:description
+
+Non cambiare la strategia SEO generale.
+
+P2
+5. Fare inventario delle route token/private:
+- /quote/*
+- /preventivo-rapido/*
+- /fotolibro/*
+- /view/*
+- /collaboratori/*
+- /q/*
+- /modulo/*
+- /stampa-foto-aversa/ordine*
+
+Per ciascun gruppo determina prima se deve essere:
+A) pubblico indicizzabile
+B) pubblico noindex
+C) privato/token noindex
+
+Non aggiungere Disallow indiscriminatamente.
+
+Per le route B/C preferire protezione server-side X-Robots-Tag noindex dove appropriato.
+
+PRIMA DELLE MODIFICHE:
+mostrami il piano file-per-file.
+
+DOPO:
+esegui:
+- typecheck
+- test
+- build
+- test HTTP sulle route valide e inesistenti
+- verifica primo HTML homepage
+- verifica numero di og:image/twitter:image
+- verifica canonical
+- verifica sitemap
+- verifica robots
+
+Mostrami una tabella finale:
+URL | status | canonical | robots | prerender | risultato
+
+Non modificare sitemap, slug, contenuti blog o Real Wedding.
