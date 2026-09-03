@@ -1,0 +1,122 @@
+Devo fare un audit editoriale SEO dei 68 articoli blog pubblicati di imagestudiofotografico.com.
+
+OBIETTIVO
+Capire quali articoli stanno ancora portando valore SEO e quali invece:
+- sono troppo vecchi;
+- sono troppo simili tra loro;
+- competono per la stessa keyword/intento;
+- sono troppo sottili;
+- sono superati;
+- potrebbero essere aggiornati;
+- potrebbero essere accorpati;
+- potrebbero diventare hub o articoli pillar;
+- potrebbero collegarsi meglio ai Real Wedding.
+
+NON modificare nulla in questo task.
+
+PER OGNI ARTICOLO ANALIZZA
+
+1. URL e titolo
+2. Data pubblicazione
+3. Tema principale
+4. Intento di ricerca
+5. Keyword primaria plausibile
+6. Keyword secondarie
+7. Eventuali articoli concorrenti interni
+8. Rischio cannibalizzazione
+9. Qualità/attualità del contenuto
+10. Profondità del testo
+11. Presenza di immagini
+12. Internal linking in ingresso
+13. Internal linking in uscita
+14. Collegamenti a Real Wedding pertinenti
+15. Title/meta/H1
+16. Canonical
+17. Structured data
+18. Indicizzabilità tecnica
+19. Valore locale per Aversa/Caserta/Napoli
+20. Opportunità di aggiornamento
+
+CLASSIFICA OGNI ARTICOLO IN UNA SOLA CATEGORIA
+
+🟢 KEEP
+Contenuto valido, distinto e utile.
+
+🔵 UPDATE
+Buon URL ma contenuto da aggiornare o ampliare.
+
+🟠 MERGE
+Contenuto sovrapposto ad altri articoli; proporre URL principale e articoli secondari da accorpare.
+
+🟡 DIFFERENZIA
+Articolo utile ma troppo simile a un altro; cambiare angolo/intento.
+
+🔴 ARCHIVE/REDIRECT CANDIDATE
+Solo se davvero obsoleto, debole o senza valore distinto.
+Non applicare redirect automaticamente.
+
+IMPORTANTE
+Non considerare automaticamente “vecchio = inutile”.
+Un articolo del 2018 può ancora avere valore se risponde bene a un intento evergreen.
+
+ANALISI CANNIBALIZZAZIONE
+Raggruppa gli articoli per cluster, ad esempio:
+- fotografo matrimonio Aversa
+- fotografo matrimonio Napoli
+- fotografo matrimonio Caserta
+- reportage matrimonio
+- foto spontanee
+- album matrimonio
+- costi matrimonio/fotografo
+- location matrimonio
+- consigli sposa
+- fotografia artistica
+- battesimo/famiglia
+- stagionali
+- tecnologia/servizi
+
+Per ogni cluster:
+- indica l’articolo principale consigliato;
+- gli articoli secondari;
+- eventuale cannibalizzazione;
+- strategia consigliata.
+
+INTERNAL LINKING
+Proponi collegamenti contestuali verso:
+- /fotografo-aversa
+- /portfolio/matrimonio
+- /blog
+- Real Wedding pertinenti
+- eventuali pagine servizio
+
+Evita link forzati.
+
+REAL WEDDING
+Controlla se vecchi articoli raccontano matrimoni oggi presenti anche come Real Wedding.
+
+Se sì:
+- non considerarlo automaticamente duplicato;
+- valuta se i due contenuti hanno intenti diversi;
+- proponi differenziazione o linking reciproco.
+
+SEARCH CONSOLE
+Se non hai dati URL-level di impression, click o query:
+dichiaralo.
+Non inventare performance SEO.
+
+OUTPUT
+Voglio:
+
+1. tabella completa dei 68 articoli;
+2. cluster tematici;
+3. articoli con rischio cannibalizzazione;
+4. top 10 articoli da aggiornare per primi;
+5. top 10 articoli da lasciare invariati;
+6. articoli candidati a merge;
+7. articoli candidati a redirect solo come raccomandazione;
+8. piano editoriale di aggiornamento prioritario.
+
+Chiudi con una tabella:
+Priorità | URL | Azione | Motivo | Articolo target | Rischio | Beneficio SEO atteso
+
+Nessuna modifica al sito in questo task.
