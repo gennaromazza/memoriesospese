@@ -88,7 +88,16 @@ describe('production web runtime', () => {
     const route = await fetch(`${baseUrl}/stampa-foto-aversa/ordine`);
     expect(route.status).toBe(200);
     expect(route.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate');
+    expect(route.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
     expect(await route.text()).toContain('production-spa');
+
+    const validTokenRoute = await fetch(`${baseUrl}/quote/customer-token`);
+    expect(validTokenRoute.status).toBe(200);
+    expect(validTokenRoute.headers.get('x-robots-tag')).toBe('noindex, nofollow, noarchive');
+
+    const unknownRoute = await fetch(`${baseUrl}/route-that-does-not-exist`);
+    expect(unknownRoute.status).toBe(404);
+    expect(await unknownRoute.text()).not.toContain('production-spa');
 
     const missingAsset = await fetch(`${baseUrl}/assets/missing.js`);
     expect(missingAsset.status).toBe(404);

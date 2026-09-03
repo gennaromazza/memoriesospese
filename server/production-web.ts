@@ -5,6 +5,7 @@ import express, {
   type Response,
 } from 'express';
 import path from 'node:path';
+import { isKnownClientPath, isPrivateClientPath } from './client-routes';
 
 const IMMUTABLE_ASSET_CACHE = 'public, max-age=31536000, immutable';
 const REVALIDATE_CACHE = 'no-cache, max-age=0, must-revalidate';
@@ -46,6 +47,10 @@ function setSpaDocumentHeaders(res: Response): void {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 }
 
+function setPrivateRouteRobotsHeader(res: Response): void {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+}
+
 /**
  * Monta esclusivamente la build Vite gia generata. Le API devono essere
  * registrate prima di questa funzione; la relativa 404 va montata subito
@@ -64,9 +69,18 @@ export function mountProductionClient(
   }));
 
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (isPrivateClientPath(req.path)) {
+      setPrivateRouteRobotsHeader(res);
+    }
+
     // Un asset inesistente deve restare un vero 404: restituire la SPA con
     // Content-Type HTML maschererebbe errori di deploy e romperebbe le cache.
     if (path.extname(req.path)) {
+      res.status(404).type('text/plain').send('Not Found');
+      return;
+    }
+
+    if (!isKnownClientPath(req.path)) {
       res.status(404).type('text/plain').send('Not Found');
       return;
     }

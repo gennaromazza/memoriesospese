@@ -14,6 +14,11 @@ import {
   WEDDING_PORTFOLIO_SEO,
   WEDDING_SERVICE_JSON_LD,
 } from '../shared/public-seo-content';
+import {
+  isKnownClientPath,
+  isPrivateClientPath,
+  normalizeClientPath,
+} from './client-routes';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
@@ -71,6 +76,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
       keywords: WEDDING_HOME_SEO.keywords,
       jsonLd: WEDDING_SERVICE_JSON_LD,
       bodyContent: `
+        <img src="${OG_IMAGE}" alt="Sposi davanti a una villa durante un matrimonio in Campania" width="1200" height="630" fetchpriority="high" />
         <h1>${WEDDING_HOME_COPY.heroTitle}</h1>
         <p>${WEDDING_HOME_COPY.heroDescription}</p>
         <h2>${WEDDING_HOME_COPY.portfolioTitle}</h2>
@@ -644,6 +650,13 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
   }
 }
 
+async function hasBlogPost(slug: string): Promise<boolean> {
+  const snapshot = await db.collection('blogPosts')
+    .where('slug', '==', slug)
+    .get();
+  return !snapshot.empty;
+}
+
 async function getBlogListMeta(): Promise<PageMeta> {
   try {
     const snapshot = await db.collection('blogPosts')
@@ -786,6 +799,13 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
     .map(document => String(document.data()?.url || ''))
     .filter(Boolean);
   return buildWeddingStoryPageMeta(story, images);
+}
+
+async function hasWeddingStory(slug: string): Promise<boolean> {
+  const snapshot = await db.collection('weddingSeoStories')
+    .where('slug', '==', slug)
+    .get();
+  return !snapshot.empty;
 }
 
 function getPortfolioCategoryMeta(category: string): PageMeta | null {
@@ -986,9 +1006,11 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   html = html.replace(/<meta\s+property="og:description"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:type"[^>]*>/g, '');
   html = html.replace(/<meta\s+property="og:url"[^>]*>/g, '');
+   html = html.replace(/<meta\s+property="og:image"[^>]*>/g, '');
   html = html.replace(/<link\s+rel="canonical"[^>]*>/g, '');
   html = html.replace(/<meta\s+name="twitter:title"[^>]*>/g, '');
   html = html.replace(/<meta\s+name="twitter:description"[^>]*>/g, '');
+   html = html.replace(/<meta\s+name="twitter:image"[^>]*>/g, '');
 
   html = html.replace('</head>', `${seoHead}\n</head>`);
 
@@ -1005,37 +1027,77 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
 export function createSeoMiddleware() {
   return async (req: Request, res: Response, next: NextFunction) => {
     const userAgent = req.headers['user-agent'] || '';
+    const path = normalizeClientPath(req.path);
 
-    if (!isBot(userAgent)) {
+    // In development Vite serves these virtual modules after this middleware.
+    // They are not application routes and must not be mistaken for 404s.
+    if (
+      path.startsWith('/@vite/')
+      || path === '/@react-refresh'
+      || path.startsWith('/@id/')
+      || path.startsWith('/@fs/')
+      || path.startsWith('/node_modules/')
+    ) {
       return next();
     }
 
-    const path = req.path.replace(/\/$/, '') || '/';
+    if (isPrivateClientPath(path)) {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      return next();
+    }
 
     if (isNonPrerenderablePath(path)) {
       return next();
     }
 
     try {
+      const bot = isBot(userAgent);
       let meta: PageMeta | null = null;
 
       if (path.startsWith('/real-wedding/') && path !== '/real-wedding') {
         const slug = path.replace('/real-wedding/', '');
-        meta = await getWeddingStoryMeta(slug);
-        if (!meta) {
+        if (!await hasWeddingStory(slug)) {
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-          return next();
+          res.status(404).type('text/plain').send('Not Found');
+          return;
+        }
+        if (bot) {
+          meta = await getWeddingStoryMeta(slug);
+          if (!meta) {
+            res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+            return next();
+          }
         }
       } else if (path.startsWith('/blog/') && path !== '/blog') {
         const slug = path.replace('/blog/', '');
-        meta = await getBlogPostMeta(slug);
+        if (!await hasBlogPost(slug)) {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          res.status(404).type('text/plain').send('Not Found');
+          return;
+        }
+        if (bot) {
+          meta = await getBlogPostMeta(slug);
+          if (!meta) {
+            res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+            return next();
+          }
+        }
       } else if (path === '/blog') {
-        meta = await getBlogListMeta();
+        if (bot) meta = await getBlogListMeta();
       } else if (path.startsWith('/portfolio/') && path !== '/portfolio') {
         const category = path.replace('/portfolio/', '');
-        meta = getPortfolioCategoryMeta(category);
+        if (bot) meta = getPortfolioCategoryMeta(category);
       } else {
-        meta = getStaticPageMeta(path);
+        if (bot) meta = getStaticPageMeta(path);
+      }
+
+      if (!isKnownClientPath(path)) {
+        res.status(404).type('text/plain').send('Not Found');
+        return;
+      }
+
+      if (!bot) {
+        return next();
       }
 
       if (!meta) {

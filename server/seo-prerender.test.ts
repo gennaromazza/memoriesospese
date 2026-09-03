@@ -13,6 +13,7 @@ import {
 type RenderedResponse = {
   body?: string;
   headers: Record<string, string>;
+  statusCode?: number;
 };
 
 async function renderForCrawler(path: string): Promise<{
@@ -27,6 +28,11 @@ async function renderForCrawler(path: string): Promise<{
     send: (body: string) => {
       response.body = body;
     },
+    status: (statusCode: number) => {
+      response.statusCode = statusCode;
+      return res;
+    },
+    type: () => res,
   };
   const next = vi.fn();
 
@@ -61,6 +67,15 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain(`<h1>${h1}</h1>`);
     expect(response.body).toContain('application/ld+json');
     expect(response.body).toContain('Fotografia e video di matrimonio');
+    expect(response.body?.match(/<meta property="og:image"/g)).toHaveLength(1);
+    expect(response.body?.match(/<meta name="twitter:image"/g)).toHaveLength(1);
+  });
+
+  it('includes the real wedding homepage hero image in the first HTML', async () => {
+    const { response } = await renderForCrawler('/');
+
+    expect(response.body).toContain('<img src="https://imagestudiofotografico.com/1200x630px.jpg" alt="Sposi davanti a una villa durante un matrimonio in Campania" width="1200" height="630" fetchpriority="high" />');
+    expect(response.body).not.toContain('loading="lazy"');
   });
 
   it.each(['/admin', '/gallery/riservata', '/view/riservata'])(
@@ -129,6 +144,22 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('data-seo-prerender="true"');
     expect(response.body).toContain('https://images.example/anna.jpg');
   });
+
+  it.each(['/blog/missing-article', '/real-wedding/missing-story'])(
+    'returns 404 for a missing public content slug %s',
+    async (path) => {
+      mockCollection.mockReturnValue({
+        where: () => ({ get: async () => ({ empty: true, docs: [] }) }),
+      });
+
+      const { response, next } = await renderForCrawler(path);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(404);
+      expect(response.body).toBe('Not Found');
+      expect(response.headers['X-Robots-Tag']).toBe('noindex, nofollow');
+    },
+  );
 
   it('keeps a draft Real Wedding out of crawler HTML', async () => {
     mockCollection.mockReturnValue({
