@@ -30,7 +30,17 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "webkit-ios",
+      testMatch: /info-form-vendors\.spec\.ts/,
+      use: {
+        ...devices["iPhone 13"],
+        browserName: "webkit",
+      },
+    },
+  ],
   webServer: {
     command: "npm run dev",
     url: BASE_URL,

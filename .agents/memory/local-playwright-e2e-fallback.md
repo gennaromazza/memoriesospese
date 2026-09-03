@@ -22,4 +22,12 @@ Quando il testing subagent fallisce ripetutamente con "Replit infrastructure iss
 
 **Why:** nell’ambiente task il preset iPhone seleziona WebKit, mentre il browser eseguibile disponibile è Chromium; il banner cookie può rendere i test di interazione falsamente non cliccabili.
 
-**How to apply:** usa `test.use({ ...devices["iPhone 13"], browserName: "chromium" })` e inizializza il consenso cookie con `page.addInitScript` nelle spec che esercitano pagine pubbliche.
+**How to apply:** usa `test.use({ ...devices["iPhone 13"], browserName: "chromium" })` e inizializza il consenso cookie con `page.addInitScript` nelle spec che esercitano pagine pubbliche. Se la stessa spec deve coprire più browser, rimuovi `defaultBrowserType` dal descriptor nel test e definisci il browser nei progetti Playwright.
+
+## WebKit iOS nel runner locale
+
+Il browser WebKit di Playwright richiede librerie native con soname specifici della build Ubuntu (tra cui `libharfbuzz-icu`, `libgles2` e il plugin GStreamer). I pacchetti Nix disponibili possono coprire solo parte delle dipendenze, quindi il progetto WebKit va eseguito in CI o in un runner con dipendenze Playwright complete; non aggiungere librerie test-only all’applicazione solo per forzare il collaudo locale.
+
+**Why:** nell’ambiente Replit il browser WebKit è scaricabile ma il controllo preliminare di Playwright blocca l’avvio quando mancano quei soname, anche dopo l’installazione dei pacchetti Nix equivalenti.
+
+**How to apply:** mantieni il progetto Playwright WebKit esplicito e limita il suo `testMatch` alle spec compatibili; verifica localmente la selezione con `npx playwright test --list --project=webkit-ios` e usa un runner WebKit completo per l’esecuzione.

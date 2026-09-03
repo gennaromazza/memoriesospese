@@ -1,7 +1,13 @@
 import { test, expect, devices } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-test.use({ ...devices["iPhone 13"], browserName: "chromium" });
+const { defaultBrowserType: _defaultBrowserType, ...iPhone13 } =
+  devices["iPhone 13"];
+
+// Mantiene il flusso su viewport/touch iPhone in tutti i progetti. Il browser
+// viene scelto dal progetto Playwright, così la stessa spec gira su Chromium
+// e sul motore WebKit usato da Safari iOS.
+test.use(iPhone13);
 
 const TOKEN = "e2e-mobile-vendors-token";
 
@@ -133,6 +139,17 @@ test.describe("Modulo informativo pubblico – fornitori su mobile", () => {
       await fillVendor(page, index, vendorValues[index]);
     }
 
+    // Modifica esplicita di un fornitore già aggiunto, come farebbe il cliente
+    // tornando su un campo durante la compilazione.
+    const editedFirstVendor = {
+      ...vendorValues[0],
+      location: "Aversa centro (CE)",
+    };
+    await page
+      .getByPlaceholder("Luogo, es. Aversa (CE)")
+      .nth(0)
+      .fill(editedFirstVendor.location);
+
     // Rimuovendo il secondo elemento, il terzo deve restare e diventare il
     // secondo elemento della lista.
     await page
@@ -169,7 +186,7 @@ test.describe("Modulo informativo pubblico – fornitori su mobile", () => {
       page.getByRole("heading", { name: "Grazie!" }),
     ).toBeVisible();
     expect(submittedAnswers).toEqual({
-      fornitori: [vendorValues[0], vendorValues[2]],
+      fornitori: [editedFirstVendor, vendorValues[2]],
     });
     expect(JSON.stringify(submittedAnswers)).not.toContain('"url"');
   });
