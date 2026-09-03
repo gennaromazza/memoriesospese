@@ -60,11 +60,15 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   radio: 'Scelta singola',
   checkbox: 'Scelte multiple',
   instagram: 'Account Instagram',
+  vendor: 'Fornitori',
 };
 
 function formatAnswer(type: string, value: any): string {
   if (value === null || value === undefined || value === '') return '—';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
+  if (type === 'vendor' && value && typeof value === 'object') {
+    return [value.name, value.category || value.role, value.location].filter(Boolean).join(' · ') || '—';
+  }
   return String(value);
 }
 
@@ -97,7 +101,12 @@ function formatSubmissionForWhatsApp(submission: InfoFormSubmission): string {
 
       if (isEmpty) {
         lines.push('_(non risposto)_');
-      } else if (Array.isArray(raw)) {
+       } else if (field.type === 'vendor' && Array.isArray(raw)) {
+         raw.forEach(vendor => {
+           const details = [vendor?.name, vendor?.category || vendor?.role, vendor?.location].filter(Boolean).join(' · ');
+           lines.push(`• ${details || 'Fornitore'}`);
+         });
+       } else if (Array.isArray(raw)) {
         // Scelte multiple → bullet list
         raw.forEach(item => lines.push(`• ${item}`));
       } else if (field.type === 'textarea') {
@@ -260,7 +269,11 @@ function SubmissionCard({
                     <div key={field.id} className="grid grid-cols-[1fr_2fr] gap-2 text-sm">
                       <span className="text-gray-600 font-medium text-xs leading-snug">{field.label}</span>
                       <span className="text-gray-800 text-xs">
-                        {formatAnswer(field.type, submission.answers?.[field.id])}
+                         {field.type === 'vendor' && Array.isArray(submission.answers?.[field.id])
+                           ? <span className="space-y-1">{submission.answers[field.id].map((vendor: any, index: number) => (
+                             <span key={index} className="block">{[vendor?.name, vendor?.category || vendor?.role, vendor?.location].filter(Boolean).join(' · ') || '—'}</span>
+                           ))}</span>
+                           : formatAnswer(field.type, submission.answers?.[field.id])}
                       </span>
                     </div>
                   ))}

@@ -52,6 +52,8 @@ export interface WeddingStoryPhoto {
 export interface WeddingStoryVendor {
   name: string;
   role: string;
+  category?: string;
+  location?: string;
   url?: string;
 }
 

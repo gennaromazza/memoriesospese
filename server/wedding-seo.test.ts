@@ -7,7 +7,7 @@ vi.mock('./firebase-admin.js', () => ({
         get: async () => ({
           exists: true,
           data: () => ({
-            lookupVersion: 2,
+            lookupVersion: 3,
             matched: false,
             checkedAt: { toMillis: () => Date.now() },
           }),
@@ -30,6 +30,7 @@ import {
   buildWeddingDraftRevisionPrompt,
   buildGeminiMessageContent,
   buildWeddingStoryPrompt,
+  buildWeddingVendorSearchPrompt,
   buildWeddingEditorialJobFacts,
   generateWeddingDraftWithGemini,
   inspectWeddingDraftQuality,
@@ -625,6 +626,41 @@ describe('Real Wedding editorial safety', () => {
       role: 'Atelier di abiti da sposa',
       url: 'https://atelieraurora.example/collezioni',
     });
+  });
+
+  it('prefers a verified Instagram profile over a verified website', () => {
+    const result = validateWeddingVendorSearchResult('Atelier Aurora', {
+      matched: true,
+      canonicalName: 'Atelier Aurora',
+      category: 'atelier_sposa',
+      role: 'Atelier',
+      officialUrl: 'https://atelieraurora.example',
+      socialUrl: 'https://www.instagram.com/atelieraurora/',
+      confidence: 0.96,
+    }, [
+      'https://atelieraurora.example/contatti',
+      'https://www.instagram.com/atelieraurora/',
+    ]);
+
+    expect(result?.url).toBe('https://www.instagram.com/atelieraurora/');
+  });
+
+  it('includes the supplier category, place and job geography in the search context', () => {
+    const prompt = buildWeddingVendorSearchPrompt({
+      name: 'Atelier Aurora',
+      category: 'atelier sposa',
+      location: 'Aversa',
+    }, {
+      coupleNames: [],
+      clientCities: ['Caserta'],
+      receptionCity: 'Pozzuoli',
+    });
+
+    expect(prompt).toContain('Atelier Aurora');
+    expect(prompt).toContain('atelier sposa');
+    expect(prompt).toContain('Aversa');
+    expect(prompt).toContain('Pozzuoli');
+    expect(prompt).toContain('Caserta');
   });
 
   it('recognizes a proprietor name when cited evidence connects it to the public wedding brand', () => {

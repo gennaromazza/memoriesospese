@@ -19,6 +19,64 @@ export interface InfoFormField {
   editorialCategory?: 'story' | 'vendor';
 }
 
+/** Dati inseriti dal cliente per un singolo fornitore del matrimonio. */
+export interface InfoFormVendor {
+  name: string;
+  category: string;
+  location: string;
+}
+
+export const INFO_FORM_VENDOR_LIMITS = {
+  count: 20,
+  name: 160,
+  category: 120,
+  location: 180,
+} as const;
+
+/**
+ * Converte le risposte vendor nuove e quelle storiche nel formato condiviso.
+ * La funzione è intenzionalmente permissiva in lettura: le route di submit
+ * applicano invece una validazione stretta e rifiutano campi arbitrari.
+ */
+export function normalizeInfoFormVendors(value: unknown): InfoFormVendor[] {
+  const normalize = (item: any): InfoFormVendor | null => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const name = String(item.name ?? '').trim().slice(0, INFO_FORM_VENDOR_LIMITS.name);
+    const category = String(item.category ?? item.role ?? '').trim().slice(0, INFO_FORM_VENDOR_LIMITS.category);
+    const location = String(item.location ?? '').trim().slice(0, INFO_FORM_VENDOR_LIMITS.location);
+    return name ? { name, category, location } : null;
+  };
+
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, INFO_FORM_VENDOR_LIMITS.count)
+      .map(normalize)
+      .filter((item): item is InfoFormVendor => Boolean(item));
+  }
+
+  const legacyObject = normalize(value);
+  if (legacyObject) return [legacyObject];
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n|;|,/)
+      .map(line => line.trim().replace(/^[-–•]\s*/, ''))
+      .filter(Boolean)
+      .slice(0, INFO_FORM_VENDOR_LIMITS.count)
+      .map(line => {
+        const parts = line.split(/\s+[—–-]\s+|\s*:\s*/);
+        return {
+          name: parts[0].trim().slice(0, INFO_FORM_VENDOR_LIMITS.name),
+          category: (parts[1] || '').trim().slice(0, INFO_FORM_VENDOR_LIMITS.category),
+          location: '',
+        };
+      })
+      .filter(item => item.name);
+  }
+
+  return [];
+}
+
 export interface InfoFormTemplate {
   id: string;
   name: string;

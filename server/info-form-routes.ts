@@ -12,7 +12,12 @@
 
 import express, { Request, Response, Router } from 'express';
 import { db, FieldValue } from './firebase-admin.js';
-import type { InfoFormSubmission, InfoFormField } from '../shared/info-form-types.js';
+import {
+  INFO_FORM_VENDOR_LIMITS,
+  normalizeInfoFormVendors,
+  type InfoFormSubmission,
+  type InfoFormField,
+} from '../shared/info-form-types.js';
 import { sendGmailEmail } from './email-routes.js';
 
 const router: Router = express.Router();
@@ -30,11 +35,52 @@ function escapeHtml(s: unknown): string {
     .replace(/\n/g, '<br>');
 }
 
-function formatAnswerValue(value: unknown): string {
+function formatAnswerValue(value: unknown, type?: InfoFormField['type']): string {
   if (value === null || value === undefined || value === '') return '<em style="color:#888;">—</em>';
+  if (type === 'vendor' && Array.isArray(value)) {
+    const vendors = normalizeInfoFormVendors(value);
+    return vendors.length
+      ? vendors.map(vendor => escapeHtml([vendor.name, vendor.category, vendor.location].filter(Boolean).join(' · '))).join('<br>')
+      : '<em style="color:#888;">—</em>';
+  }
   if (Array.isArray(value)) return escapeHtml(value.join(', '));
   if (typeof value === 'boolean') return value ? 'Sì' : 'No';
   return escapeHtml(value);
+}
+
+function validateVendorAnswer(value: unknown, label: string): { valid: true; value: unknown } | { valid: false; error: string } {
+  if (!Array.isArray(value) || value.length > INFO_FORM_VENDOR_LIMITS.count) {
+    return { valid: false, error: `Formato non valido per ${label}` };
+  }
+  const vendors = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return { valid: false, error: `Formato non valido per ${label}` };
+    }
+    const keys = Object.keys(item);
+    if (keys.some(key => !['name', 'category', 'location'].includes(key))) {
+      return { valid: false, error: `Il campo ${label} contiene dati non consentiti` };
+    }
+    if (typeof (item as any).name !== 'string' ||
+        typeof (item as any).category !== 'string' ||
+        typeof (item as any).location !== 'string') {
+      return { valid: false, error: `Formato non valido per ${label}` };
+    }
+    if (!(item as any).name.trim() || !(item as any).category.trim() || !(item as any).location.trim()) {
+      return { valid: false, error: `Inserisci nome, categoria e luogo per ogni fornitore` };
+    }
+    if ((item as any).name.length > INFO_FORM_VENDOR_LIMITS.name ||
+        (item as any).category.length > INFO_FORM_VENDOR_LIMITS.category ||
+        (item as any).location.length > INFO_FORM_VENDOR_LIMITS.location) {
+      return { valid: false, error: `Una voce del campo ${label} è troppo lunga` };
+    }
+    vendors.push({
+      name: (item as any).name.trim(),
+      category: (item as any).category.trim(),
+      location: (item as any).location.trim(),
+    });
+  }
+  return { valid: true, value: vendors };
 }
 
 /** Valida e riduce le risposte ai soli campi definiti nel modulo inviato. */
@@ -53,6 +99,12 @@ function validateAnswers(
     }
     if (field.type === 'checkbox' && !Array.isArray(value) && typeof value !== 'boolean') {
       return { valid: false, error: `Formato non valido per ${field.label}` };
+    }
+    if (field.type === 'vendor') {
+      const result = validateVendorAnswer(value, field.label);
+      if (!result.valid) return result;
+      clean[id] = result.value;
+      continue;
     }
     if (field.type === 'number' && typeof value !== 'number' && (typeof value !== 'string' || !Number.isFinite(Number(value)))) {
       return { valid: false, error: `Formato non valido per ${field.label}` };
@@ -90,7 +142,7 @@ function buildAdminEmailHtml(params: {
     rows.push(`
       <div style="background:#faf8f5; border-left:4px solid #8b9a7d; padding:14px 16px; margin:0 0 12px; border-radius:6px;">
         <p style="margin:0 0 6px; font-weight:600; color:#6b7d8a; font-size:13px;">${escapeHtml(f.label)}</p>
-        <p style="margin:0; color:#333; font-size:15px;">${formatAnswerValue(answers[f.id])}</p>
+        <p style="margin:0; color:#333; font-size:15px;">${formatAnswerValue(answers[f.id], f.type)}</p>
       </div>
     `);
   }

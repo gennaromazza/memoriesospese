@@ -45,6 +45,7 @@ beforeEach(() => {
       templateFields: [
         { id: 'telefono', label: 'Telefono', type: 'text', required: true },
         { id: 'menu', label: 'Menu', type: 'select', required: false, options: ['Carne', 'Pesce'] },
+        { id: 'fornitori', label: 'Fornitori', type: 'vendor', required: false },
       ],
     }),
   };
@@ -76,6 +77,33 @@ describe('POST /api/info-forms/by-token/:token/submit', () => {
     const result = await submit({ menu: 'Carne' });
     expect(result.status).toBe(400);
     expect(result.body.error).toMatch(/obbligatorio/);
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it('normalizza e salva più fornitori come dati strutturati', async () => {
+    const result = await submit({
+      telefono: '3331234567',
+      fornitori: [
+        { name: 'Atelier Aurora', category: 'Atelier sposa', location: 'Aversa (CE)' },
+        { name: 'Fiori Bianchi', category: 'Floral designer', location: 'Caserta' },
+      ],
+    });
+
+    expect(result.status).toBe(200);
+    expect(h.updates[0].answers.fornitori).toEqual([
+      { name: 'Atelier Aurora', category: 'Atelier sposa', location: 'Aversa (CE)' },
+      { name: 'Fiori Bianchi', category: 'Floral designer', location: 'Caserta' },
+    ]);
+  });
+
+  it('non accetta URL o campi arbitrari nei fornitori', async () => {
+    const result = await submit({
+      telefono: '3331234567',
+      fornitori: [{ name: 'Atelier Aurora', category: 'Atelier', location: 'Aversa', url: 'https://example.com' }],
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/dati non consentiti/);
     expect(h.updates).toHaveLength(0);
   });
 });

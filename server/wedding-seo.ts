@@ -13,7 +13,11 @@ import type {
   WeddingStoryVendor,
 } from '../shared/wedding-seo-types.js';
 import { WEDDING_STORY_LIMITS } from '../shared/wedding-seo-types.js';
-import type { InfoFormField } from '../shared/info-form-types.js';
+import {
+  normalizeInfoFormVendors,
+  type InfoFormField,
+  type InfoFormVendor,
+} from '../shared/info-form-types.js';
 
 const router = express.Router();
 const STORIES_COL = 'weddingSeoStories';
@@ -116,7 +120,7 @@ const WEDDING_VENDOR_TAXONOMY: Record<string, string> = {
 };
 const VENDOR_CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 const VENDOR_NEGATIVE_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-const VENDOR_LOOKUP_VERSION = 2;
+const VENDOR_LOOKUP_VERSION = 3;
 const VENDOR_SEARCH_TIMEOUT_MS = 90_000;
 const VENDOR_SEARCH_CONCURRENCY = 4;
 const MAX_VENDOR_LOOKUPS_PER_STORY = 12;
@@ -369,12 +373,16 @@ function promptSourcePayload(sources: WeddingStorySource[]): Array<{
     const serialized = JSON.stringify(source.value ?? '');
     if (sensitive.test(source.label) || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(serialized) || /\b(?:via|viale|corso|strada)\b[^\n,]{0,80}\d/i.test(serialized)) continue;
     if (source.category === 'vendor') {
-      if (source.value && typeof source.value === 'object') {
-        const vendor = source.value as Record<string, unknown>;
-        payload.push({ label: 'Fornitore verificato', category: source.category, value: { name: safeString(vendor.name, 120), role: safeString(vendor.role, 120) } });
-      } else {
-        payload.push({ label: 'Nomi di fornitori selezionati; ruolo non dichiarato', category: source.category, value: { names: vendorNamesFromSource(source), rolesVerified: false } });
-      }
+      const vendors = normalizeInfoFormVendors(source.value);
+      payload.push({
+        label: 'Fornitori selezionati',
+        category: source.category,
+        value: vendors.map(vendor => ({
+          name: safeString(vendor.name, 120),
+          category: safeString(vendor.category, 120),
+          location: safeString(vendor.location, 160),
+        })),
+      });
       continue;
     }
     payload.push({ label: source.label, category: source.category, value: source.value });
@@ -401,22 +409,24 @@ function buildWeddingEditorialPlan(sources: WeddingStorySource[], photoCount = 0
   };
 }
 
-function vendorNamesFromSource(source: WeddingStorySource): string[] {
+function vendorEntriesFromSource(source: WeddingStorySource): InfoFormVendor[] {
   if (source.category !== 'vendor') return [];
-  if (source.value && typeof source.value === 'object' && !Array.isArray(source.value)) {
-    return uniqueNonEmpty([(source.value as Record<string, unknown>).name]);
-  }
-  const raw = safeString(source.value, 600);
-  if (!raw) return [];
-  return uniqueNonEmpty(raw.split(/[,;\n]+/).map(name => name.replace(/^[-–•]\s*/, '').trim()));
+  return normalizeInfoFormVendors(source.value);
+}
+
+function vendorNamesFromSource(source: WeddingStorySource): string[] {
+  return uniqueNonEmpty(vendorEntriesFromSource(source).map(vendor => vendor.name));
 }
 
 function normalizedVendorName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function vendorCacheId(name: string): string {
-  return normalizedVendorName(name).replace(/\s+/g, '-').slice(0, 120) || 'fornitore-senza-nome';
+function vendorCacheId(vendor: Pick<InfoFormVendor, 'name' | 'category' | 'location'> | string): string {
+  const value = typeof vendor === 'string'
+    ? vendor
+    : `${vendor.name} ${vendor.category} ${vendor.location}`;
+  return normalizedVendorName(value).replace(/\s+/g, '-').slice(0, 180) || 'fornitore-senza-nome';
 }
 
 function validExternalVendorUrl(value: unknown): string | undefined {
@@ -477,7 +487,9 @@ export function validateWeddingVendorSearchResult(
   const minimumConfidence = requestedTokens.length <= 1 ? 0.92 : 0.84;
   if (Number(result.confidence) < minimumConfidence) return null;
   if (requestedTokens.length === 0 || !requestedTokens.every(token => identityEvidence.includes(token))) return null;
-  const candidates = [result.officialUrl, result.socialUrl].map(validExternalVendorUrl).filter(Boolean) as string[];
+  // Instagram è spesso il riferimento pubblico più aggiornato per i fornitori
+  // di matrimonio: quando è verificato dalle citazioni deve precedere il sito.
+  const candidates = [result.socialUrl, result.officialUrl].map(validExternalVendorUrl).filter(Boolean) as string[];
   const url = candidates.find(candidate => citationUrls.some(citation => sameCitedVendorDestination(candidate, citation)));
   if (!url) return null;
   return {
@@ -490,6 +502,28 @@ export function validateWeddingVendorSearchResult(
   };
 }
 
+export function buildWeddingVendorSearchPrompt(
+  vendor: InfoFormVendor,
+  jobFacts: WeddingEditorialJobFacts | null,
+): string {
+  const locations = uniqueNonEmpty([
+    vendor.location,
+    jobFacts?.ceremonyCity, jobFacts?.receptionCity, ...(jobFacts?.clientCities || []),
+  ]);
+  const taxonomy = Object.entries(WEDDING_VENDOR_TAXONOMY)
+    .map(([category, examples]) => `${category}: ${examples}`)
+    .join('\n');
+  const locationContext = locations.join(', ') || 'Campania, Italia';
+  return `Verifica tramite Google Search se “${vendor.name}” identifica con alta certezza un'attività o professionista realmente operante nel settore dei matrimoni.\n` +
+    `Categoria indicata dagli sposi: ${vendor.category || 'non specificata'}. Luogo indicato dagli sposi: ${vendor.location || 'non specificato'}.\n` +
+    `Contesto geografico prioritario: ${locationContext}. Prova ricerche con il nome esatto tra virgolette, la categoria, il luogo indicato, le località del lavoro e termini pertinenti come matrimonio, wedding, sposi e fornitori.\n` +
+    `Il testo degli sposi può contenere il nome anagrafico del titolare mentre sito e social usano il nome commerciale. Verifica anche questa relazione e descrivila in matchedNameEvidence citando una fonte che colleghi esplicitamente persona e attività.\n` +
+    `Cerca il sito ufficiale e, in alternativa, un profilo social ufficiale. Non usare directory, portali di recensioni o aggregatori come destinazione.\n` +
+    `Non confondere omonimi. Per nomi brevi o generici richiedi prove esplicite dell'attività matrimoniale. Se il match non è univoco restituisci matched=false.\n` +
+    `Categorie ammesse:\n${taxonomy}\n` +
+    `Restituisci canonicalName, matchedNameEvidence, category, role, officialUrl, socialUrl, confidence tra 0 e 1 e matched. Gli URL devono appartenere all'attività verificata.`;
+}
+
 function cachedVendorIsFresh(data: Record<string, any>): boolean {
   if (Number(data.lookupVersion) !== VENDOR_LOOKUP_VERSION) return false;
   const checkedAt = typeof data.checkedAt?.toMillis === 'function'
@@ -500,8 +534,9 @@ function cachedVendorIsFresh(data: Record<string, any>): boolean {
   return Date.now() - checkedAt < ttl;
 }
 
-async function loadCachedWeddingVendor(name: string): Promise<WeddingVendorLookup | null | undefined> {
-  const snapshot = await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(name)).get();
+async function loadCachedWeddingVendor(vendor: Pick<InfoFormVendor, 'name' | 'category' | 'location'> | string): Promise<WeddingVendorLookup | null | undefined> {
+  const requestedName = typeof vendor === 'string' ? vendor : vendor.name;
+  const snapshot = await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(vendor)).get();
   if (!snapshot.exists) return undefined;
   const data = snapshot.data() || {};
   if (!cachedVendorIsFresh(data)) return undefined;
@@ -509,7 +544,7 @@ async function loadCachedWeddingVendor(name: string): Promise<WeddingVendorLooku
   const url = validExternalVendorUrl(data.url);
   if (!url) return null;
   return {
-    name: safeString(data.name, 120) || name,
+    name: safeString(data.name, 120) || requestedName,
     role: safeString(data.role, 120) || 'Fornitore del matrimonio',
     url,
     sourceUrl: validExternalVendorUrl(data.sourceUrl),
@@ -520,24 +555,12 @@ async function loadCachedWeddingVendor(name: string): Promise<WeddingVendorLooku
 }
 
 async function searchWeddingVendor(
-  name: string,
+  vendor: InfoFormVendor,
   jobFacts: WeddingEditorialJobFacts | null,
   apiKey: string,
 ): Promise<WeddingVendorSearchOutcome> {
-  const locations = uniqueNonEmpty([
-    jobFacts?.ceremonyCity, jobFacts?.receptionCity, ...(jobFacts?.clientCities || []),
-  ]);
-  const taxonomy = Object.entries(WEDDING_VENDOR_TAXONOMY)
-    .map(([category, examples]) => `${category}: ${examples}`)
-    .join('\n');
-  const locationContext = locations.join(', ') || 'Campania, Italia';
-  const prompt = `Verifica tramite Google Search se “${name}” identifica con alta certezza un'attività o professionista realmente operante nel settore dei matrimoni.\n` +
-    `Contesto geografico prioritario: ${locationContext}. Prova ricerche con il nome esatto tra virgolette, le località e termini pertinenti come matrimonio, wedding, sposi e fornitori.\n` +
-    `Il testo degli sposi può contenere il nome anagrafico del titolare mentre sito e social usano il nome commerciale. Verifica anche questa relazione e descrivila in matchedNameEvidence citando una fonte che colleghi esplicitamente persona e attività.\n` +
-    `Cerca il sito ufficiale e, in alternativa, un profilo social ufficiale. Non usare directory, portali di recensioni o aggregatori come destinazione.\n` +
-    `Non confondere omonimi. Per nomi brevi o generici richiedi prove esplicite dell'attività matrimoniale. Se il match non è univoco restituisci matched=false.\n` +
-    `Categorie ammesse:\n${taxonomy}\n` +
-    `Restituisci canonicalName, matchedNameEvidence, category, role, officialUrl, socialUrl, confidence tra 0 e 1 e matched. Gli URL devono appartenere all'attività verificata.`;
+  const name = vendor.name;
+  const prompt = buildWeddingVendorSearchPrompt(vendor, jobFacts);
   let response: globalThis.Response;
   try {
     response = await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/interactions', {
@@ -600,19 +623,28 @@ async function searchWeddingVendor(
 }
 
 async function resolveOneWeddingVendor(
-  name: string,
+  vendor: InfoFormVendor,
   jobFacts: WeddingEditorialJobFacts | null,
   apiKey: string,
 ): Promise<WeddingStoryVendor | null> {
+  const name = vendor.name;
   try {
-    const cached = await loadCachedWeddingVendor(name);
-    if (cached !== undefined) return cached ? { name, role: cached.role, url: cached.url } : null;
-    const outcome = await searchWeddingVendor(name, jobFacts, apiKey);
+    const cached = await loadCachedWeddingVendor(vendor);
+    if (cached !== undefined) return cached ? {
+      name,
+      role: cached.role,
+      category: vendor.category || undefined,
+      location: vendor.location || undefined,
+      url: cached.url,
+    } : null;
+    const outcome = await searchWeddingVendor(vendor, jobFacts, apiKey);
     if (outcome.status === 'technical_error') return null;
     const match = outcome.match;
-    await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(name)).set({
+    await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(vendor)).set({
       lookupVersion: VENDOR_LOOKUP_VERSION,
       requestedName: name,
+      requestedCategory: vendor.category,
+      requestedLocation: vendor.location,
       matched: outcome.status === 'matched',
       name: match?.name || name,
       role: match?.role || '',
@@ -621,7 +653,13 @@ async function resolveOneWeddingVendor(
       confidence: match?.confidence || 0,
       checkedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-    return match ? { name, role: match.role, url: match.url } : null;
+    return match ? {
+      name,
+      role: match.role,
+      category: vendor.category || undefined,
+      location: vendor.location || undefined,
+      url: match.url,
+    } : null;
   } catch (error) {
     console.warn(`[wedding-seo] Ricerca fornitore “${name}” saltata senza interrompere l'articolo:`, error);
     return null;
@@ -633,15 +671,15 @@ async function resolveWeddingVendors(
   jobFacts: WeddingEditorialJobFacts | null,
   apiKey: string,
 ): Promise<WeddingStoryVendor[]> {
-  const names = uniqueNonEmpty(sources.flatMap(vendorNamesFromSource)).slice(0, MAX_VENDOR_LOOKUPS_PER_STORY);
+  const vendors = sources.flatMap(vendorEntriesFromSource).slice(0, MAX_VENDOR_LOOKUPS_PER_STORY);
   const resolved: WeddingStoryVendor[] = [];
-  for (let index = 0; index < names.length; index += VENDOR_SEARCH_CONCURRENCY) {
-    const batch = names.slice(index, index + VENDOR_SEARCH_CONCURRENCY);
-    const matches = await Promise.all(batch.map(name => resolveOneWeddingVendor(name, jobFacts, apiKey)));
+  for (let index = 0; index < vendors.length; index += VENDOR_SEARCH_CONCURRENCY) {
+    const batch = vendors.slice(index, index + VENDOR_SEARCH_CONCURRENCY);
+    const matches = await Promise.all(batch.map(vendor => resolveOneWeddingVendor(vendor, jobFacts, apiKey)));
     resolved.push(...matches.filter((match): match is WeddingStoryVendor => Boolean(match)));
   }
-  if (names.length > 0) {
-    console.log(`[wedding-seo] Fornitori verificati online: ${resolved.length}/${names.length}. I match incerti restano senza link.`);
+  if (vendors.length > 0) {
+    console.log(`[wedding-seo] Fornitori verificati online: ${resolved.length}/${vendors.length}. I match incerti restano senza link.`);
   }
   return resolved;
 }
@@ -716,7 +754,7 @@ export function buildWeddingStoryPrompt(params: {
   const isEnrichedStory = editorialPlan.enriched;
   const verifiedVendorNames = new Set((params.verifiedVendors || []).map(vendor => normalizedVendorName(vendor.name)));
   const unverifiedVendorNames = uniqueNonEmpty(params.sources
-    .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
+    .filter(source => source.category === 'vendor')
     .flatMap(vendorNamesFromSource)
     .filter(name => !verifiedVendorNames.has(normalizedVendorName(name))));
   const unverifiedVendorSentence = unverifiedVendorNames.length > 0
@@ -1102,7 +1140,7 @@ export async function generateWeddingDraftWithGemini(params: {
   console.log(`[wedding-seo] Preparazione di ${Math.min(photos.length, MAX_WEDDING_STORY_PHOTOS)} fotografie per Gemini...`);
   const verifiedVendorNames = new Set(verifiedVendors.map(vendor => normalizedVendorName(vendor.name)));
   const unverifiedVendorNames = uniqueNonEmpty(sources
-    .filter(source => source.category === 'vendor' && (typeof source.value !== 'object' || Array.isArray(source.value)))
+    .filter(source => source.category === 'vendor')
     .flatMap(vendorNamesFromSource)
     .filter(name => !verifiedVendorNames.has(normalizedVendorName(name))));
   const preparedPhotos = await prepareGeminiPhotos(photos);
@@ -1319,17 +1357,17 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
     const vendorGroups = await Promise.all(authorizedSources
       .filter(source => approvedIds.has(source.id) && source.consentGranted && source.category === 'vendor')
       .map(async source => {
-        if (!source.value || typeof source.value !== 'object' || Array.isArray(source.value)) {
-          return await Promise.all(vendorNamesFromSource(source).map(async name => {
-            const cached = await loadCachedWeddingVendor(name);
-            return cached
-              ? { name, role: cached.role, url: cached.url }
-              : { name, role: 'Fornitore del matrimonio' };
-          }));
-        }
-        const value = source.value && typeof source.value === 'object' ? source.value as Record<string, unknown> : {};
-        const url = validExternalVendorUrl(value.url);
-        return [{ name: safeString(value.name, 120), role: safeString(value.role, 120) || 'Fornitore del matrimonio', url }];
+        return await Promise.all(vendorEntriesFromSource(source).map(async vendor => {
+          const cached = await loadCachedWeddingVendor(vendor);
+          return {
+            name: cached?.name || vendor.name,
+            role: cached?.role || vendor.category || 'Fornitore del matrimonio',
+            category: vendor.category || undefined,
+            location: vendor.location || undefined,
+            // Il link arriva esclusivamente dalla ricerca server-side verificata.
+            url: cached?.url,
+          };
+        }));
       }));
     const vendors: WeddingStoryVendor[] = vendorGroups.flat().filter(vendor => vendor.name && vendor.role);
     res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');

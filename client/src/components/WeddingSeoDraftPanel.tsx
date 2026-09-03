@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Gallery } from '@/lib/galleries';
 import type { Photo } from '@/lib/photos';
 import { WEDDING_STORY_LIMITS, type WeddingSeoStory, type WeddingStorySource } from '@shared/wedding-seo-types';
+import { normalizeInfoFormVendors } from '@shared/info-form-types';
 import {
   generateWeddingStoryDraft,
   getWeddingStoryEditor,
@@ -55,9 +56,14 @@ function readableError(error: unknown): string {
 
 function sourceValue(source: WeddingStorySource): string {
   if (!source.consentGranted) return 'Consenso editoriale non concesso';
+  if (source.category === 'vendor') {
+    return normalizeInfoFormVendors(source.value)
+      .map(vendor => [vendor.name, vendor.category, vendor.location].filter(Boolean).join(' · '))
+      .join(' | ');
+  }
   if (source.value && typeof source.value === 'object' && !Array.isArray(source.value)) {
     const vendor = source.value as Record<string, unknown>;
-    return [vendor.name, vendor.role, vendor.url].filter(Boolean).join(' · ');
+    return [vendor.name, vendor.role].filter(Boolean).join(' · ');
   }
   return Array.isArray(source.value) ? source.value.join(', ') : String(source.value ?? '');
 }

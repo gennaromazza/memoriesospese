@@ -11,10 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Loader2, CheckCircle2, ClipboardList, AlertCircle,
-  ArrowRight, ArrowLeft, Send,
+  ArrowRight, ArrowLeft, Send, Plus, Trash2,
 } from 'lucide-react';
 import { getSubmissionByToken, submitInfoForm } from '@/lib/infoForms';
-import type { InfoFormSubmission, InfoFormField } from '@shared/info-form-types';
+import { normalizeInfoFormVendors, type InfoFormSubmission, type InfoFormField, type InfoFormVendor } from '@shared/info-form-types';
 import { apiRequest } from '@/lib/queryClient';
 
 export default function InfoFormPublic() {
@@ -75,9 +75,9 @@ export default function InfoFormPublic() {
         if (sub.status === 'completed') setSubmitted(true);
         const initial: Record<string, any> = {};
         sub.templateFields?.forEach(f => {
-          if (f.type === 'checkbox') initial[f.id] = [];
-          else if (f.type === 'vendor') initial[f.id] = { name: '', role: '', url: '' };
-          else initial[f.id] = '';
+          if (f.type === 'checkbox') initial[f.id] = sub.answers?.[f.id] || [];
+          else if (f.type === 'vendor') initial[f.id] = normalizeInfoFormVendors(sub.answers?.[f.id]);
+          else initial[f.id] = sub.answers?.[f.id] ?? '';
         });
         setAnswers(initial);
       })
@@ -101,10 +101,16 @@ export default function InfoFormPublic() {
         return false;
       }
     } else if (current.type === 'vendor') {
-      const vendor = val && typeof val === 'object' ? val : {};
-      if (!String(vendor.name || '').trim() || !String(vendor.role || '').trim()) {
-        setFieldError('Inserisci almeno nome e ruolo del fornitore');
+      const vendors = Array.isArray(val) ? val : [];
+      if (vendors.length === 0 && current.required) {
+        setFieldError('Aggiungi almeno un fornitore');
         return false;
+      }
+      for (const vendor of vendors) {
+        if (!String(vendor?.name || '').trim() || !String(vendor?.category || '').trim() || !String(vendor?.location || '').trim()) {
+          setFieldError('Completa nome, categoria e luogo per ogni fornitore');
+          return false;
+        }
       }
     } else {
       if (!val || String(val).trim() === '') {
@@ -211,29 +217,32 @@ export default function InfoFormPublic() {
           </div>
         );
       case 'vendor': {
-        const vendor = answers[field.id] || { name: '', role: '', url: '' };
+        const vendors: InfoFormVendor[] = Array.isArray(answers[field.id]) ? answers[field.id] : [];
+        const updateVendor = (index: number, patch: Partial<InfoFormVendor>) => {
+          const next = vendors.map((vendor, vendorIndex) => vendorIndex === index ? { ...vendor, ...patch } : vendor);
+          handleChange(field.id, next);
+        };
+        const addVendor = () => handleChange(field.id, [...vendors, { name: '', category: '', location: '' }]);
+        const removeVendor = (index: number) => handleChange(field.id, vendors.filter((_, vendorIndex) => vendorIndex !== index));
         return (
-          <div className="grid gap-3">
-            <Input
-              autoFocus
-              value={vendor.name || ''}
-              onChange={e => handleChange(field.id, { ...vendor, name: e.target.value })}
-              placeholder="Nome del fornitore"
-              className={`text-lg h-12 ${baseInput}`}
-            />
-            <Input
-              value={vendor.role || ''}
-              onChange={e => handleChange(field.id, { ...vendor, role: e.target.value })}
-              placeholder="Ruolo, es. floral designer"
-              className={`text-lg h-12 ${baseInput}`}
-            />
-            <Input
-              type="url"
-              value={vendor.url || ''}
-              onChange={e => handleChange(field.id, { ...vendor, url: e.target.value })}
-              placeholder="Sito o profilo pubblico (opzionale)"
-              className={`text-lg h-12 ${baseInput}`}
-            />
+          <div className="space-y-3">
+            {vendors.map((vendor, index) => (
+              <div key={index} className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500">Fornitore {index + 1}</span>
+                  <button type="button" onClick={() => removeVendor(index)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500" aria-label={`Rimuovi fornitore ${index + 1}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <Input autoFocus={index === 0} value={vendor.name} onChange={e => updateVendor(index, { name: e.target.value })} placeholder="Nome del fornitore" maxLength={160} className={`text-base h-11 ${baseInput}`} />
+                <Input value={vendor.category} onChange={e => updateVendor(index, { category: e.target.value })} placeholder="Categoria, es. floral designer" maxLength={120} className={`text-base h-11 ${baseInput}`} />
+                <Input value={vendor.location} onChange={e => updateVendor(index, { location: e.target.value })} placeholder="Luogo, es. Aversa (CE)" maxLength={180} className={`text-base h-11 ${baseInput}`} />
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={addVendor} className="w-full border-dashed border-[#6b7f6b]/60 text-[#4a5f4a]">
+              <Plus className="mr-2 h-4 w-4" /> Aggiungi fornitore
+            </Button>
+            <p className="text-xs text-gray-400">Inserisci solo nome, categoria e luogo. Cercheremo noi il riferimento pubblico verificato.</p>
           </div>
         );
       }

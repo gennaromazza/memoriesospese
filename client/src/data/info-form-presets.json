@@ -16,6 +16,7 @@
       { "label": "Momento della preparazione sposo (location)", "type": "text", "required": false, "placeholder": "Es. Hotel Miramare" },
       { "label": "Ci sarà un lancio di riso/petali/bolle?", "type": "radio", "required": false, "options": ["Sì, riso", "Sì, petali", "Sì, bolle di sapone", "No"] },
       { "label": "Sono previsti momenti particolari (sorprese, flash mob, ecc.)?", "type": "textarea", "required": false, "placeholder": "Descrivi eventuali momenti speciali da non perdere" },
+      { "label": "Quali fornitori avete scelto?", "type": "vendor", "required": false, "placeholder": "Nome, categoria e luogo del fornitore" },
       { "label": "Referente per comunicazioni il giorno del matrimonio (nome e numero)", "type": "text", "required": true, "placeholder": "Es. Zia Maria — 333 1234567" }
     ]
   },

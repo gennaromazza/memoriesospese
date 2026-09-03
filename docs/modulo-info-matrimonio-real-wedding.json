@@ -121,9 +121,9 @@
     },
     {
       "label": "Quali fornitori avete scelto?",
-      "type": "textarea",
+      "type": "vendor",
       "required": false,
-      "placeholder": "Scrivete un fornitore per riga indicando nome e ruolo. Es: Atelier Rossi — abito sposa; Fiori Bianchi — floral designer; Music Live — musica",
+      "placeholder": "Inserite nome, categoria e luogo di ogni fornitore",
       "options": [],
       "editorialUse": true,
       "editorialCategory": "vendor"

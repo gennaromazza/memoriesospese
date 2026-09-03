@@ -132,6 +132,10 @@ export default function WeddingSeoPage() {
                   <li key={`${vendor.name}-${vendor.role}-${index}`} className="rounded-lg bg-white p-4">
                     <span className="block font-medium">{vendor.name}</span>
                     <span className="text-sm text-gray-600">{vendor.role}</span>
+                    {vendor.category && vendor.category !== vendor.role && (
+                      <span className="mt-1 block text-xs text-gray-500">{vendor.category}</span>
+                    )}
+                    {vendor.location && <span className="block text-xs text-gray-500">{vendor.location}</span>}
                     {vendor.url && <a href={vendor.url} target="_blank" rel="noopener noreferrer" className="mt-2 block text-sm text-[#6b7f6b] underline">Visita il sito o profilo pubblico</a>}
                   </li>
                 ))}

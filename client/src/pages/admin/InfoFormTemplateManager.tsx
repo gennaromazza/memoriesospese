@@ -68,7 +68,7 @@ const FIELD_TYPE_LABELS: Record<InfoFormField['type'], string> = {
   radio: 'Scelta singola',
   checkbox: 'Scelte multiple',
   instagram: 'Account Instagram',
-  vendor: 'Fornitore (nome, ruolo, link)',
+  vendor: 'Fornitori (nome, categoria, luogo)',
 };
 
 function newField(): InfoFormField {
@@ -366,9 +366,11 @@ Tipi di campo disponibili (scegli il più adatto per ogni domanda):
 - "radio" → scelta SINGOLA tra opzioni fisse. DEVE includere "options" con almeno 2 voci.
 - "checkbox" → scelte MULTIPLE tra opzioni fisse. DEVE includere "options" con almeno 2 voci.
 - "select" → menu a tendina, scelta singola. DEVE includere "options" con almeno 2 voci.
+- "vendor" → lista ripetibile di fornitori. Usalo per raccogliere nome, categoria e luogo; NON includere "options", sito o URL.
 
 Regole:
 - "options" è obbligatorio per radio/checkbox/select e VIETATO per text/textarea/number.
+- Per "vendor" il cliente deve poter inserire più voci con nome, categoria e luogo, senza URL.
 - Usa "required": true solo per le domande essenziali.
 - Crea tra 8 e 12 domande pertinenti e pratiche per il tipo di evento.
 - Le domande devono aiutare il fotografo a pianificare il servizio.
