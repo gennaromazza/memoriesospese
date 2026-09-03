@@ -57,6 +57,24 @@ export interface WeddingStoryVendor {
   url?: string;
 }
 
+export type WeddingVendorReviewStatus = 'verified' | 'uncertain' | 'not_found' | 'pending';
+export type WeddingVendorSourceKind = 'instagram' | 'website';
+
+/** Riepilogo admin della verifica online dei fornitori selezionati. */
+export interface WeddingVendorReview {
+  id: string;
+  sourceId: string;
+  requestedName: string;
+  category?: string;
+  location?: string;
+  status: WeddingVendorReviewStatus;
+  verifiedName?: string;
+  role?: string;
+  url?: string;
+  sourceKind?: WeddingVendorSourceKind;
+  reason?: string;
+}
+
 export interface WeddingEditorialJobFacts {
   coupleNames: string[];
   coupleSurnames?: string[];
@@ -84,6 +102,7 @@ export interface WeddingStoryEditorContext {
     jobType?: string;
   };
   sources: WeddingStorySource[];
+  vendorReviews: WeddingVendorReview[];
   jobFacts?: WeddingEditorialJobFacts | null;
   warning?: string;
 }

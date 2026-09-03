@@ -11,6 +11,9 @@ import type {
   WeddingStorySource,
   WeddingStoryStatus,
   WeddingStoryVendor,
+  WeddingVendorReview,
+  WeddingVendorReviewStatus,
+  WeddingVendorSourceKind,
 } from '../shared/wedding-seo-types.js';
 import { WEDDING_STORY_LIMITS } from '../shared/wedding-seo-types.js';
 import {
@@ -137,8 +140,9 @@ type WeddingVendorLookup = WeddingStoryVendor & {
 };
 
 type WeddingVendorSearchOutcome = {
-  status: 'matched' | 'not_found' | 'technical_error';
+  status: 'matched' | 'not_found' | 'uncertain' | 'technical_error';
   match?: WeddingVendorLookup;
+  reason?: string;
 };
 
 type GeminiMessageContent =
@@ -502,6 +506,16 @@ export function validateWeddingVendorSearchResult(
   };
 }
 
+function weddingVendorSourceKind(url?: string): WeddingVendorSourceKind | undefined {
+  if (!url) return undefined;
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return host === 'instagram.com' || host.endsWith('.instagram.com') ? 'instagram' : 'website';
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildWeddingVendorSearchPrompt(
   vendor: InfoFormVendor,
   jobFacts: WeddingEditorialJobFacts | null,
@@ -613,9 +627,17 @@ async function searchWeddingVendor(
     const parsed = parseGeminiJson(String(block?.text || ''));
     const match = validateWeddingVendorSearchResult(name, parsed, citationUrls);
     if (match) return { status: 'matched', match };
-    if (parsed.matched === false) return { status: 'not_found' };
+    if (parsed.matched === false) {
+      return {
+        status: 'not_found',
+        reason: 'Non è stato trovato un sito o profilo ufficiale verificabile.',
+      };
+    }
     console.warn(`[wedding-seo] Match proposto per “${name}” rifiutato perché non sufficientemente verificabile; verrà riprovato.`);
-    return { status: 'technical_error' };
+    return {
+      status: 'uncertain',
+      reason: 'Il riferimento trovato non identifica con certezza sufficiente questo fornitore.',
+    };
   } catch (error) {
     console.warn(`[wedding-seo] Risposta di ricerca non valida per “${name}”:`, error);
     return { status: 'technical_error' };
@@ -651,6 +673,8 @@ async function resolveOneWeddingVendor(
       url: match?.url || '',
       sourceUrl: match?.sourceUrl || '',
       confidence: match?.confidence || 0,
+      verificationStatus: outcome.status === 'matched' ? 'verified' : outcome.status,
+      verificationReason: outcome.reason || '',
       checkedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     return match ? {
@@ -682,6 +706,72 @@ async function resolveWeddingVendors(
     console.log(`[wedding-seo] Fornitori verificati online: ${resolved.length}/${vendors.length}. I match incerti restano senza link.`);
   }
   return resolved;
+}
+
+function weddingVendorReviewFromCache(
+  sourceId: string,
+  vendor: InfoFormVendor,
+  data?: Record<string, any>,
+): WeddingVendorReview {
+  const id = `${sourceId}:${vendorCacheId(vendor)}`;
+  const requestedName = vendor.name;
+  const base = {
+    id,
+    sourceId,
+    requestedName,
+    category: vendor.category || undefined,
+    location: vendor.location || undefined,
+  };
+  if (!data || !cachedVendorIsFresh(data)) {
+    return {
+      ...base,
+      status: 'pending',
+      reason: data
+        ? 'La verifica precedente è scaduta e verrà aggiornata durante una nuova generazione.'
+        : 'La verifica online non è ancora stata eseguita.',
+    };
+  }
+  const status = (data.verificationStatus || (data.matched ? 'verified' : 'not_found')) as WeddingVendorReviewStatus;
+  if (status === 'verified') {
+    const url = validExternalVendorUrl(data.url);
+    if (url) {
+      return {
+        ...base,
+        status,
+        verifiedName: safeString(data.name, 120) || requestedName,
+        role: safeString(data.role, 120) || vendor.category || undefined,
+        url,
+        sourceKind: weddingVendorSourceKind(url),
+      };
+    }
+  }
+  return {
+    ...base,
+    status: status === 'uncertain' ? 'uncertain' : 'not_found',
+    reason: safeString(data.verificationReason, 300)
+      || (status === 'uncertain'
+        ? 'Il match non è abbastanza certo: nessun collegamento viene proposto.'
+        : 'Non è disponibile un collegamento ufficiale verificato.'),
+  };
+}
+
+/**
+ * Restituisce solo i fornitori con consenso e approvazione editoriale manuale.
+ * La lettura è intenzionalmente read-only: la verifica online avviene durante
+ * la generazione e qui viene mostrato il risultato già memorizzato.
+ */
+export async function loadWeddingVendorReviews(
+  sources: WeddingStorySource[],
+  approvedSourceIds: string[],
+): Promise<WeddingVendorReview[]> {
+  const approved = new Set(approvedSourceIds);
+  const vendors = sources
+    .filter(source => source.consentGranted && approved.has(source.id) && source.category === 'vendor')
+    .flatMap(source => vendorEntriesFromSource(source).map(vendor => ({ sourceId: source.id, vendor })));
+  return Promise.all(vendors.map(async ({ sourceId, vendor }) => {
+    const snapshot = await db.collection(VENDOR_DIRECTORY_COL).doc(vendorCacheId(vendor)).get();
+    return weddingVendorReviewFromCache(sourceId, vendor, snapshot.exists ? snapshot.data() || {} : undefined);
+  }));
 }
 
 async function uniqueSlug(requested: string, galleryId: string): Promise<string> {
@@ -1390,6 +1480,8 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
       ? storyFromDocument(storyDocument.id, storyDocument.data()!, { preferDraftSelection: true })
       : null;
     const sources = await loadSourcesForJob(gallery.jobId, { includeLegacy: true });
+    const approvedSourceIds = story?.approvedSourceIds || [];
+    const vendorReviews = await loadWeddingVendorReviews(sources, approvedSourceIds);
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     return res.json({
       story,
@@ -1402,6 +1494,7 @@ router.get('/gallery/:galleryId', async (req: Request, res: Response) => {
         jobType: gallery.jobType || undefined,
       },
       sources,
+      vendorReviews,
       jobFacts,
       warning: gallery.jobId ? undefined : 'Questa galleria non è associata a un Job: nessuna risposta dei Moduli Informativi verrà mostrata.',
     });
@@ -1518,7 +1611,8 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     }
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const draft = await generateWeddingDraftWithGemini({ gallery, sources, photos, jobFacts });
-    return res.json({ draft });
+    const vendorReviews = await loadWeddingVendorReviews(sources, selectedSourceIds);
+    return res.json({ draft, vendorReviews });
   } catch (error) {
     console.error('[wedding-seo] generate:', error);
     if (error instanceof WeddingAiGenerationError) {

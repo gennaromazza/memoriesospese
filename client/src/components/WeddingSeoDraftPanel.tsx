@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Gallery } from '@/lib/galleries';
 import type { Photo } from '@/lib/photos';
-import { WEDDING_STORY_LIMITS, type WeddingSeoStory, type WeddingStorySource } from '@shared/wedding-seo-types';
+import {
+  WEDDING_STORY_LIMITS,
+  type WeddingSeoStory,
+  type WeddingStorySource,
+  type WeddingVendorReview,
+} from '@shared/wedding-seo-types';
 import { normalizeInfoFormVendors } from '@shared/info-form-types';
 import {
   generateWeddingStoryDraft,
@@ -24,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, Sparkles, Star } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
 
 interface Props {
   gallery: Gallery;
@@ -80,6 +85,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [slugIsCustom, setSlugIsCustom] = useState(false);
   const [status, setStatus] = useState<'draft' | 'published'>('draft');
   const [sources, setSources] = useState<WeddingStorySource[]>([]);
+  const [vendorReviews, setVendorReviews] = useState<WeddingVendorReview[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [coverPhotoId, setCoverPhotoId] = useState<string>();
@@ -108,6 +114,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     getWeddingStoryEditor(gallery.id)
       .then(context => {
         setSources(context.sources);
+        setVendorReviews(context.vendorReviews);
         setWarning(context.warning);
         if (context.story) {
           const initialPhotoIds = context.story.selectedPhotoIds.slice(0, MAX_WEDDING_STORY_PHOTOS);
@@ -160,6 +167,22 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const validCoverPhotoId = coverPhotoId && validSelectedPhotoIds.includes(coverPhotoId)
     ? coverPhotoId
     : validSelectedPhotoIds[0];
+  const displayedVendorReviews = sources
+    .filter(source => source.category === 'vendor' && validSelectedSourceIds.includes(source.id))
+    .flatMap(source => normalizeInfoFormVendors(source.value).map(vendor => {
+      const existing = vendorReviews.find(review => (
+        review.sourceId === source.id && review.requestedName === vendor.name
+      ));
+      return existing || {
+        id: `${source.id}:${vendor.name}`,
+        sourceId: source.id,
+        requestedName: vendor.name,
+        category: vendor.category || undefined,
+        location: vendor.location || undefined,
+        status: 'pending' as const,
+        reason: 'La verifica online verrà eseguita durante la generazione della bozza.',
+      };
+    }));
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
   const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId);
 
@@ -239,6 +262,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     try {
       const context = await getWeddingStoryEditor(gallery.id);
       setSources(context.sources);
+      setVendorReviews(context.vendorReviews);
       setWarning(context.warning);
       toast({ title: 'Risposte aggiornate', description: `${context.sources.length} risposte editoriali trovate per questo Job.` });
     } catch (reason) {
@@ -259,6 +283,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         validSelectedSourceIds,
         validSelectedPhotoIds,
       );
+      setVendorReviews(generated.vendorReviews);
       setDraft(current => {
         const title = generated.title || current.title;
         return {
@@ -418,6 +443,84 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           </details>
         </CardContent>
       </Card>
+
+      {displayedVendorReviews.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldCheck className="h-5 w-5" /> Verifica fornitori approvati
+            </CardTitle>
+            <CardDescription>
+              Riepilogo della verifica online sui fornitori autorizzati e selezionati manualmente.
+              Solo i riferimenti verificati ricevono un collegamento; i match incerti restano privati.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {displayedVendorReviews.map(review => {
+              const status = review.status === 'verified'
+                ? {
+                    label: 'Verificato',
+                    className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                    icon: <CheckCircle2 className="mr-1 h-3.5 w-3.5" />,
+                  }
+                : review.status === 'uncertain'
+                  ? {
+                      label: 'Match incerto',
+                      className: 'border-amber-200 bg-amber-50 text-amber-800',
+                      icon: <AlertCircle className="mr-1 h-3.5 w-3.5" />,
+                    }
+                  : review.status === 'not_found'
+                    ? {
+                        label: 'Nessun collegamento verificato',
+                        className: 'border-gray-200 bg-gray-50 text-gray-700',
+                        icon: <AlertCircle className="mr-1 h-3.5 w-3.5" />,
+                      }
+                    : {
+                        label: 'In attesa di verifica',
+                        className: 'border-blue-200 bg-blue-50 text-blue-800',
+                        icon: <RefreshCw className="mr-1 h-3.5 w-3.5" />,
+                      };
+              return (
+                <div
+                  key={review.id}
+                  className={`rounded-lg border p-3 ${review.status === 'uncertain' ? 'border-amber-300 bg-amber-50/40' : 'bg-white'}`}
+                >
+                  <div className="flex flex-wrap items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{review.requestedName}</p>
+                      <p className="text-sm text-gray-600">
+                        {[review.category, review.location].filter(Boolean).join(' · ') || 'Categoria e luogo non specificati'}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className={status.className}>
+                      {status.icon}
+                      {status.label}
+                    </Badge>
+                  </div>
+                  {review.status === 'verified' && review.url ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                      <a
+                        href={review.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center font-medium text-sky-700 underline underline-offset-2"
+                      >
+                        {review.verifiedName || review.requestedName}
+                        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                      </a>
+                      <span className="text-gray-600">
+                        Fonte: {review.sourceKind === 'instagram' ? 'Instagram' : 'sito web'}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-gray-600">{review.reason}</p>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -38,6 +38,7 @@ import {
   GEMINI_MODEL,
   MAX_WEDDING_DRAFT_ATTEMPTS,
   MAX_WEDDING_STORY_PHOTOS,
+  loadWeddingVendorReviews,
   slugifyWeddingStory,
   toPublicWeddingStory,
   validateWeddingVendorSearchResult,
@@ -747,6 +748,49 @@ describe('Real Wedding editorial safety', () => {
     buildAuthorizedSources([submission], { includeLegacy: true });
 
     expect(submission).toEqual(original);
+  });
+
+  it('shows verification reviews only for consented, manually approved vendor sources', async () => {
+    const reviews = await loadWeddingVendorReviews([
+      {
+        id: 'approved-vendors',
+        submissionId: 'submission-1',
+        fieldId: 'vendors',
+        label: 'Fornitori',
+        clientName: 'Anna',
+        category: 'vendor',
+        consentGranted: true,
+        value: [{ name: 'Studio Luce', category: 'Fotografo', location: 'Aversa' }],
+      },
+      {
+        id: 'not-approved',
+        submissionId: 'submission-2',
+        fieldId: 'vendors',
+        label: 'Fornitori',
+        clientName: 'Anna',
+        category: 'vendor',
+        consentGranted: true,
+        value: [{ name: 'Altro Studio', category: 'Fotografo', location: 'Napoli' }],
+      },
+      {
+        id: 'no-consent',
+        submissionId: 'submission-3',
+        fieldId: 'vendors',
+        label: 'Fornitori',
+        clientName: 'Anna',
+        category: 'vendor',
+        consentGranted: false,
+        value: [{ name: 'Privato Studio', category: 'Fotografo', location: 'Caserta' }],
+      },
+    ], ['approved-vendors']);
+
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({
+      sourceId: 'approved-vendors',
+      requestedName: 'Studio Luce',
+      status: 'not_found',
+    });
+    expect(reviews[0].reason).toContain('collegamento ufficiale verificato');
   });
 
   it('requires meaningful copy and a photo only for explicit publication', () => {

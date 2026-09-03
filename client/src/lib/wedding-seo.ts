@@ -5,6 +5,7 @@ import type {
   PublicWeddingStoryPreview,
   WeddingSeoStory,
   WeddingStoryEditorContext,
+  WeddingVendorReview,
 } from '@shared/wedding-seo-types';
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -65,14 +66,19 @@ export async function generateWeddingStoryDraft(
   galleryId: string,
   selectedSourceIds: string[],
   selectedPhotoIds: string[],
-): Promise<Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>> {
+): Promise<Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'> & {
+  vendorReviews: WeddingVendorReview[];
+}> {
   const response = await apiRequest(
     'POST',
     `/api/wedding-seo/gallery/${encodeURIComponent(galleryId)}/generate`,
     { selectedSourceIds, selectedPhotoIds },
   );
-  const data = await responseJson<{ draft: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'> }>(response);
-  return data.draft;
+  const data = await responseJson<{
+    draft: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
+    vendorReviews?: WeddingVendorReview[];
+  }>(response);
+  return { ...data.draft, vendorReviews: data.vendorReviews || [] };
 }
 
 export async function getPublicWeddingStory(slug: string): Promise<PublicWeddingStory | null> {
