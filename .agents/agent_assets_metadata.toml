@@ -7,3 +7,18 @@ uri = "file://docs/seo-audit-report.md"
 type = "text"
 title = "Report audit SEO preliminare"
 description = "Audit tecnico SEO di imagestudiofotografico.com con evidenze separate, inventario route, sitemap/robots e analisi miniatura homepage."
+logical_id = "395fea19-eb04-4130-9ca7-bfafd2725ae9"
+
+[[outputs]]
+id = "M6WSvLjMsVJaWAglZoa5i"
+uri = "file://docs/BLOG_EDITORIAL_SEO_AUDIT.md"
+type = "text"
+title = "Audit editoriale SEO dei 68 articoli blog"
+description = "Report analitico completo con tabella dei 68 articoli, cluster, cannibalizzazione, top 10, candidati merge/redirect e piano editoriale prioritario."
+logical_id = "df3e2064-9834-4be5-9abc-ea3b1cab596b"
+content_hash = "sha256:b66fac75d47f928d67b83697a64f2deb8a78ea027984f92d916bb30096935f40"
+size = 59103
+mtime_ms = 1788432454072
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:65b2695f-b200-424b-9509-5c251e0658fe/df3e2064-9834-4be5-9abc-ea3b1cab596b/01a4f700-f6b8-44b0-8ba3-a5836bb107d1"
+storage_version_token = "1788432483493062"
+content_type = "text/markdown"
