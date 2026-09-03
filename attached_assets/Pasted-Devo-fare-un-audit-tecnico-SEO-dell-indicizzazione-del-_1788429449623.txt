@@ -1,0 +1,190 @@
+Devo fare un audit tecnico SEO dell’indicizzazione del sito imagestudiofotografico.com, concentrandomi sui problemi segnalati da Google Search Console.
+
+CONTESTO
+In Search Console vedo attualmente circa:
+- 74 URL: “Rilevata, ma attualmente non indicizzata”
+- 53 URL: “Pagina duplicata senza URL canonico selezionato dall’utente”
+- 2 URL: “Scansionata, ma attualmente non indicizzata”
+- 1 URL bloccata da robots.txt
+
+La sitemap /sitemap.xml risulta valida e Google rileva circa 93 URL.
+
+OBIETTIVO
+Voglio capire perché Google considera molte pagine duplicate o non indicizzabili e correggere il sito senza danneggiare le pagine già posizionate.
+
+PRIMA DI MODIFICARE QUALSIASI COSA
+Fai un audit completo del progetto Memorie Sospese / sito pubblico Image Studio.
+
+Analizza in particolare:
+
+1. CANONICAL
+Controlla tutte le pagine pubbliche e verifica:
+- presenza di <link rel="canonical">
+- URL canonical corretto
+- eventuali canonical mancanti
+- canonical che puntano alla pagina sbagliata
+- differenze tra URL con e senza slash finale
+- query string
+- http/https
+- www/non-www
+- URL duplicate generate dal routing React
+
+Controlla in particolare:
+- homepage
+- portfolio
+- portfolio matrimonio
+- pagine SEO locali
+- blog
+- articoli blog
+- Real Wedding
+- gallerie pubbliche indicizzabili
+- eventuali landing page
+
+2. REAL WEDDING
+Controlla:
+- canonical
+- title
+- meta description
+- robots
+- structured data Article
+- sitemap
+- slug
+- eventuali duplicazioni tra blog e Real Wedding
+- pagine con contenuto troppo simile
+
+3. SITEMAP
+Analizza come viene generata sitemap.xml.
+
+Verifica che contenga SOLO URL:
+- pubbliche
+- canoniche
+- indicizzabili
+- HTTP 200
+
+Non deve contenere:
+- redirect
+- pagine noindex
+- URL duplicate
+- pagine admin
+- gallerie private
+- query string
+- versioni alternative della stessa pagina
+
+4. ROBOTS.TXT
+Controlla robots.txt e individua quale pagina indicizzabile potrebbe essere bloccata.
+
+Non rimuovere blocchi di sicurezza per:
+- /admin
+- API
+- pagine private
+- aree clienti
+
+5. DUPLICATI
+Individua tutte le possibili cause delle 53 URL duplicate:
+- due route che mostrano lo stesso contenuto
+- slash finale
+- parametri URL
+- vecchie route
+- URL legacy
+- pagine SEO quasi identiche
+- pagine accessibili da più percorsi
+- HTTP status 200 dove dovrebbe esserci redirect 301
+
+Per ogni duplicato indica:
+URL A
+URL B
+canonical attuale
+canonical corretto
+azione consigliata:
+- canonical
+- redirect 301
+- noindex
+- eliminazione dalla sitemap
+- nessuna modifica
+
+6. “RILEVATA MA NON INDICIZZATA”
+Non tentare di forzare automaticamente tutte queste URL.
+
+Analizza se ci sono problemi comuni:
+- contenuto troppo sottile
+- pagine molto simili
+- orphan pages
+- assenza di link interni
+- title/meta duplicati
+- scarso contenuto testuale
+- rendering client-side problematico
+- status HTTP
+- canonical
+- structured data
+
+7. SERVER SIDE SEO / PRERENDER
+Il progetto utilizza React e ha già logica SEO/prerender.
+
+Controlla in particolare:
+server/seo-prerender.ts
+client/src/hooks/useSEO.ts
+client/src/pages/public/WeddingSeoPage.tsx
+generazione sitemap
+routing pubblico
+
+Verifica ciò che vede realmente Google nel primo HTML restituito dal server.
+
+NON limitarti a verificare ciò che React modifica dopo il caricamento.
+
+8. INTERNAL LINKING
+Controlla che le pagine SEO importanti ricevano link interni.
+
+Priorità:
+- fotografo matrimonio Caserta
+- fotografo matrimonio Aversa
+- Reggia di Caserta
+- San Leucio
+- Real Wedding
+- portfolio matrimonio
+
+I nuovi Real Wedding devono essere collegati correttamente da:
+- /blog
+- homepage se previsto
+- altre pagine pertinenti
+
+9. OUTPUT PRIMA DELLE MODIFICHE
+Prima di modificare codice voglio un report con:
+
+A. problemi critici
+B. problemi importanti
+C. problemi minori
+D. file coinvolti
+E. causa tecnica
+F. soluzione proposta
+G. rischio della modifica
+
+Per ogni problema usa:
+🔴 Critico
+🟠 Importante
+🟡 Migliorabile
+🟢 Corretto
+
+NON modificare ancora nulla finché non mi hai mostrato il report.
+
+DOPO LA MIA APPROVAZIONE
+Implementa le correzioni una alla volta.
+
+Dopo ogni gruppo di modifiche esegui:
+- typecheck
+- test
+- build production
+- verifica sitemap.xml
+- verifica robots.txt
+- verifica HTML prerenderizzato
+- verifica canonical
+- verifica status HTTP
+
+IMPORTANTE
+Non fare modifiche SEO massive “a intuito”.
+Non eliminare pagine.
+Non aggiungere noindex indiscriminatamente.
+Non cambiare URL già pubblici senza redirect 301.
+Non modificare gli slug esistenti dei Real Wedding senza motivo.
+
+L’obiettivo non è semplicemente ridurre gli errori di Search Console:
+l’obiettivo è far capire chiaramente a Google quale sia l’URL canonico di ogni contenuto e aumentare progressivamente il numero di pagine realmente indicizzate.
