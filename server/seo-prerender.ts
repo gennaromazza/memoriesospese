@@ -19,9 +19,19 @@ import {
   isPrivateClientPath,
   normalizeClientPath,
 } from './client-routes';
+import {
+  canonicalUrl,
+  defaultSocialImage,
+  firstImageCandidateFromHtml,
+  resolveSocialImage,
+  staticPageMetadata,
+  staticSocialImage,
+  type ResolvedSocialImage,
+  type SocialImageCandidate,
+} from '../shared/social-metadata';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
-const OG_IMAGE = `${BASE_URL}/1200x630px.jpg`;
+const OG_IMAGE = defaultSocialImage().url;
 // Il prerender è statico e non legge il catalogo Firestore: esclude quindi le
 // FAQ che contengono prezzi/quantità, per non pubblicare condizioni obsolete.
 const PRINT_SEO_FAQS = PRINT_FAQS.filter(faq => !faq.answer.includes('€'));
@@ -63,6 +73,7 @@ interface PageMeta {
   ogType?: string;
   keywords?: string;
   ogImage?: string;
+  socialImage?: SocialImageCandidate | ResolvedSocialImage;
   jsonLd?: object | object[];
   bodyContent?: string;
 }
@@ -312,6 +323,12 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>Richiedi una consulenza gratuita per discutere del tuo matrimonio, evento o servizio fotografico. Ci incontriamo di persona ad Aversa o in videocall per capire le tue esigenze e creare il pacchetto perfetto per te.</p>
       `
     },
+    '/consultations': {
+      title: 'Consulenza Gratuita Fotografo Matrimoni | Image Studio',
+      description: 'Richiedi una consulenza gratuita e personalizzata con Image Studio, ad Aversa oppure online.',
+      canonical: `${BASE_URL}/consulenze`,
+      bodyContent: `<h1>Consulenze Image Studio</h1><p>Parliamo del tuo matrimonio, evento o servizio fotografico.</p>`
+    },
     '/lasciati-trasportare': {
       title: 'Lasciati Trasportare | E-book Fotografia Matrimonio | Image Studio',
       description: 'Scarica l\'e-book "Lasciati Trasportare" di Image Studio. La filosofia e l\'approccio emozionale alla fotografia matrimoniale di Gennaro Mazzacane.',
@@ -337,6 +354,24 @@ function getStaticPageMeta(path: string): PageMeta | null {
       canonical: `${BASE_URL}/privacy`,
       bodyContent: `<h1>Privacy Policy - Image Studio</h1><p>Informativa sulla privacy e trattamento dei dati personali in conformità con il Regolamento UE 2016/679 (GDPR).</p>`
     },
+    '/cookie-policy': {
+      title: 'Cookie Policy | Image Studio',
+      description: 'Informativa sui cookie utilizzati dal sito Image Studio e sulle preferenze disponibili per i visitatori.',
+      canonical: `${BASE_URL}/cookie-policy`,
+      bodyContent: `<h1>Cookie Policy - Image Studio</h1><p>Informazioni sui cookie utilizzati dal sito e sulla gestione delle preferenze.</p>`
+    },
+    '/gdpr': {
+      title: 'Richieste GDPR | Image Studio',
+      description: 'Invia una richiesta di accesso, esportazione o cancellazione dei dati personali trattati da Image Studio.',
+      canonical: `${BASE_URL}/gdpr`,
+      bodyContent: `<h1>Richieste GDPR - Image Studio</h1><p>Esercita i diritti previsti dal Regolamento UE 2016/679 sui tuoi dati personali.</p>`
+    },
+    '/ospiti': {
+      title: 'Area Ospiti | Image Studio',
+      description: 'Scopri i servizi Image Studio dedicati agli ospiti e accedi rapidamente ai contatti dello studio.',
+      canonical: `${BASE_URL}/ospiti`,
+      bodyContent: `<h1>Area Ospiti Image Studio</h1><p>Informazioni e contatti utili per gli ospiti degli eventi fotografati da Image Studio.</p>`
+    },
     '/terms': {
       title: 'Termini e Condizioni | Image Studio',
       description: 'Termini e condizioni dei servizi e del sito Image Studio di Gennaro Mazzacane.',
@@ -345,7 +380,35 @@ function getStaticPageMeta(path: string): PageMeta | null {
     }
   };
 
-  return pages[path] || null;
+  const page = pages[path];
+  const sharedPage = staticPageMetadata(path);
+  return page ? { ...page, ...(sharedPage || {}) } : null;
+}
+
+async function getBookingCampaignMeta(path: string): Promise<PageMeta | null> {
+  const code = decodeURIComponent(path.replace('/prenota/', ''));
+  if (!code) return getStaticPageMeta('/prenota');
+  const snapshot = await db.collection('booking_campaigns').where('code', '==', code).limit(1).get();
+  if (snapshot.empty) return null;
+  const campaign = snapshot.docs[0].data();
+  const name = String(campaign.nome || 'Servizio fotografico');
+  const title = String(campaign.titoloPaginaBooking || `${name} - Prenota il tuo shooting`);
+  const description = String(
+    campaign.descrizionePaginaBooking
+    || campaign.descrizione
+    || `Prenota il tuo servizio fotografico per ${name} con Image Studio.`,
+  );
+  return {
+    title,
+    description,
+    canonical: `${BASE_URL}/prenota/${encodeURIComponent(code)}`,
+    socialImage: resolveSocialImage([{
+      url: campaign.immaginePaginaBooking,
+      alt: `Prenotazione ${name}`,
+      source: 'editorial-cover',
+    }], staticSocialImage('/prenota')),
+    bodyContent: `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p>`,
+  };
 }
 
 function stripHtmlTags(html: string): string {
@@ -361,7 +424,8 @@ function stripHtmlTags(html: string): string {
 const SEO_CONTENT_LIMIT = 50000;
 const EXTERNAL_HTML_LIMIT = 8_000_000;
 const EXTERNAL_FETCH_TIMEOUT_MS = 15_000;
-const externalSeoContentCache = new Map<string, Promise<string>>();
+type ExternalSeoContent = { text: string; image: SocialImageCandidate | null };
+const externalSeoContentCache = new Map<string, Promise<ExternalSeoContent>>();
 
 function decodeHtmlEntities(value: string): string {
   const namedEntities: Record<string, string> = {
@@ -453,8 +517,8 @@ function isAllowedBlogContentUrl(value: string): boolean {
   }
 }
 
-async function fetchExternalSeoContent(contentUrl: string): Promise<string> {
-  if (!isAllowedBlogContentUrl(contentUrl)) return '';
+async function fetchExternalSeoContent(contentUrl: string): Promise<ExternalSeoContent> {
+  if (!isAllowedBlogContentUrl(contentUrl)) return { text: '', image: null };
 
   const cached = externalSeoContentCache.get(contentUrl);
   if (cached) return cached;
@@ -475,38 +539,49 @@ async function fetchExternalSeoContent(contentUrl: string): Promise<string> {
       if (Buffer.byteLength(html, 'utf8') > EXTERNAL_HTML_LIMIT) {
         throw new Error('contenuto oltre il limite consentito');
       }
-      return stripHtmlTags(html).slice(0, SEO_CONTENT_LIMIT);
+      return {
+        text: stripHtmlTags(html).slice(0, SEO_CONTENT_LIMIT),
+        image: firstImageCandidateFromHtml(html, 'Immagine dell’articolo'),
+      };
     } finally {
       clearTimeout(timeout);
     }
   })().catch(error => {
     externalSeoContentCache.delete(contentUrl);
     console.warn('Contenuto SEO esterno non disponibile:', error instanceof Error ? error.message : error);
-    return '';
+    return { text: '', image: null };
   });
 
   externalSeoContentCache.set(contentUrl, pending);
   return pending;
 }
 
-async function resolveBlogSeoContent(post: Record<string, any>): Promise<{ text: string; complete: boolean }> {
+async function resolveBlogSeoContent(post: Record<string, any>): Promise<{
+  text: string;
+  complete: boolean;
+  image: SocialImageCandidate | null;
+}> {
   const storedSeoContent = String(post.seoContent || '').trim();
   if (storedSeoContent) {
-    return { text: storedSeoContent.slice(0, SEO_CONTENT_LIMIT), complete: true };
+    return { text: storedSeoContent.slice(0, SEO_CONTENT_LIMIT), complete: true, image: null };
   }
 
   const inlineContent = String(post.content || '');
   if (inlineContent) {
-    return { text: stripHtmlTags(inlineContent).slice(0, SEO_CONTENT_LIMIT), complete: true };
+    return {
+      text: stripHtmlTags(inlineContent).slice(0, SEO_CONTENT_LIMIT),
+      complete: true,
+      image: firstImageCandidateFromHtml(inlineContent, post.title),
+    };
   }
 
   const contentUrl = String(post.contentUrl || '');
   if (contentUrl) {
     const externalContent = await fetchExternalSeoContent(contentUrl);
-    if (externalContent) return { text: externalContent, complete: true };
+    if (externalContent.text) return { ...externalContent, complete: true };
   }
 
-  return { text: String(post.excerpt || post.title || '').trim(), complete: false };
+  return { text: String(post.excerpt || post.title || '').trim(), complete: false, image: null };
 }
 
 async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
@@ -540,10 +615,21 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     const authorName: string = post.author || 'Gennaro Mazzacane';
     const tags: string[] = post.tags || [];
     const excerpt: string = post.excerpt || '';
-    const articleImage: string = post.coverImage || OG_IMAGE;
     const seoTitle: string = String(post.metaTitle || `${post.title} | Blog Image Studio`).trim();
     const seoDescription: string = String(post.metaDescription || excerpt || post.title).trim();
-    const { text: bodyText, complete: hasCompleteSeoContent } = await resolveBlogSeoContent(post);
+    const { text: bodyText, complete: hasCompleteSeoContent, image: contentImage } = await resolveBlogSeoContent(post);
+    const socialImage = resolveSocialImage([
+      {
+        url: post.coverImage,
+        alt: post.coverImageAlt || post.title,
+        width: post.coverImageWidth,
+        height: post.coverImageHeight,
+        type: post.coverImageType,
+        source: 'editorial-cover',
+      },
+      ...(contentImage ? [{ ...contentImage, alt: post.title }] : []),
+    ], defaultSocialImage());
+    const articleImage = socialImage.url;
 
     // Backfill non distruttivo per i quattro articoli legacy su Storage: dopo il
     // primo recupero riuscito, anche i successivi avvii leggono solo il testo leggero.
@@ -559,11 +645,11 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
       '@id': `${BASE_URL}/blog/${slug}`,
       'headline': post.title,
       'description': seoDescription,
-      'image': {
+       'image': {
         '@type': 'ImageObject',
         'url': articleImage,
-        'width': 1200,
-        'height': 630
+         ...(socialImage.width ? { 'width': socialImage.width } : {}),
+         ...(socialImage.height ? { 'height': socialImage.height } : {})
       },
       'author': {
         '@type': 'Person',
@@ -622,6 +708,7 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
       canonical: `${BASE_URL}/blog/${slug}`,
       ogType: 'article',
       ogImage: articleImage,
+       socialImage,
       keywords: tags.join(', ') || 'fotografia, matrimoni, blog',
       jsonLd: [blogPostingJsonLd, breadcrumbJsonLd],
       bodyContent: `
@@ -699,6 +786,7 @@ async function getBlogListMeta(): Promise<PageMeta> {
       : '';
 
     return {
+      ...staticPageMetadata('/blog'),
       title: 'Blog Fotografia Matrimoni | Consigli, Storie e Guide | Image Studio',
       description: 'Il blog di Image Studio: guide per scegliere il fotografo di matrimonio, consigli su costi e tempistiche, storie di coppie ed eventi fotografati in Campania.',
       canonical: `${BASE_URL}/blog`,
@@ -717,6 +805,7 @@ async function getBlogListMeta(): Promise<PageMeta> {
   } catch (error) {
     console.error('Errore caricamento lista blog per SEO:', error);
     return {
+      ...staticPageMetadata('/blog'),
       title: 'Blog | Consigli Matrimonio, Storie e Fotografia | Image Studio',
       description: 'Il blog di Image Studio: consigli per il matrimonio, storie di coppie, tendenze fotografia, guide per sposi.',
       canonical: `${BASE_URL}/blog`,
@@ -746,6 +835,17 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     || (story.publishedAt?.seconds ? new Date(story.publishedAt.seconds * 1000).toISOString() : undefined);
   const modifiedDate = story.updatedAt?.toDate?.()?.toISOString?.()
     || (story.updatedAt?.seconds ? new Date(story.updatedAt.seconds * 1000).toISOString() : publishedDate);
+  const socialImage = resolveSocialImage(images.map((url, index) => ({
+    url,
+    alt: index === 0
+      ? `Copertina del Real Wedding ${story.title}`
+      : `${story.title} - fotografia ${index + 1}`,
+    source: 'selected-photo' as const,
+  })), defaultSocialImage());
+  const publicImages = images
+    .map(url => resolveSocialImage([{ url, alt: story.title, source: 'selected-photo' }], { url: '' }))
+    .filter(image => image.source === 'selected-photo')
+    .map(image => image.url);
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -753,7 +853,7 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     headline: story.title,
     description,
     mainEntityOfPage: canonical,
-    image: images,
+    image: publicImages.length > 0 ? publicImages : [socialImage.url],
     datePublished: publishedDate,
     dateModified: modifiedDate,
     author: { '@id': `${BASE_URL}/#photographer` },
@@ -765,10 +865,11 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     description,
     canonical,
     ogType: 'article',
-    ogImage: images[0] || OG_IMAGE,
+    ogImage: socialImage.url,
+    socialImage,
     jsonLd: articleSchema,
     bodyContent: `
-      <article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${images.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>
+      <article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${publicImages.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>
       <aside>
         <h2>Image Studio</h2>
         <p>Raccontiamo matrimoni con fotografie autentiche e senza tempo.</p>
@@ -790,7 +891,11 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
   const publishedDocument = snapshot.docs.find(document => document.data().status === 'published');
   if (!publishedDocument) return null;
   const story = publishedDocument.data();
-  const photoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds.slice(0, 12) : [];
+  const selectedPhotoIds: string[] = Array.isArray(story.selectedPhotoIds) ? story.selectedPhotoIds : [];
+  const photoIds: string[] = [
+    ...(story.coverPhotoId && selectedPhotoIds.includes(story.coverPhotoId) ? [story.coverPhotoId] : []),
+    ...selectedPhotoIds.filter(id => id !== story.coverPhotoId),
+  ].slice(0, 12);
   const photoDocuments = await Promise.all(photoIds.map(id => id.startsWith('legacy-')
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));
@@ -905,7 +1010,13 @@ function getPortfolioCategoryMeta(category: string): PageMeta | null {
 
 function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
   const ogType = meta.ogType || 'website';
-  const ogImage = meta.ogImage || OG_IMAGE;
+  const canonical = canonicalUrl(meta.canonical);
+  const socialImage = resolveSocialImage([
+    ...(meta.socialImage ? [meta.socialImage] : []),
+    ...(meta.ogImage ? [{ url: meta.ogImage, alt: meta.title, source: 'content-image' as const }] : []),
+    staticSocialImage(canonical),
+  ]);
+  const ogImage = socialImage.url;
 
   const commonJsonLd = [
     {
@@ -913,7 +1024,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
       '@type': 'LocalBusiness',
       '@id': `${BASE_URL}/#localbusiness`,
       name: 'Image Studio Fotografico',
-      image: OG_IMAGE,
+      image: ogImage,
       url: BASE_URL,
       telephone: '+39 334 710 3142',
       email: 'info@memoriesospese.it',
@@ -932,8 +1043,8 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
     {
       '@context': 'https://schema.org',
       '@type': 'WebPage',
-      '@id': meta.canonical,
-      url: meta.canonical,
+      '@id': canonical,
+      url: canonical,
       name: meta.title,
       description: meta.description,
       inLanguage: 'it-IT',
@@ -981,36 +1092,35 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
     <meta name="description" content="${escapeHtml(meta.description)}" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     ${meta.keywords ? `<meta name="keywords" content="${escapeHtml(meta.keywords)}" />` : ''}
-    <link rel="canonical" href="${escapeHtml(meta.canonical)}" />
+    <link rel="canonical" href="${escapeHtml(canonical)}" />
     <meta property="og:title" content="${escapeHtml(meta.title)}" />
     <meta property="og:description" content="${escapeHtml(meta.description)}" />
     <meta property="og:type" content="${escapeHtml(ogType)}" />
-    <meta property="og:url" content="${escapeHtml(meta.canonical)}" />
+    <meta property="og:url" content="${escapeHtml(canonical)}" />
     <meta property="og:image" content="${escapeHtml(ogImage)}" />
+    ${socialImage.width ? `<meta property="og:image:width" content="${socialImage.width}" />` : ''}
+    ${socialImage.height ? `<meta property="og:image:height" content="${socialImage.height}" />` : ''}
+    ${socialImage.type ? `<meta property="og:image:type" content="${escapeHtml(socialImage.type)}" />` : ''}
+    <meta property="og:image:alt" content="${escapeHtml(socialImage.alt)}" />
     <meta property="og:locale" content="it_IT" />
     <meta property="og:site_name" content="Image Studio" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(meta.title)}" />
     <meta name="twitter:description" content="${escapeHtml(meta.description)}" />
     <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+    <meta name="twitter:image:alt" content="${escapeHtml(socialImage.alt)}" />
     ${jsonLdScripts}
   `;
 
   let html = indexHtml;
 
   html = html.replace(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
-  html = html.replace(/<title>[^<]*<\/title>/, '');
-  html = html.replace(/<meta\s+name="description"[^>]*>/g, '');
-  html = html.replace(/<meta\s+name="robots"[^>]*>/g, '');
-  html = html.replace(/<meta\s+property="og:title"[^>]*>/g, '');
-  html = html.replace(/<meta\s+property="og:description"[^>]*>/g, '');
-  html = html.replace(/<meta\s+property="og:type"[^>]*>/g, '');
-  html = html.replace(/<meta\s+property="og:url"[^>]*>/g, '');
-   html = html.replace(/<meta\s+property="og:image"[^>]*>/g, '');
-  html = html.replace(/<link\s+rel="canonical"[^>]*>/g, '');
-  html = html.replace(/<meta\s+name="twitter:title"[^>]*>/g, '');
-  html = html.replace(/<meta\s+name="twitter:description"[^>]*>/g, '');
-   html = html.replace(/<meta\s+name="twitter:image"[^>]*>/g, '');
+  html = html.replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '');
+  html = html.replace(
+    /<meta\b[^>]*(?:name|property)\s*=\s*["'](?:description|robots|keywords|og:[^"']+|twitter:[^"']+)["'][^>]*>/gi,
+    '',
+  );
+  html = html.replace(/<link\b(?=[^>]*\brel\s*=\s*["']canonical["'])[^>]*>/gi, '');
 
   html = html.replace('</head>', `${seoHead}\n</head>`);
 
@@ -1084,6 +1194,8 @@ export function createSeoMiddleware() {
         }
       } else if (path === '/blog') {
         if (bot) meta = await getBlogListMeta();
+      } else if (path.startsWith('/prenota/') && path !== '/prenota') {
+        if (bot) meta = await getBookingCampaignMeta(path);
       } else if (path.startsWith('/portfolio/') && path !== '/portfolio') {
         const category = path.replace('/portfolio/', '');
         if (bot) meta = getPortfolioCategoryMeta(category);

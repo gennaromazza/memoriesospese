@@ -7,64 +7,19 @@ import { parseWeddingStoryMarkdown } from '@/lib/wedding-story-format';
 import WeddingStoryInline from '@/components/WeddingStoryInline';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { useSEO } from '@/hooks/useSEO';
 
 function useStoryMetadata(story: PublicWeddingStory | null, missing: boolean) {
-  useEffect(() => {
-    const previousTitle = document.title;
-    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-    const previousDescription = description?.content;
-    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    const createdCanonical = !canonical;
-    const previousCanonical = canonical?.href;
-    if (!canonical) {
-      canonical = document.createElement('link');
-      canonical.rel = 'canonical';
-      document.head.appendChild(canonical);
-    }
-    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    const createdRobots = !robots;
-    const previousRobots = robots?.content;
-    if (!robots) {
-      robots = document.createElement('meta');
-      robots.name = 'robots';
-      document.head.appendChild(robots);
-    }
-    const structuredData = document.createElement('script');
-    structuredData.type = 'application/ld+json';
-    structuredData.dataset.weddingStory = 'true';
-    if (story) {
-      const canonicalUrl = `${window.location.origin}/real-wedding/${story.slug}`;
-      document.title = story.seoTitle || story.title;
-      if (description) description.content = story.seoDescription || story.excerpt;
-      canonical.href = canonicalUrl;
-      robots.content = 'index,follow,max-image-preview:large';
-      structuredData.textContent = JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'Article',
-        '@id': canonicalUrl,
-        headline: story.title,
-        description: story.seoDescription || story.excerpt,
-        mainEntityOfPage: canonicalUrl,
-        image: story.photos.map(photo => photo.url),
-        datePublished: story.publishedAt || undefined,
-        author: { '@id': `${window.location.origin}/#photographer` },
-        publisher: { '@id': `${window.location.origin}/#organization` },
-        inLanguage: 'it-IT',
-      });
-      document.head.appendChild(structuredData);
-    } else if (missing) {
-      robots.content = 'noindex,nofollow';
-    }
-    return () => {
-      document.title = previousTitle;
-      if (description && previousDescription !== undefined) description.content = previousDescription;
-      if (createdCanonical) canonical?.remove();
-      else if (canonical && previousCanonical !== undefined) canonical.href = previousCanonical;
-      if (createdRobots) robots?.remove();
-      else if (robots && previousRobots !== undefined) robots.content = previousRobots;
-      structuredData.remove();
-    };
-  }, [story, missing]);
+  useSEO({
+    title: story?.seoTitle || story?.title || 'Real Wedding | Image Studio',
+    description: story?.seoDescription || story?.excerpt || 'Real Wedding raccontato da Image Studio.',
+    canonical: story ? `/real-wedding/${story.slug}` : '/blog',
+    ogType: 'article',
+    ogImage: story?.photos[0]?.url,
+    ogImageAlt: story ? `Copertina del Real Wedding ${story.title}` : undefined,
+    ogImageSource: 'selected-photo',
+    noindex: missing,
+  });
 }
 
 export default function WeddingSeoPage() {

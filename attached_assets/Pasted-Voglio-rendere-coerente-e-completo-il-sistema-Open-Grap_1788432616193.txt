@@ -1,0 +1,203 @@
+Voglio rendere coerente e completo il sistema Open Graph / social preview di TUTTE le pagine pubbliche di imagestudiofotografico.com.
+
+OBIETTIVO
+Ogni pagina pubblica indicizzabile deve avere nel primo HTML servito ai crawler social:
+
+- og:url
+- og:type
+- og:title
+- og:description
+- og:image
+- twitter:title
+- twitter:description
+- twitter:image
+- canonical
+
+e l'immagine deve essere specifica per il contenuto della pagina, non sempre la generica /1200x630px.jpg.
+
+AMBITO
+
+1. HOMEPAGE
+Immagine:
+- hero/preferred image della homepage
+- fallback /1200x630px.jpg solo se non esiste una hero valida
+
+2. BLOG LIST
+/blog
+
+Immagine:
+- immagine editoriale generale del blog
+- può usare /1200x630px.jpg se è coerente con la pagina indice
+
+3. BLOG POST
+/blog/:slug
+
+Immagine:
+- post.coverImage
+- se manca, prima immagine valida del post
+- fallback /1200x630px.jpg
+
+4. REAL WEDDING
+/real-wedding/:slug
+
+Immagine:
+- coverPhotoId
+- altrimenti prima selectedPhoto valida
+- fallback /1200x630px.jpg
+
+5. PORTFOLIO
+/portfolio
+
+Immagine:
+- immagine rappresentativa del portfolio generale
+- non usare casualmente una foto Firestore se cambia continuamente senza controllo
+
+6. PORTFOLIO CATEGORIA
+/portfolio/matrimonio
+/portfolio/battesimo
+/portfolio/comunione
+ecc.
+
+Immagine:
+- hero/copertina specifica della categoria, se esiste
+- altrimenti una foto rappresentativa della categoria
+- fallback globale solo come ultima scelta
+
+7. LANDING LOCALI / SEO
+/fotografo-aversa
+/stampa-foto-aversa
+/vision
+/storie
+/lasciati-trasportare
+/prenota
+/consulenze
+
+Per ciascuna pagina scegliere una immagine specifica e semanticamente coerente.
+
+ESEMPIO IMPORTANTE:
+Per /stampa-foto-aversa NON voglio una foto generica di matrimonio.
+Voglio una immagine legata al servizio stampa:
+- stampe fotografiche
+- foto cartacee
+- polaroid
+- laboratorio/stampa
+- prodotto coerente con la pagina
+
+8. PAGINE PRIVATE / TOKEN / NOINDEX
+NON devono essere ottimizzate per social preview pubblica se non serve:
+- /quote/*
+- /fotolibro/*
+- /view/*
+- /collaboratori/*
+- /modulo/*
+- /stampa-foto-aversa/ordine*
+ecc.
+
+Non usare immagini SEO/social su pagine private se può esporre dati o contenuti.
+
+REGOLA GENERALE
+
+Creare una funzione centralizzata, ad esempio:
+
+resolvePageSocialImage()
+
+oppure una proprietà:
+
+ogImage
+
+nei metadata della pagina.
+
+La logica deve essere prevedibile e testabile.
+
+PRIORITÀ IMMAGINE
+
+Per ogni pagina:
+
+1. immagine specifica scelta per quella pagina
+2. cover/hero del contenuto dinamico
+3. prima immagine valida
+4. /1200x630px.jpg solo come fallback finale
+
+REQUISITI IMMAGINI
+
+Ogni og:image deve:
+- avere URL assoluto HTTPS
+- rispondere HTTP 200
+- essere pubblicamente accessibile
+- avere Content-Type corretto
+- non richiedere autenticazione
+- non essere una signed URL temporanea instabile
+- avere dimensione adeguata
+- preferibilmente almeno 1200 px di larghezza
+- avere aspect ratio adatto alle preview social
+
+Aggiungere anche quando possibile:
+- og:image:width
+- og:image:height
+- og:image:type
+- og:image:alt
+
+PRERENDER
+
+La cosa deve funzionare nel PRIMO HTML per:
+
+facebookexternalhit
+Facebot
+Twitterbot
+LinkedInBot
+WhatsApp
+Googlebot
+
+Non basta aggiornare i tag dopo hydration React.
+
+TEST DA FARE
+
+Crea una matrice di test con almeno:
+
+/
+ /blog
+ un blog post con cover
+ un blog post senza cover
+ un Real Wedding con coverPhotoId
+ un Real Wedding senza foto
+ /portfolio
+ /portfolio/matrimonio
+ /fotografo-aversa
+ /stampa-foto-aversa
+ /vision
+
+Per ogni URL verifica:
+
+URL
+status
+canonical
+og:type
+og:title
+og:description
+og:image
+twitter:image
+HTTP status dell'immagine
+
+OUTPUT
+
+Prima di modificare:
+fammi vedere una tabella:
+
+Pagina | Immagine attuale | Immagine proposta | Fonte dati | Fallback
+
+Dopo la modifica:
+fammi vedere una tabella live:
+
+URL | og:image finale | twitter:image | immagine 200 | risultato
+
+IMPORTANTE
+
+Non voglio che tutte le pagine usino /1200x630px.jpg.
+
+Quella deve essere solo il fallback globale.
+
+Ogni pagina importante deve avere una immagine coerente con il proprio contenuto.
+
+Non aggiungere fb:app_id se non esiste davvero un'app Meta collegata.
+
+Non modificare contenuti, slug o indicizzazione.

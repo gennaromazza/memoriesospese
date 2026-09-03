@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { getActiveCampaigns } from '@/lib/booking-campaigns';
 import type { BookingCampaignFE } from '@shared/booking-types';
+import { useSEO } from '@/hooks/useSEO';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,11 @@ import { createUrl } from '@/lib/basePath';
 import { FloralDivider } from '@/components/WeddingIllustrations';
 
 export default function BookingIndex() {
+  useSEO({
+    title: 'Prenota il Tuo Servizio Fotografico | Image Studio',
+    description: 'Scegli una campagna attiva e prenota il tuo servizio fotografico con Image Studio.',
+    canonical: '/prenota',
+  });
   // Query campagne attive (considera giorniAnticipoSlider)
   const { data: activeCampaigns = [], isLoading } = useQuery<BookingCampaignFE[]>({
     queryKey: ['active-booking-campaigns'],

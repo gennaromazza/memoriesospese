@@ -36,3 +36,4 @@
 - [Ciclo vita asset Blog](blog-asset-lifecycle.md) — tracciare i path Storage; write Firestore prima del cleanup; invalidare upload fuori sessione; publishedAt resta la prima pubblicazione.
 - [NPM firewall registry protocol](npm-firewall-registry-protocol.md) — installazioni nel workflow corrompono node_modules; recupero esplicito dal lockfile con host registry sostituito.
 - [Fornitori informativi strutturati](info-form-vendors.md) — nuovi vendor come lista nome/categoria/luogo; testo e oggetti legacy solo in lettura, URL cliente mai fonte editoriale.
+- [Contratto social metadata](social-metadata-contract.md) — SSR e client condividono canonical/immagini; cover esplicita, contenuto, fallback globale; URL temporanei rifiutati.

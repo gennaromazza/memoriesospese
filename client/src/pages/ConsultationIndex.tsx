@@ -12,8 +12,14 @@ import { Calendar, ArrowRight, Loader2, Heart, Baby, Cake, Briefcase, User, Came
 import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function ConsultationIndex() {
+  useSEO({
+    title: 'Consulenza Gratuita Fotografo Matrimoni | Image Studio',
+    description: 'Richiedi una consulenza personalizzata con Image Studio, ad Aversa oppure online.',
+    canonical: '/consulenze',
+  });
   const { data: jobTypesData, isLoading } = useQuery({
     queryKey: ['jobTypes'],
     queryFn: getActiveJobTypes,

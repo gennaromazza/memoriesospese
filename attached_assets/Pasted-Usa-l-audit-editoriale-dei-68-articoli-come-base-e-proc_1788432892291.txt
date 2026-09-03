@@ -1,0 +1,72 @@
+Usa l’audit editoriale dei 68 articoli come base e procedi con una prima bonifica SEO a basso rischio.
+
+Ma soprattutto voglio che questa logica venga resa permanente anche per i FUTURI contenuti Blog e Real Wedding.
+
+Obiettivi immediati:
+- migliorare l’interlinking contestuale tra articoli, pagine strategiche e Real Wedding;
+- correggere gli alt text vuoti delle immagini in modo descrittivo e naturale;
+- individuare e rimuovere eventuali link spam o anomali;
+- evidenziare contenuti con prezzi, date o riferimenti temporali da aggiornare;
+- verificare i principali casi di cannibalizzazione individuati nell’audit.
+
+Obiettivo strutturale:
+fare in modo che i nuovi Blog e Real Wedding pubblicati da oggi in poi abbiano automaticamente una buona base SEO editoriale, senza richiedere correzioni manuali successive.
+
+Per i NUOVI BLOG e REAL WEDDING implementa, dove tecnicamente sensato:
+
+- alt text descrittivi per le immagini;
+- cover image / og:image coerente con il contenuto;
+- title e meta description coerenti;
+- H1 corretto e unico;
+- canonical corretto;
+- structured data coerente con il tipo di contenuto;
+- link interni contestuali verso pagine pertinenti;
+- link verso Real Wedding correlati quando ha senso;
+- link verso Portfolio, Fotografo Aversa, Consulenze o altri servizi solo se contestualmente pertinenti;
+- evitare contenuti senza heading quando il testo è lungo;
+- evitare articoli isolati senza link in ingresso/uscita;
+- evitare keyword stuffing;
+- evitare link generici ripetuti uguali in ogni articolo;
+- evitare URL, slug o title troppo simili a contenuti esistenti;
+- segnalare eventuale cannibalizzazione prima della pubblicazione;
+- segnalare riferimenti temporali o prezzi che potrebbero diventare obsoleti.
+
+IMPORTANTE:
+non voglio un sistema che inserisca automaticamente testi SEO artificiali.
+
+La logica deve essere contestuale:
+se un link o una keyword non è pertinente, non deve essere aggiunto.
+
+Per i Real Wedding:
+- usare le informazioni reali del matrimonio;
+- valorizzare location, fornitori, città e contesto fotografico;
+- collegare fornitori e location quando esistono URL verificati;
+- usare la cover del Real Wedding come immagine social;
+- creare interlinking con pagine e articoli realmente pertinenti.
+
+Per i Blog:
+- usare cover specifica dell’articolo come immagine social;
+- suggerire o inserire link interni pertinenti;
+- verificare la sovrapposizione con articoli esistenti prima della pubblicazione.
+
+Se esiste già un flusso di generazione AI per Blog o Real Wedding, integra queste regole nel flusso esistente invece di creare sistemi paralleli.
+
+Vincoli:
+- non modificare slug esistenti;
+- non fare redirect;
+- non eliminare articoli;
+- non cambiare canonical esistenti senza motivo;
+- non applicare noindex;
+- non modificare sitemap;
+- non fare merge irreversibili senza mia approvazione.
+
+Per i contenuti obsoleti o sovrapposti, proponi l’azione consigliata ma fermati prima delle modifiche irreversibili.
+
+Alla fine mostrami:
+- cosa hai migliorato sui contenuti esistenti;
+- quale logica hai reso automatica per i nuovi contenuti;
+- quali file/componenti governano questa automazione;
+- eventuali problemi trovati;
+- articoli che richiedono una mia decisione;
+- prezzi/date da aggiornare;
+- casi di cannibalizzazione da consolidare.

@@ -55,6 +55,7 @@ import { format, addDays, isBefore, isAfter, startOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { isSundayOrHoliday } from "@/lib/italian-holidays";
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function BookingPage() {
   const params = useParams<{ code: string }>();
@@ -187,111 +188,15 @@ export default function BookingPage() {
     }
   }, [campaign?.id]);
 
-  // Meta tag Open Graph per preview social/WhatsApp
-  useEffect(() => {
-    if (!campaign) return;
-
-    // Salva i valori originali per il ripristino
-    const originalTitle = document.title;
-    const originalMetaTags: Map<string, string | null> = new Map();
-    const originalTwitterTags: Map<string, string | null> = new Map();
-
-    // Funzione helper per aggiornare/creare meta tag OG
-    const setMetaTag = (property: string, content: string) => {
-      let meta = document.querySelector(`meta[property="${property}"]`);
-      if (meta) {
-        // Salva valore originale se esiste
-        originalMetaTags.set(property, meta.getAttribute("content"));
-      } else {
-        // Segna che il tag non esisteva
-        originalMetaTags.set(property, null);
-        meta = document.createElement("meta");
-        meta.setAttribute("property", property);
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute("content", content);
-    };
-
-    // Funzione helper per aggiornare/creare meta tag Twitter
-    const setTwitterMetaTag = (name: string, content: string) => {
-      let meta = document.querySelector(`meta[name="${name}"]`);
-      if (meta) {
-        // Salva valore originale se esiste
-        originalTwitterTags.set(name, meta.getAttribute("content"));
-      } else {
-        // Segna che il tag non esisteva
-        originalTwitterTags.set(name, null);
-        meta = document.createElement("meta");
-        meta.setAttribute("name", name);
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute("content", content);
-    };
-
-    // Imposta meta tag
-    const title = `${campaign.nome} - Prenota il tuo shooting`;
-    const description =
-      campaign.descrizione ||
-      `Prenota il tuo shooting fotografico per ${campaign.nome}`;
-    const image = campaign.immaginePaginaBooking || "";
-    const url = window.location.href;
-
-    // Standard meta tags
-    document.title = title;
-
-    // Open Graph meta tags
-    setMetaTag("og:title", title);
-    setMetaTag("og:description", description);
-    setMetaTag("og:type", "website");
-    setMetaTag("og:url", url);
-
-    if (image) {
-      setMetaTag("og:image", image);
-      setMetaTag("og:image:width", "1200");
-      setMetaTag("og:image:height", "630");
-    }
-
-    // Twitter Card meta tags
-    setTwitterMetaTag("twitter:card", "summary_large_image");
-    setTwitterMetaTag("twitter:title", title);
-    setTwitterMetaTag("twitter:description", description);
-    if (image) {
-      setTwitterMetaTag("twitter:image", image);
-    }
-
-    // Cleanup: ripristina meta tag originali quando il componente si smonta
-    return () => {
-      document.title = originalTitle;
-
-      // Ripristina o rimuovi meta tag OG
-      originalMetaTags.forEach((originalValue, property) => {
-        const meta = document.querySelector(`meta[property="${property}"]`);
-        if (meta) {
-          if (originalValue !== null) {
-            // Ripristina valore originale
-            meta.setAttribute("content", originalValue);
-          } else {
-            // Rimuovi tag che non esisteva prima
-            meta.remove();
-          }
-        }
-      });
-
-      // Ripristina o rimuovi meta tag Twitter
-      originalTwitterTags.forEach((originalValue, name) => {
-        const meta = document.querySelector(`meta[name="${name}"]`);
-        if (meta) {
-          if (originalValue !== null) {
-            // Ripristina valore originale
-            meta.setAttribute("content", originalValue);
-          } else {
-            // Rimuovi tag che non esisteva prima
-            meta.remove();
-          }
-        }
-      });
-    };
-  }, [campaign]);
+  useSEO({
+    title: campaign ? `${campaign.nome} - Prenota il tuo shooting` : 'Prenota | Image Studio',
+    description: campaign?.descrizione || 'Prenota il tuo servizio fotografico con Image Studio.',
+    canonical: `/prenota/${code}`,
+    ogImage: campaign?.immaginePaginaBooking,
+    ogImageAlt: campaign ? `Prenotazione ${campaign.nome}` : undefined,
+    ogImageSource: 'editorial-cover',
+    noindex: !isLoading && !campaign,
+  });
 
   // Filtra prodotti disponibili per questa campagna e ordina per prezzo crescente
   const availableProducts = products

@@ -106,6 +106,53 @@ describe('SEO prerender wedding-first', () => {
     expect(meta.jsonLd).toMatchObject({ '@type': 'Article', headline: 'Anna e Luca ad Aversa' });
   });
 
+  it('uses the global fallback for a Real Wedding without public photos', () => {
+    const meta = buildWeddingStoryPageMeta({
+      slug: 'senza-foto',
+      title: 'Un matrimonio senza foto pubbliche',
+      excerpt: 'Una storia in attesa della selezione.',
+    });
+
+    expect(meta.ogImage).toBe('https://imagestudiofotografico.com/1200x630px.jpg');
+    expect(meta.bodyContent).not.toContain('<img');
+  });
+
+  it.each([
+    ['/', '/1200x630px.jpg'],
+    ['/portfolio', '/1200x630px.jpg'],
+    ['/fotografo-aversa', '/assets/og-image.jpg'],
+    ['/stampa-foto-aversa', '/images/print-service/printed-memories-table.jpg'],
+    ['/vision', '/assets/og-image.jpg'],
+    ['/storie', '/images/couple-standing.png'],
+    ['/prenota', '/images/couple-heart-balloon.png'],
+    ['/consulenze', '/images/couple-flower-bouquet.png'],
+  ])('renders one complete social metadata set for %s', async (path, imagePath) => {
+    const { response } = await renderForCrawler(path);
+    const html = response.body || '';
+
+    expect(html).toContain(`content="https://imagestudiofotografico.com${imagePath}"`);
+    expect(html.match(/<link rel="canonical"/g)).toHaveLength(1);
+    expect(html.match(/<meta property="og:image"/g)).toHaveLength(1);
+    expect(html.match(/<meta property="og:image:alt"/g)).toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image"/g)).toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image:alt"/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ['/portfolio/matrimonio', '/images/portfolio/matrimonio.jpg'],
+    ['/portfolio/battesimo', '/images/portfolio/battesimo.jpg'],
+  ])('uses a distinct curated portfolio category cover for %s', async (path, imagePath) => {
+    const { response, next } = await renderForCrawler(path);
+    const html = response.body || '';
+
+    expect(next).not.toHaveBeenCalled();
+    expect(html).toContain(`<link rel="canonical" href="https://imagestudiofotografico.com${path}"`);
+    expect(html).toContain(`<meta property="og:image" content="https://imagestudiofotografico.com${imagePath}"`);
+    expect(html).toContain(`<meta name="twitter:image" content="https://imagestudiofotografico.com${imagePath}"`);
+    expect(html.match(/<meta property="og:image"/g)).toHaveLength(1);
+    expect(html.match(/<meta name="twitter:image"/g)).toHaveLength(1);
+  });
+
   it('renders the print landing without stale static commercial claims', async () => {
     const { response, next } = await renderForCrawler('/stampa-foto-aversa');
 
@@ -143,6 +190,30 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('<link rel="canonical" href="https://imagestudiofotografico.com/real-wedding/anna-e-luca"');
     expect(response.body).toContain('data-seo-prerender="true"');
     expect(response.body).toContain('https://images.example/anna.jpg');
+  });
+
+  it('puts coverPhotoId before the other selected Real Wedding photos', async () => {
+    const story = {
+      galleryId: 'gallery-1', status: 'published', slug: 'cover-prima', title: 'Cover prima',
+      excerpt: 'Una storia.', selectedPhotoIds: ['photo-1', 'photo-cover'], coverPhotoId: 'photo-cover',
+    };
+    mockCollection.mockImplementation((name: string) => ({
+      where: () => ({ get: async () => ({ docs: [{ data: () => story }] }) }),
+      doc: (id: string) => ({
+        get: async () => ({
+          exists: true,
+          data: () => ({
+            galleryId: 'gallery-1',
+            url: `https://images.example/${id}.jpg`,
+          }),
+        }),
+      }),
+    }));
+
+    const { response } = await renderForCrawler('/real-wedding/cover-prima');
+    expect(response.body).toContain(
+      '<meta property="og:image" content="https://images.example/photo-cover.jpg"',
+    );
   });
 
   it.each(['/blog/missing-article', '/real-wedding/missing-story'])(

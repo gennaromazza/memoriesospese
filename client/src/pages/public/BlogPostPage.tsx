@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Calendar, User, Share2, Facebook, Twitter, Linkedin, Clock } from "lucide-react";
 import { BlogPost, BlogPostStatus } from "@shared/schema";
 import { useSEO } from "@/hooks/useSEO";
+import { firstImageCandidateFromHtml } from "@shared/social-metadata";
 import { sanitizeBlogHtml } from "@/lib/blog-html";
 import Navigation from "@/components/Navigation";
 
@@ -47,6 +48,10 @@ export default function BlogPostPage() {
   const [notFound, setNotFound] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const contentImage = firstImageCandidateFromHtml(post?.content, post?.title || "Articolo Image Studio");
+  const articleOgImage = typeof post?.coverImage === 'string'
+    ? post.coverImage
+    : (typeof contentImage?.url === 'string' ? contentImage.url : undefined);
 
   useSEO({
     title: post ? (post.metaTitle || `${post.title} | Blog Image Studio`) : "Blog | Image Studio",
@@ -55,7 +60,9 @@ export default function BlogPostPage() {
       ? `${window.location.origin}/blog/${post.slug}`
       : `${window.location.origin}/blog`,
     ogType: "article",
-    ogImage: post?.coverImage || undefined,
+    ogImage: articleOgImage,
+    ogImageAlt: post?.title,
+    ogImageSource: post?.coverImage ? "editorial-cover" : "content-image",
   });
 
   useEffect(() => {
