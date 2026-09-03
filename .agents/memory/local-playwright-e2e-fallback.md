@@ -15,3 +15,11 @@ Quando il testing subagent fallisce ripetutamente con "Replit infrastructure iss
 **Why:** il tester e2e è rimasto indisponibile per più sessioni; questo fallback ha permesso di completare verifiche browser (localStorage, scroll, lightbox, console) senza il harness.
 
 **Nota galleria di test:** la galleria `OvZM1Zt0` ha solo 5 foto in 2 capitoli (capitoli abilitati ⇒ render window inattiva by design). Non può esercitare la crescita della finestra masonry (~60+): per quello serve una galleria grande senza capitoli.
+
+## Test mobile con il browser disponibile
+
+**Regola:** per le spec mobile, il preset iPhone può essere usato per viewport, touch e user agent, ma va sovrascritto `browserName: "chromium"` quando WebKit non è installato; inoltre il consenso cookie va preimpostato prima del caricamento se il banner copre i controlli.
+
+**Why:** nell’ambiente task il preset iPhone seleziona WebKit, mentre il browser eseguibile disponibile è Chromium; il banner cookie può rendere i test di interazione falsamente non cliccabili.
+
+**How to apply:** usa `test.use({ ...devices["iPhone 13"], browserName: "chromium" })` e inizializza il consenso cookie con `page.addInitScript` nelle spec che esercitano pagine pubbliche.
