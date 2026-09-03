@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.jdk
     pkgs.psmisc
     pkgs.xorg.libXScrnSaver
     pkgs.xorg.libXtst

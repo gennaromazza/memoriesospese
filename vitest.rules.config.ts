@@ -5,10 +5,13 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["firebase-rules.test.ts"],
+    include: [
+      "firebase-rules.test.ts",
+      "server/functions-email-queue.firestore.test.ts",
+    ],
     globals: false,
     clearMocks: true,
-    testTimeout: 15_000,
-    hookTimeout: 15_000,
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });

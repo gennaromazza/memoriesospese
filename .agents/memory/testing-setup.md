@@ -5,6 +5,23 @@ description: How to run unit tests and the pattern for testing Firestore-depende
 
 # Vitest in questo progetto
 
+## Integrazioni con Firestore Emulator
+
+Le suite che usano Admin SDK contro `FIRESTORE_EMULATOR_HOST` devono inizializzare
+Firestore tramite le API modulari (`firebase-admin/app` e
+`firebase-admin/firestore`) e iniettare quel client nel modulo sotto test. Con la
+versione root corrente di `firebase-admin`, l'import namespace legacy non espone
+`admin.apps` in Vitest.
+
+Il comando `test:rules` richiede inoltre il JDK per avviare i simulatori Firebase.
+
+**Why:** il progetto ha dipendenze Firebase diverse tra root e `functions/`, e
+l'emulatore Firestore è un processo Java.
+
+**How to apply:** mantieni il JDK tra le dipendenze Nix del progetto e limita le
+prove d'integrazione all'esecuzione con `FIRESTORE_EMULATOR_HOST`; fuori
+dall'emulatore devono essere saltate, non inizializzare credenziali reali.
+
 Il progetto usa **vitest** (devDependency) ma NON ha uno script npm dedicato
 (package.json scripts è vietato modificarlo). Si lancia con:
 
