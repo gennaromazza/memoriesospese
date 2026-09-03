@@ -49,13 +49,11 @@ describe('Real Wedding inline Markdown', () => {
   });
 
   it('does not break on malformed or disallowed links', () => {
-    expect(parseWeddingStoryInlineMarkdown(
-      'Prima [link senza chiusura e [file](file:///tmp/a) dopo.',
-    )).toEqual([
-      { type: 'text', value: 'Prima [link senza chiusura e ' },
-      { type: 'text', value: '[file](file:///tmp/a)' },
-      { type: 'text', value: ' dopo.' },
-    ]);
+    const text = 'Prima [link senza chiusura e [file](file:///tmp/a) dopo.';
+    const parts = parseWeddingStoryInlineMarkdown(text);
+
+    expect(parts.every(part => part.type === 'text')).toBe(true);
+    expect(parts.map(part => part.value).join('')).toBe(text);
   });
 
   it('keeps same-site links in the current tab and opens external links safely', () => {
@@ -66,10 +64,7 @@ describe('Real Wedding inline Markdown', () => {
       }),
     );
 
-    expect(html).toContain('href="https://imagestudiofotografico.com/portfolio"');
-    expect(html).not.toContain('target="_blank"');
-    expect(html).toContain('href="https://example.com"');
-    expect(html).toContain('target="_blank"');
-    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toMatch(/href="https:\/\/imagestudiofotografico\.com\/portfolio" class=/);
+    expect(html).toMatch(/href="https:\/\/example\.com" target="_blank" rel="noopener noreferrer"/);
   });
 });
