@@ -18,6 +18,7 @@ export default defineConfig({
       "shared/**/*.test.ts",
       "client/src/config/**/*.test.ts",
       "client/src/lib/wedding-seo.test.ts",
+      "client/src/lib/wedding-story-format.test.ts",
       "client/src/pages/admin/adminGalleryFilters.test.ts",
       "client/src/features/print-shop/**/*.test.ts",
     ],

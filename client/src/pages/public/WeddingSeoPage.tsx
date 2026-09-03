@@ -4,6 +4,7 @@ import { ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import { getPublicWeddingStory } from '@/lib/wedding-seo';
 import type { PublicWeddingStory } from '@shared/wedding-seo-types';
 import { parseWeddingStoryMarkdown } from '@/lib/wedding-story-format';
+import WeddingStoryInline from '@/components/WeddingStoryInline';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
@@ -113,7 +114,7 @@ export default function WeddingSeoPage() {
             <section key={`${block.heading || 'intro'}-${index}`}>
               {block.heading && <h2 className="mb-5 font-playfair text-3xl text-gray-900">{block.heading}</h2>}
               <div className="space-y-5 text-lg leading-8 text-gray-700">
-                {block.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
+                {block.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}><WeddingStoryInline text={paragraph} /></p>)}
               </div>
               {story.photos[index + 1] && (
                 <figure className="mt-10">

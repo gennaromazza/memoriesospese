@@ -12,6 +12,7 @@ import {
   weddingPhotoPreview,
 } from '@/lib/wedding-seo';
 import { parseWeddingStoryMarkdown, weddingStorySlug } from '@/lib/wedding-story-format';
+import WeddingStoryInline from '@/components/WeddingStoryInline';
 import { useToast } from '@/hooks/use-toast';
 import { createUrl } from '@/lib/basePath';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -363,6 +364,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           </label>
           <label className="block space-y-1 text-sm font-medium">Racconto ({draft.story.length}/{WEDDING_STORY_LIMITS.story})
             <Textarea value={draft.story} onChange={event => updateDraft('story', event.target.value)} maxLength={WEDDING_STORY_LIMITS.story} rows={18} placeholder="Scrivi o genera una bozza strutturata. Puoi modificarla prima di salvarla." />
+             <span className="block text-xs font-normal text-gray-500">Puoi inserire link usando: [testo](https://sito.it)</span>
           </label>
           <details className="rounded-lg border bg-stone-50/60 p-4">
             <summary className="cursor-pointer font-medium">Anteprima formattata della pagina pubblica</summary>
@@ -373,7 +375,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
                 <section key={`${block.heading || 'intro'}-${index}`}>
                   {block.heading && <h2 className="mb-3 font-playfair text-2xl text-gray-900">{block.heading}</h2>}
                   <div className="space-y-3 leading-7">
-                    {block.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
+                    {block.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}><WeddingStoryInline text={paragraph} /></p>)}
                   </div>
                 </section>
               ))}
