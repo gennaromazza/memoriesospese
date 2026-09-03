@@ -1,0 +1,229 @@
+Devo migliorare la sezione “Real Wedding” di Memorie Sospese.
+
+OBIETTIVO
+Permettere di inserire link cliccabili anche dentro il corpo dell’articolo Real Wedding, mantenendo però il sistema sicuro, semplice e compatibile con l’implementazione attuale.
+
+CONTESTO ATTUALE
+Il corpo dell’articolo viene salvato nel campo `story` come testo/Markdown semplice.
+
+Il parsing è gestito da:
+
+client/src/lib/wedding-story-format.ts
+
+Attualmente `parseWeddingStoryMarkdown()` riconosce solo:
+
+# Titolo
+## Sottotitolo
+### Sottotitolo
+
+e paragrafi separati da righe vuote.
+
+La pagina pubblica è:
+
+client/src/pages/public/WeddingSeoPage.tsx
+
+Attualmente i paragrafi vengono renderizzati in questo modo:
+
+<p>{paragraph}</p>
+
+Quindi una sintassi Markdown come:
+
+[Villa Ebla](https://www.villaebla.it/)
+
+viene mostrata come testo e NON diventa un link.
+
+I fornitori invece sono già gestiti separatamente tramite:
+
+WeddingStoryVendor
+
+con:
+
+name
+role
+url
+
+e nella parte finale della pagina vengono mostrati come link cliccabili.
+
+MODIFICA RICHIESTA
+
+Voglio aggiungere supporto ai link Markdown dentro il corpo di Real Wedding.
+
+Deve essere possibile scrivere:
+
+[Villa Ebla](https://www.villaebla.it/)
+
+oppure:
+
+[Reggia di Caserta](https://reggiadicaserta.cultura.gov.it/)
+
+oppure:
+
+[Valore Sposi](https://www.instagram.com/valoresposi/)
+
+e ottenere nel frontend un vero link cliccabile.
+
+IMPORTANTE
+
+NON voglio abilitare HTML libero.
+
+Non usare `dangerouslySetInnerHTML`.
+
+Non deve essere possibile inserire:
+
+<script>
+iframe
+style
+onclick
+onerror
+javascript:
+data:
+HTML arbitrario
+
+Voglio mantenere il formato attuale Markdown semplice e aggiungere SOLO la gestione sicura dei link.
+
+IMPLEMENTAZIONE CONSIGLIATA
+
+Puoi estendere il parser attuale oppure creare una funzione dedicata, ad esempio:
+
+parseWeddingStoryInlineMarkdown()
+
+che riconosca soltanto:
+
+[testo](https://url)
+
+Il renderer dovrebbe trasformarlo in:
+
+<a
+  href="..."
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  testo
+</a>
+
+Gli URL ammessi devono essere soltanto:
+
+https://
+http://
+
+Bloccare esplicitamente protocolli come:
+
+javascript:
+data:
+file:
+vbscript:
+
+Non interpretare HTML scritto dall’utente.
+
+ESEMPIO
+
+Testo salvato:
+
+Lo shooting degli sposi è stato realizzato alla [Reggia di Caserta](https://reggiadicaserta.cultura.gov.it/).
+
+Output visuale:
+
+Lo shooting degli sposi è stato realizzato alla Reggia di Caserta.
+
+dove “Reggia di Caserta” è cliccabile.
+
+STILE
+
+Il link deve essere coerente con la grafica attuale di Real Wedding.
+
+Ad esempio:
+
+text-[#526d52]
+underline
+underline-offset-2
+
+con hover leggermente più scuro.
+
+EDITOR
+
+Nel WeddingSeoDraftPanel aggiungi sotto il campo del racconto una piccola nota:
+
+“Puoi inserire link usando: [testo](https://sito.it)”
+
+Non serve creare un editor WYSIWYG.
+
+Non modificare il formato di salvataggio esistente.
+
+COMPATIBILITÀ
+
+Gli articoli già esistenti devono continuare a funzionare senza modifiche.
+
+Un testo senza link deve essere renderizzato esattamente come oggi.
+
+SEO
+
+I link devono essere veri elementi <a href=""> presenti nel DOM, non link simulati via JavaScript.
+
+Questo è importante perché i Real Wedding devono poter collegare:
+
+- location
+- fornitori
+- atelier
+- band
+- wedding planner
+- fioristi
+- videomaker
+- siti istituzionali
+- altre pagine interne di Image Studio
+
+LINK INTERNI
+
+Se il link punta allo stesso dominio di Memorie Sospese / Image Studio, NON aprirlo necessariamente in una nuova scheda.
+
+Se possibile:
+
+link esterno:
+target="_blank"
+rel="noopener noreferrer"
+
+link interno:
+navigazione normale nella stessa scheda.
+
+TEST DA AGGIUNGERE
+
+Aggiungi test almeno per questi casi:
+
+1.
+[Test](https://example.com)
+
+deve produrre un link valido.
+
+2.
+[Test](javascript:alert(1))
+
+NON deve diventare link cliccabile.
+
+3.
+<b>Test</b>
+
+deve rimanere testo e NON HTML interpretato.
+
+4.
+Testo normale
+
+deve restare invariato.
+
+5.
+Un paragrafo con due link distinti deve renderizzarli entrambi correttamente.
+
+6.
+Un link malformato non deve rompere il rendering dell’articolo.
+
+NON MODIFICARE
+Non cambiare il sistema dei fornitori già presente.
+Non cambiare la struttura Firestore/database.
+Non cambiare gli endpoint API.
+Non trasformare `story` in HTML.
+Non aggiungere dipendenze pesanti se non strettamente necessario.
+
+Prima di modificare il codice:
+1. analizza i file coinvolti;
+2. descrivi brevemente la soluzione;
+3. implementa;
+4. esegui test e typecheck;
+5. mostrami i file modificati e il risultato.
