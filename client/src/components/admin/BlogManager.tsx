@@ -68,11 +68,13 @@ const STATUS_LABELS: Record<string, string> = {
 export interface BlogManagerProps {
   persistBlogPost?: typeof writeBlogPostWithSlugReservation;
   isBlogSlugUnique?: (slug: string, excludePostId?: string) => Promise<boolean>;
+  loadBlogPosts?: () => Promise<BlogPost[]>;
 }
 
 export default function BlogManager({
   persistBlogPost = writeBlogPostWithSlugReservation,
   isBlogSlugUnique,
+  loadBlogPosts,
 }: BlogManagerProps = {}) {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +153,10 @@ export default function BlogManager({
   const loadPosts = async () => {
     setLoading(true);
     try {
+      if (loadBlogPosts) {
+        setPosts(await loadBlogPosts());
+        return;
+      }
       const q = query(collection(db, 'blogPosts'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(d => ({

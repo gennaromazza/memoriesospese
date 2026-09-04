@@ -155,4 +155,63 @@ test.describe("Blog Admin – testi alternativi immagini", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
   });
+
+  test("in modifica conserva immagine legacy, copertina e relativi path", async ({
+    page,
+  }) => {
+    await page.goto("/admin/__e2e/blog-admin-alt");
+    const editButton = page.getByTestId("button-edit-legacy-post-for-e2e");
+    await expect(editButton).toBeVisible();
+    await editButton.click();
+
+    await expect(page.getByTestId("input-title")).toHaveValue(
+      "Articolo legacy da modificare",
+    );
+    await expect(page.getByTestId("input-cover-image")).toHaveValue(
+      "https://example.invalid/legacy-cover.jpg",
+    );
+    await expect(page.getByTestId("input-cover-image-alt")).toHaveValue(
+      "Copertina storica del matrimonio",
+    );
+    await page.getByTestId("input-excerpt").fill(
+      "Contenuto legacy aggiornato senza perdere le risorse esistenti.",
+    );
+
+    await page.getByTestId("button-save-post").click();
+    await expect(
+      page.getByText("Attenzione: immagini senza testo alternativo", {
+        exact: true,
+      }).first(),
+    ).toBeVisible();
+
+    const savedPayload = page.getByTestId("e2e-save-payload");
+    await expect(savedPayload).not.toHaveText("");
+    const payload = JSON.parse(await savedPayload.textContent() || "{}") as {
+      mode: string;
+      content: string;
+      coverImage?: string;
+      coverImageAlt?: string;
+      coverImagePath?: string;
+      contentImagePaths: string[];
+    };
+    expect(payload.mode).toBe("update");
+    expect(payload.content).toContain(
+      "https://example.invalid/blog-content-images/legacy-post-for-e2e/content.jpg",
+    );
+    expect(payload.content).not.toMatch(/<img[^>]*\balt\s*=/i);
+    expect(payload.coverImage).toBe(
+      "https://example.invalid/legacy-cover.jpg",
+    );
+    expect(payload.coverImageAlt).toBe("Copertina storica del matrimonio");
+    expect(payload.coverImagePath).toBe(
+      "blog-covers/legacy-post-for-e2e/cover.jpg",
+    );
+    expect(payload.contentImagePaths).toEqual([
+      "blog-content-images/legacy-post-for-e2e/content.jpg",
+    ]);
+    await expect(
+      page.getByText("Post aggiornato con successo", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
+  });
 });
