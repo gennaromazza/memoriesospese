@@ -86,6 +86,9 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('<title>Image Experience | Fotografo Matrimonio Campania da 2.200 €</title>');
     expect(response.body).toContain("<h1>Quest'anno non saremo in fiera. Saremo dove iniziano le vostre domande.</h1>");
     expect(response.body).toContain('image-experience-social-1200x630.jpg');
+    expect(response.body).toContain('Wedding Trailer');
+    expect(response.body).toContain('https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790');
+    expect(response.body).toContain('Leggi i Real Wedding');
     expect(response.body?.match(/<h1>/g)).toHaveLength(1);
   });
 

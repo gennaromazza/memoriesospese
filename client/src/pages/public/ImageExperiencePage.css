@@ -64,6 +64,11 @@
 .ie-config-sign { font-family:'Playfair Display',serif; font-size:2.4rem; color:var(--clay); text-align:center; }
 .ie-config-photo { display:block; margin-top:2rem; overflow:hidden; aspect-ratio:3/2; }
 .ie-config-photo img { width:100%; height:100%; display:block; object-fit:cover; }
+.ie-service-grid { display:grid; gap:1rem; margin-top:3rem; }
+.ie-service-card { border-top:1px solid var(--line); padding:1.25rem 0 0; }
+.ie-service-number { color:var(--clay); font-size:.7rem; letter-spacing:.12em; }
+.ie-service-card h3 { font-size:1.45rem; line-height:1.1; margin:.65rem 0 .55rem; }
+.ie-service-card p { color:var(--muted-ink); line-height:1.65; font-size:.92rem; }
 .ie-gallery { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; align-items:start; }
 .ie-gallery figure { margin:0; }
 .ie-gallery figure:first-child { grid-column:span 2; }
@@ -75,6 +80,16 @@
 .ie-si { padding:1.4rem 0; border-bottom:1px solid var(--line); display:flex; gap:1rem; align-items:baseline; }
 .ie-si b { color:var(--clay); font-size:.75rem; letter-spacing:.12em; }
 .ie-si span { font-family:'Playfair Display',serif; font-size:1.35rem; }
+.ie-real-weddings { background:#ddd2c5; }
+.ie-real-wedding-grid { display:grid; grid-template-columns:1fr; gap:1rem; margin-top:3rem; }
+.ie-real-wedding-card { display:flex; flex-direction:column; background:var(--paper); color:var(--ink); text-decoration:none; min-height:100%; }
+.ie-real-wedding-card img { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; }
+.ie-real-wedding-body { display:flex; flex:1; flex-direction:column; justify-content:space-between; gap:1.4rem; padding:1.25rem; }
+.ie-real-wedding-body strong { font-family:'Playfair Display',serif; font-size:1.35rem; font-weight:400; line-height:1.1; }
+.ie-real-wedding-body > span { color:var(--clay); font-size:.75rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; }
+.ie-proof { display:flex; align-items:center; justify-content:space-between; gap:1.5rem; flex-wrap:wrap; margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(39,49,45,.25); }
+.ie-proof p { margin:0; color:var(--muted-ink); line-height:1.6; }
+.ie-proof a { color:var(--ink); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
 .ie-fair { position:relative; color:#f5f0e8; background:#303832; overflow:hidden; }
 .ie-fair-media { position:absolute; inset:0; width:100%; height:100%; opacity:.35; }
 .ie-fair-media img { width:100%; height:100%; object-fit:cover; }
@@ -101,6 +116,8 @@
   .ie-gallery figure:first-child { grid-column:auto; grid-row:span 2; }
   .ie-gallery figure:first-child picture { aspect-ratio:4/5; }
   .ie-calm { grid-template-columns:1fr 1.3fr; }
+  .ie-service-grid { grid-template-columns:repeat(4,1fr); gap:2rem; }
+  .ie-real-wedding-grid { grid-template-columns:repeat(3,1fr); gap:1rem; }
 }
 @media (max-width: 699px) {
   .ie-header-cta { font-size:.7rem; padding:.65rem .75rem; }

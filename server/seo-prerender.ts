@@ -165,6 +165,11 @@ function getStaticPageMeta(path: string): PageMeta | null {
           <p>Ogni matrimonio ha tempi, persone e priorità diverse. Il matrimonio è vostro: anche il servizio dovrebbe esserlo.</p>
         </section>
         <section>
+          <h2>Un racconto completo. Le esperienze che vi somigliano.</h2>
+          <p>Nel configuratore trovate fotografia e video del matrimonio, una galleria interattiva, album e stampe, oltre a esperienze da aggiungere come foto invitati, SelfieBooth, Wedding Trailer, anteprima, post-wedding e consegna rapida.</p>
+          <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Scoprite tutte le possibilità</a></p>
+        </section>
+        <section>
           <h2>Un punto di partenza chiaro. Il resto lo scegliete voi.</h2>
           <p>Base più esperienze: partite da 2.200 €, aggiungete ciò che desiderate e costruite la vostra Image Experience.</p>
           <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Configura il tuo servizio</a></p>
@@ -181,6 +186,11 @@ function getStaticPageMeta(path: string): PageMeta | null {
             <li>Sì, ho capito cosa sto scegliendo.</li>
             <li>Sì, mi fido delle persone che saranno con noi.</li>
           </ol>
+        </section>
+        <section>
+          <h2>Prima di scegliere, guardate come raccontiamo.</h2>
+          <p>Leggete i Real Wedding di Image Studio e trovate il nostro profilo su <a href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790">Matrimonio.com</a>, con le esperienze delle coppie che ci hanno scelto.</p>
+          <p><a href="${BASE_URL}/blog">Leggi i Real Wedding</a></p>
         </section>
         <section>
           <h2>Quest'anno non saremo in fiera. Ma non saremo meno presenti.</h2>

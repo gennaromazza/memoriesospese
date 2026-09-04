@@ -3,6 +3,8 @@ import { useStudio } from '@/context/StudioContext';
 import { useSEO } from '@/hooks/useSEO';
 import { trackAnalyticsEvent } from '@/lib/analytics';
 import { buildImageExperienceConfiguratorUrl } from '@/lib/image-experience';
+import { getPublicWeddingStoryPreviews } from '@/lib/wedding-seo';
+import type { PublicWeddingStoryPreview } from '@shared/wedding-seo-types';
 import './ImageExperiencePage.css';
 
 const IMAGE_ROOT = '/images/image-experience';
@@ -48,6 +50,7 @@ export default function ImageExperiencePage() {
   const { studioSettings } = useStudio();
   const configuratorUrl = useConfiguratorUrl();
   const [heroPassed, setHeroPassed] = useState(false);
+  const [realWeddings, setRealWeddings] = useState<PublicWeddingStoryPreview[]>([]);
   const trackedView = useRef(false);
   useSEO({
     title: 'Image Experience | Fotografo Matrimonio Campania da 2.200 €',
@@ -72,6 +75,20 @@ export default function ImageExperiencePage() {
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+    getPublicWeddingStoryPreviews(3)
+      .then(stories => {
+        if (isCurrent) setRealWeddings(stories);
+      })
+      .catch(error => {
+        console.warn('Real Wedding non disponibili nella landing Image Experience:', error);
+      });
+    return () => {
+      isCurrent = false;
+    };
   }, []);
 
   const goConfigure = (position: string) => {
@@ -171,6 +188,41 @@ export default function ImageExperiencePage() {
         </div>
       </section>
 
+      <section className="ie-section ie-section--soft ie-services" aria-labelledby="services-title">
+        <div className="ie-shell">
+          <div className="ie-copy">
+            <span className="ie-kicker">Cosa potete costruire</span>
+            <h2 id="services-title">Un racconto completo. Le esperienze che vi somigliano.</h2>
+            <p>Nel configuratore trovate una base chiara e una serie di possibilità da valutare con calma. Nessun listino da imparare: solo ciò che può rendere il vostro racconto più vostro.</p>
+          </div>
+          <div className="ie-service-grid">
+            <article className="ie-service-card">
+              <span className="ie-service-number">01</span>
+              <h3>Racconto completo</h3>
+              <p>Fotografia e video seguono il vostro giorno dai preparativi alla festa, con uno sguardo autentico e presente.</p>
+            </article>
+            <article className="ie-service-card">
+              <span className="ie-service-number">02</span>
+              <h3>Galleria interattiva</h3>
+              <p>Le immagini diventano un’esperienza da vivere insieme, già durante la festa, in uno spazio privato e condiviso.</p>
+            </article>
+            <article className="ie-service-card">
+              <span className="ie-service-number">03</span>
+              <h3>Album e stampe</h3>
+              <p>Un album da custodire e fotografie da portare fuori dallo schermo, per continuare a vivere i ricordi ogni giorno.</p>
+            </article>
+            <article className="ie-service-card">
+              <span className="ie-service-number">04</span>
+              <h3>Esperienze da aggiungere</h3>
+              <p>Foto invitati, SelfieBooth, Wedding Trailer, anteprima, post-wedding o consegna rapida: scegliete ciò che vi rappresenta.</p>
+            </article>
+          </div>
+          <a href={configuratorUrl} className="ie-cta" onClick={() => goConfigure('services')} style={{ marginTop: '2.5rem' }}>
+            Scoprite tutte le possibilità
+          </a>
+        </div>
+      </section>
+
       <section className="ie-section ie-section--soft" aria-labelledby="images-title">
         <div className="ie-shell">
           <div className="ie-copy">
@@ -208,6 +260,35 @@ export default function ImageExperiencePage() {
           <p style={{ marginTop: '2rem', maxWidth: '480px', color: 'var(--muted-ink)' }}>Solo dopo questi tre sì il prezzo acquista davvero significato.</p>
         </div>
       </section>
+
+      {realWeddings.length > 0 && (
+        <section className="ie-section ie-real-weddings" aria-labelledby="real-weddings-title">
+          <div className="ie-shell">
+            <div className="ie-copy">
+              <span className="ie-kicker">Storie vere</span>
+              <h2 id="real-weddings-title">Prima di scegliere, guardate come raccontiamo.</h2>
+              <p>Ogni matrimonio ha il suo ritmo. Nei nostri Real Wedding potete incontrare persone, luoghi e gesti reali, prima ancora di immaginare il vostro racconto.</p>
+            </div>
+            <div className="ie-real-wedding-grid">
+              {realWeddings.map(story => (
+                <a key={story.slug} href={`/real-wedding/${encodeURIComponent(story.slug)}`} className="ie-real-wedding-card">
+                  {story.coverImage && (
+                    <img src={story.coverImage} alt="" loading="lazy" />
+                  )}
+                  <span className="ie-real-wedding-body">
+                    <strong>{story.title}</strong>
+                    <span>Leggi il Real Wedding <span aria-hidden="true">↗</span></span>
+                  </span>
+                </a>
+              ))}
+            </div>
+            <div className="ie-proof">
+              <p>Ci trovate anche su <strong>Matrimonio.com</strong>, dove potete leggere le esperienze delle coppie che ci hanno scelto.</p>
+              <a href="https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790" target="_blank" rel="noopener noreferrer">Vedi il profilo su Matrimonio.com <span aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="ie-section ie-fair" aria-labelledby="fair-title">
         <ResponsiveImage
