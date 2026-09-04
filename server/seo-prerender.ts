@@ -165,9 +165,10 @@ function getStaticPageMeta(path: string): PageMeta | null {
           <p>Ogni matrimonio ha tempi, persone e priorità diverse. Il matrimonio è vostro: anche il servizio dovrebbe esserlo.</p>
         </section>
         <section>
-          <h2>Un racconto completo. Le esperienze che vi somigliano.</h2>
-          <p>Nel configuratore trovate fotografia e video del matrimonio, una galleria interattiva, album e stampe, oltre a esperienze da aggiungere come foto invitati, SelfieBooth, Wedding Trailer, anteprima, post-wedding e consegna rapida.</p>
-          <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Scoprite tutte le possibilità</a></p>
+          <h2>Cosa è incluso nella nostra Experience?</h2>
+          <p>La proposta comprende fotografia e video del matrimonio, Experience Gallery Interattiva, album fotografico e Poster Experience con tre immagini da vivere anche fuori dallo schermo.</p>
+          <p>Nel configuratore potete anche aggiungere Foto Invitati, SelfieBooth, Wedding Trailer, anteprima, post-wedding e consegna rapida.</p>
+          <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Scoprite Image Experience</a></p>
         </section>
         <section>
           <h2>Un punto di partenza chiaro. Il resto lo scegliete voi.</h2>

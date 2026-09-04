@@ -191,34 +191,67 @@ export default function ImageExperiencePage() {
       <section className="ie-section ie-section--soft ie-services" aria-labelledby="services-title">
         <div className="ie-shell">
           <div className="ie-copy">
-            <span className="ie-kicker">Cosa potete costruire</span>
-            <h2 id="services-title">Un racconto completo. Le esperienze che vi somigliano.</h2>
-            <p>Nel configuratore trovate una base chiara e una serie di possibilità da valutare con calma. Nessun listino da imparare: solo ciò che può rendere il vostro racconto più vostro.</p>
+            <span className="ie-kicker">Image Experience · cosa comprende</span>
+            <h2 id="services-title">Cosa è incluso nella nostra Experience?</h2>
+            <p>Una proposta completa per raccontare, vivere e custodire il vostro matrimonio. Quattro elementi pensati per stare insieme, senza dover scegliere da dove cominciare.</p>
           </div>
           <div className="ie-service-grid">
             <article className="ie-service-card">
-              <span className="ie-service-number">01</span>
-              <h3>Racconto completo</h3>
-              <p>Fotografia e video seguono il vostro giorno dai preparativi alla festa, con uno sguardo autentico e presente.</p>
+              <ResponsiveImage
+                name="festa-ricevimento-matrimonio"
+                alt="Gli sposi ballano con gli invitati durante la festa di matrimonio"
+                className="ie-service-media"
+                sizes="(min-width: 700px) 25vw, 100vw"
+              />
+              <div className="ie-service-card-body">
+                <span className="ie-service-number">01</span>
+                <h3>Fotografia e video</h3>
+                <p>Due fotografi e due videomaker raccontano il vostro giorno dai preparativi al taglio della torta, con riprese aeree e una narrazione completa.</p>
+              </div>
             </article>
             <article className="ie-service-card">
-              <span className="ie-service-number">02</span>
-              <h3>Galleria interattiva</h3>
-              <p>Le immagini diventano un’esperienza da vivere insieme, già durante la festa, in uno spazio privato e condiviso.</p>
+              <ResponsiveImage
+                name="coppia-sceglie-fotografie-matrimonio"
+                alt="Una coppia osserva insieme una selezione di fotografie di matrimonio"
+                className="ie-service-media"
+                sizes="(min-width: 700px) 25vw, 100vw"
+              />
+              <div className="ie-service-card-body">
+                <span className="ie-service-number">02</span>
+                <h3>Experience Gallery Interattiva</h3>
+                <p>Una galleria privata con QR code e password, dove gli ospiti possono commentare, lasciare messaggi vocali, mettere like e salvare le immagini.</p>
+              </div>
             </article>
             <article className="ie-service-card">
-              <span className="ie-service-number">03</span>
-              <h3>Album e stampe</h3>
-              <p>Un album da custodire e fotografie da portare fuori dallo schermo, per continuare a vivere i ricordi ogni giorno.</p>
+              <ResponsiveImage
+                name="coppia-configura-servizio-matrimonio"
+                alt="Una coppia configura insieme il servizio fotografico del matrimonio"
+                className="ie-service-media"
+                sizes="(min-width: 700px) 25vw, 100vw"
+              />
+              <div className="ie-service-card-body">
+                <span className="ie-service-number">03</span>
+                <h3>Album fotografico</h3>
+                <p>Un album da custodire nel tempo, realizzato con cura per trasformare il racconto del vostro matrimonio in qualcosa da sfogliare e tramandare.</p>
+              </div>
             </article>
             <article className="ie-service-card">
-              <span className="ie-service-number">04</span>
-              <h3>Esperienze da aggiungere</h3>
-              <p>Foto invitati, SelfieBooth, Wedding Trailer, anteprima, post-wedding o consegna rapida: scegliete ciò che vi rappresenta.</p>
+              <ResponsiveImage
+                name="abbraccio-sposa-reportage-matrimonio"
+                alt="Un abbraccio spontaneo tra una sposa e sua madre"
+                className="ie-service-media"
+                sizes="(min-width: 700px) 25vw, 100vw"
+              />
+              <div className="ie-service-card-body">
+                <span className="ie-service-number">04</span>
+                <h3>Poster Experience</h3>
+                <p>Tre immagini del vostro matrimonio diventano stampe da vivere anche ogni giorno, fuori dall’album e fuori dallo schermo.</p>
+              </div>
             </article>
           </div>
+          <p className="ie-services-extra">Nel configuratore potete anche aggiungere esperienze come Foto Invitati, SelfieBooth, Wedding Trailer, Anteprima, Post-wedding o consegna rapida.</p>
           <a href={configuratorUrl} className="ie-cta" onClick={() => goConfigure('services')} style={{ marginTop: '2.5rem' }}>
-            Scoprite tutte le possibilità
+            Scoprite Image Experience
           </a>
         </div>
       </section>
