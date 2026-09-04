@@ -903,6 +903,7 @@ export interface BlogPost {
   contentImagePaths?: string[]; // Images inserted in the article editor
   seoContent?: string; // Plain-text copy for server rendering and AI/search crawlers
   coverImage?: string; // Featured image URL
+  coverImageAlt?: string; // Accessible description for the featured image
   coverImagePath?: string; // Storage path, used for safe cleanup
   status: BlogPostStatus;
   category?: string; // Optional category (Matrimoni, Consigli, Tutorial...)
@@ -926,6 +927,7 @@ export const insertBlogPostSchema = z.object({
   excerpt: z.string().min(1, "Il riassunto è obbligatorio"),
   content: z.string().min(1, "Il contenuto è obbligatorio"),
   coverImage: z.string().url("URL immagine non valido").optional(),
+  coverImageAlt: z.string().max(200, "Il testo alternativo è troppo lungo").optional(),
   status: z.nativeEnum(BlogPostStatus).default(BlogPostStatus.DRAFT),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
