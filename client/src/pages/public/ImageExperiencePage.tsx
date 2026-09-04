@@ -162,8 +162,8 @@ export default function ImageExperiencePage() {
             <div className="ie-choice-item"><strong>La vostra misura</strong><span>Aggiungete solo ciò che vi somiglia e vi serve davvero.</span></div>
           </div>
           <ResponsiveImage
-            name="coppia-configura-servizio-matrimonio"
-            alt="Una coppia configura insieme il servizio fotografico del matrimonio"
+            name="image-experience-bride-preparations"
+            alt="Una sposa si prepara insieme a sua madre"
             className="ie-config-photo"
             sizes="(min-width: 700px) 44vw, 100vw"
           />
@@ -178,12 +178,20 @@ export default function ImageExperiencePage() {
             <p>La proposta parte da 2.200 €. Da lì potete aggiungere le esperienze che desiderate e costruire una prima configurazione del vostro servizio, con calma.</p>
             <a href={configuratorUrl} className="ie-cta" onClick={() => goConfigure('image_experience')}>Inizia a configurare</a>
           </div>
-          <div className="ie-config" aria-label="Come funziona Image Experience">
-            <div className="ie-config-block"><strong>Base</strong><span>La partenza</span></div>
-            <div className="ie-config-sign" aria-hidden="true">+</div>
-            <div className="ie-config-block"><strong>Esperienze</strong><span>Le vostre scelte</span></div>
-            <div className="ie-config-sign" aria-hidden="true">=</div>
-            <div className="ie-config-block"><strong>La vostra</strong><span>Image Experience</span></div>
+          <div className="ie-config-side">
+            <div className="ie-config" aria-label="Come funziona Image Experience">
+              <div className="ie-config-block"><strong>Base</strong><span>La partenza</span></div>
+              <div className="ie-config-sign" aria-hidden="true">+</div>
+              <div className="ie-config-block"><strong>Esperienze</strong><span>Le vostre scelte</span></div>
+              <div className="ie-config-sign" aria-hidden="true">=</div>
+              <div className="ie-config-block"><strong>La vostra</strong><span>Image Experience</span></div>
+            </div>
+            <ResponsiveImage
+              name="image-experience-couple-walk"
+              alt="Gli sposi camminano insieme tra le vie di un borgo"
+              className="ie-config-photo"
+              sizes="(min-width: 700px) 44vw, 100vw"
+            />
           </div>
         </div>
       </section>
@@ -198,8 +206,8 @@ export default function ImageExperiencePage() {
           <div className="ie-service-grid">
             <article className="ie-service-card">
               <ResponsiveImage
-                name="festa-ricevimento-matrimonio"
-                alt="Gli sposi ballano con gli invitati durante la festa di matrimonio"
+                name="image-experience-couple-reception"
+                alt="Gli sposi si guardano sorridendo durante il ricevimento"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
               />
@@ -211,8 +219,8 @@ export default function ImageExperiencePage() {
             </article>
             <article className="ie-service-card">
               <ResponsiveImage
-                name="coppia-sceglie-fotografie-matrimonio"
-                alt="Una coppia osserva insieme una selezione di fotografie di matrimonio"
+                name="image-experience-guests-toast"
+                alt="Gli sposi brindano insieme agli invitati durante la festa"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
               />
@@ -224,8 +232,8 @@ export default function ImageExperiencePage() {
             </article>
             <article className="ie-service-card">
               <ResponsiveImage
-                name="coppia-configura-servizio-matrimonio"
-                alt="Una coppia configura insieme il servizio fotografico del matrimonio"
+                name="coppia-sceglie-fotografie-matrimonio"
+                alt="Una coppia osserva insieme una selezione di fotografie di matrimonio"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
               />
@@ -237,8 +245,8 @@ export default function ImageExperiencePage() {
             </article>
             <article className="ie-service-card">
               <ResponsiveImage
-                name="abbraccio-sposa-reportage-matrimonio"
-                alt="Un abbraccio spontaneo tra una sposa e sua madre"
+                name="festa-ricevimento-matrimonio"
+                alt="Gli sposi ballano con gli invitati durante la festa di matrimonio"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
               />
