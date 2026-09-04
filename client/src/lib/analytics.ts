@@ -121,7 +121,12 @@ export const initGA = () => {
  * @param path Percorso della pagina
  */
 export const trackPageView = (path: string) => {
-  trackAnalyticsEvent('page_view', { page_path: path });
+  if (typeof window === 'undefined' || !analytics) return;
+  try {
+    logEvent(analytics, 'page_view', { page_path: path });
+  } catch {
+    // Firebase Analytics may be unavailable in development or with ad blockers.
+  }
 };
 
 /**

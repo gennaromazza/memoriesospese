@@ -1,0 +1,799 @@
+Devi progettare e realizzare una nuova landing page per il sito:
+
+**imagestudiofotografico.com**
+
+La landing è destinata principalmente a campagne ADV e sponsorizzate su Instagram e Facebook, quindi NON deve essere trattata come un normale articolo del blog.
+
+L'obiettivo principale è:
+
+**trasformare traffico proveniente da inserzioni social in utenti che aprono e compilano il configuratore Image Experience.**
+
+Link del configuratore:
+
+https://imagestudiofotografico.com/preventivo-rapido/pk0q0Jti6KQWzSsw
+
+---
+
+# 1. Prima di modificare il codice
+
+Analizza il progetto esistente.
+
+Individua:
+
+- stack tecnologico;
+- routing;
+- componenti già utilizzati dal sito;
+- design system;
+- font;
+- palette colori;
+- header/footer;
+- gestione responsive;
+- componenti CTA già presenti;
+- eventuale sistema analytics;
+- Meta Pixel / Google Analytics / Google Tag Manager se già installati;
+- convenzioni SEO;
+- componenti per immagini;
+- eventuali animazioni già utilizzate.
+
+NON creare una pagina graficamente scollegata dal resto di imagestudiofotografico.com.
+
+La landing deve sembrare una naturale evoluzione del brand Image Studio, ma con un'impostazione più editoriale, pubblicitaria e orientata alla conversione.
+
+Prima di implementare, proponi brevemente la struttura UX/UI e poi procedi con la realizzazione.
+
+---
+
+# 2. Obiettivo marketing
+
+Questa pagina verrà utilizzata come destinazione di:
+
+- Instagram Ads;
+- Facebook Ads;
+- Reel sponsorizzati;
+- Stories sponsorizzate;
+- campagne Meta Ads;
+- eventualmente Google Ads.
+
+Il pubblico principale è composto da:
+
+- uomini e donne;
+- circa 25-35 anni;
+- coppie che stanno organizzando il matrimonio;
+- principalmente Campania;
+- Napoli;
+- Caserta;
+- Aversa;
+- Salerno;
+- ma Image Studio lavora anche nel resto d'Italia.
+
+Molti utenti potrebbero conoscere Image Studio per la prima volta attraverso questa pagina.
+
+La landing deve quindi funzionare bene anche con **traffico freddo**.
+
+---
+
+# 3. Concetto della campagna
+
+Image Studio ha partecipato alle fiere dedicate agli sposi per quattro anni.
+
+Nel 2026 abbiamo deciso volontariamente di prenderci una pausa dalle fiere e utilizzare ciò che abbiamo imparato per costruire un percorso differente.
+
+NON dobbiamo screditare le fiere o gli altri fotografi.
+
+Il messaggio deve essere positivo e intelligente.
+
+Concetto principale:
+
+**Quest'anno non saremo in fiera.**
+
+Ma questa assenza deve trasformarsi in una scelta di comunicazione.
+
+Claim principale consigliato:
+
+**Quest'anno non saremo in fiera.  
+Saremo dove iniziano le vostre domande.**
+
+Concetto secondario:
+
+**Non uno stand per pochi giorni.  
+Un percorso aperto tutto l'anno.**
+
+L'idea è:
+
+le coppie possono conoscere Image Studio, vedere le immagini, capire il punto di partenza del servizio, configurarlo e poi eventualmente confrontarsi con noi con calma.
+
+---
+
+# 4. Image Experience
+
+Il prodotto centrale della landing si chiama:
+
+**Image Experience**
+
+La proposta parte da:
+
+**2.200 €**
+
+ATTENZIONE:
+
+il prezzo non deve comunicare "offerta economica" o "sconto".
+
+Deve comunicare:
+
+- trasparenza;
+- punto di partenza chiaro;
+- personalizzazione;
+- libertà;
+- niente pacchetti rigidi.
+
+Concetto:
+
+**Un punto di partenza chiaro. Il resto lo scegliete voi.**
+
+Image Experience funziona come un configuratore.
+
+La coppia parte dalla proposta base e può aggiungere le esperienze che desidera.
+
+Non entrare troppo nei dettagli tecnici dei servizi presenti nel configuratore.
+
+La landing deve incuriosire e portare l'utente ad aprire il configuratore.
+
+---
+
+# 5. Obiettivo di conversione
+
+La conversione principale è il click su:
+
+**Configura il tuo servizio**
+
+che deve aprire:
+
+https://imagestudiofotografico.com/preventivo-rapido/pk0q0Jti6KQWzSsw
+
+La CTA deve essere presente più volte nella pagina, senza diventare invasiva.
+
+CTA principale:
+
+**Configura il tuo servizio**
+
+CTA secondarie possibili:
+
+**Scopri Image Experience**
+
+**Inizia a configurare**
+
+Non utilizzare CTA vaghe come:
+
+"Scopri di più"
+
+quando possiamo utilizzare una CTA più specifica.
+
+---
+
+# 6. Struttura consigliata della landing
+
+## SEZIONE 1 — HERO
+
+Deve essere molto forte visivamente.
+
+Grande fotografia matrimoniale in stile reportage/editoriale.
+
+Testo:
+
+**Quest'anno non saremo in fiera.**
+
+seconda linea:
+
+**Saremo dove iniziano le vostre domande.**
+
+Testo di supporto molto breve:
+
+Dopo quattro anni di fiere abbiamo scelto di costruire un modo diverso per farvi conoscere il nostro lavoro.
+
+Evidenziare:
+
+**Image Experience da 2.200 €**
+
+CTA:
+
+**Configura il tuo servizio**
+
+Aggiungere eventualmente una micro-frase:
+
+**Configura liberamente la tua esperienza prima ancora di contattarci.**
+
+La hero deve funzionare perfettamente su mobile.
+
+---
+
+## SEZIONE 2 — LA SCELTA
+
+Titolo:
+
+**Non volevamo un altro stand. Volevamo un percorso.**
+
+Testo breve.
+
+Spiegare che dopo quattro anni di fiere abbiamo scelto di fermarci, osservare ciò che avevamo imparato dalle coppie e trasformarlo in un'esperienza più semplice e accessibile.
+
+Non deve sembrare una giustificazione.
+
+Deve sembrare una scelta consapevole.
+
+---
+
+## SEZIONE 3 — IL PROBLEMA
+
+Titolo:
+
+**Il problema non è scegliere tra tre pacchetti.  
+È capire cosa vi serve davvero.**
+
+Spiegare in pochissime righe che ogni matrimonio è differente.
+
+Evitare il classico modello:
+
+Silver  
+Gold  
+Platinum
+
+Non attaccare chi lo utilizza.
+
+Usarlo semplicemente come contrasto concettuale.
+
+Claim possibile:
+
+**Il matrimonio è vostro. Anche il servizio dovrebbe esserlo.**
+
+---
+
+## SEZIONE 4 — IMAGE EXPERIENCE
+
+Questa è una delle sezioni principali.
+
+Titolo:
+
+**Partite da 2.200 €. Poi scegliete voi.**
+
+Oppure:
+
+**Un punto di partenza chiaro. Il resto lo scegliete voi.**
+
+Mostrare graficamente il concetto di configurazione.
+
+NON creare una tabella prezzi classica.
+
+Meglio utilizzare una rappresentazione visiva come:
+
+BASE
+
++
+
+ESPERIENZE
+
+=
+
+LA VOSTRA IMAGE EXPERIENCE
+
+Possibilmente con piccole card visuali.
+
+Testo:
+
+La proposta parte da 2.200 €.
+
+Da lì potete aggiungere le esperienze che desiderate e costruire una prima configurazione del vostro servizio.
+
+CTA:
+
+**Configura il tuo servizio**
+
+---
+
+## SEZIONE 5 — LE IMMAGINI PRIMA DEL PREZZO
+
+Titolo:
+
+**Prima del prezzo, dovete riconoscervi nelle immagini.**
+
+Utilizzare una composizione editoriale con 3-5 fotografie.
+
+Le immagini devono avere grande importanza.
+
+Stile:
+
+- reportage;
+- spontaneo;
+- cinematografico;
+- umano;
+- non eccessivamente patinato.
+
+Possibile testo:
+
+Una fotografia può essere tecnicamente perfetta e non appartenervi.
+
+Prima di confrontare i preventivi, guardate le storie.
+
+Chiedetevi una cosa:
+
+**ci immaginiamo dentro queste fotografie?**
+
+Inserire link al portfolio matrimonio se esiste già nel routing.
+
+---
+
+# 7. IL METODO DEI TRE SÌ
+
+Creare una sezione semplice e molto leggibile.
+
+Titolo:
+
+**Tre sì prima del preventivo.**
+
+Card 1:
+
+**Sì, mi riconosco nelle immagini.**
+
+Card 2:
+
+**Sì, ho capito cosa sto scegliendo.**
+
+Card 3:
+
+**Sì, mi fido delle persone che saranno con noi.**
+
+Conclusione:
+
+**Solo dopo questi tre sì il prezzo acquista davvero significato.**
+
+Non trasformare questa sezione in un testo lungo.
+
+---
+
+# 8. SEZIONE FIERE
+
+Questa sezione è importante perché verrà utilizzata anche nelle campagne ADV tra settembre e ottobre.
+
+Titolo:
+
+**Quest'anno non saremo in fiera. Ma non saremo meno presenti.**
+
+Testo:
+
+Le fiere restano un ottimo luogo per raccogliere idee, conoscere professionisti e iniziare a costruire il matrimonio.
+
+Dopo quattro anni, però, abbiamo deciso di sperimentare qualcosa di diverso.
+
+Non uno stand per pochi giorni.
+
+Un percorso accessibile durante tutto l'anno.
+
+Claim molto evidente:
+
+**Quest'anno non saremo in fiera.  
+Saremo dove iniziano le vostre domande.**
+
+NON screditare:
+
+- TuttoSposi;
+- Mia Sposa;
+- altri eventi;
+- altri fotografi.
+
+La comunicazione deve essere elegante.
+
+---
+
+# 9. SEZIONE "CON CALMA"
+
+Creare un blocco comunicativo molto semplice.
+
+Titolo:
+
+**Guardate. Confrontate. Configurate. Poi parliamone.**
+
+Testo:
+
+Nessuna decisione da prendere in dieci minuti.
+
+Potete conoscere il nostro lavoro, configurare una prima proposta e tornare quando volete.
+
+Questo blocco deve comunicare serenità e assenza di pressione commerciale.
+
+---
+
+# 10. CTA FINALE
+
+Creare una sezione finale molto forte.
+
+Claim:
+
+**Il matrimonio è vostro.  
+Anche il servizio dovrebbe esserlo.**
+
+Sottotitolo:
+
+Image Experience parte da 2.200 €.
+
+CTA primaria molto evidente:
+
+**Configura il tuo servizio**
+
+Link:
+
+https://imagestudiofotografico.com/preventivo-rapido/pk0q0Jti6KQWzSsw
+
+Microcopy:
+
+**Scoprite le possibilità, scegliete ciò che vi rappresenta e costruite una prima configurazione del vostro matrimonio.**
+
+---
+
+# 11. Immagini
+
+NON inserire immagini stock generiche.
+
+Per ora predisponi placeholder fotografici chiaramente identificabili nel codice.
+
+I placeholder devono indicare:
+
+IMAGE_01_HERO
+
+IMAGE_02_COUPLE
+
+IMAGE_03_REPORTAGE
+
+IMAGE_04_WEDDING_FAIR
+
+IMAGE_05_IMAGE_EXPERIENCE
+
+IMAGE_06_PARTY
+
+Saranno successivamente sostituiti con immagini fornite da me.
+
+Prevedere:
+
+- object-fit corretto;
+- aspect-ratio;
+- responsive;
+- lazy loading tranne Hero;
+- width/height;
+- fetchpriority="high" per la hero;
+- alt text configurabili.
+
+---
+
+# 12. Direzione visuale
+
+Non creare la solita landing page SaaS.
+
+Non voglio:
+
+- gradienti viola/blu;
+- card ovunque;
+- icone generiche;
+- design da startup tecnologica;
+- effetti glassmorphism;
+- emoji;
+- layout troppo artificiale;
+- animazioni eccessive.
+
+La pagina deve sembrare un incrocio tra:
+
+- magazine fotografico;
+- campagna moda/editoriale;
+- landing pubblicitaria premium;
+- sito di uno studio fotografico contemporaneo.
+
+Molto spazio bianco.
+
+Grandi fotografie.
+
+Tipografia elegante.
+
+Gerarchia forte.
+
+Testi brevi.
+
+Alcune frasi possono occupare quasi tutta la larghezza come claim editoriali.
+
+---
+
+# 13. Tone of voice
+
+Il tono deve essere:
+
+- onesto;
+- diretto;
+- contemporaneo;
+- elegante;
+- creativo;
+- umano;
+- mai melenso;
+- mai aggressivo;
+- mai autoreferenziale.
+
+Evitare espressioni tipo:
+
+"rendiamo il vostro giorno indimenticabile"
+
+"catturiamo emozioni"
+
+"il giorno più bello della vostra vita"
+
+"trasformiamo sogni in realtà"
+
+Sono frasi troppo generiche.
+
+Preferire frasi come:
+
+**Prima del prezzo, dovete riconoscervi nelle immagini.**
+
+**Un preventivo non dovrebbe essere un labirinto. Dovrebbe essere una mappa.**
+
+**Un punto di partenza chiaro. Il resto lo scegliete voi.**
+
+**Il matrimonio è vostro. Anche il servizio dovrebbe esserlo.**
+
+---
+
+# 14. Mobile first
+
+Questa parte è fondamentale.
+
+La maggior parte del traffico ADV arriverà da Instagram e Facebook su smartphone.
+
+Progettare PRIMA il layout mobile.
+
+Controllare particolarmente:
+
+- 360px;
+- 375px;
+- 390px;
+- 430px.
+
+La hero deve essere leggibile senza scroll eccessivo.
+
+La CTA principale deve essere immediatamente visibile.
+
+Evitare paragrafi lunghi.
+
+Usare spaziature generose ma non enormi.
+
+Il pulsante deve avere almeno 44px di altezza.
+
+Le immagini devono caricarsi velocemente.
+
+---
+
+# 15. Performance
+
+La landing verrà utilizzata per advertising, quindi la velocità è critica.
+
+Ottimizzare:
+
+- Core Web Vitals;
+- LCP;
+- CLS;
+- INP;
+- immagini;
+- font;
+- JS;
+- CSS.
+
+Evitare dipendenze nuove se non realmente necessarie.
+
+Non aggiungere librerie di animazione pesanti.
+
+Se sono già disponibili animazioni nel progetto, utilizzarle con estrema moderazione.
+
+---
+
+# 16. ADV tracking
+
+Questa pagina verrà utilizzata per campagne a pagamento.
+
+Analizza se nel progetto sono già presenti:
+
+- Meta Pixel;
+- Google Analytics 4;
+- Google Tag Manager.
+
+NON duplicare script esistenti.
+
+Se il tracking esiste, predisporre eventi coerenti.
+
+Eventi desiderati:
+
+PAGE_VIEW_LANDING
+
+CTA_IMAGE_EXPERIENCE_CLICK
+
+PORTFOLIO_CLICK
+
+CONFIGURATOR_OPEN
+
+Per ogni CTA verso il configuratore tracciare l'evento.
+
+Se il progetto dispone già di uno standard eventi, utilizzare quello esistente invece di crearne uno parallelo.
+
+Inserire parametri utili per distinguere la posizione della CTA, ad esempio:
+
+hero
+
+image_experience
+
+middle
+
+footer
+
+---
+
+# 17. Parametri ADV / UTM
+
+La landing deve mantenere e possibilmente propagare al configuratore i parametri UTM ricevuti dall'ADV.
+
+Esempio:
+
+utm_source
+
+utm_medium
+
+utm_campaign
+
+utm_content
+
+utm_term
+
+Se un utente arriva sulla landing con questi parametri e poi clicca su "Configura il tuo servizio", il configuratore dovrebbe riceverli a sua volta, se tecnicamente possibile senza interferire con il funzionamento esistente.
+
+Valutare anche la propagazione di eventuali parametri Meta come:
+
+fbclid
+
+senza modificare la logica esistente del sito.
+
+---
+
+# 18. SEO
+
+Anche se questa è principalmente una landing ADV, deve comunque essere tecnicamente corretta lato SEO.
+
+Definire:
+
+title:
+
+**Image Experience | Fotografo Matrimonio Campania da 2.200 €**
+
+description orientativa:
+
+**Scopri Image Experience di Image Studio. Un punto di partenza chiaro da 2.200 € e la libertà di configurare il servizio fotografico del vostro matrimonio.**
+
+Canonical corretto.
+
+Open Graph completo.
+
+Twitter Card se già utilizzata dal progetto.
+
+Una sola H1.
+
+Gerarchia H2/H3 corretta.
+
+Non fare keyword stuffing.
+
+---
+
+# 19. Accessibilità
+
+Garantire:
+
+- contrasto;
+- focus states;
+- semantic HTML;
+- pulsanti/link corretti;
+- alt immagini;
+- tastiera;
+- aria-label solo dove realmente necessario;
+- rispetto prefers-reduced-motion.
+
+---
+
+# 20. Header
+
+Valuta attentamente se utilizzare l'header standard del sito.
+
+Poiché è una landing ADV, potrebbe essere utile una versione più minimale per ridurre le vie di fuga.
+
+NON rimuovere automaticamente la navigazione.
+
+Analizza il sito e proponi la soluzione migliore.
+
+Possibile soluzione:
+
+logo Image Studio in alto;
+
+navigazione minima;
+
+CTA "Configura" sempre facilmente raggiungibile.
+
+Su mobile valuta una CTA sticky discreta dopo che l'utente supera la hero.
+
+La sticky CTA NON deve coprire contenuti o sembrare aggressiva.
+
+---
+
+# 21. Footer
+
+Utilizzare il footer esistente o una versione coerente semplificata.
+
+Devono comunque essere disponibili eventuali elementi obbligatori:
+
+privacy;
+
+cookie;
+
+contatti;
+
+informazioni aziendali già presenti nel progetto.
+
+---
+
+# 22. Nessuna falsa urgenza
+
+IMPORTANTE.
+
+Non utilizzare:
+
+- countdown;
+- "ultimi posti";
+- scarsità artificiale;
+- finte prenotazioni;
+- prezzi barrati;
+- sconti inventati;
+- "solo oggi";
+- popup aggressivi.
+
+La conversione deve derivare dalla chiarezza e dal posizionamento, non dalla pressione.
+
+---
+
+# 23. Risultato atteso
+
+La pagina deve comunicare in pochi secondi:
+
+1. Image Studio è uno studio fotografico matrimoniale contemporaneo.
+2. Quest'anno non sarà presente alle fiere.
+3. Questa assenza è una scelta, non una debolezza.
+4. Esiste una formula chiamata Image Experience.
+5. Parte da 2.200 €.
+6. È personalizzabile.
+7. Posso configurarla immediatamente.
+8. Posso farlo senza pressione.
+9. Il fotografo punta prima di tutto sul racconto e sull'identità delle immagini.
+
+---
+
+# 24. Processo di lavoro
+
+Prima di implementare:
+
+1. analizza il progetto;
+2. individua file e componenti coinvolti;
+3. proponi una breve architettura della landing;
+4. verifica come gestire routing, tracking e responsive;
+5. implementa;
+6. esegui test;
+7. verifica mobile;
+8. verifica desktop;
+9. controlla console error;
+10. verifica link configuratore;
+11. verifica che UTM e tracking funzionino;
+12. non modificare parti non necessarie del progetto.
+
+Alla fine indicami:
+
+- file modificati;
+- nuova route;
+- componenti creati;
+- eventi analytics aggiunti;
+- eventuali TODO;
+- dove sostituire i placeholder con le fotografie definitive.
