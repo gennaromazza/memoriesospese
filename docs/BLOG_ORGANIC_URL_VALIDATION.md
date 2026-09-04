@@ -59,6 +59,27 @@ nessun merge, redirect o cancellazione è stato applicato. I dati reali
 disponibili sono stati registrati, ma non sono sufficienti per trasformare le
 raccomandazioni editoriali dell'audit in azioni tecniche.
 
+## Verifica URL-level per il task di indicizzazione
+
+L'audit editoriale contiene la tabella completa dei **68 articoli pubblicati**.
+Le 10 URL presenti nelle cinque coppie della matrice risultano quindi slug
+Blog pubblicati nell'applicazione, ma questo non equivale a indicizzazione
+confermata da Google.
+
+Sono stati cercati negli allegati:
+
+- export Search Console con elenco `Pagine` e motivo di esclusione;
+- export delle URL non indicizzate;
+- report filtrato su `/blog/`;
+- elenco URL della sitemap.
+
+Il solo `Pagine.csv` disponibile contiene la homepage. Il grafico Coverage,
+il report testuale di rendimento e la schermata della sitemap contengono
+soltanto aggregati e non consentono di associare una riga a uno dei 68 slug.
+Per questo il risultato pagina per pagina è **NON VERIFICABILE** per tutte le
+10 URL candidate: non viene assegnato né “indicizzata” né “non indicizzata”
+senza l'elenco URL-level.
+
 ## Fonti e metriche
 
 | Fonte | Stato | Metriche ottenute |
@@ -78,13 +99,13 @@ reali, ma non attribuibili alle coppie. Il report Coverage non contiene i nomi
 delle pagine e, in assenza di un filtro esplicito, potrebbe riferirsi all'intera
 proprietà, non ai soli 68 articoli Blog.
 
-| Sorgente candidata | Destinazione candidata | Query / impressioni / clic / CTR / posizione | Pageview / conversioni | Backlink | Decisione |
-|---|---|---|---|---|---|
-| `/blog/matrimonio-matrimonio-napoli` | `/blog/guida-completa-al-matrimonio` | N/D: `Pagine.csv` contiene solo la homepage; Coverage non elenca URL | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
-| `/blog/quattro-suggerimenti-per-foto-di-nozze-perfette` | `/blog/foto-perfette-4-consigli-utili` | N/D: `Pagine.csv` contiene solo la homepage; Coverage non elenca URL | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
-| `/blog/fotoreportage-di-matrimonio-fedelta` | `/blog/foto-reportage-del-matrimonio-a-napoli-sempre-piu-coppie-lo-richiedono` | N/D: `Query.csv` non combina query e pagina; Coverage è aggregato | N/D | N/D | **NON DECIDERE**; intento tecnico/località non validabile |
-| `/blog/servizio-fotografico-economico-5-consigli-utili` | `/blog/costo-servizio-fotografico-matrimonio-facciamo-due-conti` | N/D: `Query.csv` non combina query e pagina; Coverage è aggregato | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
-| `/blog/album-panoramico-i-vantaggi` | `/blog/lalbum-fotografico-del-matrimonio-6-consigli-davvero-utili` | N/D: Coverage non elenca URL candidate | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
+| Sorgente candidata | Destinazione candidata | Indicizzazione Search Console | Query / impressioni / clic / CTR / posizione | Pageview / conversioni | Backlink | Decisione |
+|---|---|---|---|---|---|---|
+| `/blog/matrimonio-matrimonio-napoli` | `/blog/guida-completa-al-matrimonio` | **NON VERIFICABILE**: nessun elenco URL-level | N/D: `Pagine.csv` contiene solo la homepage | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
+| `/blog/quattro-suggerimenti-per-foto-di-nozze-perfette` | `/blog/foto-perfette-4-consigli-utili` | **NON VERIFICABILE**: nessun elenco URL-level | N/D: `Pagine.csv` contiene solo la homepage | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
+| `/blog/fotoreportage-di-matrimonio-fedelta` | `/blog/foto-reportage-del-matrimonio-a-napoli-sempre-piu-coppie-lo-richiedono` | **NON VERIFICABILE**: Coverage è aggregato | N/D: `Query.csv` non combina query e pagina | N/D | N/D | **NON DECIDERE**; intento tecnico/località non validabile |
+| `/blog/servizio-fotografico-economico-5-consigli-utili` | `/blog/costo-servizio-fotografico-matrimonio-facciamo-due-conti` | **NON VERIFICABILE**: Coverage è aggregato | N/D: `Query.csv` non combina query e pagina | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
+| `/blog/album-panoramico-i-vantaggi` | `/blog/lalbum-fotografico-del-matrimonio-6-consigli-davvero-utili` | **NON VERIFICABILE**: Coverage non elenca URL candidate | N/D | N/D | N/D | **NON DECIDERE**; manca attribuzione URL-level |
 
 ## Dati necessari per sbloccare la decisione
 

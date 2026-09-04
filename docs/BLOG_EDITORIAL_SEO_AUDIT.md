@@ -15,7 +15,7 @@
 
 La valutazione editoriale combina metriche riproducibili (conteggio parole, heading, immagini, alt, link, campi SEO, date e località nominate) con una lettura qualitativa di titolo, excerpt, tag, heading e corpo. “Attuale” non significa “recente”: un contenuto può essere datato ma ancora utile se non dipende da prezzi, eventi o trend variabili.
 
-Search Console non è disponibile tra le connessioni del progetto e la ricerca di un connettore non ha restituito una connessione Search Console. Di conseguenza questo audit **non contiene dati URL-level su impressioni, clic, CTR, posizione, query o copertura**. Le priorità SEO sono raccomandazioni editoriali/tecniche, da convalidare con dati Search Console e analytics prima di merge o redirect.
+Search Console non è disponibile tra le connessioni del progetto e la ricerca di un connettore non ha restituito una connessione Search Console. Sono stati però esaminati export e report forniti dall'utente: contengono dati aggregati di rendimento e copertura, ma non un elenco URL-level associato a query, motivi di esclusione, impressioni, clic, CTR o posizione. Le priorità SEO sono quindi raccomandazioni editoriali/tecniche, da convalidare per singola URL con Search Console e analytics prima di merge o redirect.
 
 ## Stato SEO tecnico comune
 
