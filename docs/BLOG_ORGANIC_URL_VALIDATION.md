@@ -11,9 +11,19 @@ cinque coppie:
 
 - L'export Performance copre **13/05/2026–12/08/2026 (92 giorni)** e registra
   **21 clic, 1.295 impressioni e CTR derivato 1,62%**.
+- Il report Performance più recente fornito dall'utente copre
+  **02/06/2026–01/09/2026 (92 giorni)** e registra **20 clic, 1.538
+  impressioni e CTR derivato 1,30%**. La posizione giornaliera pesata sulle
+  impressioni è circa **11,28**; è un calcolo aggregato, non una posizione
+  attribuita a una singola URL.
 - `Pagine.csv` contiene una sola riga, la homepage
   (`https://imagestudiofotografico.com/`): 21 clic, 1.295 impressioni, CTR
   1,62%, posizione 9,38. Nessuna delle 10 URL candidate compare nel file.
+- Nel nuovo report le ultime 30 giornate registrano 4 clic su 570 impressioni
+  (CTR 0,70%), contro 7 clic su 484 impressioni nelle prime 30 giornate
+  (CTR 1,45%). Le impressioni recenti sono quindi aumentate, ma senza un
+  miglioramento proporzionale dei clic; anche questo confronto resta
+  site-wide.
 - `Query.csv` contiene 51 query aggregate, ma non la dimensione combinata
   query × pagina; non è quindi possibile attribuire una query a sorgente o
   destinazione.
@@ -47,7 +57,8 @@ raccomandazioni editoriali dell'audit in azioni tecniche.
 
 | Fonte | Stato | Metriche ottenute |
 |---|---|---|
-| Google Search Console Performance | Export disponibile, ma aggregato | 13/05/2026–12/08/2026: 21 clic, 1.295 impressioni, CTR derivato 1,62%; nessun dato per le URL candidate |
+| Google Search Console Performance (export precedente) | Export disponibile, ma aggregato | 13/05/2026–12/08/2026: 21 clic, 1.295 impressioni, CTR derivato 1,62%; nessun dato per le URL candidate |
+| Google Search Console Performance (report più recente) | Dati forniti dall'utente, ma aggregati | 02/06/2026–01/09/2026: 20 clic, 1.538 impressioni, CTR derivato 1,30%; nessun dato per le URL candidate |
 | Google Search Console Coverage | Export disponibile, più report fornito dall'utente; sempre aggregato | ZIP: 16/05/2026–07/08/2026 con 1 robots.txt e 1 scansionata ma non indicizzata. Report successivo: fino al 28/08/2026, 130 non indicizzate e 16 indicizzate nell'ultimo intervallo |
 | Analytics nativo Replit | Autorizzato ma senza righe | Nessun pageview Blog e nessun evento custom |
 | Google Analytics 4 | Nessun connettore disponibile | Nessuna landing page o conversione |
