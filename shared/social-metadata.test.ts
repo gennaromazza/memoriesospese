@@ -49,6 +49,8 @@ describe('social metadata resolver', () => {
   });
 
   it('assigns curated stable assets to important landing pages', () => {
+    expect(staticSocialImage('/image-experience').url)
+      .toContain('/images/image-experience/image-experience-social-1200x630.jpg');
     expect(staticSocialImage('/blog').url).toContain('/assets/og-image.jpg');
     expect(staticSocialImage('/stampa-foto-aversa').url).toContain('/images/print-service/');
     expect(staticSocialImage('/consulenze').url).toContain('/images/couple-flower-bouquet.png');

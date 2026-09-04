@@ -40,6 +40,7 @@ const StoriePage = lazyWithRetry(() => import("./pages/public/StoriePage"));
 const LasciatiTrasportarePage = lazyWithRetry(() => import("./pages/public/LasciatiTrasportarePage"));
 const BlogListPage = lazyWithRetry(() => import("./pages/public/BlogListPage"));
 const BlogPostPage = lazyWithRetry(() => import("./pages/public/BlogPostPage"));
+const ImageExperiencePage = lazyWithRetry(() => import("./pages/public/ImageExperiencePage"));
 const WeddingVideosPage = lazyWithRetry(() => import("./pages/public/WeddingVideosPage"));
 const WeddingSeoPage = lazyWithRetry(() => import("./pages/public/WeddingSeoPage"));
 const FotografoAversaPage = lazyWithRetry(() => import("./pages/public/FotografoAversaPage"));
@@ -148,6 +149,7 @@ function AppRoutes() {
         <Route path="/stampa-foto-aversa/i-miei-ordini" component={PrintShopOrdersPage} />
         <Route path="/blog" component={BlogListPage} />
         <Route path="/blog/:slug" component={BlogPostPage} />
+        <Route path="/image-experience" component={ImageExperiencePage} />
         <Route path="/vision" component={WeddingVideosPage} />
 
         {/* Gallery Access (moved from /) */}

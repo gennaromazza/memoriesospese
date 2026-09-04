@@ -78,6 +78,17 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).not.toContain('loading="lazy"');
   });
 
+  it('renders the Image Experience landing consistently for crawlers', async () => {
+    const { response, next } = await renderForCrawler('/image-experience');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.headers['Content-Type']).toBe('text/html');
+    expect(response.body).toContain('<title>Image Experience | Fotografo Matrimonio Campania da 2.200 €</title>');
+    expect(response.body).toContain("<h1>Quest'anno non saremo in fiera. Saremo dove iniziano le vostre domande.</h1>");
+    expect(response.body).toContain('image-experience-social-1200x630.jpg');
+    expect(response.body?.match(/<h1>/g)).toHaveLength(1);
+  });
+
   it.each(['/admin', '/gallery/riservata', '/view/riservata'])(
     'does not prerender protected route %s',
     async (path) => {

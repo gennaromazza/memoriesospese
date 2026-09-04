@@ -32,6 +32,11 @@ export interface StaticPageMetadata {
 }
 
 const STATIC_PAGE_METADATA: Record<string, StaticPageMetadata> = {
+  '/image-experience': {
+    title: 'Image Experience | Fotografo Matrimonio Campania da 2.200 €',
+    description: 'Scopri Image Experience di Image Studio: un punto di partenza chiaro da 2.200 € e la libertà di configurare il servizio fotografico del vostro matrimonio.',
+    canonical: `${PUBLIC_SITE_URL}/image-experience`,
+  },
   '/blog': {
     title: 'Blog Fotografia Matrimoni | Consigli, Storie e Guide | Image Studio',
     description: 'Il blog di Image Studio: guide per scegliere il fotografo di matrimonio, consigli su costi e tempistiche, storie di coppie ed eventi fotografati in Campania.',
@@ -80,6 +85,14 @@ const STATIC_IMAGES: Record<string, SocialImageCandidate> = {
   '/blog': {
     url: '/assets/og-image.jpg',
     alt: 'Storie, consigli e fotografia di matrimonio dal blog Image Studio',
+    width: 1200,
+    height: 630,
+    type: 'image/jpeg',
+    source: 'curated-static',
+  },
+  '/image-experience': {
+    url: '/images/image-experience/image-experience-social-1200x630.jpg',
+    alt: 'Una sposa abbraccia sua madre durante i preparativi del matrimonio',
     width: 1200,
     height: 630,
     type: 'image/jpeg',

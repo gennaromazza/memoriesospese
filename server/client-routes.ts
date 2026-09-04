@@ -6,6 +6,7 @@ const PUBLIC_STATIC_PATHS = new Set([
   '/fotografo-aversa',
   '/stampa-foto-aversa',
   '/blog',
+  '/image-experience',
   '/vision',
   '/accesso-galleria',
   '/ospiti',

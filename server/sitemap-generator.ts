@@ -77,6 +77,7 @@ export async function generateDynamicSitemap(): Promise<string> {
     { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
     { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: '2026-08-18' },
+    { path: '/image-experience', changefreq: 'monthly', priority: '0.95', lastmod: '2026-09-04' },
     { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
     { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
     { path: '/stampa-foto-aversa', changefreq: 'weekly', priority: '0.92', lastmod: '2026-08-31' },

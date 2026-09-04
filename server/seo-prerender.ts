@@ -123,6 +123,76 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p><a href="${BASE_URL}/portfolio">Esplora tutte le categorie del portfolio</a> | <a href="${BASE_URL}/accesso-galleria">Accedi alla tua galleria</a></p>
       `
     },
+    '/image-experience': {
+      title: 'Image Experience | Fotografo Matrimonio Campania da 2.200 €',
+      description: 'Scopri Image Experience di Image Studio: un punto di partenza chiaro da 2.200 € e la libertà di configurare il servizio fotografico del vostro matrimonio.',
+      canonical: `${BASE_URL}/image-experience`,
+      keywords: 'fotografo matrimonio Campania, fotografia matrimonio Napoli, Image Experience, servizio fotografico matrimonio personalizzato',
+      socialImage: {
+        url: '/images/image-experience/image-experience-social-1200x630.jpg',
+        alt: 'Una sposa abbraccia sua madre durante i preparativi del matrimonio',
+        width: 1200,
+        height: 630,
+        type: 'image/jpeg',
+        source: 'curated-static',
+      },
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: 'Image Experience',
+        description: 'Servizio fotografico di matrimonio configurabile di Image Studio, con punto di partenza da 2.200 €.',
+        provider: { '@id': `${BASE_URL}/#organization` },
+        areaServed: ['Campania', 'Napoli', 'Caserta', 'Aversa', 'Salerno', 'Italia'],
+        offers: {
+          '@type': 'Offer',
+          url: `${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw`,
+          price: '2200',
+          priceCurrency: 'EUR',
+          description: 'Punto di partenza della configurazione Image Experience',
+        },
+      },
+      bodyContent: `
+        <img src="${BASE_URL}/images/image-experience/abbraccio-sposa-reportage-matrimonio-1536.webp" alt="Una sposa abbraccia sua madre durante i preparativi del matrimonio" width="1536" height="1024" fetchpriority="high" />
+        <h1>Quest'anno non saremo in fiera. Saremo dove iniziano le vostre domande.</h1>
+        <p>Dopo quattro anni di fiere abbiamo scelto di costruire un modo diverso per farvi conoscere il nostro lavoro. Image Experience parte da 2.200 €.</p>
+        <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Configura il tuo servizio</a></p>
+        <section>
+          <h2>Non volevamo un altro stand. Volevamo un percorso.</h2>
+          <p>Le fiere ci hanno insegnato ad ascoltare le domande che arrivano prima di una scelta. Nel 2026 trasformiamo quell'ascolto in un percorso semplice, aperto e accessibile tutto l'anno.</p>
+        </section>
+        <section>
+          <h2>Il problema non è scegliere tra tre pacchetti. È capire cosa vi serve davvero.</h2>
+          <p>Ogni matrimonio ha tempi, persone e priorità diverse. Il matrimonio è vostro: anche il servizio dovrebbe esserlo.</p>
+        </section>
+        <section>
+          <h2>Un punto di partenza chiaro. Il resto lo scegliete voi.</h2>
+          <p>Base più esperienze: partite da 2.200 €, aggiungete ciò che desiderate e costruite la vostra Image Experience.</p>
+          <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Configura il tuo servizio</a></p>
+        </section>
+        <section>
+          <h2>Prima del prezzo, dovete riconoscervi nelle immagini.</h2>
+          <p>Prima di confrontare i preventivi, guardate le storie e chiedetevi: ci immaginiamo dentro queste fotografie?</p>
+          <p><a href="${BASE_URL}/portfolio/matrimonio">Guarda il portfolio matrimonio</a></p>
+        </section>
+        <section>
+          <h2>Tre sì prima del preventivo.</h2>
+          <ol>
+            <li>Sì, mi riconosco nelle immagini.</li>
+            <li>Sì, ho capito cosa sto scegliendo.</li>
+            <li>Sì, mi fido delle persone che saranno con noi.</li>
+          </ol>
+        </section>
+        <section>
+          <h2>Quest'anno non saremo in fiera. Ma non saremo meno presenti.</h2>
+          <p>Non uno stand per pochi giorni: un percorso accessibile durante tutto l'anno.</p>
+        </section>
+        <section>
+          <h2>Guardate. Confrontate. Configurate. Poi parliamone.</h2>
+          <p>Nessuna decisione da prendere in dieci minuti. Potete tornare quando volete.</p>
+        </section>
+        <p><a href="${BASE_URL}/preventivo-rapido/pk0q0Jti6KQWzSsw">Configura il tuo servizio</a></p>
+      `,
+    },
     '/fotografo-aversa': {
       title: 'Fotografo Aversa | Matrimoni, Battesimi, Cerimonie | Image Studio',
       description: 'Fotografo professionista ad Aversa per matrimoni, battesimi e cerimonie. Gennaro Mazzacane di Image Studio: 10+ anni di esperienza, 500+ matrimoni. Servizi nell\'agro aversano senza costi di trasferta.',
