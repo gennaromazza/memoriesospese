@@ -15,18 +15,21 @@ type ResponsiveImageProps = {
   className?: string;
   eager?: boolean;
   sizes: string;
+  native?: boolean;
 };
 
-function ResponsiveImage({ name, alt, className, eager = false, sizes }: ResponsiveImageProps) {
+function ResponsiveImage({ name, alt, className, eager = false, sizes, native = false }: ResponsiveImageProps) {
   const srcSet = (extension: 'avif' | 'webp') =>
-    [640, 1024, 1536].map(width => `${IMAGE_ROOT}/${name}-${width}.${extension} ${width}w`).join(', ');
+    (native ? [1536] : [640, 1024, 1536])
+      .map(width => `${IMAGE_ROOT}/${name}-${width}.${extension} ${width}w`)
+      .join(', ');
 
   return (
     <picture className={className}>
       <source type="image/avif" srcSet={srcSet('avif')} sizes={sizes} />
       <source type="image/webp" srcSet={srcSet('webp')} sizes={sizes} />
       <img
-        src={`${IMAGE_ROOT}/${name}-1024.webp`}
+        src={`${IMAGE_ROOT}/${name}-${native ? 1536 : 1024}.webp`}
         width="1536"
         height="1024"
         alt={alt}
@@ -166,6 +169,7 @@ export default function ImageExperiencePage() {
             alt="Una sposa si prepara insieme a sua madre"
             className="ie-config-photo"
             sizes="(min-width: 700px) 44vw, 100vw"
+            native
           />
         </div>
       </section>
@@ -191,6 +195,7 @@ export default function ImageExperiencePage() {
               alt="Gli sposi camminano insieme tra le vie di un borgo"
               className="ie-config-photo"
               sizes="(min-width: 700px) 44vw, 100vw"
+              native
             />
           </div>
         </div>
@@ -210,6 +215,7 @@ export default function ImageExperiencePage() {
                 alt="Gli sposi si guardano sorridendo durante il ricevimento"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
+                native
               />
               <div className="ie-service-card-body">
                 <span className="ie-service-number">01</span>
@@ -223,6 +229,7 @@ export default function ImageExperiencePage() {
                 alt="Gli sposi brindano insieme agli invitati durante la festa"
                 className="ie-service-media"
                 sizes="(min-width: 700px) 25vw, 100vw"
+                native
               />
               <div className="ie-service-card-body">
                 <span className="ie-service-number">02</span>
