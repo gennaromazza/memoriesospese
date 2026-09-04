@@ -214,4 +214,32 @@ test.describe("Blog Admin – testi alternativi immagini", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
   });
+
+  test("annullare una modifica legacy non pulisce le risorse esistenti", async ({
+    page,
+  }) => {
+    let storageRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("firebasestorage.googleapis.com")) {
+        storageRequests += 1;
+      }
+    });
+
+    await page.goto("/admin/__e2e/blog-admin-alt");
+    const editButton = page.getByTestId("button-edit-legacy-post-for-e2e");
+    await expect(editButton).toBeVisible();
+    await editButton.click();
+    await expect(page.getByTestId("input-title")).toHaveValue(
+      "Articolo legacy da modificare",
+    );
+    await expect(page.getByTestId("input-cover-image")).toHaveValue(
+      "https://example.invalid/legacy-cover.jpg",
+    );
+
+    await page.getByRole("button", { name: "Annulla", exact: true }).last().click();
+    await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
+    await expect(editButton).toBeVisible();
+    await expect(page.getByTestId("e2e-save-payload")).toHaveText("");
+    expect(storageRequests).toBe(0);
+  });
 });
