@@ -1189,7 +1189,6 @@ export default function BlogManager() {
                             'header',
                             'bold', 'italic', 'underline', 'strike',
                             'link', 'image', 'video',
-                            'alt',
                             'list',
                             'blockquote', 'code-block',
                             'align',
