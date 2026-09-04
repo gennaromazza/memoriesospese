@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateQuoteTotals } from '@shared/quote-utils';
+import { trackBlogConversion } from '@/lib/analytics';
 import {
   type RequirementRule,
   migrateRequirementRules,
@@ -466,6 +467,9 @@ export default function QuickQuotePage() {
       try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignora */ }
       setSubmitError(null);
       setStep('success');
+      trackBlogConversion('quick_quote_submitted', {
+        quote_status: result.data?.status || 'submitted',
+      });
       toast({
         title: 'Preventivo inviato!',
         description: result.data?.status === 'firmato'

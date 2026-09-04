@@ -35,6 +35,8 @@ const OG_IMAGE = defaultSocialImage().url;
 // Il prerender è statico e non legge il catalogo Firestore: esclude quindi le
 // FAQ che contengono prezzi/quantità, per non pubblicare condizioni obsolete.
 const PRINT_SEO_FAQS = PRINT_FAQS.filter(faq => !faq.answer.includes('€'));
+const BLOG_LINK_CACHE_TTL_MS = 5 * 60 * 1000;
+let blogLinkCache: { expiresAt: number; docs: any[] } | null = null;
 
 const BOT_USER_AGENTS = [
   'googlebot', 'bingbot', 'yandexbot', 'duckduckbot',
@@ -64,6 +66,21 @@ function isNonPrerenderablePath(path: string): boolean {
     path.startsWith('/fotolibro/') ||
     path.includes('.')
   );
+}
+
+async function getPublishedBlogDocuments(): Promise<any[]> {
+  if (blogLinkCache && blogLinkCache.expiresAt > Date.now()) {
+    return blogLinkCache.docs;
+  }
+
+  const snapshot = await db.collection('blogPosts')
+    .where('status', '==', BlogPostStatus.PUBLISHED)
+    .get();
+  blogLinkCache = {
+    expiresAt: Date.now() + BLOG_LINK_CACHE_TTL_MS,
+    docs: snapshot.docs,
+  };
+  return snapshot.docs;
 }
 
 interface PageMeta {
@@ -596,6 +613,57 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
 
     const postDocument = snapshot.docs[0];
     const post = postDocument.data();
+    const tags: string[] = Array.isArray(post.tags) ? post.tags : [];
+
+    // Link editoriali server-rendered: ogni articolo pubblicato riceve
+    // collegamenti crawlable verso contenuti semanticamente vicini, senza
+    // alterare il corpo editoriale salvato nel CMS.
+    const allPublishedPosts = await getPublishedBlogDocuments();
+    const currentTagSet = new Set(tags.map(tag => String(tag).toLowerCase()));
+    const rankedRelatedPosts = allPublishedPosts
+      .filter(candidate => candidate.id !== postDocument.id)
+      .map(candidate => {
+        const candidatePost = candidate.data();
+        const candidateTags = Array.isArray(candidatePost.tags) ? candidatePost.tags : [];
+        const sharedTags = candidateTags.filter((tag: unknown) =>
+          currentTagSet.has(String(tag).toLowerCase())
+        ).length;
+        const sameCategory = post.category && candidatePost.category === post.category;
+        const score = (sameCategory ? 3 : 0) + sharedTags * 2;
+        const publishedSeconds = candidatePost.publishedAt?.seconds || 0;
+        return { candidatePost, score, publishedSeconds };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((left, right) =>
+        right.score - left.score || right.publishedSeconds - left.publishedSeconds
+      );
+    const fallbackRelatedPosts = allPublishedPosts
+      .filter(candidate => candidate.id !== postDocument.id)
+      .map(candidate => {
+        const candidatePost = candidate.data();
+        return {
+          candidatePost,
+          score: 0,
+          publishedSeconds: candidatePost.publishedAt?.seconds || 0,
+        };
+      })
+      .sort((left, right) => right.publishedSeconds - left.publishedSeconds);
+    const relatedPosts = [...rankedRelatedPosts, ...fallbackRelatedPosts]
+      .filter((item, index, items) =>
+        items.findIndex(candidate => candidate.candidatePost.slug === item.candidatePost.slug) === index
+      )
+      .slice(0, 3);
+
+    const relatedArticlesHtml = relatedPosts.length > 0
+      ? `<section>
+          <h2>Approfondimenti correlati</h2>
+          <ul>
+            ${relatedPosts.map(({ candidatePost }) => `
+              <li><a href="${BASE_URL}/blog/${encodeURIComponent(String(candidatePost.slug))}">${escapeHtml(candidatePost.title)}</a>${candidatePost.excerpt ? ` — ${escapeHtml(candidatePost.excerpt)}` : ''}</li>
+            `).join('')}
+          </ul>
+        </section>`
+      : '';
 
     const publishedMs = post.publishedAt?.seconds
       ? post.publishedAt.seconds * 1000
@@ -613,7 +681,6 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     });
 
     const authorName: string = post.author || 'Gennaro Mazzacane';
-    const tags: string[] = post.tags || [];
     const excerpt: string = post.excerpt || '';
     const seoTitle: string = String(post.metaTitle || `${post.title} | Blog Image Studio`).trim();
     const seoDescription: string = String(post.metaDescription || excerpt || post.title).trim();
@@ -722,6 +789,7 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
           ${excerpt ? `<p><strong>${escapeHtml(excerpt)}</strong></p>` : ''}
           ${bodyText ? `<p>${escapeHtml(bodyText)}</p>` : ''}
           ${!hasCompleteSeoContent ? `<p><a href="${BASE_URL}/blog/${slug}">Leggi l'articolo completo</a></p>` : ''}
+          ${relatedArticlesHtml}
         </article>
         <nav>
           <a href="${BASE_URL}/blog">← Tutti gli Articoli</a> &nbsp;|&nbsp;
@@ -749,7 +817,6 @@ async function getBlogListMeta(): Promise<PageMeta> {
     const snapshot = await db.collection('blogPosts')
       .where('status', '==', BlogPostStatus.PUBLISHED)
       .orderBy('publishedAt', 'desc')
-      .limit(10)
       .get();
 
     const posts: Array<Record<string, any>> = snapshot.docs.map(doc => ({ kind: 'blog', ...doc.data() }));
@@ -762,8 +829,7 @@ async function getBlogListMeta(): Promise<PageMeta> {
         const aDate = a.publishedAt?.seconds || 0;
         const bDate = b.publishedAt?.seconds || 0;
         return bDate - aDate;
-      })
-      .slice(0, 10);
+      });
 
     const articlesHtml = editorialItems.length > 0
       ? `<section>

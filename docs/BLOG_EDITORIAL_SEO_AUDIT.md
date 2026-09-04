@@ -6,7 +6,7 @@
 
 - Sono stati letti **68 documenti** pubblicati dalla collezione `blogPosts`, con URL, titolo, date, excerpt, corpo, `seoContent`, tag, categoria, cover e campi SEO.
 - L’intervallo delle date di pubblicazione va dal **19/11/2025 al 17/08/2026**. **58 articoli** hanno la stessa data 19/11/2025, compatibile con un’importazione storica: non va interpretata da sola come data editoriale reale.
-- Tutti gli articoli hanno una cover; il corpo contiene **238 immagini in totale**, ma **12 articoli non hanno immagini nel corpo** e **175 alt text delle immagini nel corpo risultano vuoti**.
+- Tutti gli articoli hanno una cover; l'ultimo controllo del 4 settembre 2026 ha rilevato **243 immagini nel corpo**, **12 articoli senza immagini nel corpo** e **180 alt text mancanti o vuoti**. Il conteggio è superiore ai 175 del precedente export perché include anche i quattro corpi HTML legacy caricati da `contentUrl` su Storage.
 - Il corpo di tutti i 68 articoli contiene **0 link `<a>` editoriali**: i link di navigazione generici e i correlati generati dal client non sostituiscono un vero interlinking contestuale. Non risultano collegamenti a Real Wedding nel contenuto.
 - La qualità è generalmente buona negli articoli recenti e nelle guide narrative; il rischio maggiore è concentrato in contenuti **promozionali o legati a date/anni passati**, in pagine molto brevi e in cluster con sovrapposizione reale.
 - Non risultano slug duplicati. Le route pubblicate sono tecnicamente indicizzabili e presenti nel perimetro sitemap; il dettaglio per articolo è riportato nella tabella.

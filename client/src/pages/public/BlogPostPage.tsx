@@ -10,6 +10,7 @@ import { useSEO } from "@/hooks/useSEO";
 import { firstImageCandidateFromHtml } from "@shared/social-metadata";
 import { sanitizeBlogHtml } from "@/lib/blog-html";
 import Navigation from "@/components/Navigation";
+import { captureBlogAttribution, trackBlogConversion, trackBlogEvent } from "@/lib/analytics";
 
 const FALLBACK_AUTHOR = "Gennaro Mazzacane";
 
@@ -122,12 +123,28 @@ export default function BlogPostPage() {
           .filter(d => d.id !== currentPost.id)
           .map(d => ({ id: d.id, ...d.data() } as BlogPost));
 
+        const currentTags = new Set((currentPost.tags || []).map(tag => tag.toLowerCase()));
         const related = allPosts
-          .filter(p =>
-            (currentPost.category && p.category === currentPost.category) ||
-            p.tags?.some(tag => currentPost.tags?.includes(tag))
+          .map((candidate, index) => {
+            const sameCategory = Boolean(
+              currentPost.category && candidate.category === currentPost.category
+            );
+            const sharedTags = (candidate.tags || []).filter(tag =>
+              currentTags.has(tag.toLowerCase())
+            ).length;
+            return {
+              candidate,
+              score: (sameCategory ? 3 : 0) + sharedTags * 2,
+              index,
+            };
+          })
+          .sort((left, right) =>
+            right.score - left.score ||
+            timestampValue(right.candidate.publishedAt) - timestampValue(left.candidate.publishedAt) ||
+            left.index - right.index
           )
-          .slice(0, 3);
+          .slice(0, 3)
+          .map(({ candidate }) => candidate);
 
         setRelatedPosts(related);
       } catch (error) {
@@ -148,6 +165,12 @@ export default function BlogPostPage() {
 
   useEffect(() => {
     if (!post) return;
+
+    captureBlogAttribution(post.slug);
+    trackBlogEvent('blog_article_view', {
+      article_slug: post.slug,
+      category: post.category || 'uncategorized',
+    });
 
     const articleSchema = {
       "@context": "https://schema.org",
@@ -197,8 +220,48 @@ export default function BlogPostPage() {
     };
   }, [post]);
 
+  const handleBlogContentClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!post) return;
+    const clickedElement = event.target as HTMLElement;
+    const link = clickedElement.closest('a');
+    const rawHref = link?.getAttribute('href') || '';
+    if (!rawHref) return;
+
+    let destination = rawHref.split('?')[0].split('#')[0];
+    try {
+      destination = new URL(rawHref, window.location.origin).pathname;
+    } catch {
+      // Keep the safe, relative fallback for malformed legacy links.
+    }
+
+    const isConversionCta =
+      destination.startsWith('/consulenze') ||
+      destination.startsWith('/prenota') ||
+      destination.startsWith('/preventivo-rapido') ||
+      rawHref.startsWith('tel:') ||
+      rawHref.startsWith('mailto:') ||
+      rawHref.includes('wa.me');
+
+    captureBlogAttribution(post.slug);
+    if (isConversionCta) {
+      trackBlogEvent('blog_cta_click', {
+        article_slug: post.slug,
+        destination: destination || 'external',
+      });
+    } else if (destination.startsWith('/')) {
+      trackBlogEvent('blog_internal_link_click', {
+        article_slug: post.slug,
+        destination,
+      });
+    }
+  };
+
   const shareOnSocial = (platform: string) => {
     if (!post) return;
+    trackBlogEvent('blog_share', {
+      article_slug: post.slug,
+      platform,
+    });
     const url = window.location.href;
     const text = post.title;
     const urls = {
@@ -323,6 +386,7 @@ export default function BlogPostPage() {
             prose-td:p-2 sm:prose-td:p-3 prose-td:border prose-td:border-gray-300 prose-td:text-sm
             prose-hr:border-sage/30 prose-hr:my-6 sm:prose-hr:my-8"
           dangerouslySetInnerHTML={{ __html: sanitizeBlogHtml(post.content) }}
+          onClick={handleBlogContentClick}
           data-testid="content-html"
         />
 
@@ -354,7 +418,14 @@ export default function BlogPostPage() {
             <h3 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Articoli Correlati</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
               {relatedPosts.map(relatedPost => (
-                <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`}>
+                <Link
+                  key={relatedPost.id}
+                  href={`/blog/${relatedPost.slug}`}
+                  onClick={() => trackBlogEvent('blog_related_article_click', {
+                    article_slug: post.slug,
+                    related_article_slug: relatedPost.slug,
+                  })}
+                >
                   <div className="group cursor-pointer">
                     {relatedPost.coverImage && (
                       <img

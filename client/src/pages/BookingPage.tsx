@@ -39,6 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
 import { createUrl } from "@/lib/basePath";
+import { trackBlogConversion } from "@/lib/analytics";
 import {
   Calendar,
   Clock,
@@ -155,6 +156,9 @@ export default function BookingPage() {
     },
     onSuccess: () => {
       setBookingSuccess(true);
+      trackBlogConversion('booking_request_submitted', {
+        campaign: campaign?.code || campaign?.id || 'unknown',
+      });
       toast({
         title: "Prenotazione inviata!",
         description: "Riceverai una conferma via email a breve.",

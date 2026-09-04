@@ -36,6 +36,7 @@ import Navigation from '@/components/Navigation';
 import { AlertTriangle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
+import { trackBlogConversion } from '@/lib/analytics';
 
 interface PendingRequest {
   id: string;
@@ -306,6 +307,9 @@ export default function ConsultationBooking() {
       }
 
       await createConsultationMutation.mutateAsync(consultationData);
+      trackBlogConversion('consultation_request_submitted', {
+        consultation_type: jobType || 'unknown',
+      });
       setShowSuccess(true);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Impossibile completare la prenotazione';

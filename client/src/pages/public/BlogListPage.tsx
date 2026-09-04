@@ -14,6 +14,7 @@ import { useSEO } from "@/hooks/useSEO";
 import Navigation from "@/components/Navigation";
 import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
 import type { PublicWeddingStoryPreview } from "@shared/wedding-seo-types";
+import { trackBlogEvent } from "@/lib/analytics";
 
 type EditorialCard = {
   id: string;
@@ -309,7 +310,13 @@ export default function BlogListPage() {
                           </Badge>
                         ))}
                       </div>
-                      <Link href={post.href}>
+                      <Link
+                        href={post.href}
+                        onClick={() => trackBlogEvent('blog_article_open', {
+                          article_slug: post.kind === 'blog' ? post.href.replace('/blog/', '') : undefined,
+                          content_type: post.kind,
+                        })}
+                      >
                         <CardTitle className="text-2xl font-playfair text-blue-gray hover:text-terracotta transition-colors cursor-pointer" data-testid={`title-${post.id}`}>
                           {post.title}
                         </CardTitle>
@@ -329,7 +336,13 @@ export default function BlogListPage() {
                       <p className="text-gray-600 mb-4 line-clamp-3">
                         {post.excerpt}
                       </p>
-                      <Link href={post.href}>
+                      <Link
+                        href={post.href}
+                        onClick={() => trackBlogEvent('blog_article_open', {
+                          article_slug: post.kind === 'blog' ? post.href.replace('/blog/', '') : undefined,
+                          content_type: post.kind,
+                        })}
+                      >
                         <Button variant="link" className="text-sage hover:text-dark-sage p-0 font-semibold" data-testid={`button-read-${post.id}`}>
                           {post.kind === 'real-wedding' ? 'Scopri il Real Wedding →' : 'Leggi articolo →'}
                         </Button>
