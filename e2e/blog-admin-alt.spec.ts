@@ -117,4 +117,42 @@ test.describe("Blog Admin – testi alternativi immagini", () => {
     await page.getByRole("button", { name: "Annulla", exact: true }).last().click();
     await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
   });
+
+  test("avvisa per un'immagine legacy senza alt ma salva il contenuto invariato", async ({
+    page,
+  }) => {
+    await page.goto("/admin/__e2e/blog-admin-alt");
+    await page.getByRole("button", { name: "Nuovo Post" }).click();
+    await page.getByTestId("input-title").fill("Articolo legacy accessibile");
+    await page.getByTestId("input-excerpt").fill(
+      "Contenuto importato da una versione precedente.",
+    );
+
+    const legacyImageUrl = "https://example.invalid/legacy.jpg";
+    const legacyHtml = `<p>Testo importato</p><p><img src="${legacyImageUrl}"></p>`;
+    await page.getByRole("button", { name: "Sorgente HTML" }).click();
+    await page.getByTestId("textarea-html-source").fill(legacyHtml);
+    await page.getByRole("button", { name: "Vista Visuale" }).click();
+
+    await page.getByTestId("button-save-post").click();
+    await expect(
+      page.getByText("Attenzione: immagini senza testo alternativo", {
+        exact: true,
+      }).first(),
+    ).toBeVisible();
+
+    const savedPayload = page.getByTestId("e2e-save-payload");
+    await expect(savedPayload).not.toHaveText("");
+    const payload = JSON.parse(await savedPayload.textContent() || "{}") as {
+      mode: string;
+      content: string;
+    };
+    expect(payload.mode).toBe("create");
+    expect(payload.content).toContain(legacyImageUrl);
+    expect(payload.content).not.toMatch(/<img[^>]*\balt\s*=/i);
+    await expect(
+      page.getByText("Post creato con successo", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Nuovo Post" })).toBeVisible();
+  });
 });

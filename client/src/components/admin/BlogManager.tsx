@@ -65,7 +65,15 @@ const STATUS_LABELS: Record<string, string> = {
   archived: 'Archiviato'
 };
 
-export default function BlogManager() {
+export interface BlogManagerProps {
+  persistBlogPost?: typeof writeBlogPostWithSlugReservation;
+  isBlogSlugUnique?: (slug: string, excludePostId?: string) => Promise<boolean>;
+}
+
+export default function BlogManager({
+  persistBlogPost = writeBlogPostWithSlugReservation,
+  isBlogSlugUnique,
+}: BlogManagerProps = {}) {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -705,7 +713,9 @@ export default function BlogManager() {
       }
 
       // Check slug uniqueness
-      const isUnique = await checkSlugUnique(validationResult.data.slug, editingPost?.id);
+      const isUnique = await (
+        isBlogSlugUnique ?? checkSlugUnique
+      )(validationResult.data.slug, editingPost?.id);
       if (!isUnique) {
         toast({
           title: "Errore",
@@ -780,7 +790,7 @@ export default function BlogManager() {
           ...oldContentImagePaths.filter(path => !referencedContentImagePaths.includes(path))
         ].filter((path): path is string => Boolean(path) && !retainedPaths.has(path));
 
-        await writeBlogPostWithSlugReservation({
+        await persistBlogPost({
           postId: editingPost.id,
           slug: validationResult.data.slug,
           previousSlug: editingPost.slug,
@@ -796,7 +806,7 @@ export default function BlogManager() {
         if (formData.status === BlogPostStatus.PUBLISHED) {
           postData.publishedAt = Timestamp.now();
         }
-        await writeBlogPostWithSlugReservation({
+        await persistBlogPost({
           postId: targetId,
           slug: validationResult.data.slug,
           data: postData,
