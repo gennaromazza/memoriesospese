@@ -39,6 +39,12 @@ cinque coppie:
 - Le righe del 06–07/06 hanno conteggi vuoti: vanno trattate come dati non
   disponibili, non come zero. Anche le impressioni giornaliere sono aggregate
   e il report non contiene URL, query, clic o posizione per pagina.
+- Dalla schermata Sitemap fornita dall'utente, `/sitemap.xml` risulta inviata il
+  **25/08/2026**, letta da Google il **03/09/2026**, con stato **Riuscita** e
+  **96 pagine rilevate**. Questo non significa 96 pagine indicizzate: è il
+  numero di URL trovate nella sitemap. Non è direttamente confrontabile con
+  130 non indicizzate + 16 indicizzate, perché la copertura può includere URL
+  scoperte anche da altre fonti e categorie diverse.
 - L'analytics nativo del progetto è autorizzato, ma le interrogazioni all-time
   hanno restituito **0 pageview per `/blog/*` e 0 eventi custom**. Questo non
   dimostra traffico nullo: la copertura può iniziare dopo l'attivazione e la
