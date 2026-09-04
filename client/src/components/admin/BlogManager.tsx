@@ -1158,6 +1158,7 @@ export default function BlogManager() {
                         onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                         placeholder="Incolla qui il tuo HTML..."
                         spellCheck={false}
+                        data-testid="textarea-html-source"
                       />
                     ) : (
                       <div className="border rounded-md">

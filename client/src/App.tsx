@@ -88,6 +88,7 @@ const AuditSystem = lazyWithRetry(() => import("./pages/admin/AuditSystem"));
 const OrphanedPhotosManager = lazyWithRetry(() => import("./pages/admin/OrphanedPhotosManager"));
 const PhoneMigrationPage = lazyWithRetry(() => import("./pages/admin/PhoneMigrationPage"));
 const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
+const BlogAdminE2EHarness = lazyWithRetry(() => import("./pages/BlogAdminE2EHarness"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
@@ -222,6 +223,9 @@ function AppRoutes() {
         <Route path="/admin/orphaned-photos" component={OrphanedPhotosManager} />
         <Route path="/admin/phone-migration" component={PhoneMigrationPage} />
         <Route path="/admin/payment-audit" component={PaymentDiscrepanciesAudit} />
+        {import.meta.env.DEV && import.meta.env.VITE_BLOG_E2E_HARNESS === "true" && (
+          <Route path="/admin/__e2e/blog-admin-alt" component={BlogAdminE2EHarness} />
+        )}
         <Route path="/quote-management-demo" component={QuoteManagementDemo} />
 
         {/* Public questionnaire route with noindex/nofollow */}
