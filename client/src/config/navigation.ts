@@ -113,6 +113,13 @@ export const discoverNavGroups: DiscoverNavGroup[] = [
     label: 'Esperienze',
     items: [
       {
+        label: 'Image Experience',
+        href: '/image-experience',
+        icon: Sparkles,
+        description: 'Configura il servizio del tuo matrimonio, a partire da 2.200 €.',
+        showInFooter: true,
+      },
+      {
         label: 'Stampa le tue foto',
         href: '/stampa-foto-aversa',
         icon: Printer,

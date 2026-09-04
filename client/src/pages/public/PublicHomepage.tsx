@@ -346,6 +346,51 @@ export default function PublicHomepage() {
         </div>
       </section>
 
+      {/* Image Experience */}
+      <section className="px-4 py-12 sm:py-16 md:py-20">
+        <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-[#2f3a32] text-[#f5f0e8] shadow-xl">
+          <div className="grid items-stretch md:grid-cols-[1.05fr_0.95fr]">
+            <div className="flex flex-col justify-center p-7 sm:p-10 md:p-14">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#d9a083]">
+                Una nuova esperienza
+              </p>
+              <h2 className="max-w-xl font-playfair text-3xl leading-tight sm:text-4xl md:text-5xl">
+                Non un pacchetto.<br />
+                <em className="text-[#f0c0a8]">Il vostro punto di partenza.</em>
+              </h2>
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
+                Image Experience parte da 2.200 €. Scoprite le possibilità,
+                scegliete ciò che vi rappresenta e costruite il servizio del
+                vostro matrimonio con calma.
+              </p>
+              <div className="mt-7">
+                <Link href="/image-experience" className="inline-block max-w-full">
+                  <Button
+                    size="lg"
+                    className="h-auto max-w-full whitespace-normal rounded-full bg-[#f5f0e8] px-6 py-3 text-center leading-snug text-[#2f3a32] hover:bg-[#eadfd1]"
+                    data-testid="button-image-experience-home"
+                  >
+                    Scopri Image Experience
+                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="relative min-h-[260px] overflow-hidden md:min-h-[360px]">
+              <img
+                src="/images/image-experience/coppia-configura-servizio-matrimonio-1024.webp"
+                alt="Una coppia configura insieme il servizio fotografico del matrimonio"
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute bottom-5 right-5 rounded-full bg-[#f5f0e8] px-4 py-2 text-sm font-semibold text-[#2f3a32] shadow-lg">
+                Da 2.200 €
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Stats Section */}
       <section className="py-12 sm:py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">

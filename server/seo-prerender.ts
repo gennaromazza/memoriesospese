@@ -109,7 +109,7 @@ function getStaticPageMeta(path: string): PageMeta | null {
         <p>${WEDDING_HOME_COPY.heroDescription}</p>
         <h2>${WEDDING_HOME_COPY.portfolioTitle}</h2>
         <p>${WEDDING_HOME_COPY.portfolioDescription}</p>
-        <p><a href="${BASE_URL}/portfolio/matrimonio">${WEDDING_HOME_COPY.portfolioCta}</a> | <a href="${BASE_URL}/consulenze">${WEDDING_HOME_COPY.consultationCta}</a></p>
+        <p><a href="${BASE_URL}/portfolio/matrimonio">${WEDDING_HOME_COPY.portfolioCta}</a> | <a href="${BASE_URL}/consulenze">${WEDDING_HOME_COPY.consultationCta}</a> | <a href="${BASE_URL}/image-experience">Scopri Image Experience</a></p>
         <h2>Fotografia e video per matrimoni in Campania</h2>
         <p>Image Studio è lo studio fotografico di Gennaro Mazzacane con sede ad Aversa (CE). Con oltre 10 anni di esperienza e 500+ matrimoni documentati, raccontiamo matrimoni ad Aversa, Napoli, Caserta, Salerno e Costiera Amalfitana con reportage fotografico e video iMaGe Vision.</p>
         <h2>${WEDDING_HOME_COPY.secondaryTitle}</h2>
