@@ -106,6 +106,13 @@ export default function BlogManager() {
   // Dialog "Incolla JSON"
   const [pasteJsonOpen, setPasteJsonOpen] = useState(false);
   const [pasteJsonText, setPasteJsonText] = useState('');
+  // Ogni immagine inserita nell'editor deve avere una descrizione accessibile.
+  const [editorImageAltDialogOpen, setEditorImageAltDialogOpen] = useState(false);
+  const [editorImageAlt, setEditorImageAlt] = useState('');
+  const [editorImageAltMode, setEditorImageAltMode] = useState<'upload' | 'edit'>('upload');
+  const pendingEditorImageFileRef = useRef<File | null>(null);
+  const pendingEditorImageRangeRef = useRef<number | null>(null);
+  const contentImageAltMapRef = useRef<Map<string, string>>(new Map());
   const { toast } = useToast();
 
   // Form state
@@ -115,6 +122,7 @@ export default function BlogManager() {
     excerpt: '',
     content: '',
     coverImage: '',
+    coverImageAlt: '',
     status: BlogPostStatus.DRAFT,
     category: '',
     tags: '',
@@ -161,6 +169,7 @@ export default function BlogManager() {
       excerpt: '',
       content: '',
       coverImage: '',
+      coverImageAlt: '',
       status: BlogPostStatus.DRAFT,
       category: '',
       tags: '',
@@ -172,6 +181,12 @@ export default function BlogManager() {
     setSlugManuallyEdited(false);
     setCoverImagePath('');
     setContentImagePaths([]);
+    contentImageAltMapRef.current.clear();
+    pendingEditorImageFileRef.current = null;
+    pendingEditorImageRangeRef.current = null;
+    setEditorImageAlt('');
+    setEditorImageAltMode('upload');
+    setEditorImageAltDialogOpen(false);
     setUploadingCover(false);
     setUploadingContentImage(false);
     draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
@@ -250,6 +265,7 @@ export default function BlogManager() {
     setSlugManuallyEdited(Boolean(typeof data.slug === 'string' && data.slug.trim()));
     setCoverImagePath('');
     setContentImagePaths([]);
+    contentImageAltMapRef.current.clear();
     draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id;
     setShowHtmlSource(false);
     setFormData({
@@ -258,6 +274,7 @@ export default function BlogManager() {
       excerpt: data.excerpt.trim(),
       content: data.content,
       coverImage: typeof data.coverImage === 'string' ? data.coverImage.trim() : '',
+      coverImageAlt: typeof data.coverImageAlt === 'string' ? data.coverImageAlt.trim().slice(0, 200) : '',
       status,
       category: typeof data.category === 'string' ? data.category.trim() : '',
       tags: tagsString,
@@ -323,6 +340,7 @@ export default function BlogManager() {
       setSlugManuallyEdited(true);
       setCoverImagePath((post as any).coverImagePath || '');
       setContentImagePaths(Array.isArray((post as any).contentImagePaths) ? (post as any).contentImagePaths : []);
+      contentImageAltMapRef.current.clear();
       let content = post.content || '';
 
       // Se il contenuto è su Storage, scaricalo prima di aprire l'editor
@@ -356,6 +374,7 @@ export default function BlogManager() {
         excerpt: post.excerpt || '',
         content,
         coverImage: post.coverImage || '',
+        coverImageAlt: (post as any).coverImageAlt || '',
         status: post.status,
         category: post.category || '',
         tags: post.tags?.join(', ') || '',
@@ -445,7 +464,7 @@ export default function BlogManager() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
       if (!file.type.startsWith('image/')) {
@@ -457,40 +476,125 @@ export default function BlogManager() {
         return;
       }
 
-      const sessionId = editorSessionRef.current;
-      try {
-        setUploadingContentImage(true);
-        const compressedFile = await compressImage(file);
-        const postKey = editingPost?.id || draftStorageKeyRef.current || (draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id);
-        const storagePath = `blog-article-images/${postKey}/${Date.now()}.jpg`;
-        const storageRef = ref(storage, storagePath);
-        await uploadBytesResumable(storageRef, compressedFile);
-        const downloadUrl = await getDownloadURL(storageRef);
-        if (sessionId !== editorSessionRef.current) {
-          await deleteStoragePaths([storagePath]);
-          return;
-        }
-        uploadedThisSessionRef.current.add(storagePath);
-
-        const editor = quillRef.current?.getEditor();
-        const range = editor?.getSelection(true);
-        editor?.insertEmbed(range?.index ?? editor?.getLength() ?? 0, 'image', downloadUrl, 'user');
-        setContentImagePaths(prev => [...prev, storagePath]);
-        toast({ title: "Immagine caricata", description: "Immagine inserita nell'articolo" });
-      } catch (error) {
-        console.error('Errore caricamento immagine articolo:', error);
-        toast({
-          title: "Errore",
-          description: "Impossibile caricare l'immagine nell'articolo",
-          variant: "destructive"
-        });
-      } finally {
-        if (sessionId === editorSessionRef.current) {
-          setUploadingContentImage(false);
-        }
-      }
+      const editor = quillRef.current?.getEditor();
+      pendingEditorImageFileRef.current = file;
+      pendingEditorImageRangeRef.current = editor?.getSelection(true)?.index ?? null;
+      setEditorImageAltMode('upload');
+      setEditorImageAlt(formData.title.trim());
+      setEditorImageAltDialogOpen(true);
     };
     input.click();
+  };
+
+  const cancelEditorImageUpload = () => {
+    pendingEditorImageFileRef.current = null;
+    pendingEditorImageRangeRef.current = null;
+    setEditorImageAlt('');
+    setEditorImageAltMode('upload');
+    setEditorImageAltDialogOpen(false);
+  };
+
+  const handleEditSelectedImageAlt = () => {
+    const editor = quillRef.current?.getEditor();
+    const range = editor?.getSelection(true);
+    const [leaf] = range ? editor.getLeaf(range.index) : [null];
+    const imageNode = leaf?.domNode as HTMLImageElement | undefined;
+    if (!range || !imageNode || imageNode.tagName !== 'IMG') {
+      toast({
+        title: "Seleziona un'immagine",
+        description: "Clicca un'immagine nel corpo dell'articolo, poi usa questo pulsante per modificare il suo alt text.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    pendingEditorImageFileRef.current = null;
+    pendingEditorImageRangeRef.current = range.index;
+    setEditorImageAltMode('edit');
+    setEditorImageAlt(imageNode.getAttribute('alt') || '');
+    setEditorImageAltDialogOpen(true);
+  };
+
+  const applyEditorImageAlts = (html: string): string => {
+    if (!html || contentImageAltMapRef.current.size === 0) return html;
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    container.querySelectorAll('img').forEach(image => {
+      const src = image.getAttribute('src') || '';
+      const alt = contentImageAltMapRef.current.get(src);
+      if (alt) image.setAttribute('alt', alt);
+    });
+    return container.innerHTML;
+  };
+
+  const confirmEditorImageUpload = async () => {
+    const file = pendingEditorImageFileRef.current;
+    const alt = editorImageAlt.trim();
+    if (!alt) {
+      toast({
+        title: "Testo alternativo obbligatorio",
+        description: "Descrivi brevemente cosa mostra l'immagine prima di inserirla.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (editorImageAltMode === 'edit') {
+      const editor = quillRef.current?.getEditor();
+      const rangeIndex = pendingEditorImageRangeRef.current;
+      if (editor && rangeIndex !== null) {
+        editor.formatText(rangeIndex, 1, 'alt', alt, 'user');
+        const [leaf] = editor.getLeaf(rangeIndex);
+        const src = (leaf?.domNode as HTMLImageElement | undefined)?.getAttribute('src');
+        if (src) contentImageAltMapRef.current.set(src, alt);
+        toast({ title: "Alt text aggiornato", description: "La descrizione verrà salvata con l'articolo." });
+      }
+      cancelEditorImageUpload();
+      return;
+    }
+    if (!file) {
+      cancelEditorImageUpload();
+      return;
+    }
+
+    const sessionId = editorSessionRef.current;
+    pendingEditorImageFileRef.current = null;
+    setEditorImageAltDialogOpen(false);
+    try {
+      setUploadingContentImage(true);
+      const compressedFile = await compressImage(file);
+      const postKey = editingPost?.id || draftStorageKeyRef.current || (draftStorageKeyRef.current = doc(collection(db, 'blogPosts')).id);
+      const storagePath = `blog-article-images/${postKey}/${Date.now()}.jpg`;
+      const storageRef = ref(storage, storagePath);
+      await uploadBytesResumable(storageRef, compressedFile);
+      const downloadUrl = await getDownloadURL(storageRef);
+      if (sessionId !== editorSessionRef.current) {
+        await deleteStoragePaths([storagePath]);
+        return;
+      }
+      uploadedThisSessionRef.current.add(storagePath);
+
+      const editor = quillRef.current?.getEditor();
+      const rangeIndex = pendingEditorImageRangeRef.current ?? editor?.getLength() ?? 0;
+      editor?.insertEmbed(rangeIndex, 'image', downloadUrl, 'user');
+      editor?.formatText(rangeIndex, 1, 'alt', alt, 'user');
+      contentImageAltMapRef.current.set(downloadUrl, alt);
+      setContentImagePaths(prev => [...prev, storagePath]);
+      toast({ title: "Immagine caricata", description: "Immagine inserita nell'articolo" });
+    } catch (error) {
+      console.error('Errore caricamento immagine articolo:', error);
+      toast({
+        title: "Errore",
+        description: "Impossibile caricare l'immagine nell'articolo",
+        variant: "destructive"
+      });
+    } finally {
+      pendingEditorImageRangeRef.current = null;
+      setEditorImageAlt('');
+      if (sessionId === editorSessionRef.current) {
+        setUploadingContentImage(false);
+      }
+    }
   };
 
   const checkSlugUnique = async (slug: string, excludePostId?: string): Promise<boolean> => {
@@ -533,7 +637,17 @@ export default function BlogManager() {
     let contentPathUploadedForSave = '';
     setSaving(true);
     try {
-      const sanitizedContent = sanitizeBlogHtml(formData.content);
+      const sanitizedContent = applyEditorImageAlts(sanitizeBlogHtml(formData.content));
+      const contentContainer = document.createElement('div');
+      contentContainer.innerHTML = sanitizedContent;
+      const imagesWithoutAlt = Array.from(contentContainer.querySelectorAll('img'))
+        .filter(image => !image.getAttribute('alt')?.trim()).length;
+      if (imagesWithoutAlt > 0) {
+        toast({
+          title: "Attenzione: immagini senza testo alternativo",
+          description: `${imagesWithoutAlt} ${imagesWithoutAlt === 1 ? 'immagine non ha' : 'immagini non hanno'} un alt text. Il salvataggio continua, ma puoi aggiungerlo dalla scheda HTML.`,
+        });
+      }
       if (hasEmbeddedDataImages(sanitizedContent)) {
         toast({
           title: "Immagine non salvata",
@@ -561,6 +675,7 @@ export default function BlogManager() {
       // Aggiungi solo campi opzionali se hanno valori
       if (formData.coverImage?.trim()) {
         dataToValidate.coverImage = formData.coverImage;
+        dataToValidate.coverImageAlt = formData.coverImageAlt.trim() || formData.title.trim();
       }
       if (formData.category?.trim()) {
         dataToValidate.category = formData.category;
@@ -627,6 +742,7 @@ export default function BlogManager() {
       }
       if (editingPost?.coverImage && !formData.coverImage.trim()) {
         postData.coverImage = deleteField();
+        postData.coverImageAlt = deleteField();
         postData.coverImagePath = deleteField();
       }
       postData.contentImagePaths = referencedContentImagePaths;
@@ -1073,6 +1189,7 @@ export default function BlogManager() {
                             'header',
                             'bold', 'italic', 'underline', 'strike',
                             'link', 'image', 'video',
+                            'alt',
                             'list',
                             'blockquote', 'code-block',
                             'align',
@@ -1080,6 +1197,22 @@ export default function BlogManager() {
                           ]}
                           style={{ minHeight: '300px' }}
                         />
+                        <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleEditSelectedImageAlt}
+                            disabled={uploadingContentImage}
+                            data-testid="button-edit-image-alt"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Modifica alt immagine selezionata
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Per immagini già presenti, selezionale nell’editor. In alternativa usa “Sorgente HTML”.
+                          </span>
+                        </div>
                         {uploadingContentImage && (
                           <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border-t">
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1175,11 +1308,25 @@ export default function BlogManager() {
                           className="flex-1"
                         />
                       </div>
+                      <div>
+                        <Label htmlFor="cover-image-alt">Testo alternativo copertina</Label>
+                        <Input
+                          id="cover-image-alt"
+                          value={formData.coverImageAlt}
+                          onChange={(e) => setFormData(prev => ({ ...prev, coverImageAlt: e.target.value }))}
+                          placeholder="Descrivi cosa mostra la copertina"
+                          maxLength={200}
+                          data-testid="input-cover-image-alt"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Aiuta accessibilità, SEO immagini e anteprime social ({formData.coverImageAlt.length}/200).
+                        </p>
+                      </div>
                       {formData.coverImage && (
                         <div className="relative">
                           <img 
                             src={formData.coverImage} 
-                            alt="Anteprima" 
+                            alt={formData.coverImageAlt || formData.title || "Anteprima copertina"}
                             className="w-full h-40 object-cover rounded border"
                             onLoad={(e) => {
                               const img = e.target as HTMLImageElement;
@@ -1244,7 +1391,7 @@ export default function BlogManager() {
                     {formData.coverImage && (
                       <img 
                         src={formData.coverImage} 
-                        alt="Copertina"
+                        alt={formData.coverImageAlt || formData.title || "Copertina"}
                         className="w-full h-64 object-cover rounded-lg mb-6"
                       />
                     )}
@@ -1264,7 +1411,7 @@ export default function BlogManager() {
                     )}
 
                     <div 
-                      dangerouslySetInnerHTML={{ __html: sanitizeBlogHtml(formData.content || '<p class="text-gray-400">Il contenuto apparirà qui...</p>') }}
+                      dangerouslySetInnerHTML={{ __html: applyEditorImageAlts(sanitizeBlogHtml(formData.content || '<p class="text-gray-400">Il contenuto apparirà qui...</p>')) }}
                       className="blog-content"
                     />
 
@@ -1593,6 +1740,61 @@ export default function BlogManager() {
             <Button onClick={handleJsonPasteImport} data-testid="button-confirm-paste-json">
               <FileJson className="h-4 w-4 mr-2" />
               Importa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editorImageAltDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !uploadingContentImage) cancelEditorImageUpload();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editorImageAltMode === 'edit' ? 'Modifica descrizione immagine' : 'Descrivi l’immagine'}
+            </DialogTitle>
+            <DialogDescription>
+              {editorImageAltMode === 'edit'
+                ? 'Aggiorna il testo alternativo dell’immagine selezionata.'
+                : 'Inserisci un testo alternativo breve e descrittivo. Verrà salvato insieme all’immagine nell’articolo.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="editor-image-alt">Testo alternativo *</Label>
+            <Input
+              id="editor-image-alt"
+              value={editorImageAlt}
+              onChange={(e) => setEditorImageAlt(e.target.value)}
+              placeholder="es. Sposi al tramonto sulla Costiera Amalfitana"
+              maxLength={200}
+              autoFocus
+              data-testid="input-editor-image-alt"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editorImageAlt.trim()) {
+                  e.preventDefault();
+                  void confirmEditorImageUpload();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Evita “foto di…” e descrivi il soggetto o l’azione ({editorImageAlt.length}/200).
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={cancelEditorImageUpload}>
+              Annulla
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void confirmEditorImageUpload()}
+              disabled={!editorImageAlt.trim()}
+              data-testid="button-confirm-editor-image"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {editorImageAltMode === 'edit' ? 'Salva descrizione' : 'Carica e inserisci'}
             </Button>
           </DialogFooter>
         </DialogContent>

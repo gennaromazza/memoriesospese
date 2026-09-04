@@ -627,7 +627,7 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
         type: post.coverImageType,
         source: 'editorial-cover',
       },
-      ...(contentImage ? [{ ...contentImage, alt: post.title }] : []),
+      ...(contentImage ? [contentImage] : []),
     ], defaultSocialImage());
     const articleImage = socialImage.url;
 

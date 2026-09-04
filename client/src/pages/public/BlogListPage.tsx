@@ -21,6 +21,7 @@ type EditorialCard = {
   excerpt: string;
   publishedAt?: any;
   coverImage?: string;
+  coverImageAlt?: string;
   category: string;
   tags: string[];
   href: string;
@@ -289,7 +290,7 @@ export default function BlogListPage() {
                       <div className="overflow-hidden bg-beige">
                         <img 
                           src={post.coverImage} 
-                          alt={post.title}
+                          alt={post.coverImageAlt || post.title}
                           className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500"
                           loading="lazy"
                         />

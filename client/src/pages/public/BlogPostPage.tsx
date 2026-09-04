@@ -61,7 +61,7 @@ export default function BlogPostPage() {
       : `${window.location.origin}/blog`,
     ogType: "article",
     ogImage: articleOgImage,
-    ogImageAlt: post?.title,
+    ogImageAlt: post?.coverImageAlt || post?.title,
     ogImageSource: post?.coverImage ? "editorial-cover" : "content-image",
   });
 
@@ -249,7 +249,7 @@ export default function BlogPostPage() {
           <div className="mb-8 sm:mb-12 rounded-xl overflow-hidden shadow-lg">
             <img
               src={post.coverImage}
-              alt={post.title}
+              alt={post.coverImageAlt || post.title}
               className="w-full object-cover"
               style={{ maxHeight: '480px', objectFit: 'cover' }}
               loading="eager"
