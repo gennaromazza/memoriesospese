@@ -39,6 +39,7 @@ async function renderForCrawler(path: string): Promise<{
   await createSeoMiddleware()(
     {
       path,
+      query: {},
       headers: { 'user-agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' },
     } as any,
     res as any,
@@ -91,6 +92,38 @@ describe('SEO prerender wedding-first', () => {
     expect(response.body).toContain('https://www.matrimonio.com/fotografo-matrimonio/image-studio-fotografico--e149790');
     expect(response.body).toContain('Leggi i Real Wedding');
     expect(response.body?.match(/<h1>/g)).toHaveLength(1);
+  });
+
+  it('redirects legacy WordPress query URLs to the homepage', async () => {
+    const response: RenderedResponse = { headers: {} };
+    const res = {
+      setHeader: (name: string, value: string) => {
+        response.headers[name] = value;
+      },
+      send: (body: string) => {
+        response.body = body;
+      },
+      status: (statusCode: number) => {
+        response.statusCode = statusCode;
+        return res;
+      },
+      type: () => res,
+    };
+    const next = vi.fn();
+
+    await createSeoMiddleware()(
+      {
+        path: '/',
+        query: { p: '28445' },
+        headers: { 'user-agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' },
+      } as any,
+      res as any,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(301);
+    expect(response.headers.Location).toBe('/');
   });
 
   it.each(['/admin', '/gallery/riservata', '/view/riservata'])(

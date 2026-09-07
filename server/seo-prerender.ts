@@ -1285,6 +1285,21 @@ export function createSeoMiddleware() {
   return async (req: Request, res: Response, next: NextFunction) => {
     const userAgent = req.headers['user-agent'] || '';
     const path = normalizeClientPath(req.path);
+    const legacyWordPressId = Array.isArray(req.query?.p)
+      ? req.query.p[0]
+      : req.query?.p;
+
+    // I vecchi permalink WordPress `/?p=123` oggi risolverebbero sulla
+    // homepage e verrebbero segnalati da Search Console come duplicati.
+    // Non esiste più una pagina pubblica associata all'ID numerico: reindirizza
+    // quindi in modo permanente alla homepage canonica.
+    if (path === '/' && typeof legacyWordPressId === 'string' && /^\d+$/.test(legacyWordPressId)) {
+      res.status(301);
+      res.setHeader('Location', '/');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.type('text/plain').send('Moved Permanently');
+      return;
+    }
 
     // In development Vite serves these virtual modules after this middleware.
     // They are not application routes and must not be mistaken for 404s.
