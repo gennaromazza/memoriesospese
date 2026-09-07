@@ -15,6 +15,13 @@ describe('social metadata resolver', () => {
       .toBe('https://imagestudiofotografico.com/blog/prova');
   });
 
+  it('removes tracking and other query parameters from canonicals', () => {
+    expect(canonicalUrl('/image-experience?utm_source=google&utm_campaign=landing&fbclid=abc#configura'))
+      .toBe('https://imagestudiofotografico.com/image-experience');
+    expect(canonicalUrl('/blog/prova?ref=homepage'))
+      .toBe('https://imagestudiofotografico.com/blog/prova');
+  });
+
   it('accepts stable HTTPS images and rejects local or expiring signed URLs', () => {
     expect(normalizePublicImageUrl('/assets/og-image.jpg'))
       .toBe('https://imagestudiofotografico.com/assets/og-image.jpg');

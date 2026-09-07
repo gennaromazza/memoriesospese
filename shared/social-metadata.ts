@@ -236,7 +236,7 @@ export function canonicalUrl(pathOrUrl: string): string {
     url.hash = '';
     return url.pathname === '/'
       ? `${PUBLIC_SITE_URL}/`
-      : `${PUBLIC_SITE_URL}${url.pathname.replace(/\/+$/, '')}${url.search}`;
+      : `${PUBLIC_SITE_URL}${url.pathname.replace(/\/+$/, '')}`;
   } catch {
     return `${PUBLIC_SITE_URL}/`;
   }
