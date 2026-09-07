@@ -56,7 +56,8 @@ import {
   Calendar,
   Receipt,
   CreditCard,
-  FileText
+  FileText,
+  MessageCircle
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -69,6 +70,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getAllOrders, addAccontoPayment, recordSaldoPayment, getOrderTotals, deleteOrder } from '@/lib/orders';
+import { getWhatsAppLink } from '@shared/phone-utils';
 
 // Stati ordine walk-in
 const ORDER_STATES = [
@@ -339,10 +341,31 @@ export default function WalkInOrdersManager({ onOpenQuickOrder }: WalkInOrdersMa
                               </span>
                             )}
                             {order.telefonoCliente && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {order.telefonoCliente}
-                              </span>
+                              (() => {
+                                const whatsappLink = getWhatsAppLink(
+                                  order.telefonoCliente,
+                                  `Ciao ${order.nomeCliente || ''}, ti contatto per il tuo ordine.`
+                                );
+
+                                return whatsappLink ? (
+                                  <a
+                                    href={whatsappLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-[#128C7E] hover:text-[#075E54] hover:underline flex items-center gap-1 transition-colors"
+                                    title="Apri una conversazione WhatsApp"
+                                    aria-label={`Apri WhatsApp con ${order.nomeCliente || 'il cliente'}`}
+                                  >
+                                    <MessageCircle className="h-3 w-3" />
+                                    {order.telefonoCliente}
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Phone className="h-3 w-3" />
+                                    {order.telefonoCliente}
+                                  </span>
+                                );
+                              })()
                             )}
                           </div>
                         </td>
@@ -854,7 +877,30 @@ export default function WalkInOrdersManager({ onOpenQuickOrder }: WalkInOrdersMa
                     {order.telefonoCliente && (
                       <div className="flex items-center gap-2">
                         <Phone className="w-3 h-3 text-gray-400" />
-                        <span className="text-gray-600" data-testid="order-detail-customer-phone">{order.telefonoCliente}</span>
+                        {(() => {
+                          const whatsappLink = getWhatsAppLink(
+                            order.telefonoCliente,
+                            `Ciao ${order.nomeCliente || ''}, ti contatto per il tuo ordine.`
+                          );
+
+                          return whatsappLink ? (
+                            <a
+                              href={whatsappLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#128C7E] hover:text-[#075E54] hover:underline transition-colors"
+                              title="Apri una conversazione WhatsApp"
+                              aria-label={`Apri WhatsApp con ${order.nomeCliente || 'il cliente'}`}
+                              data-testid="order-detail-customer-phone"
+                            >
+                              {order.telefonoCliente}
+                            </a>
+                          ) : (
+                            <span className="text-gray-600" data-testid="order-detail-customer-phone">
+                              {order.telefonoCliente}
+                            </span>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
