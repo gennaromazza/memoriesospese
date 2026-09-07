@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Timestamp } from "firebase/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { getAllOrders } from "@/lib/orders";
 import { getAllCampaigns } from "@/lib/booking-campaigns";
 import CashRegister from "./CashRegister";
 import WalkInOrdersManager from "./WalkInOrdersManager";
+import QuickOrderModal from "./QuickOrderModal";
 import type { FinancialSummary, MonthlyData, ForecastedIncome, CashMovementOrigine, CashMovementFE } from "@shared/cash-types";
 import { CASH_ORIGINE_LABELS } from "@shared/cash-types";
 import {
@@ -41,7 +42,9 @@ export default function CashDashboard() {
   const toDate = (d: Date | Timestamp): Date => {
     return d instanceof Timestamp ? d.toDate() : d;
   };
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("walkin");
+  const [quickOrderModalOpen, setQuickOrderModalOpen] = useState(false);
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<"all" | "day" | "custom" | "month" | "quarter" | "year">("month");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [origineFilter, setOrigineFilter] = useState<CashMovementOrigine | "all">("all");
@@ -266,15 +269,15 @@ export default function CashDashboard() {
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sub-Tabs Navigation - Mobile Responsive */}
       <TabsList className="mb-4 sm:mb-6 grid grid-cols-4 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
-        <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
-          <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-          <span className="hidden sm:inline">Registro</span>
-          <span className="sm:hidden">📝</span>
-        </TabsTrigger>
         <TabsTrigger value="walkin" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <ShoppingBag className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
           <span className="hidden sm:inline">Walk-in</span>
           <span className="sm:hidden">🛍️</span>
+        </TabsTrigger>
+        <TabsTrigger value="register" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
+          <FileText className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+          <span className="hidden sm:inline">Registro</span>
+          <span className="sm:hidden">📝</span>
         </TabsTrigger>
         <TabsTrigger value="dashboard" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
           <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -295,7 +298,7 @@ export default function CashDashboard() {
 
       {/* Ordini Walk-in Tab */}
       <TabsContent value="walkin">
-        <WalkInOrdersManager />
+        <WalkInOrdersManager onOpenQuickOrder={() => setQuickOrderModalOpen(true)} />
       </TabsContent>
 
       {/* Dashboard Tab */}
@@ -955,5 +958,17 @@ export default function CashDashboard() {
         </div>
       </TabsContent>
     </Tabs>
+
+    <QuickOrderModal
+      isOpen={quickOrderModalOpen}
+      onClose={() => setQuickOrderModalOpen(false)}
+      onSuccess={() => {
+        setQuickOrderModalOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+        queryClient.invalidateQueries({ queryKey: ["walk-in-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
+        queryClient.invalidateQueries({ queryKey: ["financial-summary"] });
+      }}
+    />
   );
 }

@@ -38,6 +38,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { 
   ShoppingBag, 
+  Plus,
   User, 
   Mail, 
   Phone, 
@@ -77,7 +78,11 @@ const ORDER_STATES = [
   { value: 'completato', label: 'Completato', color: 'bg-green-100 text-green-700' },
 ];
 
-export default function WalkInOrdersManager() {
+interface WalkInOrdersManagerProps {
+  onOpenQuickOrder?: () => void;
+}
+
+export default function WalkInOrdersManager({ onOpenQuickOrder }: WalkInOrdersManagerProps) {
   const { toast } = useToast();
   
   // Stati per dialog
@@ -250,14 +255,25 @@ export default function WalkInOrdersManager() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <ShoppingBag className="h-5 w-5 text-sage" />
-            Ordini Walk-in
-          </CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            Gestisci ordini per clienti che si presentano in studio. Registra pagamenti e notifica quando il prodotto è pronto.
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <ShoppingBag className="h-5 w-5 text-sage" />
+              Ordini Walk-in
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Gestisci ordini per clienti che si presentano in studio. Registra pagamenti e notifica quando il prodotto è pronto.
+            </CardDescription>
+          </div>
+          {onOpenQuickOrder && (
+            <Button
+              onClick={onOpenQuickOrder}
+              className="w-full sm:w-auto bg-sage text-white hover:bg-sage/90"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nuovo ordine Walk-in
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -267,7 +283,7 @@ export default function WalkInOrdersManager() {
             </div>
           ) : walkInOrders.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Nessun ordine walk-in. Usa il pulsante "Ordine Rapido" nel Registro Cassa per crearne uno.
+              Nessun ordine walk-in. Usa il pulsante "Nuovo ordine Walk-in" per crearne uno.
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
