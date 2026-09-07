@@ -9,6 +9,11 @@ interface BlogPostMedia {
   thumbnailUrl?: string;
 }
 
+// Aggiornare questa data solo quando cambia in modo significativo il rendering
+// pubblico comune a tutti gli articoli (prerender, canonical, dati strutturati
+// o interlinking). È un limite minimo stabile, non una data generata a ogni request.
+export const BLOG_SEO_RENDERING_LASTMOD = '2026-09-07';
+
 function escapeXml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -22,6 +27,19 @@ function timestampSeconds(value: unknown): number | null {
   if (!value || typeof value !== 'object') return null;
   const timestamp = value as { seconds?: number; _seconds?: number };
   return timestamp.seconds ?? timestamp._seconds ?? null;
+}
+
+export function blogSitemapLastModifiedDate(
+  post: Pick<BlogPost, 'updatedAt' | 'publishedAt'>,
+  renderingLastmod = BLOG_SEO_RENDERING_LASTMOD,
+): string {
+  const contentSeconds = timestampSeconds(post.updatedAt) ?? timestampSeconds(post.publishedAt);
+  const contentLastmod = contentSeconds
+    ? new Date(contentSeconds * 1000).toISOString().split('T')[0]
+    : null;
+  return contentLastmod && contentLastmod > renderingLastmod
+    ? contentLastmod
+    : renderingLastmod;
 }
 
 export function buildWeddingSitemapEntries(
@@ -76,7 +94,7 @@ export async function generateDynamicSitemap(): Promise<string> {
     { path: '/portfolio/ritratto', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/famiglia', changefreq: 'weekly', priority: '0.85', lastmod: '2026-08-18' },
     { path: '/portfolio/altro', changefreq: 'weekly', priority: '0.8', lastmod: '2026-08-18' },
-    { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: '2026-08-18' },
+    { path: '/blog', changefreq: 'daily', priority: '0.9', lastmod: BLOG_SEO_RENDERING_LASTMOD },
     { path: '/image-experience', changefreq: 'monthly', priority: '0.95', lastmod: '2026-09-04' },
     { path: '/storie', changefreq: 'monthly', priority: '0.85', lastmod: '2026-02-06' },
     { path: '/fotografo-aversa', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-18' },
@@ -113,10 +131,7 @@ export async function generateDynamicSitemap(): Promise<string> {
 
   // Aggiungi ogni post del blog
   for (const post of posts) {
-    const lastModifiedSeconds = timestampSeconds(post.updatedAt) ?? timestampSeconds(post.publishedAt);
-    const lastModifiedDate = lastModifiedSeconds
-      ? new Date(lastModifiedSeconds * 1000).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
+    const lastModifiedDate = blogSitemapLastModifiedDate(post);
     const postUrl = `${baseUrl}/blog/${encodeURIComponent(post.slug)}`;
 
     sitemap += `  <url>
