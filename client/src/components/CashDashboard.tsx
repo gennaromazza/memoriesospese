@@ -266,7 +266,8 @@ export default function CashDashboard() {
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       {/* Sub-Tabs Navigation - Mobile Responsive */}
       <TabsList className="mb-4 sm:mb-6 grid grid-cols-4 gap-1 h-auto p-1 bg-muted/50 rounded-lg">
         <TabsTrigger value="walkin" className="flex-shrink-0 px-2 py-2 text-xs sm:text-sm whitespace-nowrap flex items-center justify-center gap-1 sm:gap-2">
@@ -957,18 +958,19 @@ export default function CashDashboard() {
           </Card>
         </div>
       </TabsContent>
-    </Tabs>
+      </Tabs>
 
-    <QuickOrderModal
-      isOpen={quickOrderModalOpen}
-      onClose={() => setQuickOrderModalOpen(false)}
-      onSuccess={() => {
-        setQuickOrderModalOpen(false);
-        queryClient.invalidateQueries({ queryKey: ["orders"] });
-        queryClient.invalidateQueries({ queryKey: ["walk-in-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
-        queryClient.invalidateQueries({ queryKey: ["financial-summary"] });
-      }}
-    />
+      <QuickOrderModal
+        isOpen={quickOrderModalOpen}
+        onClose={() => setQuickOrderModalOpen(false)}
+        onSuccess={() => {
+          setQuickOrderModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["orders"] });
+          queryClient.invalidateQueries({ queryKey: ["walk-in-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["cash-movements"] });
+          queryClient.invalidateQueries({ queryKey: ["financial-summary"] });
+        }}
+      />
+    </>
   );
 }
