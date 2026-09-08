@@ -126,7 +126,15 @@ function associationWarnings(gallery: Gallery | undefined, job: Job | undefined)
   return warnings;
 }
 
-export default function PhotobooksManager() {
+export interface PhotobooksManagerProps {
+  loadGalleries?: () => Promise<Gallery[]>;
+  loadJobs?: () => Promise<Job[]>;
+}
+
+export default function PhotobooksManager({
+  loadGalleries = () => GalleryService.getAllGalleriesForAdmin(),
+  loadJobs = () => getAllJobs(),
+}: PhotobooksManagerProps = {}) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
@@ -176,7 +184,7 @@ export default function PhotobooksManager() {
 
   const { data: galleries = [] } = useQuery<Gallery[]>({
     queryKey: ['admin-galleries-for-photobooks'],
-    queryFn: () => GalleryService.getAllGalleriesForAdmin(),
+    queryFn: loadGalleries,
     enabled: createOpen || !!lockTarget,
     staleTime: 5 * 60 * 1000,
   });
@@ -318,7 +326,7 @@ export default function PhotobooksManager() {
 
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<Job[]>({
     queryKey: ['/api/jobs', 'for-photobook-shipment'],
-    queryFn: () => getAllJobs(),
+    queryFn: loadJobs,
     enabled: createOpen || (!!lockTarget && createShip),
     staleTime: 5 * 60 * 1000,
   });
