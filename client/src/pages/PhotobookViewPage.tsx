@@ -799,53 +799,55 @@ export default function PhotobookViewPage() {
           }`}
         >
           <BookImage className="h-5 w-5 text-stone-500 shrink-0" />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <h1 className="font-semibold truncate" data-testid="text-photobook-name">{photobook.name}</h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               Revisione fotolibro · {pages.length} pagine
             </p>
           </div>
-          {canEdit && isTouchPhone && (
-            <Button
-              size="sm"
-              className="h-8 shrink-0 bg-green-600 px-2 text-white hover:bg-green-700 sm:px-3"
-              disabled={drafts.size > 0 || pendingSentCount > 0}
-              onClick={() => setApproveOpen(true)}
-              title={
-                drafts.size > 0
-                  ? 'Invia o annulla prima le bozze'
-                  : pendingSentCount > 0
-                    ? 'Attendi la lavorazione delle richieste'
-                    : "Approva l'impaginato"
-              }
-              data-testid="button-open-approve"
-            >
-              <CheckCircle2 className="h-4 w-4 sm:mr-1.5" />
-              <span className="sm:hidden">Approva</span>
-              <span className="hidden sm:inline">Approva l'impaginato</span>
-            </Button>
-          )}
-          {photobook.versions.length > 1 && (
-            <Select
-              value={String(data.version)}
-              onValueChange={(v) => setSelectedVersion(Number(v))}
-            >
-              <SelectTrigger
-                className={`${isTouchPhone ? 'w-28' : 'w-36'} h-8 text-xs`}
-                data-testid="select-client-version"
+          <div className="flex shrink-0 items-center gap-1.5">
+            {photobook.versions.length > 1 && (
+              <Select
+                value={String(data.version)}
+                onValueChange={(v) => setSelectedVersion(Number(v))}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {photobook.versions.map((v) => (
-                  <SelectItem key={v.version} value={String(v.version)}>
-                    Versione {v.version}
-                    {v.version === photobook.currentVersion ? ' (attuale)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+                <SelectTrigger
+                  className={`${isTouchPhone ? 'w-[88px] px-2' : 'w-36'} h-9 min-w-0 text-xs [&>span]:min-w-0`}
+                  data-testid="select-client-version"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {photobook.versions.map((v) => (
+                    <SelectItem key={v.version} value={String(v.version)}>
+                      Versione {v.version}
+                      {v.version === photobook.currentVersion ? ' (attuale)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {canEdit && isTouchPhone && (
+              <Button
+                size="sm"
+                className="h-9 min-w-[88px] shrink-0 whitespace-nowrap bg-green-600 px-2 text-white hover:bg-green-700 sm:px-3"
+                disabled={drafts.size > 0 || pendingSentCount > 0}
+                onClick={() => setApproveOpen(true)}
+                title={
+                  drafts.size > 0
+                    ? 'Invia o annulla prima le bozze'
+                    : pendingSentCount > 0
+                      ? 'Attendi la lavorazione delle richieste'
+                      : "Approva l'impaginato"
+                }
+                data-testid="button-open-approve"
+              >
+                <CheckCircle2 className="h-4 w-4 sm:mr-1.5" />
+                <span className="sm:hidden">Approva</span>
+                <span className="hidden sm:inline">Approva l'impaginato</span>
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
