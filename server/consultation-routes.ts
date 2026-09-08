@@ -32,6 +32,7 @@ import { runReminderCheck } from "./reminder-routes.js";
 import {
   CONSULTATION_TIME_ZONE,
   createConsultationDateTime,
+  NONEXISTENT_LOCAL_TIME_REASON,
 } from "./services/consultation-datetime.js";
 
 const router = express.Router();
@@ -1913,6 +1914,20 @@ router.post(
         !endDateTime.isValid ||
         endDateTime <= startDateTime
       ) {
+        const nonexistentTime =
+          startDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+            ? orarioInizio
+            : endDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+              ? orarioFine
+              : null;
+
+        if (nonexistentTime) {
+          return res.status(400).json({
+            error: "Orario non esistente",
+            message: `L'orario ${nonexistentTime} non esiste in ${CONSULTATION_TIME_ZONE} durante il cambio d'ora. Scegli un altro orario.`,
+          });
+        }
+
         return res.status(400).json({
           error: "Data o orario non validi",
           message: "Controlla data, ora di inizio e ora di fine.",

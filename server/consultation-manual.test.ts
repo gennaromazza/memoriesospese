@@ -370,6 +370,44 @@ describe("POST /api/consultations/v2/create-manual", () => {
     },
   );
 
+  it("rifiuta un orario che non esiste nel salto primaverile", async () => {
+    const { status, body } = await createManual({
+      dataConsulenza: "2027-03-28T00:00:00",
+      orarioInizio: "02:30",
+      orarioFine: "03:30",
+    });
+
+    expect(status).toBe(400);
+    expect(body).toEqual({
+      error: "Orario non esistente",
+      message:
+        "L'orario 02:30 non esiste in Europe/Rome durante il cambio d'ora. Scegli un altro orario.",
+    });
+    expect(h.createdConsultations).toHaveLength(0);
+    expect(h.calendarEvents).toHaveLength(0);
+    expect(h.sentEmails).toHaveLength(0);
+  });
+
+  it("usa la seconda occorrenza per un orario ripetuto nel ritorno all'ora solare", async () => {
+    const { status } = await createManual({
+      dataConsulenza: "2027-10-31T00:00:00",
+      orarioInizio: "02:30",
+      orarioFine: "03:30",
+    });
+
+    expect(status).toBe(201);
+    // Policy: 02:30 is interpreted as the second occurrence, in CET, so the
+    // configured 60-minute duration ends at the displayed 03:30.
+    expect(h.calendarEvents[0].start.toISOString()).toBe(
+      "2027-10-31T01:30:00.000Z",
+    );
+    expect(h.calendarEvents[0].end.toISOString()).toBe(
+      "2027-10-31T02:30:00.000Z",
+    );
+    expect(h.createdConsultations).toHaveLength(1);
+    expect(h.sentEmails).toHaveLength(1);
+  });
+
   it("restituisce il risultato esistente senza duplicare eventi per due richieste concorrenti", async () => {
     h.createEventDelayMs = 25;
 
