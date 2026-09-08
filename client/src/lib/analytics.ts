@@ -150,6 +150,25 @@ export const trackEvent = (
 };
 
 /**
+ * Misura la distribuzione dei link editoriali dal blog verso la destinazione.
+ * Vengono inviati solo slug e percorsi pubblici, mai dati del lettore.
+ */
+export const trackBlogContextualClick = (
+  sourceSlug: string,
+  destinationPath: string,
+  destinationType: string,
+  anchor: string,
+) => {
+  if (typeof window === 'undefined' || !analytics) return;
+
+  logEvent(analytics, 'blog_contextual_click', {
+    source_article: sourceSlug,
+    destination_path: destinationPath,
+    destination_type: destinationType,
+    link_text: anchor.slice(0, 100),
+  });
+};
+/**
  * Traccia le visualizzazioni delle gallerie
  * @param galleryName Nome della galleria
  * @param galleryCode Codice della galleria

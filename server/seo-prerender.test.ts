@@ -291,4 +291,37 @@ describe('SEO prerender wedding-first', () => {
     expect(response.headers['X-Robots-Tag']).toBe('noindex, nofollow');
     expect(response.body).toBeUndefined();
   });
+
+  it('includes contextual editorial links in prerendered blog HTML', async () => {
+    const post = {
+      slug: 'guida-completa-al-matrimonio',
+      status: 'published',
+      title: 'Guida completa al matrimonio',
+      excerpt: 'Consigli per organizzare il matrimonio.',
+      content: '<p>Una guida per gli sposi.</p>',
+      category: 'Matrimonio',
+      tags: ['matrimonio'],
+      publishedAt: { seconds: 1_780_000_000 },
+    };
+    const chain = {
+      where: () => chain,
+      limit: () => chain,
+      get: async () => ({ empty: false, docs: [{ data: () => post }] }),
+    };
+    mockCollection.mockImplementation((collectionName: string) => {
+      if (collectionName === 'blogPosts') return chain;
+      return {
+        where: () => ({
+          get: async () => ({ docs: [], empty: true }),
+        }),
+      };
+    });
+
+    const { response, next } = await renderForCrawler('/blog/guida-completa-al-matrimonio');
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.body).toContain('id="blog-contextual-links-title"');
+    expect(response.body).toContain('https://imagestudiofotografico.com/portfolio/matrimonio');
+    expect(response.body).toContain('https://imagestudiofotografico.com/consulenze');
+  });
 });

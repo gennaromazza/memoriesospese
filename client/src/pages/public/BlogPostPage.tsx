@@ -11,6 +11,12 @@ import { firstImageCandidateFromHtml } from "@shared/social-metadata";
 import { sanitizeBlogHtml } from "@/lib/blog-html";
 import Navigation from "@/components/Navigation";
 import { captureBlogAttribution, trackBlogConversion, trackBlogEvent } from "@/lib/analytics";
+import {
+  buildBlogContextualLinks,
+  type BlogContextualLink,
+} from "@shared/blog-contextual-links";
+import { getPublicWeddingStoryPreviews } from "@/lib/wedding-seo";
+import { trackBlogContextualClick } from "@/lib/analytics";
 
 const FALLBACK_AUTHOR = "Gennaro Mazzacane";
 
@@ -34,6 +40,14 @@ const formatDate = (timestamp: any): string => {
   }
 };
 
+const timestampValue = (timestamp: any): number => {
+  if (!timestamp) return 0;
+  if (timestamp.seconds != null) return Number(timestamp.seconds) * 1000;
+  if (timestamp instanceof Date) return timestamp.getTime();
+  const parsed = new Date(timestamp).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const estimateReadTime = (content: string): string => {
   if (!content) return '0 min';
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -48,6 +62,7 @@ export default function BlogPostPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
+  const [contextualLinks, setContextualLinks] = useState<BlogContextualLink[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const contentImage = firstImageCandidateFromHtml(post?.content, post?.title || "Articolo Image Studio");
   const articleOgImage = typeof post?.coverImage === 'string'
@@ -79,6 +94,7 @@ export default function BlogPostPage() {
       setNotFound(false);
       setPost(null);
       setRelatedPosts([]);
+      setContextualLinks([]);
       try {
         const postsRef = collection(db, 'blogPosts');
         const q = query(
@@ -113,10 +129,18 @@ export default function BlogPostPage() {
 
         if (cancelled) return;
         setPost(currentPost);
+        const sourceText = `${currentPost.title} ${currentPost.excerpt || ''} ${currentPost.category || ''} ${(currentPost.tags || []).join(' ')}`;
+        setContextualLinks(buildBlogContextualLinks(currentPost.slug, sourceText));
 
         // Carica articoli correlati: filtro client-side perché "id" non è un campo Firestore
         const relatedQ = query(postsRef, where('status', '==', BlogPostStatus.PUBLISHED));
-        const relatedSnap = await getDocs(relatedQ);
+        const [relatedSnap, weddingStories] = await Promise.all([
+          getDocs(relatedQ),
+          getPublicWeddingStoryPreviews(24).catch(error => {
+            console.warn('Storie Real Wedding non disponibili per i link editoriali:', error);
+            return [];
+          }),
+        ]);
         if (cancelled) return;
 
         const allPosts = relatedSnap.docs
@@ -147,6 +171,7 @@ export default function BlogPostPage() {
           .map(({ candidate }) => candidate);
 
         setRelatedPosts(related);
+        setContextualLinks(buildBlogContextualLinks(currentPost.slug, sourceText, weddingStories));
       } catch (error) {
         if (cancelled) return;
         console.error('Errore caricamento articolo:', error);
@@ -389,6 +414,37 @@ export default function BlogPostPage() {
           onClick={handleBlogContentClick}
           data-testid="content-html"
         />
+
+        {contextualLinks.length > 0 && (
+          <nav
+            className="mt-8 rounded-xl border border-sage/20 bg-cream/60 p-5 sm:p-6"
+            aria-labelledby="blog-contextual-links-title"
+            data-testid="blog-contextual-links"
+          >
+            <h2 id="blog-contextual-links-title" className="font-serif text-xl sm:text-2xl text-blue-gray mb-3">
+              Approfondisci
+            </h2>
+            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm sm:text-base">
+              {contextualLinks.map(contextualLink => (
+                <li key={contextualLink.href}>
+                  <a
+                    href={contextualLink.href}
+                    className="text-sage font-medium hover:text-dark-sage hover:underline"
+                    data-contextual-kind={contextualLink.kind}
+                    onClick={() => trackBlogContextualClick(
+                      post.slug,
+                      contextualLink.href,
+                      contextualLink.kind,
+                      contextualLink.anchor,
+                    )}
+                  >
+                    {contextualLink.anchor} →
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
 
         {/* Condivisione Social */}
         <div className="mt-10 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-200">

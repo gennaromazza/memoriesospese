@@ -21,6 +21,7 @@ describe('public navigation', () => {
       '/storie',
       '/lasciati-trasportare',
       '/fotografo-aversa',
+      '/image-experience',
       '/stampa-foto-aversa',
       '/vision',
       '/prenota',

@@ -29,6 +29,10 @@ import {
   type ResolvedSocialImage,
   type SocialImageCandidate,
 } from '../shared/social-metadata';
+import {
+  buildBlogContextualLinks,
+  type BlogWeddingStoryCandidate,
+} from '../shared/blog-contextual-links';
 
 const BASE_URL = 'https://imagestudiofotografico.com';
 const OG_IMAGE = defaultSocialImage().url;
@@ -682,6 +686,56 @@ async function resolveBlogSeoContent(post: Record<string, any>): Promise<{
   return { text: String(post.excerpt || post.title || '').trim(), complete: false, image: null };
 }
 
+async function getPublishedWeddingStoryCandidates(): Promise<BlogWeddingStoryCandidate[]> {
+  try {
+    const snapshot = await db.collection('weddingSeoStories')
+      .where('status', '==', 'published')
+      .get();
+
+    return snapshot.docs
+      .map(document => document.data())
+      .filter(story => typeof story.slug === 'string' && story.slug.trim())
+      .map(story => ({
+        slug: String(story.slug),
+        title: String(story.title || ''),
+        excerpt: String(story.excerpt || ''),
+        story: String(story.story || ''),
+        status: 'published' as const,
+      }));
+  } catch (error) {
+    // A missing/temporarily unavailable story collection must not remove the
+    // article itself or its stable editorial links from crawler HTML.
+    console.warn(
+      'Storie Real Wedding non disponibili per i link editoriali:',
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
+}
+
+function renderBlogContextualLinks(
+  links: ReturnType<typeof buildBlogContextualLinks>,
+): string {
+  if (links.length === 0) return '';
+
+  return `
+    <section aria-labelledby="blog-contextual-links-title">
+      <h2 id="blog-contextual-links-title">Approfondisci</h2>
+      <ul>
+        ${links.map(link => `
+          <li>
+            <a
+              href="${BASE_URL}${escapeHtml(link.href)}"
+              data-contextual-kind="${escapeHtml(link.kind)}"
+              data-blog-contextual-link="true"
+            >${escapeHtml(link.anchor)} →</a>
+          </li>
+        `).join('')}
+      </ul>
+    </section>
+  `;
+}
+
 async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
   try {
     const snapshot = await db.collection('blogPosts')
@@ -766,6 +820,12 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
     const seoTitle: string = String(post.metaTitle || `${post.title} | Blog Image Studio`).trim();
     const seoDescription: string = String(post.metaDescription || excerpt || post.title).trim();
     const { text: bodyText, complete: hasCompleteSeoContent, image: contentImage } = await resolveBlogSeoContent(post);
+    const sourceText = `${post.title || ''} ${excerpt} ${post.category || ''} ${tags.join(' ')}`;
+    const contextualLinks = buildBlogContextualLinks(
+      slug,
+      sourceText,
+      await getPublishedWeddingStoryCandidates(),
+    );
     const socialImage = resolveSocialImage([
       {
         url: post.coverImage,
@@ -871,6 +931,7 @@ async function getBlogPostMeta(slug: string): Promise<PageMeta | null> {
           ${bodyText ? `<p>${escapeHtml(bodyText)}</p>` : ''}
           ${!hasCompleteSeoContent ? `<p><a href="${BASE_URL}/blog/${slug}">Leggi l'articolo completo</a></p>` : ''}
           ${relatedArticlesHtml}
+          ${renderBlogContextualLinks(contextualLinks)}
         </article>
         <nav>
           <a href="${BASE_URL}/blog">← Tutti gli Articoli</a> &nbsp;|&nbsp;
