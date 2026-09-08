@@ -19,6 +19,10 @@ import {
 import { DateTime } from "luxon";
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import {
+  createConsultationDateTime,
+  getConsultationLocalDate,
+} from "./services/consultation-datetime.js";
+import {
   generateGallerySelectionReminderEmail,
   generateGallerySelectionReminderSubject
 } from "./email-templates/gallery-selection-reminder.js";
@@ -275,17 +279,14 @@ export async function runReminderCheck(): Promise<{
     const consultationDate = consultation.dataConsulenza?.toDate?.() || consultation.dataConsulenza;
     if (!consultationDate) continue;
 
-    const consultationDT = DateTime.fromJSDate(consultationDate).setZone("Europe/Rome");
-    const consultationDateLocal = consultationDT.toFormat("yyyy-MM-dd");
-    const consultationStartDT = DateTime.fromFormat(
-      `${consultationDateLocal} ${consultation.orarioInizio || ""}`,
-      "yyyy-MM-dd HH:mm",
-      { zone: "Europe/Rome" },
+    const consultationDateLocal = getConsultationLocalDate(consultationDate);
+    const consultationStartDT = createConsultationDateTime(
+      consultationDateLocal,
+      consultation.orarioInizio || "",
     );
-    const consultationEndDT = DateTime.fromFormat(
-      `${consultationDateLocal} ${consultation.orarioFine || ""}`,
-      "yyyy-MM-dd HH:mm",
-      { zone: "Europe/Rome" },
+    const consultationEndDT = createConsultationDateTime(
+      consultationDateLocal,
+      consultation.orarioFine || "",
     );
     if (!consultationStartDT.isValid || !consultationEndDT.isValid) {
       results.consultations.errors.push(`Consultation ${doc.id}: orario non valido`);

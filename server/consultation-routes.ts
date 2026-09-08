@@ -29,6 +29,10 @@ import {
 import multer from "multer";
 import { saveWithDownloadToken } from "./storage-download-url.js";
 import { runReminderCheck } from "./reminder-routes.js";
+import {
+  CONSULTATION_TIME_ZONE,
+  createConsultationDateTime,
+} from "./services/consultation-datetime.js";
 
 const router = express.Router();
 
@@ -1891,16 +1895,16 @@ router.post(
       // Il campo data è una data locale italiana: non va interpretato come
       // mezzanotte UTC, altrimenti in Europa/Rome può finire nel giorno prima.
       const requestedDate = String(dataConsulenza || "").slice(0, 10);
-      const dateObj = DateTime.fromISO(requestedDate, { zone: "Europe/Rome" });
-      const startDateTime = DateTime.fromFormat(
-        `${requestedDate} ${orarioInizio}`,
-        "yyyy-MM-dd HH:mm",
-        { zone: "Europe/Rome" },
+      const dateObj = DateTime.fromISO(requestedDate, {
+        zone: CONSULTATION_TIME_ZONE,
+      });
+      const startDateTime = createConsultationDateTime(
+        requestedDate,
+        orarioInizio,
       );
-      const endDateTime = DateTime.fromFormat(
-        `${requestedDate} ${orarioFine}`,
-        "yyyy-MM-dd HH:mm",
-        { zone: "Europe/Rome" },
+      const endDateTime = createConsultationDateTime(
+        requestedDate,
+        orarioFine,
       );
 
       if (
