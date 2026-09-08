@@ -91,6 +91,7 @@ const PhoneMigrationPage = lazyWithRetry(() => import("./pages/admin/PhoneMigrat
 const PaymentDiscrepanciesAudit = lazyWithRetry(() => import("./pages/admin/PaymentDiscrepanciesAudit"));
 const BlogAdminE2EHarness = lazyWithRetry(() => import("./pages/BlogAdminE2EHarness"));
 const PhotobookJobGalleryE2EHarness = lazyWithRetry(() => import("./pages/PhotobookJobGalleryE2EHarness"));
+const WeddingSeoDraftE2EHarness = lazyWithRetry(() => import("./pages/WeddingSeoDraftE2EHarness"));
 const BulkEmailSender = lazyWithRetry(() => import("./pages/BulkEmailSender"));
 const QuickQuotePage = lazyWithRetry(() => import("./pages/QuickQuotePage"));
 const InfoFormPublic = lazyWithRetry(() => import("./pages/InfoFormPublic"));
@@ -233,6 +234,12 @@ function AppRoutes() {
           <Route
             path="/admin/__e2e/photobook-job-gallery"
             component={PhotobookJobGalleryE2EHarness}
+          />
+        )}
+        {import.meta.env.DEV && import.meta.env.VITE_WEDDING_E2E_HARNESS === "true" && (
+          <Route
+            path="/admin/__e2e/wedding-seo-draft-fallback"
+            component={WeddingSeoDraftE2EHarness}
           />
         )}
         <Route path="/quote-management-demo" component={QuoteManagementDemo} />
