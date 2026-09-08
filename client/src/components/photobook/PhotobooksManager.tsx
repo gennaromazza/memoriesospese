@@ -321,6 +321,10 @@ export default function PhotobooksManager() {
 
   const selectedCreateGallery = galleries.find((gallery) => gallery.id === newGalleryId);
   const selectedCreateJob = jobs.find((job) => job.id === newJobId);
+  const selectedCreateGalleryBelongsToJob = Boolean(
+    selectedCreateGallery &&
+      selectedCreateJob?.galleryIds?.includes(selectedCreateGallery.id),
+  );
   const createAssociationWarnings = associationWarnings(selectedCreateGallery, selectedCreateJob);
   const selectedShipJobId = lockTarget?.jobId || shipJobId;
   const selectedShipJob = jobs.find((job) => job.id === selectedShipJobId);
@@ -357,6 +361,25 @@ export default function PhotobooksManager() {
     const linkedJobExists = gallery?.jobId && jobs.some((job) => job.id === gallery.jobId);
     setNewJobId(linkedJobExists ? gallery!.jobId! : '');
     setAssociationMismatchConfirmed(false);
+  };
+
+  const selectJobForPhotobook = (jobId: string) => {
+    setNewJobId(jobId);
+    setAssociationMismatchConfirmed(false);
+
+    const job = jobs.find((item) => item.id === jobId);
+    if (!job) return;
+
+    const linkedGalleryIds = new Set(
+      (Array.isArray(job.galleryIds) ? job.galleryIds : []).filter(Boolean),
+    );
+    // Mantieni la galleria già selezionata se è già una galleria del lavoro.
+    if (newGalleryId && linkedGalleryIds.has(newGalleryId)) return;
+
+    // Altrimenti scegli automaticamente la prima galleria del lavoro disponibile
+    // nell'elenco caricato dal server.
+    const firstLinkedGallery = galleries.find((gallery) => linkedGalleryIds.has(gallery.id));
+    setNewGalleryId(firstLinkedGallery?.id || '');
   };
 
   const copyLink = (book: Photobook) => {
@@ -596,19 +619,23 @@ export default function PhotobooksManager() {
               <JobPicker
                 jobs={jobs}
                 value={newJobId}
-                onChange={(jobId) => {
-                  setNewJobId(jobId);
-                  setAssociationMismatchConfirmed(false);
-                }}
+                onChange={selectJobForPhotobook}
                 loading={jobsLoading}
                 allowNone={false}
                 placeholder="Seleziona il lavoro"
                 testId="select-photobook-job"
               />
-              {selectedCreateGallery?.jobId && selectedCreateGallery.jobId === newJobId && (
+              {selectedCreateJob && !selectedCreateJob.galleryIds?.length && (
+                <p className="text-xs text-amber-700 flex items-start gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  Questo lavoro non ha ancora gallerie associate: seleziona manualmente la galleria
+                  da usare per il fotolibro.
+                </p>
+              )}
+              {selectedCreateGalleryBelongsToJob && (
                 <p className="text-xs text-green-700 flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  È il lavoro già associato alla galleria
+                  Galleria associata automaticamente a questo lavoro
                   {selectedCreateJob?.clientNames?.length
                     ? ` · ${selectedCreateJob.clientNames.join(', ')}`
                     : ''}.

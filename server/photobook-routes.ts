@@ -113,10 +113,22 @@ function entityClientIds(data: any): string[] {
   return [...new Set<string>(validIds)];
 }
 
-function galleryJobAssociationWarnings(gallery: any, jobId: string, job: any): string[] {
+function galleryJobAssociationWarnings(
+  gallery: any,
+  galleryId: string,
+  jobId: string,
+  job: any,
+): string[] {
   const warnings: string[] = [];
   if (gallery.jobId && gallery.jobId !== jobId) {
     warnings.push('La galleria è già collegata a un altro lavoro');
+  }
+
+  const jobGalleryIds = Array.isArray(job?.galleryIds)
+    ? job.galleryIds.filter((id: unknown): id is string => typeof id === 'string' && !!id)
+    : [];
+  if (jobGalleryIds.length > 0 && !jobGalleryIds.includes(galleryId)) {
+    warnings.push('La galleria scelta non è tra quelle collegate al lavoro');
   }
 
   const galleryClientIds = entityClientIds(gallery);
@@ -801,7 +813,12 @@ router.post('/', async (req: Request, res: Response) => {
     const jobDoc = await db.collection('jobs').doc(normalizedJobId).get();
     if (!jobDoc.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
 
-    const associationWarnings = galleryJobAssociationWarnings(g, normalizedJobId, jobDoc.data());
+    const associationWarnings = galleryJobAssociationWarnings(
+      g,
+      galleryId,
+      normalizedJobId,
+      jobDoc.data(),
+    );
     if (associationWarnings.length > 0 && allowAssociationMismatch !== true) {
       return res.status(409).json({
         error: 'I collegamenti della galleria non coincidono con il lavoro selezionato',
