@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import type { AddressInfo } from "node:net";
+import { DateTime } from "luxon";
 
 const h = vi.hoisted(() => ({
   template: null as any,
@@ -13,6 +14,9 @@ const h = vi.hoisted(() => ({
   deletedConsultationIds: [] as string[],
   deletedEventIds: [] as string[],
   sentEmails: [] as any[],
+  calendarEvents: [] as any[],
+  calendarLinks: [] as any[],
+  emailTemplates: [] as any[],
   manualLocks: new Map<string, any>(),
   transactionTail: Promise.resolve(),
 }));
@@ -118,8 +122,14 @@ vi.mock("./email-routes.js", () => ({
     phone: "123",
     address: "Via Test",
   }),
-  createConsultationApprovedEmailHTML: () => "email",
-  generateGoogleCalendarLink: () => "https://calendar.example/event",
+  createConsultationApprovedEmailHTML: (...args: any[]) => {
+    h.emailTemplates.push(args);
+    return "email";
+  },
+  generateGoogleCalendarLink: (args: any) => {
+    h.calendarLinks.push(args);
+    return "https://calendar.example/event";
+  },
 }));
 
 vi.mock("./services/consultations.js", () => ({
@@ -134,11 +144,12 @@ vi.mock("./services/consultations.js", () => ({
 }));
 
 vi.mock("./google-calendar.js", () => ({
-  createEvent: async () => {
+  createEvent: async (_calendarId: string, event: any) => {
     if (h.createEventError) throw h.createEventError;
     if (h.createEventDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, h.createEventDelayMs));
     }
+    h.calendarEvents.push(event);
     return { id: "calendar-event-1" };
   },
   deleteEvent: async (_calendarId: string, eventId: string) => {
@@ -185,6 +196,9 @@ beforeEach(() => {
   h.deletedConsultationIds = [];
   h.deletedEventIds = [];
   h.sentEmails = [];
+  h.calendarEvents = [];
+  h.calendarLinks = [];
+  h.emailTemplates = [];
   h.manualLocks.clear();
   h.transactionTail = Promise.resolve();
 });
@@ -303,6 +317,58 @@ describe("POST /api/consultations/v2/create-manual", () => {
     expect(h.deletedConsultationIds).toHaveLength(0);
     expect(h.deletedEventIds).toHaveLength(0);
   });
+
+  it.each([
+    {
+      label: "ora solare",
+      date: "2027-01-15",
+      startTime: "10:00",
+      endTime: "11:00",
+      expectedStart: "2027-01-15T09:00:00.000Z",
+      expectedEnd: "2027-01-15T10:00:00.000Z",
+      expectedStoredDate: "2027-01-14T23:00:00.000Z",
+    },
+    {
+      label: "ora legale",
+      date: "2027-07-15",
+      startTime: "10:00",
+      endTime: "11:00",
+      expectedStart: "2027-07-15T08:00:00.000Z",
+      expectedEnd: "2027-07-15T09:00:00.000Z",
+      expectedStoredDate: "2027-07-14T22:00:00.000Z",
+    },
+  ])(
+    "mantiene data e orari Europe/Rome in $label anche nel Calendar e nel link email",
+    async ({
+      date,
+      startTime,
+      endTime,
+      expectedStart,
+      expectedEnd,
+      expectedStoredDate,
+    }) => {
+      const { status } = await createManual({
+        dataConsulenza: `${date}T00:00:00`,
+        orarioInizio: startTime,
+        orarioFine: endTime,
+      });
+
+      expect(status).toBe(201);
+      expect(h.createdConsultations[0].dataConsulenza.toISOString()).toBe(
+        expectedStoredDate,
+      );
+      expect(h.calendarEvents[0].start.toISOString()).toBe(expectedStart);
+      expect(h.calendarEvents[0].end.toISOString()).toBe(expectedEnd);
+      expect(h.calendarLinks[0].startDate.toISOString()).toBe(expectedStart);
+      expect(h.calendarLinks[0].endDate.toISOString()).toBe(expectedEnd);
+      expect(h.emailTemplates[0][3]).toBe(`${startTime} - ${endTime}`);
+
+      const localStart = DateTime.fromJSDate(h.calendarEvents[0].start, {
+        zone: "Europe/Rome",
+      });
+      expect(localStart.toISO()).toContain(`${date}T${startTime}:00`);
+    },
+  );
 
   it("restituisce il risultato esistente senza duplicare eventi per due richieste concorrenti", async () => {
     h.createEventDelayMs = 25;
