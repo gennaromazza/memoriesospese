@@ -93,10 +93,11 @@ export async function apiRequest(
     '/api/consultations/v2/create',
     '/api/consultations/job-types' // Public job types endpoint
   ];
+  const urlPath = url.split('?')[0];
   
   // Template endpoints sono pubblici SOLO per GET, PATCH/PUT/DELETE richiedono auth
   const isTemplateEndpoint = url.includes('/api/consultations/templates/');
-  const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint)) ||
+  const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => urlPath === endpoint) ||
                                         (isTemplateEndpoint && method === 'GET');
   
   // Aggiungi token Firebase per endpoint che lo richiedono
@@ -168,8 +169,11 @@ export const getQueryFn: <T>(options: {
       '/api/consultations/templates/', // Public template endpoints
       '/api/consultations/job-types' // Public job types endpoint
     ];
+    const urlPath = url.split('?')[0];
     
-    const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint => url.includes(endpoint));
+    const isPublicConsultationEndpoint = publicConsultationEndpoints.some(endpoint =>
+      endpoint.endsWith('/') ? urlPath.startsWith(endpoint) : urlPath === endpoint
+    );
     
     // Aggiungi token Firebase per endpoint che lo richiedono
     const firebaseAuthEndpoints = [

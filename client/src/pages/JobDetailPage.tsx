@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Job, CostoLavoro } from '@shared/jobs-types';
 import { Cliente, UpdateCliente } from '@shared/clienti-types';
-import { format, startOfDay, endOfDay, addDays, eachDayOfInterval, parseISO } from 'date-fns';
+import { format, startOfDay, endOfDay, addDays, eachDayOfInterval, parseISO, addMinutes } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { getJob, deleteJob, updateJob, getJobTimeline } from '@/lib/jobs';
 import type { JobTimelineEvent } from '@shared/jobs-types';
@@ -172,6 +172,11 @@ export default function JobDetailPage() {
   const [showConsultationDialog, setShowConsultationDialog] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [sendingConsultation, setSendingConsultation] = useState(false);
+  const [showManualConsultationDialog, setShowManualConsultationDialog] = useState(false);
+  const [manualConsultationDate, setManualConsultationDate] = useState('');
+  const [manualConsultationStartTime, setManualConsultationStartTime] = useState('');
+  const [manualConsultationNote, setManualConsultationNote] = useState('');
+  const [savingManualConsultation, setSavingManualConsultation] = useState(false);
   const [consultationDateRange, setConsultationDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -391,6 +396,14 @@ export default function JobDetailPage() {
     setShowTemplateSelector(false);
     setShowAddClienteDialog(false);
     setShowConsultationDialog(true);
+  }, []);
+
+  const openManualConsultationDialog = useCallback(() => {
+    setShowConsultationDialog(false);
+    setManualConsultationDate(format(addDays(new Date(), 1), 'yyyy-MM-dd'));
+    setManualConsultationStartTime('10:00');
+    setManualConsultationNote('Data concordata direttamente con il cliente');
+    setShowManualConsultationDialog(true);
   }, []);
 
   const openAddClienteDialog = useCallback(() => {
@@ -940,6 +953,90 @@ export default function JobDetailPage() {
       });
     } finally {
       setSendingConsultation(false);
+    }
+  };
+
+  const handleCreateManualConsultation = async () => {
+    if (!selectedTemplateId || !jobId || !manualConsultationDate || !manualConsultationStartTime) {
+      toast({
+        title: 'Dati mancanti',
+        description: 'Inserisci data e ora della consulenza.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const cliente = clienti[0];
+    const template = consultationTemplates.find((item) => item.id === selectedTemplateId);
+    if (!cliente || !template) {
+      toast({
+        title: 'Impossibile creare la consulenza',
+        description: 'Il lavoro deve avere un cliente e un template validi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!cliente.email) {
+      toast({
+        title: 'Email cliente mancante',
+        description: 'Inserisci l’email del cliente prima di confermare la consulenza.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const start = new Date(`${manualConsultationDate}T${manualConsultationStartTime}:00`);
+    const end = addMinutes(start, template.durataMinuti);
+    const endTime = format(end, 'HH:mm');
+    if (format(end, 'yyyy-MM-dd') !== manualConsultationDate) {
+      toast({
+        title: 'Orario non valido',
+        description: 'La consulenza deve terminare nella stessa giornata.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingManualConsultation(true);
+    try {
+      const response = await apiRequest('POST', '/api/consultations/v2/create-manual', {
+        templateId: selectedTemplateId,
+        jobId,
+        cliente: {
+          nome: cliente.nome,
+          cognome: cliente.cognome,
+          email: cliente.email,
+          whatsapp: cliente.whatsapp || cliente.cellulare1 || '',
+        },
+        dataConsulenza: `${manualConsultationDate}T00:00:00`,
+        orarioInizio: manualConsultationStartTime,
+        orarioFine: endTime,
+        note: manualConsultationNote.trim(),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Impossibile creare la consulenza');
+      }
+
+      setShowManualConsultationDialog(false);
+      queryClient.invalidateQueries({ queryKey: ['jobs', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['consultations'] });
+      setSelectedTemplateId(null);
+      toast({
+        title: 'Consulenza confermata',
+        description: result.emailStatus === 'sent'
+          ? 'Evento Google Calendar creato e email inviata al cliente.'
+          : 'Evento Google Calendar creato, ma l’email non è stata inviata.',
+        variant: result.emailStatus === 'sent' ? 'default' : 'destructive',
+      });
+    } catch (error) {
+      toast({
+        title: 'Errore',
+        description: error instanceof Error ? error.message : 'Impossibile confermare la consulenza.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingManualConsultation(false);
     }
   };
 
@@ -2192,6 +2289,26 @@ export default function JobDetailPage() {
                   </p>
                 </div>
               </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-4 border-primary/40"
+                onClick={openManualConsultationDialog}
+                disabled={sendingConsultation || clienti.length === 0}
+                data-testid="button-manual-consultation"
+              >
+                <CalendarPlus className="h-5 w-5 mr-3 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium">Inserisci data concordata</p>
+                  <p className="text-xs text-muted-foreground">
+                    Conferma subito, crea l’evento Calendar e invia il promemoria email
+                  </p>
+                </div>
+              </Button>
+              {clienti.length === 0 && (
+                <p className="text-xs text-destructive">
+                  Associa prima un cliente al lavoro per usare la conferma manuale.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -2201,6 +2318,96 @@ export default function JobDetailPage() {
               disabled={sendingConsultation}
             >
               Annulla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog per la consulenza concordata manualmente */}
+      <Dialog
+        open={showManualConsultationDialog}
+        onOpenChange={setShowManualConsultationDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conferma consulenza manuale</DialogTitle>
+            <DialogDescription>
+              Inserisci la data concordata con il cliente. La consulenza sarà
+              confermata subito, aggiunta a Google Calendar e comunicata via email.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-sm font-medium">
+                Cliente: {clienti[0] ? `${clienti[0].nome} ${clienti[0].cognome}` : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {clienti[0]?.email || 'Email mancante'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="manual-consultation-date">Data</Label>
+                <Input
+                  id="manual-consultation-date"
+                  type="date"
+                  min={format(new Date(), 'yyyy-MM-dd')}
+                  value={manualConsultationDate}
+                  onChange={(event) => setManualConsultationDate(event.target.value)}
+                  data-testid="input-manual-consultation-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-consultation-start-time">Ora di inizio</Label>
+                <Input
+                  id="manual-consultation-start-time"
+                  type="time"
+                  value={manualConsultationStartTime}
+                  onChange={(event) => setManualConsultationStartTime(event.target.value)}
+                  data-testid="input-manual-consultation-start-time"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Durata:{' '}
+              {consultationTemplates.find((template) => template.id === selectedTemplateId)?.durataMinuti || '—'}{' '}
+              minuti. L’orario di fine viene calcolato automaticamente.
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manual-consultation-note">Nota interna (opzionale)</Label>
+              <Textarea
+                id="manual-consultation-note"
+                value={manualConsultationNote}
+                onChange={(event) => setManualConsultationNote(event.target.value)}
+                placeholder="Es. concordata su WhatsApp"
+                rows={3}
+                data-testid="input-manual-consultation-note"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowManualConsultationDialog(false);
+                setShowConsultationDialog(true);
+              }}
+              disabled={savingManualConsultation}
+            >
+              Indietro
+            </Button>
+            <Button
+              onClick={handleCreateManualConsultation}
+              disabled={savingManualConsultation}
+              data-testid="button-confirm-manual-consultation"
+            >
+              {savingManualConsultation && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Conferma consulenza
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1735,6 +1735,262 @@ router.post("/v2/create", async (req, res) => {
 });
 
 /**
+ * POST /api/consultations/v2/create-manual
+ *
+ * Crea una consulenza già confermata partendo da una data concordata
+ * direttamente con il cliente. Il flusso è riservato agli amministratori:
+ * verifica i conflitti, crea l'evento Google Calendar, salva la consulenza
+ * confermata e invia l'email di conferma al cliente.
+ */
+router.post(
+  "/v2/create-manual",
+  authenticateFirebase,
+  requireAdmin,
+  async (req: AuthRequest, res) => {
+    let consultationId: string | undefined;
+    let calendarEventId: string | undefined;
+
+    try {
+      const {
+        templateId,
+        cliente,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+        note,
+        jobId,
+      } = req.body;
+
+      const validatedData = InsertConsultationSchema.parse({
+        templateId,
+        cliente,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+        jobDataCollected: {},
+        note: note || "",
+      });
+
+      const template = await consultationService.getTemplateById(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template non trovato" });
+      }
+      if (!template.attiva) {
+        return res.status(400).json({ error: "Template non attivo" });
+      }
+
+      const { validateConsultationTemplate } = await import(
+        "./consultations/calendar-adapter.js"
+      );
+      if (!validateConsultationTemplate(template)) {
+        return res.status(400).json({
+          error: "Template configurazione invalida",
+          message: "Template manca di customWorkingHours o durataMinuti",
+        });
+      }
+
+      // Il campo data è una data locale italiana: non va interpretato come
+      // mezzanotte UTC, altrimenti in Europa/Rome può finire nel giorno prima.
+      const requestedDate = String(dataConsulenza || "").slice(0, 10);
+      const dateObj = DateTime.fromISO(requestedDate, { zone: "Europe/Rome" });
+      const startDateTime = DateTime.fromFormat(
+        `${requestedDate} ${orarioInizio}`,
+        "yyyy-MM-dd HH:mm",
+        { zone: "Europe/Rome" },
+      );
+      const endDateTime = DateTime.fromFormat(
+        `${requestedDate} ${orarioFine}`,
+        "yyyy-MM-dd HH:mm",
+        { zone: "Europe/Rome" },
+      );
+
+      if (
+        !dateObj.isValid ||
+        !startDateTime.isValid ||
+        !endDateTime.isValid ||
+        endDateTime <= startDateTime
+      ) {
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message: "Controlla data, ora di inizio e ora di fine.",
+        });
+      }
+
+      const expectedEndDateTime = startDateTime.plus({
+        minutes: template.durataMinuti,
+      });
+      if (
+        expectedEndDateTime.toFormat("yyyy-MM-dd") !== requestedDate ||
+        expectedEndDateTime.toFormat("HH:mm") !== orarioFine
+      ) {
+        return res.status(400).json({
+          error: "Durata non coerente",
+          message: `La durata del template è di ${template.durataMinuti} minuti.`,
+        });
+      }
+
+      if (startDateTime.toMillis() <= Date.now()) {
+        return res.status(400).json({
+          error: "Data non valida",
+          message: "La consulenza manuale deve essere nel futuro.",
+        });
+      }
+
+      const { hasConflict } = await import(
+        "./calendar-engine/conflicts.js"
+      );
+      const { getAllExistingEvents } = await import(
+        "./consultations/calendar-adapter.js"
+      );
+      const existingEvents = await getAllExistingEvents(
+        dateObj.startOf("day").toJSDate(),
+        dateObj.endOf("day").toJSDate(),
+        db,
+      );
+
+      if (hasConflict(startDateTime.toJSDate(), endDateTime.toJSDate(), existingEvents)) {
+        return res.status(409).json({
+          error: "Slot non disponibile",
+          message: "La data e l'orario si sovrappongono a un impegno esistente.",
+        });
+      }
+
+      const consultationPayload = {
+        ...validatedData,
+        // Conserva la data locale corretta per la lettura successiva in
+        // Europe/Rome, indipendentemente dal timezone del server.
+        dataConsulenza: dateObj.startOf("day").toJSDate(),
+        ...(jobId && { linkedJobId: jobId }),
+      };
+
+      consultationId = await consultationService.createConsultation(
+        consultationPayload as any,
+        template,
+      );
+
+      try {
+        const calendarEvent = await createEvent("primary", {
+          summary: `Consulenza ${template.jobType} - ${cliente.nome} ${cliente.cognome}`,
+          description: `Template: ${template.jobType}\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp || ""}\nNote: ${note || "Nessuna"}`,
+          start: startDateTime.toJSDate(),
+          end: endDateTime.toJSDate(),
+        });
+        calendarEventId = calendarEvent.id || undefined;
+      } catch (calendarError: any) {
+        await consultationService.deleteConsultation(consultationId);
+        return res.status(503).json({
+          error: "Errore Google Calendar",
+          message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
+          code: calendarError?.code || "CALENDAR_EVENT_CREATION_FAILED",
+        });
+      }
+
+      try {
+        await db.collection("consultations").doc(consultationId).update({
+          stato: "confermata",
+          ...(calendarEventId && { googleCalendarEventId: calendarEventId }),
+          confermataDa: req.user!.uid,
+          confermatail: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (updateError: any) {
+        if (calendarEventId) {
+          try {
+            await deleteEvent("primary", calendarEventId);
+          } catch (rollbackError: any) {
+            console.error(
+              "[POST /v2/create-manual] Rollback Calendar fallito:",
+              rollbackError.message,
+            );
+          }
+        }
+        await consultationService.deleteConsultation(consultationId);
+        return res.status(500).json({
+          error: "Errore conferma consulenza",
+          message: "La consulenza non è stata salvata. Riprova.",
+        });
+      }
+
+      let emailStatus = "sent";
+      try {
+        const {
+          sendGmailEmail,
+          getStudioContactInfo,
+          createConsultationApprovedEmailHTML,
+          generateGoogleCalendarLink,
+        } = await import("./email-routes.js");
+        const studioInfo = await getStudioContactInfo();
+        const clienteName = `${validatedData.cliente.nome} ${validatedData.cliente.cognome}`;
+        const formattedDate = startDateTime
+          .setLocale("it")
+          .toFormat("cccc d LLLL yyyy");
+        const calendarLink = generateGoogleCalendarLink({
+          title: `Consulenza ${template.jobType} - ${clienteName}`,
+          description: `Consulenza per ${template.jobType}\nCliente: ${clienteName}\n\n${studioInfo.name}\nTel: ${studioInfo.phone}`,
+          location: studioInfo.address,
+          startDate: startDateTime.toJSDate(),
+          endDate: endDateTime.toJSDate(),
+          isAllDay: false,
+        });
+        const htmlContent = createConsultationApprovedEmailHTML(
+          clienteName,
+          template.jobType,
+          formattedDate,
+          `${validatedData.orarioInizio} - ${validatedData.orarioFine}`,
+          null,
+          studioInfo,
+          calendarLink,
+        );
+        await sendGmailEmail(
+          validatedData.cliente.email,
+          `Consulenza Confermata - ${template.jobType}`,
+          htmlContent,
+        );
+        await db.collection("consultations").doc(consultationId).update({
+          emailConfermataInviata: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (emailError: any) {
+        emailStatus = "failed";
+        console.error(
+          "[POST /v2/create-manual] Errore invio email conferma:",
+          emailError.message,
+        );
+      }
+
+      return res.status(201).json({
+        id: consultationId,
+        googleCalendarEventId: calendarEventId,
+        emailStatus,
+        message:
+          emailStatus === "sent"
+            ? "Consulenza confermata, evento Calendar ed email creati"
+            : "Consulenza confermata ed evento Calendar creato, ma email non inviata",
+      });
+    } catch (error: any) {
+      console.error("[POST /v2/create-manual] Errore:", error.message);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: error.errors,
+        });
+      }
+      if (consultationId) {
+        try {
+          await consultationService.deleteConsultation(consultationId);
+        } catch (cleanupError: any) {
+          console.error(
+            "[POST /v2/create-manual] Cleanup consulenza fallito:",
+            cleanupError.message,
+          );
+        }
+      }
+      return res.status(500).json({ error: "Errore creazione consulenza manuale" });
+    }
+  },
+);
+
+/**
  * DELETE /api/consultations/:id
  * Elimina consultation (admin può eliminare in qualsiasi stato)
  * Se confermata, invia email di cancellazione al cliente
