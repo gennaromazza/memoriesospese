@@ -22,6 +22,10 @@ test.describe("Fotolibro – riallineamento Job e galleria", () => {
     await expect(page.getByTestId("button-create-photobook")).toBeVisible();
     await page.getByTestId("button-create-photobook").click();
 
+    const nameInput = page.getByTestId("input-photobook-name");
+    const confirmCreateButton = page.getByTestId("button-confirm-create-photobook");
+    await nameInput.fill("Fotolibro con caricamento asincrono");
+
     const jobTrigger = page.getByTestId("select-photobook-job-trigger");
     await expect(jobTrigger).toBeVisible();
     await jobTrigger.click();
@@ -32,6 +36,7 @@ test.describe("Fotolibro – riallineamento Job e galleria", () => {
     const galleryTrigger = page.getByTestId("select-photobook-gallery");
     await expect(galleryTrigger).toContainText("Seleziona la galleria");
     await expect(jobTrigger).toContainText("Matrimonio con gallerie in ritardo");
+    await expect(confirmCreateButton).toBeDisabled();
 
     await page.evaluate(() => {
       window.__photobookE2EReleaseGalleries?.();
@@ -39,6 +44,7 @@ test.describe("Fotolibro – riallineamento Job e galleria", () => {
 
     await expect(galleryTrigger).toContainText("Prima galleria collegata");
     await expect(galleryTrigger).not.toContainText("Seconda galleria collegata");
+    await expect(confirmCreateButton).toBeEnabled();
 
     await galleryTrigger.click();
     await page
