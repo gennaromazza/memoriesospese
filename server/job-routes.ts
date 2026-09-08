@@ -10,6 +10,7 @@ import { db, Timestamp, FieldValue } from './firebase-admin.js';
 import { sendGmailEmail, getStudioContactInfo, getSiteBaseUrl, authenticateFirebase } from './email-routes.js';
 import { formatPhoneForWhatsApp } from '../shared/phone-utils.js';
 import { recomputeJobAggregates } from './job-aggregates.js';
+import { getJobClientIds } from '../shared/gallery-association.js';
 
 const router = express.Router();
 
@@ -1211,7 +1212,7 @@ router.get('/', authenticateFirebase, requireAdmin, async (req: any, res) => {
     
     if (clienteId) {
       jobs = jobs.filter((job: any) => 
-        job.clientiIds && job.clientiIds.includes(clienteId)
+        getJobClientIds(job).includes(clienteId)
       );
     }
     

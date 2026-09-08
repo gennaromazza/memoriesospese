@@ -20,6 +20,10 @@ import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import { getAllJobs } from "@/lib/jobs";
 import type { Job } from "@shared/jobs-types";
+import {
+  getJobClientIds,
+  jobMatchesClientIds,
+} from "@shared/gallery-association";
 import { PhotoUploadSuccessModal } from "./PhotoUploadSuccessModal";
 import { getAllThemes } from "@shared/special-themes";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
@@ -94,6 +98,7 @@ interface GalleryType {
   specialPin?: string;
   jobType?: string;
   jobId?: string;
+  consultationId?: string;
 }
 
 interface EditGalleryModalProps {
@@ -705,13 +710,9 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
     getAllJobs().then(jobs => setAvailableJobs(jobs)).catch(console.error);
   }, [isOpen]);
 
-  // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
-  const getJobClientIds = (j: Job): string[] =>
-    [...new Set([...(j.clientiIds || []), ...(j.clienteId ? [j.clienteId] : [])])];
-
   // Job suggeriti in base ai clienti associati alla galleria (ordinamento dropdown)
   const isClientJob = (j: Job): boolean =>
-    clientiIds.length > 0 && getJobClientIds(j).some(id => clientiIds.includes(id));
+    jobMatchesClientIds(j, clientiIds);
 
   // Selezione job dal dropdown: auto-compila categoria e clienti mancanti
   const handleSelectJobInEdit = (j: Job) => {
@@ -734,6 +735,29 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
       });
     }
   };
+
+  const handleClientIdsChangeInEdit = (nextClientIds: string[]) => {
+    const selectedJob = availableJobs.find((j) => j.id === jobId);
+    const requiredJobClientIds = getJobClientIds(selectedJob);
+    const missingJobClientIds = requiredJobClientIds.filter((id) => !nextClientIds.includes(id));
+    setClientiIds([...new Set([...nextClientIds, ...requiredJobClientIds])]);
+    if (missingJobClientIds.length > 0) {
+      toast({
+        title: "Cliente mantenuto",
+        description: "Il cliente appartiene al lavoro selezionato e resta associato alla galleria.",
+      });
+    }
+  };
+
+  // Ripristina nel form i clienti obbligatori del Job anche per gallerie legacy
+  // che erano state salvate con il solo jobId.
+  useEffect(() => {
+    if (!jobId) return;
+    const linkedJob = availableJobs.find((j) => j.id === jobId);
+    const requiredClientIds = getJobClientIds(linkedJob);
+    if (requiredClientIds.length === 0) return;
+    setClientiIds((previous) => [...new Set([...previous, ...requiredClientIds])]);
+  }, [jobId, availableJobs]);
 
   // Funzione helper per comprimere immagini
   const compressImage = async (file: File): Promise<File> => {
@@ -2199,7 +2223,7 @@ export default function EditGalleryModal({ isOpen, onClose, gallery }: EditGalle
             <div className="space-y-2">
               <MultiClienteSelector
                 values={clientiIds}
-                onChange={setClientiIds}
+                onChange={handleClientIdsChangeInEdit}
                 label="Clienti Associati"
                 placeholder="Cerca e aggiungi cliente..."
                 emptyHint="Nessun cliente associato — le email automatiche non verranno inviate"

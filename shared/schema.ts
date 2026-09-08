@@ -78,6 +78,7 @@ export interface Gallery {
   
   // Booking Integration
   bookingId?: string; // Link a booking se galleria creata da BookingsManager
+  consultationId?: string; // Link opzionale alla consulenza che ha generato il Job
   
   userId: string; // UID admin/utente che ha creato la galleria
   

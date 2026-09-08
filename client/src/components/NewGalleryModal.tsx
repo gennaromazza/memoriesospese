@@ -43,6 +43,11 @@ import { createAbsoluteUrl } from "@/lib/basePath";
 import { getClienteByEmail, getClienteById } from "@/lib/clienti";
 import { getAllJobs } from "@/lib/jobs";
 import type { Job } from "@shared/jobs-types";
+import {
+  getJobClientIds,
+  jobMatchesClientIds,
+  jobMatchesGalleryContext,
+} from "@shared/gallery-association";
 import { getActiveJobTypes } from "@/lib/job-types";
 import type { JobTypeFE } from "@shared/job-types";
 import { Link2 } from "lucide-react";
@@ -114,6 +119,7 @@ interface NewGalleryModalProps {
     specialTheme?: string; // Auto-populated from campaign.temaStagionale
     specialPin?: string;
     bookingId?: string; // Link to booking (for integration)
+    consultationId?: string; // Link to consultation (usually through the Job)
     jobId?: string; // Job ID to pre-select the linked job (auto-adds job clients)
     clienteId?: string; // Client ID for direct association and notifications
     prodottoId?: string; // Product ID to fetch data and auto-populate selection settings (legacy single product)
@@ -355,11 +361,6 @@ export default function NewGalleryModal({
     getActiveJobTypes().then(setJobTypes).catch(console.error);
   }, [isOpen]);
 
-  // Helper: ID clienti collegati a un job (clientiIds + fallback legacy clienteId)
-  const getJobClientIds = (j: Job): string[] => {
-    return [...new Set([...(j.clientiIds || []), ...(j.clienteId ? [j.clienteId] : [])])];
-  };
-
   // Seleziona un job e auto-aggiunge i suoi clienti (senza duplicati)
   const handleSelectJob = (j: Job, options?: { silent?: boolean }) => {
     setJobId(j.id);
@@ -378,9 +379,9 @@ export default function NewGalleryModal({
     }
     const jobClients = getJobClientIds(j);
     const toAdd = jobClients.filter(id => !clientiIds.includes(id));
-    setAutoAddedClientIds(toAdd);
+    setAutoAddedClientIds(prev => [...new Set([...prev, ...toAdd])]);
     if (toAdd.length > 0) {
-      setClientiIds([...clientiIds, ...toAdd]);
+      setClientiIds(prev => [...new Set([...prev, ...toAdd])]);
       if (!options?.silent) {
         toast.success(
           toAdd.length === 1
@@ -411,6 +412,18 @@ export default function NewGalleryModal({
     setJobType(value);
     setJobTypeAutoSet(false);
     setJobTypeManual(true);
+  };
+
+  // Un Job selezionato deve restare coerente con tutti i suoi clienti.
+  // Se l'utente prova a rimuoverne uno, lo reinseriamo automaticamente.
+  const handleClientIdsChange = (nextClientIds: string[]) => {
+    const selectedJob = availableJobs.find((j) => j.id === jobId);
+    const requiredJobClientIds = getJobClientIds(selectedJob);
+    const missingJobClientIds = requiredJobClientIds.filter((id) => !nextClientIds.includes(id));
+    setClientiIds([...new Set([...nextClientIds, ...requiredJobClientIds])]);
+    if (missingJobClientIds.length > 0) {
+      toast.info("Il cliente resta associato perché appartiene al lavoro selezionato");
+    }
   };
 
   // Auto-riconosci la categoria dal nome dell'evento (es. "Matrimonio Anna e Marco" → matrimonio)
@@ -450,9 +463,15 @@ export default function NewGalleryModal({
     }
   }, [isOpen, prePopulate?.jobId, availableJobs, jobPrefillApplied]);
 
-  // Job suggeriti in base ai clienti selezionati (per ordinamento dropdown)
-  const isClientJob = (j: Job): boolean =>
-    clientiIds.length > 0 && getJobClientIds(j).some(id => clientiIds.includes(id));
+  // Job suggeriti in base ai clienti e al contesto da cui è stato aperto il modal.
+  const isClientJob = (j: Job): boolean => jobMatchesClientIds(j, clientiIds);
+  const suggestedJobs = availableJobs.filter((j) =>
+    jobMatchesGalleryContext(j, {
+      clientIds: clientiIds,
+      bookingId: prePopulate?.bookingId,
+      consultationId: prePopulate?.consultationId,
+    }),
+  );
 
   // MUTUA ESCLUSIVITÀ: Password e PIN non possono coesistere
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -664,6 +683,9 @@ export default function NewGalleryModal({
       // Add booking link if gallery created from BookingsManager
       if (prePopulate?.bookingId) {
         galleryData.bookingId = prePopulate.bookingId;
+      }
+      if (prePopulate?.consultationId) {
+        galleryData.consultationId = prePopulate.consultationId;
       }
       
       // Add client association for notifications (multi-cliente)
@@ -1009,11 +1031,60 @@ export default function NewGalleryModal({
               )}
               <MultiClienteSelector
                 values={clientiIds}
-                onChange={setClientiIds}
+                onChange={handleClientIdsChange}
                 label="Clienti Associati"
                 placeholder="Cerca e aggiungi cliente..."
                 emptyHint="Nessun cliente associato — le email automatiche non verranno inviate"
               />
+              {!jobId && suggestedJobs.length > 0 && (
+                <div
+                  className="rounded-md border border-sage/30 bg-sage/5 p-3 space-y-2"
+                  data-testid="suggested-jobs-for-gallery"
+                >
+                  <div>
+                    <p className="text-xs font-semibold text-sage-dark">
+                      Lavori compatibili con i clienti selezionati
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Scegli un Job per mantenere allineati clienti, prenotazione, consulenza e galleria.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    {suggestedJobs.slice(0, 5).map((j) => (
+                      <button
+                        key={j.id}
+                        type="button"
+                        onClick={() => handleSelectJob(j)}
+                        className="flex w-full items-center gap-2 rounded-md border border-sage/30 bg-background px-2.5 py-2 text-left text-sm hover:bg-sage/10"
+                        data-testid={`button-suggested-gallery-job-${j.id}`}
+                      >
+                        <Link2 className="h-3.5 w-3.5 text-sage shrink-0" />
+                        <span className="min-w-0 flex-1 truncate font-medium">{j.nomeEvento}</span>
+                        {jobMatchesClientIds(j, clientiIds) && (
+                          <span className="text-[10px] rounded bg-sage/15 px-1.5 py-0.5 text-sage shrink-0">
+                            Cliente
+                          </span>
+                        )}
+                        {j.bookingId && (
+                          <span className="text-[10px] rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 shrink-0">
+                            Prenotazione
+                          </span>
+                        )}
+                        {j.consultationId && (
+                          <span className="text-[10px] rounded bg-violet-50 px-1.5 py-0.5 text-violet-700 shrink-0">
+                            Consulenza
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!jobId && clientiIds.length > 0 && availableJobs.length > 0 && suggestedJobs.length === 0 && (
+                <p className="text-xs text-amber-700">
+                  Nessun Job trovato per i clienti selezionati. Puoi continuare senza Job oppure cercarne uno per nome.
+                </p>
+              )}
             </div>
 
             {/* Collegamento a Lavoro esistente */}

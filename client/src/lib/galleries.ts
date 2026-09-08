@@ -78,6 +78,7 @@ export interface Gallery {
   
   // Booking Integration
   bookingId?: string;
+  consultationId?: string;
   
   // Job Integration - Collegamento diretto job
   jobId?: string;
