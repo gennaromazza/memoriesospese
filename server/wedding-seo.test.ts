@@ -32,6 +32,7 @@ import {
   buildWeddingStoryPrompt,
   buildWeddingVendorSearchPrompt,
   buildWeddingEditorialJobFacts,
+  buildSafeWeddingDraft,
   generateWeddingDraftWithGemini,
   inspectWeddingDraftQuality,
   GEMINI_BASE_URL,
@@ -162,6 +163,7 @@ describe('Real Wedding editorial safety', () => {
       photos: [],
       jobFacts: null,
       apiKey: 'test-key',
+      maxAttempts: 2,
     })).resolves.toEqual(generated);
 
     const retryRequest = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
@@ -200,7 +202,7 @@ describe('Real Wedding editorial safety', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('stops after the configured number of editorial attempts when every draft stays too short', async () => {
+  it('returns a deterministic fallback when the first draft stays too short', async () => {
     const shortDraft = weddingDraft('## Un testo incompleto\nImage Studio ha seguito il matrimonio.');
     const completion = new Response(JSON.stringify({
       choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(shortDraft) } }],
@@ -208,15 +210,73 @@ describe('Real Wedding editorial safety', () => {
     const fetchMock = vi.fn().mockImplementation(async () => completion.clone());
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(generateWeddingDraftWithGemini({
+    const result = await generateWeddingDraftWithGemini({
       gallery: { id: 'gallery-short', name: 'Anna e Luca' },
       sources: [],
       photos: [],
       jobFacts: null,
       apiKey: 'test-key',
-    })).rejects.toThrow('dopo 2 correzioni automatiche');
+    });
 
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.story.length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(MAX_WEDDING_DRAFT_ATTEMPTS);
+  });
+
+  it('returns a usable fallback when Gemini is unavailable and keeps sensitive answers out', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('provider unavailable'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generateWeddingDraftWithGemini({
+      gallery: { id: 'gallery-fallback', name: 'Andrea e Justine', location: 'Via Roma 12, Aversa' },
+      sources: [
+        {
+          id: 'story:moment',
+          submissionId: 'story',
+          fieldId: 'moment',
+          label: 'Il momento più importante',
+          value: 'La luce del pomeriggio e una passeggiata insieme.',
+          clientName: 'Andrea',
+          category: 'story',
+          consentGranted: true,
+        },
+        {
+          id: 'private:email',
+          submissionId: 'private',
+          fieldId: 'email',
+          label: 'Email privata',
+          value: 'andrea@example.com',
+          clientName: 'Andrea',
+          category: 'story',
+          consentGranted: true,
+        },
+      ],
+      photos: [{ id: 'photo-1', chapterTitle: 'Ritratti' }],
+      jobFacts: {
+        coupleNames: ['Andrea Rossi', 'Justine Brown'],
+        coupleSurnames: ['Rossi', 'Brown'],
+        receptionCity: 'Aversa',
+        clientCities: [],
+      },
+      apiKey: 'test-key',
+    });
+
+    expect(result.fallbackUsed).toBe(true);
+    expect(result.title).toContain('Andrea e Justine');
+    expect(result.story).toContain('La luce del pomeriggio');
+    expect(result.story).not.toContain('andrea@example.com');
+    expect(result.story).not.toContain('Via Roma 12');
+    expect(result.story).not.toContain('Rossi');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const directFallback = buildSafeWeddingDraft({
+      gallery: { id: 'gallery-fallback', name: 'Andrea e Justine' },
+      sources: [],
+      photos: [],
+      jobFacts: null,
+    });
+    expect(directFallback.fallbackUsed).toBe(true);
+    expect(directFallback.story.length).toBeGreaterThan(0);
   });
 
   it('corrects roles, location claims, schedules and length across three editorial attempts', async () => {
@@ -268,9 +328,10 @@ describe('Real Wedding editorial safety', () => {
       photos,
       jobFacts: null,
       apiKey: 'test-key',
+      maxAttempts: 3,
     })).resolves.toEqual(finalDraft);
 
-    expect(MAX_WEDDING_DRAFT_ATTEMPTS).toBe(3);
+    expect(MAX_WEDDING_DRAFT_ATTEMPTS).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const secondRequest = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
     const firstRevision = String(secondRequest.messages.at(-1)?.content || '');

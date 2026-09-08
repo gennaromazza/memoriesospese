@@ -40,3 +40,4 @@
 - [Fornitori informativi strutturati](info-form-vendors.md) — nuovi vendor come lista nome/categoria/luogo; testo e oggetti legacy solo in lettura, URL cliente mai fonte editoriale.
 - [Contratto social metadata](social-metadata-contract.md) — SSR e client condividono canonical/immagini; cover esplicita, contenuto, fallback globale; URL temporanei rifiutati.
 - [Quill alt immagini](quill-image-alt.md) — il formato immagine nativo conserva `alt` nel Delta; usare `formatText` sull’embed, non solo una mappa temporanea.
+- [Fallback IA Real Wedding](real-wedding-ai-fallback.md) — una sola chiamata IA; se fallisce, bozza deterministica dai dati autorizzati, verifica fornitori solo da cache.

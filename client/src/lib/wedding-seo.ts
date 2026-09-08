@@ -68,6 +68,8 @@ export async function generateWeddingStoryDraft(
   selectedPhotoIds: string[],
 ): Promise<Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'> & {
   vendorReviews: WeddingVendorReview[];
+  fallbackUsed?: boolean;
+  fallbackReason?: string;
 }> {
   const response = await apiRequest(
     'POST',
@@ -77,8 +79,15 @@ export async function generateWeddingStoryDraft(
   const data = await responseJson<{
     draft: Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
     vendorReviews?: WeddingVendorReview[];
+    fallbackUsed?: boolean;
+    fallbackReason?: string;
   }>(response);
-  return { ...data.draft, vendorReviews: data.vendorReviews || [] };
+  return {
+    ...data.draft,
+    vendorReviews: data.vendorReviews || [],
+    fallbackUsed: Boolean(data.draft && data.fallbackUsed),
+    fallbackReason: data.fallbackReason,
+  };
 }
 
 export async function getPublicWeddingStory(slug: string): Promise<PublicWeddingStory | null> {

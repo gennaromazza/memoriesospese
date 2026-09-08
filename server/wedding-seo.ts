@@ -29,7 +29,10 @@ const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 export const MAX_WEDDING_STORY_PHOTOS = 12;
 const MIN_COMPACT_WEDDING_STORY_WORDS = 250;
 export const MIN_ENRICHED_WEDDING_STORY_WORDS = 700;
-export const MAX_WEDDING_DRAFT_ATTEMPTS = 3;
+// Una sola chiamata IA per ogni click: se il provider fallisce o la risposta
+// non supera i controlli, restituiamo una bozza deterministica senza ripetere
+// automaticamente la richiesta e consumare altri crediti.
+export const MAX_WEDDING_DRAFT_ATTEMPTS = 1;
 const TARGET_ENRICHED_WEDDING_STORY_WORDS = 900;
 const MAX_SOURCES = 40;
 const MAX_AI_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -566,6 +569,24 @@ async function loadCachedWeddingVendor(vendor: Pick<InfoFormVendor, 'name' | 'ca
     confidence: Number(data.confidence) || 0,
     checkedAt: data.checkedAt,
   };
+}
+
+async function loadCachedVerifiedWeddingVendors(
+  sources: WeddingStorySource[],
+): Promise<WeddingStoryVendor[]> {
+  const vendors = sources.flatMap(vendorEntriesFromSource);
+  const cached: Array<WeddingStoryVendor | null> = await Promise.all(vendors.map(async vendor => {
+    const match = await loadCachedWeddingVendor(vendor);
+    if (!match) return null;
+    return {
+      name: vendor.name,
+      role: match.role,
+      category: vendor.category || undefined,
+      location: vendor.location || undefined,
+      url: match.url,
+    };
+  }));
+  return cached.filter((vendor): vendor is WeddingStoryVendor => vendor !== null);
 }
 
 async function searchWeddingVendor(
@@ -1201,7 +1222,10 @@ export async function loadSelectedPhotos(gallery: Record<string, any>, photoIds:
   return photos.filter(Boolean) as Array<Record<string, any>>;
 }
 
-export type WeddingAiDraft = Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'>;
+export type WeddingAiDraft = Pick<WeddingSeoStory, 'title' | 'excerpt' | 'story' | 'seoTitle' | 'seoDescription'> & {
+  fallbackUsed?: boolean;
+  fallbackReason?: string;
+};
 
 export class WeddingAiGenerationError extends Error {
   constructor(message: string, public readonly httpStatus = 502) {
@@ -1210,23 +1234,146 @@ export class WeddingAiGenerationError extends Error {
   }
 }
 
+function fallbackPublicName(value: unknown): string {
+  const raw = safeString(value, 120);
+  return raw.split(/\s+/u)[0] || raw;
+}
+
+function fallbackCoupleLabel(
+  gallery: Record<string, any>,
+  jobFacts: WeddingEditorialJobFacts | null,
+): string {
+  const galleryName = safeString(gallery.name, 140);
+  if (galleryName && /\s+e\s+/i.test(galleryName)) return galleryName;
+  const names = uniqueNonEmpty((jobFacts?.coupleNames || []).map(fallbackPublicName));
+  return names.length > 0 ? italianList(names) : galleryName || 'La coppia';
+}
+
+function fallbackSourceText(source: WeddingStorySource): string {
+  const serialized = JSON.stringify(source.value ?? '');
+  const sensitive = /\b(?:indirizzo|via|viale|corso|civico|telefono|cellulare|whatsapp|e-?mail|codice fiscale|partita iva|saldo|pagamento)\b/i;
+  if (
+    sensitive.test(source.label)
+    || sensitive.test(serialized)
+    || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(serialized)
+    || /\b(?:via|viale|corso|strada)\b[^\n,]{0,80}\d/i.test(serialized)
+  ) {
+    return '';
+  }
+  if (source.category === 'vendor') {
+    return normalizeInfoFormVendors(source.value)
+      .map(vendor => safeString(vendor.name, 120))
+      .filter(Boolean)
+      .join(', ');
+  }
+  const value = source.value;
+  if (Array.isArray(value)) return value.map(item => safeString(item, 180)).filter(Boolean).join(', ');
+  if (value && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>)
+      .map(item => safeString(item, 180))
+      .filter(Boolean)
+      .join(', ');
+  }
+  return safeString(value, 260);
+}
+
+/**
+ * Ultimo livello di sicurezza: non usa rete, modello o crediti.
+ * Produce comunque un testo modificabile e salvabile usando soltanto dati
+ * già autorizzati, fatti del Job, capitoli e nomi dei fornitori.
+ */
+export function buildSafeWeddingDraft(params: {
+  gallery: Record<string, any>;
+  sources: WeddingStorySource[];
+  photos: Array<Record<string, any>>;
+  jobFacts: WeddingEditorialJobFacts | null;
+  reason?: string;
+}): WeddingAiDraft {
+  const couple = fallbackCoupleLabel(params.gallery, params.jobFacts);
+  const galleryPlace = sanitizeEditorialPlace(params.gallery.location);
+  const city = safeString(
+    params.jobFacts?.receptionCity
+      || params.jobFacts?.ceremonyCity
+      || galleryPlace.city,
+    100,
+  );
+  const place = city ? ` a ${city}` : '';
+  const storySources = params.sources
+    .filter(source => source.category === 'story')
+    .map(source => ({
+      label: safeString(source.label, 100),
+      value: fallbackSourceText(source),
+    }))
+    .filter(source => source.value);
+  const vendors = uniqueNonEmpty(
+    params.sources.filter(source => source.category === 'vendor').map(fallbackSourceText),
+  );
+  const chapters = uniqueNonEmpty(params.photos.map(photo => photo.chapterTitle)).slice(0, 8);
+  const sourceDetails = storySources
+    .slice(0, 8)
+    .map(source => `${source.label}: ${source.value}`)
+    .join('. ');
+  const vendorSentence = vendors.length > 0
+    ? `Tra le realtà scelte dalla coppia figurano ${italianList(vendors)}.`
+    : '';
+  const chapterSentence = chapters.length > 0
+    ? `La sequenza fotografica attraversa ${italianList(chapters)}, seguendo il ritmo delle immagini selezionate.`
+    : 'La sequenza fotografica segue il ritmo delle immagini selezionate e il filo della giornata.';
+
+  const story = [
+    `## ${couple}${place}`,
+    `Il matrimonio di ${couple} viene raccontato attraverso un reportage fotografico costruito sui momenti e sui dettagli raccolti nella galleria. ${city ? `Il riferimento geografico della storia è ${city}. ` : ''}Image Studio segue il filo della giornata con uno sguardo attento alla continuità tra persone, gesti e ambienti, lasciando che siano le immagini a dare forma al racconto.`,
+    `## Un racconto costruito sulle immagini`,
+    chapterSentence,
+    sourceDetails
+      ? `Le parole condivise dalla coppia aggiungono al racconto alcuni elementi personali: ${sourceDetails}. Questi dettagli aiutano a dare contesto alle immagini senza separare il testo dalla dimensione fotografica dell'evento.`
+      : `Il racconto resta concentrato su ciò che la galleria documenta: la presenza della coppia, la successione dei momenti e i particolari che rendono riconoscibile questa storia.`,
+    vendorSentence,
+    `## Il punto di vista fotografico`,
+    `Il reportage di Image Studio osserva la giornata nella sua continuità, alternando passaggi d'insieme e dettagli ravvicinati. La narrazione lascia spazio ai gesti, alle relazioni e alle atmosfere effettivamente sostenute dalle fotografie, senza aggiungere informazioni estranee al materiale disponibile. ${couple} resta al centro del racconto, mentre la sequenza delle immagini costruisce un ricordo ordinato e leggibile dell'evento.`,
+  ].filter(Boolean).join('\n\n');
+
+  return {
+    title: `${couple}${place}: il racconto fotografico`,
+    excerpt: `Il racconto fotografico del matrimonio di ${couple}${place}, attraverso i momenti e i dettagli della galleria.`,
+    story: story.slice(0, WEDDING_STORY_LIMITS.story),
+    seoTitle: `Matrimonio di ${couple}${place} | Image Studio`.slice(0, WEDDING_STORY_LIMITS.seoTitle),
+    seoDescription: `Il reportage fotografico del matrimonio di ${couple}${place}, raccontato da Image Studio attraverso immagini e dettagli reali.`.slice(0, WEDDING_STORY_LIMITS.seoDescription),
+    fallbackUsed: true,
+    fallbackReason: params.reason || 'La bozza è stata preparata senza una nuova chiamata IA.',
+  };
+}
+
 export async function generateWeddingDraftWithGemini(params: {
   gallery: Record<string, any>;
   sources: WeddingStorySource[];
   photos: Array<Record<string, any>>;
   jobFacts: WeddingEditorialJobFacts | null;
   apiKey?: string;
+  maxAttempts?: number;
 }): Promise<WeddingAiDraft> {
   const { gallery, sources, photos, jobFacts } = params;
   const apiKey = params.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+  const fallback = (reason: string) => buildSafeWeddingDraft({
+    gallery,
+    sources,
+    photos,
+    jobFacts,
+    reason,
+  });
   if (!apiKey) {
-    throw new WeddingAiGenerationError(
-      'GEMINI_API_KEY non configurata: puoi comunque scrivere e salvare la bozza manualmente.',
-      503,
-    );
+    return fallback('Il servizio IA non è configurato: è stata preparata una bozza modificabile dai dati disponibili.');
   }
   const requiredVendors = sources.flatMap(vendorNamesFromSource);
-  const verifiedVendors = await resolveWeddingVendors(sources, jobFacts, apiKey);
+  // La verifica online dei fornitori è accessoria e non deve moltiplicare le
+  // chiamate IA della generazione. Durante questo flusso usiamo solo la cache;
+  // i nomi autorizzati restano comunque citabili con formula neutra.
+  let verifiedVendors: WeddingStoryVendor[] = [];
+  try {
+    verifiedVendors = await loadCachedVerifiedWeddingVendors(sources);
+  } catch (error) {
+    console.warn('[wedding-seo] Lettura cache fornitori non riuscita; la generazione continua senza link verificati:', error);
+  }
   console.log(`[wedding-seo] Preparazione di ${Math.min(photos.length, MAX_WEDDING_STORY_PHOTOS)} fotografie per Gemini...`);
   const verifiedVendorNames = new Set(verifiedVendors.map(vendor => normalizedVendorName(vendor.name)));
   const unverifiedVendorNames = uniqueNonEmpty(sources
@@ -1276,7 +1423,8 @@ export async function generateWeddingDraftWithGemini(params: {
   let generated: Record<string, any> | null = null;
   let qualityIssues: string[] = [];
   const issueHistory = new Map<string, string>();
-  for (let attempt = 1; attempt <= MAX_WEDDING_DRAFT_ATTEMPTS; attempt += 1) {
+  const maxAttempts = Math.max(1, Math.min(params.maxAttempts ?? MAX_WEDDING_DRAFT_ATTEMPTS, 3));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     let raw = '';
     generated = null;
     let response: globalThis.Response;
@@ -1297,16 +1445,20 @@ export async function generateWeddingDraftWithGemini(params: {
       }, 120_000);
     } catch (error) {
       console.error('[wedding-seo] Gemini API: request failed', error);
-      throw new WeddingAiGenerationError('La richiesta a Gemini API non è riuscita o ha superato 120 secondi. La bozza corrente è rimasta invariata.');
+      return fallback('La richiesta IA non è riuscita o ha superato il tempo massimo.');
     }
     if (!response.ok) {
       const providerError = (await response.text()).slice(0, 500);
       console.error('[wedding-seo] Gemini API:', response.status, providerError);
-      throw new WeddingAiGenerationError(
-        `Gemini API ha rifiutato la richiesta (HTTP ${response.status}). La bozza corrente è rimasta invariata.`,
-      );
+      return fallback(`Il servizio IA ha rifiutato la richiesta (HTTP ${response.status}).`);
     }
-    const completion: any = await response.json();
+    let completion: any;
+    try {
+      completion = await response.json();
+    } catch (error) {
+      console.error('[wedding-seo] Gemini API: risposta JSON non leggibile', error);
+      return fallback('Il servizio IA ha restituito una risposta non leggibile.');
+    }
     const choice = completion?.choices?.[0];
     const finishReason = choice?.finish_reason || 'sconosciuto';
     raw = choice?.message?.content || '';
@@ -1325,7 +1477,7 @@ export async function generateWeddingDraftWithGemini(params: {
       const category = issue.split(':', 1)[0].trim();
       issueHistory.set(category, issue);
     }
-    if (attempt < MAX_WEDDING_DRAFT_ATTEMPTS) {
+    if (attempt < maxAttempts) {
       const revisionPrompt = buildWeddingDraftRevisionPrompt([...issueHistory.values()], {
         minimumWords: editorialPlan.minimumWords,
         targetWords: editorialPlan.targetWords,
@@ -1349,8 +1501,9 @@ export async function generateWeddingDraftWithGemini(params: {
     }
   }
   if (!generated || qualityIssues.length > 0) {
-    throw new WeddingAiGenerationError(
-      `La bozza IA non ha superato il controllo editoriale dopo ${MAX_WEDDING_DRAFT_ATTEMPTS - 1} correzioni automatiche (${qualityIssues.join('; ')}). Il testo corrente è rimasto invariato.`,
+    console.warn('[wedding-seo] Bozza IA sostituita dalla modalità di sicurezza:', qualityIssues);
+    return fallback(
+      'La risposta IA non ha prodotto una bozza completa; è stata preparata una bozza di sicurezza modificabile.',
     );
   }
   return {
@@ -1612,7 +1765,8 @@ router.post('/gallery/:galleryId/generate', async (req: Request, res: Response) 
     const jobFacts = await loadWeddingEditorialJobFacts(gallery.jobId);
     const draft = await generateWeddingDraftWithGemini({ gallery, sources, photos, jobFacts });
     const vendorReviews = await loadWeddingVendorReviews(sources, selectedSourceIds);
-    return res.json({ draft, vendorReviews });
+    const { fallbackUsed, fallbackReason, ...draftFields } = draft;
+    return res.json({ draft: draftFields, vendorReviews, fallbackUsed, fallbackReason });
   } catch (error) {
     console.error('[wedding-seo] generate:', error);
     if (error instanceof WeddingAiGenerationError) {

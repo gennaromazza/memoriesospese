@@ -284,6 +284,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         validSelectedPhotoIds,
       );
       setVendorReviews(generated.vendorReviews);
+      if (generated.fallbackUsed) {
+        setWarning(generated.fallbackReason || 'È stata preparata una bozza di sicurezza modificabile.');
+      } else {
+        setWarning(undefined);
+      }
       setDraft(current => {
         const title = generated.title || current.title;
         return {
@@ -294,8 +299,10 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       });
       setStatus('draft');
       toast({
-        title: 'Bozza IA generata',
-        description: 'Rileggila e modificala liberamente. Non è stata salvata né pubblicata.',
+        title: generated.fallbackUsed ? 'Bozza pronta con modalità di sicurezza' : 'Bozza IA generata',
+        description: generated.fallbackUsed
+          ? 'La generazione IA non è andata a buon fine, ma ho preparato un articolo modificabile dai dati reali. Salvalo per conservarlo.'
+          : 'Rileggila e modificala liberamente. Non è stata salvata né pubblicata.',
       });
     } catch (reason) {
       const message = readableError(reason);
