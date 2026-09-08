@@ -276,7 +276,24 @@ export async function runReminderCheck(): Promise<{
     if (!consultationDate) continue;
 
     const consultationDT = DateTime.fromJSDate(consultationDate).setZone("Europe/Rome");
-    const hoursDiff = consultationDT.diff(nowRome, "hours").hours;
+    const consultationDateLocal = consultationDT.toFormat("yyyy-MM-dd");
+    const consultationStartDT = DateTime.fromFormat(
+      `${consultationDateLocal} ${consultation.orarioInizio || ""}`,
+      "yyyy-MM-dd HH:mm",
+      { zone: "Europe/Rome" },
+    );
+    const consultationEndDT = DateTime.fromFormat(
+      `${consultationDateLocal} ${consultation.orarioFine || ""}`,
+      "yyyy-MM-dd HH:mm",
+      { zone: "Europe/Rome" },
+    );
+    if (!consultationStartDT.isValid || !consultationEndDT.isValid) {
+      results.consultations.errors.push(`Consultation ${doc.id}: orario non valido`);
+      console.error(`[Reminders] ❌ Orario consulenza non valido: ${doc.id}`);
+      continue;
+    }
+
+    const hoursDiff = consultationStartDT.diff(nowRome, "hours").hours;
     if (hoursDiff < minHours || hoursDiff > maxHours) continue;
 
     try {
@@ -288,18 +305,12 @@ export async function runReminderCheck(): Promise<{
       });
       if (!shouldSend) { results.consultations.skipped++; continue; }
 
-      const formattedDate = consultationDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
+      const formattedDate = consultationStartDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
       const formattedTime = `${consultation.orarioInizio || ""} - ${consultation.orarioFine || ""}`;
       const clienteName = `${consultation.cliente?.nome || ""} ${consultation.cliente?.cognome || ""}`.trim();
 
-      const startDateTime = DateTime.fromFormat(
-        `${consultationDT.toFormat("yyyy-MM-dd")} ${consultation.orarioInizio}`,
-        "yyyy-MM-dd HH:mm", { zone: "Europe/Rome" }
-      ).toJSDate();
-      const endDateTime = DateTime.fromFormat(
-        `${consultationDT.toFormat("yyyy-MM-dd")} ${consultation.orarioFine}`,
-        "yyyy-MM-dd HH:mm", { zone: "Europe/Rome" }
-      ).toJSDate();
+      const startDateTime = consultationStartDT.toJSDate();
+      const endDateTime = consultationEndDT.toJSDate();
 
       const calendarLink = generateGoogleCalendarLink({
         title: `Consulenza: ${consultation.jobType || "Appuntamento"}`,

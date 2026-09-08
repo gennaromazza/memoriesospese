@@ -141,7 +141,7 @@ describe('runReminderCheck', () => {
     {
       label: 'ora solare',
       date: '2027-01-15',
-      now: '2027-01-14T00:00:00.000Z',
+      now: '2027-01-14T09:00:00.000Z',
       expectedDateText: '15 gennaio 2027',
       expectedStart: '2027-01-15T09:00:00.000Z',
       expectedEnd: '2027-01-15T10:00:00.000Z',
@@ -149,10 +149,26 @@ describe('runReminderCheck', () => {
     {
       label: 'ora legale',
       date: '2027-07-15',
-      now: '2027-07-13T22:00:00.000Z',
+      now: '2027-07-14T08:00:00.000Z',
       expectedDateText: '15 luglio 2027',
       expectedStart: '2027-07-15T08:00:00.000Z',
       expectedEnd: '2027-07-15T09:00:00.000Z',
+    },
+    {
+      label: 'giorno di passaggio all’ora legale',
+      date: '2027-03-28',
+      now: '2027-03-27T08:00:00.000Z',
+      expectedDateText: '28 marzo 2027',
+      expectedStart: '2027-03-28T08:00:00.000Z',
+      expectedEnd: '2027-03-28T09:00:00.000Z',
+    },
+    {
+      label: 'giorno di ritorno all’ora solare',
+      date: '2027-10-31',
+      now: '2027-10-30T09:00:00.000Z',
+      expectedDateText: '31 ottobre 2027',
+      expectedStart: '2027-10-31T09:00:00.000Z',
+      expectedEnd: '2027-10-31T10:00:00.000Z',
     },
   ])(
     'invia il promemoria con l’orario Europe/Rome in $label',
