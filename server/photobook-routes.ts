@@ -113,7 +113,7 @@ function entityClientIds(data: any): string[] {
   return [...new Set<string>(validIds)];
 }
 
-function galleryJobAssociationWarnings(
+export function galleryJobAssociationWarnings(
   gallery: any,
   galleryId: string,
   jobId: string,

@@ -92,6 +92,10 @@ import {
 import PhotobookTutorial from '@/components/photobook/PhotobookTutorial';
 import LabFileUploader from '@/components/jobs/operativo/LabFileUploader';
 import type { Job } from '@shared/jobs-types';
+import {
+  photobookJobHasLinkedGalleries,
+  selectPhotobookGalleryForJob,
+} from '@shared/photobook-job-gallery';
 
 function linkedClientIds(
   entity: { clientiIds?: string[]; clienteId?: string } | null | undefined,
@@ -345,16 +349,13 @@ export default function PhotobooksManager() {
   useEffect(() => {
     if (!createOpen || !newJobId) return;
     const selectedJob = jobs.find((job) => job.id === newJobId);
-    const linkedGalleryIds = new Set(
-      (Array.isArray(selectedJob?.galleryIds) ? selectedJob.galleryIds : []).filter(Boolean),
-    );
-    if (linkedGalleryIds.size === 0 || (newGalleryId && linkedGalleryIds.has(newGalleryId))) {
+    if (!selectedJob || !photobookJobHasLinkedGalleries(selectedJob)) {
       return;
     }
 
-    const firstLinkedGallery = galleries.find((gallery) => linkedGalleryIds.has(gallery.id));
-    if (firstLinkedGallery && firstLinkedGallery.id !== newGalleryId) {
-      setNewGalleryId(firstLinkedGallery.id);
+    const nextGalleryId = selectPhotobookGalleryForJob(selectedJob, galleries, newGalleryId);
+    if (nextGalleryId && nextGalleryId !== newGalleryId) {
+      setNewGalleryId(nextGalleryId);
       setAssociationMismatchConfirmed(false);
     }
   }, [createOpen, galleries, jobs, newGalleryId, newJobId]);
@@ -387,16 +388,7 @@ export default function PhotobooksManager() {
     const job = jobs.find((item) => item.id === jobId);
     if (!job) return;
 
-    const linkedGalleryIds = new Set(
-      (Array.isArray(job.galleryIds) ? job.galleryIds : []).filter(Boolean),
-    );
-    // Mantieni la galleria già selezionata se è già una galleria del lavoro.
-    if (newGalleryId && linkedGalleryIds.has(newGalleryId)) return;
-
-    // Altrimenti scegli automaticamente la prima galleria del lavoro disponibile
-    // nell'elenco caricato dal server.
-    const firstLinkedGallery = galleries.find((gallery) => linkedGalleryIds.has(gallery.id));
-    setNewGalleryId(firstLinkedGallery?.id || '');
+    setNewGalleryId(selectPhotobookGalleryForJob(job, galleries, newGalleryId));
   };
 
   const copyLink = (book: Photobook) => {
@@ -642,7 +634,7 @@ export default function PhotobooksManager() {
                 placeholder="Seleziona il lavoro"
                 testId="select-photobook-job"
               />
-              {selectedCreateJob && !selectedCreateJob.galleryIds?.length && (
+              {selectedCreateJob && !photobookJobHasLinkedGalleries(selectedCreateJob) && (
                 <p className="text-xs text-amber-700 flex items-start gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   Questo lavoro non ha ancora gallerie associate: seleziona manualmente la galleria
