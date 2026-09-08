@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { trackPasswordRequest } from "@/lib/analytics";
+import { trackAnalyticsEvent, trackPasswordRequest } from "@/lib/analytics";
 import { useStudio } from "@/context/StudioContext";
 import { createUrl } from "@/lib/basePath";
 import { SecurityQuestionType } from "@shared/schema";
@@ -301,6 +301,10 @@ export default function Home() {
             >
               <a
                 href="#access-gallery"
+                onClick={() => trackAnalyticsEvent('home_cta_click', {
+                  cta: 'hero_gallery',
+                  destination: '#access-gallery',
+                })}
                 className="px-8 py-4 bg-sage hover:bg-dark-sage text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 inline-block text-center transform hover:scale-105"
               >
                 {studioSettings.heroButtonText}
@@ -325,7 +329,13 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Card 1: Prenota uno Shooting */}
-            <Link href={createUrl("/prenota")}>
+            <Link
+              href={createUrl("/prenota")}
+              onClick={() => trackAnalyticsEvent('home_cta_click', {
+                cta: 'book_shooting',
+                destination: '/prenota',
+              })}
+            >
               <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
                 <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -351,7 +361,13 @@ export default function Home() {
             </Link>
 
             {/* Card 2: Consulenza Gratuita */}
-            <Link href={createUrl("/consulenze")}>
+            <Link
+              href={createUrl("/consulenze")}
+              onClick={() => trackAnalyticsEvent('home_cta_click', {
+                cta: 'consultation',
+                destination: '/consulenze',
+              })}
+            >
               <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
                 <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -377,7 +393,13 @@ export default function Home() {
             </Link>
 
             {/* Card 3: Gallerie Online */}
-            <a href="#access-gallery">
+            <a
+              href="#access-gallery"
+              onClick={() => trackAnalyticsEvent('home_cta_click', {
+                cta: 'gallery_access',
+                destination: '#access-gallery',
+              })}
+            >
               <div className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-sage/10 hover:border-sage/30 cursor-pointer h-full transform hover:-translate-y-2">
                 <div className="bg-gradient-to-br from-sage/15 to-sage/5 p-10 flex justify-center relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-br from-transparent to-sage/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -1402,6 +1424,9 @@ export default function Home() {
                     ? `https://wa.me/${formatPhoneForWhatsApp(studioSettings.whatsapp || studioSettings.phone)}`
                     : "https://wa.me/393491234567"
                 }
+                onClick={() => trackAnalyticsEvent('whatsapp_click', {
+                  location: 'home_contact',
+                })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-sage hover:bg-dark-sage focus:outline-none transition-all duration-300"

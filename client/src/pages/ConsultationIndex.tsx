@@ -13,6 +13,7 @@ import { useStudio } from '@/context/StudioContext';
 import Navigation from '@/components/Navigation';
 import { formatPhoneForWhatsApp } from '@shared/phone-utils';
 import { useSEO } from '@/hooks/useSEO';
+import { trackAnalyticsEvent } from '@/lib/analytics';
 
 export default function ConsultationIndex() {
   useSEO({
@@ -195,6 +196,9 @@ export default function ConsultationIndex() {
           {studioSettings.phone && (
             <a
               href={`https://wa.me/${formatPhoneForWhatsApp(studioSettings.phone)}`}
+              onClick={() => trackAnalyticsEvent('whatsapp_click', {
+                location: 'consultation_index',
+              })}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"

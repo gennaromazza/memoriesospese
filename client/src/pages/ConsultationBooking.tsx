@@ -36,7 +36,7 @@ import Navigation from '@/components/Navigation';
 import { AlertTriangle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { EmailSuggestionChip } from '@/components/EmailSuggestionChip';
-import { trackBlogConversion } from '@/lib/analytics';
+import { trackAnalyticsEvent, trackBlogConversion } from '@/lib/analytics';
 
 interface PendingRequest {
   id: string;
@@ -307,6 +307,10 @@ export default function ConsultationBooking() {
       }
 
       await createConsultationMutation.mutateAsync(consultationData);
+      trackAnalyticsEvent('consultation_request_submitted', {
+        consultation_type: jobType || 'unknown',
+        has_job_context: Boolean(prefillJobId),
+      });
       trackBlogConversion('consultation_request_submitted', {
         consultation_type: jobType || 'unknown',
       });
