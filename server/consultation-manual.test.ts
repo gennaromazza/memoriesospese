@@ -6,24 +6,94 @@ const h = vi.hoisted(() => ({
   template: null as any,
   events: [] as any[],
   createEventError: null as Error | null,
+  createEventDelayMs: 0,
   firestoreError: null as Error | null,
   updates: [] as any[],
   createdConsultations: [] as any[],
   deletedConsultationIds: [] as string[],
   deletedEventIds: [] as string[],
   sentEmails: [] as any[],
+  manualLocks: new Map<string, any>(),
+  transactionTail: Promise.resolve(),
 }));
+
+function makeDocumentReference(collectionName: string, id: string) {
+  return {
+    collectionName,
+    id,
+    get: async () => {
+      const data = h.manualLocks.get(id);
+      return {
+        exists: collectionName === "manual_consultation_requests" && !!data,
+        data: () => data,
+      };
+    },
+    update: async (data: any) => {
+      if (collectionName === "consultations" && h.firestoreError) {
+        throw h.firestoreError;
+      }
+      if (collectionName === "manual_consultation_requests") {
+        h.manualLocks.set(id, {
+          ...(h.manualLocks.get(id) || {}),
+          ...data,
+        });
+        return;
+      }
+      h.updates.push(data);
+    },
+    delete: async () => {
+      h.manualLocks.delete(id);
+    },
+  };
+}
 
 vi.mock("./firebase-admin.js", () => ({
   db: {
-    collection: () => ({
-      doc: () => ({
-        update: async (data: any) => {
-          if (h.firestoreError) throw h.firestoreError;
-          h.updates.push(data);
-        },
-      }),
+    collection: (collectionName: string) => ({
+      doc: (id: string) => makeDocumentReference(collectionName, id),
     }),
+    runTransaction: async (callback: (transaction: any) => Promise<any>) => {
+      let release!: () => void;
+      const previous = h.transactionTail;
+      h.transactionTail = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await previous;
+
+      const pendingWrites: Array<{
+        type: "set" | "delete";
+        ref: any;
+        data?: any;
+        options?: any;
+      }> = [];
+      const transaction = {
+        get: async (ref: any) => ref.get(),
+        set: (ref: any, data: any, options?: any) => {
+          pendingWrites.push({ type: "set", ref, data, options });
+        },
+        delete: (ref: any) => {
+          pendingWrites.push({ type: "delete", ref });
+        },
+      };
+
+      try {
+        const result = await callback(transaction);
+        for (const write of pendingWrites) {
+          if (write.type === "delete") {
+            await write.ref.delete();
+          } else {
+            const current = h.manualLocks.get(write.ref.id) || {};
+            h.manualLocks.set(
+              write.ref.id,
+              write.options?.merge ? { ...current, ...write.data } : write.data,
+            );
+          }
+        }
+        return result;
+      } finally {
+        release();
+      }
+    },
   },
   FieldValue: {
     serverTimestamp: () => ({ __serverTimestamp: true }),
@@ -66,6 +136,9 @@ vi.mock("./services/consultations.js", () => ({
 vi.mock("./google-calendar.js", () => ({
   createEvent: async () => {
     if (h.createEventError) throw h.createEventError;
+    if (h.createEventDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, h.createEventDelayMs));
+    }
     return { id: "calendar-event-1" };
   },
   deleteEvent: async (_calendarId: string, eventId: string) => {
@@ -105,12 +178,15 @@ beforeEach(() => {
   };
   h.events = [];
   h.createEventError = null;
+  h.createEventDelayMs = 0;
   h.firestoreError = null;
   h.updates = [];
   h.createdConsultations = [];
   h.deletedConsultationIds = [];
   h.deletedEventIds = [];
   h.sentEmails = [];
+  h.manualLocks.clear();
+  h.transactionTail = Promise.resolve();
 });
 
 async function createManual(overrides: Record<string, unknown> = {}) {
@@ -226,5 +302,33 @@ describe("POST /api/consultations/v2/create-manual", () => {
     expect(h.sentEmails).toHaveLength(1);
     expect(h.deletedConsultationIds).toHaveLength(0);
     expect(h.deletedEventIds).toHaveLength(0);
+  });
+
+  it("restituisce il risultato esistente senza duplicare eventi per due richieste concorrenti", async () => {
+    h.createEventDelayMs = 25;
+
+    const [first, second] = await Promise.all([createManual(), createManual()]);
+    const responses = [first, second];
+    const alreadyCompleted = await createManual();
+
+    expect(h.createdConsultations).toHaveLength(1);
+    expect(h.sentEmails).toHaveLength(1);
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(responses.find((response) => response.status === 409)?.body).toMatchObject({
+      error: "Richiesta già in elaborazione",
+      code: "MANUAL_CONSULTATION_IN_PROGRESS",
+    });
+    expect(alreadyCompleted.status).toBe(200);
+    expect(alreadyCompleted.body).toMatchObject({
+        id: "consultation-1",
+        googleCalendarEventId: "calendar-event-1",
+        emailStatus: "sent",
+        alreadyCreated: true,
+      });
+    expect(h.manualLocks.size).toBe(1);
+    expect([...h.manualLocks.values()][0]).toMatchObject({
+      status: "completed",
+      consultationId: "consultation-1",
+    });
   });
 });

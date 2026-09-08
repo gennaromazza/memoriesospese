@@ -6,6 +6,7 @@
 import express, { Request, Response } from "express";
 import { z } from "zod";
 import axios from "axios";
+import { createHash } from "node:crypto";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateTime } from "luxon";
@@ -48,12 +49,108 @@ interface AuthRequest extends Request {
  * Admin emails (consistente con email-routes.ts)
  */
 const ADMIN_EMAILS = ["gennaro.mazzacane@gmail.com"];
+const MANUAL_CONSULTATION_LOCK_LEASE_MS = 2 * 60 * 1000;
 
 function requireAdmin(req: AuthRequest, res: Response, next: express.NextFunction) {
   if (!ADMIN_EMAILS.includes(req.user?.email || "")) {
     return res.status(403).json({ error: "Accesso negato: solo admin" });
   }
   next();
+}
+
+type ManualConsultationLockResult =
+  | { status: "acquired"; ref: any }
+  | {
+      status: "completed";
+      consultationId: string;
+      googleCalendarEventId?: string;
+      emailStatus: string;
+    }
+  | { status: "processing" };
+
+function getManualConsultationRequestKey(data: {
+  templateId: string;
+  jobId?: string;
+  email: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}): string {
+  const fingerprint = [
+    data.templateId,
+    data.jobId || "",
+    data.email.trim().toLowerCase(),
+    data.date,
+    data.startTime,
+    data.endTime,
+  ].join("|");
+
+  return createHash("sha256").update(fingerprint).digest("hex");
+}
+
+function isManualLockLeaseActive(lockData: any): boolean {
+  if (!lockData?.lockLeaseUntil) return false;
+
+  const leaseDate =
+    typeof lockData.lockLeaseUntil.toDate === "function"
+      ? lockData.lockLeaseUntil.toDate()
+      : new Date(lockData.lockLeaseUntil);
+
+  return !Number.isNaN(leaseDate.getTime()) && leaseDate.getTime() > Date.now();
+}
+
+async function acquireManualConsultationLock(
+  requestKey: string,
+  metadata: Record<string, unknown>,
+): Promise<ManualConsultationLockResult> {
+  const ref = db.collection("manual_consultation_requests").doc(requestKey);
+
+  const result = await db.runTransaction(async (transaction: any) => {
+    const snapshot = await transaction.get(ref);
+    if (snapshot.exists) {
+      const current = snapshot.data() || {};
+
+      if (current.status === "completed" && current.consultationId) {
+        return {
+          status: "completed" as const,
+          consultationId: current.consultationId,
+          googleCalendarEventId: current.googleCalendarEventId,
+          emailStatus: current.emailStatus || "sent",
+        };
+      }
+
+      if (current.status === "processing" && isManualLockLeaseActive(current)) {
+        return { status: "processing" as const };
+      }
+    }
+
+    transaction.set(
+      ref,
+      {
+        ...metadata,
+        status: "processing",
+        lockLeaseUntil: new Date(Date.now() + MANUAL_CONSULTATION_LOCK_LEASE_MS),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return { status: "acquired" as const, ref };
+  });
+
+  return result.status === "acquired" ? { ...result, ref } : result;
+}
+
+async function releaseManualConsultationLock(ref: any): Promise<void> {
+  if (!ref) return;
+  try {
+    await ref.delete();
+  } catch (error: any) {
+    console.error(
+      "[manual consultation] Impossibile rilasciare il lock:",
+      error.message,
+    );
+  }
 }
 
 /**
@@ -1749,6 +1846,8 @@ router.post(
   async (req: AuthRequest, res) => {
     let consultationId: string | undefined;
     let calendarEventId: string | undefined;
+    let manualLockRef: any;
+    let manualLockAcquired = false;
 
     try {
       const {
@@ -1836,6 +1935,47 @@ router.post(
         });
       }
 
+      const manualRequestKey = getManualConsultationRequestKey({
+        templateId,
+        jobId,
+        email: validatedData.cliente.email,
+        date: requestedDate,
+        startTime: validatedData.orarioInizio,
+        endTime: validatedData.orarioFine,
+      });
+      const lockResult = await acquireManualConsultationLock(
+        manualRequestKey,
+        {
+          templateId,
+          jobId: jobId || null,
+          email: validatedData.cliente.email.trim().toLowerCase(),
+          date: requestedDate,
+          startTime: validatedData.orarioInizio,
+          endTime: validatedData.orarioFine,
+        },
+      );
+
+      if (lockResult.status === "completed") {
+        return res.status(200).json({
+          id: lockResult.consultationId,
+          googleCalendarEventId: lockResult.googleCalendarEventId,
+          emailStatus: lockResult.emailStatus,
+          alreadyCreated: true,
+          message: "Consulenza manuale già creata",
+        });
+      }
+
+      if (lockResult.status === "processing") {
+        return res.status(409).json({
+          error: "Richiesta già in elaborazione",
+          code: "MANUAL_CONSULTATION_IN_PROGRESS",
+          message: "La stessa consulenza è già in fase di creazione.",
+        });
+      }
+
+      manualLockRef = lockResult.ref;
+      manualLockAcquired = true;
+
       const { hasConflict } = await import(
         "./calendar-engine/conflicts.js"
       );
@@ -1849,6 +1989,8 @@ router.post(
       );
 
       if (hasConflict(startDateTime.toJSDate(), endDateTime.toJSDate(), existingEvents)) {
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
         return res.status(409).json({
           error: "Slot non disponibile",
           message: "La data e l'orario si sovrappongono a un impegno esistente.",
@@ -1878,6 +2020,8 @@ router.post(
         calendarEventId = calendarEvent.id || undefined;
       } catch (calendarError: any) {
         await consultationService.deleteConsultation(consultationId);
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
         return res.status(503).json({
           error: "Errore Google Calendar",
           message: "Impossibile creare l'evento sul calendario. Riprova più tardi.",
@@ -1905,6 +2049,8 @@ router.post(
           }
         }
         await consultationService.deleteConsultation(consultationId);
+        await releaseManualConsultationLock(manualLockRef);
+        manualLockAcquired = false;
         return res.status(500).json({
           error: "Errore conferma consulenza",
           message: "La consulenza non è stata salvata. Riprova.",
@@ -1958,6 +2104,15 @@ router.post(
         );
       }
 
+      await manualLockRef.update({
+        status: "completed",
+        consultationId,
+        googleCalendarEventId: calendarEventId || null,
+        emailStatus,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      manualLockAcquired = false;
+
       return res.status(201).json({
         id: consultationId,
         googleCalendarEventId: calendarEventId,
@@ -1984,6 +2139,9 @@ router.post(
             cleanupError.message,
           );
         }
+      }
+      if (manualLockAcquired) {
+        await releaseManualConsultationLock(manualLockRef);
       }
       return res.status(500).json({ error: "Errore creazione consulenza manuale" });
     }
