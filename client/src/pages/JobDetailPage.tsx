@@ -1022,12 +1022,15 @@ export default function JobDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['timeline', jobId] });
       queryClient.invalidateQueries({ queryKey: ['consultations'] });
       setSelectedTemplateId(null);
+      const alreadyCreated = result.alreadyCreated === true;
       toast({
-        title: 'Consulenza confermata',
-        description: result.emailStatus === 'sent'
-          ? 'Evento Google Calendar creato e email inviata al cliente.'
-          : 'Evento Google Calendar creato, ma l’email non è stata inviata.',
-        variant: result.emailStatus === 'sent' ? 'default' : 'destructive',
+        title: alreadyCreated ? 'Consulenza già confermata' : 'Consulenza confermata',
+        description: alreadyCreated
+          ? 'La consulenza era già registrata: non sono stati creati nuovi eventi né inviate nuove email.'
+          : result.emailStatus === 'sent'
+            ? 'Evento Google Calendar creato e email inviata al cliente.'
+            : 'Evento Google Calendar creato, ma l’email non è stata inviata.',
+        variant: alreadyCreated || result.emailStatus === 'sent' ? 'default' : 'destructive',
       });
     } catch (error) {
       toast({
