@@ -11,7 +11,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { DateTime } from "luxon";
 import * as consultationService from "./services/consultations.js";
-import { authenticateFirebase } from "./email-routes.js";
+import { authenticateFirebase, getSiteBaseUrl } from "./email-routes.js";
 import {
   InsertConsultationTemplateSchema,
   UpdateConsultationTemplateSchema,
@@ -32,8 +32,10 @@ import { runReminderCheck } from "./reminder-routes.js";
 import {
   CONSULTATION_TIME_ZONE,
   createConsultationDateTime,
+  getConsultationLocalDate,
   NONEXISTENT_LOCAL_TIME_REASON,
 } from "./services/consultation-datetime.js";
+import { clearCalendarEventCache } from "./services/calendar-event-cache.js";
 
 const router = express.Router();
 
@@ -61,6 +63,40 @@ function requireAdmin(req: AuthRequest, res: Response, next: express.NextFunctio
     return res.status(403).json({ error: "Accesso negato: solo admin" });
   }
   next();
+}
+
+/**
+ * Recupera il link pubblico del contratto firmato associato al lavoro.
+ * La consulenza può comunque essere creata se il preventivo non esiste o la
+ * ricerca non è disponibile: il link è un arricchimento della descrizione.
+ */
+async function getSignedContractLink(jobId?: string): Promise<string | null> {
+  if (!jobId) return null;
+
+  try {
+    const quotesSnapshot = await db
+      .collection("quotes")
+      .where("jobId", "==", jobId)
+      .get();
+
+    const signedQuote = quotesSnapshot.docs.find((quoteDoc: any) => {
+      const quote = quoteDoc.data() || {};
+      return (
+        quote.status === "firmato" ||
+        Boolean(quote.signature?.signedAt)
+      );
+    });
+
+    if (!signedQuote) return null;
+    const quote = signedQuote.data() || {};
+    const baseUrl = getSiteBaseUrl();
+    return quote.publicToken
+      ? `${baseUrl}/quote/${quote.publicToken}`
+      : `${baseUrl}/preventivo/${signedQuote.id}`;
+  } catch (error: any) {
+    console.error("[consultation] Impossibile recuperare il link contratto:", error?.message || error);
+    return null;
+  }
 }
 
 type ManualConsultationLockResult =
@@ -785,18 +821,17 @@ router.patch(
       // Step 3: Parse consultation date and time in Europe/Rome timezone
       // CRITICAL: Use Luxon for correct timezone handling (server runs in UTC)
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
-      const dateStr = romeDate.toFormat('yyyy-MM-dd');
+      const dateStr = getConsultationLocalDate(consultationDate);
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
+      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
 
       console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
 
       // Step 4: Load ALL existing events for the day
       // CRITICAL FIX: Exclude Firestore consultations to match /v2/available-slots behavior
       // This prevents phantom 409 conflicts caused by Firestore consultations without Google Calendar events
-      const dateObj = DateTime.fromISO(dateStr, { zone: "Europe/Rome" });
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
@@ -993,14 +1028,13 @@ router.get(
 
       // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
-      const dateStr = romeDate.toFormat('yyyy-MM-dd');
+      const dateStr = getConsultationLocalDate(consultationDate);
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
+      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
 
       // Get day boundaries
-      const dateObj = romeDate;
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
@@ -1077,14 +1111,13 @@ router.post(
 
       // Parse consultation date and time - CRITICAL: Use Luxon for correct timezone
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
-      const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
-      const dateStr = romeDate.toFormat('yyyy-MM-dd');
+      const dateStr = getConsultationLocalDate(consultationDate);
 
-      const startDateTime = createEuropeRomeDate(dateStr, consultation.orarioInizio);
-      const endDateTime = createEuropeRomeDate(dateStr, consultation.orarioFine);
+      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
+      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
 
       // Get day boundaries for conflict check
-      const dateObj = romeDate;
+      const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
       const dayStart = dateObj.startOf("day").toJSDate();
       const dayEnd = dateObj.endOf("day").toJSDate();
 
@@ -1709,9 +1742,17 @@ router.post("/v2/create", async (req, res) => {
     const config = consultationTemplateToAvailabilityConfig(template);
 
     // Step 5: Parse date and time in Europe/Rome timezone
-    const dateObj = DateTime.fromISO(dataConsulenza, { zone: "Europe/Rome" });
-    const slotStart = DateTime.fromISO(`${dataConsulenza}T${orarioInizio}:00`, { zone: "Europe/Rome" }).toJSDate();
-    const slotEnd = DateTime.fromISO(`${dataConsulenza}T${orarioFine}:00`, { zone: "Europe/Rome" }).toJSDate();
+    const requestedDate = String(dataConsulenza || "").slice(0, 10);
+    const dateObj = DateTime.fromISO(requestedDate, { zone: CONSULTATION_TIME_ZONE });
+    const slotStart = createConsultationDateTime(requestedDate, orarioInizio);
+    const slotEnd = createConsultationDateTime(requestedDate, orarioFine);
+
+    if (!dateObj.isValid || !slotStart.isValid || !slotEnd.isValid) {
+      return res.status(400).json({
+        error: "Data o orario non validi",
+        message: "Controlla data, ora di inizio e ora di fine.",
+      });
+    }
 
     // Step 6: Get existing events via centralized adapter
     const { hasConflict } = await import('./calendar-engine/conflicts.js');
@@ -1723,11 +1764,11 @@ router.post("/v2/create", async (req, res) => {
     const existingEvents = await getAllExistingEvents(dayStart, dayEnd, db);
 
     // Step 7: Check conflicts via Calendar Engine V2
-    const conflict = hasConflict(slotStart, slotEnd, existingEvents);
+    const conflict = hasConflict(slotStart.toJSDate(), slotEnd.toJSDate(), existingEvents);
 
     if (conflict) {
       const conflictingEvent = existingEvents.find(e =>
-        e.start.getTime() < slotEnd.getTime() && e.end.getTime() > slotStart.getTime()
+        e.start.getTime() < slotEnd.toMillis() && e.end.getTime() > slotStart.toMillis()
       );
       console.error(`[POST /v2/create] ❌ CONFLICT - Slot ${orarioInizio}-${orarioFine} blocked by ${conflictingEvent?.source || 'unknown'}`);
       return res.status(409).json({
@@ -2030,9 +2071,17 @@ router.post(
       );
 
       try {
+        const contractLink = await getSignedContractLink(jobId);
         const calendarEvent = await createEvent("primary", {
           summary: `Consulenza ${template.jobType} - ${cliente.nome} ${cliente.cognome}`,
-          description: `Template: ${template.jobType}\nCliente: ${cliente.nome} ${cliente.cognome}\nEmail: ${cliente.email}\nWhatsApp: ${cliente.whatsapp || ""}\nNote: ${note || "Nessuna"}`,
+          description: [
+            `Template: ${template.jobType}`,
+            `Cliente: ${cliente.nome} ${cliente.cognome}`,
+            `Email: ${cliente.email}`,
+            `WhatsApp: ${cliente.whatsapp || ""}`,
+            `Note: ${note || "Nessuna"}`,
+            ...(contractLink ? [`Contratto: ${contractLink}`] : []),
+          ].join("\n"),
           start: startDateTime.toJSDate(),
           end: endDateTime.toJSDate(),
         });
@@ -2056,6 +2105,7 @@ router.post(
           confermatail: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        clearCalendarEventCache();
       } catch (updateError: any) {
         if (calendarEventId) {
           try {
@@ -2742,11 +2792,16 @@ router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, r
       }
 
       const consultationDate = normalizeTimestampToDate(c.dataConsulenza);
-      // Converti consultationDate a Europe/Rome usando luxon (DST-safe)
-      const consultationRome =
-        DateTime.fromJSDate(consultationDate).setZone("Europe/Rome");
+      const consultationDateLocal = getConsultationLocalDate(consultationDate);
+      const consultationRome = createConsultationDateTime(
+        consultationDateLocal,
+        c.orarioInizio || "",
+      );
 
       // Calcola differenza in ore (DST-aware)
+      if (!consultationRome.isValid) {
+        return false;
+      }
       const hoursDiff = consultationRome.diff(nowRome, "hours").hours;
 
       // Invia reminder tra 20h e 28h prima (giorno prima)
@@ -2819,17 +2874,16 @@ router.post("/send-reminders", authenticateFirebase, requireAdmin, async (req, r
         });
 
         // Converti consultationDate in formato YYYY-MM-DD - CRITICAL: Use Luxon for timezone
-        const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
-        const dateStr = romeDate.toFormat('yyyy-MM-dd');
+        const dateStr = getConsultationLocalDate(consultationDate);
 
-        const startDateTime = createEuropeRomeDate(
+        const startDateTime = createConsultationDateTime(
           dateStr,
           consultation.orarioInizio,
-        );
-        const endDateTime = createEuropeRomeDate(
+        ).toJSDate();
+        const endDateTime = createConsultationDateTime(
           dateStr,
           consultation.orarioFine,
-        );
+        ).toJSDate();
 
         // Generate Google Calendar link
         const calendarLink = generateGoogleCalendarLink({

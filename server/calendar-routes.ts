@@ -12,6 +12,11 @@ import { authenticateFirebase, sendGmailEmail, createCalendarEventEmailHTML, get
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import {
+  CALENDAR_EVENT_CACHE_TTL,
+  calendarEventCache,
+  clearCalendarEventCache,
+} from './services/calendar-event-cache.js';
 
 const router = express.Router();
 
@@ -97,9 +102,9 @@ interface CalendarEventDTO {
  * - endDate: string ISO (es. "2025-11-30T23:59:59Z")
  * - calendarId: string (opzionale, default 'primary')
  */
-// In-memory cache for calendar events (keyed by startDate+endDate)
-const calendarCache = new Map<string, { data: any; timestamp: number }>();
-const CALENDAR_CACHE_TTL = 2 * 60 * 1000; // 2 minuti
+// Esportata per invalidare l'Agenda quando una consulenza viene creata da
+// un'altra rotta (per esempio la consulenza manuale).
+export { clearCalendarEventCache };
 
 router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
@@ -113,8 +118,8 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
 
     // Check cache
     const cacheKey = `${startDate}_${endDate}_${calendarId || 'primary'}`;
-    const cached = calendarCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CALENDAR_CACHE_TTL) {
+    const cached = calendarEventCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CALENDAR_EVENT_CACHE_TTL) {
       return res.json(cached.data);
     }
 
@@ -436,11 +441,11 @@ router.get('/events', authenticateFirebase, requireAdmin, async (req, res) => {
     }
 
     const responseData = { events, warnings };
-    calendarCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
+    calendarEventCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
     // Limita dimensione cache a 10 entry
-    if (calendarCache.size > 10) {
-      const firstKey = calendarCache.keys().next().value;
-      if (firstKey) calendarCache.delete(firstKey);
+    if (calendarEventCache.size > 10) {
+      const firstKey = calendarEventCache.keys().next().value;
+      if (firstKey) calendarEventCache.delete(firstKey);
     }
     
     res.json(responseData);
@@ -549,7 +554,7 @@ const createEventSchema = z.object({
 
 router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res) => {
   try {
-    calendarCache.clear();
+    clearCalendarEventCache();
     const data = createEventSchema.parse(req.body);
     
     console.log(`📅 Creazione evento Google Calendar: "${data.title}"`);
@@ -683,7 +688,7 @@ router.post('/create-event', authenticateFirebase, requireAdmin, async (req, res
     }
 
     // Invalida la cache calendario così il nuovo evento (e l'eventuale associazione) è subito visibile
-    calendarCache.clear();
+    clearCalendarEventCache();
 
     res.json({ 
       success: true, 
@@ -900,7 +905,7 @@ router.patch('/events/:eventId', authenticateFirebase, requireAdmin, async (req,
     }
 
     // Invalida la cache calendario così le modifiche (incl. associazioni) sono subito visibili
-    calendarCache.clear();
+    clearCalendarEventCache();
 
     res.json({ 
       success: true, 

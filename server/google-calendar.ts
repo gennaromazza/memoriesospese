@@ -10,6 +10,10 @@
 
 import { google, type calendar_v3 } from "googleapis";
 import { DateTime } from "luxon";
+import {
+  CONSULTATION_TIME_ZONE,
+  createConsultationDateTime,
+} from "./services/consultation-datetime.js";
 
 let cachedAuthClient: any = null;
 
@@ -855,24 +859,14 @@ function validateTimeFormat(time: string, fieldName: string): void {
  * Esportata per uso in consultation-routes e altri moduli
  */
 export function createEuropeRomeDate(dateStr: string, time: string): Date {
-  // FIX: Usa Calendar Engine V2 per parsing DST-safe (usa import top-level)
-  const [hours, minutes] = time.split(":").map(Number);
+  const dateTime = createConsultationDateTime(dateStr, time);
+  if (!dateTime.isValid) {
+    throw new Error(
+      `Invalid local date/time "${dateStr} ${time}" in ${CONSULTATION_TIME_ZONE}: ${dateTime.invalidReason || "invalid value"}`,
+    );
+  }
 
-  // Crea DateTime in Europe/Rome timezone con data + ora
-  const dt = DateTime.fromObject(
-    { 
-      year: parseInt(dateStr.split('-')[0]),
-      month: parseInt(dateStr.split('-')[1]),
-      day: parseInt(dateStr.split('-')[2]),
-      hour: hours,
-      minute: minutes,
-      second: 0,
-      millisecond: 0
-    },
-    { zone: 'Europe/Rome' }
-  );
-
-  return dt.toJSDate();
+  return dateTime.toJSDate();
 }
 
 export async function getAvailableSlots(

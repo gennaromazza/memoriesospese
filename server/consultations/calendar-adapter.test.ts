@@ -25,7 +25,10 @@ vi.mock("../calendar-engine/google-sync", () => ({
 }));
 
 // Import AFTER the mock is registered.
-import { getConsultationUnavailableDates } from "./calendar-adapter";
+import {
+  getAllExistingEvents,
+  getConsultationUnavailableDates,
+} from "./calendar-adapter";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,6 +41,18 @@ function makeEmptyDb() {
   const chain: any = {
     where: () => chain,
     get: async () => emptySnap,
+  };
+  return { collection: () => chain };
+}
+
+function makeConsultationDb(consultation: Record<string, unknown>) {
+  const snapshot = {
+    docs: [{ id: "consultation-1", data: () => consultation }],
+    size: 1,
+  };
+  const chain: any = {
+    where: () => chain,
+    get: async () => snapshot,
   };
   return { collection: () => chain };
 }
@@ -198,5 +213,30 @@ describe("getConsultationUnavailableDates", () => {
     );
     expect(result).toContain("2026-06-21"); // Sunday closed
     expect(result).not.toContain("2026-06-20"); // Saturday open
+  });
+});
+
+describe("getAllExistingEvents consultation schedule parsing", () => {
+  it("uses the shared Europe/Rome parser for Firestore consultations", async () => {
+    const events = await getAllExistingEvents(
+      rome("2027-10-31T00:00"),
+      rome("2027-10-31T23:59"),
+      makeConsultationDb({
+        dataConsulenza: { toDate: () => rome("2027-10-31T00:00") },
+        orarioInizio: "02:30",
+        orarioFine: "03:30",
+        stato: "confermata",
+        cliente: { nome: "Test" },
+      }),
+      {
+        includeGoogle: false,
+        includeBookings: false,
+        includeJobs: false,
+      },
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0].start.toISOString()).toBe("2027-10-31T01:30:00.000Z");
+    expect(events[0].end.toISOString()).toBe("2027-10-31T02:30:00.000Z");
   });
 });

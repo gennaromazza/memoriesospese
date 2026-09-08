@@ -4,6 +4,7 @@
 
 import type { AvailabilityConfig } from "../../shared/calendar-types.js";
 import type { ConsultationTemplate } from "../../shared/consultation-types.js";
+import { createConsultationDateTime } from "../services/consultation-datetime.js";
 
 /**
  * Convert consultation template to unified AvailabilityConfig
@@ -285,7 +286,6 @@ export async function getAllExistingEvents(
   }
 ): Promise<Array<{ start: Date; end: Date; allDay: boolean; title?: string; source?: string }>> {
   const { Timestamp } = await import('firebase-admin/firestore');
-  const { createEuropeRomeDate } = await import('../google-calendar.js');
   
   // Apply default options (all true for backwards compatibility)
   const {
@@ -322,12 +322,19 @@ export async function getAllExistingEvents(
       const romeDate = DateTime.fromJSDate(consultationDate, { zone: 'Europe/Rome' });
       const dateStr = romeDate.toFormat('yyyy-MM-dd');
       
-      const start = createEuropeRomeDate(dateStr, data.orarioInizio);
-      const end = createEuropeRomeDate(dateStr, data.orarioFine);
+      const start = createConsultationDateTime(dateStr, data.orarioInizio);
+      const end = createConsultationDateTime(dateStr, data.orarioFine);
+
+      if (!start.isValid || !end.isValid) {
+        console.warn(
+          `[Consultation Adapter] Ignoring consultation ${doc.id} with invalid local schedule`,
+        );
+        continue;
+      }
       
       existingEvents.push({
-        start,
-        end,
+        start: start.toJSDate(),
+        end: end.toJSDate(),
         allDay: false,
         title: `Consultation ${data.cliente?.nome || ''}`,
         source: 'consultation'
@@ -369,6 +376,7 @@ export async function getAllExistingEvents(
   
   // 4. Load jobs (only blocking statuses) (OPTIONAL - can be excluded via options)
   if (includeJobs) {
+    const { createEuropeRomeDate } = await import('../google-calendar.js');
     const jobsSnap = await db
       .collection('jobs')
       .where('eventDate', '>=', Timestamp.fromDate(dayStart))

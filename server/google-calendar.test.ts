@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyCalendarEvent } from "./google-calendar";
+import { classifyCalendarEvent, createEuropeRomeDate } from "./google-calendar";
 
 // ---------------------------------------------------------------------------
 // Regression guard for Task #70: Google all-day events default to
@@ -86,5 +86,21 @@ describe("classifyCalendarEvent (busy-event filter)", () => {
     const result = classifyCalendarEvent(event);
     expect(result.include).toBe(true);
     expect(result.isAllDay).toBe(true);
+  });
+});
+
+describe("createEuropeRomeDate (consultation date/time policy)", () => {
+  it.each([
+    ["2027-01-15", "10:00", "2027-01-15T09:00:00.000Z"],
+    ["2027-07-15", "10:00", "2027-07-15T08:00:00.000Z"],
+    ["2027-10-31", "02:30", "2027-10-31T01:30:00.000Z"],
+  ])("uses the shared Europe/Rome parser for %s %s", (date, time, expected) => {
+    expect(createEuropeRomeDate(date, time).toISOString()).toBe(expected);
+  });
+
+  it("rejects a nonexistent local time instead of normalizing it", () => {
+    expect(() => createEuropeRomeDate("2027-03-28", "02:30")).toThrow(
+      "nonexistent local time",
+    );
   });
 });

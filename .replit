@@ -37,23 +37,11 @@ args = "Dev Workflow"
 
 [[ports]]
 localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5002
-externalPort = 3003
-
-[[ports]]
-localPort = 8976
-externalPort = 3001
+externalPort = 5000
 
 [[ports]]
 localPort = 24678
-externalPort = 3000
-
-[[ports]]
-localPort = 24679
-externalPort = 3002
+externalPort = 80
 
 [agent]
 integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]

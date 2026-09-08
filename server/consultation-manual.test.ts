@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   calendarEvents: [] as any[],
   calendarLinks: [] as any[],
   emailTemplates: [] as any[],
+  signedQuotes: [] as any[],
   manualLocks: new Map<string, any>(),
   transactionTail: Promise.resolve(),
 }));
@@ -55,6 +56,16 @@ vi.mock("./firebase-admin.js", () => ({
   db: {
     collection: (collectionName: string) => ({
       doc: (id: string) => makeDocumentReference(collectionName, id),
+      where: (_field: string, _operator: string, value: string) => ({
+        get: async () => ({
+          docs: collectionName === "quotes"
+            ? h.signedQuotes.filter((quote) => quote.jobId === value).map((quote) => ({
+                id: quote.id,
+                data: () => quote,
+              }))
+            : [],
+        }),
+      }),
     }),
     runTransaction: async (callback: (transaction: any) => Promise<any>) => {
       let release!: () => void;
@@ -122,6 +133,7 @@ vi.mock("./email-routes.js", () => ({
     phone: "123",
     address: "Via Test",
   }),
+  getSiteBaseUrl: () => "https://imagestudiofotografico.com",
   createConsultationApprovedEmailHTML: (...args: any[]) => {
     h.emailTemplates.push(args);
     return "email";
@@ -199,6 +211,7 @@ beforeEach(() => {
   h.calendarEvents = [];
   h.calendarLinks = [];
   h.emailTemplates = [];
+  h.signedQuotes = [];
   h.manualLocks.clear();
   h.transactionTail = Promise.resolve();
 });
@@ -287,6 +300,15 @@ describe("POST /api/consultations/v2/create-manual", () => {
   });
 
   it("crea la consulenza confermata, collega il job e registra l'email inviata", async () => {
+    h.signedQuotes = [
+      {
+        id: "quote-1",
+        jobId: "job-1",
+        status: "firmato",
+        publicToken: "signed-token",
+      },
+    ];
+
     const { status, body } = await createManual();
 
     expect(status).toBe(201);
@@ -314,6 +336,9 @@ describe("POST /api/consultations/v2/create-manual", () => {
       emailConfermataInviata: true,
     });
     expect(h.sentEmails).toHaveLength(1);
+    expect(h.calendarEvents[0].description).toContain(
+      "Contratto: https://imagestudiofotografico.com/quote/signed-token",
+    );
     expect(h.deletedConsultationIds).toHaveLength(0);
     expect(h.deletedEventIds).toHaveLength(0);
   });

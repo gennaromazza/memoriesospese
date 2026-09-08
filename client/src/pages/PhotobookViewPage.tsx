@@ -1084,7 +1084,9 @@ export default function PhotobookViewPage() {
           <button
             type="button"
             onClick={() => setJumpOpen(true)}
-            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-opacity duration-300 bottom-1.5 ${
+            className={`fixed left-1/2 -translate-x-1/2 z-20 rounded-full bg-stone-900/60 text-white backdrop-blur-sm px-3 py-1 text-xs font-medium shadow-lg active:scale-95 transition-opacity duration-300 ${
+              canEdit && drafts.size > 0 ? 'bottom-20' : 'bottom-1.5'
+            } ${
               controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
             data-testid="button-page-pill-slide"
@@ -1122,7 +1124,7 @@ export default function PhotobookViewPage() {
                 type="button"
                 onClick={() => jumpToPage(idx)}
                 className={`h-10 rounded-md border text-sm font-medium active:scale-95 transition-transform ${
-                  (isTouchPhone ? idx === safeSlideIdx : p.pageNumber === currentPageNumber)
+                  idx === safeSlideIdx
                     ? 'bg-stone-900 text-white border-stone-900'
                     : 'bg-white text-stone-700 hover:bg-stone-100'
                 }`}
