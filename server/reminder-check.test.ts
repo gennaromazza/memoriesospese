@@ -137,6 +137,49 @@ describe('runReminderCheck', () => {
     expect(h.consultations.consultation1.reminderSentAt).toBeNull();
   });
 
+  it('raccoglie le consulenze con data o orari non validi senza inviare email o creare marker', async () => {
+    h.consultations.invalidDate = {
+      stato: 'confermata',
+      dataConsulenza: timestamp(new Date('invalid')),
+      orarioInizio: '10:00',
+      orarioFine: '11:00',
+      cliente: { nome: 'Anna', cognome: 'Bianchi', email: 'anna@example.com' },
+    };
+    h.consultations.invalidTime = {
+      stato: 'confermata',
+      dataConsulenza: timestamp(DateTime.fromJSDate(NOW).plus({ hours: 24 }).toJSDate()),
+      orarioInizio: '25:00',
+      orarioFine: '11:00',
+      cliente: { nome: 'Luca', cognome: 'Verdi', email: 'luca@example.com' },
+    };
+    h.consultations.invalidInterval = {
+      stato: 'confermata',
+      dataConsulenza: timestamp(DateTime.fromJSDate(NOW).plus({ hours: 24 }).toJSDate()),
+      orarioInizio: '11:00',
+      orarioFine: '10:00',
+      cliente: { nome: 'Sara', cognome: 'Neri', email: 'sara@example.com' },
+    };
+
+    const result = await runReminderCheck();
+
+    expect(result.consultations.sent).toBe(0);
+    expect(result.consultations.invalidSchedules).toHaveLength(3);
+    expect(result.consultations.invalidSchedules.map((issue) => issue.consultationId))
+      .toEqual(expect.arrayContaining(['invalidDate', 'invalidTime', 'invalidInterval']));
+    expect(result.consultations.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('[INVALID_CONSULTATION_SCHEDULE] Consultation invalidDate'),
+      expect.stringContaining('[INVALID_CONSULTATION_SCHEDULE] Consultation invalidTime'),
+      expect.stringContaining('[INVALID_CONSULTATION_SCHEDULE] Consultation invalidInterval'),
+    ]));
+    expect(h.emails).toHaveLength(0);
+    expect(Object.hasOwn(h.consultations.invalidDate, 'reminderEmailSent')).toBe(false);
+    expect(Object.hasOwn(h.consultations.invalidDate, 'reminderSentAt')).toBe(false);
+    expect(Object.hasOwn(h.consultations.invalidTime, 'reminderEmailSent')).toBe(false);
+    expect(Object.hasOwn(h.consultations.invalidTime, 'reminderSentAt')).toBe(false);
+    expect(Object.hasOwn(h.consultations.invalidInterval, 'reminderEmailSent')).toBe(false);
+    expect(Object.hasOwn(h.consultations.invalidInterval, 'reminderSentAt')).toBe(false);
+  });
+
   it.each([
     {
       label: 'ora solare',

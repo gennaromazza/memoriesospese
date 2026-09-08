@@ -31,6 +31,27 @@ const router = Router();
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
+type InvalidConsultationSchedule = {
+  consultationId: string;
+  reason: string;
+  dataConsulenza: string | null;
+  orarioInizio: string | null;
+  orarioFine: string | null;
+};
+
+function formatScheduleValue(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  return String(value);
+}
+
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
 function requireAdmin(req: any, res: any, next: any) {
   if (!ADMIN_EMAILS.includes(req.user?.email || '')) {
     return res.status(403).json({ error: 'Accesso negato: solo admin' });
@@ -189,7 +210,13 @@ function createAdminConsultationReminderHTML(
  */
 export async function runReminderCheck(): Promise<{
   bookings: { checked: number; sent: number; skipped: number; errors: string[] };
-  consultations: { checked: number; sent: number; skipped: number; errors: string[] };
+  consultations: {
+    checked: number;
+    sent: number;
+    skipped: number;
+    errors: string[];
+    invalidSchedules: InvalidConsultationSchedule[];
+  };
   galleries: { checked: number; sent: number; skipped: number; errors: string[] };
 }> {
   console.log("[Reminders] 🚀 Avvio controllo reminder...");
@@ -205,7 +232,13 @@ export async function runReminderCheck(): Promise<{
 
   const results = {
     bookings: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
-    consultations: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
+    consultations: {
+      checked: 0,
+      sent: 0,
+      skipped: 0,
+      errors: [] as string[],
+      invalidSchedules: [] as InvalidConsultationSchedule[],
+    },
     galleries: { checked: 0, sent: 0, skipped: 0, errors: [] as string[] },
   };
 
@@ -277,24 +310,63 @@ export async function runReminderCheck(): Promise<{
     if (consultation.reminderEmailSent || consultation.reminderSentAt) { results.consultations.skipped++; continue; }
 
     const consultationDate = consultation.dataConsulenza?.toDate?.() || consultation.dataConsulenza;
-    if (!consultationDate) continue;
+    const invalidFields: string[] = [];
+    if (!isValidDate(consultationDate)) {
+      invalidFields.push("dataConsulenza");
+    }
 
-    const consultationDateLocal = getConsultationLocalDate(consultationDate);
-    const consultationStartDT = createConsultationDateTime(
-      consultationDateLocal,
-      consultation.orarioInizio || "",
-    );
-    const consultationEndDT = createConsultationDateTime(
-      consultationDateLocal,
-      consultation.orarioFine || "",
-    );
-    if (!consultationStartDT.isValid || !consultationEndDT.isValid) {
-      results.consultations.errors.push(`Consultation ${doc.id}: orario non valido`);
-      console.error(`[Reminders] ❌ Orario consulenza non valido: ${doc.id}`);
+    let consultationStartDT: DateTime | null = null;
+    let consultationEndDT: DateTime | null = null;
+    if (isValidDate(consultationDate)) {
+      const consultationDateLocal = getConsultationLocalDate(consultationDate);
+      consultationStartDT = createConsultationDateTime(
+        consultationDateLocal,
+        consultation.orarioInizio || "",
+      );
+      consultationEndDT = createConsultationDateTime(
+        consultationDateLocal,
+        consultation.orarioFine || "",
+      );
+      if (!consultationStartDT.isValid) {
+        invalidFields.push(`orarioInizio (${consultationStartDT.invalidReason || "non valido"})`);
+      }
+      if (!consultationEndDT.isValid) {
+        invalidFields.push(`orarioFine (${consultationEndDT.invalidReason || "non valido"})`);
+      }
+      if (
+        consultationStartDT.isValid &&
+        consultationEndDT.isValid &&
+        consultationEndDT <= consultationStartDT
+      ) {
+        invalidFields.push("intervallo orario (orarioFine deve essere successivo a orarioInizio)");
+      }
+    }
+
+    if (invalidFields.length > 0) {
+      const invalidSchedule: InvalidConsultationSchedule = {
+        consultationId: doc.id,
+        reason: `Campi non validi: ${invalidFields.join(", ")}`,
+        dataConsulenza: isValidDate(consultationDate)
+          ? consultationDate.toISOString()
+          : formatScheduleValue(consultation.dataConsulenza),
+        orarioInizio: formatScheduleValue(consultation.orarioInizio),
+        orarioFine: formatScheduleValue(consultation.orarioFine),
+      };
+      results.consultations.invalidSchedules.push(invalidSchedule);
+      results.consultations.errors.push(
+        `[INVALID_CONSULTATION_SCHEDULE] Consultation ${doc.id}: ${invalidSchedule.reason}`,
+      );
+      console.error(
+        "[Reminders] Invalid consultation schedule:",
+        JSON.stringify(invalidSchedule),
+      );
       continue;
     }
 
-    const hoursDiff = consultationStartDT.diff(nowRome, "hours").hours;
+    // The invalid-fields branch above guarantees both values are available.
+    const validConsultationStartDT = consultationStartDT as DateTime;
+    const validConsultationEndDT = consultationEndDT as DateTime;
+    const hoursDiff = validConsultationStartDT.diff(nowRome, "hours").hours;
     if (hoursDiff < minHours || hoursDiff > maxHours) continue;
 
     try {
@@ -306,12 +378,12 @@ export async function runReminderCheck(): Promise<{
       });
       if (!shouldSend) { results.consultations.skipped++; continue; }
 
-      const formattedDate = consultationStartDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
+      const formattedDate = validConsultationStartDT.setLocale("it").toFormat("EEEE d MMMM yyyy");
       const formattedTime = `${consultation.orarioInizio || ""} - ${consultation.orarioFine || ""}`;
       const clienteName = `${consultation.cliente?.nome || ""} ${consultation.cliente?.cognome || ""}`.trim();
 
-      const startDateTime = consultationStartDT.toJSDate();
-      const endDateTime = consultationEndDT.toJSDate();
+      const startDateTime = validConsultationStartDT.toJSDate();
+      const endDateTime = validConsultationEndDT.toJSDate();
 
       const calendarLink = generateGoogleCalendarLink({
         title: `Consulenza: ${consultation.jobType || "Appuntamento"}`,

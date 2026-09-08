@@ -309,8 +309,15 @@ async function startServer() {
       const runRemindersWithLog = async () => {
         try {
           const r = await runReminderCheck();
-          if (r.bookings.sent + r.consultations.sent + r.galleries.sent > 0) {
+          const invalidSchedules = r.consultations.invalidSchedules;
+          if (r.bookings.sent + r.consultations.sent + r.galleries.sent > 0 || invalidSchedules.length > 0) {
             console.log(`⏰ Reminder scheduler: ${r.bookings.sent} booking, ${r.consultations.sent} consulenze, ${r.galleries.sent} gallerie inviate`);
+          }
+          if (invalidSchedules.length > 0) {
+            console.error('[Reminders] Consulenze da correggere:', JSON.stringify({
+              count: invalidSchedules.length,
+              consultations: invalidSchedules,
+            }));
           }
         } catch (err: any) {
           console.error('⏰ Reminder scheduler errore:', err.message);

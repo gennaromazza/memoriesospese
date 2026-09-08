@@ -45,7 +45,19 @@ interface SendRemindersResult {
   timestamp: string;
   results: {
     bookings: { checked: number; sent: number; skipped: number; errors: string[] };
-    consultations: { checked: number; sent: number; skipped: number; errors: string[] };
+    consultations: {
+      checked: number;
+      sent: number;
+      skipped: number;
+      errors: string[];
+      invalidSchedules: Array<{
+        consultationId: string;
+        reason: string;
+        dataConsulenza: string | null;
+        orarioInizio: string | null;
+        orarioFine: string | null;
+      }>;
+    };
   };
 }
 
@@ -226,6 +238,18 @@ export default function ReminderManager() {
                   <div className="text-red-600 text-xs mt-2">
                     ⚠️ {lastSendResult.results.bookings.errors.length + 
                         lastSendResult.results.consultations.errors.length} errori
+                  </div>
+                )}
+                {lastSendResult.results.consultations.invalidSchedules.length > 0 && (
+                  <div className="text-amber-700 text-xs mt-2 space-y-1">
+                    <div>
+                      ⚠️ {lastSendResult.results.consultations.invalidSchedules.length} consulenze da correggere:
+                    </div>
+                    {lastSendResult.results.consultations.invalidSchedules.map((schedule) => (
+                      <div key={schedule.consultationId} className="pl-3">
+                        {schedule.consultationId}: {schedule.reason}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
