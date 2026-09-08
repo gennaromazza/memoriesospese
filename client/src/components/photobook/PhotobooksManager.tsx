@@ -343,6 +343,23 @@ export default function PhotobooksManager() {
   }, [createOpen, newJobId, selectedCreateGallery?.jobId, jobs]);
 
   useEffect(() => {
+    if (!createOpen || !newJobId) return;
+    const selectedJob = jobs.find((job) => job.id === newJobId);
+    const linkedGalleryIds = new Set(
+      (Array.isArray(selectedJob?.galleryIds) ? selectedJob.galleryIds : []).filter(Boolean),
+    );
+    if (linkedGalleryIds.size === 0 || (newGalleryId && linkedGalleryIds.has(newGalleryId))) {
+      return;
+    }
+
+    const firstLinkedGallery = galleries.find((gallery) => linkedGalleryIds.has(gallery.id));
+    if (firstLinkedGallery && firstLinkedGallery.id !== newGalleryId) {
+      setNewGalleryId(firstLinkedGallery.id);
+      setAssociationMismatchConfirmed(false);
+    }
+  }, [createOpen, galleries, jobs, newGalleryId, newJobId]);
+
+  useEffect(() => {
     if (!lockTarget || !selectedShipJob) return;
     setShipLabNote(selectedShipJob.note || '');
     setShipPhotoNotes(
