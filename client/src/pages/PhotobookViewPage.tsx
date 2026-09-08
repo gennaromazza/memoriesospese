@@ -793,7 +793,11 @@ export default function PhotobookViewPage() {
 
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div
+          className={`max-w-4xl mx-auto px-4 flex items-center ${
+            isTouchPhone ? 'py-2 gap-2 flex-nowrap' : 'py-3 gap-3 flex-wrap'
+          }`}
+        >
           <BookImage className="h-5 w-5 text-stone-500 shrink-0" />
           <div className="min-w-0 flex-1">
             <h1 className="font-semibold truncate" data-testid="text-photobook-name">{photobook.name}</h1>
@@ -801,12 +805,35 @@ export default function PhotobookViewPage() {
               Revisione fotolibro · {pages.length} pagine
             </p>
           </div>
+          {canEdit && isTouchPhone && (
+            <Button
+              size="sm"
+              className="h-8 shrink-0 bg-green-600 px-2 text-white hover:bg-green-700 sm:px-3"
+              disabled={drafts.size > 0 || pendingSentCount > 0}
+              onClick={() => setApproveOpen(true)}
+              title={
+                drafts.size > 0
+                  ? 'Invia o annulla prima le bozze'
+                  : pendingSentCount > 0
+                    ? 'Attendi la lavorazione delle richieste'
+                    : "Approva l'impaginato"
+              }
+              data-testid="button-open-approve"
+            >
+              <CheckCircle2 className="h-4 w-4 sm:mr-1.5" />
+              <span className="sm:hidden">Approva</span>
+              <span className="hidden sm:inline">Approva l'impaginato</span>
+            </Button>
+          )}
           {photobook.versions.length > 1 && (
             <Select
               value={String(data.version)}
               onValueChange={(v) => setSelectedVersion(Number(v))}
             >
-              <SelectTrigger className="w-36 h-8 text-xs" data-testid="select-client-version">
+              <SelectTrigger
+                className={`${isTouchPhone ? 'w-28' : 'w-36'} h-8 text-xs`}
+                data-testid="select-client-version"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -858,7 +885,7 @@ export default function PhotobookViewPage() {
           </Card>
         )}
 
-        {canEdit && (
+        {canEdit && !isTouchPhone && (
           <Card className="border-green-200 bg-white" data-testid="card-approve">
             <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
