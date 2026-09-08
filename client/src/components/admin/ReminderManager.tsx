@@ -61,10 +61,19 @@ interface SendRemindersResult {
   };
 }
 
+type InvalidSchedule = SendRemindersResult["results"]["consultations"]["invalidSchedules"][number];
+
+type ScheduleDraft = {
+  dataConsulenza: string;
+  orarioInizio: string;
+  orarioFine: string;
+};
+
 export default function ReminderManager() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [lastSendResult, setLastSendResult] = useState<SendRemindersResult | null>(null);
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, ScheduleDraft>>({});
 
   const { data: status, isLoading, refetch, isFetching } = useQuery<ReminderStatus>({
     queryKey: ['/api/reminders/status'],
@@ -116,6 +125,63 @@ export default function ReminderManager() {
     },
   });
 
+  const repairScheduleMutation = useMutation({
+    mutationFn: async (schedule: InvalidSchedule & ScheduleDraft) => {
+      const response = await apiRequest(
+        "PATCH",
+        `/api/consultations/${schedule.consultationId}/reminder-schedule`,
+        {
+          dataConsulenza: schedule.dataConsulenza,
+          orarioInizio: schedule.orarioInizio,
+          orarioFine: schedule.orarioFine,
+        },
+      );
+      return response.json();
+    },
+    onSuccess: (_data, schedule) => {
+      setLastSendResult((current) =>
+        current
+          ? {
+              ...current,
+              results: {
+                ...current.results,
+                consultations: {
+                  ...current.results.consultations,
+                  errors: current.results.consultations.errors.filter(
+                    (error) =>
+                      !error.includes(
+                        `[INVALID_CONSULTATION_SCHEDULE] Consultation ${schedule.consultationId}:`,
+                      ),
+                  ),
+                  invalidSchedules:
+                    current.results.consultations.invalidSchedules.filter(
+                      (item) => item.consultationId !== schedule.consultationId,
+                    ),
+                },
+              },
+            }
+          : current,
+      );
+      setScheduleDrafts((current) => {
+        const next = { ...current };
+        delete next[schedule.consultationId];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/reminders/status"] });
+      toast({
+        title: "Consulenza aggiornata",
+        description: "La correzione è salvata e il reminder potrà essere ritentato.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore salvataggio",
+        description: error.message || "Impossibile aggiornare data e orari.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
@@ -126,6 +192,39 @@ export default function ReminderManager() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatDateInput = (dateString: string | null) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Rome",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  };
+
+  const getScheduleDraft = (schedule: InvalidSchedule): ScheduleDraft =>
+    scheduleDrafts[schedule.consultationId] || {
+      dataConsulenza: formatDateInput(schedule.dataConsulenza),
+      orarioInizio: schedule.orarioInizio || "",
+      orarioFine: schedule.orarioFine || "",
+    };
+
+  const updateScheduleDraft = (
+    schedule: InvalidSchedule,
+    field: keyof ScheduleDraft,
+    value: string,
+  ) => {
+    const current = getScheduleDraft(schedule);
+    setScheduleDrafts((drafts) => ({
+      ...drafts,
+      [schedule.consultationId]: { ...current, [field]: value },
+    }));
   };
 
   const totalPending = (status?.bookings.pending || 0) + (status?.consultations.pending || 0);
@@ -241,15 +340,75 @@ export default function ReminderManager() {
                   </div>
                 )}
                 {lastSendResult.results.consultations.invalidSchedules.length > 0 && (
-                  <div className="text-amber-700 text-xs mt-2 space-y-1">
+                  <div className="text-amber-700 text-xs mt-3 space-y-2">
                     <div>
                       ⚠️ {lastSendResult.results.consultations.invalidSchedules.length} consulenze da correggere:
                     </div>
-                    {lastSendResult.results.consultations.invalidSchedules.map((schedule) => (
-                      <div key={schedule.consultationId} className="pl-3">
-                        {schedule.consultationId}: {schedule.reason}
+                    {lastSendResult.results.consultations.invalidSchedules.map((schedule) => {
+                      const draft = getScheduleDraft(schedule);
+                      return (
+                      <div key={schedule.consultationId} className="rounded border border-amber-200 bg-white p-2 space-y-2">
+                        <div className="font-medium">
+                          Consulenza {schedule.consultationId}
+                        </div>
+                        <div className="text-amber-800">{schedule.reason}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Data</span>
+                            <input
+                              type="date"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.dataConsulenza}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "dataConsulenza", event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Inizio</span>
+                            <input
+                              type="time"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.orarioInizio}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "orarioInizio", event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-gray-500">Fine</span>
+                            <input
+                              type="time"
+                              className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
+                              value={draft.orarioFine}
+                              onChange={(event) =>
+                                updateScheduleDraft(schedule, "orarioFine", event.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={
+                            repairScheduleMutation.isPending &&
+                            repairScheduleMutation.variables?.consultationId === schedule.consultationId
+                          }
+                          onClick={() =>
+                            repairScheduleMutation.mutate({
+                              ...schedule,
+                              ...draft,
+                            })
+                          }
+                        >
+                          {repairScheduleMutation.isPending &&
+                          repairScheduleMutation.variables?.consultationId === schedule.consultationId
+                            ? "Salvataggio..."
+                            : "Salva correzione"}
+                        </Button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

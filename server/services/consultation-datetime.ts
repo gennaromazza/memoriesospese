@@ -60,3 +60,31 @@ export function getConsultationLocalDate(date: Date): string {
     zone: CONSULTATION_TIME_ZONE,
   }).toFormat("yyyy-MM-dd");
 }
+
+export function validateConsultationSchedule(
+  date: string,
+  startTime: string,
+  endTime: string,
+): {
+  dateTime: DateTime;
+  startDateTime: DateTime;
+  endDateTime: DateTime;
+  valid: boolean;
+} {
+  const dateTime = DateTime.fromISO(date, {
+    zone: CONSULTATION_TIME_ZONE,
+  });
+  const startDateTime = createConsultationDateTime(date, startTime);
+  const endDateTime = createConsultationDateTime(date, endTime);
+
+  return {
+    dateTime,
+    startDateTime,
+    endDateTime,
+    valid:
+      dateTime.isValid &&
+      startDateTime.isValid &&
+      endDateTime.isValid &&
+      endDateTime > startDateTime,
+  };
+}

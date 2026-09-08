@@ -28,7 +28,10 @@ vi.mock("./firebase-admin.js", () => ({
     serverTimestamp: () => ({ __serverTimestamp: true }),
     delete: () => ({ __delete: true }),
   },
-  Timestamp: { now: () => ({ __timestamp: true }) },
+  Timestamp: {
+    now: () => ({ __timestamp: true }),
+    fromDate: (date: Date) => ({ __timestamp: true, date }),
+  },
   storage: {},
 }));
 
@@ -116,6 +119,15 @@ async function approve() {
   return { status: response.status, body: await response.json() as any };
 }
 
+async function repairSchedule(body: Record<string, string>) {
+  const response = await fetch(`${base}/api/consultations/consultation-1/reminder-schedule`, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() as any };
+}
+
 describe("PATCH /api/consultations/v2/:id/approve", () => {
   it("conferma, crea l'evento e salva tutti i dati in una sola scrittura Firestore", async () => {
     const { status, body } = await approve();
@@ -166,6 +178,60 @@ describe("PATCH /api/consultations/v2/:id/approve", () => {
     const { status, body } = await approve();
     expect(status).toBe(400);
     expect(body.error).toBe("Consultation già processata");
+    expect(h.updates).toHaveLength(0);
+  });
+});
+
+describe("PATCH /api/consultations/:id/reminder-schedule", () => {
+  it("salva data e orari validi per una consulenza confermata", async () => {
+    h.consultation = pendingConsultation({ stato: "confermata" });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(200);
+    expect(body).toMatchObject({
+      consultationId: "consultation-1",
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+    expect(h.updates).toHaveLength(1);
+    expect(h.updates[0]).toMatchObject({
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+      updatedAt: { __serverTimestamp: true },
+    });
+    expect(h.updates[0].dataConsulenza.date).toBeInstanceOf(Date);
+    expect(h.updates[0].dataConsulenza.date.toISOString()).toBe("2026-10-17T08:00:00.000Z");
+  });
+
+  it("rifiuta un intervallo non valido senza scrivere", async () => {
+    h.consultation = pendingConsultation({ stato: "confermata" });
+
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "11:00",
+      orarioFine: "10:00",
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toBe("Data o orario non validi");
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("non consente la correzione di una consulenza non confermata", async () => {
+    const { status, body } = await repairSchedule({
+      dataConsulenza: "2026-10-17",
+      orarioInizio: "10:00",
+      orarioFine: "11:00",
+    });
+
+    expect(status).toBe(400);
+    expect(body.error).toBe("Consultation non modificabile");
     expect(h.updates).toHaveLength(0);
   });
 });

@@ -34,6 +34,7 @@ import {
   createConsultationDateTime,
   getConsultationLocalDate,
   NONEXISTENT_LOCAL_TIME_REASON,
+  validateConsultationSchedule,
 } from "./services/consultation-datetime.js";
 import { clearCalendarEventCache } from "./services/calendar-event-cache.js";
 
@@ -823,8 +824,20 @@ router.patch(
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
       const dateStr = getConsultationLocalDate(consultationDate);
 
-      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
-      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
+      const schedule = validateConsultationSchedule(
+        dateStr,
+        consultation.orarioInizio,
+        consultation.orarioFine,
+      );
+      if (!schedule.valid) {
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+      const startDateTime = schedule.startDateTime.toJSDate();
+      const endDateTime = schedule.endDateTime.toJSDate();
 
       console.log(`[POST /v2/approve] 📅 Checking slot ${consultation.orarioInizio}-${consultation.orarioFine} on ${dateStr}`);
 
@@ -1030,8 +1043,20 @@ router.get(
       const consultationDate = normalizeTimestampToDate(consultation.dataConsulenza);
       const dateStr = getConsultationLocalDate(consultationDate);
 
-      const startDateTime = createConsultationDateTime(dateStr, consultation.orarioInizio).toJSDate();
-      const endDateTime = createConsultationDateTime(dateStr, consultation.orarioFine).toJSDate();
+      const schedule = validateConsultationSchedule(
+        dateStr,
+        consultation.orarioInizio,
+        consultation.orarioFine,
+      );
+      if (!schedule.valid) {
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+      const startDateTime = schedule.startDateTime.toJSDate();
+      const endDateTime = schedule.endDateTime.toJSDate();
 
       // Get day boundaries
       const dateObj = DateTime.fromISO(dateStr, { zone: CONSULTATION_TIME_ZONE });
@@ -1937,23 +1962,17 @@ router.post(
       // Il campo data è una data locale italiana: non va interpretato come
       // mezzanotte UTC, altrimenti in Europa/Rome può finire nel giorno prima.
       const requestedDate = String(dataConsulenza || "").slice(0, 10);
-      const dateObj = DateTime.fromISO(requestedDate, {
-        zone: CONSULTATION_TIME_ZONE,
-      });
-      const startDateTime = createConsultationDateTime(
+      const schedule = validateConsultationSchedule(
         requestedDate,
         orarioInizio,
-      );
-      const endDateTime = createConsultationDateTime(
-        requestedDate,
         orarioFine,
       );
+      const dateObj = schedule.dateTime;
+      const startDateTime = schedule.startDateTime;
+      const endDateTime = schedule.endDateTime;
 
       if (
-        !dateObj.isValid ||
-        !startDateTime.isValid ||
-        !endDateTime.isValid ||
-        endDateTime <= startDateTime
+        !schedule.valid
       ) {
         const nonexistentTime =
           startDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
@@ -2213,6 +2232,101 @@ router.post(
         await releaseManualConsultationLock(manualLockRef);
       }
       return res.status(500).json({ error: "Errore creazione consulenza manuale" });
+    }
+  },
+);
+
+/**
+ * PATCH /api/consultations/:id/reminder-schedule
+ * Corregge dal pannello admin la data o l'orario di una consulenza confermata
+ * segnalata dal controllo reminder.
+ */
+router.patch(
+  "/:id/reminder-schedule",
+  authenticateFirebase,
+  requireAdmin,
+  async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const parsed = z
+        .object({
+          dataConsulenza: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato data non valido (YYYY-MM-DD)"),
+          orarioInizio: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
+          orarioFine: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/, "Formato orario non valido (HH:mm)"),
+        })
+        .safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Dati non validi",
+          details: parsed.error.errors,
+        });
+      }
+
+      const consultation = await consultationService.getConsultationById(id);
+      if (!consultation) {
+        return res.status(404).json({ error: "Consultation non trovata" });
+      }
+      if (consultation.stato !== "confermata") {
+        return res.status(400).json({
+          error: "Consultation non modificabile",
+          message: "Solo le consulenze confermate possono essere corrette dal reminder manager.",
+        });
+      }
+
+      const { dataConsulenza, orarioInizio, orarioFine } = parsed.data;
+      const schedule = validateConsultationSchedule(
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+      );
+
+      if (!schedule.valid) {
+        const nonexistentTime =
+          schedule.startDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+            ? orarioInizio
+            : schedule.endDateTime.invalidReason === NONEXISTENT_LOCAL_TIME_REASON
+              ? orarioFine
+              : null;
+
+        if (nonexistentTime) {
+          return res.status(400).json({
+            error: "Orario non esistente",
+            message: `L'orario ${nonexistentTime} non esiste in ${CONSULTATION_TIME_ZONE} durante il cambio d'ora. Scegli un altro orario.`,
+          });
+        }
+
+        return res.status(400).json({
+          error: "Data o orario non validi",
+          message:
+            "Controlla data, ora di inizio e ora di fine. L'ora di fine deve essere successiva all'ora di inizio.",
+        });
+      }
+
+      await db.collection("consultations").doc(id).update({
+        dataConsulenza: Timestamp.fromDate(schedule.startDateTime.toJSDate()),
+        orarioInizio,
+        orarioFine,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      clearCalendarEventCache();
+
+      res.json({
+        message: "Data e orari della consulenza aggiornati",
+        consultationId: id,
+        dataConsulenza,
+        orarioInizio,
+        orarioFine,
+      });
+    } catch (error: any) {
+      console.error("[PATCH /:id/reminder-schedule] Errore:", error.message);
+      res.status(500).json({ error: "Errore aggiornamento orario consulenza" });
     }
   },
 );
