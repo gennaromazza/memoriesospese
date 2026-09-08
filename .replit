@@ -40,8 +40,16 @@ localPort = 5000
 externalPort = 5000
 
 [[ports]]
+localPort = 5003
+externalPort = 3001
+
+[[ports]]
 localPort = 24678
 externalPort = 80
+
+[[ports]]
+localPort = 24680
+externalPort = 3000
 
 [agent]
 integrations = ["google-mail:1.0.0", "google-drive:1.0.0"]
