@@ -5,6 +5,8 @@ const h = vi.hoisted(() => ({
   bookings: {} as Record<string, any>,
   consultations: {} as Record<string, any>,
   emails: [] as any[][],
+  consultationReminderTemplates: [] as any[][],
+  calendarLinks: [] as any[],
   failEmails: false,
 }));
 
@@ -27,8 +29,14 @@ vi.mock('./email-routes.js', () => ({
     if (h.failEmails) throw new Error('SMTP non disponibile');
   },
   getStudioContactInfo: async () => ({ name: 'Studio', email: 'studio@example.com', phone: '+390000', address: 'Via Test 1' }),
-  createConsultationReminderEmailHTML: () => '<html />',
-  generateGoogleCalendarLink: () => 'https://calendar.example/event',
+  createConsultationReminderEmailHTML: (...args: any[]) => {
+    h.consultationReminderTemplates.push(args);
+    return `<client-reminder>${args[2]}|${args[3]}|${args[5]}</client-reminder>`;
+  },
+  generateGoogleCalendarLink: (args: any) => {
+    h.calendarLinks.push(args);
+    return 'https://calendar.example/event';
+  },
   getSiteBaseUrl: () => 'https://example.com',
   authenticateFirebase: () => {},
 }));
@@ -67,6 +75,8 @@ beforeEach(() => {
   h.bookings = {};
   h.consultations = {};
   h.emails = [];
+  h.consultationReminderTemplates = [];
+  h.calendarLinks = [];
   h.failEmails = false;
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
@@ -126,4 +136,54 @@ describe('runReminderCheck', () => {
     expect(h.consultations.consultation1.reminderEmailSent).toBe(false);
     expect(h.consultations.consultation1.reminderSentAt).toBeNull();
   });
+
+  it.each([
+    {
+      label: 'ora solare',
+      date: '2027-01-15',
+      now: '2027-01-14T00:00:00.000Z',
+      expectedDateText: '15 gennaio 2027',
+      expectedStart: '2027-01-15T09:00:00.000Z',
+      expectedEnd: '2027-01-15T10:00:00.000Z',
+    },
+    {
+      label: 'ora legale',
+      date: '2027-07-15',
+      now: '2027-07-13T22:00:00.000Z',
+      expectedDateText: '15 luglio 2027',
+      expectedStart: '2027-07-15T08:00:00.000Z',
+      expectedEnd: '2027-07-15T09:00:00.000Z',
+    },
+  ])(
+    'invia il promemoria con l’orario Europe/Rome in $label',
+    async ({ date, now, expectedDateText, expectedStart, expectedEnd }) => {
+      vi.setSystemTime(new Date(now));
+      const localMidnight = DateTime.fromISO(`${date}T00:00`, {
+        zone: 'Europe/Rome',
+      }).toJSDate();
+      h.consultations.consultation1 = {
+        stato: 'confermata',
+        dataConsulenza: timestamp(localMidnight),
+        orarioInizio: '10:00',
+        orarioFine: '11:00',
+        jobType: 'Visione Foto',
+        cliente: {
+          nome: 'Anna',
+          cognome: 'Bianchi',
+          email: 'anna@example.com',
+        },
+      };
+
+      const result = await runReminderCheck();
+
+      expect(result.consultations.sent).toBe(1);
+      expect(h.consultationReminderTemplates[0][2]).toContain(expectedDateText);
+      expect(h.consultationReminderTemplates[0][3]).toBe('10:00 - 11:00');
+      expect(h.calendarLinks[0].startDate.toISOString()).toBe(expectedStart);
+      expect(h.calendarLinks[0].endDate.toISOString()).toBe(expectedEnd);
+      expect(h.emails[0][2]).toContain('10:00 - 11:00');
+      expect(h.emails[0][2]).toContain('https://calendar.example/event');
+      expect(h.emails[1][2]).toContain('10:00 - 11:00');
+    },
+  );
 });
