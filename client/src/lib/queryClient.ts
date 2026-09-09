@@ -187,6 +187,7 @@ export const getQueryFn: <T>(options: {
       '/api/consultations/v2/', // All V2 consultation endpoints except public ones
       '/api/places', // Google Places proxy (autocomplete indirizzi) requiring auth
       '/api/invoices', // Electronic invoice XML endpoints requiring auth
+      '/api/follow-ups', // Centro follow-up e azioni admin
       '/api/wedding-seo/gallery/', // Editor Real Wedding
       '/api/print-shop', // Shop stampe: area cliente e gestione ordini admin
     ];
