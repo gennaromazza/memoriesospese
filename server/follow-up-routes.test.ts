@@ -39,7 +39,13 @@ import {
 
 type StoredCollections = Record<string, Record<string, Record<string, any>>>;
 
-function makeDb(initial: StoredCollections = {}) {
+function makeDb(
+  initial: StoredCollections = {},
+  failures: {
+    update?: (collectionName: string, id: string, update: Record<string, any>) => boolean;
+    add?: (collectionName: string, data: Record<string, any>) => boolean;
+  } = {},
+) {
   const collections: StoredCollections = {};
   for (const [name, docs] of Object.entries(initial)) {
     collections[name] = Object.fromEntries(
@@ -94,7 +100,10 @@ function makeDb(initial: StoredCollections = {}) {
           );
         }
       },
-      update: async (data: Record<string, any>) => applyUpdate(collectionName, id, data),
+      update: async (data: Record<string, any>) => {
+        if (failures.update?.(collectionName, id, data)) throw new Error("Firestore update non disponibile");
+        applyUpdate(collectionName, id, data);
+      },
     };
   }
 
@@ -128,6 +137,7 @@ function makeDb(initial: StoredCollections = {}) {
       return {
         doc: (id: string) => docRef(name, id),
         add: async (data: Record<string, any>) => {
+          if (failures.add?.(name, data)) throw new Error("Firestore audit non disponibile");
           const id = `generated-${++generatedId}`;
           await docRef(name, id).set(data);
           return { id };
@@ -374,6 +384,62 @@ describe("runFollowUpCheck — invii idempotenti", () => {
       event.type === "followup_recovery_finalized" &&
       event.metadata?.lockId === oldLock.id,
     )).toBe(true);
+  });
+
+  it.each([
+    [
+      "stato",
+      {
+        update: (collectionName: string, _id: string, update: Record<string, any>) =>
+          collectionName === "quoteFollowUps" && Object.prototype.hasOwnProperty.call(update, "sentSteps"),
+      },
+      "state",
+      "followup_sent",
+    ],
+    [
+      "audit dell'invio",
+      { add: (_collectionName: string, data: Record<string, any>) => data.type === "followup_sent" },
+      "audit",
+      "followup_sent",
+    ],
+  ] as const)("se Gmail accetta ma fallisce la persistenza post-invio (%s), segnala senza riaprire il lock", async (_kind, failures, persistence, failedEventType) => {
+    const configuredDb = makeDb({
+      followUpSequences: { default: followUpSequence() },
+      followUpTemplates: { "step-1": followUpTemplate() },
+      quotes: { "quote-1": quoteData() },
+      jobs: { "job-1": jobData() },
+      clienti: { "client-1": { nome: "Mario", cognome: "Rossi", email: "mario@example.com" } },
+    }, failures);
+    h.db = configuredDb.db;
+
+    const result = await runFollowUpCheck();
+
+    expect(result.sent).toBe(1);
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
+    const events = Object.values(configuredDb.collections.followUpEvents || {});
+    const failure = events.find((event) => event.type === "followup_persistence_failed");
+    expect(failure).toMatchObject({
+      quoteId: "quote-1",
+      step: 1,
+      metadata: { persistence, failedEventType },
+    });
+    const dashboard = await getFollowUpDashboard();
+    expect(dashboard.persistenceFailures).toHaveLength(1);
+    expect(dashboard.persistenceFailures[0]).toMatchObject({
+      quoteId: "quote-1",
+      step: 1,
+      persistence,
+      failedEventType,
+    });
+    if (persistence === "state") {
+      expect(configuredDb.collections.quoteFollowUps?.["quote-1"].sendingLock).toBeDefined();
+    } else {
+      expect(configuredDb.collections.quoteFollowUps?.["quote-1"].sendingLock).toBeUndefined();
+    }
+
+    // The persisted failure must not turn the accepted Gmail send into a retry.
+    await runFollowUpCheck();
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
   });
 
   it.each([

@@ -7,6 +7,7 @@ import type {
   FollowUpDashboardResponse,
   FollowUpEventType,
   FollowUpMode,
+  FollowUpPersistenceType,
   FollowUpSequence,
   FollowUpSequenceStep,
   FollowUpStatus,
@@ -236,6 +237,29 @@ async function appendFollowUpEvent(
   });
 }
 
+async function recordPostSendPersistenceFailure(
+  context: any,
+  step: number,
+  persistence: FollowUpPersistenceType,
+  failedEventType: "followup_sent" | "dormant",
+  error: unknown,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  try {
+    await appendFollowUpEvent(
+      "followup_persistence_failed",
+      context.quote.id,
+      context.quote.jobId,
+      { persistence, failedEventType, error: message },
+      step,
+    );
+  } catch (reportingError) {
+    console.error(
+      `[FollowUp] Impossibile registrare l'avviso di persistenza post-invio per quote ${context.quote.id}:`,
+      reportingError,
+    );
+  }
+}
 export async function recordFollowUpEvent(
   quoteId: string,
   type: FollowUpEventType,
@@ -606,15 +630,30 @@ async function processQuote(
       status: next ? "active" : "dormant",
       updatedAt: FieldValue.serverTimestamp(),
     });
+  } catch (error) {
+    // Gmail has already accepted the message. Keep the lock if the state write
+    // fails: releasing it could make the next scheduler tick send it again.
+    console.error(`[FollowUp] Stato post-invio non registrato per quote ${context.quote.id}:`, error);
+    await recordPostSendPersistenceFailure(context, step.step, "state", "followup_sent", error);
+  }
+
+  try {
     await appendFollowUpEvent("followup_sent", context.quote.id, context.quote.jobId, {
       subject: rendered.subject,
       templateId,
     }, step.step);
-    if (!next) await appendFollowUpEvent("dormant", context.quote.id, context.quote.jobId, { lastStep: step.step });
   } catch (error) {
-    // Gmail has already accepted the message. Never release the send lock here:
-    // doing so could make the next scheduler tick send the same follow-up again.
-    console.error(`[FollowUp] Stato/evento post-invio non completamente registrato per quote ${context.quote.id}:`, error);
+    console.error(`[FollowUp] Audit invio post-invio non registrato per quote ${context.quote.id}:`, error);
+    await recordPostSendPersistenceFailure(context, step.step, "audit", "followup_sent", error);
+  }
+
+  if (!next) {
+    try {
+      await appendFollowUpEvent("dormant", context.quote.id, context.quote.jobId, { lastStep: step.step }, step.step);
+    } catch (error) {
+      console.error(`[FollowUp] Audit chiusura sequenza non registrato per quote ${context.quote.id}:`, error);
+      await recordPostSendPersistenceFailure(context, step.step, "audit", "dormant", error);
+    }
   }
   return "sent";
 }
@@ -696,12 +735,30 @@ export async function getFollowUpDashboard(): Promise<FollowUpDashboardResponse>
       .filter((doc) => doc.data().type === "quote_signed")
       .map((doc) => doc.data().quoteId),
   );
+  const persistenceFailures = eventSnapshot.docs
+    .filter((doc) => doc.data().type === "followup_persistence_failed")
+    .map((doc) => {
+      const data = doc.data();
+      const metadata = data.metadata || {};
+      return {
+        id: doc.id,
+        quoteId: data.quoteId,
+        ...(data.jobId ? { jobId: data.jobId } : {}),
+        step: Number(data.step),
+        persistence: metadata.persistence,
+        failedEventType: metadata.failedEventType,
+        error: String(metadata.error || "Errore di persistenza non specificato"),
+        occurredAt: iso(data.occurredAt) || "",
+      };
+    })
+    .filter((failure) => failure.quoteId && failure.step > 0 && (failure.persistence === "state" || failure.persistence === "audit"))
+    .sort((a, b) => (b.occurredAt || "").localeCompare(a.occurredAt || ""));
   for (const item of items) {
     if (signedQuoteIds.has(item.quoteId) && (item.sentSteps || []).length > 0) {
       stats.assistedValue += item.quoteTotal || 0;
     }
   }
-  return { items, stats, sequences, templates };
+  return { items, stats, persistenceFailures, sequences, templates };
 }
 
 router.get("/dashboard", authenticateFirebase, async (_req, res) => {

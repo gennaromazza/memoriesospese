@@ -85,6 +85,7 @@ export default function FollowUpCenter() {
 
   const items = (data?.items || []).filter((item) => filter === "all" || item.status === filter || (filter === "due" && item.reason));
   const templates = data?.templates || [];
+  const persistenceFailures = data?.persistenceFailures || [];
 
   const updateTemplate = (template: FollowUpTemplate, patch: Partial<FollowUpTemplate>) => {
     setTemplateDrafts((current) => ({ ...current, [template.id]: { ...template, ...current[template.id], ...patch } }));
@@ -133,6 +134,33 @@ export default function FollowUpCenter() {
           </Card>
         ))}
       </div>
+
+      {persistenceFailures.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50/60">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-700" />
+              <CardTitle className="text-amber-950">Invii da verificare</CardTitle>
+            </div>
+            <CardDescription className="text-amber-900/80">
+              Gmail ha accettato questi follow-up, ma una registrazione interna non è stata completata. Il blocco anti-doppio invio è rimasto attivo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {persistenceFailures.map((failure) => (
+              <div key={failure.id || `${failure.quoteId}-${failure.step}-${failure.occurredAt}`} className="rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium text-amber-950">
+                  <span>Preventivo {failure.quoteId}</span>
+                  <span>Step {failure.step}</span>
+                  <Badge className="bg-amber-100 text-amber-900">{failure.persistence === "state" ? "Stato" : "Audit"}</Badge>
+                  <span className="font-normal text-amber-900/70">{formatDate(failure.occurredAt)}</span>
+                </div>
+                <p className="mt-1 text-xs text-amber-900/80">{failure.error}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

@@ -14,3 +14,9 @@ Le risposte Gmail non sono automaticamente riconoscibili dal sistema attuale. Fi
 **Why:** le email inviate non contengono da sole un evento applicativo affidabile di risposta e WhatsApp/telefono non sono rilevabili con gli strumenti attuali.
 
 **How to apply:** quando verrà aggiunta la sincronizzazione, riusare `followUpEvents` e gli stati esistenti invece di creare un secondo registro commerciale.
+
+Dopo l'accettazione da Gmail, ogni fallimento nella persistenza dello stato o dell'audit deve creare un evento `followup_persistence_failed` consultabile nel Centro Follow-up. Il lock non va mai riaperto in questo percorso.
+
+**Why:** Gmail può aver già consegnato il messaggio; un nuovo tentativo causerebbe un doppio invio, mentre il solo log server non avvisa lo studio della riconciliazione necessaria.
+
+**How to apply:** includere sempre preventivo, step, tipo di persistenza e operazione fallita nell'evento; separare le scritture post-invio così un audit mancante non nasconda un eventuale problema di stato.

@@ -38,8 +38,20 @@ export type FollowUpEventType =
   | "superseded"
   | "followup_recovery_cleared"
   | "followup_recovery_finalized"
-  | "followup_recovery_pending";
+  | "followup_persistence_failed";
 
+export type FollowUpPersistenceType = "state" | "audit";
+
+export interface FollowUpPersistenceFailure {
+  id?: string;
+  quoteId: string;
+  jobId?: string;
+  step: number;
+  persistence: FollowUpPersistenceType;
+  failedEventType: "followup_sent" | "dormant";
+  error: string;
+  occurredAt: string;
+}
 export interface FollowUpSequenceStep {
   step: number;
   delayDays: number;
@@ -143,6 +155,7 @@ export interface FollowUpDashboardResponse {
     sentByStep: Record<string, number>;
     assistedValue: number;
   };
+  persistenceFailures: FollowUpPersistenceFailure[];
   sequences: FollowUpSequence[];
   templates: FollowUpTemplate[];
 }
