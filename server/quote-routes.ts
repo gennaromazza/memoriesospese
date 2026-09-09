@@ -1398,7 +1398,7 @@ router.post("/send-quote", async (req: Request, res: Response) => {
       studioInfo,
     );
 
-    const subject = `Preventivo Personalizzato - ${quote.jobInfo?.nomeEvento || "Evento"}`;
+    const subject = `La tua proposta per ${quote.jobInfo?.nomeEvento || "Evento"} è pronta`;
 
     // Invia email a TUTTI i clienti
     await sendGmailEmail(recipientEmails, subject, htmlContent);
@@ -3645,46 +3645,53 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
           ? new Date(eventDate).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })
           : "Da definire";
         const isVariabile = template.type === "variabile";
+         const totalFormatted = `€${draftTotalAfterDiscount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         const html = `
-          <div style="font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #e8e0d4;">
-            <div style="background: #2d3b2d; padding: 32px; text-align: center;">
-              <h1 style="color: #f5f0e8; margin: 0; font-size: 24px; letter-spacing: 2px;">${studioNome.toUpperCase()}</h1>
-              <p style="color: #b8c9b0; margin: 8px 0 0; font-size: 13px; letter-spacing: 1px;">IL TUO PREVENTIVO PERSONALIZZATO</p>
+           <div style="font-family: Arial, Helvetica, sans-serif; max-width: 620px; margin: 0 auto; background: #fbfaf7; color: #263b35;">
+             <div style="background: linear-gradient(135deg, #263b35 0%, #3c5547 100%); padding: 34px 32px; text-align: center;">
+               <p style="color: #d9e3d8; margin: 0 0 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;">${studioNome}</p>
+               <h1 style="color: #fff; margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 500;">Il tuo progetto inizia da qui</h1>
+               <p style="color: #e5eee5; margin: 12px 0 0; font-size: 14px;">La proposta personalizzata per ${nomeEvento}</p>
             </div>
-            <div style="padding: 32px 40px;">
-              <p style="color: #555; font-size: 16px; margin: 0 0 8px;">Caro/a <strong>${nome} ${cognome}</strong>,</p>
-              <p style="color: #777; font-size: 14px; line-height: 1.7; margin: 0 0 24px;">
-                Grazie per aver compilato il nostro preventivo online per <strong>${nomeEvento}</strong>
-                ${eventDate ? ` del <strong>${eventDateFormatted}</strong>` : ""}.
-                Il tuo preventivo personalizzato è pronto.
+             <div style="background: #fff; padding: 34px 38px; border: 1px solid #eee8df; border-top: 0;">
+               <p style="color: #263b35; font-size: 18px; margin: 0 0 16px;">Ciao <strong>${nome} ${cognome}</strong>,</p>
+               <p style="color: #4b5563; font-size: 15px; line-height: 1.75; margin: 0 0 22px;">
+                 hai già fatto il primo passo raccontandoci il tuo evento. Abbiamo preparato una proposta pensata per aiutarti a capire con chiarezza cosa può diventare il tuo servizio fotografico, senza formule complicate e senza obbligo di scelta immediata.
               </p>
+               <div style="background: #f8f4ee; border-radius: 10px; padding: 20px; margin: 24px 0;">
+                 <p style="color: #8b5a3c; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 12px;">La tua richiesta</p>
+                 <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Evento:</strong> ${nomeEvento}</p>
+                 <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Data:</strong> ${eventDateFormatted}</p>
+                 <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Investimento previsto:</strong> ${totalFormatted}</p>
+               </div>
               ${isVariabile ? `
-              <div style="background: #f9f5f0; border-left: 3px solid #c4724a; padding: 14px 18px; border-radius: 4px; margin-bottom: 24px;">
-                <p style="margin: 0; font-size: 13px; color: #666; line-height: 1.6;">
-                  <strong style="color: #c4724a;">Preventivo personalizzabile:</strong> puoi aprire il preventivo, aggiungere o rimuovere servizi,
-                  e vedere come cambia il totale in tempo reale — prima di firmare.
+               <div style="background: #eef3ef; border-left: 4px solid #8b9a7d; padding: 16px 18px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+                 <p style="margin: 0; font-size: 14px; color: #3f5146; line-height: 1.65;">
+                   <strong>Puoi personalizzarlo:</strong> apri la proposta, prova le diverse opzioni e guarda come cambia il totale prima di firmare.
                 </p>
               </div>` : ""}
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${portalLink}" style="display: inline-block; background: #2d3b2d; color: #f5f0e8; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; letter-spacing: 0.5px;">
-                  Visualizza il tuo preventivo →
+               <div style="text-align: center; margin: 30px 0 24px;">
+                 <a href="${portalLink}" style="display: inline-block; background: #c4724a; color: #fff; padding: 16px 34px; border-radius: 7px; text-decoration: none; font-weight: bold; font-size: 16px;">
+                   Scopri la tua proposta →
                 </a>
               </div>
-              <p style="color: #999; font-size: 12px; text-align: center; margin: 0 0 24px;">
-                Puoi aprire questo link in qualsiasi momento — rimarrà sempre disponibile.
+               <p style="color: #8b8b83; font-size: 12px; text-align: center; margin: 0 0 26px;">
+                 Il link resta disponibile: puoi aprirlo ora o tornarci con calma.
               </p>
-              <p style="color: #777; font-size: 13px; line-height: 1.6; margin: 0;">
-                Siamo a tua disposizione per qualsiasi domanda o per perfezionare i dettagli insieme.
-                ${studioTel ? `Puoi contattarci al <strong>${studioTel}</strong>.` : ""}
-              </p>
-            </div>
-            <div style="background:#f5f0e8; padding:20px 40px; text-align:center; border-top:1px solid #e8e0d4;">
-              <p style="margin:0; color:#888; font-size:12px;">${studioNome}${studioEmailAddr ? ` · <a href="mailto:${studioEmailAddr}" style="color:#c4724a;">${studioEmailAddr}</a>` : ""}</p>
-            </div>
-          </div>`;
+               <div style="border-top: 1px solid #eee8df; padding-top: 22px;">
+                 <p style="color: #4b5563; font-size: 14px; line-height: 1.7; margin: 0;">
+                   Hai un dubbio sul servizio, sul budget o su un dettaglio dell'evento? Rispondi direttamente a questa email: ti aiuteremo a costruire la soluzione giusta, anche prima di decidere.
+                   ${studioTel ? `<br><br>Se preferisci parlare, puoi chiamarci al <strong>${studioTel}</strong>.` : ""}
+                 </p>
+               </div>
+             </div>
+             <div style="background:#f3efe8; padding: 20px 38px; text-align:center;">
+               <p style="margin:0; color:#6b7280; font-size:12px;">${studioNome}${studioEmailAddr ? ` · <a href="mailto:${studioEmailAddr}" style="color:#8b5a3c;">${studioEmailAddr}</a>` : ""}</p>
+             </div>
+           </div>`;
         await sendGmailEmail(
           email,
-          `Il tuo preventivo - ${nomeEvento}`,
+           `La proposta per ${nomeEvento}: guardiamola insieme?`,
           html,
           undefined,
           {

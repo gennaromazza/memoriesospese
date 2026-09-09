@@ -5618,54 +5618,59 @@ export function createQuoteSentEmailHTML(
   const expiryText = expiresAt
     ? `Questo preventivo è valido fino al <strong>${expiresAt.toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" })}</strong>.`
     : "";
+  const typeDescription =
+    quoteType === "fisso"
+      ? "Una proposta chiara, già organizzata per il tuo evento."
+      : "Una proposta flessibile, che puoi adattare alle tue priorità.";
 
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #8b5a3c; text-align: center;">📋 Preventivo Personalizzato</h2>
-      <div style="background: #f9f7f4; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <p style="font-size: 16px; margin-bottom: 15px;">
-          Ciao <strong>${clienteName}</strong>,
-        </p>
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          Abbiamo preparato un preventivo personalizzato per il tuo evento <strong>${nomeEvento}</strong>.
+    <div style="font-family: Arial, Helvetica, sans-serif; max-width: 620px; margin: 0 auto; background: #fbfaf7; color: #263b35;">
+      <div style="background: linear-gradient(135deg, #263b35 0%, #3c5547 100%); padding: 34px 30px; text-align: center;">
+        <p style="color: #d9e3d8; margin: 0 0 12px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;">${studio.name}</p>
+        <h1 style="color: #fff; margin: 0; font-family: Georgia, serif; font-size: 28px; font-weight: 500;">La tua proposta fotografica</h1>
+        <p style="color: #e5eee5; margin: 12px 0 0; font-size: 14px;">Pensata per ${nomeEvento}</p>
+      </div>
+      <div style="background: #fff; padding: 34px 38px; border: 1px solid #eee8df; border-top: 0;">
+        <p style="color: #263b35; font-size: 18px; margin: 0 0 16px;">Ciao <strong>${clienteName}</strong>,</p>
+        <p style="color: #4b5563; font-size: 15px; line-height: 1.75; margin: 0 0 22px;">
+          abbiamo preparato una proposta personalizzata per il tuo evento. L'obiettivo è darti un quadro chiaro del servizio e aiutarti a scegliere con tranquillità, senza formule complicate e senza pressione.
         </p>
 
-        <div style="background: white; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <h3 style="color: #8b5a3c; margin-top: 0; margin-bottom: 15px;">💰 Dettagli Preventivo</h3>
-          <p style="margin: 8px 0;"><strong>Tipo:</strong> ${quoteType === "fisso" ? "Preventivo Fisso" : "Preventivo Variabile"}</p>
-          <p style="margin: 8px 0;"><strong>Totale:</strong> €${totalAfterDiscount.toFixed(2)}</p>
-          ${expiryText ? `<p style="margin: 8px 0; color: #666;">${expiryText}</p>` : ""}
+        <div style="background: #f8f4ee; border-radius: 10px; padding: 20px; margin: 24px 0;">
+          <p style="color: #8b5a3c; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 12px;">In sintesi</p>
+          <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Evento:</strong> ${nomeEvento}</p>
+          <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Proposta:</strong> ${typeDescription}</p>
+          <p style="margin: 6px 0; color: #263b35; font-size: 15px;"><strong>Investimento:</strong> €${totalAfterDiscount.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          ${expiryText ? `<p style="margin: 12px 0 0; color: #8b5a3c; font-size: 14px;">${expiryText}</p>` : ""}
         </div>
 
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${quoteUrl}" 
-             style="display: inline-block; background: #8b5a3c; color: white; padding: 15px 30px; 
-                    text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-            📄 Visualizza Preventivo
-          </a>
-        </div>
-
-        <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #0c5460;">
-            <strong>✅ Prossimi Passi</strong><br>
-            ${
-              quoteType === "fisso"
-                ? "Rivedi il preventivo e firmalo online per confermare il servizio."
-                : "Seleziona i prodotti che desideri e firma il preventivo per procedere."
-            }
+        <div style="background: #eef3ef; border-left: 4px solid #8b9a7d; padding: 16px 18px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+          <p style="margin: 0; font-size: 14px; color: #3f5146; line-height: 1.65;">
+            <strong>Cosa trovi aprendo il link:</strong> il dettaglio dei servizi, le condizioni della proposta e tutti i passaggi per valutarla con calma.
+            ${quoteType === "variabile" ? " Puoi anche provare le diverse opzioni e vedere come cambia il totale prima di firmare." : ""}
           </p>
         </div>
 
-        <p style="font-size: 14px; color: #666; margin-top: 20px;">
-          Per qualsiasi domanda o modifica, non esitare a contattarci.
+        <div style="text-align: center; margin: 30px 0 24px;">
+          <a href="${quoteUrl}" style="display: inline-block; background: #c4724a; color: #fff; padding: 16px 34px; border-radius: 7px; text-decoration: none; font-weight: bold; font-size: 16px;">
+            Scopri la tua proposta →
+          </a>
+        </div>
+        <p style="color: #8b8b83; font-size: 12px; text-align: center; margin: 0 0 26px;">
+          Puoi aprire il link ora o tornarci con calma.
         </p>
+
+        <div style="border-top: 1px solid #eee8df; padding-top: 22px;">
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.7; margin: 0;">
+            Hai un dubbio, vuoi cambiare un dettaglio o preferisci confrontarti prima di decidere? Rispondi direttamente a questa email: ti aiuteremo a costruire la soluzione più adatta al tuo evento.
+          </p>
+        </div>
       </div>
 
-      <div style="text-align: center; color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
-        <p style="margin: 5px 0; font-weight: 600;">${studio.name}</p>
+      <div style="background: #f3efe8; padding: 20px 38px; text-align: center; color: #6b7280; font-size: 12px;">
+        <p style="margin: 5px 0; font-weight: 600; color: #263b35;">${studio.name}</p>
         ${studio.address ? `<p style="margin: 5px 0;">${studio.address}</p>` : ""}
-        <p style="margin: 5px 0;">Email: ${studio.email}</p>
-        <p style="margin: 5px 0;">Tel: ${studio.phone}</p>
+        <p style="margin: 5px 0;">${studio.email} · ${studio.phone}</p>
       </div>
     </div>
   `;

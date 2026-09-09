@@ -25,44 +25,77 @@ const DEFAULT_SEQUENCE_STEPS: FollowUpSequenceStep[] = [
 const DEFAULT_TEMPLATES: FollowUpTemplate[] = [
   {
     id: "quote-followup-step-1",
-    name: "Primo promemoria",
+    name: "Primo contatto di valore",
     serviceType: "*",
     step: 1,
     active: true,
-    subject: "Un piccolo promemoria per il tuo preventivo",
+    subject: "Hai già visto la proposta per [nome coppia]?",
     bodyHtml:
-      "<p>Ciao [nome cliente],</p><p>ti scrivo per sapere se hai avuto modo di dare un'occhiata al preventivo per [nome coppia].</p><p>Se vuoi, puoi rivederlo qui:</p>",
+      "<p style=\"font-size:18px;margin:0 0 16px;color:#263b35\">Ciao [nome cliente],</p><p>hai già avuto modo di guardare la proposta preparata per <strong>[nome coppia]</strong>?</p><p>L'ho costruita per rendere più semplice capire cosa è incluso, quanto investimento richiede e quali scelte sono davvero importanti per il tuo evento del <strong>[data evento]</strong>.</p><div style=\"background:#f5f0e8;border-left:4px solid #c17f59;padding:16px 18px;margin:22px 0\"><p style=\"margin:0;color:#4b5563\"><strong>Il punto di partenza:</strong> [importo preventivo]. Puoi aprire tutto con calma e chiedermi qualsiasi modifica prima di decidere.</p></div><p>Se c'è un dettaglio che vuoi rivedere — servizio, priorità o budget — rispondi pure a questa email con una frase: ti aiuto io a trovare la soluzione più adatta.</p>",
     cta: "quote",
-    ctaLabel: "Rivedi il preventivo",
-    version: 1,
+    ctaLabel: "Scopri la tua proposta",
+    version: 2,
   },
   {
     id: "quote-followup-step-2",
-    name: "Secondo promemoria",
+    name: "Riduzione dei dubbi",
     serviceType: "*",
     step: 2,
     active: true,
-    subject: "Hai bisogno di un chiarimento sul preventivo?",
+    subject: "Cosa vuoi chiarire della proposta per [nome coppia]?",
     bodyHtml:
-      "<p>Ciao [nome cliente],</p><p>se hai dubbi o vuoi modificare qualche dettaglio di [nome coppia], sono qui per aiutarti.</p><p>Puoi ripartire dal preventivo:</p>",
+      "<p style=\"font-size:18px;margin:0 0 16px;color:#263b35\">Ciao [nome cliente],</p><p>spesso, prima di scegliere un servizio fotografico, non manca l'interesse: manca solo una risposta chiara a una domanda.</p><p>Per la proposta di <strong>[nome coppia]</strong>, posso aiutarti a capire meglio:</p><ul style=\"padding-left:20px;color:#4b5563\"><li>cosa conviene tenere come priorità;</li><li>quali elementi si possono modificare;</li><li>come rimanere dentro il budget previsto di <strong>[importo preventivo]</strong>.</li></ul><p>Il tuo evento è indicato per il <strong>[data evento]</strong>. Se vuoi, rispondi con il dubbio principale: ti risponderò in modo concreto, senza impegno.</p>",
     cta: "quote",
-    ctaLabel: "Apri il preventivo",
-    version: 1,
+    ctaLabel: "Rivedi la proposta",
+    version: 2,
   },
   {
     id: "quote-followup-step-3",
-    name: "Ultimo promemoria",
+    name: "Chiusura elegante",
     serviceType: "*",
     step: 3,
     active: true,
+    subject: "Chiudo qui i promemoria per [nome coppia]",
+    bodyHtml:
+      "<p style=\"font-size:18px;margin:0 0 16px;color:#263b35\">Ciao [nome cliente],</p><p>non voglio riempirti la casella: questa sarà l'ultima email automatica sulla proposta per <strong>[nome coppia]</strong>.</p><p>Il preventivo resta disponibile e, se il progetto è ancora attuale, puoi riaprirlo quando vuoi. Se invece hai scelto un'altra strada, nessun problema.</p><div style=\"background:#eef3ef;border-radius:8px;padding:16px 18px;margin:22px 0\"><p style=\"margin:0;color:#263b35\"><strong>Se ti serve ancora:</strong> rispondi a questa email anche solo con “ne parliamo” e ripartiamo da qui.</p></div><p>La proposta indica un investimento di <strong>[importo preventivo]</strong> per l'evento del <strong>[data evento]</strong>; sarò felice di aggiornarla se sono cambiate esigenze o priorità.</p>",
+    cta: "quote",
+    ctaLabel: "Riapri la proposta",
+    version: 2,
+  },
+];
+
+const LEGACY_DEFAULT_TEMPLATE_SIGNATURES: Record<string, { subject: string; bodyHtml: string }> = {
+  "quote-followup-step-1": {
+    subject: "Un piccolo promemoria per il tuo preventivo",
+    bodyHtml:
+      "<p>Ciao [nome cliente],</p><p>ti scrivo per sapere se hai avuto modo di dare un'occhiata al preventivo per [nome coppia].</p><p>Se vuoi, puoi rivederlo qui:</p>",
+  },
+  "quote-followup-step-2": {
+    subject: "Hai bisogno di un chiarimento sul preventivo?",
+    bodyHtml:
+      "<p>Ciao [nome cliente],</p><p>se hai dubbi o vuoi modificare qualche dettaglio di [nome coppia], sono qui per aiutarti.</p><p>Puoi ripartire dal preventivo:</p>",
+  },
+  "quote-followup-step-3": {
     subject: "Resto a disposizione per il tuo preventivo",
     bodyHtml:
       "<p>Ciao [nome cliente],</p><p>chiudo qui i promemoria automatici per [nome coppia]. Se il progetto è ancora attuale, puoi scrivermi quando vuoi.</p><p>Il preventivo resta disponibile qui:</p>",
-    cta: "quote",
-    ctaLabel: "Rivedi il preventivo",
-    version: 1,
   },
-];
+};
+
+function upgradeLegacyDefaultTemplate(template: FollowUpTemplate): FollowUpTemplate {
+  const signature = LEGACY_DEFAULT_TEMPLATE_SIGNATURES[template.id];
+  const improved = DEFAULT_TEMPLATES.find((item) => item.id === template.id);
+  if (
+    signature &&
+    improved &&
+    template.version <= 1 &&
+    template.subject === signature.subject &&
+    template.bodyHtml === signature.bodyHtml
+  ) {
+    return { ...improved, updatedAt: template.updatedAt };
+  }
+  return template;
+}
 
 const DEFAULT_SEQUENCE: FollowUpSequence = {
   id: "default",
@@ -195,13 +228,17 @@ async function getSequence(serviceType: string): Promise<FollowUpSequence> {
 
 async function getTemplates(): Promise<FollowUpTemplate[]> {
   const snapshot = await db.collection("followUpTemplates").get();
-  const stored = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as FollowUpTemplate[];
+  const stored = snapshot.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .map((template) => upgradeLegacyDefaultTemplate(template as FollowUpTemplate));
   return stored.length ? stored : DEFAULT_TEMPLATES;
 }
 
 async function getTemplate(id: string, serviceType: string, step: number): Promise<FollowUpTemplate | undefined> {
   const direct = await db.collection("followUpTemplates").doc(id).get();
-  if (direct.exists) return { id: direct.id, ...direct.data() } as FollowUpTemplate;
+  if (direct.exists) {
+    return upgradeLegacyDefaultTemplate({ id: direct.id, ...direct.data() } as FollowUpTemplate);
+  }
   const templates = await getTemplates();
   return templates.find((template) =>
     template.active &&

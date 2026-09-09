@@ -32,3 +32,9 @@ Le prove manuali di un follow-up devono essere mirate a un solo preventivo e byp
 **Why:** una sola guardia aggirata non basta: la transazione anti-concorrenza può ancora restituire `skipped`, mentre un bypass troppo ampio può inviare più step o coinvolgere altri clienti.
 
 **How to apply:** mantenere sempre il filtro `quoteId`, consentire la forzatura solo con `sentSteps` vuoto e lasciare invariata la data di scadenza degli step successivi.
+
+I contenuti marketing standard dei follow-up possono evolvere, ma un aggiornamento automatico deve sostituire solo la firma esatta del template legacy standard; i template personalizzati dall'admin vanno preservati.
+
+**Why:** migliorare il copy dei lead non deve cancellare personalizzazioni commerciali già scelte dallo studio.
+
+**How to apply:** versionare i template standard e usare un confronto esatto di oggetto e corpo prima di applicare un upgrade compatibile.
