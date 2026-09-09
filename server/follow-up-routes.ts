@@ -411,6 +411,10 @@ async function ensureState(context: any, sequence: FollowUpSequence): Promise<Fi
 }
 
 type StaleLockRecovery = "none" | "recent" | "cleared" | "finalized" | "pending";
+type FollowUpRunOptions = {
+  quoteId?: string;
+  force?: boolean;
+};
 
 async function findAcceptedFollowUpEmail(
   quoteId: string,
@@ -552,6 +556,7 @@ async function recoverStaleSendingLock(
 async function processQuote(
   context: any,
   quotesByJob?: Map<string, FirestoreData[]>,
+  options: FollowUpRunOptions = {},
 ): Promise<"sent" | "skipped" | "error"> {
   const sequence = await getSequence(context.job.jobType || "default");
   let state = await ensureState(context, sequence);
@@ -567,7 +572,7 @@ async function processQuote(
   if (!sequence.enabled || sequence.mode !== "automatic") return "skipped";
   if (["completed", "converted", "not_interested", "superseded", "suspended"].includes(currentStatus)) return "skipped";
   if (state.snoozedUntil && asDate(state.snoozedUntil)?.getTime()! > now.getTime()) return "skipped";
-  if (state.nextDueAt && asDate(state.nextDueAt)?.getTime()! > now.getTime()) return "skipped";
+  if (state.nextDueAt && asDate(state.nextDueAt)?.getTime()! > now.getTime() && !options.force) return "skipped";
   const step = sequence.steps.find((item) => item.enabled && !state.sentSteps?.includes(item.step));
   if (!step) {
     if (currentStatus !== "dormant") {
@@ -576,6 +581,9 @@ async function processQuote(
     }
     return "skipped";
   }
+  // Una forzatura manuale serve solo a provare il primo invio: non deve
+  // trasformarsi in un modo per anticipare il secondo o terzo step.
+  if (options.force && state.sentSteps?.length) return "skipped";
   const lockId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   let locked = false;
   await db.runTransaction(async (transaction) => {
@@ -686,7 +694,9 @@ async function processQuote(
   return "sent";
 }
 
-export async function runFollowUpCheck(): Promise<{ checked: number; sent: number; skipped: number; errors: string[] }> {
+export async function runFollowUpCheck(
+  options: FollowUpRunOptions = {},
+): Promise<{ checked: number; sent: number; skipped: number; errors: string[] }> {
   const result = { checked: 0, sent: 0, skipped: 0, errors: [] as string[] };
   const quoteSnapshot = await db.collection("quotes").limit(500).get();
   const quotesByJob = new Map<string, FirestoreData[]>();
@@ -695,11 +705,12 @@ export async function runFollowUpCheck(): Promise<{ checked: number; sent: numbe
     if (data.jobId) quotesByJob.set(data.jobId, [...(quotesByJob.get(data.jobId) || []), data]);
   }
   for (const quoteDoc of quoteSnapshot.docs) {
+    if (options.quoteId && quoteDoc.id !== options.quoteId) continue;
     try {
       const context = await getEligibleContext(quoteDoc, quotesByJob);
       if (!context) continue;
       result.checked++;
-      const outcome = await processQuote(context, quotesByJob);
+      const outcome = await processQuote(context, quotesByJob, options);
       if (outcome === "sent") result.sent++;
       else if (outcome === "skipped") result.skipped++;
       else result.errors.push(quoteDoc.id);
