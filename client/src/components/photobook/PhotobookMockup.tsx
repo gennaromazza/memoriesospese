@@ -101,7 +101,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   useEffect(() => {
     if (!token || !ready || !frame.current?.contentDocument) return;
-    try { const layout = installMockupWizard(frame.current.contentDocument); setWizard(layout); return () => layout.dispose(); }
+    try { const layout = installMockupWizard(frame.current.contentDocument); layout.step(step); setWizard(layout); return () => layout.dispose(); }
     catch (error) { setMessage((error as Error).message); }
   }, [ready, token]);
 
@@ -335,7 +335,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
         }} />
         {!token && <p role="status" className="text-sm">{message}</p>}
-        <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'w-full h-[1050px] md:h-[760px] rounded border'} ${busy ? 'pointer-events-none' : ''}`} />
+        {token && (!ready || !wizard) && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
+        <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'w-full h-[1050px] md:h-[760px] rounded border'} ${busy ? 'pointer-events-none' : ''}`} />
         {token && wizard && createPortal(<>
           {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data.offer && <p>{title}</p>}</>}
           {step === 2 && <><h3>Rivestimento e copertina</h3><p>Tocca un campione per vederlo sull’album.</p></>}

@@ -51,6 +51,8 @@ Le revisioni non sono un autosalvataggio di ogni interazione: aumentano al salva
 
 ### Percorso cliente guidato, mobile-first
 
+Durante il caricamento iniziale e il cambio modello il documento del renderer resta invisibile (ma mantiene le dimensioni per inizializzare il canvas). Compare **Preparazione del tuo configuratore…** fino all'installazione del percorso cliente e del relativo passaggio: non viene mostrata per un istante l'interfaccia autonoma con gli strumenti studio. `node e2e/mockup-touch.browser.mjs` verifica questa regressione trattenendo le risposte degli script dei due renderer e usa tocchi reali simulati (`tap`) per Plaza, finiture, estrazione e navigazione. La prova Chromium mobile non certifica Safari su iPhone reale.
+
 Dal link cliente, **Apri mockup** apre quattro passaggi: **Modello → Rivestimento e copertina → Foto e scritte → Riepilogo e invio**. La pagina delle fotografie continua a caricare il renderer solo all'apertura. Lo studio conserva i propri strumenti amministrativi, senza il wizard.
 
 - Su telefono il 3D resta sopra le opzioni scorrevoli, con Indietro/Avanti nella barra inferiore. Il dialog segue il viewport visibile quando compare la tastiera; su desktop il percorso mantiene i quattro passaggi con anteprima affiancata.
