@@ -245,6 +245,16 @@ async function startServer() {
     // Una route API sconosciuta non deve mai cadere nel fallback HTML di Vite/SPA.
     app.use('/api', apiNotFoundHandler);
 
+    // La Preview Replit riparte dalla root dopo un restart del workflow. In
+    // sviluppo la root viene quindi portata direttamente al pannello admin,
+    // senza alterare la home pubblica del deployment.
+    if (!isProduction) {
+      app.get('/', (_req, res) => {
+        res.redirect(302, '/admin');
+      });
+      console.log('🧭 Development preview start path: /admin');
+    }
+
     // SEO prerender middleware per bot e crawler (Google, ChatGPT, etc.)
     app.use(createSeoMiddleware());
     console.log('🔍 SEO prerender middleware attivo per crawler e AI');

@@ -16,3 +16,9 @@ all-day transparency fix — the sync log still showed old filtering.
 **How to apply:** After any server-side change, call `restart_workflow("Dev Workflow")`
 before testing endpoints or reading logs to confirm new behavior. Don't edit
 package.json scripts (forbidden) to add watch — just restart.
+
+In development, the Preview root opens the admin login; the production server keeps the public home at `/`.
+
+**Why:** the everyday workflow is admin-centric, but the public homepage must remain unchanged for deployment and SEO.
+
+**How to apply:** keep the redirect development-only and route-specific; do not add a global redirect that affects production or API paths.
