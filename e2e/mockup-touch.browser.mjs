@@ -13,6 +13,8 @@ let releaseRenderer;
 let releaseRotating;
 try {
  await vite.listen(); const port=vite.httpServer.address().port;
+ const {mockupConfigurationSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-types.ts').replaceAll('\\','/'));
+ const {mockupWorkflowInputSchema,mockupSelectionSchema}=await vite.ssrLoadModule('/@fs/'+path.join(root,'shared/mockup-workflow.ts').replaceAll('\\','/'));
  const engine=process.env.MOCKUP_ENGINE||'chromium';
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
  browser=await (engine==='webkit'?webkit:chromium).launch({headless:true,...(engine==='chromium'?{args:['--enable-unsafe-swiftshader'],...(fs.existsSync(edge)?{executablePath:edge}:{})}: {})});
@@ -32,8 +34,8 @@ try {
    if(url.pathname.endsWith('/by-token/mockup-test-token')) return route.fulfill({json:{photobook:{id:'book',name:'Album test',currentVersion:1,approval:{version:1},versions:[{version:1,pageCount:0}],locked},version:1,pages:[],requests:[]}});
    if(url.pathname.endsWith('/gallery-photo')) return route.fulfill({json:{id:photoId,name:'Foto prova',source:'gallery',width:600,height:400}});
    if(url.pathname.includes('/photos/')) return route.fulfill({contentType:'image/png',body:photo});
-   if(url.pathname.endsWith('/submit')) {saved={...saved,status:'submitted'};return route.fulfill({json:saved});}
-   if(route.request().method()==='PUT'){const data=route.request().postDataJSON();saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
+   if(url.pathname.endsWith('/submit')) {const data=mockupWorkflowInputSchema.parse(route.request().postDataJSON());assert.equal(data.revision,saved.revision);saved={...saved,revision:saved.revision+1,status:'submitted'};return route.fulfill({json:saved});}
+   if(route.request().method()==='PUT'){const data=route.request().postDataJSON();mockupConfigurationSchema.parse(data.configuration);mockupSelectionSchema.parse(data.selection);assert.equal(data.revision,saved?.revision||0);saved={version:1,status:'draft',updatedAt:new Date().toISOString(),...data,revision:(saved?.revision||0)+1};return route.fulfill({json:saved});}
    return route.fulfill({json:{version:1,enabled:true,editable:!locked,saved,offer}});
  });
  await page.route('**/test-photo.png',route=>route.fulfill({contentType:'image/png',body:photo}));
@@ -76,7 +78,7 @@ try {
    const modalBox=await page.locator('[data-mobile-mockup=true]').boundingBox();
    assert.ok(Math.abs(modalBox.height-viewport.height)<2,'Il modale usa tutto il viewport visibile');
    assert.ok(stageBox.height>=iframeBox.height-2,`Canvas usa altezza disponibile: ${JSON.stringify(stageBox)}`);
-   assert.ok(stageBox.width>=viewport.width*.6,'Anteprima maggioritaria');
+   assert.ok(stageBox.width>=viewport.width*.54 && stageBox.width<=viewport.width*.62,'Anteprima bilanciata con pannello opzioni più largo');
    for(const button of [frame.getByRole('button',{name:'Avanti',exact:true}),frame.getByRole('button',{name:'Torna alla scelta modello',exact:true}),frame.getByRole('button',{name:'Fronte',exact:true})]) {
      const box=await button.boundingBox(); assert.ok(box.height>=44 && box.y>=0 && box.y+box.height<=viewport.height+1,'Controlli raggiungibili senza scroll pagina');
    }
@@ -97,6 +99,13 @@ try {
  await frame.locator('#firstName').tap();await frame.locator('#firstName').fill('Anna');
  await frame.getByRole('button',{name:'Indietro',exact:true}).tap();
  await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
+ assert.equal(await frame.locator('#firstName').inputValue(),'Anna');
+ const normalWidth=(await frame.locator('.stage').boundingBox()).width;
+ assert.ok((await frame.locator('aside').boundingBox()).width>=300,'Più larghezza per opzioni sul telefono orizzontale');
+ await page.getByRole('button',{name:'Espandi anteprima',exact:true}).tap();
+ assert.equal(await frame.locator('aside').isVisible(),false);
+ assert.ok((await frame.locator('.stage').boundingBox()).width>normalWidth+200);
+ await page.getByRole('button',{name:'Torna alle opzioni',exact:true}).tap();
  assert.equal(await frame.locator('#firstName').inputValue(),'Anna');
  assert.equal(await page.locator('input[type=file]').count(),0);
  assert.equal(await frame.getByLabel('Foto da personalizzare',{exact:true}).count(),0);
@@ -124,6 +133,8 @@ try {
  await frame.getByRole('button',{name:'Torna a personalizzare',exact:true}).tap();
  await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
  await frame.getByRole('button',{name:'Foto a tutta superficie su plexiglass',exact:true}).tap();
+ await frame.getByText('Manca la foto sul plexiglass.',{exact:false}).waitFor();
+ assert.equal(await frame.getByRole('button',{name:'Avanti',exact:true}).isDisabled(),true);
  await frame.getByRole('button',{name:'Scegli dalla galleria',exact:true}).tap();
  const picker=page.getByRole('dialog',{name:'Scegli la foto del retro',exact:true});
  await picker.waitFor();
@@ -168,7 +179,7 @@ try {
  for(let i=0;i<3;i++) await frame.getByRole('button',{name:'Avanti',exact:true}).tap();
  await frame.getByRole('button',{name:'Salva bozza',exact:true}).tap();
  await frame.getByText('Mockup salvato.',{exact:false}).waitFor();
- assert.equal(saved.revision,2,'Nuova revisione dopo precedente invio');
+ assert.equal(saved.revision,3,'Nuova revisione dopo precedente invio, che ha creato la revisione 2');
  await page.screenshot({path:`work/mockup-touch-${engine}-plaza.png`});
  // Il cambio modello ritorna ai due caroselli, con renderer esistente nascosto fino alla scelta.
  await page.getByRole('button',{name:'Cambia',exact:true}).tap();

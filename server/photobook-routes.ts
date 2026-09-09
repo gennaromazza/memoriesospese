@@ -286,7 +286,19 @@ function snapshotUrlPrefix(photobookId: string): string {
 // ============================================================
 // ROUTE PUBBLICHE A TOKEN (nessuna autenticazione)
 // ============================================================
-router.use('/by-token/:token/mockup', createPhotobookMockupRouter(req => getBookByToken(req.params.token), false));
+router.use('/by-token/:token/mockup', createPhotobookMockupRouter(req => getBookByToken(req.params.token), false, async (bookDoc, saved) => {
+  const book = bookDoc.data()!;
+  const esc = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const link = `${getSiteBaseUrl()}/admin/photobooks/${encodeURIComponent(bookDoc.id)}`;
+  await sendGmailEmail(ADMIN_EMAILS[0], `Mockup da verificare: ${book.name || 'Fotolibro'} (v${saved.version}, r${saved.revision})`,
+    `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#243d44">
+      <h2>Nuova proposta album da verificare</h2>
+      <p><strong>${esc(book.clientName || 'Il cliente')}</strong> ha inviato il mockup di <strong>${esc(book.name || 'Fotolibro')}</strong>.</p>
+      <p>Versione fotolibro: ${saved.version} · Revisione mockup: ${saved.revision}<br>Modello: ${esc(saved.option?.name || 'Album')} · Laboratorio: ${esc(saved.option?.labName || '')}</p>
+      <p><a href="${esc(link)}">Apri il fotolibro e verifica il mockup</a></p>
+      <p>La proposta è in attesa della tua verifica. L’invio non avvia la stampa.</p>
+    </div>`, undefined, { type: 'photobook_mockup_submitted', relatedDocId: bookDoc.id, relatedDocType: 'photobook', clientName: book.clientName || undefined });
+}));
 
 /** GET /by-token/:token — fotolibro + pagine della versione corrente */
 router.get('/by-token/:token', async (req: Request, res: Response) => {

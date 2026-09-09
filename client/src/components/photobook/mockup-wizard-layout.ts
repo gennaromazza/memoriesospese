@@ -68,7 +68,10 @@ export function installMockupWizard(doc: Document, mobile = false) {
   if (mobile) {
     const mobileStyle = doc.createElement('style');
     mobileStyle.textContent = `
-      body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(218px,32%,310px)!important;grid-template-rows:minmax(0,1fr)!important}
+      body[data-wizard-mobile] main {grid-template-columns:minmax(0,1fr) clamp(250px,42%,410px)!important;grid-template-rows:minmax(0,1fr)!important}
+      body[data-wizard-mobile][data-viewer-expanded=true] main {grid-template-columns:minmax(0,1fr)!important}
+      body[data-wizard-mobile][data-viewer-expanded=true] aside {display:none!important}
+      body[data-wizard-mobile] .wizard-validation {padding:8px;border-left:3px solid #b97422;background:#fff3dc;font-size:12px!important}
       body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:block!important;overflow:hidden}
       body[data-wizard-mobile] .stage {position:relative!important;min-height:0!important;height:100%!important}
       body[data-wizard-mobile] aside {grid-column:2;grid-row:1;display:flex;flex-direction:column;padding:8px 10px 0!important;border-left:1px solid #d8ded7;overflow:hidden!important}
@@ -116,7 +119,8 @@ export function installMockupWizard(doc: Document, mobile = false) {
       body[data-wizard-mobile] .wizard-message {font-size:11px;margin:0 0 5px!important;max-height:40px;overflow:auto;overflow-wrap:anywhere}
       body[data-wizard-mobile] .wizard-unsaved {font-size:11px;display:block;margin-bottom:4px;color:#765f32}
       body[data-wizard-mobile] #wizard-controls-slot {position:absolute;inset:0;pointer-events:none}
-      body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:5px;left:7px;display:flex;gap:2px;pointer-events:auto}
+      body[data-wizard-mobile] .wizard-iconbar {position:absolute;bottom:5px;left:7px;right:7px;display:flex;gap:2px;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
+      body[data-wizard-mobile] .wizard-iconbar button {flex-shrink:0}
       body[data-wizard-mobile] .wizard-iconbar button, body[data-wizard-mobile] .wizard-help {position:relative;width:44px;height:44px;min-height:44px;padding:0!important;border:0!important;background:transparent;display:flex;align-items:center;justify-content:center;color:#29413f;isolation:isolate}
       body[data-wizard-mobile] .wizard-iconbar button:before,body[data-wizard-mobile] .wizard-help:before {content:'';position:absolute;inset:5px;border:1px solid #c9d2cb;border-radius:5px;background:#faf8f3;z-index:-1}
       body[data-wizard-mobile] .wizard-iconbar button span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
@@ -189,6 +193,7 @@ export function installMockupWizard(doc: Document, mobile = false) {
       else doc.getElementById(action)?.click();
       refresh();
     },
+    expanded(open: boolean) { doc.body.dataset.viewerExpanded = String(open); },
     home(open: boolean) {
       if (!mobile) return;
       doc.body.dataset.wizardHome = String(open);

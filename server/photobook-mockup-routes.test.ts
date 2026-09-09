@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 import { MOCKUP_MODEL, ROTATING_MOCKUP_MODEL } from '../shared/mockup-catalog';
 
 const h = vi.hoisted(() => ({ docs: new Map<string, any>(), files: new Map<string, Buffer>(), photos: [] as any[], failAfterCommit: false, beforeTransaction: null as (() => void) | null }));
+const notifySubmission = vi.fn<(book: unknown, saved: unknown) => Promise<void>>();
 function ref(path: string): any {
   return {
     id: path.split('/').pop(), path,
@@ -36,12 +37,12 @@ const configuration = { modelId: MOCKUP_MODEL.id, assetRevision: MOCKUP_MODEL.as
 describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   let server: Server; let base: string;
   beforeEach(async () => {
-    h.docs.clear(); h.files.clear(); h.photos = []; h.beforeTransaction = null; h.failAfterCommit = false;
+    h.docs.clear(); h.files.clear(); h.photos = []; h.beforeTransaction = null; h.failAfterCommit = false; notifySubmission.mockReset().mockResolvedValue(undefined);
     h.docs.set('photobooks/book', { currentVersion: 1, versions: [{ version: 1 }, { version: 2 }], galleryId: 'gallery', locked: false, approval: { version: 1 } });
     h.docs.set(`photobooks/book/mockupAssets/${photoId}`, { version: 1, storagePath: 'own-photo.jpg' });
     const app = express(); app.use(express.json());
     app.use('/admin', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), true));
-    app.use('/client', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), false));
+    app.use('/client', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), false, notifySubmission));
     app.use('/invalid', createPhotobookMockupRouter(async () => null, false));
     server = app.listen(0, '127.0.0.1');
     await new Promise<void>(resolve => server.once('listening', resolve));
@@ -236,6 +237,63 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     return fetch(`${base}/admin/offer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: 0, savedRevision: 0, selections }) });
   }
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
+
+  it.each(['plaque', 'full', 'photo-plaque'].flatMap(coverLayout => ['fabric', 'photo'].flatMap(backCover => ['wood', 'white', 'fabric'].map(frameFinish => ({ coverLayout, backCover, frameFinish })))))('Plaza v4: salva e invia dal cliente con %j', async variant => {
+    await publish(base);
+    h.docs.get('photobooks/book/mockupOffers/v1').options[0].rendererId = ROTATING_MOCKUP_MODEL.id;
+    const rotating = { ...configuration, modelId: ROTATING_MOCKUP_MODEL.id, assetRevision: 4, ...variant,
+      photoAssetId: variant.coverLayout === 'plaque' ? null : photoId, backPhotoAssetId: variant.backCover === 'photo' ? photoId : null,
+      backCrop: { zoom: 1, x: .5, y: .5 }, engravingNames: { first: 'Éléonore', second: 'Gian Marco' } };
+    const savedResponse = await save(base, { revision: 0, configuration: rotating, selection, offerRevision: 1 }, 'client');
+    expect(savedResponse.status).toBe(200);
+    const persisted = await savedResponse.json();
+    const response = await fetch(`${base}/client/submit?version=1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: persisted.revision, note: '' }) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ revision: 2, status: 'submitted', configuration: rotating });
+    expect(h.docs.get('photobooks/book/mockupHistory/v1-r1').status).toBe('draft');
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(409);
+    expect((await save(base, { revision: 2, configuration: rotating, selection, offerRevision: 1 }, 'client')).status).toBe(200);
+    expect((await action(base, 'client', 'submit', 3)).status).toBe(200);
+    expect(notifySubmission).toHaveBeenCalledTimes(2);
+  });
+
+  it('avvisa lo studio solo dopo l’invio acquisito, mai dopo bozza, rifiuto o richiesta di correzioni', async () => {
+    await publish(base);
+    await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');
+    expect(notifySubmission).not.toHaveBeenCalled();
+    expect((await action(base, 'client', 'submit', 99)).status).toBe(409);
+    expect(notifySubmission).not.toHaveBeenCalled();
+    await action(base, 'client', 'submit', 1);
+    expect(notifySubmission).toHaveBeenCalledTimes(1);
+    expect(notifySubmission.mock.calls[0][1]).toMatchObject({ revision: 2, status: 'submitted' });
+    await action(base, 'client', 'submit', 1);
+    await action(base, 'admin', 'request-changes', 2);
+    expect(notifySubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it('un errore email conserva la proposta e non provoca reinvii automatici', async () => {
+    await publish(base);
+    await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');
+    notifySubmission.mockRejectedValueOnce(new Error('Risposta trasporto persa'));
+    const response = await action(base, 'client', 'submit', 1);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: 'submitted', revision: 2, notificationWarning: expect.stringContaining('Non serve inviarla di nuovo') });
+    expect((await action(base, 'client', 'submit', 2)).status).toBe(409);
+    expect(notifySubmission).toHaveBeenCalledTimes(1);
+    expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('submitted');
+  });
+
+  it('spiega un payload di salvataggio o invio non valido senza esporre i dati del cliente', async () => {
+    await publish(base);
+    const response = await save(base, { revision: 0, configuration: { ...configuration, assetRevision: 999, topText: 'TESTO PRIVATO' }, selection, offerRevision: 1 }, 'client');
+    expect(response.status).toBe(400);
+    const message = (await response.json()).error;
+    expect(message).toContain('configurazione'); expect(message).not.toContain('TESTO PRIVATO');
+    await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');
+    const invalid = await fetch(`${base}/client/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: null, note: '' }) });
+    expect(invalid.status).toBe(400); expect((await invalid.json()).error).toContain('revisione');
+    expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('draft');
+  });
 
   it('ricontrolla la revoca dell’approvazione durante l’invio senza creare una revisione', async () => {
     await publish(base);

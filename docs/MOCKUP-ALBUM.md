@@ -15,7 +15,7 @@ Il [piano completo](./PIANO-MOCKUP-WORKFLOW.md) conserva decisioni, ordine di im
 1. **Anagrafica laboratori → Modelli album**: importare il campionario Custodia nell’anagrafica del suo fornitore reale. Aggiungere il modello, impostare nome e codice fornitore, scegliere l’asset Custodia e i rivestimenti compatibili. Nomi/codici del campionario sono comuni ai modelli del laboratorio. Gli altri modelli possono essere censiti senza asset e restano non proponibili.
 2. **Lavoro → Operativo → Album e personalizzazione**, oppure editor fotolibro: aprire il mockup e **Laboratori e modelli per questo lavoro**. Selezionare laboratori/modelli e pubblicare la proposta. Questa azione aggiorna il link cliente già esistente; non invia email/WhatsApp.
 3. Il cliente prima approva le pagine della versione corrente, poi apre il mockup. Sul telefono sceglie modello ed esempio nei due caroselli e usa soltanto foto della galleria associata. Da desktop rimane anche il caricamento JPG/PNG/WebP (20 MB, 40 megapixel massimo). Modifica testi/ritaglio e salva; può esplorare il modello e scaricare l’anteprima con otto viste. Salvataggio e download non sono conferme.
-4. **Invia allo studio per verifica** porta il mockup a **Da verificare**, senza congelare definitivamente le modifiche. Il cliente può salvare una nuova revisione fino all’invio in stampa. **Apri WhatsApp** apre la conversazione senza inviare messaggi automaticamente.
+4. **Invia allo studio per verifica** porta il mockup a **Da verificare** e invia un’email allo stesso destinatario admin già usato per l’approvazione delle pagine, con modello, versione, revisione e link amministrativo. Il cliente può salvare e inviare altre revisioni fino alla stampa. Il solo salvataggio non invia email; un doppio invio della stessa revisione viene rifiutato senza altra email. **Apri WhatsApp** apre la conversazione senza inviare messaggi automaticamente.
 5. Una nuova modifica del cliente dopo invio/conferma crea una bozza e conserva la revisione precedente. L’approvazione delle pagine non blocca la copertina. Il blocco **in stampa** impedisce modifiche del mockup a cliente e studio; lo studio può ancora allegare/verificare il report già confermato. **Richiedi modifiche al cliente** conserva il messaggio e la transizione nello storico.
 6. **Conferma mockup** richiede una configurazione salvata e genera una copia privata statica HTML con otto viste e riepilogo. Una modifica successiva conserva la vecchia conferma nello storico e richiede una nuova conferma. Versioni storiche del fotolibro rimangono in sola lettura.
 7. Preparare la spedizione con il flusso **Manda in stampa** già esistente. Attendere la fine del trasferimento pagine, selezionare lo stesso laboratorio del mockup e verificare il DPA. **Allega all’invio fotolibro su Drive** aggiunge la copia confermata, con nome comprendente versione/revisione, senza sostituire altri file o inviare email. L’invio email rimane un’azione distinta.
@@ -120,7 +120,7 @@ Le configurazioni 1–3 sono caricate ed esportate nella loro semantica original
 
 ## Ambientazioni domestiche (solo esplorazione)
 
-Interfaccia uniformata: quattro schede (Tessuti, Dettagli, Riepilogo, In casa), pannello centrale scorrevole e download separato sempre raggiungibile sul desktop. Nel gestionale i comandi amministrativi di conferma e allegato seguono l’anteprima; autorizzazioni, transizioni e controlli restano invariati.
+Interfaccia del renderer: quattro schede (Tessuti, Dettagli, Riepilogo, In casa), pannello scorrevole e download separato sul desktop. Nel gestionale sono disponibili in **Modifica**; la scheda **Verifica** affianca all’anteprima le azioni amministrative di conferma e allegato. Autorizzazioni, transizioni e controlli restano invariati.
 
 **Posiziona l’album** muove esclusivamente il prodotto (album e relativo box) sul piano del mobile tramite cursori sinistra/destra, avanti/indietro e rotazione ±180°. Gli arredi restano fissi. L’ingombro ruotato determina i limiti di spostamento senza alterare la scala; se il box è più profondo del mobile compare un avviso di sporgenza. **Ricentra album** azzera la posa. La posa neutra viene ripristinata per gli export e tornando a Solo album. Comandi disponibili anche su telefono e in sola lettura, senza salvare la posa nell’ordine.
 
@@ -139,6 +139,23 @@ L’album ha larghezza di riferimento 40 cm (formato dichiarato 30 × 40 chiuso)
 Il test browser copre quattro ambienti e tredici finiture su entrambi i renderer, misure minime/massime, valori invalidi, luce naturale/LED, ritorno alla vista neutra, mobile, sola lettura ed export mentre è attiva un’ambientazione. Nessun test sui dati di produzione.
 
 ## Verifiche ripetibili
+
+### Aggiornamento verifica admin, feedback e notifiche
+
+- Admin: **Verifica** mostra stato/autore e Conferma/Richiedi modifiche. Il campo messaggio appare solo su richiesta; storico, report e allegati restano nella sezione secondaria. **Modifica** conserva tutti i controlli originali e il salvataggio. **Modelli disponibili** contiene la pubblicazione delle opzioni. L’anteprima rimane visibile mentre scorre il pannello.
+- Mobile: circa 58% anteprima e 42% opzioni (con limiti min/max), pulsante **Espandi anteprima / Opzioni** senza ricreare il canvas. Messaggi per foto mancanti e distinzione tra salvataggio non completato e invio non confermato con bozza già salvata.
+- Email: invio dopo il commit della transizione, mai nella transazione Firestore. Un errore del trasporto non annulla il mockup e restituisce un avviso, senza reinvio automatico. Si riutilizzano Gmail e il registro email esistenti. Non è una coda con garanzia di consegna: un arresto del processo dopo il commit può impedire la notifica; verificare il registro email in caso di dubbio.
+- Errore Plaza segnalato su Replit: non riprodotto con il codice corrente. Testate 18 combinazioni v4 (copertina × retro × struttura), invio con nota vuota e revisioni successive; anche il test touch valida i payload con gli schemi reali. I nuovi errori API distinguono configurazione, revisione e modello, senza esporre dati privati. Un backend Replit precedente a v4 può rifiutare il nuovo frontend: controllare l’allineamento del processo server, non solo dei file. Nessuna modifica al comando di avvio.
+- Verifiche aggiunte: `server/photobook-mockup-notification.test.ts` (destinatario, link admin, escape HTML e assenza token) e casi email nella suite route (invio, doppio invio, errore trasporto, nessuna email su bozza/rifiuto/correzioni).
+- Verifica locale: 182 test su 10 suite superati; prove browser desktop/admin e touch Chromium superate; build client/server superata. Typecheck con i tre errori preesistenti di `server/follow-up-routes.ts` indicati sotto. Nessuna email reale inviata e nessun dato cliente modificato.
+
+Allineamento Replit, conservando gli eventuali commit locali:
+
+```bash
+git fetch origin && git merge --no-edit origin/codex/mockup-ambientazioni-desktop
+```
+
+Se Git segnala conflitti, non forzare né azzerare il lavoro locale. Le prove locali non certificano l’invio email reale o lo stato del processo Replit.
 
 - `npx vitest run server/photobook-mockup-routes.test.ts server/photobook-mockup-delivery.test.ts server/lab-mockup-workflow.test.ts server/mockup-drive-recovery.test.ts server/photobook-mockup-delete.test.ts server/photobook-association.test.ts server/photobook-lab-shipment.test.ts server/lab-routes.dpa.test.ts`: suite mirata per catalogo, permessi, transizioni, conferme, allegato/idempotenza e regressioni fotolibro.
 - `node e2e/photobook-mockup.browser.mjs`: browser reale con Firebase sostituito e tutte le API simulate, senza dati produzione. Su Windows usa Edge se presente, altrimenti Chromium Playwright.
