@@ -594,7 +594,7 @@ async function processQuote(
       data.status !== currentStatus ||
       data.sendingLock ||
       (data.sentSteps || []).includes(step.step) ||
-      (data.nextDueAt && asDate(data.nextDueAt)?.getTime()! > now.getTime())
+      (data.nextDueAt && asDate(data.nextDueAt)?.getTime()! > now.getTime() && !options.force)
     ) return;
     transaction.update(stateRef, {
       sendingLock: { id: lockId, step: step.step, at: FieldValue.serverTimestamp() },

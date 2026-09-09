@@ -26,3 +26,9 @@ Per i Preventivi Rapidi nuovi, l'origine del follow-up è `emailSentAt`/`sentAt`
 **Why:** il vecchio flusso inviava il link subito dopo la creazione della quote ma non salvava il timestamp; usare indiscriminatamente `createdAt` includerebbe preventivi non realmente inviati.
 
 **How to apply:** mantenere il fallback limitato e auditabile; non usarlo per quote normali o per documenti senza contratto/token, e non sovrascrivere i timestamp espliciti.
+
+Le prove manuali di un follow-up devono essere mirate a un solo preventivo e bypassare la scadenza in entrambe le guardie, prima e dentro la transazione; la forzatura non deve poter anticipare lo step 2 o 3.
+
+**Why:** una sola guardia aggirata non basta: la transazione anti-concorrenza può ancora restituire `skipped`, mentre un bypass troppo ampio può inviare più step o coinvolgere altri clienti.
+
+**How to apply:** mantenere sempre il filtro `quoteId`, consentire la forzatura solo con `sentSteps` vuoto e lasciare invariata la data di scadenza degli step successivi.
