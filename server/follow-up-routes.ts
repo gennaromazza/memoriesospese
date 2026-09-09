@@ -22,7 +22,7 @@ const DEFAULT_SEQUENCE_STEPS: FollowUpSequenceStep[] = [
   { step: 3, delayDays: 25, templateId: "quote-followup-step-3", enabled: true },
 ];
 
-const DEFAULT_TEMPLATES: FollowUpTemplate[] = [
+export const DEFAULT_TEMPLATES: FollowUpTemplate[] = [
   {
     id: "quote-followup-step-1",
     name: "Primo contatto di valore",
@@ -82,7 +82,7 @@ const LEGACY_DEFAULT_TEMPLATE_SIGNATURES: Record<string, { subject: string; body
   },
 };
 
-function upgradeLegacyDefaultTemplate(template: FollowUpTemplate): FollowUpTemplate {
+export function upgradeLegacyDefaultTemplate(template: FollowUpTemplate): FollowUpTemplate {
   const signature = LEGACY_DEFAULT_TEMPLATE_SIGNATURES[template.id];
   const improved = DEFAULT_TEMPLATES.find((item) => item.id === template.id);
   if (
@@ -247,7 +247,7 @@ async function getTemplate(id: string, serviceType: string, step: number): Promi
   );
 }
 
-function renderTemplate(
+export function renderTemplate(
   template: FollowUpTemplate,
   data: {
     clientName: string;
