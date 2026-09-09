@@ -87,7 +87,9 @@ Il renderer corrente è `client/public/mockups/girevole-v3/`; v1 e v2 restano co
 
 ## Ambientazioni domestiche (solo esplorazione)
 
-Interfaccia uniformata: quattro schede (Tessuti, Dettagli, Riepilogo, In casa), pannello centrale scorrevole e download separato sempre raggiungibile sul desktop. Nel gestionale i comandi amministrativi di conferma e allegato seguono l’anteprima; autorizzazioni, transizioni e controlli restano invariati. Spostamento/rotazione manuale nella scena non ancora implementati: in attesa di chiarire se debbano riguardare l’album o anche gli arredi.
+Interfaccia uniformata: quattro schede (Tessuti, Dettagli, Riepilogo, In casa), pannello centrale scorrevole e download separato sempre raggiungibile sul desktop. Nel gestionale i comandi amministrativi di conferma e allegato seguono l’anteprima; autorizzazioni, transizioni e controlli restano invariati.
+
+**Posiziona l’album** muove esclusivamente il prodotto (album e relativo box) sul piano del mobile tramite cursori sinistra/destra, avanti/indietro e rotazione ±180°. Gli arredi restano fissi. L’ingombro ruotato determina i limiti di spostamento senza alterare la scala; se il box è più profondo del mobile compare un avviso di sporgenza. **Ricentra album** azzera la posa. La posa neutra viene ripristinata per gli export e tornando a Solo album. Comandi disponibili anche su telefono e in sola lettura, senza salvare la posa nell’ordine.
 
 I renderer correnti Custodia e Album girevole condividono `client/public/mockups/home-scenes.js`: quattro scene geometriche leggere (parete attrezzata, madia scandinava, living con doghe e consolle), con tredici finiture del mobile. Non sono fotografie o riproduzioni esatte di arredi commerciali.
 

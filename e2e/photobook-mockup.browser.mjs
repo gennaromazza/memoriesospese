@@ -89,10 +89,13 @@ try{
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('sideboard');
  await frame.locator('#homeLighting').selectOption('evening');
+ await frame.locator('#homeAlbumAngle').fill('45');await frame.locator('#homeAlbumAngle').dispatchEvent('input');
+ await frame.locator('#homeAlbumX').fill('70');await frame.locator('#homeAlbumX').dispatchEvent('input');
  const downloadPromise=page.waitForEvent('download');
  await frame.locator('#downloadClient').click();
  const download=await downloadPromise;assert.ok(download.suggestedFilename().endsWith('.html'));
  assert.equal(await frame.locator('#homeScene').inputValue(),'sideboard');
+ assert.equal(await frame.locator('body').getAttribute('data-home-album-angle'),'45');
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('none');
  fs.mkdirSync('work',{recursive:true});await page.screenshot({path:'work/mockup-desktop.png',fullPage:true});
@@ -290,6 +293,11 @@ try{
   }
   await page.screenshot({path:`work/home-${rendererPath}-large-day.png`});
   await page.locator('#homeLighting').selectOption('evening');
+  for (const [id,value] of [['homeAlbumX','60'],['homeAlbumZ','-50'],['homeAlbumAngle','35']]) {
+   await page.locator(`#${id}`).fill(value);await page.locator(`#${id}`).dispatchEvent('input');
+  }
+  assert.equal(await page.locator('body').getAttribute('data-home-album-position'),'60,-50');
+  assert.equal(await page.locator('body').getAttribute('data-home-album-angle'),'35');
   await page.screenshot({path:`work/home-${rendererPath}-large-led.png`});
   assert.equal(await page.locator('body').getAttribute('data-home-lighting'),'evening');
   await page.locator('#home-width').fill('0');await page.locator('#home-width').dispatchEvent('change');
@@ -300,6 +308,11 @@ try{
    await page.locator(`#home-${key}`).fill(value);await page.locator(`#home-${key}`).dispatchEvent('change');
   }
   await page.screenshot({path:`work/home-${rendererPath}-small-led.png`});
+  await page.locator('#homeAlbumAngle').fill('90');await page.locator('#homeAlbumAngle').dispatchEvent('input');
+  assert.match(await page.locator('#homePlacementStatus').textContent(),/sporge/);
+  await page.locator('#homeAlbumReset').click();
+  assert.equal(await page.locator('body').getAttribute('data-home-album-position'),'0,0');
+  assert.equal(await page.locator('body').getAttribute('data-home-album-angle'),'0');
   await page.setViewportSize({width:390,height:844});
   for (const [key,value] of [['width','300'],['height','110'],['depth','65']]) {
    await page.locator(`#home-${key}`).fill(value);await page.locator(`#home-${key}`).dispatchEvent('change');

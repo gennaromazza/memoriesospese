@@ -70,7 +70,29 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
   style.textContent += '.home-measures{margin-top:14px}.home-measures summary{cursor:pointer}.home-measures input{width:100%;padding:9px;border:1px solid #becbc1;border-radius:7px;font:inherit}.home-measures input:invalid{border-color:#ad4635}';
   const select = panel.querySelector('#homeScene'), finish = panel.querySelector('#homeFinish');
   const lighting = panel.querySelector('#homeLighting');
+  const placement = document.createElement('section'); placement.className = 'home-placement';
+  placement.innerHTML = `<h2>Posiziona l’album</h2><label for="homeAlbumX">Sinistra ↔ destra</label><input id="homeAlbumX" type="range" min="-100" max="100" value="0"><label for="homeAlbumZ">Indietro ↔ avanti</label><input id="homeAlbumZ" type="range" min="-100" max="100" value="0"><label for="homeAlbumAngle">Ruota l’album <output id="homeAlbumAngleValue">0°</output></label><input id="homeAlbumAngle" type="range" min="-180" max="180" value="0"><button id="homeAlbumReset" type="button">Ricentra album</button><p id="homePlacementStatus" role="status"></p>`;
+  panel.querySelector('#homeFinishRow').insertBefore(placement, panel.querySelector('.home-measures'));
+  style.textContent += '.home-placement{border-top:1px solid #d8ded7;margin-top:16px;padding-top:12px}.home-placement input{width:100%;min-height:28px}.home-placement output{float:right}.home-placement button{width:100%;margin-top:8px}';
+  const moveX = placement.querySelector('#homeAlbumX'), moveZ = placement.querySelector('#homeAlbumZ'), angle = placement.querySelector('#homeAlbumAngle');
   let saved, active = false;
+  function placeAlbum() {
+    if (!active) return;
+    product.position.copy(saved.productPosition); product.rotation.copy(saved.productRotation); product.rotation.y += THREE.MathUtils.degToRad(+angle.value);
+    product.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(product), size = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
+    const freeX = Math.max(0, (dimensions.width / 100 - size.x) / 2 - .01);
+    const freeZ = Math.max(0, (dimensions.depth / 100 - size.z) / 2 - .01);
+    product.position.x += -center.x + freeX * +moveX.value / 100;
+    product.position.z += -center.z + freeZ * +moveZ.value / 100;
+    product.position.y -= bounds.min.y;
+    placement.querySelector('#homeAlbumAngleValue').value = `${angle.value}°`;
+    placement.querySelector('#homePlacementStatus').textContent = size.z > dimensions.depth / 100 || size.x > dimensions.width / 100 ? 'Con questa rotazione il box sporge dal mobile. Riduci l’angolo o verifica le misure.' : '';
+    document.body.dataset.homeAlbumAngle = angle.value;
+    document.body.dataset.homeAlbumPosition = `${moveX.value},${moveZ.value}`;
+  }
+  for (const input of [moveX, moveZ, angle]) input.oninput = placeAlbum;
+  placement.querySelector('#homeAlbumReset').onclick = () => { moveX.value = moveZ.value = angle.value = 0; placeAlbum(); };
   function box(size, position, material = furniture) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material); mesh.position.set(...position); mesh.castShadow = mesh.receiveShadow = true; room.add(mesh); return mesh;
   }
@@ -125,7 +147,7 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
       box([.22 * stretch, .3, .029], [-.23 * width, .7, back + .031], dark);
     }
     ledStrip(width - .08, [0, -.045 - height, -depth / 2 + .035]);
-    applyLighting(); update();
+    applyLighting(); placeAlbum(); update();
   }
   function ledStrip(width, position) {
     box([width, .008, .012], position, ledMaterial).castShadow = false;
@@ -169,7 +191,7 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
   }
   select.onchange = () => {
     if (select.value !== 'none' && !active) {
-      saved = { position: camera.position.clone(), target: controls.target.clone(), scale: product.scale.clone(), ground: ground.visible, background: scene.background, enabled: controls.enabled, auto: controls.autoRotate, lights: baseLights.map(light => light.intensity), environmentIntensity: scene.environmentIntensity };
+      saved = { position: camera.position.clone(), target: controls.target.clone(), scale: product.scale.clone(), productPosition: product.position.clone(), productRotation: product.rotation.clone(), ground: ground.visible, background: scene.background, enabled: controls.enabled, auto: controls.autoRotate, lights: baseLights.map(light => light.intensity), environmentIntensity: scene.environmentIntensity };
       beforeEnter(); controls.autoRotate = false; controls.enabled = false;
       product.updateMatrixWorld(true);
       // Il GLB storico ha misure indicative: normalizzazione uniforme SOLO nella vista casa.
@@ -178,7 +200,7 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
       active = true; ground.visible = false; room.visible = true;
     }
     if (select.value === 'none' && active) {
-      active = false; room.visible = false; product.scale.copy(saved.scale); ground.visible = saved.ground; scene.background = saved.background;
+      active = false; room.visible = false; product.scale.copy(saved.scale); product.position.copy(saved.productPosition); product.rotation.copy(saved.productRotation); ground.visible = saved.ground; scene.background = saved.background;
       restoreLighting(); afterLeave(); camera.position.copy(saved.position); controls.target.copy(saved.target); controls.enabled = saved.enabled; controls.autoRotate = saved.auto; controls.update();
     } else if (active) { build(select.value); update(); }
     panel.querySelector('#homeFinishRow').hidden = !active;
@@ -186,7 +208,7 @@ export function installHomeScenes({ scene, camera, controls, ground, product, al
   };
   return { update, suspend() {
     if (!active) return () => {};
-    const scale = product.scale.clone(); room.visible = false; product.scale.copy(saved.scale); restoreLighting();
-    return () => { product.scale.copy(scale); room.visible = true; ground.visible = false; applyLighting(); update(); };
+    const scale = product.scale.clone(), position = product.position.clone(), rotation = product.rotation.clone(); room.visible = false; product.scale.copy(saved.scale); product.position.copy(saved.productPosition); product.rotation.copy(saved.productRotation); restoreLighting();
+    return () => { product.scale.copy(scale); product.position.copy(position); product.rotation.copy(rotation); room.visible = true; ground.visible = false; applyLighting(); update(); };
   } };
 }
