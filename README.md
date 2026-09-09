@@ -352,6 +352,18 @@ GET    /security-test                # Test domande sicurezza
 - **Conventional Commits**: Messaggi commit standardizzati
 - **Type Safety**: TypeScript strict mode
 
+## Mockup album — aggiornamento settembre 2026
+
+Custodia e Album girevole includono personalizzazione, ambientazioni domestiche, finiture e misure del mobile, luce naturale/LED e posizionamento del solo album. AR rinviata. Dettagli e verifiche in [Mockup album](docs/MOCKUP-ALBUM.md).
+
+Branch di consegna: `codex/mockup-ambientazioni-desktop`. L’allineamento Replit è effettuato dall’utente, non automaticamente dal push GitHub. Dalla Shell di Replit, con modifiche locali già salvate e working tree pulito:
+
+```sh
+git fetch origin && git merge --ff-only origin/codex/mockup-ambientazioni-desktop
+```
+
+Se Git segnala modifiche locali o cronologie divergenti, fermarsi e verificare: non usare reset forzati. Il comando aggiorna il codice senza forzare merge o cancellare lavoro; non pubblica automaticamente una nuova versione dell’app.
+
 ## 📞 Supporto
 
 ### Risoluzione Problemi

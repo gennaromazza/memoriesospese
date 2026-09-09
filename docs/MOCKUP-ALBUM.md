@@ -99,7 +99,7 @@ Ricerca del 9 settembre 2026 su fonti del produttore: [Amburgo e relativi abbina
 
 **Illuminazione** alterna luce naturale e sera con strisce e luci LED calde. Luci originali e intensità dell’ambiente vengono ripristinate sia tornando alla vista neutra sia durante l’export. Dimensioni, luce e finiture rimangono preferenze di esplorazione temporanee; non fanno parte dell’ordine. AR non implementata, rinviata su richiesta dell’utente.
 
-La scelta **Visualizza in casa** imposta posa e inquadratura fisse. **Solo album** ripristina scala, estrazione, custodia e vista precedenti. Le ambientazioni funzionano anche in sola lettura e non rendono il mockup da salvare: non modificano configurazione, Firestore, conferme o permessi. Gli export conservano le otto viste neutre, sospendendo temporaneamente ambiente e scala esplorativa.
+La scelta **Visualizza in casa** imposta l’inquadratura fissa e una posa iniziale, modificabile tramite i cursori del solo album. **Solo album** ripristina scala, estrazione, custodia e vista precedenti. Le ambientazioni funzionano anche in sola lettura e non rendono il mockup da salvare: non modificano configurazione, Firestore, conferme o permessi. Gli export conservano le otto viste neutre, sospendendo temporaneamente ambiente e scala esplorativa.
 
 L’album ha larghezza di riferimento 40 cm (formato dichiarato 30 × 40 chiuso); il GLB storico viene scalato uniformemente solo nella vista ambientata, senza deformarlo o cambiare le revisioni di produzione. Gli ingombri dei box e le proporzioni storiche restano indicativi in attesa delle misure definitive. Nessuna revisione dati aggiunta, perché la grafica del prodotto e le schede salvate restano invariate.
 
