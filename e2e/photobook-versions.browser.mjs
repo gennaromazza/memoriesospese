@@ -13,11 +13,14 @@ try {
  const edge='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
  browser=await chromium.launch({headless:true,...(fs.existsSync(edge)?{executablePath:edge}:{})});
  const page=await browser.newPage({viewport:{width:390,height:844},screen:{width:390,height:844},isMobile:true,hasTouch:true});
- const errors=[]; page.on('pageerror',e=>errors.push(e.message));
- let published=2, notifications=0;
+ const errors=[]; page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});
+ let published=2, notifications=0, approval=null, locked=false, approvedCalls=0;
  let requests=[];
+ const catalog=JSON.parse(fs.readFileSync('client/public/mockups/custodia-v1/peppe-lab-catalog.json','utf8'));
+ const material=catalog.variants[0];
+ const offer={revision:1,updatedAt:new Date().toISOString(),options:[{id:'11111111-1111-4111-8111-111111111111',name:'Ricordi',rendererId:catalog.models[0].id,supplierCode:'',active:true,materialIds:[material.id],materials:[{id:material.id,label:material.label,supplierCode:''}],labId:'lab',labName:'Laboratorio test'}]};
  const versions=[{version:1,pageCount:1},{version:2,pageCount:1},{version:3,pageCount:1,status:'draft'}];
- const book=()=>({id:'book',name:'Album prova',token:'same-token-long',currentVersion:published,versions,locked:false});
+ const book=()=>({id:'book',name:'Album prova',token:'same-token-long',currentVersion:published,versions,locked,approval});
  const pages=v=>[{id:`page-${v}`,photobookId:'book',version:v,pageNumber:1,fileName:'pagina.jpg',url:'/page.svg',width:800,height:400}];
  await page.route('**/*',async route=>{
   const url=new URL(route.request().url()); if(url.hostname!=='127.0.0.1')return route.abort();
@@ -26,16 +29,23 @@ try {
   const pathname=url.pathname;
   if(pathname.endsWith('/publish-version')){const body=route.request().postDataJSON();assert.equal(body.version,3);assert.equal(body.expectedPageCount,1);assert.equal(body.expectedCurrentVersion,2);published=3;versions[2].status='published';notifications++;return route.fulfill({json:{ok:true,notified:true}});}
   if(pathname.endsWith('/gallery-photos'))return route.fulfill({json:{photos:[],chapters:[]}});
-  if(pathname.endsWith('/mockup'))return route.fulfill({json:{version:Number(url.searchParams.get('version'))||published,enabled:false,editable:false,saved:null}});
+  if(pathname.endsWith('/approve')){assert.equal(route.request().method(),'POST');approvedCalls++;approval={version:published};return route.fulfill({json:{ok:true,approved:true}});}
+  if(pathname.endsWith('/mockup')){const version=Number(url.searchParams.get('version'))||published;return route.fulfill({json:{version,enabled:true,editable:!locked&&version===published&&approval?.version===published,approvalRequired:version===published&&approval?.version!==published,saved:null,offer}});}
   if(pathname.includes('/by-token/')){const selected=Number(url.searchParams.get('version'))||published;return route.fulfill({json:{photobook:{...book(),versions:versions.filter(v=>v.status!=='draft')},version:selected,pages:pages(selected),requests}});}
   if(pathname.endsWith('/pages'))return route.fulfill({json:{pages:pages(Number(url.searchParams.get('version')))}});
   return route.fulfill({json:{photobook:book()}});
  });
  await page.goto(`${base}/fotolibro/same-token-long`);
- await page.getByText('Stai vedendo la versione aggiornata 2',{exact:true}).waitFor();
  await page.getByTestId('overlay-rotate').waitFor();
  await page.setViewportSize({width:844,height:390});
  await page.getByTestId('overlay-rotate').waitFor({state:'hidden'});
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 aggiornata · da approvare'}).waitFor();
+ assert.equal(await page.getByTestId('photobook-mockup').count(),0,'Nessuna scheda o configuratore prima dell’approvazione');
+ assert.equal(await page.locator('iframe').count(),0);
+ const pageBounds=await page.locator('img[src="/page.svg"]').boundingBox();
+ const headerBounds=await page.locator('header').boundingBox();
+ assert.ok(pageBounds&&headerBounds&&pageBounds.y<=headerBounds.y+headerBounds.height+32,'Le pagine seguono l’header senza schede o spiegazioni ingombranti');
+ await page.screenshot({path:'work/photobook-mobile-header.png'});
  // Ogni modale deve rimanere visibile, entro lo schermo e senza blocco rotazione.
  const checkModalOrientations=async(role='dialog')=>{
   await page.getByRole(role).last().waitFor();
@@ -55,15 +65,17 @@ try {
  await page.getByTestId('button-page-pill-slide').tap();
  await checkModalOrientations();
  await page.getByTestId('button-jump-page-1').tap();
- await page.getByText('Come controllare il tuo fotolibro · guida passo passo',{exact:true}).tap();
- await page.getByText('Sfoglia tutte le pagine con le frecce.',{exact:true}).waitFor();
+ await page.getByTestId('button-photobook-help').tap();
+ await checkModalOrientations();
+ await page.getByText("Prima le pagine, poi l'aspetto del tuo album.",{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Ho capito',exact:true}).tap();
  await page.getByTestId('select-client-version').tap();
  assert.equal(await page.getByRole('option',{name:/Versione 3/}).count(),0);
  await page.getByRole('option',{name:'Versione 1',exact:true}).tap();
- await page.getByText('Versione precedente 1 · sola lettura',{exact:true}).waitFor();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 1 precedente · sola lettura'}).waitFor();
  assert.equal(await page.getByTestId('button-open-approve').count(),0);
  await page.getByRole('button',{name:'Torna alla versione attuale',exact:true}).tap();
- await page.getByText('Stai vedendo la versione aggiornata 2',{exact:true}).waitFor();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 aggiornata · da approvare'}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  // Bozza di richiesta reale tramite gesto sul canvas: cambiare versione deve chiedere conferma.
  await page.getByTestId('button-activate-pen').tap();
@@ -94,21 +106,45 @@ try {
  await page.getByRole('button',{name:'Torna alla revisione',exact:true}).tap();
  await page.getByTestId('select-client-version').tap(); page.once('dialog',d=>d.dismiss());
  await page.getByRole('option',{name:'Versione 1',exact:true}).tap();
- await page.getByText('Stai vedendo la versione aggiornata 2',{exact:true}).waitFor();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 aggiornata · da approvare'}).waitFor();
  await page.getByTestId('select-client-version').tap(); page.once('dialog',d=>d.accept());
  await page.getByRole('option',{name:'Versione 1',exact:true}).tap();
- await page.getByText('Versione precedente 1 · sola lettura',{exact:true}).waitFor();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 1 precedente · sola lettura'}).waitFor();
  requests=[{id:'sent-test',photobookId:'book',photobookName:'Album prova',galleryId:'gallery',version:2,pageId:'page-2',pageNumber:1,type:'edit',note:'Correzione precedente',status:'pending',batchId:'batch',createdAt:new Date().toISOString()}];
  await page.reload();
  await page.getByTestId('button-delete-sent-sent-test').tap();
  await checkModalOrientations('alertdialog');
  await page.getByRole('alertdialog').getByRole('button',{name:'Annulla',exact:true}).tap();
+ // Approva davvero (API simulata): la CTA compare in header, mai sopra le pagine.
+ requests=[]; await page.reload();
+ await page.getByTestId('button-open-approve').tap();
+ await page.getByTestId('button-confirm-approve').tap();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 · pagine approvate'}).waitFor();
+ assert.equal(approvedCalls,1);
+ assert.equal(await page.getByTestId('button-open-approve').count(),0);
+ assert.equal(await page.getByTestId('button-activate-pen').count(),0);
+ await page.locator('header').getByRole('button',{name:'Personalizza album',exact:true}).waitFor();
+ assert.equal(await page.locator('main').getByTestId('photobook-mockup').count(),0);
+ assert.equal(await page.locator('iframe').count(),0,'L’approvazione non apre automaticamente il renderer');
+ await page.locator('header').getByRole('button',{name:'Personalizza album',exact:true}).tap();
+ await page.getByRole('dialog').waitFor();
+ await page.getByRole('button',{name:'Chiudi mockup',exact:true}).tap();
+ await page.getByRole('dialog').waitFor({state:'hidden'});
+ locked=true; await page.reload();
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 2 · in stampa'}).waitFor();
+ assert.equal(await page.getByTestId('button-open-approve').count(),0);
+ assert.equal(await page.getByTestId('button-activate-pen').count(),0);
+ locked=false;
  await page.setViewportSize({width:1280,height:900});
  await page.goto(`${base}/admin/photobooks/book`);
  const publish=page.getByRole('button',{name:'Pubblica versione e avvisa cliente',exact:true}); await publish.waitFor();
  assert.equal(notifications,0); page.once('dialog',d=>d.accept()); await publish.tap();
  await page.getByRole('button',{name:'Avvisa cliente / verifica invio',exact:true}).waitFor(); assert.equal(notifications,1);
+ await page.setViewportSize({width:844,height:390});
  await page.goto(`${base}/fotolibro/same-token-long`);
- await page.getByText('Stai vedendo la versione aggiornata 3',{exact:true}).waitFor();
- assert.deepEqual(errors,[]); console.log('Browser versioni OK: telefono verticale, guida, storico, ritorno attuale, bozza admin, pubblicazione esplicita e solito link aggiornato.');
+ await page.getByTestId('photobook-header-status').filter({hasText:'Versione 3 aggiornata · da approvare'}).waitFor();
+ assert.equal(await page.getByTestId('photobook-mockup').count(),0,'L’approvazione v2 non abilita il mockup della v3');
+ await page.getByTestId('button-open-approve').waitFor();
+ assert.equal(approval.version,2,'La nuova pubblicazione non altera il valore simulato dell’approvazione precedente');
+ assert.deepEqual(errors,[]); console.log('Browser versioni OK: header mobile compatto, gate mockup dopo approvazione, nuova versione da approvare, stampa, guida e modali nei due orientamenti, storico e stesso link aggiornato.');
 } finally {await browser?.close();await vite.close();}

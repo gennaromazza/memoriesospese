@@ -4,6 +4,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {buildAlbumReport} from './report-template.js';
 import {installHomeScenes} from '../home-scenes.js';
+import {phoneView,fitPhoneProduct,phoneDetailDistance} from '../mobile-view.js';
 
 // Campionamento traslato e continuo: stessa direzione dei fili, nessuna griglia
 // di copie identiche. Colore e rilievo usano gli stessi spostamenti deterministici.
@@ -45,6 +46,7 @@ scene.background=new THREE.Color(0xe9e8e0);
 const camera=new THREE.PerspectiveCamera(36,1,.005,20);
 const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.enablePan=false;
 controls.minDistance=.28;controls.maxDistance=2.4;controls.autoRotateSpeed=1.3;
+if(phoneView){controls.minDistance=.09;controls.enablePan=true;controls.panSpeed=.8;}
 controls.minPolarAngle=.05;controls.maxPolarAngle=Math.PI-.05;
 const env=new RoomEnvironment();const pmrem=new THREE.PMREMGenerator(renderer);
 scene.environment=pmrem.fromScene(env,.04).texture;scene.environmentIntensity=.3;env.dispose();pmrem.dispose();
@@ -171,6 +173,7 @@ function view(which='default'){
 }
 function fitVisibleModel(){
  if(!model)return;
+ if(fitPhoneProduct(model,camera,controls))return;
  const sphere=new THREE.Box3().setFromObject(model).getBoundingSphere(new THREE.Sphere());
  const halfFov=THREE.MathUtils.degToRad(camera.fov/2);
  const limitingAngle=Math.min(halfFov,Math.atan(Math.tan(halfFov)*camera.aspect));
@@ -231,8 +234,9 @@ $('case').onchange=()=>{if(caseGroup)caseGroup.visible=$('case').checked;};
 for(const name of ['front','back','spine'])$(name).onclick=()=>view(name);
 $('rotate').onclick=()=>{controls.autoRotate=!controls.autoRotate;$('rotate').setAttribute('aria-pressed',String(controls.autoRotate));};
 $('reset').onclick=()=>{controls.autoRotate=false;$('rotate').setAttribute('aria-pressed','false');view();};
-function zoom(factor){const offset=camera.position.clone().sub(controls.target);offset.setLength(THREE.MathUtils.clamp(offset.length()*factor,controls.minDistance,controls.maxDistance));camera.position.copy(controls.target).add(offset);controls.update();}
+function zoom(factor){if(phoneView)controls.minDistance=phoneDetailDistance(model,camera,controls);const offset=camera.position.clone().sub(controls.target);offset.setLength(THREE.MathUtils.clamp(offset.length()*factor,controls.minDistance,controls.maxDistance));camera.position.copy(controls.target).add(offset);controls.update();}
 $('plus').onclick=()=>zoom(.8);$('minus').onclick=()=>zoom(1.25);
+if(phoneView)controls.addEventListener('change',()=>{controls.minDistance=phoneDetailDistance(model,camera,controls);});
 let homePose;
 const home=model&&album?installHomeScenes({scene,camera,controls,ground,product:model,album,
  beforeEnter(){homePose={x:album.position.x,visible:caseGroup.visible};album.position.x=0;caseGroup.visible=true;},

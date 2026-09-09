@@ -246,7 +246,7 @@ try{
  assert.notEqual(await frame.locator('#engravingPreview').evaluate(canvas=>canvas.toDataURL()),monogramAnna);
  await frame.locator('#firstName').fill('Anna');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).click();await page.getByText('Mockup salvato.',{exact:false}).waitFor();
- assert.deepEqual(saved.configuration.engravingNames,{first:'Anna',second:'Jacopo'});assert.equal(saved.configuration.assetRevision,3);
+ assert.deepEqual(saved.configuration.engravingNames,{first:'Anna',second:'Jacopo'});assert.equal(saved.configuration.assetRevision,4);
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  assert.equal(await frame.locator('#firstName').inputValue(),'Anna');assert.equal(await frame.locator('#secondName').inputValue(),'Jacopo');
  await frame.locator('#rotation').fill('65');await frame.locator('#rotation').dispatchEvent('input');
@@ -262,7 +262,7 @@ try{
  await page.locator('iframe').screenshot({path:'work/mockup-girevole-tessuto.png'});
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,2);
- // Retro indipendente ed estrazione del solo album, senza cambiare la configurazione.
+ // Foto sul plexiglass dello scrigno ed estrazione del solo album, senza cambiare la configurazione.
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#backCover').selectOption('photo');
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
@@ -298,7 +298,24 @@ try{
  await frame.locator('#homeScene').selectOption('none');
  await frame.locator('#extract').fill('50');await frame.locator('#extract').dispatchEvent('input');assert.equal(await frame.locator('body').getAttribute('data-extraction'),'50');
  await frame.locator('#reset').click();assert.equal(await frame.locator('#extract').inputValue(),'0');assert.equal(await frame.locator('#rotation').isDisabled(),false);
- // Una configurazione v1 resta invariata all'apertura, e passa a v2 solo modificandola.
+ // Le configurazioni v2/v3 conservano la loro identità anche nel renderer corrente.
+ // La conferma compara l'intera configurazione esportata con quella salvata, incluse foto e ritagli.
+ const currentRotatingSnapshot=structuredClone(saved);
+ for (const legacyRevision of [2,3]) {
+  const historicalConfiguration={...currentRotatingSnapshot.configuration,assetRevision:legacyRevision};
+  if(legacyRevision===2)delete historicalConfiguration.engravingNames;
+  saved={...currentRotatingSnapshot,status:'draft',configuration:historicalConfiguration};
+  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='Carica una foto'&&!b.disabled));
+  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true,'Aprire una revisione storica non deve convertirla');
+  assert.equal(await frame.locator('#backCover').inputValue(),historicalConfiguration.backCover);
+  assert.equal(await frame.locator('#backZoom').inputValue(),String(historicalConfiguration.backCrop.zoom));
+  if(legacyRevision===3)assert.equal(await frame.locator('#firstName').inputValue(),historicalConfiguration.engravingNames.first);
+  await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();
+  await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
+  assert.deepEqual(saved.configuration,historicalConfiguration,'Export storico fedele, senza migrazione implicita');
+ }
+ // Una configurazione v1 resta invariata all'apertura, e passa a v4 solo modificandola.
  const {backCover:oldBack,backPhotoAssetId:oldBackPhoto,backCrop:oldBackCrop,engravingNames:oldNames,...legacyConfig}=saved.configuration;
  saved={...saved,status:'draft',configuration:{...legacyConfig,assetRevision:1}};
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
@@ -306,7 +323,8 @@ try{
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
  await frame.locator('#frameFinish').selectOption('white');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).click();await page.getByText('Mockup salvato.',{exact:false}).waitFor();
- assert.equal(saved.configuration.assetRevision,2);assert.equal(saved.configuration.backCover,'fabric');assert.equal(saved.configuration.backPhotoAssetId,null);
+ assert.equal(saved.configuration.assetRevision,4);assert.equal(saved.configuration.backCover,'fabric');assert.equal(saved.configuration.backPhotoAssetId,null);
+ assert.equal('engravingNames' in saved.configuration,false,'Le righe legacy non vengono trasformate in nomi automaticamente');
  saved={...saved,status:'draft',configuration:{...saved.configuration,coverLayout:'plaque',photoAssetId:null,frameFinish:'wood'}};
  frame=await open('?admin');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#topText').fill('Incisione senza fotografia');
@@ -331,14 +349,14 @@ try{
  assert.equal(saved.configuration.modelId,model.id);assert.equal(saved.configuration.photoAssetId,assetId);
  // Anteprima del campione iniziale Mist 03, senza API o dati cliente.
  await page.setViewportSize({width:1440,height:1000});
- await page.goto(`http://127.0.0.1:${port}/mockups/girevole-v3/index.html`);
+ await page.goto(`http://127.0.0.1:${port}/mockups/girevole-v4/index.html`);
  await page.locator('body[data-ready="true"]').waitFor();
  await page.getByRole('button',{name:'Dettagli',exact:true}).click();
  await page.locator('#firstName').fill('Anna');await page.locator('#secondName').fill('Jacopo');
  await page.locator('#engravingPreview').screenshot({path:'work/mockup-incisione-botanica.png'});
  await page.screenshot({path:'work/mockup-girevole-anteprima.png'});
  // Le ambientazioni sono condivise e non modificano la configurazione prodotto.
- for (const rendererPath of ['girevole-v3','custodia-v1']) {
+ for (const rendererPath of ['girevole-v4','custodia-v1']) {
   await page.goto(`http://127.0.0.1:${port}/mockups/${rendererPath}/index.html`);
   await page.locator('body[data-ready="true"]').waitFor();
   await page.getByRole('button',{name:'In casa',exact:true}).click();

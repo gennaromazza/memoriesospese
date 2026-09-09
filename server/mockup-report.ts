@@ -22,7 +22,10 @@ export async function buildMockupReport(saved: SavedMockup, previews: z.infer<ty
     ['Versione fotolibro', saved.version], ['Revisione mockup confermata', saved.revision], ['Confermato dallo studio', saved.confirmedAt],
   ];
   if ('frameFinish' in saved.configuration) rows.push(['Finitura struttura', { wood: 'Legno naturale', white: 'Bianco', fabric: `Tessuto · ${material.label}` }[saved.configuration.frameFinish]], ['Dimensioni', 'Formato dichiarato 30 × 80 cm; proporzioni della struttura indicative']);
-  if ('backCover' in saved.configuration) rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
+  if ('backCover' in saved.configuration) {
+    if (saved.configuration.assetRevision >= 4) rows.push(['Plexiglass posteriore dello scrigno girevole', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie; rimane sullo scrigno quando l’album viene estratto' : 'Trasparente, senza stampa'], ['Retro album', 'Tessuto coordinato']);
+    else rows.push(['Retro album', saved.configuration.backCover === 'photo' ? 'Foto a tutta superficie su plexiglass' : 'Tessuto coordinato']);
+  }
   if ('engravingNames' in saved.configuration && saved.configuration.coverLayout === 'plaque') {
     rows[5] = ['Primo nome inciso', saved.configuration.engravingNames.first];
     rows[6] = ['Secondo nome inciso', saved.configuration.engravingNames.second];

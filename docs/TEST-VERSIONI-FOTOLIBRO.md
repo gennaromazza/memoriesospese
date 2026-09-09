@@ -7,7 +7,7 @@
 3. Controllare e premere **Pubblica versione e avvisa cliente**. La pubblicazione richiede conteggio coerente e pagine numerate da 1 senza salti/duplicati.
 4. Il link già distribuito apre la versione pubblicata. Il cliente ha guida, messaggio di versione attuale e consultazione delle precedenti.
 5. Il mockup e la proposta precedenti sono copiati nella nuova versione. Gli asset ricevono nuovi metadati ID/versione e riusano i file privati esistenti: nessuna ricompressione né cancellazione. La precedente conferma resta nella versione precedente; la copia riparte da revisione 1, bozza, e richiede nuova conferma.
-6. Il cliente può salvare nuove revisioni anche dopo invio/conferma del mockup e approvazione delle pagine. La stampa blocca la modifica a cliente e studio; allegato e verifica report già confermato rimangono operazioni amministrative disponibili.
+6. Il cliente approva prima le pagine correnti: solo dopo può aprire/personalizzare il mockup. La nuova versione ripete questo controllo senza cancellare la configurazione copiata. Dopo l’approvazione, può salvare nuove revisioni anche dopo invio/conferma del mockup. La stampa blocca la modifica a cliente e studio; allegato e verifica report già confermato rimangono operazioni amministrative disponibili.
 
 ## Compatibilità e sicurezza
 
@@ -25,12 +25,14 @@ Verifica locale: **134 test superati in 7 suite**, incluse 49 prove della nuova 
 
 `server/photobook-version-workflow.test.ts`: transazioni serializzate/atomiche simulate e router Express reale con Firebase/Gmail sostituiti. Copre creazione concorrente; lock; limiti; numeri invalidi; conteggi errati; pagine mancanti/duplicate/estranee; sessione obsoleta; pubblicazione ripetuta; copia fronte/retro/incisione; asset mancanti/estranei; divieto sovrascrittura mockup; link e storico; bozze nascoste; accesso non admin; mancata email; errore email e blocco retry; invii concorrenti; risoluzione email dal lavoro; primo invio legacy; blocco PATCH/DELETE sulle nuove versioni pubblicate.
 
-`server/photobook-mockup-routes.test.ts`: configurazioni e asset validati, revisioni obsolete, nuova revisione cliente dopo conferma, storico immutabile, lock ricontrollato durante scrittura, protezione token e operazioni riservate allo studio.
+`server/photobook-mockup-routes.test.ts`: configurazioni e asset validati, revisioni obsolete, nuova revisione cliente dopo conferma, storico immutabile, lock ricontrollato durante scrittura, protezione token e operazioni riservate allo studio. I nuovi test coprono anche approvazione assente/precedente/corrente, revoca concorrente all’invio/salvataggio/importazione foto, acquisizione da galleria/upload, copia del mockup nella nuova versione e accesso amministrativo prima dell’approvazione.
+
+Aggiornamento caroselli/plexiglass: **160 test superati in 9 suite mirate**, comprese le prove di report e configurazioni v4 e le revoche concorrenti durante invio/importazione galleria. Il dato di 134 sopra documenta la verifica precedente. Cinque suite browser coprono ora anche caroselli touch, geometria reale e zoom, percorso cliente compatto e modali ruotati; comandi in `docs/MOCKUP-ALBUM.md`. Le prove non equivalgono a una verifica su dati di produzione.
 
 Regressioni: associazione lavoro/galleria, spedizione laboratorio, allegati Drive, cancellazione esplicita fotolibro e tipi condivisi.
 
 ```sh
-npx vitest run server/photobook-version-workflow.test.ts server/photobook-mockup-routes.test.ts server/photobook-association.test.ts server/photobook-lab-shipment.test.ts server/photobook-mockup-delete.test.ts server/photobook-mockup-delivery.test.ts shared/photobook-job-gallery.test.ts
+npx vitest run server/photobook-version-workflow.test.ts server/photobook-mockup-routes.test.ts server/photobook-association.test.ts server/photobook-lab-shipment.test.ts server/photobook-mockup-delete.test.ts server/photobook-mockup-delivery.test.ts shared/photobook-job-gallery.test.ts server/lab-mockup-workflow.test.ts server/mockup-renderer-revisions.test.ts
 node e2e/photobook-versions.browser.mjs
 node e2e/photobook-mockup.browser.mjs
 npm run build

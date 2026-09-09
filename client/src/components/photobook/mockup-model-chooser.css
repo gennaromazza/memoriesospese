@@ -1,0 +1,57 @@
+.mockup-chooser { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; color: #263d3b; background: #f8f7f2; overflow: hidden; }
+.mockup-chooser button { font: inherit; cursor: pointer; }
+.mockup-chooser button:focus-visible { outline: 3px solid #517b79; outline-offset: -3px; }
+.mockup-chooser button:disabled { opacity: .35; cursor: default; }
+.mockup-chooser-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 20px; flex: 0 0 auto; }
+.mockup-chooser-heading > div { min-width: 0; }
+.mockup-chooser-heading h2 { margin: 0; font: 500 clamp(18px, 2.6vw, 24px)/1.2 Georgia, serif; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mockup-chooser-heading p { margin: 3px 0 0; color: #63716b; font-size: 12px; }
+.mockup-chooser-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 1px solid #d9ded6; border-radius: 9px; background: transparent; white-space: nowrap; font-size: 12px !important; }
+.mockup-chooser-carousel { flex: 1; min-height: 0; min-width: 0; padding-left: 20px; }
+.mockup-chooser-carousel > div { height: 100%; }
+.mockup-chooser .mockup-chooser-track { height: 100%; margin-left: 0; touch-action: pan-y pinch-zoom; }
+.mockup-chooser .mockup-chooser-slide { flex-basis: calc(100% - 30px); height: 100%; padding: 0 12px 0 0; }
+.mockup-chooser-card { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(200px, 1fr); border: 1px solid #d7ddd4; border-radius: 16px; overflow: hidden; background: #fff; text-align: left; padding: 0; color: inherit; }
+.mockup-chooser-model { transition: border-color .15s, box-shadow .15s; }
+.mockup-chooser-model:hover { border-color: #7d9990; box-shadow: 0 3px 12px #273d3910; }
+.mockup-chooser-image { display: block; min-width: 0; min-height: 0; height: 100%; overflow: hidden; background: #e9e8e1; }
+.mockup-chooser-image img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
+.mockup-chooser-description { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; min-width: 0; min-height: 0; padding: 14px 20px; }
+.mockup-chooser-copy { display: block; flex: 0 1 auto; width: 100%; min-height: 0; overflow-y: auto; }
+.mockup-chooser-eyebrow { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #64756d; overflow-wrap: anywhere; }
+.mockup-chooser-description h3, .mockup-chooser-model-name { display: block; margin: 7px 0; font: 500 clamp(20px, 3vw, 29px)/1.12 Georgia, serif; overflow-wrap: anywhere; }
+.mockup-chooser-description p, .mockup-chooser-model-copy { display: block; margin: 0; color: #5d6c66; font-size: 13px; line-height: 1.4; }
+.mockup-chooser-description small { display: block; margin-top: 8px; color: #768078; font-size: 10px; line-height: 1.35; }
+.mockup-chooser-choose { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 9px 12px; margin-top: 12px; border: 0; border-radius: 9px; background: #335e56; color: white; font: 600 12px/1.25 system-ui, sans-serif !important; }
+.mockup-chooser-navigation { flex: 0 0 48px; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 18px; }
+.mockup-chooser-arrow { height: 44px; width: 44px; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 8px; }
+.mockup-chooser-pagination { display: flex; align-items: center; gap: 12px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mockup-chooser-dots { display: flex; }
+.mockup-chooser-dots button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent; }
+.mockup-chooser-dots span { width: 6px; height: 6px; background: #c7d0c5; border-radius: 50%; }
+.mockup-chooser-dots [aria-current="true"] span { width: 20px; border-radius: 5px; background: #335e56; }
+.mockup-chooser-empty { padding: 24px; align-items: center; justify-content: center; text-align: center; }
+.mockup-chooser-empty button { min-height: 44px; padding: 8px 16px; margin-top: 12px; border: 1px solid #b7c7be; border-radius: 8px; }
+@media (max-height: 340px) and (orientation: landscape) {
+  .mockup-chooser-heading { padding: 3px 14px; }
+  .mockup-chooser-heading h2 { font-size: 18px; }
+  .mockup-chooser-heading p { font-size: 11px; margin-top: 1px; }
+  .mockup-chooser-carousel { padding-left: 14px; }
+  .mockup-chooser-description { padding: 9px 12px; justify-content: flex-start; }
+  .mockup-chooser-description h3, .mockup-chooser-model-name { font-size: 21px; margin: 5px 0; }
+  .mockup-chooser-description p, .mockup-chooser-model-copy { font-size: 12px; }
+  .mockup-chooser-description p, .mockup-chooser-model-copy { display: none; }
+  .mockup-chooser-description small { font-size: 9px; margin-top: 3px; }
+  .mockup-chooser-choose { margin-top: 8px; }
+  .mockup-chooser-navigation { flex-basis: 44px; min-height: 44px; }
+}
+@media (orientation: portrait) {
+  .mockup-chooser-heading { padding: 10px 14px; }
+  .mockup-chooser-carousel { padding-left: 14px; }
+  .mockup-chooser-card { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .mockup-chooser-description { padding: 16px; }
+  .mockup-chooser-description h3, .mockup-chooser-model-name { font-size: 26px; }
+  .mockup-chooser-description p, .mockup-chooser-model-copy { font-size: 14px; }
+  .mockup-chooser-choose { margin-top: 12px; width: 100%; }
+  .mockup-chooser-navigation { gap: 8px; }
+}

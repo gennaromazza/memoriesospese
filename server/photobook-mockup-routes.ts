@@ -35,7 +35,13 @@ export function mockupGalleryStoragePath(value: string, bucket: string): string 
 /** Montato dopo il controllo admin oppure sotto il token del singolo fotolibro. */
 export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: boolean) {
   const router = express.Router({ mergeParams: true });
-  const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) => mockupEditable(data as Parameters<typeof mockupEditable>[0], version);
+  // L'approvazione riguarda le pagine della versione corrente, non la
+  // copertina: dopo averle approvate il cliente può creare più revisioni del
+  // mockup, fino alla stampa. Lo studio conserva i propri strumenti.
+  const needsPageApproval = (data: FirebaseFirestore.DocumentData, version: number) =>
+    !isAdmin && version === data.currentVersion && data.approval?.version !== version;
+  const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) =>
+    mockupEditable(data as Parameters<typeof mockupEditable>[0], version) && !needsPageApproval(data, version);
   const writeLimit = uidRateLimiter(60, 10 * 60_000);
   router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
   router.use(async (req, res, next) => {
@@ -52,7 +58,10 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       res.locals.version = version;
       if (req.method !== 'GET') {
         const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
-        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409, 'Versione in sola lettura. Contatta lo studio.');
+        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409,
+          !data.locked && needsPageApproval(data, version)
+            ? 'Approva prima le pagine della versione attuale per personalizzare album e box.'
+            : 'Versione in sola lettura. Contatta lo studio.');
         if (!isAdmin) {
           const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
           const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
@@ -71,7 +80,7 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
       const data = saved.data();
       if (data && !isAdmin) delete data.reportPath;
-      res.json({ version, editable: canEditBook(book.data()!, version), enabled: isAdmin || saved.exists || offer.exists, saved: data || null, offer: offer.data() || null });
+      res.json({ version, editable: canEditBook(book.data()!, version), enabled: isAdmin || saved.exists || offer.exists, approvalRequired: needsPageApproval(book.data()!, version), saved: data || null, offer: offer.data() || null });
     } catch (error) { next(error); }
   });
 
