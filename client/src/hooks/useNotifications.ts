@@ -15,9 +15,10 @@ export interface Notification {
   deepLink: string;
 }
 
-export function useNotifications() {
+export function useNotifications(enabled = true) {
   return useQuery({
     queryKey: ['/api/notifications'],
+    enabled,
     queryFn: async () => {
       const notifications: Notification[] = [];
       

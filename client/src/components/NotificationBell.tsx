@@ -10,8 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-export const NotificationBell = React.memo(function NotificationBell() {
-  const { data: notifications = [], isLoading } = useNotifications();
+export const NotificationBell = React.memo(function NotificationBell({ enabled = true }: { enabled?: boolean }) {
+  const { data: notifications = [], isLoading } = useNotifications(enabled);
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   

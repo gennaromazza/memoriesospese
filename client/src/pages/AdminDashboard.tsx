@@ -409,7 +409,8 @@ export default function AdminDashboard() {
   });
 
   // Hook notifiche per prenotazioni in attesa
-  const { data: notifications = [] } = useNotifications();
+  const notificationsEnabled = !authLoading && !!user;
+  const { data: notifications = [] } = useNotifications(notificationsEnabled);
   const pendingBookings = notifications.filter(
     (n) => n?.type === "booking" && !n?.isRead,
   );
@@ -1192,7 +1193,7 @@ export default function AdminDashboard() {
                   <span className="text-xs sm:text-sm">Home</span>
                 </Button>
               </Link>
-              <NotificationBell />
+              <NotificationBell enabled={notificationsEnabled} />
               <Button
                 variant="destructive"
                 size="sm"
