@@ -3,6 +3,8 @@
 
 ## 📋 Panoramica
 
+Il configuratore mockup nel link cliente offre ora quattro passaggi guidati, ottimizzati per telefono: **Modello, Rivestimento e copertina, Foto e scritte, Riepilogo e invio**. L'anteprima resta visibile durante lo scorrimento delle opzioni. L'invio allo studio salva prima le modifiche; revisioni, blocco stampa e strumenti amministrativi restano nel flusso esistente. Dettagli e verifiche in [Mockup album](docs/MOCKUP-ALBUM.md#percorso-cliente-guidato-mobile-first).
+
 Wedding Gallery è un'applicazione web moderna e completa per la gestione di gallerie fotografiche matrimoniali. L'applicazione permette agli sposi di creare gallerie private, condividere foto con gli invitati e raccogliere messaggi vocali ricordo, il tutto con un'interfaccia elegante e funzionalità avanzate.
 
 ## ✨ Funzionalità Principali

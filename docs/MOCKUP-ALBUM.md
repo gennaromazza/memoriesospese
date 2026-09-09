@@ -49,6 +49,20 @@ Le revisioni non sono un autosalvataggio di ogni interazione: aumentano al salva
 
 ## Renderer e riuso
 
+### Percorso cliente guidato, mobile-first
+
+Dal link cliente, **Apri mockup** apre quattro passaggi: **Modello → Rivestimento e copertina → Foto e scritte → Riepilogo e invio**. La pagina delle fotografie continua a caricare il renderer solo all'apertura. Lo studio conserva i propri strumenti amministrativi, senza il wizard.
+
+- Su telefono il 3D resta sopra le opzioni scorrevoli, con Indietro/Avanti nella barra inferiore. Il dialog segue il viewport visibile quando compare la tastiera; su desktop il percorso mantiene i quattro passaggi con anteprima affiancata.
+- I modelli sono quelli della proposta reale del laboratorio; se ce n'è uno solo viene selezionato automaticamente. I campioni compatibili sono visibili senza dover aprire ogni famiglia. Le finiture e i layout usano pulsanti collegati ai controlli esistenti.
+- Foto e scritte personalizzano solo copertina e retro, non le pagine interne. L'incisione non impone una foto. Le copertine fotografiche e il retro fotografico bloccano Avanti fino alla presenza delle immagini richieste. Il ritaglio automatico esistente resta modificabile in **Sistema la foto**.
+- Fronte, Retro ed Estrai/Reinserisci sono preset di visualizzazione. **Vedi in casa** è facoltativo nel riepilogo e conserva misure, finiture, illuminazione e posizione dell'album.
+- **Salva bozza** usa il salvataggio esistente e crea una revisione. **Invia allo studio per verifica** salva prima le eventuali modifiche, poi invia usando la revisione restituita dal server. Un salvataggio fallito interrompe l'invio. Dopo un invio riuscito il pulsante resta disabilitato finché non ci sono nuove modifiche. Non equivale alla stampa.
+- Nel riepilogo, **Recupera la proposta dello studio → Ricarica proposta** consente di riallineare una sessione obsoleta, chiedendo conferma prima di abbandonare le modifiche locali. Chiudere senza salvare mantiene la stessa protezione.
+- `mockup-wizard-layout.ts` adatta esclusivamente la presentazione del documento same-origin del renderer: mantiene ID, handler, texture e canvas, ospitando i controlli React nel pannello. Il cambio di passaggio non rimonta il renderer; il cambio di modello continua a usare il percorso esistente. Nessun nuovo campo dati, endpoint o revisione degli asset.
+
+La suite browser copre navigazione e conservazione del canvas/testi, scorrimento indipendente dell'anteprima, galleria, salvataggio prima dell'invio, errore di salvataggio senza invio, incisione senza foto, requisiti fronte/retro, ritaglio, nuova bozza e sola lettura a 390 e 320 px. Sono prove locali con API simulate: restano da provare Replit e Safari su iPhone reale, inclusa la tastiera fisica del dispositivo.
+
 `client/public/mockups/custodia-v1/` contiene modello, materiali, report e soli moduli Three.js 0.180.0 necessari, con licenza MIT. Viene caricato alla prima apertura tramite iframe dello stesso dominio; il resto dell’applicazione non importa Three.js. Il bridge accetta messaggi solo dal contenitore atteso e dalla stessa origine. La foto passa come Blob, senza token né URL privati. Le immagini dimostrative incorporate nel GLB originale sono state sostituite con un campione neutro.
 
 `shared/mockup-catalog.ts` mantiene gli ID e le revisioni accettati dal backend. Il catalogo pubblico esclude i link alle scansioni sorgenti. Le revisioni degli asset vanno conservate: aggiornamenti grafici futuri devono usare una nuova cartella/registrazione, senza cambiare retroattivamente quelle già salvate.

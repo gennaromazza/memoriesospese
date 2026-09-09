@@ -32,6 +32,7 @@ try{
  const photo=await sharp({create:{width:600,height:400,channels:3,background:'#bc8862'}}).png().toBuffer();
  let saved={version:1,revision:1,updatedAt:new Date().toISOString(),configuration:{modelId:model.id,assetRevision:model.assetRevision,materialId:material.id,appearanceRevision:material.appearanceRevision,coverLayout:'full',topText:'Custodia test',bottomText:'Ricordi',photoAssetId:assetId,crop:{zoom:1.2,x:.4,y:.6}}};
  let uploads=0,gallerySelections=0,adminRequests=0;
+ let failNextSave=false,submissions=0;
  let offer=null,labCatalog={revision:0,models:[],materials:[]},confirmations=0,attachments=0;
  await page.route('**/*',async route=>{
   const url=new URL(route.request().url());
@@ -47,24 +48,25 @@ try{
    offer={revision:(offer?.revision||0)+1,updatedAt:new Date().toISOString(),options:body.selections.map(s=>{const entry=labCatalog.models.find(m=>m.id===s.modelId);assert.ok(entry);return {...entry,labId:s.labId,labName:'Laboratorio test',materials:labCatalog.materials.filter(m=>entry.materialIds.includes(m.id))};})};
    saved={...saved,revision:saved.revision+1,status:'draft'};return route.fulfill({json:offer});
   }
-  if(url.pathname.endsWith('/submit')||url.pathname.endsWith('/request-changes')){assert.equal(request.postDataJSON().revision,saved.revision);saved={...saved,revision:saved.revision+1,status:url.pathname.endsWith('/submit')?'submitted':'changes_requested'};return route.fulfill({json:saved});}
+  if(url.pathname.endsWith('/submit')||url.pathname.endsWith('/request-changes')){if(url.pathname.endsWith('/submit'))submissions++;assert.equal(request.postDataJSON().revision,saved.revision);saved={...saved,revision:saved.revision+1,status:url.pathname.endsWith('/submit')?'submitted':'changes_requested'};return route.fulfill({json:saved});}
   if(url.pathname.endsWith('/confirm')){const body=JSON.parse(request.postData());assert.equal(body.revision,saved.revision);assert.deepEqual(body.configuration,saved.configuration);assert.equal(body.previews.length,8);assert.ok(body.previews.every(v=>v.image.startsWith('data:image/jpeg;base64,')));confirmations++;saved={...saved,revision:saved.revision+1,status:'confirmed',confirmedAt:new Date().toISOString()};return route.fulfill({json:saved});}
   if(url.pathname.endsWith('/attach')){assert.equal(saved.status,'confirmed');assert.equal(request.postDataJSON().revision,saved.revision);attachments++;return route.fulfill({json:{status:'attached'}});}
   if(url.pathname.endsWith('/gallery-photos'))return route.fulfill({json:{photos:[{id:'gallery-photo',name:'Foto della galleria',url:'/sample.png',thumbnailUrl:'/sample.png'}],chapters:[]}});
   if(url.pathname.includes('/photos/'))return route.fulfill({contentType:'image/png',body:url.pathname.endsWith(backAssetId)?rearImage:photo});
   if(url.pathname.endsWith('/upload')){uploads++;const back=url.searchParams.get('name')==='retro.png';return route.fulfill({json:{id:back?backAssetId:assetId,name:back?'Foto retro.png':'Nuova foto.png',source:'upload',width:600,height:400}});}
   if(url.pathname.endsWith('/gallery-photo')){assert.equal(request.postDataJSON().photoId,'gallery-photo');gallerySelections++;return route.fulfill({json:{id:assetId,name:'Foto della galleria',source:'gallery',photoId:'gallery-photo',width:600,height:400}});}
-  if(request.method()==='PUT'){const body=request.postDataJSON();assert.equal(body.revision,saved?.revision||0);saved={version:1,revision:body.revision+1,configuration:body.configuration,updatedAt:new Date().toISOString(),status:'draft',selection:body.selection,option:offer?.options.find(o=>o.labId===body.selection?.labId&&o.id===body.selection?.modelId)};return route.fulfill({json:saved});}
+  if(request.method()==='PUT'){if(failNextSave){failNextSave=false;return route.fulfill({status:409,json:{error:'Revisione cambiata: ricarica la proposta.'}});}const body=request.postDataJSON();assert.equal(body.revision,saved?.revision||0);saved={version:1,revision:body.revision+1,configuration:body.configuration,updatedAt:new Date().toISOString(),status:'draft',selection:body.selection,option:offer?.options.find(o=>o.labId===body.selection?.labId&&o.id===body.selection?.modelId)};return route.fulfill({json:saved});}
   return route.fulfill({json:{version:1,editable:true,enabled:true,saved,offer}});
  });
  await page.route('**/sample.png',r=>r.fulfill({contentType:'image/png',body:photo}));
- async function open(query=''){
+ async function open(query='?admin'){
   await page.goto(`http://127.0.0.1:${port}/${query}`);
   assert.equal(await page.locator('iframe').count(),0,'Il 3D non deve caricarsi nella pagina delle foto');
   await page.getByRole('button',{name:/^Apri mockup /}).click();
   try { await page.frameLocator('iframe').locator('body[data-ready="true"]').waitFor({timeout:30000}); }
   catch(error){console.error(await page.locator('body').innerText());console.error(await page.frameLocator('iframe').locator('body').innerText());throw error;}
-  await page.getByRole('button',{name:'Carica una foto'}).waitFor();
+  if(query.includes('admin')) await page.getByRole('button',{name:'Carica una foto'}).waitFor();
+  else await page.frameLocator('iframe').locator('#wizard-slot').waitFor();
   return page.frameLocator('iframe');
  }
  let frame=await open();
@@ -111,6 +113,7 @@ try{
  assert.equal(gallerySelections,1);
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('sideboard');
+ assert.equal(await frame.locator('.wizard-views').count(),0,'La vista amministrativa conserva i controlli originali');
  await frame.locator('#homeLighting').selectOption('evening');
  await frame.locator('#homeAlbumAngle').fill('45');await frame.locator('#homeAlbumAngle').dispatchEvent('input');
  await frame.locator('#homeAlbumX').fill('70');await frame.locator('#homeAlbumX').dispatchEvent('input');
@@ -126,7 +129,7 @@ try{
  await page.screenshot({path:'work/mockup-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.setViewportSize({width:1440,height:1100});
- frame=await open('?readonly');
+ frame=await open('?admin&readonly');
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.disabled===true);
  assert.equal(await page.getByRole('button',{name:'Salva mockup'}).isDisabled(),true);
@@ -166,17 +169,47 @@ try{
  await page.getByRole('button',{name:'Pubblica opzioni nel link cliente'}).click();
  await page.getByText('Proposta pubblicata nel link cliente.',{exact:true}).waitFor();
  assert.equal(offer.options.length,1);
- frame=await open();
- await page.getByLabel('Laboratorio e modello scelto',{exact:true}).selectOption(`lab/${labCatalog.models[0].id}`);
+ await page.setViewportSize({width:390,height:844});
+ frame=await open('?client');
+ await frame.locator('.wizard-model[aria-pressed="true"]').waitFor();
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('modelName')?.value==='Custodia Studio');
  assert.equal(await frame.locator('[data-finish]:not([hidden])').count(),2);
  assert.equal(await frame.locator('#fabricPanel h2').textContent(),'Laboratorio test · 2 rivestimenti');
  assert.ok((await frame.locator('#materialLabel').textContent()).startsWith('Laboratorio test'));
- await page.getByRole('button',{name:'Salva mockup',exact:true}).click();
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.getByRole('heading',{name:'Rivestimento e copertina',exact:true}).waitFor();
+ await page.evaluate(()=>{window.wizardCanvas=document.querySelector('iframe').contentDocument.querySelector('#viewport');});
+ const stageBefore=await frame.locator('.stage').boundingBox();
+ await frame.locator('.panel-content').evaluate(el=>el.scrollTop=el.scrollHeight);
+ assert.deepEqual(await frame.locator('.stage').boundingBox(),stageBefore,'La vista non scorre con i campioni');
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.locator('#topText').fill('Nomi dal telefono');
+ await frame.getByRole('button',{name:'Scegli dalla galleria',exact:true}).click();
+ await page.getByRole('dialog').getByRole('button').filter({has:page.getByAltText('Foto della galleria')}).click();
+ await page.getByText('Foto pronta. Salva per conservarla nel fotolibro.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Indietro',exact:true}).click();
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ assert.equal(await frame.locator('#topText').inputValue(),'Nomi dal telefono');
+ assert.equal(await page.evaluate(()=>window.wizardCanvas===document.querySelector('iframe').contentDocument.querySelector('#viewport')),true,'Nessun nuovo canvas fra i passaggi');
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.getByText('Vedi in casa · facoltativo',{exact:true}).click();
+ await frame.locator('#homeScene').selectOption('sideboard');
+ assert.equal(await frame.locator('.wizard-views').isVisible(),false,'In casa non si estrae il prodotto dal posizionamento');
+ assert.equal(await page.evaluate(()=>document.querySelector('iframe').contentDocument.documentElement.scrollWidth<=document.querySelector('iframe').clientWidth),true);
+ const sendBox=await page.getByRole('button',{name:'Invia allo studio per verifica'}).boundingBox();
+ assert.ok(sendBox.y+sendBox.height<=844,'Invio raggiungibile in fondo al telefono');
+ failNextSave=true;
+ await page.getByRole('button',{name:'Invia allo studio per verifica'}).click();
+ await page.getByText('Revisione cambiata: ricarica la proposta.',{exact:true}).waitFor();
+ assert.equal(submissions,0,'Se il salvataggio fallisce non deve partire alcun invio');
  await page.getByRole('button',{name:'Invia allo studio per verifica'}).click();
  await page.getByText('Proposta inviata allo studio per la verifica.',{exact:true}).waitFor();
  assert.equal(saved.status,'submitted');
- assert.equal(await page.getByRole('button',{name:'Carica una foto'}).isDisabled(),false);
+ assert.equal(saved.configuration.topText,'Nomi dal telefono','Invio salva prima la revisione modificata');
+ assert.equal(await page.getByRole('button',{name:'Invia allo studio per verifica'}).isDisabled(),true,'Non reinviare senza modifiche');
+ await page.getByRole('button',{name:'Indietro',exact:true}).click();
+ assert.equal(await frame.getByRole('button',{name:'Carica una foto'}).isDisabled(),false);
+ await page.setViewportSize({width:1440,height:1100});
  frame=await open('?admin');
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#topText').fill('Correzione dello studio');
@@ -204,6 +237,7 @@ try{
  await page.getByRole('button',{name:'Salva mockup',exact:true}).click();
  await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  assert.equal(saved.configuration.modelId,'album-girevole');assert.equal(saved.configuration.coverLayout,'plaque');
+ const rotatingWizardFixture=structuredClone(saved);
  frame=await open('?admin');
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#firstName').fill('Anna');await frame.locator('#secondName').fill('Jacopo');
@@ -255,7 +289,7 @@ try{
  assert.equal(await frame.locator('#homeScene').inputValue(),'warm');
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('none');
- frame=await open('?readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
+ frame=await open('?admin&readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  assert.equal(await frame.locator('#backCover').isDisabled(),true);
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('console');
@@ -282,7 +316,7 @@ try{
  await frame.locator('#coverLayout').selectOption('plaque');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'work/mockup-girevole-mobile.png',fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- frame=await open('?readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
+ frame=await open('?admin&readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  assert.equal(await frame.locator('#frameFinish').isDisabled(),true);
  await frame.locator('#rotation').fill('90');await frame.locator('#rotation').dispatchEvent('input');
  assert.equal(await frame.locator('body').getAttribute('data-rotation'),'90');
@@ -361,6 +395,68 @@ try{
   assert.equal(await page.locator('#front').isVisible(),true);
   await page.setViewportSize({width:1440,height:1000});
  }
+ // Wizard girevole: incisione senza foto, requisiti fronte/retro, nuove bozze e sola lettura.
+ saved={...rotatingWizardFixture,configuration:{...rotatingWizardFixture.configuration,photoAssetId:null}};
+ await page.setViewportSize({width:390,height:844});
+ frame=await open('?client');
+ await frame.getByRole('button',{name:/Custodia Studio/}).click();
+ await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.body.dataset.wizard==='true' && document.querySelector('iframe')?.contentDocument?.getElementById('modelName'));
+ await frame.getByRole('button',{name:/^Album girevole/}).click();
+ await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.body.dataset.wizard==='true' && document.querySelector('iframe')?.contentDocument?.getElementById('firstName'));
+ await page.screenshot({path:'work/mockup-wizard-mobile-modelli.png'});
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.getByRole('button',{name:'Bianco',exact:true}).click();
+ await page.screenshot({path:'work/mockup-wizard-mobile-materiali.png'});
+ await frame.getByRole('button',{name:'Estrai album',exact:true}).click();
+ assert.equal(await frame.locator('body').getAttribute('data-extraction'),'100');
+ await frame.getByRole('button',{name:'Reinserisci album',exact:true}).click();
+ await frame.getByRole('button',{name:'Estrai album',exact:true}).click();
+ await frame.getByRole('button',{name:'Reimposta vista',exact:true}).click();
+ assert.equal(await frame.getByRole('button',{name:'Estrai album',exact:true}).isVisible(),true,'Il preset rispecchia il ripristino della vista');
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.locator('#firstName').fill('Éléonore');await frame.locator('#secondName').fill('Marco');
+ page.once('dialog',dialog=>dialog.dismiss());
+ await page.getByRole('button',{name:'Chiudi',exact:true}).click();
+ assert.equal(await frame.locator('#firstName').inputValue(),'Éléonore','Annullare la chiusura conserva la personalizzazione cliente');
+ await page.screenshot({path:'work/mockup-wizard-mobile-nomi.png'});
+ assert.equal(await page.getByRole('button',{name:'Avanti',exact:true}).isEnabled(),true,'Incisione senza foto valida');
+ await page.getByRole('button',{name:'Indietro',exact:true}).click();
+ await frame.getByRole('button',{name:'Foto grande a tutta copertina',exact:true}).click();
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ await frame.getByText('Per proseguire, aggiungi le foto richieste',{exact:false}).waitFor();
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Avanti')?.disabled);
+ await page.locator('input[type=file]').setInputFiles({name:'front.png',mimeType:'image/png',buffer:photo});
+ await page.getByText('Foto pronta. Salva per conservarla nel fotolibro.',{exact:true}).waitFor();
+ await frame.locator('#backCover').selectOption('photo');
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Avanti')?.disabled);
+ await frame.getByLabel('Foto da personalizzare',{exact:true}).selectOption('back');
+ await page.locator('input[type=file]').setInputFiles({name:'retro.png',mimeType:'image/png',buffer:rearImage});
+ await page.getByText('Foto pronta. Salva per conservarla nel fotolibro.',{exact:true}).waitFor();
+ await frame.getByText('Sistema la foto del retro',{exact:true}).click();
+ await frame.locator('#backZoom').fill('1.4');await frame.locator('#backZoom').dispatchEvent('input');
+ await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ const beforeDraft=saved.revision;
+ await page.getByRole('button',{name:'Salva bozza',exact:true}).click();
+ await page.getByText('Mockup salvato.',{exact:false}).waitFor();
+ assert.equal(saved.revision,beforeDraft+1);assert.equal(saved.status,'draft');
+ assert.equal(saved.configuration.backPhotoAssetId,backAssetId);assert.equal(saved.configuration.frameFinish,'white');assert.equal(saved.configuration.backCrop.zoom,1.4);
+ await page.screenshot({path:'work/mockup-wizard-mobile-riepilogo.png'});
+ await page.getByRole('button',{name:'Chiudi',exact:true}).click();
+ frame=await open('?client&readonly');
+ const readRevision=saved.revision;
+ for(let step=1;step<4;step++) {
+  if(step===2) assert.equal(await frame.getByRole('button',{name:'Bianco',exact:true}).isDisabled(),true);
+  if(step===3) assert.equal(await frame.getByRole('button',{name:'Carica una foto',exact:true}).isDisabled(),true);
+  await page.getByRole('button',{name:'Avanti',exact:true}).click();
+ }
+ assert.equal(await page.getByRole('button',{name:'Invia allo studio per verifica'}).isDisabled(),true);
+ await page.setViewportSize({width:320,height:640});
+ await page.waitForFunction(()=>{const box=document.querySelector('[role=dialog]').getBoundingClientRect();return Math.abs(box.width-320)<1 && Math.abs(box.height-640)<1 && box.top>=-1 && box.left>=-1;});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.equal(await frame.locator('body').evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.equal(await frame.getByRole('button',{name:'Fronte',exact:true}).isVisible(),true);
+ await page.screenshot({path:'work/mockup-wizard-mobile-320.png'});
+ assert.equal(saved.revision,readRevision);
  assert.deepEqual(errors,[]);
  console.log('Album girevole OK: cambio renderer, ripristino, 3 finiture e copertine, 8 viste, incisione senza foto, blocco foto mancante, mobile e sola lettura.');
  console.log('Browser OK: renderer, foto, download, mobile, catalogo laboratorio, proposta, invio cliente, correzione studio, conferma con 8 viste, allegato e contatto WhatsApp operativo.');
