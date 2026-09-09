@@ -1,0 +1,184 @@
+dashboard:1 Tracking Prevention blocked access to storage for https://static.elfsight.com/platform/platform.js.
+dashboard:1 Tracking Prevention blocked access to storage for https://static.elfsight.com/platform/platform.js.
+dashboard:1 Tracking Prevention blocked access to storage for https://static.elfsight.com/platform/platform.js.
+dashboard:1 Tracking Prevention blocked access to storage for https://static.elfsight.com/platform/platform.js.
+[NEW] Explain Console errors by using Copilot in Edge: click  to explain an error. Learn moreDon’t show again
+firebase.ts:31 Using fallback Firebase configuration. Set environment variables for production.
+(anonymous) @ firebase.ts:31
+firebase.ts:60 🚀 Firebase: connessione diretta ai servizi produzione
+firebase.ts:61 📋 Questionari e token validation: produzione Firebase
+seed-job-types.ts:67 💡 Per eseguire il seed dei jobTypes, digita: window.seedJobTypes()
+seed-product-categories.ts:67 💡 Per eseguire il seed delle categorie prodotti, digita: window.seedProductCategories()
+auth.ts:152  POST https://firestore.googleapis.com/v1/projects/wedding-gallery-397b6/databases/(default)/documents:commit?key=AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME 400 (Bad Request)
+(anonymous) @ webchannel_blob_es2018.js:57
+(anonymous) @ webchannel_connection.ts:212
+it @ webchannel_connection.ts:127
+tt @ rest_connection.ts:106
+(anonymous) @ datastore.ts:115
+Promise.then
+tt @ datastore.ts:114
+__PRIVATE_invokeCommitRpc @ datastore.ts:202
+commit @ datastore.ts:208
+(anonymous) @ transaction_runner.ts:66
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+result @ transaction_runner.ts:64
+Promise.then
+(anonymous) @ transaction_runner.ts:63
+(anonymous) @ backoff.ts:137
+(anonymous) @ async_queue.ts:196
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+handleDelayElapsed @ async_queue.ts:193
+(anonymous) @ async_queue.ts:160
+setTimeout
+start @ async_queue.ts:160
+createAndSchedule @ async_queue.ts:151
+enqueueAfterDelay @ async_queue_impl.ts:225
+Ut @ backoff.ts:132
+Lc @ transaction_runner.ts:58
+Nc @ transaction_runner.ts:54
+(anonymous) @ firestore_client.ts:640
+await in (anonymous)
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+__PRIVATE_firestoreClientTransaction @ firestore_client.ts:632
+runTransaction @ transaction.ts:115
+(anonymous) @ auth.ts:152
+anonymousCallbackTo: useCallback @ FirebaseAuthContext.tsx:71
+anonymousCallbackTo: AuthService.onAuthStateChange @ FirebaseAuthContext.tsx:89
+(anonymous) @ auth_impl.ts:754
+Promise.then
+registerStateListener @ auth_impl.ts:750
+onAuthStateChanged @ auth_impl.ts:557
+onAuthStateChanged @ index.ts:198
+(anonymous) @ auth.ts:447
+(anonymous) @ FirebaseAuthContext.tsx:88
+(anonymous) @ react-dom.development.js:23189
+(anonymous) @ react-dom.development.js:25193
+(anonymous) @ react-dom.development.js:27390
+(anonymous) @ react-dom.development.js:27369
+(anonymous) @ react-dom.development.js:27095
+(anonymous) @ react-dom.development.js:27023
+(anonymous) @ react-dom.development.js:26115
+(anonymous) @ react-dom.development.js:12042
+(anonymous) @ react-dom.development.js:26998
+(anonymous) @ react-dom.development.js:26721
+(anonymous) @ react-dom.development.js:25975
+(anonymous) @ react-dom.development.js:25848
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533
+postMessage
+schedulePerformWorkUntilDeadline @ scheduler.development.js:574
+requestHostCallback @ scheduler.development.js:588
+unstable_scheduleCallback @ scheduler.development.js:441
+(anonymous) @ react-dom.development.js:27576
+(anonymous) @ react-dom.development.js:25722
+(anonymous) @ react-dom.development.js:25570
+(anonymous) @ react-dom.development.js:28897
+(anonymous) @ react-dom.development.js:29353
+globalCode: https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:5000/src/main.tsx @ main.tsx:25
+auth.ts:152 [2026-09-09T10:23:57.493Z]  @firebase/firestore: Firestore (12.18.0): RestConnection RPC 'Commit' 0x8cc23d9b failed with error:  {"code":"failed-precondition","name":"FirebaseError"} url:  https://firestore.googleapis.com/v1/projects/wedding-gallery-397b6/databases/(default)/documents:commit?key=AIzaSyA4mw3dKOvcDBxgIJOo-r-4yUmyv0knxME request: {"writes":[{"update":{"name":"projects/wedding-gallery-397b6/databases/(default)/documents/users/ZVxEFbvKNhUoDrlTmzxkDzKcN7A3","fields":{"email":{"stringValue":"gennaro.mazzacane@gmail.com"}}},"updateMask":{"fieldPaths":["email"]},"updateTransforms":[{"fieldPath":"lastLoginAt","setToServerValue":"REQUEST_TIME"}],"currentDocument":{"updateTime":"2026-09-09T09:58:33.357964000Z"}}]}
+(anonymous) @ logger.ts:110
+warn @ logger.ts:201
+__PRIVATE_logWarn @ log.ts:69
+err @ rest_connection.ts:118
+Promise.then
+tt @ rest_connection.ts:112
+(anonymous) @ datastore.ts:115
+Promise.then
+tt @ datastore.ts:114
+__PRIVATE_invokeCommitRpc @ datastore.ts:202
+commit @ datastore.ts:208
+(anonymous) @ transaction_runner.ts:66
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+result @ transaction_runner.ts:64
+Promise.then
+(anonymous) @ transaction_runner.ts:63
+(anonymous) @ backoff.ts:137
+(anonymous) @ async_queue.ts:196
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+handleDelayElapsed @ async_queue.ts:193
+(anonymous) @ async_queue.ts:160
+setTimeout
+start @ async_queue.ts:160
+createAndSchedule @ async_queue.ts:151
+enqueueAfterDelay @ async_queue_impl.ts:225
+Ut @ backoff.ts:132
+Lc @ transaction_runner.ts:58
+Nc @ transaction_runner.ts:54
+(anonymous) @ firestore_client.ts:640
+await in (anonymous)
+(anonymous) @ async_queue_impl.ts:136
+(anonymous) @ async_queue_impl.ts:187
+Promise.then
+Yc @ async_queue_impl.ts:185
+enqueue @ async_queue_impl.ts:130
+enqueueAndForget @ async_queue_impl.ts:94
+__PRIVATE_firestoreClientTransaction @ firestore_client.ts:632
+runTransaction @ transaction.ts:115
+(anonymous) @ auth.ts:152
+anonymousCallbackTo: useCallback @ FirebaseAuthContext.tsx:71
+anonymousCallbackTo: AuthService.onAuthStateChange @ FirebaseAuthContext.tsx:89
+(anonymous) @ auth_impl.ts:754
+Promise.then
+registerStateListener @ auth_impl.ts:750
+onAuthStateChanged @ auth_impl.ts:557
+onAuthStateChanged @ index.ts:198
+(anonymous) @ auth.ts:447
+(anonymous) @ FirebaseAuthContext.tsx:88
+(anonymous) @ react-dom.development.js:23189
+(anonymous) @ react-dom.development.js:25193
+(anonymous) @ react-dom.development.js:27390
+(anonymous) @ react-dom.development.js:27369
+(anonymous) @ react-dom.development.js:27095
+(anonymous) @ react-dom.development.js:27023
+(anonymous) @ react-dom.development.js:26115
+(anonymous) @ react-dom.development.js:12042
+(anonymous) @ react-dom.development.js:26998
+(anonymous) @ react-dom.development.js:26721
+(anonymous) @ react-dom.development.js:25975
+(anonymous) @ react-dom.development.js:25848
+workLoop @ scheduler.development.js:266
+flushWork @ scheduler.development.js:239
+performWorkUntilDeadline @ scheduler.development.js:533
+postMessage
+schedulePerformWorkUntilDeadline @ scheduler.development.js:574
+requestHostCallback @ scheduler.development.js:588
+unstable_scheduleCallback @ scheduler.development.js:441
+(anonymous) @ react-dom.development.js:27576
+(anonymous) @ react-dom.development.js:25722
+(anonymous) @ react-dom.development.js:25570
+(anonymous) @ react-dom.development.js:28897
+(anonymous) @ react-dom.development.js:29353
+globalCode: https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:5000/src/main.tsx @ main.tsx:25
+NewGalleryModal.tsx:231 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:573 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+NewGalleryModal.tsx:231 🔄 Reset completo stato per nuovo booking
+AdminDashboard.tsx:573 ✅ Firebase Auth verificato: gennaro.mazzacane@gmail.com
+galleries.ts:173 [GalleryService] Documenti trovati in 'galleries': 282
+galleries.ts:192 [GalleryService] Gallerie valide dopo filtro: 282
+dashboard:1 The resource https://65b2695f-b200-424b-9509-5c251e0658fe-00-8qf1iviax1yg.spock.replit.dev:5000/assets/og-image.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.

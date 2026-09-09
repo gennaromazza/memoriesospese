@@ -43,3 +43,4 @@
 - [Fallback IA Real Wedding](real-wedding-ai-fallback.md) — una sola chiamata IA; se fallisce, bozza deterministica dai dati autorizzati, verifica fornitori solo da cache.
 - [Admin panel browser harnesses](admin-panel-e2e-harnesses.md) — monta il componente reale e simula le API same-origin per testare UI e salvataggio senza servizi esterni.
 - [Follow-up automatici preventivi](follow-up-automation.md) — invio fail-closed con lock prima di Gmail; risposte Gmail restano manuali finché non esiste sync thread/message ID.
+- [Gmail connector SDK](gmail-connector-sdk.md) — usare il proxy SDK per Gmail; mittente, admin Firebase e calendario Service Account sono identità separate.

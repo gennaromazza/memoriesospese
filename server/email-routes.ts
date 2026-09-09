@@ -414,7 +414,7 @@ async function gmailRequest(
     headers?: Record<string, string>;
     body?: unknown;
   },
-): Promise<Response> {
+): Promise<globalThis.Response> {
   const response = await new ReplitConnectors().proxy("google-mail", path, options);
 
   if (response.status === 401 || response.status === 403) {
@@ -5933,22 +5933,22 @@ router.get("/test-connection", async (req, res) => {
   try {
     console.log("🔍 Testing Gmail API connection...");
 
-    const accessToken = await getAccessToken();
+    const profile = await gmailJson<{
+      emailAddress?: string;
+      messagesTotal?: number;
+      threadsTotal?: number;
+    }>("/gmail/v1/users/me/profile");
 
-    if (accessToken) {
-      console.log("✅ Gmail API connection successful");
-      return res.json({
-        success: true,
-        message: "Gmail API connection OK",
-        tokenPreview: accessToken.substring(0, 20) + "...",
-      });
-    } else {
-      console.error("❌ Gmail API: No access token");
-      return res.status(500).json({
-        success: false,
-        error: "No access token available",
-      });
-    }
+    console.log("✅ Gmail API connection successful", {
+      emailAddress: profile.emailAddress,
+    });
+    return res.json({
+      success: true,
+      message: "Gmail API connection OK",
+      emailAddress: profile.emailAddress,
+      messagesTotal: profile.messagesTotal,
+      threadsTotal: profile.threadsTotal,
+    });
   } catch (error: any) {
     console.error("❌ Gmail API test failed:", error);
     return res.status(500).json({
