@@ -141,7 +141,8 @@ function getFollowUpOrigin(
     isQuickQuote &&
     ["inviato", "visionato"].includes(quote.status) &&
     quote.publicToken &&
-    Array.isArray(quote.contractClauses)
+    Array.isArray(quote.contractClauses) &&
+    quote.contractClauses.length > 0
   ) {
     const createdAt = asDate(quote.createdAt);
     if (createdAt) return { date: createdAt, source: "quick_quote_created_at_legacy" };

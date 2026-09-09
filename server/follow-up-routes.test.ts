@@ -523,4 +523,24 @@ describe("follow-up events e valore assistito", () => {
     expect(collections.quoteFollowUps?.["quote-1"].quoteSentAtSource).toBe("quick_quote_created_at_legacy");
     expect(h.sendGmailEmail).not.toHaveBeenCalled();
   });
+
+  it("ignora i Preventivi Rapidi storici senza contratto allegato", async () => {
+    const { db, collections } = baseDb({
+      quote: {
+        sentAt: undefined,
+        emailSentAt: undefined,
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        createdBy: "preventivo-rapido",
+        contractClauses: [],
+      },
+      job: { provenance: "preventivo-rapido" },
+    });
+    h.db = db;
+
+    const dashboard = await getFollowUpDashboard();
+
+    expect(dashboard.items).toHaveLength(0);
+    expect(collections.quoteFollowUps?.["quote-1"]).toBeUndefined();
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+  });
 });
