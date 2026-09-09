@@ -100,6 +100,7 @@ export interface FollowUpState {
   nextStep?: number;
   nextDueAt?: string;
   quoteSentAt?: string;
+  quoteSentAtSource?: "quote_sent_at" | "quick_quote_created_at_legacy";
   lastSentAt?: string;
   lastCustomerContactAt?: string;
   snoozedUntil?: string;

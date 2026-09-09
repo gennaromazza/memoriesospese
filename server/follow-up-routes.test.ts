@@ -502,4 +502,25 @@ describe("follow-up events e valore assistito", () => {
     expect(collections.quoteFollowUps?.["quote-1"]).toBeDefined();
     expect(Object.values(collections.followUpEvents || {}).some((event) => event.type === "quote_sent")).toBe(true);
   });
+
+  it("acquisisce i Preventivi Rapidi storici con contratto ma senza sentAt", async () => {
+    const { db, collections } = baseDb({
+      quote: {
+        sentAt: undefined,
+        emailSentAt: undefined,
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        createdBy: "preventivo-rapido",
+        contractClauses: [{ id: "clause-1", text: "Clausola", accepted: false }],
+      },
+      job: { provenance: "preventivo-rapido" },
+    });
+    h.db = db;
+
+    const dashboard = await getFollowUpDashboard();
+
+    expect(dashboard.items).toHaveLength(1);
+    expect(dashboard.items[0].quoteSentAtSource).toBe("quick_quote_created_at_legacy");
+    expect(collections.quoteFollowUps?.["quote-1"].quoteSentAtSource).toBe("quick_quote_created_at_legacy");
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+  });
 });

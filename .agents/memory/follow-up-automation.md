@@ -20,3 +20,9 @@ Dopo l'accettazione da Gmail, ogni fallimento nella persistenza dello stato o de
 **Why:** Gmail può aver già consegnato il messaggio; un nuovo tentativo causerebbe un doppio invio, mentre il solo log server non avvisa lo studio della riconciliazione necessaria.
 
 **How to apply:** includere sempre preventivo, step, tipo di persistenza e operazione fallita nell'evento; separare le scritture post-invio così un audit mancante non nasconda un eventuale problema di stato.
+
+Per i Preventivi Rapidi nuovi, l'origine del follow-up è `emailSentAt`/`sentAt` scritto solo dopo l'accettazione dell'invio Gmail. Per i record legacy privi di questi campi, usare soltanto il percorso riconoscibile `preventivo-rapido` con contratto e token pubblico, marcando la fonte come fallback dalla data di creazione.
+
+**Why:** il vecchio flusso inviava il link subito dopo la creazione della quote ma non salvava il timestamp; usare indiscriminatamente `createdAt` includerebbe preventivi non realmente inviati.
+
+**How to apply:** mantenere il fallback limitato e auditabile; non usarlo per quote normali o per documenti senza contratto/token, e non sovrascrivere i timestamp espliciti.

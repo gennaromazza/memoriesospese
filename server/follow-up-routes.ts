@@ -126,6 +126,29 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+function getFollowUpOrigin(
+  quote: FirestoreData,
+  job?: FirestoreData,
+): { date: Date; source: "quote_sent_at" | "quick_quote_created_at_legacy" } | undefined {
+  const explicitSentAt = asDate(quote.emailSentAt || quote.sentAt);
+  if (explicitSentAt) return { date: explicitSentAt, source: "quote_sent_at" };
+
+  // I vecchi Preventivi Rapidi inviavano il link subito dopo la creazione
+  // della quote, ma non persistevano sentAt/emailSentAt. La provenienza e le
+  // clausole del contratto rendono riconoscibile questo percorso legacy.
+  const isQuickQuote = quote.createdBy === "preventivo-rapido" || job?.provenance === "preventivo-rapido";
+  if (
+    isQuickQuote &&
+    ["inviato", "visionato"].includes(quote.status) &&
+    quote.publicToken &&
+    Array.isArray(quote.contractClauses)
+  ) {
+    const createdAt = asDate(quote.createdAt);
+    if (createdAt) return { date: createdAt, source: "quick_quote_created_at_legacy" };
+  }
+  return undefined;
+}
+
 function normalizeStepList(value: any): FollowUpSequenceStep[] {
   if (!Array.isArray(value)) return DEFAULT_SEQUENCE_STEPS;
   return value
@@ -304,14 +327,14 @@ async function isLatestQuote(quoteId: string, jobId: string, sentAt: Date, quote
   if (candidates) {
     return !candidates.some((candidate) =>
       candidate.id !== quoteId &&
-      asDate(candidate.sentAt || candidate.emailSentAt)?.getTime()! > sentAt.getTime(),
+      getFollowUpOrigin(candidate)?.date.getTime()! > sentAt.getTime(),
     );
   }
   const snapshot = await db.collection("quotes").where("jobId", "==", jobId).limit(50).get();
   return !snapshot.docs.some((doc) => {
     const data = doc.data();
     return doc.id !== quoteId &&
-      asDate(data.sentAt || data.emailSentAt)?.getTime()! > sentAt.getTime();
+      getFollowUpOrigin(data)?.date.getTime()! > sentAt.getTime();
   });
 }
 
@@ -329,21 +352,22 @@ async function getEligibleContext(
   quotesByJob?: Map<string, FirestoreData[]>,
 ) {
   const quote = { id: quoteDoc.id, ...quoteDoc.data() } as FirestoreData;
-  const sentAt = asDate(quote.emailSentAt || quote.sentAt);
-  if (!sentAt || !quote.jobId || !["inviato", "visionato"].includes(quote.status)) return null;
+  if (!quote.jobId || !["inviato", "visionato"].includes(quote.status)) return null;
   if (quote.signature || quote.status === "firmato") return null;
   const jobDoc = await db.collection("jobs").doc(quote.jobId).get();
   if (!jobDoc.exists) return null;
   const job = jobDoc.data() || {};
+  const origin = getFollowUpOrigin(quote, job);
+  if (!origin) return null;
   if (job.status !== "lead" || job.deletedAt) return null;
   const eventDate = asDate(job.eventDate);
   if (eventDate && eventDate.getTime() < Date.now()) return null;
-  if (!(await isLatestQuote(quote.id, quote.jobId, sentAt, quotesByJob))) return null;
+  if (!(await isLatestQuote(quote.id, quote.jobId, origin.date, quotesByJob))) return null;
   if (await hasBooking(quote.jobId)) return null;
   const client = await getClientData(quote, job);
   const email = String(client?.email || quote.sentTo || "").trim().toLowerCase();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
-  return { quote, job, client: client || {}, email, sentAt, eventDate };
+  return { quote, job, client: client || {}, email, sentAt: origin.date, sentAtSource: origin.source, eventDate };
 }
 
 async function ensureState(context: any, sequence: FollowUpSequence): Promise<FirestoreData> {
@@ -369,6 +393,7 @@ async function ensureState(context: any, sequence: FollowUpSequence): Promise<Fi
       nextStep: firstStep?.step,
       nextDueAt: firstStep ? Timestamp.fromDate(addDays(context.sentAt, firstStep.delayDays)) : null,
       quoteSentAt: Timestamp.fromDate(context.sentAt),
+      quoteSentAtSource: context.sentAtSource || "quote_sent_at",
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -377,7 +402,10 @@ async function ensureState(context: any, sequence: FollowUpSequence): Promise<Fi
     created = true;
   });
   if (created) {
-    await appendFollowUpEvent("quote_sent", context.quote.id, context.quote.jobId, { source: "follow-up-sync" });
+    await appendFollowUpEvent("quote_sent", context.quote.id, context.quote.jobId, {
+      source: "follow-up-sync",
+      sentAtSource: context.sentAtSource || "quote_sent_at",
+    });
   }
   return state!;
 }

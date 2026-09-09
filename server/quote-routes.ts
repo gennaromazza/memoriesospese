@@ -3630,7 +3630,7 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
     };
 
     // Helper: invia email con link al portale preventivo (non bloccante)
-    const sendPortalLinkEmail = async (publicToken: string) => {
+    const sendPortalLinkEmail = async (publicToken: string, quoteId: string) => {
       if (!email) return;
       try {
         const studioInfo = await getStudioContactInfo();
@@ -3687,8 +3687,26 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
           `Il tuo preventivo - ${nomeEvento}`,
           html,
           undefined,
-          { type: "quick_quote_link_client", relatedDocType: "quote", clientName: `${nome} ${cognome}` }
+          {
+            type: "quick_quote_link_client",
+            relatedDocId: quoteId,
+            relatedDocType: "quote",
+            clientName: `${nome} ${cognome}`,
+          }
         );
+        const sentAt = nowRomeDate();
+        await db.runTransaction(async (transaction) => {
+          const quoteRef = db.collection("quotes").doc(quoteId);
+          const quoteSnapshot = await transaction.get(quoteRef);
+          const quoteData = quoteSnapshot.data() || {};
+          if (!quoteSnapshot.exists || quoteData.emailSentAt || quoteData.sentAt) return;
+          transaction.update(quoteRef, {
+            sentAt,
+            emailSentAt: sentAt,
+            sentTo: normalizeEmail(email),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
         console.log(`✅ Email link portale preventivo inviata al cliente: ${email} → ${portalLink}`);
       } catch (err) {
         console.warn("⚠️ Email link portale al cliente non inviata:", err);
@@ -3713,18 +3731,21 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
       await db.collection("jobs").doc(jobId).update(updatePayload);
 
       // Ottieni o crea la quote per recuperare il publicToken
-      let portalToken: string;
+       let portalToken: string;
+       let portalQuoteId: string;
       if (existingLeadData.quoteIds && existingLeadData.quoteIds.length > 0) {
         // Quote già esistente — recupera il token
-        const existingQuoteDoc = await db.collection("quotes").doc(existingLeadData.quoteIds[0]).get();
+         portalQuoteId = existingLeadData.quoteIds[0];
+         const existingQuoteDoc = await db.collection("quotes").doc(portalQuoteId).get();
         portalToken = existingQuoteDoc.data()?.publicToken || "";
       } else {
         // Crea nuova quote
-        const { publicToken } = await createInitialQuote(jobId, clienteId);
+         const { quoteId, publicToken } = await createInitialQuote(jobId, clienteId);
+         portalQuoteId = quoteId;
         portalToken = publicToken;
       }
       // Invia sempre email con link al portale quando il cliente vede l'anteprima
-      sendPortalLinkEmail(portalToken);
+       sendPortalLinkEmail(portalToken, portalQuoteId);
       console.log(`✅ Quick Quote save-draft: riusato job lead=${jobId} cliente=${clienteId} (${nome} ${cognome})`);
       return res.json({ success: true, jobId, clienteId, isExisting: true });
     }
@@ -3764,8 +3785,8 @@ router.post("/quick/:token/save-draft", async (req: Request, res: Response) => {
     });
 
     // Crea quote come "inviato" e invia email con link al portale interattivo
-    const { publicToken: newPublicToken } = await createInitialQuote(jobId, clienteId);
-    sendPortalLinkEmail(newPublicToken);
+    const { quoteId: newQuoteId, publicToken: newPublicToken } = await createInitialQuote(jobId, clienteId);
+    sendPortalLinkEmail(newPublicToken, newQuoteId);
 
     console.log(`✅ Quick Quote save-draft: cliente=${clienteId} job=${jobId} (${nome} ${cognome} - ${nomeEvento})`);
     return res.json({ success: true, jobId, clienteId });
