@@ -113,6 +113,7 @@ try{
  assert.ok(adminRequests>0);
  // Catalogo reale: campionario unico laboratorio, nome configurabile e modello pronto.
  await page.goto(`http://127.0.0.1:${port}/?catalog`);
+ await page.getByText('Nessun modello associato',{exact:true}).waitFor();
  await page.getByText('Campionario del laboratorio (0)',{exact:true}).click();
  await page.getByRole('button',{name:'Importa campionario Custodia / Peppe Lab'}).click();
  await page.getByRole('button',{name:'Aggiungi modello'}).click();
@@ -121,6 +122,19 @@ try{
  await page.getByRole('button',{name:'Salva catalogo',exact:true}).click();
  await page.getByText('Catalogo salvato.',{exact:false}).waitFor();
  assert.equal(labCatalog.models[0].name,'Custodia Studio');assert.equal(labCatalog.materials.length,37);
+ assert.equal(await page.getByLabel('Nome mostrato al cliente').count(),0);
+ await page.getByText('Disponibile per le proposte',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Modifica',exact:true}).click();
+ await page.getByLabel('Nome mostrato al cliente').fill('Modifica da annullare');
+ await page.getByRole('button',{name:'Annulla modifiche',exact:true}).click();
+ await page.getByRole('heading',{name:'Custodia Studio',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Aggiungi modello'}).click();
+ await page.getByText('Nuovo · non salvato',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Annulla modifiche',exact:true}).click();
+ assert.equal(labCatalog.models.length,1);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.setViewportSize({width:1440,height:1100});
  // Il laboratorio abilita due rivestimenti per questo modello, non per il lavoro.
  labCatalog.models[0].materialIds=labCatalog.materials.slice(0,2).map(m=>m.id);
  frame=await open('?admin');
