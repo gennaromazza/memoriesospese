@@ -1,10 +1,11 @@
-[data-mobile-mockup="true"] {width:100vw!important;height:100dvh;max-width:none!important;border-radius:0!important}
-[data-mobile-mockup="true"]>div:first-of-type:not(.mockup-rotate) {padding:6px 12px}
-[data-mobile-mockup="true"] .mockup-progress {padding:4px 12px}
-[data-mobile-mockup="true"] .mockup-progress>div {margin-top:4px}
-[data-mobile-mockup="true"] .mockup-actions {padding:6px max(12px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-[data-mobile-mockup="true"] .mockup-actions>* {margin:0}
-[data-mobile-mockup="true"] .mockup-actions>div {flex:1;min-width:200px}
-[data-mobile-mockup="true"] .mockup-actions>button {width:auto}
-[data-mobile-mockup="true"] .mockup-actions>p {font-size:12px;max-width:35%;max-height:44px;overflow:auto}
+[data-mobile-mockup="true"] {width:100vw!important;height:100dvh!important;max-width:none!important;border-radius:0!important}
+[data-mobile-mockup="true"] .mockup-header {height:48px;min-height:48px;padding:2px max(6px,env(safe-area-inset-right)) 2px max(12px,env(safe-area-inset-left));gap:8px;background:#faf8f3}
+[data-mobile-mockup="true"] .mockup-header h2 {font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+[data-mobile-mockup="true"] .mockup-header>div:first-child {flex:1}
+[data-mobile-mockup="true"] .mockup-header-links {display:flex;align-items:center;gap:4px;flex-shrink:0}
+[data-mobile-mockup="true"] .mockup-header-links button {min-height:44px;height:44px;font-size:12px;padding:0 10px;gap:6px}
+[data-mobile-mockup="true"] .mockup-close {width:44px;height:44px;padding:0;border:0;background:transparent;flex-shrink:0}
 [data-mobile-mockup="true"] .mockup-rotate {position:absolute;inset:0;z-index:10;background:#faf8f3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:28px;text-align:center}
+@media(orientation:landscape) {
+  [data-mobile-mockup="true"] [data-testid="mockup-dialog-body"] {padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom);background:#faf8f3}
+}

@@ -37,7 +37,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   let server: Server; let base: string;
   beforeEach(async () => {
     h.docs.clear(); h.files.clear(); h.photos = []; h.beforeTransaction = null; h.failAfterCommit = false;
-    h.docs.set('photobooks/book', { currentVersion: 1, versions: [{ version: 1 }, { version: 2 }], galleryId: 'gallery', locked: false });
+    h.docs.set('photobooks/book', { currentVersion: 1, versions: [{ version: 1 }, { version: 2 }], galleryId: 'gallery', locked: false, approval: { version: 1 } });
     h.docs.set(`photobooks/book/mockupAssets/${photoId}`, { version: 1, storagePath: 'own-photo.jpg' });
     const app = express(); app.use(express.json());
     app.use('/admin', createPhotobookMockupRouter(async () => ref('photobooks/book').get(), true));
@@ -58,7 +58,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(loaded.saved.configuration).toEqual(configuration);
     expect(loaded.saved.revision).toBe(1);
     expect((await save(base, { revision: 1, configuration: { ...configuration, topText: 'Nuova scritta' } }, 'client')).status).toBe(200);
-    expect(h.docs.get('photobooks/book').approval).toBeUndefined();
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
     expect(h.docs.get('photobooks/book').locked).toBe(false);
   });
   it('impedisce la sovrascrittura da una sessione non aggiornata', async () => {
@@ -112,6 +112,61 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     h.docs.get('photobooks/book').approval = { version: 1 };
     expect((await save(base, { revision: 1, configuration }, 'client')).status).toBe(200);
   });
+  it.each([undefined, null, { version: 2 }])('richiede l’approvazione corrente anche con un mockup legacy esistente: %j', async approval => {
+    await save(base, { revision: 0, configuration });
+    h.docs.get('photobooks/book').approval = approval;
+    const before = structuredClone(h.docs.get('photobooks/book/mockups/v1'));
+    const payload = await fetch(`${base}/client?version=1`).then(r => r.json());
+    expect(payload).toMatchObject({ enabled: true, editable: false, approvalRequired: true, saved: before });
+    const denied = await save(base, { revision: 1, configuration }, 'client');
+    expect(denied.status).toBe(409);
+    expect((await denied.json()).error).toContain('Approva prima le pagine');
+    expect(h.docs.get('photobooks/book/mockups/v1')).toEqual(before);
+    expect(h.docs.has('photobooks/book/mockupHistory/v1-r1')).toBe(false);
+    expect((await fetch(`${base}/admin`).then(r => r.json()))).toMatchObject({ editable: true, approvalRequired: false });
+    expect((await save(base, { revision: 1, configuration }, 'admin')).status).toBe(200);
+  });
+  it.each(['upload', 'gallery-photo', 'submit'])('prima dell’approvazione blocca %s senza file o scritture', async path => {
+    await save(base, { revision: 0, configuration });
+    h.docs.get('photobooks/book').approval = null;
+    const before = structuredClone([...h.docs.entries()]);
+    const response = await fetch(`${base}/client/${path}`, {
+      method: 'POST', headers: { 'Content-Type': path === 'upload' ? 'image/jpeg' : 'application/json' },
+      body: path === 'upload' ? 'unvalidated image' : JSON.stringify({ revision: 1, photoId: 'ours' }),
+    });
+    expect(response.status).toBe(409);
+    expect([...h.docs.entries()]).toEqual(before);
+    expect(h.files.size).toBe(0);
+  });
+  it('riabilita il cliente solo dopo approvazione della nuova versione senza perdere il mockup precedente', async () => {
+    await save(base, { revision: 0, configuration });
+    h.docs.get('photobooks/book').currentVersion = 2;
+    h.docs.set(`photobooks/book/mockupAssets/${photoId}`, { version: 2 });
+    expect((await save(base, { revision: 0, configuration }, 'admin', 2)).status).toBe(200);
+    expect((await save(base, { revision: 1, configuration }, 'client', 2)).status).toBe(409);
+    expect((await fetch(`${base}/client?version=2`).then(r => r.json()))).toMatchObject({ editable: false, approvalRequired: true });
+    h.docs.get('photobooks/book').approval = { version: 2 };
+    expect((await save(base, { revision: 1, configuration }, 'client', 2)).status).toBe(200);
+    expect((await fetch(`${base}/client?version=1`).then(r => r.json()))).toMatchObject({ editable: false, saved: { revision: 1, version: 1 } });
+    expect((await save(base, { revision: 1, configuration }, 'client', 1)).status).toBe(409);
+  });
+  it('ricontrolla la revoca dell’approvazione durante un salvataggio cliente', async () => {
+    await save(base, { revision: 0, configuration });
+    h.beforeTransaction = () => { h.docs.get('photobooks/book').approval = null; };
+    expect((await save(base, { revision: 1, configuration }, 'client')).status).toBe(409);
+    expect(h.docs.get('photobooks/book/mockups/v1').revision).toBe(1);
+    expect(h.docs.has('photobooks/book/mockupHistory/v1-r1')).toBe(false);
+  });
+  it('ricontrolla la revoca durante upload e rimuove solo la copia appena creata', async () => {
+    await save(base, { revision: 0, configuration });
+    h.files.set('existing-private-photo.jpg', Buffer.from('preserved'));
+    const image = await sharp({ create: { width: 20, height: 20, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    h.beforeTransaction = () => { h.docs.get('photobooks/book').approval = null; };
+    const response = await fetch(`${base}/client/upload?name=foto.jpg`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image });
+    expect(response.status).toBe(409);
+    expect([...h.files.keys()]).toEqual(['existing-private-photo.jpg']);
+    expect([...h.docs.values()].some(d => d.name === 'foto.jpg')).toBe(false);
+  });
   it('ricontrolla il lock in transazione', async () => {
     await save(base, { revision: 0, configuration });
     h.beforeTransaction = () => { h.docs.get('photobooks/book').locked = true; };
@@ -124,7 +179,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     const previous = { ...h.docs.get('photobooks/book/mockups/v1'), status };
     h.docs.set('photobooks/book/mockups/v1', previous);
     Object.assign(h.docs.get('photobooks/book'), { locked, currentVersion, approval: approved ? { version: 1 } : null });
-    const allowed = !locked && currentVersion === 1;
+    const allowed = !locked && currentVersion === 1 && approved;
     expect((await fetch(`${base}/client?version=1`).then(r => r.json())).editable).toBe(allowed);
     expect((await save(base, { revision: 1, configuration: { ...configuration, topText: 'Nuova revisione cliente' } }, 'client')).status).toBe(allowed ? 200 : 409);
     if (allowed) {
@@ -182,6 +237,28 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
   }
   const action = (base: string, scope: string, path: string, revision: number) => fetch(`${base}/${scope}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, note: 'Controlla il ritaglio' }) });
 
+  it('ricontrolla la revoca dell’approvazione durante l’invio senza creare una revisione', async () => {
+    await publish(base);
+    await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');
+    const before = structuredClone(h.docs.get('photobooks/book/mockups/v1'));
+    h.beforeTransaction = () => { h.docs.get('photobooks/book').approval = null; };
+    expect((await action(base, 'client', 'submit', 1)).status).toBe(409);
+    expect(h.docs.get('photobooks/book/mockups/v1')).toEqual(before);
+    expect(h.docs.has('photobooks/book/mockupHistory/v1-r1')).toBe(false);
+  });
+  it('ricontrolla la revoca durante la scelta galleria preservando la foto originale', async () => {
+    await save(base, { revision: 0, configuration });
+    const image = await sharp({ create: { width: 30, height: 20, channels: 3, background: '#708090' } }).jpeg().toBuffer();
+    h.photos = [{ id: 'ours', name: 'Foto galleria', url: 'https://firebasestorage.googleapis.com/v0/b/test-bucket/o/galleries%2Fphoto.jpg?alt=media' }];
+    h.files.set('galleries/photo.jpg', image);
+    h.beforeTransaction = () => { h.docs.get('photobooks/book').approval = null; };
+    const response = await fetch(`${base}/client/gallery-photo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: 'ours' }) });
+    expect(response.status).toBe(409);
+    expect([...h.files.keys()]).toEqual(['galleries/photo.jpg']);
+    expect(h.files.get('galleries/photo.jpg')).toEqual(image);
+    expect([...h.docs.values()].some(d => d.photoId === 'ours')).toBe(false);
+  });
+
   it('pubblica solo opzioni autorizzate e congela nomi e campionario del laboratorio', async () => {
     expect((await publish(base)).status).toBe(200);
     h.docs.get('labs/lab').nome = 'Nome cambiato nel catalogo';
@@ -211,7 +288,7 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await action(base, 'admin', 'request-changes', 3)).status).toBe(200);
     expect((await fetch(`${base}/client`).then(r => r.json())).editable).toBe(true);
     expect(h.docs.get('photobooks/book/mockupHistory/v1-r2').status).toBe('submitted');
-    expect(h.docs.get('photobooks/book').approval).toBeUndefined();
+    expect(h.docs.get('photobooks/book').approval).toEqual({ version: 1 });
   });
   it('conferma una copia immutabile, preservata quando lo studio modifica la proposta', async () => {
     await publish(base);
