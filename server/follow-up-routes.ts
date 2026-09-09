@@ -321,27 +321,38 @@ async function getEligibleContext(
 
 async function ensureState(context: any, sequence: FollowUpSequence): Promise<FirestoreData> {
   const ref = db.collection("quoteFollowUps").doc(context.quote.id);
-  const existing = await ref.get();
-  if (existing.exists) return { id: ref.id, ...existing.data() };
-  const firstStep = sequence.steps.find((step) => step.enabled);
-  const state = {
-    quoteId: context.quote.id,
-    jobId: context.quote.jobId,
-    clienteId: context.job.clientiIds?.[0] || context.quote.clienteId,
-    serviceType: context.job.jobType || "default",
-    status: sequence.mode === "automatic" ? "active" : "pending_approval",
-    mode: sequence.mode,
-    sequenceId: sequence.id,
-    sentSteps: [],
-    nextStep: firstStep?.step,
-    nextDueAt: firstStep ? Timestamp.fromDate(addDays(context.sentAt, firstStep.delayDays)) : null,
-    quoteSentAt: Timestamp.fromDate(context.sentAt),
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  await ref.set(state);
-  await appendFollowUpEvent("quote_sent", context.quote.id, context.quote.jobId, { source: "follow-up-sync" });
-  return { id: ref.id, ...state, createdAt: new Date(), updatedAt: new Date() };
+  let created = false;
+  let state: FirestoreData | undefined;
+  await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(ref);
+    if (existing.exists) {
+      state = { id: ref.id, ...existing.data() };
+      return;
+    }
+    const firstStep = sequence.steps.find((step) => step.enabled);
+    const initialState = {
+      quoteId: context.quote.id,
+      jobId: context.quote.jobId,
+      clienteId: context.job.clientiIds?.[0] || context.quote.clienteId,
+      serviceType: context.job.jobType || "default",
+      status: sequence.mode === "automatic" ? "active" : "pending_approval",
+      mode: sequence.mode,
+      sequenceId: sequence.id,
+      sentSteps: [],
+      nextStep: firstStep?.step,
+      nextDueAt: firstStep ? Timestamp.fromDate(addDays(context.sentAt, firstStep.delayDays)) : null,
+      quoteSentAt: Timestamp.fromDate(context.sentAt),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    transaction.set(ref, initialState);
+    state = { id: ref.id, ...initialState, createdAt: new Date(), updatedAt: new Date() };
+    created = true;
+  });
+  if (created) {
+    await appendFollowUpEvent("quote_sent", context.quote.id, context.quote.jobId, { source: "follow-up-sync" });
+  }
+  return state!;
 }
 
 async function processQuote(
@@ -385,12 +396,15 @@ async function processQuote(
   });
   if (!locked) return "skipped";
 
+  let rendered: { subject: string; html: string };
+  let templateId = step.templateId;
   try {
     const template = await getTemplate(step.templateId, context.job.jobType || "default", step.step);
     if (!template?.active) throw new Error(`Template follow-up mancante o inattivo per step ${step.step}`);
+    templateId = template.id;
     const quoteUrl = `${baseUrl()}/quote/${context.quote.publicToken}`;
     const clientName = [context.client.nome, context.client.cognome].filter(Boolean).join(" ") || "Cliente";
-    const rendered = renderTemplate(template, {
+    rendered = renderTemplate(template, {
       clientName,
       coupleName: context.job.nomeEvento || "il tuo evento",
       eventDate: eventDateLabel(context.eventDate),
@@ -398,14 +412,41 @@ async function processQuote(
       quoteUrl: `${baseUrl()}/api/follow-ups/track/${context.quote.id}/clicked?token=${encodeURIComponent(context.quote.publicToken)}&redirect=${encodeURIComponent(quoteUrl)}`,
       trackingOpenUrl: `${baseUrl()}/api/follow-ups/track/${context.quote.id}/opened?token=${encodeURIComponent(context.quote.publicToken)}`,
     });
+  } catch (error) {
+    await stateRef.update({
+      sendingLock: FieldValue.delete(),
+      lastError: error instanceof Error ? error.message : String(error),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.error(`[FollowUp] Invio fallito per quote ${context.quote.id}:`, error);
+    return "error";
+  }
+
+  try {
     await appendFollowUpEvent("followup_due", context.quote.id, context.quote.jobId, {}, step.step);
+  } catch (error) {
+    console.error(`[FollowUp] Evento due non registrato per quote ${context.quote.id}:`, error);
+  }
+
+  try {
     await sendGmailEmail(context.email, rendered.subject, rendered.html, undefined, {
       type: "quote_followup",
       relatedDocId: context.quote.id,
       relatedDocType: "quote",
-      clientName,
+      clientName: [context.client.nome, context.client.cognome].filter(Boolean).join(" ") || "Cliente",
     });
-    const next = sequence.steps.find((item) => item.enabled && item.step > step.step);
+  } catch (error) {
+    await stateRef.update({
+      sendingLock: FieldValue.delete(),
+      lastError: error instanceof Error ? error.message : String(error),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    console.error(`[FollowUp] Invio fallito per quote ${context.quote.id}:`, error);
+    return "error";
+  }
+
+  const next = sequence.steps.find((item) => item.enabled && item.step > step.step);
+  try {
     await stateRef.update({
       sendingLock: FieldValue.delete(),
       sentSteps: FieldValue.arrayUnion(step.step),
@@ -417,19 +458,15 @@ async function processQuote(
     });
     await appendFollowUpEvent("followup_sent", context.quote.id, context.quote.jobId, {
       subject: rendered.subject,
-      templateId: template.id,
+      templateId,
     }, step.step);
     if (!next) await appendFollowUpEvent("dormant", context.quote.id, context.quote.jobId, { lastStep: step.step });
-    return "sent";
   } catch (error) {
-    await stateRef.update({
-      sendingLock: FieldValue.delete(),
-      lastError: error instanceof Error ? error.message : String(error),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    console.error(`[FollowUp] Invio fallito per quote ${context.quote.id}:`, error);
-    return "error";
+    // Gmail has already accepted the message. Never release the send lock here:
+    // doing so could make the next scheduler tick send the same follow-up again.
+    console.error(`[FollowUp] Stato/evento post-invio non completamente registrato per quote ${context.quote.id}:`, error);
   }
+  return "sent";
 }
 
 export async function runFollowUpCheck(): Promise<{ checked: number; sent: number; skipped: number; errors: string[] }> {
@@ -463,7 +500,7 @@ function serializeState(data: FirestoreData): FirestoreData {
   );
 }
 
-async function dashboard(): Promise<FollowUpDashboardResponse> {
+export async function getFollowUpDashboard(): Promise<FollowUpDashboardResponse> {
   const [stateSnapshot, eventSnapshot, sequences, templates] = await Promise.all([
     db.collection("quoteFollowUps").limit(500).get(),
     db.collection("followUpEvents").limit(1000).get(),
@@ -519,7 +556,7 @@ async function dashboard(): Promise<FollowUpDashboardResponse> {
 
 router.get("/dashboard", authenticateFirebase, async (_req, res) => {
   try {
-    res.json(await dashboard());
+    res.json(await getFollowUpDashboard());
   } catch (error) {
     console.error("[FollowUp] Dashboard error:", error);
     res.status(500).json({ error: "Impossibile caricare il Centro Follow-up" });

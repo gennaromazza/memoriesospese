@@ -13,6 +13,10 @@ fai rollback del marker **SOLO se fallisce l'invio email vero e proprio**. Le sc
 post-invio (timeline / workflowEvents / collezioni accessorie) sono **best-effort**:
 in caso di errore vanno solo loggate, MAI causare il rollback del marker.
 
+La creazione iniziale dello stato del job deve essere transazionale a sua volta:
+due scheduler concorrenti non devono poter creare due stati o due eventi
+`quote_sent` prima di arrivare al lock di invio.
+
 **Why:** un singolo `try/catch` attorno a "send + persist" fa rollback del marker anche
 quando l'email è GIÀ partita ma fallisce una scrittura successiva → al giro orario
 seguente il cliente riceve un secondo invio. È esattamente l'anti-pattern segnalato in review.

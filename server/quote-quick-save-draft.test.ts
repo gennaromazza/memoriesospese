@@ -112,6 +112,7 @@ vi.mock("firebase-admin/auth", () => ({
 
 vi.mock("./email-routes.js", () => ({
   sendGmailEmail: vi.fn(async () => ({ success: true })),
+  authenticateFirebase: (_req: any, _res: any, next: () => void) => next(),
   getStudioContactInfo: async () => ({ name: "Studio", email: "s@x.it", phone: "" }),
   createQuoteSignedEmailHTML: () => "",
   createPaymentReminderEmailHTML: () => "",
