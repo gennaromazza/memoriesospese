@@ -113,6 +113,16 @@ flowchart TB
 | `/api/studio-assistant` | assistente operativo | admin |
 | `/api/info-forms` | moduli informativi | token/admin |
 | `/api/photobooks` | revisione fotolibri | token/admin |
+| `/api/photobooks/:id/mockup` e `/api/photobooks/by-token/:token/mockup` | configurazione Custodia per versione, foto caricate o da galleria | admin/token del fotolibro |
+
+Il modulo [Mockup album](./MOCKUP-ALBUM.md) conserva configurazioni e copie private
+delle foto nelle sottocollezioni `mockups` e `mockupAssets` del fotolibro. Catalogo
+in `labs.mockupCatalog`; proposte, revisioni e allegati in `mockupOffers`,
+`mockupHistory`, `mockupAttachments`. Il [piano operativo](./PIANO-MOCKUP-WORKFLOW.md)
+descrive selezione per lavoro, verifica dello studio e allegato esplicito su Drive.
+Il viewer 3D viene caricato solo all’apertura; non modifica l’approvazione
+dell’impaginato né i file di stampa. Prima integrazione locale: 9 settembre 2026,
+PR non ancora creata.
 
 La colonna “Accesso atteso” è una specifica da verificare durante l'audit, non
 la certificazione dello stato attuale.

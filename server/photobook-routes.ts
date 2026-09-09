@@ -29,6 +29,7 @@ import { authenticateFirebase, sendGmailEmail, getSiteBaseUrl } from './email-ro
 import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } from './photobook-gallery.js';
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
+import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
 
 const router: Router = express.Router();
 
@@ -283,6 +284,7 @@ function snapshotUrlPrefix(photobookId: string): string {
 // ============================================================
 // ROUTE PUBBLICHE A TOKEN (nessuna autenticazione)
 // ============================================================
+router.use('/by-token/:token/mockup', createPhotobookMockupRouter(req => getBookByToken(req.params.token), false));
 
 /** GET /by-token/:token — fotolibro + pagine della versione corrente */
 router.get('/by-token/:token', async (req: Request, res: Response) => {
@@ -725,6 +727,24 @@ router.post('/by-token/:token/approve', async (req: Request, res: Response) => {
 // ============================================================
 
 router.use(authenticateFirebase, requireAdmin);
+router.use('/:id/mockup', createPhotobookMockupRouter(req => db.collection(BOOKS_COL).doc(req.params.id).get(), true));
+
+/** Lettura operativa senza backfill o mutazioni dei fotolibri legacy. */
+router.get('/mockup-jobs/:jobId', async (req, res) => {
+  try {
+    const job = await db.collection('jobs').doc(req.params.jobId).get();
+    if (!job.exists) return res.status(404).json({ error: 'Lavoro non trovato' });
+    const data = job.data()!;
+    const ids = [...new Set<string>([...(Array.isArray(data.clientiIds) ? data.clientiIds : []), ...(data.clienteId ? [data.clienteId] : [])])];
+    const clients = await Promise.all(ids.map(id => db.collection('clienti').doc(id).get()));
+    const books = await db.collection(BOOKS_COL).where('jobId', '==', job.id).get();
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.json({
+      contacts: clients.filter(c => c.exists).map(c => ({ id: c.id, name: [c.data()!.nome, c.data()!.cognome].filter(Boolean).join(' '), phone: c.data()!.whatsapp || c.data()!.cellulare1 || '' })),
+      books: books.docs.map(b => ({ id: b.id, name: b.data().name, currentVersion: b.data().currentVersion })),
+    });
+  } catch { res.status(500).json({ error: 'Impossibile caricare i mockup del lavoro' }); }
+});
 
 /** GET /requests — tutte le richieste di modifica (schermata "Modifiche Fotolibro") */
 router.get('/requests', async (req: Request, res: Response) => {
@@ -914,8 +934,16 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const pagesSnap = await db.collection(PAGES_COL).where('photobookId', '==', ref.id).get();
     const reqSnap = await db.collection(REQUESTS_COL).where('photobookId', '==', ref.id).get();
 
+    const [mockupsSnap, mockupAssetsSnap, mockupOffersSnap, mockupHistorySnap, mockupAttachmentsSnap] = await Promise.all([
+      ref.collection('mockups').get(),
+      ref.collection('mockupAssets').get(),
+      ref.collection('mockupOffers').get(),
+      ref.collection('mockupHistory').get(),
+      ref.collection('mockupAttachments').get(),
+    ]);
+
     // Elimina i documenti in batch (max 500 per batch)
-    const allDocs = [...pagesSnap.docs, ...reqSnap.docs, doc];
+    const allDocs = [...pagesSnap.docs, ...reqSnap.docs, ...mockupsSnap.docs, ...mockupAssetsSnap.docs, ...mockupOffersSnap.docs, ...mockupHistorySnap.docs, ...mockupAttachmentsSnap.docs, doc];
     for (let i = 0; i < allDocs.length; i += 450) {
       const batch = db.batch();
       for (const d of allDocs.slice(i, i + 450)) batch.delete(d.ref);
@@ -925,6 +953,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     // Elimina i file Storage (best-effort)
     try {
       await storage.bucket().deleteFiles({ prefix: `photobooks/${ref.id}/` });
+      await storage.bucket().deleteFiles({ prefix: `photobook-mockups/${ref.id}/` });
     } catch (e) {
       console.warn('[photobooks] Pulizia Storage fallita (non bloccante):', e);
     }
@@ -1460,25 +1489,35 @@ router.post('/:id/lab-shipment', async (req: any, res: Response) => {
       : typeof existingTransfer?.heartbeatAt?._seconds === 'number'
         ? existingTransfer.heartbeatAt._seconds * 1000
         : 0;
-    const transferAlreadyRunning =
+    let transferAlreadyRunning =
       existingTransfer?.status === 'running' && now - heartbeatMs < TRANSFER_STALE_MS;
 
     if (!transferAlreadyRunning) {
-      await shipmentRef.update({
-        pageTransfer: {
-          status: 'running',
-          total: pages.length,
-          transferred: 0,
-          skipped: 0,
-          failed: [],
-          startedAt: FieldValue.serverTimestamp(),
-          heartbeatAt: FieldValue.serverTimestamp(),
-          finishedAt: null,
-        },
-        updatedAt: FieldValue.serverTimestamp(),
+      const started = await db.runTransaction(async tx => {
+        const fresh = await tx.get(shipmentRef!);
+        const data = fresh.data();
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status)) return false;
+        const freshHeartbeat = data.pageTransfer?.heartbeatAt?.toDate?.().getTime() || Number(data.pageTransfer?.heartbeatAt?._seconds || 0) * 1000;
+        if (data.pageTransfer?.status === 'running' && Date.now() - freshHeartbeat < TRANSFER_STALE_MS) return 'running' as const;
+        tx.update(shipmentRef!, {
+          pageTransfer: {
+            status: 'running',
+            total: pages.length,
+            transferred: 0,
+            skipped: 0,
+            failed: [],
+            startedAt: FieldValue.serverTimestamp(),
+            heartbeatAt: FieldValue.serverTimestamp(),
+            finishedAt: null,
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
       });
+      if (!started) return res.status(409).json({ error: 'Attendi la conclusione del trasferimento mockup o verifica l’invio della spedizione prima di trasferire le pagine.' });
       // Fire-and-forget: gli errori vengono registrati dentro pageTransfer
-      void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
+      if (started === 'running') transferAlreadyRunning = true;
+      else void runPhotobookPageTransfer(shipmentRef, ref.id, driveFolderId, pages);
     }
 
     // Evento timeline sul job (solo alla prima creazione, best-effort)

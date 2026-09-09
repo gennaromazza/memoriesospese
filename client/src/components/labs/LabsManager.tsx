@@ -65,6 +65,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import LabMockupCatalog from './LabMockupCatalog';
 
 const formSchema = z.object({
   nome: z.string().min(2, 'Nome troppo corto'),
@@ -319,6 +320,7 @@ export default function LabsManager() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingLab, setEditingLab] = useState<Lab | null>(null);
   const [deletingLab, setDeletingLab] = useState<Lab | null>(null);
+  const [catalogLab, setCatalogLab] = useState<Lab | null>(null);
 
   const { data: labs = [], isLoading } = useQuery<Lab[]>({
     queryKey: ['/api/labs'],
@@ -462,6 +464,7 @@ export default function LabsManager() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCatalogLab(lab)}>Modelli album</Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -487,6 +490,12 @@ export default function LabsManager() {
       )}
 
       {/* Create Modal */}
+      <Dialog open={!!catalogLab} onOpenChange={() => setCatalogLab(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Modelli album · {catalogLab?.nome}</DialogTitle><DialogDescription>Catalogo e rivestimenti disponibili presso questo laboratorio.</DialogDescription></DialogHeader>
+          {catalogLab && <LabMockupCatalog key={catalogLab.id} labId={catalogLab.id} />}
+        </DialogContent>
+      </Dialog>
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto" data-testid="modal-create-lab">
           <DialogHeader>

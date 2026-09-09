@@ -98,7 +98,7 @@ function makeCollection(col: string) {
 }
 
 vi.mock('./firebase-admin.js', () => ({
-  db: { collection: (name: string) => makeCollection(name) },
+  db: { collection: (name: string) => makeCollection(name), runTransaction: async (run: any) => run({ get: (ref: any) => ref.get(), update: (ref: any, patch: any) => ref.update(patch) }) },
   storage: {
     bucket: () => ({
       name: 'test',

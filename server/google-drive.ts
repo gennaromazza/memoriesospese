@@ -192,6 +192,34 @@ export async function deleteBackupFromDrive(fileId: string): Promise<void> {
   console.log(`🗑️ Backup deleted from Google Drive: ${fileId}`);
 }
 
+/** Recupera solo una copia identica già caricata; non crea né modifica file. */
+export async function findMatchingShipmentFile(folderId: string, fileName: string, expected: Buffer): Promise<{ fileId: string; size: number; webViewLink?: string } | null> {
+  const escapeQuery = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const query = `'${escapeQuery(folderId)}' in parents and name='${escapeQuery(fileName)}' and trashed=false`;
+  const result = await driveJson<{ files?: { id: string; size?: string; webViewLink?: string }[] }>(
+    `/drive/v3/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent('files(id,size,webViewLink)')}&pageSize=2`,
+  );
+  if (!result.files?.length) return null;
+  if (result.files.length !== 1) throw new Error('Più file con lo stesso nome: verifica manualmente la cartella Drive');
+  const file = result.files[0];
+  if (Number(file.size) !== expected.length) throw new Error('Il file Drive non corrisponde alla conferma conservata');
+  const response = await driveFetch(`/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`);
+  if (!response.ok) throw new Error('Impossibile verificare il contenuto del file Drive');
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Contenuto Drive non disponibile');
+  const chunks: Buffer[] = []; let received = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    received += part.value.byteLength;
+    if (received > expected.length) { await reader.cancel(); throw new Error('Il file Drive è cambiato durante la verifica'); }
+    chunks.push(Buffer.from(part.value));
+  }
+  const bytes = Buffer.concat(chunks);
+  if (!bytes.equals(expected)) throw new Error('Il contenuto Drive è diverso: nessuna conferma registrata');
+  return { fileId: file.id, size: bytes.length, ...(file.webViewLink ? { webViewLink: file.webViewLink } : {}) };
+}
+
 // ============================================================================
 // CONSEGNE LABORATORIO - Upload file di stampa verso laboratori
 // Cartella dedicata, separata dai backup. Link "chiunque con il link" (reader).

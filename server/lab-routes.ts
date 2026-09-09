@@ -39,6 +39,7 @@ import {
   updateLabDpaFields,
 } from './lab-dpa.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
+import { labMockupCatalogRouter } from './lab-mockup-catalog.js';
 
 const ADMIN_EMAILS = ['gennaro.mazzacane@gmail.com'];
 
@@ -66,6 +67,10 @@ function multilineHtml(value: unknown): string {
 }
 
 function rejectPrintShopLegacyMutation(shipment: LabShipment, res: express.Response): boolean {
+  if (shipment.mockupDispatching || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')) {
+    res.status(409).json({ error: 'Spedizione occupata: completa o verifica il trasferimento mockup / invio prima di modificarla.' });
+    return true;
+  }
   if (shipment.sourceType !== 'print_shop') return false;
   res.status(409).json({
     error: 'Questa spedizione appartiene allo shop stampe: usa le azioni dedicate dell’ordine',
@@ -92,6 +97,7 @@ function requireAdmin(req: any, res: express.Response, next: express.NextFunctio
  * GET /api/labs?attiviOnly=true
  * Lista laboratori (opzionalmente solo attivi).
  */
+router.use('/labs/:labId/mockup-catalog', authenticateFirebase, requireAdmin, labMockupCatalogRouter);
 router.get('/labs', authenticateFirebase, requireAdmin, async (req: any, res) => {
   try {
     const attiviOnly = req.query.attiviOnly === 'true';
@@ -509,7 +515,16 @@ router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (re
     }
 
     const shipmentRef = db.collection('labShipments').doc(id);
-    await shipmentRef.update(updateData);
+    if (shipmentDoc.data()?.sourceType === 'photobook') {
+      const allowed = await db.runTransaction(async tx => {
+        const fresh = await tx.get(shipmentRef);
+        const data = fresh.data();
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status) || (data.mockupSnapshot && labId !== undefined && labId !== data.mockupSnapshot.labId)) return false;
+        tx.update(shipmentRef, updateData);
+        return true;
+      });
+      if (!allowed) return res.status(409).json({ error: 'Mockup in trasferimento o laboratorio diverso dalla conferma allegata. Verifica la spedizione prima di modificarla.' });
+    } else await shipmentRef.update(updateData);
 
     if (shipmentDoc.data()?.sourceType === 'photobook') {
       await refreshLabShipmentInstructions(shipmentRef);
@@ -529,6 +544,9 @@ router.patch('/lab-shipments/:id', authenticateFirebase, requireAdmin, async (re
  * status='inviato', sentAt=now, expiresAt=now+expiryDays.
  */
 router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async (req: any, res) => {
+  let mockupDispatchClaimed = false;
+  let emailAttempted = false;
+  let emailPersisted = false;
   try {
     const { id } = req.params;
     const { labId: labIdFromBody } = req.body;
@@ -542,6 +560,16 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     if (rejectPrintShopLegacyMutation(shipment, res)) return;
 
     if (shipment.sourceType === 'photobook') {
+      const claimed = await db.runTransaction(async tx => {
+        const ref = db.collection('labShipments').doc(id);
+        const fresh = await tx.get(ref);
+        const data = fresh.data();
+        if (!data || data.mockupDispatching || ['uploading', 'needs_review'].includes(data.mockupTransfer?.status) || (data.mockupSnapshot && (labIdFromBody || data.labId) !== data.mockupSnapshot.labId)) return false;
+        tx.update(ref, { mockupDispatching: true });
+        return true;
+      });
+      if (!claimed) return res.status(409).json({ error: 'Invio bloccato: controlla trasferimento mockup e laboratorio destinatario della conferma.' });
+      mockupDispatchClaimed = true;
       shipment = await refreshLabShipmentInstructions(
         db.collection('labShipments').doc(id),
       );
@@ -683,6 +711,7 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
       </div>
     `;
 
+    emailAttempted = true;
     await sendGmailEmail(
       lab.email,
       `File pronti per la stampa: ${jobNome} | ${studioInfo.name}`,
@@ -707,12 +736,18 @@ router.post('/lab-shipments/:id/send', authenticateFirebase, requireAdmin, async
     });
 
     console.log(`✅ Spedizione ${id} inviata a ${lab.email} (scadenza ${scadenzaFormatted})`);
+    emailPersisted = true;
 
     const updated = await db.collection('labShipments').doc(id).get();
     res.json({ id: updated.id, ...updated.data() });
   } catch (error: any) {
     console.error('❌ Error sending lab shipment:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    // Non liberare il blocco dopo un invio email dall'esito ambiguo.
+    if (mockupDispatchClaimed && (!emailAttempted || emailPersisted)) {
+      await db.collection('labShipments').doc(req.params.id).update({ mockupDispatching: false }).catch(() => undefined);
+    }
   }
 });
 

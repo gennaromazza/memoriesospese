@@ -147,6 +147,10 @@ export interface LabShipmentSendState {
  * Collezione Firestore: labShipments
  */
 export interface LabShipment {
+  /** Riferimento alla copia immutabile del mockup approvato dallo studio. */
+  mockupSnapshot?: { version: number; revision: number; photobookId: string; labId: string; modelName: string; confirmedAt: string; driveFileId: string };
+  mockupTransfer?: { status: 'uploading' | 'attached' | 'needs_review'; revision: number; claim: string };
+  mockupDispatching?: boolean;
   id: string;
   /** Legacy/job e fotolibri usano jobId; lo shop usa orderId. */
   jobId?: string;

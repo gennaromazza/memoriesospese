@@ -249,6 +249,8 @@ export default function LabShipmentItem({
         </div>
 
         {/* Laboratorio destinatario */}
+        {(shipment.mockupDispatching || ['uploading', 'needs_review'].includes(shipment.mockupTransfer?.status || '')) && <p role="status" className="rounded border border-amber-300 p-2 text-sm">Trasferimento mockup o invio in corso / da verificare. Non ripetere l’invio: controlla la cartella Drive e lo stato prima di procedere.</p>}
+        {shipment.mockupSnapshot && <p className="rounded border p-2 text-sm">Mockup allegato: {shipment.mockupSnapshot.modelName} · fotolibro v{shipment.mockupSnapshot.version} · revisione {shipment.mockupSnapshot.revision}. Questa copia non cambia modificando il mockup corrente.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">

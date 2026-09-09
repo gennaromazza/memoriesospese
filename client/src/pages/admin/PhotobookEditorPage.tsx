@@ -6,6 +6,7 @@
  */
 
 import { useRef, useState } from 'react';
+import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -219,6 +220,7 @@ export default function PhotobookEditorPage() {
         </div>
 
         {/* Barra versioni + upload */}
+        <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
         <Card>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">

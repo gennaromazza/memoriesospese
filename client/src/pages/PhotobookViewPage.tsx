@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import PhotobookMockup from '@/components/photobook/PhotobookMockup';
 import { createPortal } from 'react-dom';
 import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
 import { useParams } from 'wouter';
@@ -856,6 +857,7 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'py-1.5 pb-8' : 'py-4 sm:py-6'
         }`}
       >
+        <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion || isApproved} />
         {isLocked && (
           <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
             <CardContent className="py-4 flex items-start gap-3">
