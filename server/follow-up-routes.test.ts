@@ -488,4 +488,18 @@ describe("follow-up events e valore assistito", () => {
     expect(dashboard.stats.sentByStep).toEqual({ "1": 1 });
     expect(dashboard.stats.assistedValue).toBe(1200);
   });
+
+  it("acquisisce nel dashboard i preventivi già inviati senza spedire email", async () => {
+    const { db, collections } = baseDb();
+    h.db = db;
+
+    const dashboard = await getFollowUpDashboard();
+
+    expect(dashboard.items).toHaveLength(1);
+    expect(dashboard.items[0].quoteId).toBe("quote-1");
+    expect(dashboard.items[0].status).toBe("active");
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+    expect(collections.quoteFollowUps?.["quote-1"]).toBeDefined();
+    expect(Object.values(collections.followUpEvents || {}).some((event) => event.type === "quote_sent")).toBe(true);
+  });
 });

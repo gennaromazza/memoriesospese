@@ -683,6 +683,32 @@ export async function runFollowUpCheck(): Promise<{ checked: number; sent: numbe
   return result;
 }
 
+async function syncExistingFollowUpStates(): Promise<void> {
+  const quoteSnapshot = await db.collection("quotes").limit(500).get();
+  const quotesByJob = new Map<string, FirestoreData[]>();
+  for (const doc of quoteSnapshot.docs) {
+    const data = { id: doc.id, ...doc.data() } as FirestoreData;
+    if (data.jobId) quotesByJob.set(data.jobId, [...(quotesByJob.get(data.jobId) || []), data]);
+  }
+
+  const sequences = new Map<string, FollowUpSequence>();
+  for (const quoteDoc of quoteSnapshot.docs) {
+    try {
+      const context = await getEligibleContext(quoteDoc, quotesByJob);
+      if (!context) continue;
+      const serviceType = context.job.jobType || "default";
+      let sequence = sequences.get(serviceType);
+      if (!sequence) {
+        sequence = await getSequence(serviceType);
+        sequences.set(serviceType, sequence);
+      }
+      await ensureState(context, sequence);
+    } catch (error) {
+      console.error(`[FollowUp] Impossibile inizializzare il preventivo ${quoteDoc.id}:`, error);
+    }
+  }
+}
+
 function serializeState(data: FirestoreData): FirestoreData {
   return Object.fromEntries(
     Object.entries(data).map(([key, value]) => [key, key.endsWith("At") || key === "quoteSentAt" || key === "nextDueAt" || key === "snoozedUntil" ? iso(value) : value]),
@@ -690,6 +716,10 @@ function serializeState(data: FirestoreData): FirestoreData {
 }
 
 export async function getFollowUpDashboard(): Promise<FollowUpDashboardResponse> {
+  // Acquisisce anche i preventivi inviati prima dell'attivazione del Centro,
+  // senza eseguire gli invii: sarà lo scheduler, o il pulsante "Esegui
+  // controllo", a processare le scadenze.
+  await syncExistingFollowUpStates();
   const [stateSnapshot, eventSnapshot, sequences, templates] = await Promise.all([
     db.collection("quoteFollowUps").limit(500).get(),
     db.collection("followUpEvents").limit(1000).get(),
