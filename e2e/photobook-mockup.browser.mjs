@@ -60,6 +60,7 @@ try{
  await page.route('**/sample.png',r=>r.fulfill({contentType:'image/png',body:photo}));
  async function open(query=''){
   await page.goto(`http://127.0.0.1:${port}/${query}`);
+  assert.equal(await page.locator('iframe').count(),0,'Il 3D non deve caricarsi nella pagina delle foto');
   await page.getByRole('button',{name:/^Apri mockup /}).click();
   try { await page.frameLocator('iframe').locator('body[data-ready="true"]').waitFor({timeout:30000}); }
   catch(error){console.error(await page.locator('body').innerText());console.error(await page.frameLocator('iframe').locator('body').innerText());throw error;}
@@ -74,6 +75,28 @@ try{
  await page.getByRole('button',{name:'Salva mockup'}).click();
  await page.getByText('Mockup salvato. Il salvataggio non equivale alla conferma dello studio.',{exact:true}).waitFor();
  assert.equal(saved.configuration.topText,'Anna e Marco');
+ await page.setViewportSize({width:390,height:844});
+ const modal=page.getByRole('dialog',{name:'Personalizza il tuo album',exact:true});
+ await page.waitForFunction(()=>{const box=document.querySelector('[role=dialog]')?.getBoundingClientRect();return box && Math.abs(box.width-innerWidth)<2 && Math.abs(box.height-innerHeight)<2;});
+ const modalBox=await modal.boundingBox();
+ assert.ok(modalBox && modalBox.width>=389 && modalBox.height>=843);
+ const saveBox=await page.getByRole('button',{name:'Salva mockup',exact:true}).boundingBox();
+ assert.ok(saveBox && saveBox.y+saveBox.height<=844,`Salva sempre visibile sul telefono: ${JSON.stringify({modalBox,saveBox})}`);
+ await frame.locator('#topText').fill('Modifica non salvata');
+ page.once('dialog',dialog=>dialog.dismiss());
+ await page.getByRole('button',{name:'Chiudi',exact:true}).click();
+ assert.equal(await page.locator('iframe').count(),1,'Annullare la chiusura conserva il renderer');
+ page.once('dialog',dialog=>dialog.accept());
+ await page.getByRole('button',{name:'Chiudi',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('iframe'));
+ await page.getByRole('button',{name:/^Apri mockup /}).click();
+ await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Anna e Marco');
+ await page.getByRole('button',{name:'Salva mockup',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
+ await page.screenshot({path:'work/mockup-modal-mobile.png'});
+ await page.getByRole('button',{name:'Chiudi',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('iframe'));
+ await page.setViewportSize({width:1440,height:1100});
  frame=await open();
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Anna e Marco');

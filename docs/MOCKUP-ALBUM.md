@@ -25,6 +25,10 @@ Il materiale è comune a copertina, dorso e custodia, come nel prototipo. Le mis
 
 ## Dati e autorizzazione
 
+Il configuratore si apre in un modale dedicato, a schermo intero sui telefoni, e non espande più la pagina delle foto. La chiusura rimuove l’iframe e chiede conferma prima di abbandonare modifiche non salvate; durante salvataggi/upload/conferme la chiusura è bloccata. Alla riapertura si riparte dalla configurazione salvata. I controlli Salva e Invia allo studio rimangono fuori dall’area scorrevole.
+
+Le revisioni non sono un autosalvataggio di ogni interazione: aumentano al salvataggio e nelle transizioni del flusso. Lo studio consulta le precedenti da **Storico revisioni**; per le confermate può scaricare il report con otto viste. Non è presente un pulsante di ripristino automatico di una revisione precedente. Lo storico è separato per versione del fotolibro e riservato allo studio.
+
 - `photobooks/{id}/mockups/v{version}`: configurazione validata, versione, revisione progressiva, data aggiornamento.
 - `labs/{id}.mockupCatalog`: revisione del catalogo, campionario comune e modelli (nome, codice, asset registrato, compatibilità materiali).
 - `photobooks/{id}/mockupOffers/v{version}`: snapshot delle sole opzioni scelte dallo studio, nomi e campionario congelati alla pubblicazione.

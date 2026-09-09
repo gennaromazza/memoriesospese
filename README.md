@@ -356,6 +356,8 @@ GET    /security-test                # Test domande sicurezza
 
 Custodia e Album girevole includono personalizzazione, ambientazioni domestiche, finiture e misure del mobile, luce naturale/LED e posizionamento del solo album. AR rinviata. Dettagli e verifiche in [Mockup album](docs/MOCKUP-ALBUM.md).
 
+**Apri mockup** apre il configuratore in una finestra dedicata: schermo intero sul telefono e modale ampio sul desktop. Nella pagina del fotolibro rimane il riepilogo; il renderer 3D viene montato solo all’apertura e rimosso alla chiusura. Salva e invia allo studio restano nel bordo inferiore della finestra. La chiusura chiede conferma se ci sono modifiche non salvate.
+
 In **Lavori & Clienti → Laboratori → Modelli album**, il catalogo mostra schede compatte con nome, tipo di anteprima, numero di rivestimenti e disponibilità. **Modifica** apre i campi di un solo modello; **Aggiungi modello** crea una bozza, **Salva catalogo** applica le modifiche e **Annulla modifiche** ripristina l’ultimo catalogo salvato. I modelli del laboratorio non sono automaticamente assegnati ai clienti: la proposta si seleziona nel singolo fotolibro.
 
 Branch di consegna: `codex/mockup-ambientazioni-desktop`. L’allineamento Replit è effettuato dall’utente, non automaticamente dal push GitHub. Dalla Shell di Replit, con modifiche locali già salvate e working tree pulito:

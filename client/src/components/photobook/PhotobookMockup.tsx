@@ -4,6 +4,7 @@ import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/config';
 import { getPhotobookGalleryPhotosByToken, listPhotobookGalleryPhotos } from '@/lib/photobooks';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import PhotobookPhotoPicker from './PhotobookPhotoPicker';
 import { mockupConfigurationSchema, type MockupConfiguration, type MockupPayload, type MockupPhoto, type SavedMockup } from '@shared/mockup-types';
 import { MOCKUP_STATUS_LABELS, optionFor, type MockupSelection } from '@shared/mockup-workflow';
@@ -73,6 +74,14 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     revision.current = value.revision;
     queryClient.setQueryData<MockupPayload>(stateKey, previous => previous ? { ...previous, saved: value } : previous);
   };
+  function closeConfigurator() {
+    if (busy) return;
+    if (dirty && !window.confirm('Chiudere il configuratore e abbandonare le modifiche non salvate?')) return;
+    setOpen(false); setPicker(false); setReady(false); setRenderBusy(true);
+    setDirty(false); setConfiguration(null); setRendererOverride(null); setSelection(undefined);
+    pendingOption.current = null; currentPhoto.current = undefined; initializing.current = true;
+    setHistory(null); setNote(''); setMessage(''); setPhotoSide('front');
+  }
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
@@ -221,13 +230,21 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   return <section className="rounded-lg border bg-white p-4 space-y-3" data-testid="photobook-mockup">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="font-semibold">{title} · Anteprima album 3D</h2><p className="text-sm text-muted-foreground">Foto, rivestimento e scritte · versione {version}</p></div>
-      {!open && <Button variant="outline" onClick={() => { setOpen(true); void state.refetch(); }}>Apri mockup {title}</Button>}
+      <Button variant="outline" onClick={() => { setOpen(true); void state.refetch(); }}>Apri mockup {title}</Button>
+    </div>
+    {saved && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
+    <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
+    <DialogContent className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
+        <div className="min-w-0"><DialogTitle>Personalizza il tuo album</DialogTitle><DialogDescription>{title} · versione {version}</DialogDescription></div>
+        <Button variant="outline" className="min-h-11" disabled={busy} onClick={closeConfigurator}>Chiudi</Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3" data-testid="mockup-dialog-body">
       {open && <Button variant="outline" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
         const fresh = await state.refetch();
         if (!fresh.isError) { pendingOption.current = null; setRendererOverride(null); setDirty(false); setReady(false); setRenderBusy(true); setGeneration(g => g + 1); }
       }}>Ricarica proposta</Button>}
-    </div>
     {saved && <div className="text-sm space-y-1"><p className="font-medium">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}</p><p>{saved.option?.labName} {saved.option && '·'} {saved.option?.name} {saved.option && '·'} {saved.option?.materials.find(m => m.id === saved.configuration.materialId)?.label}</p><p>Ultima modifica: {saved.updatedBy === 'client' ? 'Cliente tramite link' : saved.updatedBy === 'studio' ? 'Studio' : 'Non registrato'} · {new Date(saved.updatedAt).toLocaleString('it-IT')}</p>{saved.note && <p>Note: {saved.note}</p>}</div>}
     {open && <>
       {state.isLoading && <p role="status">Caricamento configurazione…</p>}
@@ -254,10 +271,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
-          <Button disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
-          {dirty && <span className="self-center text-sm text-amber-800">Modifiche da salvare</span>}
         </div>
-        {token && <Button disabled={!editable || busy || dirty || !saved || !state.data.offer} onClick={() => action('/submit')}>Invia allo studio per verifica</Button>}
         <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
@@ -293,5 +307,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         void selectPhoto(() => request('/gallery-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId: photo.id }) }));
       }} />
     </>}
+      </div>
+      <div className="shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
+        <div className="flex flex-wrap gap-2">
+          <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
+          {token && <Button className="min-h-11 flex-1 sm:flex-none" variant="outline" disabled={!editable || busy || dirty || !saved || !state.data?.offer} onClick={() => action('/submit')}>Invia allo studio per verifica</Button>}
+        </div>
+      </div>
+    </DialogContent>
+    </Dialog>
   </section>;
 }
