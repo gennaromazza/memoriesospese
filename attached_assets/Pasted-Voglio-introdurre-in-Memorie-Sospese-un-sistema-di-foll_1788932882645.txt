@@ -1,0 +1,126 @@
+Voglio introdurre in Memorie Sospese un sistema di follow-up per i preventivi rapidi non firmati ancora in stato di lead.
+
+NON modificare subito il codice: prima analizza la struttura esistente di lead, clienti, preventivi, booking ed email e proponi l'integrazione migliore.
+
+Obiettivo
+
+Il sistema deve aiutarmi a seguire i preventivi senza risposta, evitando semplici email automatiche ripetitive.
+
+Flusso indicativo:
+
+- Follow-up 1 dopo circa 3 giorni
+- Follow-up 2 dopo circa 10 giorni
+- Follow-up 3 dopo circa 25 giorni
+- poi stop automatico e, se opportuno, passaggio a "Lead dormiente" o "Da riattivare"
+
+Le tempistiche devono però essere configurabili.
+
+Regole
+
+Il follow-up deve riguardare preventivi:
+
+- non firmati;
+- ancora lead;
+- con data futura o indefinita.
+
+Deve fermarsi automaticamente se:
+
+- il preventivo viene firmato;
+- viene creato un booking;
+- il cliente risponde;
+- viene registrato un contatto manuale recente;
+- il lead viene chiuso o segnato come non interessato;
+- la data evento è passata;
+- esiste un preventivo più recente che sostituisce quello precedente.
+
+La data dell'evento deve influenzare il sistema: i lead con matrimonio futuro possono essere riattivati quando la data si avvicina, mentre quelli con data indefinita devono essere messi in stato dormiente dopo la sequenza.
+
+Centro Follow-up
+
+Vorrei una schermata che mostri i lead da seguire oggi con:
+
+- cliente/coppia;
+- data evento;
+- importo preventivo;
+- giorni trascorsi;
+- ultimo contatto;
+- follow-up suggerito.
+
+Azioni:
+
+- Invia email
+- Apri WhatsApp
+- Apri cliente
+- Apri preventivo
+- Posticipa
+- Segna come contattato
+- Non interessato
+
+Modalità possibili:
+
+- Manuale
+- Con approvazione
+- Automatico
+
+Inizialmente preferisco "Con approvazione".
+
+Email NON hardcoded
+
+È fondamentale che testi, oggetti, CTA e tempistiche NON siano scritti direttamente nel codice.
+
+Devono essere gestiti come template configurabili e salvati nei dati/impostazioni.
+
+Ogni template deve poter avere:
+
+- nome;
+- tipo di evento;
+- numero/step del follow-up;
+- oggetto;
+- corpo email;
+- CTA;
+- giorni di attesa;
+- attivo/non attivo.
+
+Variabili disponibili, quando presenti:
+
+[nome cliente]
+[nome coppia]
+[data evento]
+[importo preventivo]
+[url preventivo]
+[url configuratore]
+
+Il sistema deve funzionare correttamente anche quando alcune variabili non esistono.
+
+In futuro voglio poter creare sequenze differenti per matrimonio, battesimo, famiglia, maternity, Natale e altri servizi senza modificare il codice.
+
+Tracking
+
+Registrare nella timeline almeno:
+
+- preventivo inviato;
+- follow-up inviato;
+- email aperta/cliccata se disponibile;
+- preventivo visualizzato;
+- risposta cliente;
+- firma;
+- contatto manuale;
+- automazione sospesa.
+
+Vorrei inoltre statistiche su:
+
+- lead in follow-up;
+- risposte;
+- firme dopo follow-up;
+- conversione dei vari step;
+- valore economico recuperato.
+
+Prima di implementare, analizza il codice esistente e proponimi:
+
+1. architettura dati;
+2. logica del motore follow-up;
+3. UX della schermata;
+4. gestione dei template;
+5. eventuali funzioni esistenti da riutilizzare.
+
+Non modificare ancora il codice.
