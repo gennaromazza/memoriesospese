@@ -120,6 +120,7 @@ export async function apiRequest(
     '/api/receipts/', // Receipt endpoints requiring auth
     '/api/invoices', // Electronic invoice XML endpoints requiring auth
     '/api/reminders/', // Reminder endpoints requiring auth
+    '/api/follow-ups', // Centro follow-up e azioni admin
     '/api/jobs', // Job endpoints requiring auth (matches /api/jobs, /api/jobs/, /api/jobs?...)
     '/api/migrations/', // Migration endpoints requiring auth
     '/api/photobooks', // Photobook endpoints requiring auth (le route pubbliche by-token ignorano l'header)

@@ -152,6 +152,7 @@ import BlogManager from "@/components/admin/BlogManager";
 import EmailLogsManager from "@/components/admin/EmailLogsManager";
 import WeddingVideosManager from "@/components/admin/WeddingVideosManager";
 import ReminderManager from "@/components/admin/ReminderManager";
+import FollowUpCenter from "@/components/admin/FollowUpCenter";
 import ReviewEmailManager from "@/components/admin/ReviewEmailManager";
 import TodayJobsSummary from "@/components/admin/TodayJobsSummary";
 import BulkEmailSender from "./BulkEmailSender";
@@ -266,7 +267,8 @@ type AdminTab =
   | "quote-templates"
   | "photobooks"
   | "photobook-changes"
-  | "print-shop-orders";
+  | "print-shop-orders"
+  | "follow-up";
 
 type BookingSection = "bookings-list" | "campaigns";
 type ConsultationSection = "consulenze" | "consulenze-templates";
@@ -2802,6 +2804,10 @@ export default function AdminDashboard() {
             {/* Contenuto Tab Email Massivo */}
             <TabsContent value="bulkEmail">
               <BulkEmailSender />
+            </TabsContent>
+
+            <TabsContent value="follow-up">
+              <FollowUpCenter />
             </TabsContent>
 
             {/* Contenuto Tab Sito Pubblico */}

@@ -30,6 +30,7 @@ import {
   HardDrive,
   Phone,
   Printer,
+  Send,
 } from "lucide-react";
 
 /**
@@ -80,7 +81,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     id: "agenda",
     label: "Agenda",
     icon: Calendar,
-    tabs: ["calendario", "bookings", "consulenze", "consulenze-templates"],
+    tabs: ["calendario", "bookings", "consulenze", "consulenze-templates", "follow-up"],
     items: [
       {
         id: "calendario",
@@ -116,6 +117,13 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
           tab: "consulenze",
           consultationSection: "consulenze-templates",
         },
+      },
+      {
+        id: "follow-up",
+        label: "Centro Follow-up",
+        icon: Send,
+        target: { tab: "follow-up" },
+        sectionLabel: "Preventivi",
       },
     ],
   },

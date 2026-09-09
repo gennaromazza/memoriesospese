@@ -20,6 +20,7 @@ import { nanoid } from "nanoid";
 import { nowRomeDate, toRomeDateTime, daysFromNowRome, formatRomeDateLocale } from "./utils/timezone.js";
 import { normalizeEmail } from "./utils/normalize.js";
 import { recomputeJobQuoteStatus } from "./job-aggregates.js";
+import { recordFollowUpEvent } from "./follow-up-routes.js";
 
 const router = Router();
 
@@ -337,6 +338,7 @@ router.get("/public/:token", async (req: Request, res: Response) => {
           viewedAt: nowRomeDate(),
         });
         quote.status = "visionato";
+        await recordFollowUpEvent(quote.id, "quote_viewed", { source: "quote-portal" });
       } catch (error) {
         console.error("⚠️ Errore update viewedAt:", error);
         // Non bloccare se fallisce
@@ -2120,6 +2122,10 @@ router.patch(
         status: "firmato",
         updatedAt: nowRomeDate(),
       });
+      await recordFollowUpEvent(id, "quote_signed", {
+        source: "manual-admin",
+        value: calculateCorrectQuoteTotal(quote),
+      });
 
       // 5. Log inserimento firma manuale
       await logAuditEvent({
@@ -2345,6 +2351,13 @@ router.post(
           message: "Il preventivo deve essere firmato prima di chiamare questo endpoint",
         });
       }
+
+      // L'evento è idempotente lato statistiche: gli eventuali duplicati
+      // vengono ignorati quando si calcola il valore assistito.
+      await recordFollowUpEvent(id, "quote_signed", {
+        source: "customer-portal",
+        value: correctTotale,
+      });
 
       // 5. Idempotency check: se job già confermato, skip
       const jobRef = db.collection("jobs").doc(quote.jobId);

@@ -25,6 +25,7 @@ import adminRoutes from './admin-routes.js';
 import galleryRoutes from './gallery-routes.js';
 import bulkEmailRoutes, { cleanupStaleJobs, startBulkEmailDispatcher, stopBulkEmailDispatcher } from './bulk-email-routes.js';
 import reminderRoutes, { runReminderCheck, runVisioneAutoInviteCheck } from './reminder-routes.js';
+import followUpRoutes, { runFollowUpCheck } from './follow-up-routes.js';
 import backupRoutes from './backup-routes.js';
 import auditRoutes from './audit-routes.js';
 import gdprRoutes from './gdpr-routes.js';
@@ -176,6 +177,8 @@ async function startServer() {
     // Reminder routes
     app.use('/api/reminders', reminderRoutes);
     console.log('⏰ Reminder API routes mounted at /api/reminders');
+    app.use('/api/follow-ups', followUpRoutes);
+    console.log('✉️ Follow-up API routes mounted at /api/follow-ups');
 
     // Backup routes
     app.use('/api/backup', backupRoutes);
@@ -348,6 +351,16 @@ async function startServer() {
           }
         } catch (err: any) {
           console.error('⏰ Print shop retention errore:', err.message);
+        }
+        // Follow-up automatici dei preventivi rapidi. Il motore è fail-closed:
+        // quote non più lead, firmati, sostituiti o con booking vengono saltati.
+        try {
+          const followUps = await runFollowUpCheck();
+          if (followUps.sent > 0 || followUps.errors.length > 0) {
+            console.log(`✉️ Follow-up automatici: ${followUps.sent} inviati, ${followUps.errors.length} errori`);
+          }
+        } catch (err: any) {
+          console.error('✉️ Follow-up scheduler errore:', err.message);
         }
       };
       setTimeout(runRemindersWithLog, 2 * 60 * 1000);
