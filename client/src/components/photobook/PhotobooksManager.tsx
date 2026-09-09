@@ -215,7 +215,7 @@ export default function PhotobooksManager({
     onSuccess: (book) => {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] });
       toast({
-        title: `Versione ${book.currentVersion} creata`,
+        title: `Bozza versione ${Math.max(...book.versions.map(v => v.version))} creata`,
         description: 'Carica le nuove pagine nell\u2019editor.',
       });
       navigate(`/admin/photobooks/${book.id}`);

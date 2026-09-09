@@ -49,6 +49,8 @@ export interface PhotobookPage {
 /** Versione del fotolibro (storico mantenuto). */
 export interface PhotobookVersion {
   version: number;
+  /** Assente nei dati legacy: versione già pubblicata. */
+  status?: 'draft' | 'published';
   label?: string;
   pageCount: number;
   createdAt: any;

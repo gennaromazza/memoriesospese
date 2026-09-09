@@ -3,6 +3,8 @@
 
 ## 📋 Panoramica
 
+Il configuratore mockup nel link cliente offre ora quattro passaggi guidati, ottimizzati per telefono: **Modello, Rivestimento e copertina, Foto e scritte, Riepilogo e invio**. L'anteprima resta visibile durante lo scorrimento delle opzioni. L'invio allo studio salva prima le modifiche; revisioni, blocco stampa e strumenti amministrativi restano nel flusso esistente. Dettagli e verifiche in [Mockup album](docs/MOCKUP-ALBUM.md#percorso-cliente-guidato-mobile-first).
+
 Wedding Gallery è un'applicazione web moderna e completa per la gestione di gallerie fotografiche matrimoniali. L'applicazione permette agli sposi di creare gallerie private, condividere foto con gli invitati e raccogliere messaggi vocali ricordo, il tutto con un'interfaccia elegante e funzionalità avanzate.
 
 ## ✨ Funzionalità Principali
@@ -357,6 +359,8 @@ GET    /security-test                # Test domande sicurezza
 Custodia e Album girevole includono personalizzazione, ambientazioni domestiche, finiture e misure del mobile, luce naturale/LED e posizionamento del solo album. AR rinviata. Dettagli e verifiche in [Mockup album](docs/MOCKUP-ALBUM.md).
 
 **Apri mockup** apre il configuratore in una finestra dedicata: schermo intero sul telefono e modale ampio sul desktop. Nella pagina del fotolibro rimane il riepilogo; il renderer 3D viene montato solo all’apertura e rimosso alla chiusura. Salva e invia allo studio restano nel bordo inferiore della finestra. La chiusura chiede conferma se ci sono modifiche non salvate.
+
+**Nuova versione fotolibro** crea ora una bozza privata, senza cambiare il link visibile al cliente. Dopo tutti gli upload, usare **Pubblica versione e avvisa cliente**: controlla conteggio/numerazione, trasferisce la configurazione mockup nella nuova versione e avvia la notifica. Il cliente può salvare nuove revisioni del mockup fino al blocco stampa, anche se ha già approvato le pagine. Le conferme precedenti restano nello storico della loro versione; il mockup riportato nella nuova versione riparte in bozza. Dati legacy e primo invio del link restano compatibili. Dettagli, test e limiti: [Verifica versioni fotolibro](docs/TEST-VERSIONI-FOTOLIBRO.md).
 
 In **Lavori & Clienti → Laboratori → Modelli album**, il catalogo mostra schede compatte con nome, tipo di anteprima, numero di rivestimenti e disponibilità. **Modifica** apre i campi di un solo modello; **Aggiungi modello** crea una bozza, **Salva catalogo** applica le modifiche e **Annulla modifiche** ripristina l’ultimo catalogo salvato. I modelli del laboratorio non sono automaticamente assegnati ai clienti: la proposta si seleziona nel singolo fotolibro.
 

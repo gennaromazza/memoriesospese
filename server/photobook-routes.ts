@@ -30,6 +30,7 @@ import { loadGalleryPhotoDocs, listGalleryPhotosPublic, loadGalleryChapters } fr
 import { PHOTOBOOK_MARK_PALETTE, type PhotobookMarkPoint } from '../shared/photobook-types.js';
 import { refreshLabShipmentInstructions } from './lab-shipment-instructions.js';
 import { createPhotobookMockupRouter } from './photobook-mockup-routes.js';
+import { createVersionDraft, publishVersion, PhotobookVersionError } from './photobook-version-workflow.js';
 
 const router: Router = express.Router();
 
@@ -77,6 +78,7 @@ function serializeBook(id: string, d: any): any {
       version: v.version,
       label: v.label || null,
       pageCount: v.pageCount || 0,
+      status: v.status,
       createdAt: ts(v.createdAt) || v.createdAt || null,
     })),
     createdAt: ts(d.createdAt),
@@ -295,7 +297,8 @@ router.get('/by-token/:token', async (req: Request, res: Response) => {
 
     const requestedVersion = Number(req.query.version) || book.currentVersion;
     // Il cliente può vedere solo versioni esistenti (storico consentito)
-    const validVersions = (book.versions || []).map((v: any) => v.version);
+    const visibleVersions = (book.versions || []).filter((v: any) => v.status !== 'draft');
+    const validVersions = visibleVersions.map((v: any) => v.version);
     const version = validVersions.includes(requestedVersion) ? requestedVersion : book.currentVersion;
 
     const pagesSnap = await db
@@ -317,7 +320,7 @@ router.get('/by-token/:token', async (req: Request, res: Response) => {
     const requests = reqSnap.docs.map((d) => serializeRequest(d.id, d.data()));
 
     return res.json({
-      photobook: serializeBook(bookDoc.id, book),
+      photobook: serializeBook(bookDoc.id, { ...book, versions: visibleVersions }),
       version,
       pages,
       requests,
@@ -898,6 +901,8 @@ router.patch('/:id', async (req: Request, res: Response) => {
       updates.name = req.body.name.trim();
     }
     if (typeof req.body?.currentVersion === 'number') {
+      if (data.locked) return res.status(409).json({ error: 'Fotolibro in stampa' });
+      if ((data.versions || []).some((v: any) => v.version === req.body.currentVersion && v.status === 'draft')) return res.status(409).json({ error: 'Usa Pubblica versione per rendere visibile la bozza completa' });
       const exists = (data.versions || []).some((v: any) => v.version === req.body.currentVersion);
       if (!exists) return res.status(400).json({ error: 'Versione inesistente' });
       updates.currentVersion = req.body.currentVersion;
@@ -966,27 +971,14 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-/** POST /:id/versions — crea nuova versione (diventa la corrente) */
+/** POST /:id/versions — crea una bozza privata senza cambiare la versione corrente. */
 router.post('/:id/versions', async (req: Request, res: Response) => {
   try {
-    const ref = db.collection(BOOKS_COL).doc(req.params.id);
-    const doc = await ref.get();
-    if (!doc.exists) return res.status(404).json({ error: 'Fotolibro non trovato' });
-    const data = doc.data()!;
-
-    const versions = data.versions || [];
-    const next = Math.max(0, ...versions.map((v: any) => v.version)) + 1;
     const label = typeof req.body?.label === 'string' ? req.body.label.trim() : null;
-
-    await ref.update({
-      versions: [...versions, { version: next, label, pageCount: 0, createdAt: new Date() }],
-      currentVersion: next,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    const saved = await ref.get();
-    console.log(`📖 [photobooks] Nuova versione v${next} per fotolibro ${ref.id}`);
-    return res.json({ photobook: serializeBook(ref.id, saved.data()) });
+    const saved = await createVersionDraft(req.params.id, label);
+    return res.json({ photobook: serializeBook(req.params.id, saved) });
   } catch (error) {
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
     console.error('[photobooks] Errore nuova versione:', error);
     return res.status(500).json({ error: 'Errore interno del server' });
   }
@@ -1030,7 +1022,17 @@ async function resolvePhotobookClientEmail(book: any): Promise<string | null> {
  * versione del fotolibro è pronta per la revisione. Idempotente per versione
  * (marker `versionNotifications.{v}` sul documento del fotolibro).
  */
-router.post('/:id/notify-version', async (req: Request, res: Response) => {
+router.post('/:id/publish-version', async (req: Request, res: Response) => {
+  try {
+    await publishVersion(req.params.id, req.body?.version, req.body?.expectedCurrentVersion, req.body?.expectedPageCount);
+    return notifyVersion(req, res);
+  } catch (error) {
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
+    return res.status(500).json({ error: 'Pubblicazione non riuscita. Ricarica per verificare lo stato prima di riprovare.' });
+  }
+});
+router.post('/:id/notify-version', notifyVersion);
+async function notifyVersion(req: Request, res: Response) {
   try {
     const ref = db.collection(BOOKS_COL).doc(req.params.id);
     const doc = await ref.get();
@@ -1040,6 +1042,7 @@ router.post('/:id/notify-version', async (req: Request, res: Response) => {
     const version = Number(req.body?.version);
     const verEntry = (book.versions || []).find((v: any) => v.version === version);
     if (!verEntry) return res.status(400).json({ error: 'Versione inesistente' });
+    if (!Number.isInteger(version) || book.locked || book.currentVersion !== version || verEntry.status === 'draft' || !verEntry.pageCount) return res.status(409).json({ error: 'Puoi avvisare il cliente solo per la versione pubblicata, completa e non in stampa.' });
 
     // Solo per le versioni successive alla prima: il primo invio del link
     // al cliente resta manuale ("Link Cliente")
@@ -1051,17 +1054,19 @@ router.post('/:id/notify-version', async (req: Request, res: Response) => {
     }
 
     // Marker PRIMA dell'invio, acquisito in TRANSAZIONE (concorrenza-safe):
-    // solo la richiesta che scrive il marker procede con l'invio. Il valore
-    // è l'attemptId, così il rollback cancella solo il PROPRIO marker.
+    // solo la richiesta che scrive il marker procede con l'invio.
     const attemptId = randomUUID();
     const acquired = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(ref);
+      if (!fresh.exists || fresh.data()!.locked || fresh.data()!.currentVersion !== version) return 'stale';
       const existing = fresh.data()?.versionNotifications?.[String(version)];
-      if (existing) return false;
-      tx.update(ref, { [`versionNotifications.${version}`]: attemptId });
-      return true;
+      if (existing) return existing.state === 'pending' || existing.state === 'uncertain' ? 'uncertain' : 'sent';
+      tx.update(ref, { [`versionNotifications.${version}`]: { attemptId, state: 'pending' } });
+      return 'acquired';
     });
-    if (!acquired) return res.json({ ok: true, alreadyNotified: true });
+    if (acquired === 'stale') return res.status(409).json({ error: 'Versione cambiata o in stampa: nessuna nuova email inviata.' });
+    if (acquired === 'uncertain') return res.status(409).json({ error: 'Invio email in corso o con esito incerto. Controlla la posta inviata prima di avvisare manualmente il cliente; nessun reinvio automatico.' });
+    if (acquired === 'sent') return res.json({ ok: true, alreadyNotified: true });
 
     const esc = (s: any) =>
       String(s ?? '')
@@ -1085,6 +1090,7 @@ router.post('/:id/notify-version', async (req: Request, res: Response) => {
           </a>
         </p>
         <p>Se c'è ancora qualcosa da sistemare, disegna una X sulle foto da modificare e invia le nuove richieste.</p>
+        <p>1. Sfoglia le pagine aggiornate.<br>2. Per confrontarle, usa “Versioni precedenti”: sono in sola lettura.<br>3. Torna alla versione attuale per inviare richieste o approvare le pagine. Il mockup dell’album si personalizza separatamente con “Apri mockup”.</p>
         <p style="color:#a8a29e;font-size:13px;margin-top:32px">Image Studio Fotografico</p>
       </div>`;
 
@@ -1102,12 +1108,12 @@ router.post('/:id/notify-version', async (req: Request, res: Response) => {
         },
       );
     } catch (emailErr) {
-      // Rollback del SOLO proprio marker (transazione: se nel frattempo il
-      // valore è cambiato, non tocca nulla) → un retry futuro può reinviare
+      // Un errore del provider può arrivare dopo l'invio: mantieni il claim
+      // come incerto, senza reinvio automatico che potrebbe duplicare l'email.
       await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
-        if (fresh.data()?.versionNotifications?.[String(version)] === attemptId) {
-          tx.update(ref, { [`versionNotifications.${version}`]: FieldValue.delete() });
+        if (fresh.data()?.versionNotifications?.[String(version)]?.attemptId === attemptId) {
+          tx.update(ref, { [`versionNotifications.${version}`]: { attemptId, state: 'uncertain' } });
         }
       }).catch(() => {});
       throw emailErr;
@@ -1122,9 +1128,9 @@ router.post('/:id/notify-version', async (req: Request, res: Response) => {
     return res.json({ ok: true, notified: true });
   } catch (error) {
     console.error('[photobooks] Errore notifica nuova versione:', error);
-    return res.status(500).json({ error: 'Errore invio email al cliente' });
+    return res.status(500).json({ error: 'La versione resta pubblicata, ma l’esito dell’email è incerto. Controlla la posta inviata prima di avvisare manualmente il cliente.' });
   }
-});
+}
 
 /**
  * Un trasferimento marcato "running" senza heartbeat da oltre questo tempo è
@@ -1612,6 +1618,7 @@ router.post(
 
       const version = Number(req.params.version);
       const versions = book.versions || [];
+      if (book.locked || versions.some((v: any) => v.version === version && v.status === 'published')) return res.status(409).json({ error: 'Versione pubblicata o in stampa: crea una nuova bozza per cambiare le pagine.' });
       if (!versions.some((v: any) => v.version === version)) {
         return res.status(400).json({ error: 'Versione inesistente' });
       }
@@ -1686,7 +1693,8 @@ router.post(
         displayStoragePath = null;
       }
 
-      const pageRef = await db.collection(PAGES_COL).add({
+      const pageRef = db.collection(PAGES_COL).doc();
+      const pageData = {
         photobookId: ref.id,
         version,
         pageNumber,
@@ -1699,16 +1707,17 @@ router.post(
         height: pageHeight,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      };
 
       // Aggiorna il conteggio pagine della versione (in transazione: upload
       // paralleli non devono perdere incrementi con read-modify-write)
       await db.runTransaction(async (tx) => {
         const fresh = await tx.get(ref);
-        if (!fresh.exists) return;
+        if (!fresh.exists || fresh.data()!.locked || fresh.data()!.versions.some((v: any) => v.version === version && v.status === 'published')) throw new PhotobookVersionError(409, 'La versione è stata pubblicata o mandata in stampa durante il caricamento.');
         const updatedVersions = (fresh.data()!.versions || []).map((v: any) =>
           v.version === version ? { ...v, pageCount: (v.pageCount || 0) + 1 } : v,
         );
+        tx.set(pageRef, pageData);
         tx.update(ref, { versions: updatedVersions, updatedAt: FieldValue.serverTimestamp() });
       });
 
@@ -1717,6 +1726,7 @@ router.post(
       return res.json({ page: serializePage(pageRef.id, saved.data()) });
     } catch (error) {
       console.error('[photobooks] Errore upload pagina:', error);
+      if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
       return res.status(500).json({ error: 'Errore interno del server' });
     }
   },
@@ -1735,11 +1745,16 @@ router.patch('/:id/pages/:pageId', async (req: Request, res: Response) => {
     if (typeof req.body?.pageNumber === 'number' && Number.isInteger(req.body.pageNumber) && req.body.pageNumber >= 1) {
       updates.pageNumber = req.body.pageNumber;
     }
-    await pageRef.update(updates);
+    await db.runTransaction(async tx => {
+      const current = await tx.get(db.collection(BOOKS_COL).doc(req.params.id));
+      if (!current.exists || current.data()!.locked || current.data()!.versions.some((v: any) => v.version === pageDoc.data()!.version && v.status === 'published')) throw new PhotobookVersionError(409, 'Versione pubblicata o in stampa: usa una nuova bozza.');
+      tx.update(pageRef, updates);
+    });
     const saved = await pageRef.get();
     return res.json({ page: serializePage(pageRef.id, saved.data()) });
   } catch (error) {
     console.error('[photobooks] Errore aggiornamento pagina:', error);
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
     return res.status(500).json({ error: 'Errore interno del server' });
   }
 });
@@ -1754,7 +1769,16 @@ router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
     }
     const pageData = pageDoc.data()!;
 
-    await pageRef.delete();
+    const bookRef = db.collection(BOOKS_COL).doc(req.params.id);
+    await db.runTransaction(async tx => {
+      const fresh = await tx.get(bookRef);
+      const currentPage = await tx.get(pageRef);
+      if (!currentPage.exists) throw new PhotobookVersionError(409, 'Pagina già eliminata');
+      if (!fresh.exists || fresh.data()!.locked || fresh.data()!.versions.some((v: any) => v.version === pageData.version && v.status === 'published')) throw new PhotobookVersionError(409, 'Versione pubblicata o in stampa: usa una nuova bozza.');
+      const versions = fresh.data()!.versions.map((v: any) => v.version === pageData.version ? { ...v, pageCount: Math.max(0, (v.pageCount || 0) - 1) } : v);
+      tx.delete(pageRef);
+      tx.update(bookRef, { versions, updatedAt: FieldValue.serverTimestamp() });
+    });
     try {
       if (pageData.storagePath) await storage.bucket().file(pageData.storagePath).delete();
     } catch {
@@ -1790,21 +1814,10 @@ router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
       console.warn('[photobooks] Pulizia richieste della pagina fallita (non bloccante):', e);
     }
 
-    // Decrementa il conteggio pagine della versione (in transazione)
-    const bookRef = db.collection(BOOKS_COL).doc(req.params.id);
-    await db.runTransaction(async (tx) => {
-      const fresh = await tx.get(bookRef);
-      if (!fresh.exists) return;
-      const versions = (fresh.data()!.versions || []).map((v: any) =>
-        v.version === pageData.version
-          ? { ...v, pageCount: Math.max(0, (v.pageCount || 0) - 1) }
-          : v,
-      );
-      tx.update(bookRef, { versions, updatedAt: FieldValue.serverTimestamp() });
-    });
     return res.json({ ok: true });
   } catch (error) {
     console.error('[photobooks] Errore eliminazione pagina:', error);
+    if (error instanceof PhotobookVersionError) return res.status(error.status).json({ error: error.message });
     return res.status(500).json({ error: 'Errore interno del server' });
   }
 });

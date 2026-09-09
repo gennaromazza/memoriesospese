@@ -1,9 +1,14 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '../../client/src/lib/queryClient';
 import PhotobookMockup from '../../client/src/components/photobook/PhotobookMockup';
 import LabMockupCatalog from '../../client/src/components/labs/LabMockupCatalog';
 import MockupTrack from '../../client/src/components/jobs/operativo/MockupTrack';
+import PhotobookViewPage from '../../client/src/pages/PhotobookViewPage';
+import PhotobookEditorPage from '../../client/src/pages/admin/PhotobookEditorPage';
+import { Route } from 'wouter';
 import '../../client/src/index.css';
 const params = new URLSearchParams(location.search);
-createRoot(document.getElementById('root')!).render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main></QueryClientProvider>);
+queryClient.setDefaultOptions({ queries: { retry: false } });
+createRoot(document.getElementById('root')!).render(<QueryClientProvider client={queryClient}>{location.pathname.startsWith('/fotolibro/') ? <Route path="/fotolibro/:token"><PhotobookViewPage /></Route> : location.pathname.startsWith('/admin/photobooks/') ? <Route path="/admin/photobooks/:id"><PhotobookEditorPage /></Route> : <main className="max-w-6xl mx-auto p-4">{params.has('catalog') ? <LabMockupCatalog labId="lab" /> : params.has('job') ? <MockupTrack jobId="job" /> : <PhotobookMockup photobookId="book" version={1} token={params.has('admin') ? undefined : 'mockup-test-token'} readOnly={params.has('readonly')} />}</main>}</QueryClientProvider>);
