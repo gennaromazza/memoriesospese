@@ -85,6 +85,24 @@ Il renderer corrente è `client/public/mockups/girevole-v3/`; v1 e v2 restano co
 - Le configurazioni precedenti mantengono le due righe originali: non si interpretano automaticamente dediche o date come nomi. Nell’editor corrente l’inserimento dei nomi attiva la nuova grafica.
 - Verificati salvataggio/ripristino, nomi accentati, aggiornamento dell’immagine, validazione dei limiti e conservazione delle configurazioni precedenti. Estrazione e retro fotografico restano disponibili.
 
+## Ambientazioni domestiche (solo esplorazione)
+
+Interfaccia uniformata: quattro schede (Tessuti, Dettagli, Riepilogo, In casa), pannello centrale scorrevole e download separato sempre raggiungibile sul desktop. Nel gestionale i comandi amministrativi di conferma e allegato seguono l’anteprima; autorizzazioni, transizioni e controlli restano invariati. Spostamento/rotazione manuale nella scena non ancora implementati: in attesa di chiarire se debbano riguardare l’album o anche gli arredi.
+
+I renderer correnti Custodia e Album girevole condividono `client/public/mockups/home-scenes.js`: quattro scene geometriche leggere (parete attrezzata, madia scandinava, living con doghe e consolle), con tredici finiture del mobile. Non sono fotografie o riproduzioni esatte di arredi commerciali.
+
+Ricerca del 9 settembre 2026 su fonti del produttore: [Amburgo e relativi abbinamenti](https://www.mondoconv.it/amburgo-f83e.html), [madie](https://www.mondoconv.it/soggiorni/madie-moderne.html), [stile nordico](https://blog.mondoconv.it/guide-arredo/soggiorno-stile-nordico/), [vetrine e LED](https://www.mondoconv.it/soggiorni/credenze-e-vetrine.html). Da questi riferimenti derivano le famiglie bianco lucido/rovere, cashmere/noce, cemento e gli effetti opachi/lucidi. Texture legno e cemento generate proceduralmente; nessuna immagine del produttore incorporata, nessuna fedeltà cromatica certificata.
+
+**Misure del tuo mobile** imposta larghezza (80–300 cm), altezza complessiva (50–110 cm) e profondità (30–65 cm) del mobile d’appoggio, non della parete completa. Valori vuoti, non interi o fuori limite mantengono l’ultima geometria valida e mostrano un messaggio. Si ricostruiscono mobile e ambiente, senza riscalare il prodotto. Le decorazioni laterali vengono omesse sotto 120 cm per non sovrapporle all’album. L’inquadratura si adatta alle nuove dimensioni e al telefono.
+
+**Illuminazione** alterna luce naturale e sera con strisce e luci LED calde. Luci originali e intensità dell’ambiente vengono ripristinate sia tornando alla vista neutra sia durante l’export. Dimensioni, luce e finiture rimangono preferenze di esplorazione temporanee; non fanno parte dell’ordine. AR non implementata, rinviata su richiesta dell’utente.
+
+La scelta **Visualizza in casa** imposta posa e inquadratura fisse. **Solo album** ripristina scala, estrazione, custodia e vista precedenti. Le ambientazioni funzionano anche in sola lettura e non rendono il mockup da salvare: non modificano configurazione, Firestore, conferme o permessi. Gli export conservano le otto viste neutre, sospendendo temporaneamente ambiente e scala esplorativa.
+
+L’album ha larghezza di riferimento 40 cm (formato dichiarato 30 × 40 chiuso); il GLB storico viene scalato uniformemente solo nella vista ambientata, senza deformarlo o cambiare le revisioni di produzione. Gli ingombri dei box e le proporzioni storiche restano indicativi in attesa delle misure definitive. Nessuna revisione dati aggiunta, perché la grafica del prodotto e le schede salvate restano invariate.
+
+Il test browser copre quattro ambienti e tredici finiture su entrambi i renderer, misure minime/massime, valori invalidi, luce naturale/LED, ritorno alla vista neutra, mobile, sola lettura ed export mentre è attiva un’ambientazione. Nessun test sui dati di produzione.
+
 ## Verifiche ripetibili
 
 - `npx vitest run server/photobook-mockup-routes.test.ts server/photobook-mockup-delivery.test.ts server/lab-mockup-workflow.test.ts server/mockup-drive-recovery.test.ts server/photobook-mockup-delete.test.ts server/photobook-association.test.ts server/photobook-lab-shipment.test.ts server/lab-routes.dpa.test.ts`: suite mirata per catalogo, permessi, transizioni, conferme, allegato/idempotenza e regressioni fotolibro.

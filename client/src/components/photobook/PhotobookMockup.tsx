@@ -258,6 +258,15 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           {dirty && <span className="self-center text-sm text-amber-800">Modifiche da salvare</span>}
         </div>
         {token && <Button disabled={!editable || busy || dirty || !saved || !state.data.offer} onClick={() => action('/submit')}>Invia allo studio per verifica</Button>}
+        <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
+          const file = event.target.files?.[0]; event.target.value = '';
+          if (!file) return;
+          if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
+          void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
+        }} />
+        <p role="status" className="text-sm">{message}</p>
+        {busy && <p className="text-sm">Attendi il completamento prima di cambiare configurazione.</p>}
+        <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" className={`w-full h-[1050px] md:h-[760px] rounded border ${busy ? 'pointer-events-none' : ''}`} />
         {!token && <div className="border rounded p-3 space-y-3">
           <p className="text-sm">La conferma riguarda il mockup salvato, non l’impaginato. Se lo modifichi dopo la conferma, salva e conferma una nuova revisione.</p>
           <label className="block text-sm">Messaggio per il cliente<textarea className="block border rounded p-2 w-full" maxLength={2000} value={note} onChange={e => setNote(e.target.value)} /></label>
@@ -276,15 +285,6 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
             </div>)}
           </div>}
         </div>}
-        <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
-          const file = event.target.files?.[0]; event.target.value = '';
-          if (!file) return;
-          if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
-          void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
-        }} />
-        <p role="status" className="text-sm">{message}</p>
-        {busy && <p className="text-sm">Attendi il completamento prima di cambiare configurazione.</p>}
-        <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" className={`w-full h-[1050px] md:h-[760px] rounded border ${busy ? 'pointer-events-none' : ''}`} />
       </>}
       {gallery.isLoading && picker && <p role="status">Caricamento foto della galleria…</p>}
       {gallery.isError && <p role="alert">Impossibile caricare la galleria. Riprova.</p>}

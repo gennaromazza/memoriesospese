@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildAlbumReport } from '../custodia-v1/report-template.js';
 import { drawMonogram } from './monogram.js';
+import { installHomeScenes } from '../home-scenes.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
@@ -233,10 +234,16 @@ function extract(percent) {
 $('extract').oninput = () => extract(+$('extract').value);
 $('reset').onclick = () => { $('extract').value = 0; extract(0); $('rotation').value = 25; setRotation(25); view(); };
 for (const [id, factor] of [['plus', .8], ['minus', 1.25]]) $(id).onclick = () => { const offset = camera.position.clone().sub(controls.target); offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, .45, 3)); camera.position.copy(controls.target).add(offset); controls.update(); };
+let homePose;
+const home = installHomeScenes({ scene, camera, controls, ground, product, album,
+  beforeEnter() { homePose = { x: album.position.x, angle: pivot.rotation.y, automatic }; album.position.x = 0; pivot.rotation.y = 0; automatic = false; },
+  afterLeave() { album.position.x = homePose.x; pivot.rotation.y = homePose.angle; automatic = homePose.automatic; }
+});
 new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
-renderer.setAnimationLoop(time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); home.update(); renderer.render(scene, camera); });
 function previews() {
+  const resumeHome = home.suspend();
   const oldSize = renderer.getSize(new THREE.Vector2()), oldRatio = renderer.getPixelRatio(), oldAngle = pivot.rotation.y, oldX = album.position.x;
   const exportCamera = new THREE.PerspectiveCamera(36, 4 / 3, .005, 20);
   const views = [['Prospettiva · album ruotato', [-.5, .3, 1], 25, 0], ['Fronte · allineato', [0, 0, 1], 0, 0], ['Retro · finitura selezionata', [0, 0, -1], 0, 0], ['Dorso · rotazione 90°', [0, .15, 1], 90, 0], ['Lato destro', [1, .2, .1], 0, 0], ['Vista superiore', [0, 1, .01], 30, 0], ['Album estratto · copertina', [-1, .3, 1], -90, .48], ['Album estratto · retro', [1, .3, 1], -90, .48]];
@@ -248,7 +255,7 @@ function previews() {
       exportCamera.position.set(...direction).normalize().multiplyScalar(sphere.radius / Math.sin(Math.PI / 10) * 1.1).add(sphere.center); exportCamera.lookAt(sphere.center);
       renderer.render(scene, exportCamera); return { label, image: renderer.domElement.toDataURL('image/jpeg', .82) };
     });
-  } finally { album.position.x = oldX; pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); renderer.render(scene, camera); }
+  } finally { album.position.x = oldX; pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); resumeHome(); renderer.render(scene, camera); }
 }
 $('downloadClient').onclick = () => {
   try {

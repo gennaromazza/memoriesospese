@@ -3,6 +3,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {buildAlbumReport} from './report-template.js';
+import {installHomeScenes} from '../home-scenes.js';
 
 // Campionamento traslato e continuo: stessa direzione dei fili, nessuna griglia
 // di copie identiche. Colore e rilievo usano gli stessi spostamenti deterministici.
@@ -232,8 +233,13 @@ $('rotate').onclick=()=>{controls.autoRotate=!controls.autoRotate;$('rotate').se
 $('reset').onclick=()=>{controls.autoRotate=false;$('rotate').setAttribute('aria-pressed','false');view();};
 function zoom(factor){const offset=camera.position.clone().sub(controls.target);offset.setLength(THREE.MathUtils.clamp(offset.length()*factor,controls.minDistance,controls.maxDistance));camera.position.copy(controls.target).add(offset);controls.update();}
 $('plus').onclick=()=>zoom(.8);$('minus').onclick=()=>zoom(1.25);
+let homePose;
+const home=model&&album?installHomeScenes({scene,camera,controls,ground,product:model,album,
+ beforeEnter(){homePose={x:album.position.x,visible:caseGroup.visible};album.position.x=0;caseGroup.visible=true;},
+ afterLeave(){album.position.x=homePose.x;caseGroup.visible=homePose.visible;}
+}):null;
 new ResizeObserver(()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();fitVisibleModel();}).observe(stage);
-renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera);});
+renderer.setAnimationLoop(()=>{controls.update();home?.update();renderer.render(scene,camera);});
 
 function setupInscriptions(){
  if(inscriptions.length!==2)throw new Error('Targhette del modello mancanti');
@@ -296,6 +302,7 @@ function setDownloadAvailability(){
  notifyHost('busy',{busy:materialPending||photoPending||applyingHost});
 }
 function renderConfigurationViews(jpeg=false){
+ const resumeHome=home?.suspend()||(()=>{});
  // Canvas indipendente da dimensioni, scroll e zoom dell'interfaccia.
  const exporter=new THREE.WebGLRenderer({antialias:true});
  exporter.setPixelRatio(1);exporter.setSize(1600,1200,false);
@@ -345,7 +352,7 @@ function renderConfigurationViews(jpeg=false){
   scene.environment=previousEnvironment;
   if(key.shadow.map!==previousShadowMap)key.shadow.map?.dispose();
   key.shadow.map=previousShadowMap;exportEnvironment?.dispose();
-  model.updateMatrixWorld(true);exporter.dispose();exporter.forceContextLoss();
+  model.updateMatrixWorld(true);exporter.dispose();exporter.forceContextLoss();resumeHome();
  }
 }
 function downloadConfiguration(internal){
