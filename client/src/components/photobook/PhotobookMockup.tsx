@@ -64,7 +64,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     enabled: picker,
     queryFn: async () => token ? getPhotobookGalleryPhotosByToken(token) : { photos: await listPhotobookGalleryPhotos(photobookId), chapters: [] },
   });
-  const editable = !readOnly && state.data?.editable === true && (!token || !['submitted', 'confirmed'].includes(state.data?.saved?.status || ''));
+  const editable = !readOnly && state.data?.editable === true;
   const selectedOption = optionFor(state.data?.offer || null, selection);
   const saved = state.data?.saved;
   const renderer = MOCKUP_RENDERERS.find(r => r.id === (rendererOverride || saved?.configuration.modelId)) || MOCKUP_RENDERERS[0];
@@ -266,6 +266,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           } else if (option) apply({ option, readOnly: !editable });
         }}><option value="">Scegli un modello</option>{state.data.offer.options.map(o => <option key={`${o.labId}/${o.id}`} value={`${o.labId}/${o.id}`}>{o.labName} · {o.name}</option>)}</select></label>}
         <p className="text-xs text-muted-foreground">Anteprima indicativa di materiali e proporzioni. L’approvazione dell’impaginato resta nel percorso del fotolibro.</p>
+        {token && editable && <p className="text-sm">1. Personalizza l’album. 2. Premi Salva mockup. 3. Invialo allo studio per verifica. Puoi salvare altre revisioni fino all’invio in stampa: una modifica successiva richiede una nuova conferma dello studio.</p>}
         {!editable && <p role="status">Questa versione è in sola lettura: puoi esplorare l’album e scaricare le viste.</p>}
         {renderer.id === 'album-girevole' && <label className="block text-sm">Foto da personalizzare<select aria-label="Foto da personalizzare" className="block border rounded p-2 mt-1" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina</option><option value="back">Retro in plexiglass</option></select></label>}
         <div className="flex flex-wrap gap-2">
@@ -312,7 +313,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
         <div className="flex flex-wrap gap-2">
           <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
-          {token && <Button className="min-h-11 flex-1 sm:flex-none" variant="outline" disabled={!editable || busy || dirty || !saved || !state.data?.offer} onClick={() => action('/submit')}>Invia allo studio per verifica</Button>}
+          {token && <Button className="min-h-11 flex-1 sm:flex-none" variant="outline" disabled={!editable || busy || dirty || !saved || !state.data?.offer || ['submitted', 'confirmed'].includes(saved.status || '')} onClick={() => action('/submit')}>Invia allo studio per verifica</Button>}
         </div>
       </div>
     </DialogContent>

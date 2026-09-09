@@ -55,7 +55,7 @@ try{
   if(url.pathname.endsWith('/upload')){uploads++;const back=url.searchParams.get('name')==='retro.png';return route.fulfill({json:{id:back?backAssetId:assetId,name:back?'Foto retro.png':'Nuova foto.png',source:'upload',width:600,height:400}});}
   if(url.pathname.endsWith('/gallery-photo')){assert.equal(request.postDataJSON().photoId,'gallery-photo');gallerySelections++;return route.fulfill({json:{id:assetId,name:'Foto della galleria',source:'gallery',photoId:'gallery-photo',width:600,height:400}});}
   if(request.method()==='PUT'){const body=request.postDataJSON();assert.equal(body.revision,saved?.revision||0);saved={version:1,revision:body.revision+1,configuration:body.configuration,updatedAt:new Date().toISOString(),status:'draft',selection:body.selection,option:offer?.options.find(o=>o.labId===body.selection?.labId&&o.id===body.selection?.modelId)};return route.fulfill({json:saved});}
-  return route.fulfill({json:{version:1,editable:!url.pathname.includes('/by-token/')||!['submitted','confirmed'].includes(saved?.status),enabled:true,saved,offer}});
+  return route.fulfill({json:{version:1,editable:true,enabled:true,saved,offer}});
  });
  await page.route('**/sample.png',r=>r.fulfill({contentType:'image/png',body:photo}));
  async function open(query=''){
@@ -176,7 +176,7 @@ try{
  await page.getByRole('button',{name:'Invia allo studio per verifica'}).click();
  await page.getByText('Proposta inviata allo studio per la verifica.',{exact:true}).waitFor();
  assert.equal(saved.status,'submitted');
- assert.equal(await page.getByRole('button',{name:'Carica una foto'}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'Carica una foto'}).isDisabled(),false);
  frame=await open('?admin');
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#topText').fill('Correzione dello studio');

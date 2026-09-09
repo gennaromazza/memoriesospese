@@ -349,7 +349,16 @@ export default function PhotobookViewPage() {
     queryKey: ['/api/photobooks/by-token', token, selectedVersion],
     queryFn: () => getPhotobookByToken(token, selectedVersion ?? undefined),
     enabled: !!token,
+    refetchOnWindowFocus: drafts.size === 0 && !activeMark,
+    refetchOnReconnect: drafts.size === 0 && !activeMark,
   });
+
+  useEffect(() => {
+    if (!drafts.size && !activeMark) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [drafts.size, activeMark]);
 
   const { data: galleryData } = useQuery({
     queryKey: ['/api/photobooks/by-token', token, 'gallery-photos'],
@@ -780,14 +789,12 @@ export default function PhotobookViewPage() {
       )}
       {isPortraitPhone && !noteMode && !pickerOpen && (
         <div
-          className="fixed inset-0 z-50 bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
+          className="bg-stone-100 flex items-center gap-3 p-3 text-sm"
           data-testid="overlay-rotate"
         >
-          <Smartphone className="h-14 w-14 text-white rotate-90 animate-pulse" />
-          <p className="text-white font-semibold text-xl">Ruota il telefono</p>
-          <p className="text-stone-300 text-sm max-w-xs">
-            Il fotolibro si sfoglia in orizzontale: ruota il telefono per vedere le pagine a
-            schermo intero e disegnare le X con precisione.
+          <Smartphone className="h-6 w-6 shrink-0 rotate-90" />
+          <p>
+            Per controllare meglio le pagine puoi ruotare il telefono in orizzontale. Puoi aprire il mockup e consultare le versioni anche in verticale.
           </p>
         </div>
       )}
@@ -810,7 +817,14 @@ export default function PhotobookViewPage() {
             {photobook.versions.length > 1 && (
               <Select
                 value={String(data.version)}
-                onValueChange={(v) => setSelectedVersion(Number(v))}
+                disabled={submitMutation.isPending}
+                onValueChange={(v) => {
+                  if (drafts.size > 0 || activeMark) {
+                    if (!window.confirm('Cambiare versione e abbandonare le richieste non ancora inviate?')) return;
+                  }
+                  setDrafts(new Map()); setActiveMark(null); setNoteMode(null); setNote(''); setPendingReplacement(null); setPickerOpen(false); setConfirmOpen(false); setSlideIdx(0);
+                  setSelectedVersion(Number(v) === photobook.currentVersion ? null : Number(v));
+                }}
               >
                 <SelectTrigger
                   className={`${isTouchPhone ? 'w-[88px] px-2' : 'w-36'} h-9 min-w-0 text-xs [&>span]:min-w-0`}
@@ -857,7 +871,15 @@ export default function PhotobookViewPage() {
           isTouchPhone ? 'py-1.5 pb-8' : 'py-4 sm:py-6'
         }`}
       >
-        <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion || isApproved} />
+        {photobook.versions.length > 1 && <Card className="border-blue-200 bg-blue-50"><CardContent className="py-3 space-y-2 text-sm">
+          <p className="font-semibold">{isCurrentVersion ? `Stai vedendo la versione aggiornata ${data.version}` : `Versione precedente ${data.version} · sola lettura`}</p>
+          <p>Le versioni precedenti sono conservate. Scegli una versione dal menu in alto per confrontare le pagine; le nuove richieste si inviano solo sulla versione attuale.</p>
+          {!isCurrentVersion && <Button variant="outline" onClick={() => { setSelectedVersion(null); setSlideIdx(0); }}>Torna alla versione attuale</Button>}
+        </CardContent></Card>}
+        <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
+          <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Copertina e box si personalizzano separatamente con “Apri mockup”, fino all’invio in stampa.</li></ol>
+        </details>
+        <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} />
         {isLocked && (
           <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
             <CardContent className="py-4 flex items-start gap-3">

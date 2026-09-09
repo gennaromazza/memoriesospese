@@ -52,5 +52,5 @@ export interface SavedMockup {
 export interface MockupPayload { version: number; editable: boolean; enabled: boolean; saved: SavedMockup | null; offer?: MockupOffer | null }
 
 export function mockupEditable(book: { locked?: boolean; currentVersion: number; approval?: { version: number } | null }, version: number): boolean {
-  return !book.locked && version === book.currentVersion && book.approval?.version !== version;
+  return !book.locked && version === book.currentVersion;
 }

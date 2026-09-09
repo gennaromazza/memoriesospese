@@ -21,6 +21,7 @@ import {
   updatePhotobook,
   photobookClientLink,
   notifyPhotobookVersion,
+  publishPhotobookVersion,
 } from '@/lib/photobooks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,7 +57,7 @@ export default function PhotobookEditorPage() {
     enabled: !!id,
   });
 
-  const version = selectedVersion ?? book?.currentVersion ?? 1;
+  const version = selectedVersion ?? book?.versions.filter(v => v.status === 'draft').at(-1)?.version ?? book?.currentVersion ?? 1;
 
   const { data: pages = [], isLoading: pagesLoading } = useQuery({
     queryKey: ['/api/photobooks', id, 'pages', version],
@@ -101,34 +102,8 @@ export default function PhotobookEditorPage() {
       }
       toast({
         title: 'Pagine caricate',
-        description: `${list.length} pagine caricate: il cliente può disegnare le X per le richieste.`,
+        description: `${list.length} pagine caricate. Se stai preparando una bozza, controllala e premi Pubblica versione quando è completa.`,
       });
-      // Nuova versione (v2+) attiva per il cliente: avviso automatico via
-      // email (idempotente lato server: una sola email per versione)
-      if (version > 1 && book.currentVersion === version) {
-        try {
-          const r = await notifyPhotobookVersion(id, version);
-          if (r.notified) {
-            toast({
-              title: 'Cliente avvisato',
-              description: 'Email inviata al cliente: la nuova versione è pronta per la revisione.',
-            });
-          } else if (r.skipped === 'no-client-email') {
-            toast({
-              title: 'Email non inviata',
-              description:
-                'Nessuna email cliente trovata (galleria o lavoro collegato): avvisa tu il cliente.',
-              variant: 'destructive',
-            });
-          }
-        } catch (notifyErr: any) {
-          toast({
-            title: 'Email al cliente non inviata',
-            description: notifyErr.message,
-            variant: 'destructive',
-          });
-        }
-      }
     } catch (e: any) {
       toast({ title: 'Errore caricamento', description: e.message, variant: 'destructive' });
     } finally {
@@ -151,8 +126,9 @@ export default function PhotobookEditorPage() {
     mutationFn: () => createPhotobookVersion(id),
     onSuccess: (b) => {
       queryClient.invalidateQueries({ queryKey: ['/api/photobooks', id] });
-      setSelectedVersion(b.currentVersion);
-      toast({ title: `Versione ${b.currentVersion} creata` });
+      const created = Math.max(...b.versions.map(v => v.version));
+      setSelectedVersion(created);
+      toast({ title: `Bozza versione ${created} creata`, description: 'Il cliente continua a vedere la versione pubblicata finché non premi Pubblica versione.' });
     },
     onError: (e: any) =>
       toast({ title: 'Errore nuova versione', description: e.message, variant: 'destructive' }),
@@ -168,6 +144,15 @@ export default function PhotobookEditorPage() {
       toast({ title: 'Errore', description: e.message, variant: 'destructive' }),
   });
 
+  const publishMutation = useMutation({
+    mutationFn: () => publishPhotobookVersion(id, version, book!.currentVersion, pages.length),
+    onSuccess: result => {
+      toast({ title: 'Versione pubblicata', description: result.notified ? 'Email inviata al cliente con il suo solito link.' : result.skipped === 'no-client-email' ? 'Email cliente assente: avvisalo manualmente.' : 'Notifica già gestita. Il link apre la versione pubblicata.' });
+    },
+    onError: (error: Error) => toast({ title: 'Verifica pubblicazione / email', description: error.message, variant: 'destructive' }),
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: ['/api/photobooks', id] }); queryClient.invalidateQueries({ queryKey: ['/api/photobooks'] }); },
+  });
+
   if (bookLoading || !book) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -180,7 +165,7 @@ export default function PhotobookEditorPage() {
     );
   }
 
-  const busy = !!uploadProgress;
+  const busy = !!uploadProgress || publishMutation.isPending;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -222,12 +207,13 @@ export default function PhotobookEditorPage() {
         {/* Barra versioni + upload */}
         <PhotobookMockup key={`${id}-${version}`} photobookId={id} version={version} readOnly={book.currentVersion !== version} />
         <Card>
+          <p className="px-4 pt-4 text-sm">1. Crea una nuova bozza. 2. Carica tutte le pagine e controllale. 3. Pubblica: solo allora il cliente vedrà la nuova versione e riceverà l’email.</p>
           <CardContent className="pt-4 flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Versione:</span>
               <Select
                 value={String(version)}
-                onValueChange={(v) => setSelectedVersion(Number(v))}
+                onValueChange={(v) => { if (!busy) setSelectedVersion(Number(v)); }}
               >
                 <SelectTrigger className="w-40" data-testid="select-version">
                   <SelectValue />
@@ -236,17 +222,18 @@ export default function PhotobookEditorPage() {
                   {book.versions.map((v) => (
                     <SelectItem key={v.version} value={String(v.version)}>
                       v{v.version} ({v.pageCount} pag.)
-                      {v.version === book.currentVersion ? ' — visibile al cliente' : ''}
+                      {v.status === 'draft' ? ' — bozza privata' : v.version === book.currentVersion ? ' — visibile al cliente' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {version !== book.currentVersion && (
+            {book.versions.find(v => v.version === version)?.status === 'draft' && <Button disabled={busy || publishMutation.isPending || !pages.length || book.locked} onClick={() => { if (window.confirm(`Pubblicare la versione ${version} con ${pages.length} pagine e avvisare il cliente?`)) publishMutation.mutate(); }}>Pubblica versione e avvisa cliente</Button>}
+            {version !== book.currentVersion && book.versions.find(v => v.version === version)?.status !== 'draft' && (
               <Button
                 size="sm"
                 variant="outline"
-                disabled={setCurrentVersionMutation.isPending}
+                disabled={busy || book.locked || setCurrentVersionMutation.isPending || publishMutation.isPending}
                 onClick={() => setCurrentVersionMutation.mutate(version)}
               >
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
@@ -256,7 +243,7 @@ export default function PhotobookEditorPage() {
             <Button
               size="sm"
               variant="outline"
-              disabled={newVersionMutation.isPending}
+              disabled={busy || book.locked || newVersionMutation.isPending || publishMutation.isPending}
               onClick={() => newVersionMutation.mutate()}
               data-testid="button-new-version"
             >
@@ -264,6 +251,10 @@ export default function PhotobookEditorPage() {
               Nuova versione
             </Button>
             <div className="flex-1" />
+            {version === book.currentVersion && version > 1 && <Button variant="outline" disabled={busy || book.locked} onClick={async () => {
+              try { const result = await notifyPhotobookVersion(id, version); toast({ title: result.notified ? 'Email inviata' : result.alreadyNotified ? 'Cliente già avvisato' : 'Email cliente assente', description: result.skipped === 'no-client-email' ? 'Completa l’email del cliente nel lavoro o nella galleria, poi riprova.' : undefined }); }
+              catch (error) { toast({ title: 'Verifica email', description: (error as Error).message, variant: 'destructive' }); }
+            }}>Avvisa cliente / verifica invio</Button>}
             <input
               ref={fileInputRef}
               type="file"
@@ -275,7 +266,7 @@ export default function PhotobookEditorPage() {
             />
             <Button
               size="sm"
-              disabled={busy}
+              disabled={busy || book.locked || book.versions.find(v => v.version === version)?.status === 'published'}
               onClick={() => fileInputRef.current?.click()}
               data-testid="button-upload-pages"
             >

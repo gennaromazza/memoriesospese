@@ -100,18 +100,37 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect((await save(base, { revision: 1, configuration: { ...rotating, coverLayout: 'full', photoAssetId: photoId, frameFinish: 'fabric' } })).status).toBe(200);
     expect((await save(base, { revision: 2, configuration: { ...configuration, photoAssetId: null } })).status).toBe(400);
   });
-  it.each([{ locked: true }, { approval: { version: 1 } }])('blocca il cliente ma permette allo studio di intervenire senza riaprire il lock %j', async patch => {
+  it('in stampa blocca sia cliente sia studio', async () => {
     await save(base, { revision: 0, configuration });
-    Object.assign(h.docs.get('photobooks/book'), patch);
+    h.docs.get('photobooks/book').locked = true;
     expect((await save(base, { revision: 1, configuration }, 'client')).status).toBe(409);
-    expect((await save(base, { revision: 1, configuration })).status).toBe(200);
-    expect(h.docs.get('photobooks/book')).toMatchObject(patch);
-    expect(await fetch(`${base}/admin`).then(r => r.json())).toMatchObject({ editable: true });
+    expect((await save(base, { revision: 1, configuration })).status).toBe(409);
+    expect(await fetch(`${base}/admin`).then(r => r.json())).toMatchObject({ editable: false });
+  });
+  it('approvare le pagine non blocca le nuove revisioni della copertina', async () => {
+    await save(base, { revision: 0, configuration });
+    h.docs.get('photobooks/book').approval = { version: 1 };
+    expect((await save(base, { revision: 1, configuration }, 'client')).status).toBe(200);
   });
   it('ricontrolla il lock in transazione', async () => {
     await save(base, { revision: 0, configuration });
     h.beforeTransaction = () => { h.docs.get('photobooks/book').locked = true; };
     expect((await save(base, { revision: 1, configuration }, 'client')).status).toBe(409);
+  });
+  it.each(['draft', 'submitted', 'confirmed', 'changes_requested'].flatMap(status =>
+    [false, true].flatMap(locked => [false, true].flatMap(approved => [1, 2].map(currentVersion => ({ status, locked, approved, currentVersion }))))
+  ))('matrice permessi cliente e storico: %j', async ({ status, locked, approved, currentVersion }) => {
+    await save(base, { revision: 0, configuration });
+    const previous = { ...h.docs.get('photobooks/book/mockups/v1'), status };
+    h.docs.set('photobooks/book/mockups/v1', previous);
+    Object.assign(h.docs.get('photobooks/book'), { locked, currentVersion, approval: approved ? { version: 1 } : null });
+    const allowed = !locked && currentVersion === 1;
+    expect((await fetch(`${base}/client?version=1`).then(r => r.json())).editable).toBe(allowed);
+    expect((await save(base, { revision: 1, configuration: { ...configuration, topText: 'Nuova revisione cliente' } }, 'client')).status).toBe(allowed ? 200 : 409);
+    if (allowed) {
+      expect(h.docs.get('photobooks/book/mockupHistory/v1-r1')).toEqual(previous);
+      expect(h.docs.get('photobooks/book/mockups/v1')).toMatchObject({ revision: 2, status: 'draft', updatedBy: 'client' });
+    } else expect(h.docs.get('photobooks/book/mockups/v1')).toEqual(previous);
   });
   it('rifiuta il salvataggio se cambia la galleria durante la richiesta', async () => {
     h.beforeTransaction = () => { h.docs.get('photobooks/book').galleryId = 'another-gallery'; };
@@ -182,14 +201,13 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
       expect(response.status, path).toBe(403);
     }
   });
-  it('chiude la modifica cliente durante la verifica, consente intervento studio e restituzione', async () => {
+  it('consente nuove revisioni cliente anche dopo invio allo studio', async () => {
     await publish(base);
     await save(base, { revision: 0, configuration, selection, offerRevision: 1 }, 'client');
     expect((await action(base, 'client', 'submit', 1)).status).toBe(200);
-    expect((await fetch(`${base}/client`).then(r => r.json())).editable).toBe(false);
-    expect((await save(base, { revision: 2, configuration, selection, offerRevision: 1 }, 'client')).status).toBe(409);
-    expect((await save(base, { revision: 2, configuration: { ...configuration, topText: 'Correzione studio' }, selection, offerRevision: 1 })).status).toBe(200);
-    expect((await fetch(`${base}/client`).then(r => r.json())).editable).toBe(false);
+    expect((await fetch(`${base}/client`).then(r => r.json())).editable).toBe(true);
+    expect((await save(base, { revision: 2, configuration, selection, offerRevision: 1 }, 'client')).status).toBe(200);
+    expect((await fetch(`${base}/client`).then(r => r.json())).saved.status).toBe('draft');
     expect((await action(base, 'admin', 'request-changes', 3)).status).toBe(200);
     expect((await fetch(`${base}/client`).then(r => r.json())).editable).toBe(true);
     expect(h.docs.get('photobooks/book/mockupHistory/v1-r2').status).toBe('submitted');
@@ -209,12 +227,11 @@ describe('Mockup Custodia: persistenza e isolamento fotolibro', () => {
     expect(report).toContain('LAB-01');
     expect(report).not.toContain('<script>');
     expect(report.match(/<figure>/g)).toHaveLength(8);
-    expect((await save(base, { revision: 2, configuration, selection, offerRevision: 1 }, 'client')).status).toBe(409);
-    expect((await save(base, { revision: 2, configuration: { ...configuration, topText: 'Nuova revisione' }, selection, offerRevision: 1 })).status).toBe(200);
+    expect((await save(base, { revision: 2, configuration: { ...configuration, topText: 'Nuova revisione' }, selection, offerRevision: 1 }, 'client')).status).toBe(200);
     expect(h.docs.get('photobooks/book/mockupHistory/v1-r2')).toEqual(confirmed);
     expect(h.files.get(confirmed.reportPath)!.toString('utf8')).toBe(report);
     expect(h.docs.get('photobooks/book/mockups/v1').reportPath).toBeUndefined();
-    expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('submitted');
+    expect(h.docs.get('photobooks/book/mockups/v1').status).toBe('draft');
   });
   it('rifiuta la conferma se cambia la proposta durante la generazione', async () => {
     await publish(base);

@@ -35,8 +35,7 @@ export function mockupGalleryStoragePath(value: string, bucket: string): string 
 /** Montato dopo il controllo admin oppure sotto il token del singolo fotolibro. */
 export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: boolean) {
   const router = express.Router({ mergeParams: true });
-  const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) => isAdmin ? data.currentVersion === version : mockupEditable(data as Parameters<typeof mockupEditable>[0], version);
-  const canEditDraft = (saved?: FirebaseFirestore.DocumentData) => isAdmin || !['submitted', 'confirmed'].includes(saved?.status);
+  const canEditBook = (data: FirebaseFirestore.DocumentData, version: number) => mockupEditable(data as Parameters<typeof mockupEditable>[0], version);
   const writeLimit = uidRateLimiter(60, 10 * 60_000);
   router.use((req, res, next) => req.method === 'GET' ? next() : writeLimit(req, res, next));
   router.use(async (req, res, next) => {
@@ -48,15 +47,16 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       const data = book.data()!;
       const version = versionSchema.parse(req.query.version ?? data.currentVersion);
       if (!(data.versions || []).some((v: { version: number }) => v.version === version)) throw new MockupError(404, 'Versione non trovata');
+      if (!isAdmin && data.versions.some((v: { version: number; status?: string }) => v.version === version && v.status === 'draft')) throw new MockupError(404, 'Versione non pubblicata');
       res.locals.book = book;
       res.locals.version = version;
       if (req.method !== 'GET') {
-        if (!canEditBook(data, version)) throw new MockupError(409, 'Versione in sola lettura. Contatta lo studio.');
+        const deliveryOnly = isAdmin && version === data.currentVersion && ['/attach', '/reconcile-attachment'].includes(req.path);
+        if (!canEditBook(data, version) && !deliveryOnly) throw new MockupError(409, 'Versione in sola lettura. Contatta lo studio.');
         if (!isAdmin) {
           const saved = await book.ref.collection('mockups').doc(`v${version}`).get();
           const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
           if (!saved.exists && !offer.exists) throw new MockupError(403, 'Lo studio non ha ancora attivato il mockup per questa versione.');
-          if (!canEditDraft(saved.data())) throw new MockupError(409, 'Proposta in verifica o confermata: contatta lo studio per modificarla.');
         }
       }
       next();
@@ -71,7 +71,7 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
       const offer = await book.ref.collection('mockupOffers').doc(`v${version}`).get();
       const data = saved.data();
       if (data && !isAdmin) delete data.reportPath;
-      res.json({ version, editable: canEditBook(book.data()!, version) && canEditDraft(data), enabled: isAdmin || saved.exists || offer.exists, saved: data || null, offer: offer.data() || null });
+      res.json({ version, editable: canEditBook(book.data()!, version), enabled: isAdmin || saved.exists || offer.exists, saved: data || null, offer: offer.data() || null });
     } catch (error) { next(error); }
   });
 
@@ -137,7 +137,6 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
           if (!photo.exists || photo.data()!.version !== version) throw new MockupError(400, 'Foto non appartenente a questa versione del fotolibro');
         }
         if ((previous.data()?.revision || 0) !== input.revision) throw new MockupError(409, 'Il mockup è stato modificato in un’altra sessione. Riaprilo per caricare la versione aggiornata.');
-        if (!canEditDraft(previous.data())) throw new MockupError(409, 'Proposta già inviata in verifica');
         if (!isAdmin && !previous.exists && !offer) throw new MockupError(403, 'Mockup non attivato');
         const option = optionFor(offer, input.selection);
         if (offer && (offer.revision !== input.offerRevision || !option || option.rendererId !== input.configuration.modelId || !option.materials.some(m => m.id === input.configuration.materialId))) throw new MockupError(409, 'Seleziona un modello e un rivestimento inclusi nella proposta aggiornata');
@@ -169,7 +168,7 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         const option = optionFor((offerDoc.data() || null) as MockupOffer | null, previous?.selection);
         if (!previous || previous.revision !== input.revision) throw new MockupError(409, 'Ricarica la proposta aggiornata');
         if (action === 'submit' && (!option || !option.materials.some(m => m.id === previous.configuration.materialId))) throw new MockupError(409, 'Salva prima una scelta inclusa nella proposta dello studio');
-        if (action === 'submit' && !canEditDraft(previous)) throw new MockupError(409, 'Proposta già inviata');
+        if (action === 'submit' && ['submitted', 'confirmed'].includes(previous.status || '')) throw new MockupError(409, 'Proposta già inviata. Salva una modifica prima di inviarla di nuovo.');
         const { confirmedAt, reportPath, ...draft } = previous;
         const result: SavedMockup = { ...draft, revision: previous.revision + 1, status: action === 'submit' ? 'submitted' : 'changes_requested', updatedBy: isAdmin ? 'studio' : 'client', updatedAt: new Date().toISOString(), note: input.note };
         tx.set(book.ref.collection('mockupHistory').doc(`v${version}-r${previous.revision}`), previous);
@@ -283,8 +282,6 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
     try {
       await db.runTransaction(async tx => {
         await guardCurrent(tx, book, version);
-        const saved = await tx.get(book.ref.collection('mockups').doc(`v${version}`));
-        if (!canEditDraft(saved.data())) throw new MockupError(409, 'Proposta già in verifica');
         tx.set(book.ref.collection('mockupAssets').doc(id), { ...photo, version, storagePath, createdAt: new Date().toISOString() });
       });
     } catch (error) {

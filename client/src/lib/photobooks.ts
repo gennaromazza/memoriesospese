@@ -137,6 +137,10 @@ export async function notifyPhotobookVersion(
   return json(res);
 }
 
+export async function publishPhotobookVersion(photobookId: string, version: number, expectedCurrentVersion: number, expectedPageCount: number): Promise<{ ok: boolean; notified?: boolean; alreadyNotified?: boolean; skipped?: string }> {
+  return json(await apiRequest('POST', `/api/photobooks/${photobookId}/publish-version`, { version, expectedCurrentVersion, expectedPageCount }));
+}
+
 export async function listPhotobookChangeRequests(): Promise<PhotobookChangeRequest[]> {
   const res = await apiRequest('GET', '/api/photobooks/requests');
   return (await json<{ requests: PhotobookChangeRequest[] }>(res)).requests;
