@@ -71,21 +71,13 @@ export default function PhotobookPhotoPicker({
   const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Orientamento fisico (immune alla tastiera): in orizzontale la pagina madre
-  // mostra l'overlay "Ruota in verticale"; qui blocchiamo l'autofocus (niente
-  // tastiera sotto l'overlay) e diamo il focus alla ricerca appena in verticale.
-  const { isPhone, isPortrait } = usePhoneOrientation();
-  const isLandscapePhone = isPhone && !isPortrait;
+  // Non aprire automaticamente la tastiera: lascia spazio alle foto su telefono.
+  const { isPhone } = usePhoneOrientation();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (!open || !isPhone) return;
-    if (!isPortrait) {
-      (document.activeElement as HTMLElement | null)?.blur?.();
-      return;
-    }
-    const t = setTimeout(() => searchInputRef.current?.focus(), 350);
-    return () => clearTimeout(t);
-  }, [open, isPhone, isPortrait]);
+    searchInputRef.current?.blur();
+  }, [open, isPhone]);
 
   // Reset dei filtri a ogni apertura
   useEffect(() => {
@@ -163,9 +155,9 @@ export default function PhotobookPhotoPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onOpenAutoFocus={(e) => {
-          if (isLandscapePhone) e.preventDefault();
+          if (isPhone) e.preventDefault();
         }}
-        className={`max-w-3xl h-[85vh] max-h-[85vh] flex flex-col ${
+        className={`max-w-3xl h-[85vh] max-h-[85vh] flex flex-col ${isPhone ? `!w-screen !max-w-none ${kbHeight ? '' : '!h-[100dvh] !max-h-[100dvh]'} !rounded-none !p-3 !gap-2` : ''} ${
           kbHeight ? 'top-2 translate-y-0' : ''
         }`}
         style={

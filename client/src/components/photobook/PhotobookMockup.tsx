@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { installMockupWizard } from './mockup-wizard-layout';
+import { usePhoneOrientation } from '@/hooks/use-phone-orientation';
+import './mockup-mobile.css';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase';
 import { createUrl } from '@/lib/config';
@@ -14,11 +16,14 @@ import MockupOfferEditor from './MockupOfferEditor';
 import { MOCKUP_RENDERERS } from '@shared/mockup-catalog';
 import type { MockupOption } from '@shared/mockup-workflow';
 
-interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean }
+interface Props { photobookId: string; version: number; token?: string; readOnly?: boolean; summary?: boolean; onOpenChange?: (open: boolean) => void }
 
-export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false }: Props) {
+export default function PhotobookMockup({ photobookId, version, token, readOnly = false, summary = false, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  useEffect(() => { onOpenChange?.(open); return () => onOpenChange?.(false); }, [open, onOpenChange]);
+  const { isPhone, isPortrait } = usePhoneOrientation();
+  const mobile = !!token && isPhone;
   const [step, setStep] = useState(1);
   const [wizard, setWizard] = useState<ReturnType<typeof installMockupWizard> | null>(null);
   const [picker, setPicker] = useState(false);
@@ -31,6 +36,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   const [configuration, setConfiguration] = useState<MockupConfiguration | null>(null);
   const [draftCoverLayout, setDraftCoverLayout] = useState('');
   const [draftBackCover, setDraftBackCover] = useState('');
+  const [frontPhotoPresent, setFrontPhotoPresent] = useState(false);
+  const [backPhotoPresent, setBackPhotoPresent] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const upload = useRef<HTMLInputElement>(null);
@@ -101,7 +108,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
 
   useEffect(() => {
     if (!token || !ready || !frame.current?.contentDocument) return;
-    try { const layout = installMockupWizard(frame.current.contentDocument); layout.step(step); setWizard(layout); return () => layout.dispose(); }
+    try { const layout = installMockupWizard(frame.current.contentDocument, mobile); layout.step(step); setWizard(layout); return () => layout.dispose(); }
     catch (error) { setMessage((error as Error).message); }
   }, [ready, token]);
 
@@ -111,13 +118,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     const viewport = window.visualViewport;
     const resize = () => {
       const element = dialog.current; if (!element) return;
-      if (window.innerWidth >= 768) { element.style.removeProperty('height'); element.style.removeProperty('top'); return; }
+      if (!isPhone && window.innerWidth >= 768) { element.style.removeProperty('height'); element.style.removeProperty('top'); return; }
       element.style.height = `${viewport.height}px`;
       element.style.top = `${viewport.offsetTop + viewport.height / 2}px`;
     };
     resize(); viewport.addEventListener('resize', resize); viewport.addEventListener('scroll', resize);
     return () => { viewport.removeEventListener('resize', resize); viewport.removeEventListener('scroll', resize); };
-  }, [open, token]);
+  }, [open, token, isPhone]);
   useEffect(() => { wizard?.refresh(); }, [wizard, configuration, busy, renderBusy, editable]);
   useEffect(() => {
     if (token && ready && !renderBusy && !busy && editable && !selection && !initializing.current && state.data?.offer?.options.length === 1) chooseOption(state.data.offer.options[0]);
@@ -135,6 +142,8 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       if (event.data.type === 'change') {
         setDraftCoverLayout(String(event.data.configuration?.coverLayout || ''));
         setDraftBackCover(String(event.data.configuration?.backCover || ''));
+        setFrontPhotoPresent(!!event.data.configuration?.photoAssetId);
+        setBackPhotoPresent(!!event.data.configuration?.backPhotoAssetId);
         const parsed = mockupConfigurationSchema.safeParse(event.data.configuration);
         setConfiguration(parsed.success ? parsed.data : null);
         if (!initializing.current) setDirty(true);
@@ -211,7 +220,7 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
   }, [dirty]);
 
   async function selectPhoto(operation: () => Promise<Response>) {
-    const target = renderer.id === 'album-girevole' ? photoSide : 'front';
+    const target = mobile ? (step === 5 ? 'back' : 'front') : renderer.id === 'album-girevole' ? photoSide : 'front';
     setBusy(true); setMessage('Preparazione foto…');
     try {
       const photo: MockupPhoto = await (await operation()).json();
@@ -283,8 +292,11 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       setRenderBusy(true); setWizard(null); setStep(1); setGeneration(g => g + 1); setMessage('');
     }
   }
-  const stepNames = ['Modello', 'Rivestimento e copertina', 'Foto e scritte', 'Riepilogo e invio'];
-  const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : step === 3 ? (!!configuration || !editable) : true);
+  const steps = mobile ? [1, 2, 3, 4, ...(renderer.id === 'album-girevole' ? [5] : []), 6] : [1, 2, 3, 4];
+  const stepNames = mobile ? ['Modello', 'Tessuto', 'Finiture e copertina', 'Foto o nomi in copertina', 'Retro album', 'Riepilogo e invio'] : ['Modello', 'Rivestimento e copertina', 'Foto e scritte', 'Riepilogo e invio'];
+  const lastStep = mobile ? 6 : 4;
+  const photoStepValid = mobile ? (step === 4 ? draftCoverLayout === 'plaque' || frontPhotoPresent : step === 5 ? draftBackCover !== 'photo' || backPhotoPresent : true) : step !== 3 || !!configuration;
+  const nextAllowed = ready && !renderBusy && !busy && (step === 1 ? (!state.data?.offer || !!selectedOption || !editable) : photoStepValid || !editable);
   if (token && (!state.data?.enabled || state.isError)) return null;
   return <section className="rounded-lg border bg-white p-4 space-y-3" data-testid="photobook-mockup">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -293,12 +305,13 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
     </div>
     {saved && <p className="text-sm text-muted-foreground">{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision} · versione fotolibro {version}</p>}
     <Dialog open={open} onOpenChange={next => { if (!next) closeConfigurator(); }}>
-    <DialogContent ref={dialog} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
+    <DialogContent ref={dialog} data-mobile-mockup={mobile ? 'true' : undefined} className="flex flex-col gap-0 p-0 sm:p-0 w-screen sm:w-[96vw] max-w-none sm:max-w-[1500px] h-[100dvh] sm:h-[94dvh] max-h-[100dvh] rounded-none sm:rounded-lg overflow-hidden [&>button]:hidden" onInteractOutside={event => event.preventDefault()}>
+      {mobile && isPortrait && !picker && <div className="mockup-rotate" role="alert" data-testid="mockup-rotate"><p>Ruota il telefono in orizzontale</p><p>Avrai più spazio per vedere l’album e personalizzarlo. Le tue scelte restano conservate.</p><Button disabled={busy} onClick={closeConfigurator}>Chiudi mockup</Button></div>}
       <div className="flex shrink-0 items-center justify-between gap-3 border-b p-3 sm:p-4">
         <div className="min-w-0"><DialogTitle>Personalizza il tuo album</DialogTitle><DialogDescription>{title} · versione {version}</DialogDescription></div>
         <Button variant="outline" className="min-h-11" disabled={busy} onClick={closeConfigurator}>Chiudi</Button>
       </div>
-      {token && <div className="shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {step} di 4 · {stepNames[step - 1]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{stepNames.map((name, index) => <span key={name} className={`h-1 flex-1 rounded ${index < step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
+      {token && <div className="mockup-progress shrink-0 border-b px-3 py-2" aria-live="polite"><p className="text-sm font-medium">Passaggio {steps.indexOf(step) + 1} di {steps.length} · {stepNames[step - 1]}</p><div className="mt-2 flex gap-1" aria-hidden="true">{steps.map(value => <span key={value} className={`h-1 flex-1 rounded ${value <= step ? 'bg-primary' : 'bg-muted'}`} />)}</div></div>}
       <div className={token ? 'min-h-0 flex-1 flex flex-col overflow-hidden' : 'min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3'} data-testid="mockup-dialog-body">
       {open && !token && <Button variant="outline" disabled={busy} onClick={async () => {
         if (dirty && !window.confirm('Ricaricare la proposta e abbandonare le modifiche non salvate?')) return;
@@ -328,20 +341,22 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</Button>
           <Button variant="outline" disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</Button>
         </div>}
-        <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
+        {!mobile && <input ref={upload} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={event => {
           const file = event.target.files?.[0]; event.target.value = '';
           if (!file) return;
           if (file.size > 20 * 1024 * 1024) { setMessage('Scegli una foto entro 20 MB.'); return; }
           void selectPhoto(() => request(`/upload?name=${encodeURIComponent(file.name)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }));
-        }} />
+        }} />}
         {!token && <p role="status" className="text-sm">{message}</p>}
         {token && (!ready || !wizard) && <p role="status" className="p-4 text-sm">Preparazione del tuo configuratore…</p>}
         <iframe key={`${renderer.id}-${generation}`} ref={frame} title={`Configuratore 3D ${renderer.name}`} src={`${import.meta.env.BASE_URL}mockups/${renderer.path}`} sandbox="allow-scripts allow-same-origin allow-downloads" style={{ visibility: token && (!ready || !wizard) ? 'hidden' : undefined }} aria-hidden={token && (!ready || !wizard) ? true : undefined} className={`${token ? 'w-full min-h-0 flex-1 border-0' : 'w-full h-[1050px] md:h-[760px] rounded border'} ${busy ? 'pointer-events-none' : ''}`} />
         {token && wizard && createPortal(<>
           {step === 1 && <><h3>Scegli il tuo modello</h3><p>Trovi qui i modelli proposti dallo studio.</p>{state.data.offer?.options.map(option => <button type="button" className="wizard-model" key={`${option.labId}/${option.id}`} aria-pressed={selectedOption?.id === option.id && selectedOption?.labId === option.labId} disabled={!editable || busy || !ready || renderBusy} onClick={() => chooseOption(option)}>{option.name}<small>{option.labName} · {MOCKUP_RENDERERS.find(r => r.id === option.rendererId)?.name}</small></button>)}{!state.data.offer && <p>{title}</p>}</>}
-          {step === 2 && <><h3>Rivestimento e copertina</h3><p>Tocca un campione per vederlo sull’album.</p></>}
-          {step === 3 && <><h3>Foto e scritte</h3><p>Personalizza la copertina, non le pagine interne del fotolibro.</p>{renderer.id === 'album-girevole' && <label>Foto da personalizzare<select aria-label="Foto da personalizzare" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina</option><option value="back">Retro in plexiglass</option></select></label>}{(photoSide === 'front' ? draftCoverLayout !== 'plaque' : draftBackCover === 'photo') ? <div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button><button disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</button></div> : <p>{photoSide === 'front' ? 'Per l’incisione non serve una foto: inserisci i nomi qui sotto.' : 'Per aggiungere una foto, scegli il retro su plexiglass nella sezione Finitura retro qui sotto.'}</p>}{!configuration && editable && <p role="status">Per proseguire, aggiungi le foto richieste dalla copertina e dall’eventuale retro in plexiglass.</p>}</>}
-          {step === 4 && <><h3>Controlla e invia allo studio</h3><p>{title} · versione fotolibro {version}</p>{saved && <p>{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}<p>L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p><p>Materiali e proporzioni dell’anteprima sono indicativi.</p><details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details></>}
+          {step === 2 && <><h3>{mobile ? 'Scegli il tessuto' : 'Rivestimento e copertina'}</h3><p>{mobile ? 'Apri una famiglia e tocca un campione.' : 'Tocca un campione per vederlo sull’album.'}</p></>}
+          {mobile && step === 3 && <><h3>Finiture e copertina</h3><p>Scegli lo stile. La foto o i nomi si aggiungono nel prossimo passaggio.</p></>}
+          {mobile && (step === 4 || step === 5) && <><h3>{step === 5 ? 'Personalizza il retro' : draftCoverLayout === 'plaque' ? 'I nomi da incidere' : 'La foto di copertina'}</h3>{(step === 5 ? draftBackCover === 'photo' : draftCoverLayout !== 'plaque') ? <><p>Scegli una foto dalla galleria del tuo servizio.</p><div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => { setPhotoSide(step === 5 ? 'back' : 'front'); setPicker(true); }}>Scegli dalla galleria</button></div>{!photoStepValid && editable && <p role="status">Scegli una foto per continuare.</p>}</> : <p>{step === 5 ? 'Puoi mantenere il tessuto oppure scegliere una foto su plexiglass qui sotto.' : 'Le iniziali vengono create automaticamente dai nomi.'}</p>}</>}
+          {!mobile && step === 3 && <><h3>Foto e scritte</h3><p>Personalizza la copertina, non le pagine interne del fotolibro.</p>{renderer.id === 'album-girevole' && <label>Foto da personalizzare<select aria-label="Foto da personalizzare" value={photoSide} disabled={!editable || busy || picker || renderBusy} onChange={e => setPhotoSide(e.target.value === 'back' ? 'back' : 'front')}><option value="front">Copertina</option><option value="back">Retro in plexiglass</option></select></label>}{(photoSide === 'front' ? draftCoverLayout !== 'plaque' : draftBackCover === 'photo') ? <div className="wizard-photo-actions"><button disabled={!editable || busy || !ready || renderBusy} onClick={() => upload.current?.click()}>Carica una foto</button><button disabled={!editable || busy || !ready || renderBusy} onClick={() => setPicker(true)}>Scegli dalla galleria</button></div> : <p>{photoSide === 'front' ? 'Per l’incisione non serve una foto: inserisci i nomi qui sotto.' : 'Per aggiungere una foto, scegli il retro su plexiglass nella sezione Finitura retro qui sotto.'}</p>}{!configuration && editable && <p role="status">Per proseguire, aggiungi le foto richieste dalla copertina e dall’eventuale retro in plexiglass.</p>}</>}
+          {step === lastStep && <><h3>Controlla e invia allo studio</h3><p>{title} · versione fotolibro {version}</p>{saved && <p>{MOCKUP_STATUS_LABELS[saved.status || 'draft']} · revisione {saved.revision}{saved.note && ` · ${saved.note}`}</p>}<p>L’invio chiede la verifica allo studio: non manda l’album in stampa. Puoi creare altre revisioni finché lo studio non avvia la stampa.</p><p>Materiali e proporzioni dell’anteprima sono indicativi.</p><details><summary>Recupera la proposta dello studio</summary><button disabled={busy} onClick={reloadWizard}>Ricarica proposta</button></details></>}
         </>, wizard.slot)}
         {!token && <div className="border rounded p-3 space-y-3">
           <p className="text-sm">La conferma riguarda il mockup salvato, non l’impaginato. Se lo modifichi dopo la conferma, salva e conferma una nuova revisione.</p>
@@ -370,10 +385,10 @@ export default function PhotobookMockup({ photobookId, version, token, readOnly 
       }} />
     </>}
       </div>
-      <div className="shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="mockup-actions shrink-0 border-t bg-background p-3 sm:px-4 space-y-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {token && message && <p role="status" className="text-sm max-h-20 overflow-auto">{message}</p>}
         {dirty && <p className="text-sm text-amber-800" role="status">Modifiche da salvare</p>}
-        {token ? <><div className="flex gap-2"><Button variant="outline" className="min-h-11" disabled={step === 1 || busy || renderBusy} onClick={() => setStep(s => s - 1)}>Indietro</Button>{step < 4 ? <Button className="min-h-11 flex-1" disabled={!nextAllowed} onClick={() => setStep(s => s + 1)}>Avanti</Button> : <Button className="min-h-11 h-auto whitespace-normal flex-1" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio per verifica</Button>}</div>{step === 4 && <Button variant="ghost" className="w-full min-h-11" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</Button>}</> : <div className="flex flex-wrap gap-2">
+        {token ? <><div className="flex gap-2"><Button variant="outline" className="min-h-11" disabled={step === 1 || busy || renderBusy} onClick={() => setStep(steps[steps.indexOf(step) - 1])}>Indietro</Button>{step < lastStep ? <Button className="min-h-11 flex-1" disabled={!nextAllowed} onClick={() => setStep(steps[steps.indexOf(step) + 1])}>Avanti</Button> : <Button className="min-h-11 h-auto whitespace-normal flex-1" disabled={!editable || busy || renderBusy || !configuration || !selectedOption || (!dirty && ['submitted', 'confirmed'].includes(saved?.status || ''))} onClick={submitWizard}>Invia allo studio per verifica</Button>}</div>{step === lastStep && <Button variant="ghost" className="w-full min-h-11" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva bozza</Button>}</> : <div className="flex flex-wrap gap-2">
           <Button className="min-h-11 flex-1 sm:flex-none" disabled={!editable || busy || renderBusy || !configuration || !dirty || (!!state.data?.offer && !selectedOption)} onClick={save}>Salva mockup</Button>
         </div>}
       </div>

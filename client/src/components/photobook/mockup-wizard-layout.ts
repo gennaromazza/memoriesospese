@@ -1,11 +1,12 @@
 // Adattatore di sola presentazione per i renderer same-origin esistenti.
 // I controlli restano nel loro documento, con gli handler e gli ID originali.
-export function installMockupWizard(doc: Document) {
+export function installMockupWizard(doc: Document, mobile = false) {
   const content = doc.querySelector<HTMLElement>('.panel-content');
   const stage = doc.querySelector<HTMLElement>('.stage');
   if (!content || !stage) throw new Error('Interfaccia del modello non disponibile');
   const slot = doc.createElement('div'); slot.id = 'wizard-slot'; content.prepend(slot);
   doc.body.dataset.wizard = 'true';
+  if (mobile) doc.body.dataset.wizardMobile = 'true';
   const style = doc.createElement('style');
   style.textContent = `
     body[data-wizard] {height:100dvh;overflow:hidden;font-size:16px}
@@ -52,17 +53,48 @@ export function installMockupWizard(doc: Document) {
     @media(max-width:767px) and (max-height:380px){body[data-wizard] main{grid-template-rows:minmax(100px,35%) minmax(0,1fr)}body[data-wizard] .wizard-views button:nth-child(3){display:none}}
   `;
   doc.head.append(style);
+  if (mobile) {
+    const mobileStyle = doc.createElement('style');
+    mobileStyle.textContent = `
+      body[data-wizard-mobile] main {grid-template-columns:minmax(0,1.4fr) minmax(250px,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+      body[data-wizard-mobile] .workspace {grid-column:1;grid-row:1;display:grid!important;grid-template-rows:minmax(0,1fr) auto;overflow:hidden}
+      body[data-wizard-mobile] aside {grid-column:2;grid-row:1;padding:10px;border-left:1px solid #d8ded7}
+      body[data-wizard-mobile] .wizard-views {position:static;padding:6px;margin:0;background:#faf8f3;border-top:1px solid #d8ded7;gap:4px}
+      body[data-wizard-mobile] .wizard-views button {display:block!important;min-height:44px;padding:6px 8px;font-size:12px}
+      body[data-wizard-mobile] .download-bar {display:none!important}
+      body[data-wizard-mobile][data-wizard-step="6"] .download-bar {display:block!important}
+      body[data-wizard-mobile] #wizard-slot h3 {font-size:17px;margin-bottom:6px}
+      body[data-wizard-mobile] #wizard-slot p {font-size:13px;margin:6px 0}
+      body[data-wizard-mobile] .materials {grid-template-columns:repeat(2,minmax(0,1fr))}
+      body[data-wizard-mobile] .category summary,body[data-wizard-mobile] .material-category summary {cursor:pointer;list-style:disclosure-closed;padding:10px}
+      body[data-wizard-mobile] details[open]>summary {list-style:disclosure-open}
+      body[data-wizard][data-wizard-mobile][data-wizard-step] :is(#fabricPanel,#detailPanel,#summaryPanel) {display:none!important}
+      body[data-wizard][data-wizard-mobile][data-wizard-step="2"] #fabricPanel,
+      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel,
+      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel,
+      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel,
+      body[data-wizard][data-wizard-mobile][data-wizard-step="6"] #summaryPanel {display:block!important}
+      body[data-wizard][data-wizard-mobile][data-wizard-step] #detailPanel>* {display:none!important}
+      body[data-wizard][data-wizard-mobile][data-wizard-step="3"] #detailPanel>[data-wizard-material]:not([hidden]),
+      body[data-wizard][data-wizard-mobile][data-wizard-step="4"] #detailPanel>*:not([data-wizard-material]):not([data-wizard-rear]):not([hidden]):not(h2),
+      body[data-wizard][data-wizard-mobile][data-wizard-step="5"] #detailPanel>[data-wizard-rear]:not([hidden]) {display:block!important}
+      body[data-wizard][data-wizard-mobile] #wizard-home {display:none}
+      body[data-wizard][data-wizard-mobile][data-wizard-step="6"] #wizard-home {display:block}
+    `;
+    doc.head.append(mobileStyle);
+  }
   const detail = doc.getElementById('detailPanel');
   const mirrors: { select: HTMLSelectElement; buttons: HTMLButtonElement[] }[] = [];
-  for (const id of ['frameFinish', 'coverLayout', 'coverOptions']) {
+  for (const id of ['frameFinish', 'coverLayout', 'coverOptions', ...(mobile ? ['backCover'] : [])]) {
     const element = doc.getElementById(id);
     if (!element || !detail?.contains(element)) continue;
-    element.dataset.wizardMaterial = 'true';
+    const group = id === 'backCover' ? 'wizardRear' : 'wizardMaterial';
+    element.dataset[group] = 'true';
     const label = doc.querySelector<HTMLElement>(`label[for="${id}"]`);
-    if (label) label.dataset.wizardMaterial = 'true';
+    if (label) label.dataset[group] = 'true';
     if (element.tagName !== 'SELECT') continue;
     const select = element as HTMLSelectElement;
-    const cards = doc.createElement('div'); cards.className = 'wizard-cards'; cards.dataset.wizardMaterial = 'true';
+    const cards = doc.createElement('div'); cards.className = 'wizard-cards'; cards.dataset[group] = 'true';
     cards.setAttribute('role', 'group'); cards.setAttribute('aria-label', label?.textContent || id);
     const buttons = Array.from(select.options).map(option => {
       const button = doc.createElement('button'); button.type = 'button'; button.textContent = option.text;
@@ -78,16 +110,19 @@ export function installMockupWizard(doc: Document) {
     const firstLabel = doc.querySelector(`label[for="${ids[0]}"]`); (firstLabel || first).before(adjust);
     for (const id of ids) { const label = doc.querySelector(`label[for="${id}"]`); const input = doc.getElementById(id); if (label) adjust.append(label); if (input) adjust.append(input); }
   }
-  doc.querySelectorAll<HTMLDetailsElement>('.category,.material-category').forEach(group => { group.open = true; group.querySelector('summary')?.addEventListener('click', event => event.preventDefault()); });
+  doc.querySelectorAll<HTMLDetailsElement>('.category,.material-category').forEach(group => { group.open = !mobile; if (!mobile) group.querySelector('summary')?.addEventListener('click', event => event.preventDefault()); });
+  if (mobile) {
+    const back = doc.getElementById('backPhotoControls'); if (back) back.dataset.wizardRear = 'true';
+  }
   const home = doc.getElementById('homePanel');
   if (home) { const wrap = doc.createElement('details'); wrap.id = 'wizard-home'; const title = doc.createElement('summary'); title.textContent = 'Vedi in casa · facoltativo'; wrap.append(title); content.append(wrap); wrap.append(home); home.hidden = false; }
   const views = doc.createElement('div'); views.className = 'wizard-views';
-  for (const [id, label] of [['front', 'Fronte'], ['back', 'Retro'], ['reset', 'Reimposta vista']]) {
+  for (const [id, label] of [['front', 'Fronte'], ['back', 'Retro'], ['reset', 'Reimposta vista'], ...(mobile ? [['plus', 'Zoom +'], ['minus', 'Zoom −']] : [])]) {
     const button = doc.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => { doc.getElementById(id)?.click(); refresh(); }; views.append(button);
   }
   const extraction = doc.getElementById('extract') as HTMLInputElement | null;
   if (extraction) { const button = doc.createElement('button'); button.type = 'button'; button.dataset.extractPreset = 'true'; button.textContent = 'Estrai album'; button.onclick = () => { extraction.value = Number(extraction.value) ? '0' : '100'; extraction.dispatchEvent(new Event('input', { bubbles: true })); refresh(); }; views.append(button); }
-  stage.append(views);
+  if (mobile) stage.parentElement?.append(views); else stage.append(views);
   function refresh() {
     mirrors.forEach(({ select, buttons }) => buttons.forEach((button, index) => { button.disabled = select.disabled; button.setAttribute('aria-pressed', String(select.selectedIndex === index)); }));
     const extractButton = views.querySelector<HTMLButtonElement>('[data-extract-preset]');
@@ -97,7 +132,8 @@ export function installMockupWizard(doc: Document) {
   mirrors.forEach(({ select }) => observer.observe(select, { attributes: true, attributeFilter: ['disabled'] }));
   return { slot, refresh, dispose() { observer.disconnect(); }, step(value: number) {
     doc.body.dataset.wizardStep = String(value);
-    if (value === 4) doc.getElementById('summaryPanel')?.after(slot); else content.prepend(slot);
+    if (value === (mobile ? 6 : 4)) doc.getElementById('summaryPanel')?.after(slot); else content.prepend(slot);
+    if (mobile && (value === 4 || value === 5)) doc.getElementById(value === 5 ? 'back' : 'front')?.click();
     content.scrollTop = 0; refresh();
   } };
 }

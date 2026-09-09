@@ -331,18 +331,11 @@ export default function PhotobookViewPage() {
   // Lightbox desktop: indice della pagina aperta a schermo intero
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
-  // Sequenza su telefono: azione scelta in orizzontale → overlay "Ruota in
-  // verticale" SENZA tastiera (autofocus bloccato + blur di sicurezza);
-  // appena ruotato in verticale, focus sul campo nota → si apre la tastiera.
+  // Le note funzionano in entrambi gli orientamenti; il focus resta esplicito
+  // sul telefono per non occupare subito lo schermo con la tastiera.
   useEffect(() => {
     if (!isTouchPhone || !noteMode) return;
-    if (!isPortraitPhone) {
-      // Overlay visibile: chiudi eventuale tastiera già aperta
-      (document.activeElement as HTMLElement | null)?.blur?.();
-      return;
-    }
-    const t = setTimeout(() => noteTextareaRef.current?.focus(), 350);
-    return () => clearTimeout(t);
+    noteTextareaRef.current?.blur();
   }, [isTouchPhone, isPortraitPhone, noteMode]);
 
   const { data, isLoading, isError } = useQuery({
@@ -474,6 +467,7 @@ export default function PhotobookViewPage() {
   // richieste inviate ancora in attesa di lavorazione (il server lo verifica)
   const pendingSentCount = (data?.requests || []).filter((r) => r.status === 'pending').length;
   const [approveOpen, setApproveOpen] = useState(false);
+  const [mockupOpen, setMockupOpen] = useState(false);
   const [approveNote, setApproveNote] = useState('');
   const approveMutation = useMutation({
     mutationFn: () => approvePhotobookByToken(token, approveNote.trim() || undefined),
@@ -765,38 +759,18 @@ export default function PhotobookViewPage() {
 
   return (
     <div className="min-h-screen bg-stone-50 pb-28">
-      {/* Su smartphone in verticale il fotolibro non si vede: schermata "ruota il
-          telefono". Sospesa mentre si scrive una nota o si cerca una foto: così
-          il cliente può ruotare in verticale per digitare comodamente e poi
-          tornare in orizzontale. */}
-      {/* Mentre si scrive una nota in orizzontale: overlay a schermo intero che
-          invita a ruotare in verticale. Montato con portal su document.body e
-          z-[200] per stare SOPRA i dialog Radix (z-50); scompare appena si ruota. */}
-      {isTouchPhone && !isPortraitPhone && (!!noteMode || pickerOpen) && createPortal(
+      {/* Le pagine richiedono il telefono orizzontale; i modali di servizio
+          restano utilizzabili in entrambi gli orientamenti, senza perdere dati. */}
+      {isPortraitPhone && !mockupOpen && !noteMode && !pickerOpen && !confirmOpen && !clearAllOpen && !jumpOpen && !activeMark && !approveOpen && !deleteSentTarget && createPortal(
         <div
-          className="fixed inset-0 z-[200] bg-stone-900/95 flex flex-col items-center justify-center gap-4 p-8 text-center"
-          data-testid="overlay-rotate-portrait"
-        >
-          <Smartphone className="h-14 w-14 text-white animate-pulse" />
-          <p className="text-white font-semibold text-xl">Ruota in verticale</p>
-          <p className="text-stone-300 text-sm max-w-xs">
-            {noteMode
-              ? 'Per scrivere la nota è più comodo il telefono in verticale: la tastiera lascia spazio al testo. Quando hai finito, torna in orizzontale per vedere la pagina grande.'
-              : 'Per cercare e scegliere la foto sostitutiva è più comodo il telefono in verticale. Quando hai finito, torna in orizzontale per vedere la pagina grande.'}
-          </p>
-        </div>,
-        document.body,
-      )}
-      {isPortraitPhone && !noteMode && !pickerOpen && (
-        <div
-          className="bg-stone-100 flex items-center gap-3 p-3 text-sm"
+          className="fixed inset-0 z-[200] bg-stone-100 flex flex-col items-center justify-center gap-4 p-8 text-center"
           data-testid="overlay-rotate"
         >
           <Smartphone className="h-6 w-6 shrink-0 rotate-90" />
           <p>
-            Per controllare meglio le pagine puoi ruotare il telefono in orizzontale. Puoi aprire il mockup e consultare le versioni anche in verticale.
+            Ruota il telefono in orizzontale per visualizzare le pagine e personalizzare il tuo album.
           </p>
-        </div>
+        </div>, document.body
       )}
 
       {/* Header */}
@@ -879,7 +853,7 @@ export default function PhotobookViewPage() {
         <details className="rounded-lg border bg-white p-3 text-sm"><summary className="cursor-pointer font-medium min-h-9">Come controllare il tuo fotolibro · guida passo passo</summary>
           <ol className="list-decimal pl-5 space-y-2 mt-2"><li>Sfoglia tutte le pagine con le frecce.</li><li>Per una correzione, tocca “Segna una X”, indica la foto e descrivi cosa cambiare.</li><li>Invia le richieste: finché restano in bozza lo studio non le riceve.</li><li>Quando le pagine vanno bene, approva l’impaginato. Copertina e box si personalizzano separatamente con “Apri mockup”, fino all’invio in stampa.</li></ol>
         </details>
-        <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} />
+        <PhotobookMockup key={`${photobook.id}-${data.version}`} photobookId={photobook.id} version={data.version} token={token} readOnly={isLocked || !isCurrentVersion} onOpenChange={setMockupOpen} />
         {isLocked && (
           <Card className="border-stone-300 bg-stone-100" data-testid="banner-locked">
             <CardContent className="py-4 flex items-start gap-3">
@@ -1236,7 +1210,7 @@ export default function PhotobookViewPage() {
 
       {/* Conferma "Annulla tutte" (evita cancellazioni accidentali su smartphone) */}
       <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent className={`max-w-sm ${isTouchPhone ? 'max-h-[90dvh] overflow-y-auto' : ''}`}>
           <AlertDialogHeader>
             <AlertDialogTitle>
               Eliminare {drafts.size === 1 ? 'la bozza' : `tutte le ${drafts.size} bozze`}?
@@ -1268,7 +1242,7 @@ export default function PhotobookViewPage() {
         open={!!activeMark && !noteMode && !pickerOpen}
         onOpenChange={(o) => !o && setActiveMark(null)}
       >
-        <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="max-w-sm max-h-[90dvh] overflow-y-auto" onInteractOutside={event => { if (isTouchPhone) event.preventDefault(); }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <span
@@ -1327,14 +1301,14 @@ export default function PhotobookViewPage() {
         }}
       >
         <DialogContent
+          onInteractOutside={event => { if (isTouchPhone) event.preventDefault(); }}
           // Su smartphone il dialog è ancorato in alto: la tastiera copre la
           // metà bassa dello schermo, così il campo nota resta sempre visibile.
           // Con tastiera aperta il dialog si restringe all'altezza visibile
           // (visualViewport) e scorre al suo interno.
-          // In orizzontale niente autofocus: c'è l'overlay "Ruota in verticale"
-          // e la tastiera NON deve aprirsi; si aprirà dopo la rotazione.
+          // Il cliente apre la tastiera toccando il campo, in entrambi gli orientamenti.
           onOpenAutoFocus={(e) => {
-            if (isTouchPhone && !isPortraitPhone) e.preventDefault();
+            if (isTouchPhone) e.preventDefault();
           }}
           className={`max-w-sm overflow-y-auto ${
             isTouchPhone ? 'top-2 translate-y-0 max-h-[80dvh]' : 'max-h-[90dvh]'
@@ -1425,7 +1399,7 @@ export default function PhotobookViewPage() {
         open={!!deleteSentTarget}
         onOpenChange={(o) => !o && !deleteSentMutation.isPending && setDeleteSentTarget(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className={isTouchPhone ? 'max-h-[90dvh] overflow-y-auto' : undefined}>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancellare questa richiesta?</AlertDialogTitle>
             <AlertDialogDescription>

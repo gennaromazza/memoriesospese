@@ -367,10 +367,10 @@ In **Lavori & Clienti → Laboratori → Modelli album**, il catalogo mostra sch
 Branch di consegna: `codex/mockup-ambientazioni-desktop`. L’allineamento Replit è effettuato dall’utente, non automaticamente dal push GitHub. Dalla Shell di Replit, con modifiche locali già salvate e working tree pulito:
 
 ```sh
-git fetch origin && git merge --ff-only origin/codex/mockup-ambientazioni-desktop
+git fetch origin && git merge --no-edit origin/codex/mockup-ambientazioni-desktop
 ```
 
-Se Git segnala modifiche locali o cronologie divergenti, fermarsi e verificare: non usare reset forzati. Il comando aggiorna il codice senza forzare merge o cancellare lavoro; non pubblica automaticamente una nuova versione dell’app.
+Il merge conserva anche i commit creati su Replit. Se Git segnala modifiche locali o conflitti, fermarsi e verificare: non usare reset forzati. Il comando non cancella la cronologia e non pubblica automaticamente una nuova versione dell’app.
 
 ## 📞 Supporto
 
