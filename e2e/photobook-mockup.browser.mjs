@@ -48,7 +48,7 @@ try{
    offer={revision:(offer?.revision||0)+1,updatedAt:new Date().toISOString(),options:body.selections.map(s=>{const entry=labCatalog.models.find(m=>m.id===s.modelId);assert.ok(entry);return {...entry,labId:s.labId,labName:'Laboratorio test',materials:labCatalog.materials.filter(m=>entry.materialIds.includes(m.id))};})};
    saved={...saved,revision:saved.revision+1,status:'draft'};return route.fulfill({json:offer});
   }
-  if(url.pathname.endsWith('/submit')||url.pathname.endsWith('/request-changes')){if(url.pathname.endsWith('/submit'))submissions++;assert.equal(request.postDataJSON().revision,saved.revision);saved={...saved,revision:saved.revision+1,status:url.pathname.endsWith('/submit')?'submitted':'changes_requested'};return route.fulfill({json:saved});}
+  if(url.pathname.endsWith('/submit')||url.pathname.endsWith('/request-changes')){if(url.pathname.endsWith('/submit'))submissions++;assert.equal(request.postDataJSON().revision,saved.revision);saved={...saved,revision:saved.revision+1,note:request.postDataJSON().note,status:url.pathname.endsWith('/submit')?'submitted':'changes_requested'};return route.fulfill({json:saved});}
   if(url.pathname.endsWith('/confirm')){const body=JSON.parse(request.postData());assert.equal(body.revision,saved.revision);assert.deepEqual(body.configuration,saved.configuration);assert.equal(body.previews.length,8);assert.ok(body.previews.every(v=>v.image.startsWith('data:image/jpeg;base64,')));confirmations++;saved={...saved,revision:saved.revision+1,status:'confirmed',confirmedAt:new Date().toISOString()};return route.fulfill({json:saved});}
   if(url.pathname.endsWith('/attach')){assert.equal(saved.status,'confirmed');assert.equal(request.postDataJSON().revision,saved.revision);attachments++;return route.fulfill({json:{status:'attached'}});}
   if(url.pathname.endsWith('/gallery-photos'))return route.fulfill({json:{photos:[{id:'gallery-photo',name:'Foto della galleria',url:'/sample.png',thumbnailUrl:'/sample.png'}],chapters:[]}});
@@ -65,7 +65,15 @@ try{
   await page.getByRole('button',{name:/^Apri mockup /}).click();
   try { await page.frameLocator('iframe').locator('body[data-ready="true"]').waitFor({timeout:30000}); }
   catch(error){console.error(await page.locator('body').innerText());console.error(await page.frameLocator('iframe').locator('body').innerText());throw error;}
-  if(query.includes('admin')) await page.getByRole('button',{name:'Carica una foto'}).waitFor();
+  if(query.includes('admin')) {
+   await page.getByRole('heading',{name:'Verifica proposta album',exact:true}).waitFor();
+   assert.equal(await page.getByLabel('Cosa deve correggere il cliente?').count(),0);
+   const before=await page.locator('iframe').boundingBox();
+   await page.locator('.mockup-admin-panel').evaluate(el=>el.scrollTop=el.scrollHeight);
+   assert.deepEqual(await page.locator('iframe').boundingBox(),before,'Lo scorrimento dei comandi non sposta l’album');
+   await page.getByRole('button',{name:'Modifica',exact:true}).click();
+   await page.getByRole('button',{name:'Carica una foto'}).waitFor();
+  }
   else await page.frameLocator('iframe').locator('#wizard-slot').waitFor();
   return page.frameLocator('iframe');
  }
@@ -78,7 +86,7 @@ try{
  await page.getByText('Mockup salvato. Il salvataggio non equivale alla conferma dello studio.',{exact:true}).waitFor();
  assert.equal(saved.configuration.topText,'Anna e Marco');
  await page.setViewportSize({width:390,height:844});
- const modal=page.getByRole('dialog',{name:'Personalizza il tuo album',exact:true});
+ const modal=page.getByRole('dialog',{name:'Verifica proposta album',exact:true});
  await page.waitForFunction(()=>{const box=document.querySelector('[role=dialog]')?.getBoundingClientRect();return box && Math.abs(box.width-innerWidth)<2 && Math.abs(box.height-innerHeight)<2;});
  const modalBox=await modal.boundingBox();
  assert.ok(modalBox && modalBox.width>=389 && modalBox.height>=843);
@@ -92,6 +100,7 @@ try{
  await page.getByRole('button',{name:'Chiudi',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('iframe'));
  await page.getByRole('button',{name:/^Apri mockup /}).click();
+ await page.getByRole('button',{name:'Modifica',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('iframe')?.contentDocument?.getElementById('topText')?.value==='Anna e Marco');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
@@ -164,6 +173,7 @@ try{
  // Il laboratorio abilita due rivestimenti per questo modello, non per il lavoro.
  labCatalog.models[0].materialIds=labCatalog.materials.slice(0,2).map(m=>m.id);
  frame=await open('?admin');
+ await page.getByRole('button',{name:'Modelli disponibili',exact:true}).click();
  await page.getByRole('button',{name:'Laboratori e modelli per questo lavoro'}).click();
  await page.getByRole('checkbox',{name:'Laboratorio test',exact:true}).check();
  await page.getByRole('button',{name:'Pubblica opzioni nel link cliente'}).click();
@@ -200,7 +210,7 @@ try{
  assert.ok(sendBox.y+sendBox.height<=844,'Invio raggiungibile in fondo al telefono');
  failNextSave=true;
  await page.getByRole('button',{name:'Invia allo studio per verifica'}).click();
- await page.getByText('Revisione cambiata: ricarica la proposta.',{exact:true}).waitFor();
+ await page.getByText('Salvataggio non completato: Revisione cambiata: ricarica la proposta.',{exact:true}).waitFor();
  assert.equal(submissions,0,'Se il salvataggio fallisce non deve partire alcun invio');
  await page.getByRole('button',{name:'Invia allo studio per verifica'}).click();
  await page.getByText('Proposta inviata allo studio per la verifica.',{exact:true}).waitFor();
@@ -214,9 +224,11 @@ try{
  await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
  await frame.locator('#topText').fill('Correzione dello studio');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).click();
+ await page.getByRole('button',{name:'Verifica',exact:true}).click();
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();
  await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,1);assert.equal(saved.status,'confirmed');
+ await page.getByText('Revisioni, documenti e invio al laboratorio',{exact:true}).click();
  await page.getByRole('button',{name:'Allega all’invio fotolibro su Drive'}).click();
  await page.getByText('Mockup registrato nella cartella Drive.',{exact:false}).waitFor();assert.equal(attachments,1);
  await page.screenshot({path:'work/mockup-workflow-studio.png',fullPage:true});
@@ -260,6 +272,7 @@ try{
  await frame.locator('#frameFinish').selectOption('fabric');await frame.locator('#coverLayout').selectOption('full');
  await page.getByRole('button',{name:'Salva mockup',exact:true}).click();await page.getByText('Mockup salvato.',{exact:false}).waitFor();
  await page.locator('iframe').screenshot({path:'work/mockup-girevole-tessuto.png'});
+ await page.getByRole('button',{name:'Verifica',exact:true}).click();
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,2);
  // Foto sul plexiglass dello scrigno ed estrazione del solo album, senza cambiare la configurazione.
@@ -284,9 +297,11 @@ try{
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('warm');
  assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:'Verifica',exact:true}).click();
  await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
  assert.equal(confirmations,3);assert.equal(await frame.locator('#extract').inputValue(),'100');
  assert.equal(await frame.locator('#homeScene').inputValue(),'warm');
+ await page.getByRole('button',{name:'Modifica',exact:true}).click();
  await frame.getByRole('button',{name:'In casa',exact:true}).click();
  await frame.locator('#homeScene').selectOption('none');
  frame=await open('?admin&readonly');await frame.getByRole('button',{name:'Dettagli',exact:true}).click();
@@ -311,6 +326,7 @@ try{
   assert.equal(await frame.locator('#backCover').inputValue(),historicalConfiguration.backCover);
   assert.equal(await frame.locator('#backZoom').inputValue(),String(historicalConfiguration.backCrop.zoom));
   if(legacyRevision===3)assert.equal(await frame.locator('#firstName').inputValue(),historicalConfiguration.engravingNames.first);
+  await page.getByRole('button',{name:'Verifica',exact:true}).click();
   await page.getByRole('button',{name:'Conferma mockup',exact:true}).click();
   await page.getByText('Mockup confermato.',{exact:false}).waitFor({timeout:45000});
   assert.deepEqual(saved.configuration,historicalConfiguration,'Export storico fedele, senza migrazione implicita');
@@ -475,6 +491,18 @@ try{
  assert.equal(await frame.getByRole('button',{name:'Fronte',exact:true}).isVisible(),true);
  await page.screenshot({path:'work/mockup-wizard-mobile-320.png'});
  assert.equal(saved.revision,readRevision);
+ await page.setViewportSize({width:1280,height:800});
+ frame=await open('?admin');
+ await page.getByRole('button',{name:'Verifica',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'Salva mockup',exact:true}).count(),0,'La verifica non mostra un salvataggio superfluo');
+ await page.getByRole('button',{name:'Richiedi modifiche al cliente',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'Invia richiesta di modifiche',exact:true}).isDisabled(),true);
+ await page.getByLabel('Cosa deve correggere il cliente?').fill('Centra la foto sul plexiglass');
+ await page.getByRole('button',{name:'Invia richiesta di modifiche',exact:true}).click();
+ await page.getByText('Proposta restituita al cliente per le modifiche.',{exact:true}).waitFor();
+ assert.equal(saved.status,'changes_requested');assert.equal(saved.note,'Centra la foto sul plexiglass');
+ assert.equal(await page.getByLabel('Cosa deve correggere il cliente?').count(),0);
+ await page.screenshot({path:'work/mockup-admin-review-final.png'});
  assert.deepEqual(errors,[]);
  console.log('Album girevole OK: cambio renderer, ripristino, 3 finiture e copertine, 8 viste, incisione senza foto, blocco foto mancante, mobile e sola lettura.');
  console.log('Browser OK: renderer, foto, download, mobile, catalogo laboratorio, proposta, invio cliente, correzione studio, conferma con 8 viste, allegato e contatto WhatsApp operativo.');

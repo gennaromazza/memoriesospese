@@ -33,7 +33,7 @@ export function mockupGalleryStoragePath(value: string, bucket: string): string 
 }
 
 /** Montato dopo il controllo admin oppure sotto il token del singolo fotolibro. */
-export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: boolean) {
+export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: boolean, notifySubmission?: (book: DocumentSnapshot, saved: SavedMockup) => Promise<void>) {
   const router = express.Router({ mergeParams: true });
   // L'approvazione riguarda le pagine della versione corrente, non la
   // copertina: dopo averle approvate il cliente può creare più revisioni del
@@ -184,6 +184,17 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
         tx.set(ref, result);
         return result;
       });
+      // Fuori dalla transazione: Firestore può rieseguirla. Solo l'invio
+      // accettato genera l'email, non il salvataggio o un doppio clic.
+      if (action === 'submit' && !isAdmin && notifySubmission) {
+        try { await notifySubmission(book, result); }
+        catch {
+          // Non indurre il cliente a inviare nuovamente una revisione già
+          // acquisita: il trasporto email potrebbe averla già consegnata.
+          console.warn('[photobook-mockup] Esito email allo studio non confermato');
+          return res.json({ ...result, notificationWarning: 'La proposta è stata ricevuta, ma la notifica email allo studio non è confermata. Non serve inviarla di nuovo.' });
+        }
+      }
       res.json(result);
     } catch (error) { next(error); }
   });
@@ -338,7 +349,16 @@ export function createPhotobookMockupRouter(resolveBook: Resolver, isAdmin: bool
   router.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const oversized = (error as { type?: string })?.type === 'entity.too.large';
     const status = error instanceof MockupError ? error.status : error instanceof z.ZodError || error instanceof SyntaxError ? 400 : oversized ? 413 : 500;
-    res.status(status).json({ error: error instanceof MockupError ? error.message : status === 500 ? 'Impossibile confermare l’esito. Ricarica la proposta prima di riprovare.' : 'Dati mockup o immagine non validi.' });
+    // Non esporre payload, foto, token o testi del cliente. Indicare solo il
+    // gruppo rifiutato permette di distinguere un invio da un salvataggio.
+    const fields = error instanceof z.ZodError ? [...new Set(error.issues.map(issue => String(issue.path[0] || 'body')))] : [];
+    const invalidMessage = fields.includes('configuration') ? 'La configurazione dell’album non è compatibile con il server. Conserva le scelte e contatta lo studio per verificare l’aggiornamento.'
+      : fields.includes('selection') ? 'Il modello selezionato non è valido. Torna alla scelta del modello.'
+      : fields.includes('revision') || fields.includes('offerRevision') ? 'Il numero di revisione non è valido. Ricarica la proposta aggiornata prima di riprovare.'
+      : fields.includes('note') ? 'Il messaggio non è valido: usa un testo entro 2.000 caratteri.'
+      : fields.includes('previews') ? 'Le viste dell’album non sono valide. Riapri l’anteprima e riprova la conferma.'
+      : 'La richiesta ricevuta è incompleta o non leggibile. Le scelte non sono state inviate: riprova e, se persiste, contatta lo studio.';
+    res.status(status).json({ error: error instanceof MockupError ? error.message : status === 500 ? 'Impossibile confermare l’esito. Ricarica la proposta prima di riprovare.' : oversized ? 'Immagine troppo grande. Scegli un file più piccolo.' : invalidMessage });
   });
   return router;
 }
