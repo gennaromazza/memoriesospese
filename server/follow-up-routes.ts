@@ -74,6 +74,9 @@ const DEFAULT_SEQUENCE: FollowUpSequence = {
   reactivationDaysBeforeEvent: 60,
 };
 
+const STALE_SENDING_LOCK_MS = 15 * 60 * 1000;
+const RECOVERY_LEASE_MS = 5 * 60 * 1000;
+
 type FirestoreData = Record<string, any>;
 
 function asDate(value: any): Date | undefined {
@@ -355,13 +358,158 @@ async function ensureState(context: any, sequence: FollowUpSequence): Promise<Fi
   return state!;
 }
 
+type StaleLockRecovery = "none" | "recent" | "cleared" | "finalized" | "pending";
+
+async function findAcceptedFollowUpEmail(
+  quoteId: string,
+  step: number,
+  lockId: string,
+): Promise<{ accepted?: FirestoreData; ambiguous: boolean }> {
+  const snapshot = await db
+    .collection("emailLogs")
+    .where("relatedDocId", "==", quoteId)
+    .where("type", "==", "quote_followup")
+    .get();
+  const logs = snapshot.docs.map((doc) => doc.data());
+  return {
+    accepted: logs
+      .find((data) => data.status === "sent" && data.followUpStep === step && data.followUpLockId === lockId),
+    ambiguous: logs.some((data) => data.followUpStep === step),
+  };
+}
+
+async function appendRecoveryEvent(
+  type: Extract<FollowUpEventType, `followup_recovery_${string}`>,
+  context: any,
+  metadata: FirestoreData,
+  step: number,
+): Promise<void> {
+  try {
+    await appendFollowUpEvent(type, context.quote.id, context.quote.jobId, metadata, step);
+  } catch (error) {
+    console.error(`[FollowUp] Evento recovery non registrato per quote ${context.quote.id}:`, error);
+  }
+}
+
+async function finalizeRecoveredSend(
+  stateRef: any,
+  context: any,
+  sequence: FollowUpSequence,
+  lock: FirestoreData,
+): Promise<void> {
+  const step = Number(lock.step);
+  const next = sequence.steps.find((item) => item.enabled && item.step > step);
+  await stateRef.update({
+    sendingLock: FieldValue.delete(),
+    recoveryPending: FieldValue.delete(),
+    sentSteps: FieldValue.arrayUnion(step),
+    lastSentAt: FieldValue.serverTimestamp(),
+    nextStep: next?.step ?? null,
+    nextDueAt: next ? Timestamp.fromDate(addDays(context.sentAt, next.delayDays)) : null,
+    status: next ? "active" : "dormant",
+    lastRecoveryAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await appendRecoveryEvent(
+    "followup_recovery_finalized",
+    context,
+    { lockId: lock.id, reason: "gmail-accepted", source: "stale-lock-recovery" },
+    step,
+  );
+}
+
+async function recoverStaleSendingLock(
+  stateRef: any,
+  context: any,
+  sequence: FollowUpSequence,
+  state: FirestoreData,
+): Promise<StaleLockRecovery> {
+  const lock = state.sendingLock;
+  if (!lock?.id || !lock.step) return "none";
+  const lockedAt = asDate(lock.at);
+  if (!lockedAt || Date.now() - lockedAt.getTime() < STALE_SENDING_LOCK_MS) return "recent";
+
+  const recoveryId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let claimed = false;
+  await db.runTransaction(async (transaction) => {
+    const latest = await transaction.get(stateRef);
+    const latestData = latest.data() || {};
+    const latestLock = latestData.sendingLock;
+    if (!latest.exists || latestLock?.id !== lock.id) return;
+    const latestLockedAt = asDate(latestLock.at);
+    if (!latestLockedAt || Date.now() - latestLockedAt.getTime() < STALE_SENDING_LOCK_MS) return;
+    const recoveryAt = asDate(latestLock.recoveryAt);
+    if (recoveryAt && Date.now() - recoveryAt.getTime() < RECOVERY_LEASE_MS) return;
+    transaction.update(stateRef, {
+      sendingLock: { ...latestLock, recoveryId, recoveryAt: FieldValue.serverTimestamp() },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    claimed = true;
+  });
+  if (!claimed) return "recent";
+
+  const emailEvidence = await findAcceptedFollowUpEmail(context.quote.id, Number(lock.step), lock.id);
+  if (emailEvidence.accepted) {
+    await finalizeRecoveredSend(stateRef, context, sequence, lock);
+    return "finalized";
+  }
+  if (emailEvidence.ambiguous) {
+    const latest = await stateRef.get();
+    const latestLock = latest.data()?.sendingLock;
+    if (latestLock?.recoveryId !== recoveryId) return "recent";
+    await stateRef.update({
+      sendingLock: FieldValue.delete(),
+      status: "suspended",
+      recoveryPending: {
+        lockId: lock.id,
+        step: Number(lock.step),
+        reason: "gmail-log-without-lock-marker",
+        at: FieldValue.serverTimestamp(),
+      },
+      lastRecoveryAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await appendRecoveryEvent(
+      "followup_recovery_pending",
+      context,
+      { lockId: lock.id, reason: "gmail-log-without-lock-marker", source: "stale-lock-recovery" },
+      Number(lock.step),
+    );
+    return "pending";
+  }
+
+  // No accepted Gmail log means the process stopped before Gmail confirmed the
+  // message. Clear only this exact lock, then let the normal path retry it.
+  const latest = await stateRef.get();
+  const latestLock = latest.data()?.sendingLock;
+  if (latestLock?.recoveryId !== recoveryId) return "recent";
+  await stateRef.update({
+    sendingLock: FieldValue.delete(),
+    lastRecoveryAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await appendRecoveryEvent(
+    "followup_recovery_cleared",
+    context,
+    { lockId: lock.id, reason: "no-gmail-acceptance-log", source: "stale-lock-recovery" },
+    Number(lock.step),
+  );
+  return "cleared";
+}
+
 async function processQuote(
   context: any,
   quotesByJob?: Map<string, FirestoreData[]>,
 ): Promise<"sent" | "skipped" | "error"> {
   const sequence = await getSequence(context.job.jobType || "default");
-  const state = await ensureState(context, sequence);
+  let state = await ensureState(context, sequence);
   const stateRef = db.collection("quoteFollowUps").doc(context.quote.id);
+  const recovered = await recoverStaleSendingLock(stateRef, context, sequence, state);
+  if (recovered === "recent" || recovered === "finalized" || recovered === "pending") return "skipped";
+  if (recovered === "cleared") {
+    const refreshed = await stateRef.get();
+    state = { id: stateRef.id, ...(refreshed.data() || {}) };
+  }
   const now = new Date();
   const currentStatus = String(state.status) as FollowUpStatus;
   if (!sequence.enabled || sequence.mode !== "automatic") return "skipped";
@@ -434,6 +582,8 @@ async function processQuote(
       relatedDocId: context.quote.id,
       relatedDocType: "quote",
       clientName: [context.client.nome, context.client.cognome].filter(Boolean).join(" ") || "Cliente",
+      followUpStep: step.step,
+      followUpLockId: lockId,
     });
   } catch (error) {
     await stateRef.update({

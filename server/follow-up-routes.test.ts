@@ -220,6 +220,7 @@ function baseDb(overrides: {
     jobs: { "job-1": jobData(overrides.job) },
     clienti: { "client-1": { nome: "Mario", cognome: "Rossi", email: "mario@example.com", ...(overrides.client || {}) } },
     bookings: overrides.bookings || {},
+    emailLogs: {},
     ...(overrides.state ? { quoteFollowUps: { "quote-1": overrides.state } } : {}),
   });
 }
@@ -279,6 +280,100 @@ describe("runFollowUpCheck — invii idempotenti", () => {
     expect(h.sendGmailEmail).toHaveBeenCalledTimes(2);
     const events = Object.values(collections.followUpEvents || {});
     expect(events.filter((event) => event.type === "followup_sent")).toHaveLength(1);
+  });
+
+  it("non riapre un lock recente durante il controllo successivo", async () => {
+    const recentLock = {
+      id: "recent-lock",
+      step: 1,
+      at: new Date(),
+    };
+    const { db, collections } = baseDb({
+      state: {
+        quoteId: "quote-1",
+        jobId: "job-1",
+        status: "active",
+        sentSteps: [],
+        nextDueAt: new Date(Date.now() - 60_000),
+        sendingLock: recentLock,
+      },
+    });
+    h.db = db;
+
+    const result = await runFollowUpCheck();
+
+    expect(result.sent).toBe(0);
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+    expect(collections.quoteFollowUps?.["quote-1"].sendingLock).toMatchObject(recentLock);
+  });
+
+  it("recupera un lock vecchio senza conferma Gmail e ritenta l'invio", async () => {
+    const oldLock = {
+      id: "crash-before-gmail",
+      step: 1,
+      at: new Date(Date.now() - 60 * 60 * 1000),
+    };
+    const { db, collections } = baseDb({
+      state: {
+        quoteId: "quote-1",
+        jobId: "job-1",
+        status: "active",
+        sentSteps: [],
+        nextDueAt: new Date(Date.now() - 60_000),
+        sendingLock: oldLock,
+      },
+    });
+    h.db = db;
+
+    const result = await runFollowUpCheck();
+
+    expect(result.sent).toBe(1);
+    expect(h.sendGmailEmail).toHaveBeenCalledTimes(1);
+    expect(collections.quoteFollowUps?.["quote-1"].sentSteps).toEqual([1]);
+    expect(collections.quoteFollowUps?.["quote-1"].sendingLock).toBeUndefined();
+    const events = Object.values(collections.followUpEvents || {});
+    expect(events.some((event) =>
+      event.type === "followup_recovery_cleared" &&
+      event.metadata?.lockId === oldLock.id,
+    )).toBe(true);
+  });
+
+  it("finalizza un lock vecchio già accettato da Gmail senza reinviare il messaggio", async () => {
+    const oldLock = {
+      id: "crash-after-gmail",
+      step: 1,
+      at: new Date(Date.now() - 60 * 60 * 1000),
+    };
+    const { db, collections } = baseDb({
+      state: {
+        quoteId: "quote-1",
+        jobId: "job-1",
+        status: "active",
+        sentSteps: [],
+        nextDueAt: new Date(Date.now() - 60_000),
+        sendingLock: oldLock,
+      },
+    });
+    collections.emailLogs["accepted-followup"] = {
+      relatedDocId: "quote-1",
+      type: "quote_followup",
+      status: "sent",
+      followUpStep: 1,
+      followUpLockId: oldLock.id,
+    };
+    h.db = db;
+
+    const result = await runFollowUpCheck();
+
+    expect(result.sent).toBe(0);
+    expect(h.sendGmailEmail).not.toHaveBeenCalled();
+    expect(collections.quoteFollowUps?.["quote-1"].sentSteps).toEqual([1]);
+    expect(collections.quoteFollowUps?.["quote-1"].sendingLock).toBeUndefined();
+    const events = Object.values(collections.followUpEvents || {});
+    expect(events.some((event) =>
+      event.type === "followup_recovery_finalized" &&
+      event.metadata?.lockId === oldLock.id,
+    )).toBe(true);
   });
 
   it.each([

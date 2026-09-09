@@ -28,6 +28,8 @@ interface EmailLogEntry {
   relatedDocId?: string;
   relatedDocType?: string;
   clientName?: string;
+  followUpStep?: number;
+  followUpLockId?: string;
   errorMessage?: string;
 }
 
@@ -49,6 +51,8 @@ async function logEmailSent(
     if (entry.relatedDocId) cleanEntry.relatedDocId = entry.relatedDocId;
     if (entry.relatedDocType) cleanEntry.relatedDocType = entry.relatedDocType;
     if (entry.clientName) cleanEntry.clientName = entry.clientName;
+    if (entry.followUpStep !== undefined) cleanEntry.followUpStep = entry.followUpStep;
+    if (entry.followUpLockId) cleanEntry.followUpLockId = entry.followUpLockId;
     if (entry.errorMessage) cleanEntry.errorMessage = entry.errorMessage;
 
     const logRef = await db.collection("emailLogs").add(cleanEntry);
@@ -534,6 +538,8 @@ export async function sendGmailEmail(
     relatedDocId?: string;
     relatedDocType?: string;
     clientName?: string;
+    followUpStep?: number;
+    followUpLockId?: string;
     skipLog?: boolean;
   },
 ): Promise<void> {
@@ -621,6 +627,8 @@ export async function sendGmailEmail(
         relatedDocId: logOptions?.relatedDocId,
         relatedDocType: logOptions?.relatedDocType,
         clientName: logOptions?.clientName,
+        followUpStep: logOptions?.followUpStep,
+        followUpLockId: logOptions?.followUpLockId,
       });
     }
   } catch (error: any) {
@@ -637,6 +645,8 @@ export async function sendGmailEmail(
         relatedDocId: logOptions?.relatedDocId,
         relatedDocType: logOptions?.relatedDocType,
         clientName: logOptions?.clientName,
+        followUpStep: logOptions?.followUpStep,
+        followUpLockId: logOptions?.followUpLockId,
       });
     }
 

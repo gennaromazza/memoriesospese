@@ -35,7 +35,10 @@ export type FollowUpEventType =
   | "not_interested"
   | "dormant"
   | "reactivated"
-  | "superseded";
+  | "superseded"
+  | "followup_recovery_cleared"
+  | "followup_recovery_finalized"
+  | "followup_recovery_pending";
 
 export interface FollowUpSequenceStep {
   step: number;
@@ -93,6 +96,18 @@ export interface FollowUpState {
   signedValue?: number;
   createdAt?: string;
   updatedAt?: string;
+  sendingLock?: {
+    id: string;
+    step: number;
+    at?: string;
+    recoveryAt?: string;
+  };
+  recoveryPending?: {
+    lockId: string;
+    step: number;
+    reason: string;
+    at?: string;
+  };
 }
 
 export interface FollowUpEvent {
