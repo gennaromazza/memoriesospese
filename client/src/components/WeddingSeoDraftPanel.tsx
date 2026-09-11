@@ -184,10 +184,20 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     return options;
   }, [gallery.chapters, gallery.chaptersOrder, photos]);
   const chapterPhotos = useMemo(() => {
-    if (activeChapterId === '__all__') return photos;
-    if (activeChapterId === '__unassigned__') return photos.filter(photo => !photo.chapterId);
-    return photos.filter(photo => photo.chapterId === activeChapterId);
-  }, [activeChapterId, photos]);
+    const filteredPhotos = activeChapterId === '__all__'
+      ? photos
+      : activeChapterId === '__unassigned__'
+        ? photos.filter(photo => !photo.chapterId)
+        : photos.filter(photo => photo.chapterId === activeChapterId);
+
+    // Mantieni subito visibili le foto già associate alla storia, senza
+    // cambiare l'ordine relativo delle foto selezionate o non selezionate.
+    return [...filteredPhotos].sort((a, b) => {
+      const aSelected = selectedPhotoIds.has(a.id) ? 1 : 0;
+      const bSelected = selectedPhotoIds.has(b.id) ? 1 : 0;
+      return bSelected - aSelected;
+    });
+  }, [activeChapterId, photos, selectedPhotoIds]);
   const visiblePhotos = useMemo(
     () => visibleWeddingPhotos(chapterPhotos, visiblePhotoCount),
     [chapterPhotos, visiblePhotoCount],
