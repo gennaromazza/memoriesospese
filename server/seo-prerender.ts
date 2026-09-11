@@ -1277,6 +1277,7 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
       inLanguage: 'it-IT',
       isPartOf: { '@id': `${BASE_URL}/#website` },
       about: { '@id': `${BASE_URL}/#organization` },
+      primaryImageOfPage: { '@id': `${canonical}#primaryimage` },
     },
     {
       '@context': 'https://schema.org',
@@ -1307,10 +1308,23 @@ function renderSeoHtml(meta: PageMeta, indexHtml: string): string {
       inLanguage: 'it-IT',
     },
   ];
+  const primaryImageJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ImageObject',
+    '@id': `${canonical}#primaryimage`,
+    url: ogImage,
+    contentUrl: ogImage,
+    caption: socialImage.alt,
+    ...(socialImage.width ? { width: socialImage.width } : {}),
+    ...(socialImage.height ? { height: socialImage.height } : {}),
+    ...(socialImage.type ? { encodingFormat: socialImage.type } : {}),
+    representativeOfPage: true,
+    inLanguage: 'it-IT',
+  };
   const pageJsonLd = meta.jsonLd
     ? (Array.isArray(meta.jsonLd) ? meta.jsonLd : [meta.jsonLd])
     : [];
-  const jsonLdScripts = [...commonJsonLd, ...pageJsonLd]
+  const jsonLdScripts = [...commonJsonLd, primaryImageJsonLd, ...pageJsonLd]
     .map(schema => `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`)
     .join('\n    ');
 

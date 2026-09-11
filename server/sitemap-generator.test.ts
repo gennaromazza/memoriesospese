@@ -33,4 +33,19 @@ describe('Real Wedding sitemap', () => {
     expect(xml).toContain('<lastmod>2026-05-28</lastmod>');
     expect(xml).not.toContain('bozza-privata');
   });
+
+  it('adds the published cover image when one is available', () => {
+    const xml = buildWeddingSitemapEntries([
+      {
+        status: 'published',
+        slug: 'anna-e-luca',
+        title: 'Anna e Luca ad Aversa',
+        coverImage: 'https://firebasestorage.googleapis.com/cover.jpg?alt=media&token=abc',
+      },
+    ]);
+
+    expect(xml).toContain('<image:image>');
+    expect(xml).toContain('<image:loc>https://firebasestorage.googleapis.com/cover.jpg?alt=media&amp;token=abc</image:loc>');
+    expect(xml).toContain('<image:title>Anna e Luca ad Aversa</image:title>');
+  });
 });

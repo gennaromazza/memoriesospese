@@ -14,6 +14,33 @@ interface BlogPostMedia {
 // o interlinking). È un limite minimo stabile, non una data generata a ogni request.
 export const BLOG_SEO_RENDERING_LASTMOD = '2026-09-07';
 
+const STATIC_SITEMAP_IMAGES: Record<string, { url: string; title: string }> = {
+  '/': {
+    url: '/1200x630px.jpg',
+    title: 'Fotografia di matrimonio in Campania - Image Studio',
+  },
+  '/portfolio': {
+    url: '/1200x630px.jpg',
+    title: 'Portfolio fotografico Image Studio',
+  },
+  '/portfolio/matrimonio': {
+    url: '/images/portfolio/matrimonio.jpg',
+    title: 'Portfolio fotografia di matrimonio in Campania',
+  },
+  '/vision': {
+    url: '/assets/og-image.jpg',
+    title: 'Video matrimonio cinematografico iMaGe Vision',
+  },
+  '/image-experience': {
+    url: '/images/image-experience/image-experience-social-1200x630.jpg',
+    title: 'Image Experience per il servizio fotografico di matrimonio',
+  },
+  '/fotografo-aversa': {
+    url: '/assets/og-image.jpg',
+    title: 'Fotografo professionista ad Aversa',
+  },
+};
+
 function escapeXml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -27,6 +54,42 @@ function timestampSeconds(value: unknown): number | null {
   if (!value || typeof value !== 'object') return null;
   const timestamp = value as { seconds?: number; _seconds?: number };
   return timestamp.seconds ?? timestamp._seconds ?? null;
+}
+
+async function loadWeddingSitemapCoverImage(story: Record<string, any>): Promise<string | undefined> {
+  const galleryIdOrCode = typeof story.galleryId === 'string' ? story.galleryId : '';
+  if (!galleryIdOrCode) return undefined;
+
+  let galleryDocument = await db.collection('galleries').doc(galleryIdOrCode).get();
+  if (!galleryDocument.exists) {
+    const codes = [...new Set([galleryIdOrCode, galleryIdOrCode.toUpperCase()])];
+    for (const code of codes) {
+      const snapshot = await db.collection('galleries').where('code', '==', code).limit(1).get();
+      if (snapshot.docs[0]) {
+        galleryDocument = snapshot.docs[0];
+        break;
+      }
+    }
+  }
+  if (!galleryDocument.exists) return undefined;
+
+  const gallery = { id: galleryDocument.id, ...galleryDocument.data() } as Record<string, any>;
+  const selectedPhotoIds = Array.isArray(story.selectedPhotoIds)
+    ? story.selectedPhotoIds.map(String)
+    : [];
+  const coverPhotoId = story.coverPhotoId && selectedPhotoIds.includes(String(story.coverPhotoId))
+    ? String(story.coverPhotoId)
+    : selectedPhotoIds[0];
+  if (!coverPhotoId) return undefined;
+
+  const photoDocument = coverPhotoId.startsWith('legacy-')
+    ? await db.collection('galleries').doc(gallery.id).collection('photos').doc(coverPhotoId.slice('legacy-'.length)).get()
+    : await db.collection('photos').doc(coverPhotoId).get();
+  if (!photoDocument.exists) return undefined;
+
+  const photo = photoDocument.data() || {};
+  if (!coverPhotoId.startsWith('legacy-') && photo.galleryId !== gallery.id) return undefined;
+  return typeof photo.url === 'string' && photo.url.trim() ? photo.url.trim() : undefined;
 }
 
 export function blogSitemapLastModifiedDate(
@@ -55,7 +118,12 @@ export function buildWeddingSitemapEntries(
     const lastmod = modifiedSeconds
       ? new Date(modifiedSeconds * 1000).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
-    entries += `  <url>\n    <loc>${escapeXml(`${baseUrl}/real-wedding/${encodeURIComponent(story.slug)}`)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+    const location = `${baseUrl}/real-wedding/${encodeURIComponent(story.slug)}`;
+    entries += `  <url>\n    <loc>${escapeXml(location)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n`;
+    if (typeof story.coverImage === 'string' && story.coverImage.trim()) {
+      entries += `    <image:image>\n      <image:loc>${escapeXml(story.coverImage.trim())}</image:loc>\n      <image:caption>${escapeXml(story.title || 'Real Wedding Image Studio')}</image:caption>\n      <image:title>${escapeXml(story.title || 'Real Wedding Image Studio')}</image:title>\n    </image:image>\n`;
+    }
+    entries += '  </url>\n';
   }
   return entries;
 }
@@ -78,12 +146,18 @@ export async function generateDynamicSitemap(): Promise<string> {
   const storiesSnapshot = await db.collection('weddingSeoStories')
     .where('status', '==', 'published')
     .get();
-  const weddingStories = storiesSnapshot.docs.map(document => ({ id: document.id, ...document.data() })) as Array<Record<string, any>>;
+  const weddingStories = await Promise.all(storiesSnapshot.docs.map(async document => {
+    const story = { id: document.id, ...document.data() } as Record<string, any>;
+    return {
+      ...story,
+      coverImage: await loadWeddingSitemapCoverImage(story),
+    };
+  }));
 
   // Pagine statiche con data di ultima modifica REALE del contenuto
   // (aggiornare la data quando si modifica il contenuto/prerender della pagina)
   const staticPages: Array<{ path: string; changefreq: string; priority: string; lastmod: string }> = [
-    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-08-21' },
+    { path: '/', changefreq: 'weekly', priority: '1.0', lastmod: '2026-09-11' },
     { path: '/portfolio/matrimonio', changefreq: 'weekly', priority: '0.98', lastmod: '2026-08-21' },
     { path: '/vision', changefreq: 'monthly', priority: '0.95', lastmod: '2026-08-21' },
     { path: '/portfolio', changefreq: 'weekly', priority: '0.9', lastmod: '2026-08-21' },
@@ -121,7 +195,16 @@ export async function generateDynamicSitemap(): Promise<string> {
     <lastmod>${page.lastmod}</lastmod>
     <changefreq>${page.changefreq}</changefreq>
     <priority>${page.priority}</priority>
-  </url>
+`;
+    const image = STATIC_SITEMAP_IMAGES[page.path];
+    if (image) {
+      sitemap += `    <image:image>
+      <image:loc>${escapeXml(`${baseUrl}${image.url}`)}</image:loc>
+      <image:title>${escapeXml(image.title)}</image:title>
+    </image:image>
+`;
+    }
+    sitemap += `  </url>
 `;
   }
 
