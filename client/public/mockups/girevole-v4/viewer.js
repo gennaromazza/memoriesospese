@@ -5,12 +5,13 @@ import { buildAlbumReport } from '../custodia-v1/report-template.js';
 import { drawMonogram } from '../girevole-v3/monogram.js';
 import { installHomeScenes } from '../home-scenes.js';
 import { phoneView, fitPhoneProduct, phoneDetailDistance } from '../mobile-view.js';
+import { getExportSize, triggerDownload, yieldToBrowser } from '../export-yield.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
 const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({ channel: 'memorie-mockup-v1', type, ...payload }, location.origin); };
 const modelId = 'album-girevole';
-let option, locked = false, applying = false, initialized = !embedded, pending = 0, automatic = false;
+let option, locked = false, applying = false, initialized = !embedded, pending = 0, automatic = false, exporting = false;
 let photo = null, photoMap = null, materialRequest = 0;
 let backPhoto = null, backPhotoMap = null, configurationRevision = 4, monogramEnabled = true;
 // Esplorare un salvataggio non lo migra: soltanto una modifica esplicita passa al nuovo scrigno.
@@ -111,7 +112,7 @@ boxPhoto.name = 'Stampa foto plexiglass posteriore scrigno'; boxPhoto.position.z
 const boxPhotoBacking = new THREE.Mesh(boxPhotoGeometry, new THREE.MeshStandardMaterial({ color: '#f5f3ee', roughness: .6, side: THREE.FrontSide }));
 boxPhotoBacking.name = 'Fondo stampa plexiglass scrigno'; boxPhotoBacking.position.z = -.0401; pivot.add(boxPhotoBacking);
 const loader = new THREE.TextureLoader(), textureCache = new Map();
-function busy() { $('downloadClient').disabled = pending > 0 || applying; notify('busy', { busy: pending > 0 || applying }); }
+function busy() { $('downloadClient').disabled = pending > 0 || applying || exporting; notify('busy', { busy: pending > 0 || applying || exporting }); }
 function configuration() {
   const variant = variants.find(v => v.id === selected);
   const c = { modelId, assetRevision: configurationRevision, materialId: selected, appearanceRevision: variant.appearanceRevision,
@@ -267,33 +268,45 @@ const home = installHomeScenes({ scene, camera, controls, ground, product, album
 });
 new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
-renderer.setAnimationLoop(time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); home.update(); renderer.render(scene, camera); });
-function previews() {
+const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); home.update(); renderer.render(scene, camera); };
+renderer.setAnimationLoop(renderLoop);
+async function previews() {
+  renderer.setAnimationLoop(null);
   const resumeHome = home.suspend();
   const oldSize = renderer.getSize(new THREE.Vector2()), oldRatio = renderer.getPixelRatio(), oldAngle = pivot.rotation.y, oldX = album.position.x;
   const exportCamera = new THREE.PerspectiveCamera(36, 4 / 3, .005, 20);
   const views = [['Prospettiva · album ruotato', [-.5, .3, 1], 25, 0], ['Fronte · allineato', [0, 0, 1], 0, 0], ['Retro · finitura selezionata', [0, 0, -1], 0, 0], ['Dorso · rotazione 90°', [0, .15, 1], 90, 0], ['Lato destro', [1, .2, .1], 0, 0], ['Vista superiore', [0, 1, .01], 30, 0], ['Album estratto · copertina', [-1, .3, 1], -90, .48], ['Album estratto · retro', [1, .3, 1], -90, .48]];
   try {
-    renderer.setPixelRatio(1); renderer.setSize(1600, 1200, false); ground.visible = false;
-    return views.map(([label, direction, degrees, x]) => {
+    const { width, height } = getExportSize(renderer);
+    renderer.setPixelRatio(1); renderer.setSize(width, height, false); ground.visible = false;
+    const previews = [];
+    for (let index = 0; index < views.length; index += 1) {
+      const [label, direction, degrees, x] = views[index];
       pivot.rotation.y = THREE.MathUtils.degToRad(degrees); album.position.x = x;
       const sphere = new THREE.Box3().setFromObject(product).getBoundingSphere(new THREE.Sphere());
       exportCamera.position.set(...direction).normalize().multiplyScalar(sphere.radius / Math.sin(Math.PI / 10) * 1.1).add(sphere.center); exportCamera.lookAt(sphere.center);
-      renderer.render(scene, exportCamera); return { label, image: renderer.domElement.toDataURL('image/jpeg', .82) };
-    });
-  } finally { album.position.x = oldX; pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); resumeHome(); renderer.render(scene, camera); }
+      renderer.render(scene, exportCamera); previews.push({ label, image: renderer.domElement.toDataURL('image/jpeg', .82) });
+      if (index < views.length - 1) await yieldToBrowser();
+    }
+    return previews;
+  } finally { album.position.x = oldX; pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); resumeHome(); last = 0; renderer.setAnimationLoop(renderLoop); }
 }
-$('downloadClient').onclick = () => {
+async function downloadClient() {
+  if (pending > 0 || applying || exporting) return;
+  exporting = true; busy(); $('downloadStatus').textContent = 'Preparazione del file…';
   try {
     const c = configuration(), material = option?.materials.find(m => m.id === selected) || variants.find(v => v.id === selected);
     const report = { model: { name: option?.name || 'Album girevole' }, branding: { name: 'Image Studio' }, material, coverLayout: { label: $('coverLayout').selectedOptions[0].text }, photo: photo || { source: 'none' }, createdAt: new Date().toISOString(), ...{ configuration: c } };
     const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', c.coverLayout === 'plaque' ? c.topText : '—'], ['Incisione dedica', c.coverLayout === 'plaque' ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
     rows.push([configurationRevision >= 4 ? 'Plexiglass posteriore dello scrigno' : 'Retro album', $('backCover').value === 'photo' ? 'Foto a tutta superficie su plexiglass' : configurationRevision >= 4 ? 'Trasparente, senza stampa' : 'Tessuto coordinato'], ['Foto retro', $('backCover').value === 'photo' ? backPhoto?.name || 'Da scegliere' : '—']);
     if (c.engravingNames && c.coverLayout === 'plaque') { rows[3] = ['Primo nome inciso', c.engravingNames.first]; rows[4] = ['Secondo nome inciso', c.engravingNames.second]; rows.push(['Grafica incisione', 'Monogramma botanico con iniziali automatiche']); }
-    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'album-girevole-anteprima.html'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } catch (error) { fail(error); }
-};
+    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
+    triggerDownload(url, 'album-girevole-anteprima.html'); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    $('downloadStatus').textContent = 'File preparato: controlla i download del browser.';
+  } catch (error) { fail(error); $('downloadStatus').textContent = 'Download non riuscito. Riprova.'; }
+  finally { exporting = false; busy(); }
+}
+$('downloadClient').onclick = () => { void downloadClient(); };
 function lock() { for (const control of document.querySelectorAll('#materials button,#detailPanel input,#detailPanel select')) control.disabled = locked; }
 if (embedded) {
   $('coverUpload').hidden = true; document.querySelector('label[for="coverUpload"]').hidden = true;

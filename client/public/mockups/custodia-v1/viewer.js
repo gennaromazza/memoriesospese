@@ -5,6 +5,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {buildAlbumReport} from './report-template.js';
 import {installHomeScenes} from '../home-scenes.js';
 import {phoneView,fitPhoneProduct,phoneDetailDistance} from '../mobile-view.js';
+import {getExportSize,triggerDownload,yieldToBrowser} from '../export-yield.js';
 
 // Campionamento traslato e continuo: stessa direzione dei fili, nessuna griglia
 // di copie identiche. Colore e rilievo usano gli stessi spostamenti deterministici.
@@ -59,7 +60,7 @@ let photoSurface,originalPhotoBacking,photoBacking;
 let defaultPhotoTexture,localPhotoTexture,photoPending=false,photoRequest=0;
 let photoInfo={source:'empty',name:'Scegli una foto'};
 const inscriptions=[];
-let materialPending=false;
+let materialPending=false,exportPending=false;
 const loader=new THREE.TextureLoader();const cache=new Map();
 const response=await fetch('peppe-lab-catalog.json');
 if(!response.ok)throw new Error('Catalogo materiali non disponibile');
@@ -243,7 +244,8 @@ const home=model&&album?installHomeScenes({scene,camera,controls,ground,product:
  afterLeave(){album.position.x=homePose.x;caseGroup.visible=homePose.visible;}
 }):null;
 new ResizeObserver(()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();fitVisibleModel();}).observe(stage);
-renderer.setAnimationLoop(()=>{controls.update();home?.update();renderer.render(scene,camera);});
+const renderLoop=()=>{controls.update();home?.update();renderer.render(scene,camera);};
+renderer.setAnimationLoop(renderLoop);
 
 function setupInscriptions(){
  if(inscriptions.length!==2)throw new Error('Targhette del modello mancanti');
@@ -302,18 +304,13 @@ function updateSummary(){
 }
 $('modelName').addEventListener('input',updateSummary);
 function setDownloadAvailability(){
- for(const id of ['downloadClient','downloadStudio'])$(id).disabled=materialPending||photoPending||document.body.dataset.ready!=='true';
- notifyHost('busy',{busy:materialPending||photoPending||applyingHost});
+ for(const id of ['downloadClient','downloadStudio'])$(id).disabled=materialPending||photoPending||exportPending||document.body.dataset.ready!=='true';
+ notifyHost('busy',{busy:materialPending||photoPending||exportPending||applyingHost});
 }
-function renderConfigurationViews(jpeg=false){
+async function renderConfigurationViews(jpeg=false){
  const resumeHome=home?.suspend()||(()=>{});
- // Canvas indipendente da dimensioni, scroll e zoom dell'interfaccia.
- const exporter=new THREE.WebGLRenderer({antialias:true});
-  const exportWidth=window.__MEMORIE_MOCKUP_E2E__?320:1600;
-  const exportHeight=window.__MEMORIE_MOCKUP_E2E__?240:1200;
-  exporter.setPixelRatio(1);exporter.setSize(exportWidth,exportHeight,false);
- exporter.toneMapping=renderer.toneMapping;exporter.toneMappingExposure=renderer.toneMappingExposure;
- exporter.shadowMap.enabled=true;exporter.shadowMap.type=renderer.shadowMap.type;
+ renderer.setAnimationLoop(null);
+ const oldSize=renderer.getSize(new THREE.Vector2()),oldRatio=renderer.getPixelRatio();
  const exportCamera=new THREE.PerspectiveCamera(36,4/3,.005,20);
  const previousX=album.position.x,previousCase=caseGroup.visible;
  const views=[
@@ -327,20 +324,14 @@ function renderConfigurationViews(jpeg=false){
   {label:'Album estratto dalla custodia',direction:[-.5,.4,1.6],caseVisible:true,x:-.44}
  ];
  const previousGround=ground.visible;
- const previousEnvironment=scene.environment,previousShadowMap=key.shadow.map;
- let exportEnvironment;
  try{
-  // Le texture generate sulla GPU del visualizzatore non sono condivisibili
-  // con il contesto WebGL separato dell'export: ricreiamo gli stessi riflessi.
-  const exportRoom=new RoomEnvironment();
-  const exportPmrem=new THREE.PMREMGenerator(exporter);
-  try{exportEnvironment=exportPmrem.fromScene(exportRoom,.04);}
-  finally{exportRoom.dispose();exportPmrem.dispose();}
-  scene.environment=exportEnvironment.texture;
-  key.shadow.map=null;
+   const {width,height}=getExportSize(renderer);
+   renderer.setPixelRatio(1);renderer.setSize(width,height,false);
   // Il piano ombra coprirebbe il prodotto nella vista dal basso.
   ground.visible=false;
-  return views.map(view=>{
+   const previews=[];
+   for(let index=0;index<views.length;index+=1){
+    const view=views[index];
    album.position.x=view.x;caseGroup.visible=view.caseVisible;model.updateMatrixWorld(true);
    const bounds=new THREE.Box3();
    model.traverseVisible(object=>{if(object.isMesh)bounds.expandByObject(object,true);});
@@ -350,22 +341,22 @@ function renderConfigurationViews(jpeg=false){
    exportCamera.up.set(0,1,0);
    if(Math.abs(view.direction[1])===1)exportCamera.up.set(0,0,view.direction[1]>0?-1:1);
    exportCamera.position.copy(sphere.center).add(new THREE.Vector3(...view.direction).normalize().multiplyScalar(distance));
-   exportCamera.lookAt(sphere.center);exporter.render(scene,exportCamera);
-   return {label:view.label,image:jpeg?exporter.domElement.toDataURL('image/jpeg',.82):exporter.domElement.toDataURL('image/png')};
-  });
+    exportCamera.lookAt(sphere.center);renderer.render(scene,exportCamera);
+    previews.push({label:view.label,image:jpeg?renderer.domElement.toDataURL('image/jpeg',.82):renderer.domElement.toDataURL('image/png')});
+    if(index<views.length-1)await yieldToBrowser();
+   }
+   return previews;
  }finally{
   album.position.x=previousX;caseGroup.visible=previousCase;ground.visible=previousGround;
-  scene.environment=previousEnvironment;
-  if(key.shadow.map!==previousShadowMap)key.shadow.map?.dispose();
-  key.shadow.map=previousShadowMap;exportEnvironment?.dispose();
-  model.updateMatrixWorld(true);exporter.dispose();exporter.forceContextLoss();resumeHome();
+   model.updateMatrixWorld(true);renderer.setPixelRatio(oldRatio);renderer.setSize(oldSize.x,oldSize.y,false);resumeHome();renderer.setAnimationLoop(renderLoop);renderLoop();
  }
 }
-function downloadConfiguration(internal){
- if(materialPending||photoPending||document.body.dataset.ready!=='true')return;
+async function downloadConfiguration(internal){
+ if(materialPending||photoPending||exportPending||document.body.dataset.ready!=='true')return;
+ exportPending=true;setDownloadAvailability();$('downloadStatus').textContent='Preparazione del file…';
  try{
   const c=configuration();
-  const previews=renderConfigurationViews();
+   const previews=await renderConfigurationViews();
   const rows=[['Modello',c.model.name],['Foto di copertina',c.photo.name],['Formato indicativo',c.dimensions],['Rivestimento',c.material.label],['Famiglia',c.material.family],['Foto in copertina',c.coverLayout.label],['Scritta superiore',c.inscriptions.top||'Nessuna'],['Scritta inferiore',c.inscriptions.bottom||'Nessuna']];
   if(internal){
    rows.push(['Laboratorio',c.laboratory.name],['Codice interno',c.material.internalCode],['Codice fornitore',c.material.supplierCode||'Da confermare con il laboratorio'],['Applicazione tessuto','Copertina, dorso e custodia'],['Revisione texture',c.material.appearanceRevision],['Note operative',$('studioNotes').value||'Nessuna']);
@@ -373,12 +364,12 @@ function downloadConfiguration(internal){
   }
   const html=buildAlbumReport({configuration:c,previews,rows,internal});
   const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
-  const link=document.createElement('a');link.href=url;link.download=`album-${internal?'scheda-studio':'configurazione'}-${Date.now()}.html`;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
-  $('downloadStatus').textContent='File preparato: controlla i download del browser.';
+   triggerDownload(url,`album-${internal?'scheda-studio':'configurazione'}-${Date.now()}.html`);setTimeout(()=>URL.revokeObjectURL(url),10000);
  }catch(error){console.error(error);$('downloadStatus').textContent='Download non riuscito. Riprova.';}
+ finally{exportPending=false;setDownloadAvailability();if($('downloadStatus').textContent!=='Download non riuscito. Riprova.')$('downloadStatus').textContent='File preparato: controlla i download del browser.';}
 }
-$('downloadClient').onclick=()=>downloadConfiguration(false);
-$('downloadStudio').onclick=()=>downloadConfiguration(true);
+$('downloadClient').onclick=()=>{void downloadConfiguration(false);};
+$('downloadStudio').onclick=()=>{void downloadConfiguration(true);};
 
 // Il contenitore autenticato gestisce caricamento, selezione e persistenza.
 // Il viewer riceve solo configurazione e Blob; nessun token o URL privato.

@@ -3,8 +3,8 @@ name: Mockup download headless rendering
 description: Headless SwiftShader can block the custodia mockup download while rendering its eight high-resolution WebGL previews.
 ---
 
-The browser harness must use a reduced export size for the custodia download check; production downloads retain the full 1600×1200 previews.
+Production export should reuse the viewer renderer, pause its animation loop while producing the eight previews, yield between views, and choose 1600×1200 normally or 800×600 for software/low-power hardware. The browser harness exercises this real path without a reduced-size flag. Async exports in embedded mockups must trigger the final anchor from the same-origin parent document so the sandbox does not suppress the download.
 
-**Why:** SwiftShader renders the eight synchronous export frames slowly enough that Playwright can time out after the click even though the browser received it.
+**Why:** SwiftShader can make synchronous high-resolution rendering monopolize the main thread, and an iframe loses download user activation after an async yield. Reusing the renderer, pausing competing frames, adaptive sizing, and parent-triggered downloads keep the UI responsive without weakening the normal export quality.
 
-**How to apply:** Keep the reduced-size branch behind the harness-only flag. If production export performance changes, recheck both the real 1600×1200 output and the browser lifecycle gate.
+**How to apply:** Keep the high-quality 1600×1200 path for normal hardware and verify the eight-view report plus the lifecycle gate after changing any mockup renderer or download handler.

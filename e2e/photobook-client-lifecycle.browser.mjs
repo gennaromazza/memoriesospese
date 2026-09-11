@@ -48,7 +48,6 @@ try {
     acceptDownloads: true,
   });
   await page.addInitScript(() => {
-    window.__MEMORIE_MOCKUP_E2E__ = true;
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = query =>
       query === '(pointer: coarse)'

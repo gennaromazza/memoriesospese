@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildAlbumReport } from '../custodia-v1/report-template.js';
+import { getExportSize, triggerDownload, yieldToBrowser } from '../export-yield.js';
 
 const $ = id => document.getElementById(id);
 const embedded = window.parent !== window;
 const notify = (type, payload = {}) => { if (embedded) window.parent.postMessage({ channel: 'memorie-mockup-v1', type, ...payload }, location.origin); };
 const modelId = 'album-girevole';
-let option, locked = false, applying = false, initialized = !embedded, pending = 0, automatic = false;
+let option, locked = false, applying = false, initialized = !embedded, pending = 0, automatic = false, exporting = false;
 let photo = null, photoMap = null, materialRequest = 0;
 const catalogUrl = new URL('../custodia-v1/peppe-lab-catalog.json', location.href);
 const response = await fetch(catalogUrl);
@@ -88,7 +89,7 @@ const inscriptionCanvas = document.createElement('canvas'); inscriptionCanvas.wi
 const inscriptionMap = new THREE.CanvasTexture(inscriptionCanvas); inscriptionMap.colorSpace = THREE.SRGBColorSpace;
 const inscription = new THREE.Mesh(new THREE.PlaneGeometry(.19, .132), new THREE.MeshBasicMaterial({ map: inscriptionMap, transparent: true, depthWrite: false })); inscription.position.z = .029; pivot.add(inscription);
 const loader = new THREE.TextureLoader(), textureCache = new Map();
-function busy() { $('downloadClient').disabled = pending > 0 || applying; notify('busy', { busy: pending > 0 || applying }); }
+function busy() { $('downloadClient').disabled = pending > 0 || applying || exporting; notify('busy', { busy: pending > 0 || applying || exporting }); }
 function configuration() {
   const variant = variants.find(v => v.id === selected);
   return { modelId, assetRevision: 1, materialId: selected, appearanceRevision: variant.appearanceRevision,
@@ -185,25 +186,40 @@ $('reset').onclick = () => { automatic = false; $('rotate').setAttribute('aria-p
 for (const [id, factor] of [['plus', .8], ['minus', 1.25]]) $(id).onclick = () => { const offset = camera.position.clone().sub(controls.target); offset.setLength(THREE.MathUtils.clamp(offset.length() * factor, .45, 3)); camera.position.copy(controls.target).add(offset); controls.update(); };
 new ResizeObserver(() => { const stage = $('viewport').parentElement; renderer.setSize(stage.clientWidth, stage.clientHeight, false); camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix(); view(); }).observe($('viewport').parentElement);
 let last = 0;
-renderer.setAnimationLoop(time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); });
-function previews() {
+const renderLoop = time => { if (automatic) { const angle = ((THREE.MathUtils.radToDeg(pivot.rotation.y) + Math.min(time - last, 100) * .018 + 180) % 360) - 180; $('rotation').value = angle; setRotation(angle); } last = time; controls.update(); renderer.render(scene, camera); };
+renderer.setAnimationLoop(renderLoop);
+async function previews() {
+  renderer.setAnimationLoop(null);
   const oldSize = renderer.getSize(new THREE.Vector2()), oldRatio = renderer.getPixelRatio(), oldAngle = pivot.rotation.y;
   const exportCamera = new THREE.PerspectiveCamera(36, 4 / 3, .005, 20);
   const views = [['Prospettiva · album ruotato', [-.5, .3, 1], 25], ['Fronte · allineato', [0, 0, 1], 0], ['Retro', [0, 0, -1], 0], ['Dorso · rotazione 90°', [0, .15, 1], 90], ['Lato destro', [1, .2, .1], 0], ['Vista superiore', [0, 1, .01], 30], ['Copertina · cornice aperta', [0, .1, 1], -35], ['Rotazione 180°', [-.4, .2, 1], 180]];
   try {
-    renderer.setPixelRatio(1); renderer.setSize(1600, 1200, false); ground.visible = false;
-    return views.map(([label, direction, degrees]) => { pivot.rotation.y = THREE.MathUtils.degToRad(degrees); exportCamera.position.set(...direction).normalize().multiplyScalar(1.12).add(new THREE.Vector3(0, .185, 0)); exportCamera.lookAt(0, .185, 0); renderer.render(scene, exportCamera); return { label, image: renderer.domElement.toDataURL('image/jpeg', .82) }; });
-  } finally { pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); renderer.render(scene, camera); }
+    const { width, height } = getExportSize(renderer);
+    renderer.setPixelRatio(1); renderer.setSize(width, height, false); ground.visible = false;
+    const previews = [];
+    for (let index = 0; index < views.length; index += 1) {
+      const [label, direction, degrees] = views[index];
+      pivot.rotation.y = THREE.MathUtils.degToRad(degrees); exportCamera.position.set(...direction).normalize().multiplyScalar(1.12).add(new THREE.Vector3(0, .185, 0)); exportCamera.lookAt(0, .185, 0); renderer.render(scene, exportCamera);
+      previews.push({ label, image: renderer.domElement.toDataURL('image/jpeg', .82) });
+      if (index < views.length - 1) await yieldToBrowser();
+    }
+    return previews;
+  } finally { pivot.rotation.y = oldAngle; ground.visible = true; renderer.setPixelRatio(oldRatio); renderer.setSize(oldSize.x, oldSize.y, false); last = 0; renderer.setAnimationLoop(renderLoop); }
 }
-$('downloadClient').onclick = () => {
+async function downloadClient() {
+  if (pending > 0 || applying || exporting) return;
+  exporting = true; busy(); $('downloadStatus').textContent = 'Preparazione del file…';
   try {
     const c = configuration(), material = option?.materials.find(m => m.id === selected) || variants.find(v => v.id === selected);
     const report = { model: { name: option?.name || 'Album girevole' }, branding: { name: 'Image Studio' }, material, coverLayout: { label: $('coverLayout').selectedOptions[0].text }, photo: photo || { source: 'none' }, createdAt: new Date().toISOString(), ...{ configuration: c } };
     const rows = [['Rivestimento album', material.label], ['Finitura struttura', $('frameFinish').selectedOptions[0].text], ['Copertina', report.coverLayout.label], ['Incisione nomi', c.coverLayout === 'plaque' ? c.topText : '—'], ['Incisione dedica', c.coverLayout === 'plaque' ? c.bottomText : '—'], ['Formato dichiarato', '30 × 80 cm; proporzioni indicative']];
-    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'album-girevole-anteprima.html'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000);
-  } catch (error) { fail(error); }
-};
+    const url = URL.createObjectURL(new Blob([buildAlbumReport({ configuration: report, previews: await previews(), rows, internal: false })], { type: 'text/html;charset=utf-8' }));
+    triggerDownload(url, 'album-girevole-anteprima.html'); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    $('downloadStatus').textContent = 'File preparato: controlla i download del browser.';
+  } catch (error) { fail(error); $('downloadStatus').textContent = 'Download non riuscito. Riprova.'; }
+  finally { exporting = false; busy(); }
+}
+$('downloadClient').onclick = () => { void downloadClient(); };
 function lock() { for (const control of document.querySelectorAll('#materials button,#detailPanel input,#detailPanel select')) control.disabled = locked; }
 if (embedded) {
   $('coverUpload').hidden = true; document.querySelector('label[for="coverUpload"]').hidden = true;

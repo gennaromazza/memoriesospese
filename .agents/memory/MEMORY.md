@@ -47,4 +47,4 @@
 - [Gmail connector SDK](gmail-connector-sdk.md) — usare il proxy SDK per Gmail; mittente, admin Firebase e calendario Service Account sono identità separate.
 - [Photobook mockup model scope](photobook-mockup-model-scope.md) — il modello normale è scelto a livello fotolibro e viene ereditato da tutte le versioni; più modelli solo come eccezione esplicita.
 - [Photobook mockup confirmation lifecycle](photobook-mockup-confirmation-lifecycle.md) — la conferma dello studio non blocca il cliente; ogni modifica riapre una revisione fino alla stampa.
-- [Mockup download headless rendering](mockup-download-headless-rendering.md) — SwiftShader può bloccare il download custodia durante otto render WebGL ad alta risoluzione; l’harness usa una scala ridotta.
+- [Mockup download headless rendering](mockup-download-headless-rendering.md) — renderer condiviso, loop sospeso, dimensione adattiva e download dal parent evitano blocchi SwiftShader senza flag e2e.
