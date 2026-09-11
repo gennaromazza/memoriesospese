@@ -1026,7 +1026,10 @@ async function getBlogListMeta(): Promise<PageMeta> {
   }
 }
 
-export function buildWeddingStoryPageMeta(story: Record<string, any>, images: string[] = []): PageMeta {
+export function buildWeddingStoryPageMeta(
+  story: Record<string, any>,
+  images: Array<string | { url: string; alt?: string }> = [],
+): PageMeta {
   const slug = String(story.slug || '');
   const canonical = `${BASE_URL}/real-wedding/${encodeURIComponent(slug)}`;
   const title = String(story.seoTitle || story.title || 'Real Wedding | Image Studio').slice(0, 70);
@@ -1043,17 +1046,24 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     || (story.publishedAt?.seconds ? new Date(story.publishedAt.seconds * 1000).toISOString() : undefined);
   const modifiedDate = story.updatedAt?.toDate?.()?.toISOString?.()
     || (story.updatedAt?.seconds ? new Date(story.updatedAt.seconds * 1000).toISOString() : publishedDate);
-  const socialImage = resolveSocialImage(images.map((url, index) => ({
-    url,
-    alt: index === 0
+  const normalizedImages = images
+    .map(image => typeof image === 'string' ? { url: image } : image)
+    .filter(image => Boolean(image.url));
+  const socialImage = resolveSocialImage(normalizedImages.map((image, index) => ({
+    url: image.url,
+    alt: image.alt || (index === 0
       ? `Copertina del Real Wedding ${story.title}`
-      : `${story.title} - fotografia ${index + 1}`,
+      : `${story.title} - fotografia ${index + 1}`),
     source: 'selected-photo' as const,
   })), defaultSocialImage());
-  const publicImages = images
-    .map(url => resolveSocialImage([{ url, alt: story.title, source: 'selected-photo' }], { url: '' }))
-    .filter(image => image.source === 'selected-photo')
-    .map(image => image.url);
+  const publicImages = normalizedImages
+    .map(image => {
+      const resolved = resolveSocialImage([{ url: image.url, alt: image.alt || story.title, source: 'selected-photo' }], { url: '' });
+      return resolved.source === 'selected-photo'
+        ? { url: resolved.url, alt: image.alt || story.title }
+        : null;
+    })
+    .filter((image): image is { url: string; alt: string } => image !== null);
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -1061,7 +1071,7 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     headline: story.title,
     description,
     mainEntityOfPage: canonical,
-    image: publicImages.length > 0 ? publicImages : [socialImage.url],
+    image: publicImages.length > 0 ? publicImages.map(image => image.url) : [socialImage.url],
     datePublished: publishedDate,
     dateModified: modifiedDate,
     author: { '@id': `${BASE_URL}/#photographer` },
@@ -1077,7 +1087,7 @@ export function buildWeddingStoryPageMeta(story: Record<string, any>, images: st
     socialImage,
     jsonLd: articleSchema,
     bodyContent: `
-      <article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${publicImages.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(story.title)} - foto ${index + 1}" />`).join('')}</article>
+      <article><h1>${escapeHtml(story.title)}</h1>${story.excerpt ? `<p>${escapeHtml(story.excerpt)}</p>` : ''}${blocks}${publicImages.map(image => `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" />`).join('')}</article>
       <aside>
         <h2>Image Studio</h2>
         <p>Raccontiamo matrimoni con fotografie autentiche e senza tempo.</p>
@@ -1108,9 +1118,18 @@ async function getWeddingStoryMeta(slug: string): Promise<PageMeta | null> {
     ? db.collection('galleries').doc(story.galleryId).collection('photos').doc(id.slice('legacy-'.length)).get()
     : db.collection('photos').doc(id).get()));
   const images = photoDocuments
-    .filter((document, index) => document.exists && (photoIds[index].startsWith('legacy-') || document.data()?.galleryId === story.galleryId))
-    .map(document => String(document.data()?.url || ''))
-    .filter(Boolean);
+    .map((document, index) => {
+      if (!document.exists || (!photoIds[index].startsWith('legacy-') && document.data()?.galleryId !== story.galleryId)) return null;
+      const photoId = photoIds[index];
+      const alt = story.photoAltTexts && typeof story.photoAltTexts === 'object'
+        ? String(story.photoAltTexts[photoId] || '')
+        : '';
+      return {
+        url: String(document.data()?.url || ''),
+        alt: alt || String(story.title || ''),
+      };
+    })
+    .filter((image): image is { url: string; alt: string } => Boolean(image?.url));
   return buildWeddingStoryPageMeta(story, images);
 }
 

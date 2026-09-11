@@ -62,7 +62,7 @@ export default function WeddingSeoPage() {
           {story.excerpt && <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">{story.excerpt}</p>}
         </header>
 
-        {story.photos[0] && <img src={story.photos[0].url} alt={story.photos[0].chapterTitle || story.title} className="h-[55vh] w-full object-cover" />}
+        {story.photos[0] && <img src={story.photos[0].url} alt={story.photos[0].alt || story.photos[0].chapterTitle || story.title} className="h-[55vh] w-full object-cover" />}
 
         <div className="mx-auto max-w-3xl space-y-12 px-6 py-16">
           {blocks.map((block, index) => (
@@ -73,7 +73,7 @@ export default function WeddingSeoPage() {
               </div>
               {story.photos[index + 1] && (
                 <figure className="mt-10">
-                  <img src={story.photos[index + 1].url} alt={story.photos[index + 1].chapterTitle || story.title} loading="lazy" className="max-h-[75vh] w-full rounded-sm object-cover" />
+                    <img src={story.photos[index + 1].url} alt={story.photos[index + 1].alt || story.photos[index + 1].chapterTitle || story.title} loading="lazy" className="max-h-[75vh] w-full rounded-sm object-cover" />
                   {story.photos[index + 1].chapterTitle && <figcaption className="mt-2 text-center text-sm italic text-gray-500">{story.photos[index + 1].chapterTitle}</figcaption>}
                 </figure>
               )}
@@ -110,7 +110,7 @@ export default function WeddingSeoPage() {
 
         {story.photos.length > blocks.length + 1 && (
           <section className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-3">
-            {story.photos.slice(blocks.length + 1).map(photo => <img key={photo.id} src={photo.url} alt={photo.chapterTitle || story.title} loading="lazy" className="aspect-[4/3] h-full w-full object-cover" />)}
+            {story.photos.slice(blocks.length + 1).map(photo => <img key={photo.id} src={photo.url} alt={photo.alt || photo.chapterTitle || story.title} loading="lazy" className="aspect-[4/3] h-full w-full object-cover" />)}
           </section>
         )}
       </article>

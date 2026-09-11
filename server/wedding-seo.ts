@@ -203,6 +203,16 @@ function jsonTimestamp(value: any): string | null {
   return null;
 }
 
+function normalizePhotoAltTexts(value: unknown, selectedPhotoIds: string[]): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  return Object.fromEntries(
+    selectedPhotoIds
+      .map(id => [id, safeString(source[id], 200)] as const)
+      .filter(([, alt]) => Boolean(alt)),
+  );
+}
+
 function storyFromDocument(
   id: string,
   data: Record<string, any>,
@@ -214,6 +224,9 @@ function storyFromDocument(
   const coverPhotoIdSource = options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
     ? data.draftCoverPhotoId
     : data.coverPhotoId;
+  const selectedPhotoIds = Array.isArray(selectedPhotoIdsSource)
+    ? [...new Set(selectedPhotoIdsSource.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
+    : [];
   return {
     id,
     galleryId: data.galleryId || id,
@@ -225,9 +238,13 @@ function storyFromDocument(
     story: data.story || '',
     seoTitle: data.seoTitle || '',
     seoDescription: data.seoDescription || '',
-    selectedPhotoIds: Array.isArray(selectedPhotoIdsSource)
-      ? [...new Set(selectedPhotoIdsSource.map(String))].slice(0, MAX_WEDDING_STORY_PHOTOS)
-      : [],
+    selectedPhotoIds,
+    photoAltTexts: normalizePhotoAltTexts(
+      options.preferDraftSelection && Array.isArray(data.draftSelectedPhotoIds)
+        ? data.draftPhotoAltTexts
+        : data.photoAltTexts,
+      selectedPhotoIds,
+    ),
     coverPhotoId: coverPhotoIdSource ? String(coverPhotoIdSource) : undefined,
     approvedSourceIds: Array.isArray(data.approvedSourceIds) ? data.approvedSourceIds : [],
     createdAt: jsonTimestamp(data.createdAt),
@@ -818,6 +835,7 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   const coverPhotoId = selectedPhotoIds.includes(requestedCoverPhotoId)
     ? requestedCoverPhotoId
     : selectedPhotoIds[0];
+  const photoAltTexts = normalizePhotoAltTexts(body.photoAltTexts, selectedPhotoIds);
   const approvedSourceIds = [...new Set(Array.isArray(body.approvedSourceIds) ? body.approvedSourceIds.map(String) : [])]
     .slice(0, MAX_SOURCES);
 
@@ -826,7 +844,17 @@ export function validateWeddingStoryInput(body: Record<string, any>, publish: bo
   if (publish && story.length < 250) throw new Error('Il racconto è troppo breve per la pubblicazione.');
   if (publish && selectedPhotoIds.length === 0) throw new Error('Seleziona almeno una fotografia prima di pubblicare.');
 
-  return { title, story, excerpt, seoTitle, seoDescription, selectedPhotoIds, coverPhotoId, approvedSourceIds };
+  return {
+    title,
+    story,
+    excerpt,
+    seoTitle,
+    seoDescription,
+    selectedPhotoIds,
+    ...(Object.prototype.hasOwnProperty.call(body, 'photoAltTexts') ? { photoAltTexts } : {}),
+    coverPhotoId,
+    approvedSourceIds,
+  };
 }
 
 export function validateWeddingStorySelectionInput(body: Record<string, any>) {
@@ -836,7 +864,12 @@ export function validateWeddingStorySelectionInput(body: Record<string, any>) {
   const coverPhotoId = selectedPhotoIds.includes(requestedCoverPhotoId)
     ? requestedCoverPhotoId
     : selectedPhotoIds[0];
-  return { selectedPhotoIds, coverPhotoId };
+  const photoAltTexts = normalizePhotoAltTexts(body.photoAltTexts, selectedPhotoIds);
+  return {
+    selectedPhotoIds,
+    ...(Object.prototype.hasOwnProperty.call(body, 'photoAltTexts') ? { photoAltTexts } : {}),
+    coverPhotoId,
+  };
 }
 
 export function buildWeddingStoryPrompt(params: {
@@ -1594,6 +1627,7 @@ router.get('/public/:slug', async (req: Request, res: Response) => {
       thumbnailUrl: photo.thumbnailUrl || undefined,
       chapterId: photo.chapterId || null,
       chapterTitle: photo.chapterTitle || undefined,
+      alt: story.photoAltTexts?.[photo.id] || photo.chapterTitle || story.title,
     }));
     const approvedIds = new Set(story.approvedSourceIds);
     const authorizedSources = await loadSourcesForJob(story.jobId, { includeLegacy: true });
@@ -1686,6 +1720,7 @@ router.put('/gallery/:galleryId', async (req: Request, res: Response) => {
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: (req as any).user?.email || '',
       draftSelectedPhotoIds: FieldValue.delete(),
+      draftPhotoAltTexts: FieldValue.delete(),
       draftCoverPhotoId: FieldValue.delete(),
     };
     if (!previous.exists) payload.createdAt = FieldValue.serverTimestamp();
@@ -1725,6 +1760,9 @@ router.put('/gallery/:galleryId/selection', async (req: Request, res: Response) 
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: (req as any).user?.email || '',
     };
+    if (Object.prototype.hasOwnProperty.call(input, 'photoAltTexts')) {
+      payload.draftPhotoAltTexts = input.photoAltTexts;
+    }
     if (!previous.exists) {
       payload.status = 'draft';
       payload.createdAt = FieldValue.serverTimestamp();

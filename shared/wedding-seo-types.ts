@@ -32,6 +32,8 @@ export interface WeddingSeoStory {
   seoTitle: string;
   seoDescription: string;
   selectedPhotoIds: string[];
+  /** Testo alternativo editoriale associato alle foto selezionate, indicizzato per ID. */
+  photoAltTexts?: Record<string, string>;
   /** Foto usata come hero della pagina e copertina nelle liste editoriali. */
   coverPhotoId?: string;
   approvedSourceIds: string[];
@@ -47,6 +49,7 @@ export interface WeddingStoryPhoto {
   thumbnailUrl?: string;
   chapterId?: string | null;
   chapterTitle?: string;
+  alt?: string;
 }
 
 export interface WeddingStoryVendor {

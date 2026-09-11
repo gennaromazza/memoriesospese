@@ -94,6 +94,21 @@ describe('Real Wedding editorial safety', () => {
     });
   });
 
+  it('keeps only bounded alt text for selected photographs', () => {
+    expect(validateWeddingStorySelectionInput({
+      selectedPhotoIds: ['photo-1', 'photo-2'],
+      photoAltTexts: {
+        'photo-1': `  ${'x'.repeat(240)}  `,
+        'photo-2': '   ',
+        'photo-estranea': 'Non deve essere salvato',
+      },
+    })).toEqual({
+      selectedPhotoIds: ['photo-1', 'photo-2'],
+      photoAltTexts: { 'photo-1': 'x'.repeat(200) },
+      coverPhotoId: 'photo-1',
+    });
+  });
+
   it('uses the direct Gemini vision model and Google OpenAI-compatible endpoint', () => {
     expect(GEMINI_BASE_URL).toBe('https://generativelanguage.googleapis.com/v1beta/openai');
     expect(GEMINI_MODEL).toBe('gemini-3.5-flash');

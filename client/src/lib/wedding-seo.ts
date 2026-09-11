@@ -53,13 +53,18 @@ export async function saveWeddingStorySelection(
   galleryId: string,
   selectedPhotoIds: string[],
   coverPhotoId?: string,
-): Promise<{ selectedPhotoIds: string[]; coverPhotoId?: string }> {
+  photoAltTexts?: Record<string, string>,
+): Promise<{ selectedPhotoIds: string[]; coverPhotoId?: string; photoAltTexts?: Record<string, string> }> {
   const response = await apiRequest(
     'PUT',
     `/api/wedding-seo/gallery/${encodeURIComponent(galleryId)}/selection`,
-    { selectedPhotoIds, coverPhotoId },
+    {
+      selectedPhotoIds,
+      coverPhotoId,
+      ...(photoAltTexts === undefined ? {} : { photoAltTexts }),
+    },
   );
-  return responseJson<{ selectedPhotoIds: string[]; coverPhotoId?: string }>(response);
+  return responseJson<{ selectedPhotoIds: string[]; coverPhotoId?: string; photoAltTexts?: Record<string, string> }>(response);
 }
 
 export async function generateWeddingStoryDraft(

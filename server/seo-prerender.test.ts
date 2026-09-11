@@ -154,6 +154,19 @@ describe('SEO prerender wedding-first', () => {
     expect(meta.jsonLd).toMatchObject({ '@type': 'Article', headline: 'Anna e Luca ad Aversa' });
   });
 
+  it('keeps the selected alt text in crawler-readable Real Wedding images', () => {
+    const meta = buildWeddingStoryPageMeta({
+      slug: 'alt-personalizzato',
+      title: 'Un Real Wedding',
+      story: 'Un racconto fotografico.',
+    }, [{
+      url: 'https://images.example/alt.jpg',
+      alt: 'Gli sposi si abbracciano nel giardino',
+    }]);
+
+    expect(meta.bodyContent).toContain('alt="Gli sposi si abbracciano nel giardino"');
+  });
+
   it('uses the global fallback for a Real Wedding without public photos', () => {
     const meta = buildWeddingStoryPageMeta({
       slug: 'senza-foto',

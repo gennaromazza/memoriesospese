@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle2, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Eye, ImageIcon, Loader2, Lock, RefreshCw, Save, Send, ShieldCheck, Sparkles, Star } from 'lucide-react';
 
 interface Props {
   gallery: Gallery;
@@ -75,8 +75,12 @@ function sourceValue(source: WeddingStorySource): string {
 
 const MAX_WEDDING_STORY_PHOTOS = 12;
 
-function photoSelectionSignature(photoIds: string[], coverPhotoId?: string): string {
-  return JSON.stringify({ photoIds, coverPhotoId: coverPhotoId || '' });
+function photoSelectionSignature(
+  photoIds: string[],
+  coverPhotoId?: string,
+  photoAltTexts: Record<string, string> = {},
+): string {
+  return JSON.stringify({ photoIds, coverPhotoId: coverPhotoId || '', photoAltTexts });
 }
 
 export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
@@ -89,6 +93,8 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [coverPhotoId, setCoverPhotoId] = useState<string>();
+  const [photoAltTexts, setPhotoAltTexts] = useState<Record<string, string>>({});
+  const [activeChapterId, setActiveChapterId] = useState('__all__');
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<'draft' | 'published' | null>(null);
@@ -132,11 +138,17 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           setSelectedSourceIds(new Set(context.story.approvedSourceIds));
           setSelectedPhotoIds(new Set(initialPhotoIds));
           setCoverPhotoId(initialCoverPhotoId);
-          lastSavedSelection.current = photoSelectionSignature(initialPhotoIds, initialCoverPhotoId);
+            setPhotoAltTexts(context.story.photoAltTexts || {});
+            lastSavedSelection.current = photoSelectionSignature(
+              initialPhotoIds,
+              initialCoverPhotoId,
+              context.story.photoAltTexts || {},
+            );
         } else {
           setSlugIsCustom(false);
           setSelectedPhotoIds(new Set());
           setCoverPhotoId(undefined);
+            setPhotoAltTexts({});
           lastSavedSelection.current = photoSelectionSignature([]);
         }
         selectionInitialized.current = true;
@@ -152,10 +164,44 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     setDraft(current => ({ ...current, slug: automaticSlug }));
   }, [draft.title, draft.slug, slugIsCustom]);
 
+  const chapterOptions = useMemo(() => {
+    const chapters = [...(gallery.chapters || [])].sort((a, b) => {
+      const orderA = gallery.chaptersOrder?.indexOf(a.id) ?? -1;
+      const orderB = gallery.chaptersOrder?.indexOf(b.id) ?? -1;
+      if (orderA >= 0 && orderB >= 0 && orderA !== orderB) return orderA - orderB;
+      if (orderA >= 0) return -1;
+      if (orderB >= 0) return 1;
+      return (a.ordine ?? 0) - (b.ordine ?? 0);
+    });
+    const options = [{ id: '__all__', title: 'Tutte le foto', count: photos.length }];
+    options.push(...chapters.map(chapter => ({
+      id: chapter.id,
+      title: chapter.titolo || 'Capitolo senza titolo',
+      count: photos.filter(photo => photo.chapterId === chapter.id).length,
+    })));
+    const unassignedCount = photos.filter(photo => !photo.chapterId).length;
+    if (unassignedCount > 0) options.push({ id: '__unassigned__', title: 'Senza capitolo', count: unassignedCount });
+    return options;
+  }, [gallery.chapters, gallery.chaptersOrder, photos]);
+  const chapterPhotos = useMemo(() => {
+    if (activeChapterId === '__all__') return photos;
+    if (activeChapterId === '__unassigned__') return photos.filter(photo => !photo.chapterId);
+    return photos.filter(photo => photo.chapterId === activeChapterId);
+  }, [activeChapterId, photos]);
   const visiblePhotos = useMemo(
-    () => visibleWeddingPhotos(photos, visiblePhotoCount),
-    [photos, visiblePhotoCount],
+    () => visibleWeddingPhotos(chapterPhotos, visiblePhotoCount),
+    [chapterPhotos, visiblePhotoCount],
   );
+  const activeChapterIndex = Math.max(0, chapterOptions.findIndex(option => option.id === activeChapterId));
+  const activeChapter = chapterOptions[activeChapterIndex] || chapterOptions[0];
+  const selectChapter = (chapterId: string) => {
+    setActiveChapterId(chapterId);
+    setVisiblePhotoCount(WEDDING_PHOTO_PAGE_SIZE);
+  };
+  useEffect(() => {
+    if (!chapterOptions.some(option => option.id === activeChapterId)) setActiveChapterId('__all__');
+    setVisiblePhotoCount(WEDDING_PHOTO_PAGE_SIZE);
+  }, [chapterOptions, activeChapterId]);
   const authorizedSources = sources.filter(source => source.consentGranted);
   const legacySources = sources.filter(source => source.legacyImported);
   const authorizedSourceIds = new Set(authorizedSources.map(source => source.id));
@@ -167,6 +213,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
   const validCoverPhotoId = coverPhotoId && validSelectedPhotoIds.includes(coverPhotoId)
     ? coverPhotoId
     : validSelectedPhotoIds[0];
+  const validPhotoAltTexts = Object.fromEntries(
+    validSelectedPhotoIds
+      .map(photoId => [photoId, String(photoAltTexts[photoId] || '').trim().slice(0, 200)] as const)
+      .filter(([, alt]) => Boolean(alt)),
+  );
   const displayedVendorReviews = sources
     .filter(source => source.category === 'vendor' && validSelectedSourceIds.includes(source.id))
     .flatMap(source => normalizeInfoFormVendors(source.value).map(vendor => {
@@ -184,23 +235,23 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       };
     }));
   const storyBlocks = useMemo(() => parseWeddingStoryMarkdown(draft.story), [draft.story]);
-  const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId);
+  const currentSelectionSignature = photoSelectionSignature(validSelectedPhotoIds, validCoverPhotoId, validPhotoAltTexts);
 
   useEffect(() => {
     if (loading || !selectionInitialized.current || currentSelectionSignature === lastSavedSelection.current) return;
     setSelectionSaveState('saving');
     const timer = window.setTimeout(() => {
-      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string };
+      const selection = JSON.parse(currentSelectionSignature) as { photoIds: string[]; coverPhotoId: string; photoAltTexts: Record<string, string> };
       const saveVersion = ++selectionSaveVersion.current;
       const request = selectionSaveQueue.current.then(
-        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
-        () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined),
+         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts),
+         () => saveWeddingStorySelection(gallery.id, selection.photoIds, selection.coverPhotoId || undefined, selection.photoAltTexts),
       );
       selectionSaveQueue.current = request.then(() => undefined, () => undefined);
       request
         .then(saved => {
           if (saveVersion !== selectionSaveVersion.current) return;
-          lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId);
+           lastSavedSelection.current = photoSelectionSignature(saved.selectedPhotoIds, saved.coverPhotoId, saved.photoAltTexts || {});
           setSelectionSaveState('saved');
         })
         .catch(() => {
@@ -234,6 +285,11 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
     const next = new Set(selectedPhotoIds);
     if (next.has(photoId)) {
       next.delete(photoId);
+      setPhotoAltTexts(current => {
+        const nextAltTexts = { ...current };
+        delete nextAltTexts[photoId];
+        return nextAltTexts;
+      });
       if (coverPhotoId === photoId) setCoverPhotoId([...next][0]);
     } else if (validSelectedPhotoIds.length < MAX_WEDDING_STORY_PHOTOS) {
       next.add(photoId);
@@ -322,6 +378,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
         ...draft,
         status: nextStatus,
         selectedPhotoIds: validSelectedPhotoIds,
+        photoAltTexts: validPhotoAltTexts,
         coverPhotoId: validCoverPhotoId,
         approvedSourceIds: validSelectedSourceIds,
       });
@@ -335,6 +392,7 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
       });
       setStatus(saved.status);
       setCoverPhotoId(saved.coverPhotoId || saved.selectedPhotoIds[0]);
+      setPhotoAltTexts(saved.photoAltTexts || {});
       const publicStoryUrl = createUrl(`/real-wedding/${saved.slug}`);
       toast({
         title: nextStatus === 'published' ? 'Storia pubblicata' : 'Bozza privata salvata',
@@ -580,42 +638,106 @@ export default function WeddingSeoDraftPanel({ gallery, photos }: Props) {
           </CardDescription>
           <p className={`text-xs ${selectionSaveState === 'error' ? 'text-red-600' : 'text-gray-500'}`}>
             {selectionSaveState === 'saving' && 'Salvataggio automatico della selezione…'}
-            {selectionSaveState === 'saved' && 'Selezione foto e copertina salvata automaticamente.'}
-            {selectionSaveState === 'error' && 'Salvataggio automatico non riuscito: la selezione resta visibile, ma ricaricando la pagina potrebbe andare persa.'}
-            {selectionSaveState === 'idle' && 'La selezione foto e la copertina vengono salvate automaticamente.'}
+             {selectionSaveState === 'saved' && 'Selezione foto, copertina e testi alternativi salvati automaticamente.'}
+             {selectionSaveState === 'error' && 'Salvataggio automatico non riuscito: la selezione resta visibile, ma ricaricando la pagina potrebbe andare persa.'}
+             {selectionSaveState === 'idle' && 'La selezione foto, copertina e testi alternativi vengono salvati automaticamente.'}
           </p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10">
+           {chapterOptions.length > 1 && (
+             <div className="mb-4 rounded-lg border bg-stone-50/70 p-3">
+               <div className="mb-2 flex items-center justify-between gap-2">
+                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Capitolo da assegnare</p>
+                 <span className="text-xs text-gray-500">{activeChapter?.count || 0} foto</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <Button
+                   type="button"
+                   variant="outline"
+                   size="icon"
+                   aria-label="Capitolo precedente"
+                   disabled={activeChapterIndex <= 0}
+                   onClick={() => selectChapter(chapterOptions[activeChapterIndex - 1].id)}
+                 >
+                   <ChevronLeft className="h-4 w-4" />
+                 </Button>
+                 <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+                   {chapterOptions.map(option => (
+                     <Button
+                       key={option.id}
+                       type="button"
+                       variant={option.id === activeChapterId ? 'default' : 'outline'}
+                       size="sm"
+                       className="shrink-0"
+                       onClick={() => selectChapter(option.id)}
+                     >
+                       {option.title} <span className="ml-1 opacity-70">({option.count})</span>
+                     </Button>
+                   ))}
+                 </div>
+                 <Button
+                   type="button"
+                   variant="outline"
+                   size="icon"
+                   aria-label="Capitolo successivo"
+                   disabled={activeChapterIndex >= chapterOptions.length - 1}
+                   onClick={() => selectChapter(chapterOptions[activeChapterIndex + 1].id)}
+                 >
+                   <ChevronRight className="h-4 w-4" />
+                 </Button>
+               </div>
+             </div>
+           )}
+           {chapterPhotos.length === 0 ? (
+             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-500">
+               Nessuna foto in questo capitolo.
+             </p>
+           ) : (
+           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
             {visiblePhotos.map(photo => {
               const selected = selectedPhotoIds.has(photo.id);
               const isCover = validCoverPhotoId === photo.id;
               return (
-                <div key={photo.id} className={`relative aspect-square overflow-hidden rounded-lg border-2 ${isCover ? 'border-amber-500 ring-2 ring-amber-300/60' : selected ? 'border-sage ring-2 ring-sage/30' : 'border-gray-200'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '120px 120px' }}>
-                  <img src={weddingPhotoPreview(photo)} alt={photo.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                  <button type="button" aria-label={`Seleziona ${photo.name}`} className="absolute inset-0" onClick={() => togglePhoto(photo.id)} />
-                  <Checkbox checked={selected} className="pointer-events-none absolute left-2 top-2 bg-white" />
-                  <Button
-                    type="button"
-                    variant={isCover ? 'default' : 'secondary'}
-                    size="icon"
-                    aria-label={isCover ? `${photo.name} è la copertina` : `Usa ${photo.name} come copertina`}
-                    title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
-                    className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
-                    onClick={event => { event.stopPropagation(); chooseCoverPhoto(photo.id); }}
-                  >
-                    <Star className={`h-3.5 w-3.5 ${isCover ? 'fill-current' : ''}`} />
-                  </Button>
-                  <Button type="button" variant="secondary" size="icon" className="absolute bottom-1 right-1 h-7 w-7" onClick={event => { event.stopPropagation(); setViewer(photo); }}>
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
+                 <div key={photo.id} className="min-w-0">
+                   <div className={`relative aspect-square overflow-hidden rounded-lg border-2 ${isCover ? 'border-amber-500 ring-2 ring-amber-300/60' : selected ? 'border-sage ring-2 ring-sage/30' : 'border-gray-200'}`} style={{ contentVisibility: 'auto', containIntrinsicSize: '120px 120px' }}>
+                     <img src={weddingPhotoPreview(photo)} alt={photo.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                     <button type="button" aria-label={`Seleziona ${photo.name}`} className="absolute inset-0" onClick={() => togglePhoto(photo.id)} />
+                     <Checkbox checked={selected} className="pointer-events-none absolute left-2 top-2 bg-white" />
+                     <Button
+                       type="button"
+                       variant={isCover ? 'default' : 'secondary'}
+                       size="icon"
+                       aria-label={isCover ? `${photo.name} è la copertina` : `Usa ${photo.name} come copertina`}
+                       title={isCover ? 'Copertina attuale' : 'Imposta come copertina'}
+                       className={`absolute right-1 top-1 h-7 w-7 ${isCover ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                       onClick={event => { event.stopPropagation(); chooseCoverPhoto(photo.id); }}
+                     >
+                       <Star className={`h-3.5 w-3.5 ${isCover ? 'fill-current' : ''}`} />
+                     </Button>
+                     <Button type="button" variant="secondary" size="icon" className="absolute bottom-1 right-1 h-7 w-7" onClick={event => { event.stopPropagation(); setViewer(photo); }}>
+                       <Eye className="h-3.5 w-3.5" />
+                     </Button>
+                   </div>
+                   {selected && (
+                     <Input
+                       value={photoAltTexts[photo.id] || ''}
+                       maxLength={200}
+                       placeholder="Testo alt"
+                       aria-label={`Testo alternativo per ${photo.name}`}
+                       className="mt-2 h-8 text-xs"
+                       onClick={event => event.stopPropagation()}
+                       onChange={event => setPhotoAltTexts(current => ({ ...current, [photo.id]: event.target.value }))}
+                     />
+                   )}
                 </div>
               );
             })}
-          </div>
-          {visiblePhotoCount < photos.length && (
+           </div>
+           )}
+           {visiblePhotoCount < chapterPhotos.length && (
             <div className="mt-4 text-center"><Button variant="outline" onClick={() => setVisiblePhotoCount(count => count + WEDDING_PHOTO_PAGE_SIZE)}>Mostra altre 60 foto</Button></div>
           )}
+           {validSelectedPhotoIds.length > 0 && <p className="mt-3 text-xs text-gray-500">Il testo alt è opzionale: se lasciato vuoto, la pagina userà il capitolo o il titolo della storia come fallback.</p>}
         </CardContent>
       </Card>
 

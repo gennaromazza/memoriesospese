@@ -58,4 +58,29 @@ describe('Real Wedding client helpers', () => {
       { selectedPhotoIds: ['photo-1', 'photo-2'], coverPhotoId: 'photo-2' },
     );
   });
+
+  it('sends per-photo alt text with the automatic selection save', async () => {
+    vi.mocked(apiRequest).mockResolvedValue(new Response(JSON.stringify({
+      selectedPhotoIds: ['photo-1'],
+      coverPhotoId: 'photo-1',
+      photoAltTexts: { 'photo-1': 'Gli sposi durante il ricevimento' },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    await saveWeddingStorySelection(
+      'gallery-1',
+      ['photo-1'],
+      'photo-1',
+      { 'photo-1': 'Gli sposi durante il ricevimento' },
+    );
+
+    expect(apiRequest).toHaveBeenCalledWith(
+      'PUT',
+      '/api/wedding-seo/gallery/gallery-1/selection',
+      {
+        selectedPhotoIds: ['photo-1'],
+        coverPhotoId: 'photo-1',
+        photoAltTexts: { 'photo-1': 'Gli sposi durante il ricevimento' },
+      },
+    );
+  });
 });
